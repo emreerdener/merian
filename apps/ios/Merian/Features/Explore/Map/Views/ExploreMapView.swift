@@ -101,7 +101,6 @@ struct ExploreMapView: View {
                 isPresented: $isShowingDiscoveriesSheet,
                 onOpen: openPost,
                 onLike: { post in Task { await toggleLike(for: post) } },
-                onShare: { post in feedViewModel.share(post) },
                 onUnshare: { post in Task { await unshare(post) } },
                 onBlock: { post in Task { await blockAuthor(of: post) } },
                 onReport: { post in Task { await report(post) } }

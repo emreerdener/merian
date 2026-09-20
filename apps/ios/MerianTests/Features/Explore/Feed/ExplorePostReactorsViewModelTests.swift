@@ -5,10 +5,45 @@ import XCTest
 @MainActor
 final class ExplorePostReactorsViewModelTests: XCTestCase {
     private func person(_ id: String, emojis: [String] = ["❤️", "😂"]) -> ExplorePostReactor {
-        .init(userId: id, displayName: id, avatarUrl: nil, emojis: emojis)
+        .init(userId: id, displayName: id, username: id.lowercased(), avatarUrl: nil, emojis: emojis)
     }
     private func page(_ ids: [String], total: Int? = nil, cursor: String? = nil) -> ExplorePostReactorsPage {
         .init(totalCount: total ?? ids.count, previewNames: Array(ids.prefix(2)), reactors: ids.map { person($0) }, nextCursor: cursor)
+    }
+
+    func testReactorDecodesPublicUsernameAndPrefersItForPresentation() throws {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let reactor = try decoder.decode(ExplorePostReactor.self, from: Data(#"""
+        {"user_id":"fixture-user","display_name":"Observer A.","username":"nature_observer","avatar_url":null,"emojis":["😂"]}
+        """#.utf8))
+        XCTAssertEqual(reactor.username, "nature_observer")
+        XCTAssertEqual(reactor.publicUsernameDisplayName, "@nature_observer")
+    }
+
+    func testReactorStillDecodesResponseBeforeUsernameRollout() throws {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        let reactor = try decoder.decode(ExplorePostReactor.self, from: Data(#"""
+        {"user_id":"fixture-user","display_name":"Observer","avatar_url":null,"emojis":["😂"]}
+        """#.utf8))
+        XCTAssertNil(reactor.username)
+        XCTAssertEqual(reactor.publicUsernameDisplayName, "Username unavailable")
+    }
+
+    func testReactorSheetNeverFallsBackToFirstOrLastName() {
+        for username in [nil, "", "   ", "@"] as [String?] {
+            let reactor = ExplorePostReactor(
+                userId: "actor", displayName: "Test Observer", username: username,
+                avatarUrl: nil, emojis: ["❤️"]
+            )
+            XCTAssertEqual(reactor.publicUsernameDisplayName, "Username unavailable")
+        }
+        let reactor = ExplorePostReactor(
+            userId: "actor", displayName: "Test Observer", username: " @nature_observer ",
+            avatarUrl: nil, emojis: ["❤️"]
+        )
+        XCTAssertEqual(reactor.publicUsernameDisplayName, "@nature_observer")
     }
 
     func testSummaryCountsPeopleRatherThanEmojiAndHandlesGrammar() async {
@@ -18,8 +53,8 @@ final class ExplorePostReactorsViewModelTests: XCTestCase {
         }, currentViewer: { "viewer" })
         await model.refresh()
         XCTAssertNil(model.summary)
-        for (total, expected) in [(1, "Alex reacted"), (2, "Alex and Bea reacted"),
-                                  (3, "Alex, Bea, and 1 other reacted"), (6, "Alex, Bea, and 4 others reacted")] {
+        for (total, expected) in [(1, "@alex reacted"), (2, "@alex and @bea reacted"),
+                                  (3, "@alex, @bea, and 1 other reacted"), (6, "@alex, @bea, and 4 others reacted")] {
             count = total
             await model.refresh()
             XCTAssertEqual(model.summary, expected)
@@ -31,10 +66,71 @@ final class ExplorePostReactorsViewModelTests: XCTestCase {
             cursor == nil ? self.page(["Alex", "Bea"], total: 3, cursor: "Bea") : self.page(["Bea", "Cam"], total: 3)
         }, currentViewer: { "viewer" })
         await model.refresh()
+        XCTAssertEqual(model.summary, "@alex, @bea, and 1 other reacted")
         await model.loadMore()
         XCTAssertEqual(model.reactors.map(\.id), ["Alex", "Bea", "Cam"])
         XCTAssertEqual(model.reactors.first?.emojis, ["❤️", "😂"])
         XCTAssertNil(model.nextCursor)
+        XCTAssertEqual(model.summary, "@alex, @bea, and 1 other reacted")
+    }
+
+    func testAggregateUsesUsernamesInsteadOfPublicNames() async {
+        let model = ExplorePostReactorsViewModel(postId: "post", load: { _, _ in
+            .init(totalCount: 1, previewNames: ["Test Observer"], reactors: [
+                .init(userId: "actor", displayName: "Test Observer", username: "nature_observer", avatarUrl: nil, emojis: ["😂"])
+            ], nextCursor: nil)
+        }, currentViewer: { "viewer" })
+        await model.refresh()
+        XCTAssertEqual(model.summary, "@nature_observer reacted")
+    }
+
+    func testMissingUsernamesUseCountsWithoutFallingBackToNames() async {
+        for username in [nil, "", "   "] as [String?] {
+            for count in [1, 2, 5] {
+                let model = ExplorePostReactorsViewModel(postId: "post", load: { _, _ in
+                    .init(totalCount: count, previewNames: ["Test Observer", "Other Observer"], reactors: [
+                        .init(userId: "actor", displayName: "Test Observer", username: username, avatarUrl: nil, emojis: ["😂"]),
+                        self.person("Other")
+                    ], nextCursor: nil)
+                }, currentViewer: { "viewer" })
+                await model.refresh()
+                XCTAssertEqual(model.summary, "\(count) \(count == 1 ? "person" : "people") reacted")
+            }
+        }
+    }
+
+    func testMissingSecondUsernameDoesNotSubstituteALaterPerson() async {
+        let model = ExplorePostReactorsViewModel(postId: "post", load: { _, _ in
+            .init(totalCount: 3, previewNames: ["Alex", "Test Observer"], reactors: [
+                self.person("Alex"),
+                .init(userId: "actor", displayName: "Test Observer", username: nil, avatarUrl: nil, emojis: ["😂"]),
+                self.person("Cam")
+            ], nextCursor: nil)
+        }, currentViewer: { "viewer" })
+        await model.refresh()
+        XCTAssertEqual(model.summary, "3 people reacted")
+    }
+
+    func testLaterPageUpdatesCountWhileKeepingInitialUsernames() async {
+        let model = ExplorePostReactorsViewModel(postId: "post", load: { _, cursor in
+            cursor == nil ? self.page(["Alex", "Bea"], total: 3, cursor: "Bea") : self.page(["Cam"], total: 4)
+        }, currentViewer: { "viewer" })
+        await model.refresh()
+        XCTAssertEqual(model.summary, "@alex, @bea, and 1 other reacted")
+        await model.loadMore()
+        XCTAssertEqual(model.summary, "@alex, @bea, and 2 others reacted")
+    }
+
+    func testRefreshReplacesAggregateUsernames() async {
+        var first = true
+        let model = ExplorePostReactorsViewModel(postId: "post", load: { _, _ in
+            self.page(first ? ["Alex", "Bea"] : ["Cam"])
+        }, currentViewer: { "viewer" })
+        await model.refresh()
+        XCTAssertEqual(model.summary, "@alex and @bea reacted")
+        first = false
+        await model.refresh()
+        XCTAssertEqual(model.summary, "@cam reacted")
     }
 
     func testRefreshDiscardsLatePageAndInvalidationDiscardsLateRefresh() async {
@@ -93,7 +189,7 @@ final class ExplorePostReactorsViewModelTests: XCTestCase {
         fails = false
         await model.refresh()
         XCTAssertNil(model.errorMessage)
-        XCTAssertEqual(model.summary, "Alex reacted")
+        XCTAssertEqual(model.summary, "@alex reacted")
     }
     func testPageFailurePreservesPeopleAndRetryUsesSameCursor() async {
         var attempts = 0

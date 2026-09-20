@@ -56,6 +56,7 @@ struct FieldTripTagRow: View {
                     }
                 }
             }
+            .transparentTopToolbar()
             .scrollClipDisabled()
         }
     }

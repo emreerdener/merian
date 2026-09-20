@@ -6,7 +6,6 @@ import Observation
 final class ExplorePostReactorsViewModel {
     private(set) var reactors: [ExplorePostReactor] = []
     private(set) var totalCount = 0
-    private(set) var previewNames: [String] = []
     private(set) var nextCursor: String?
     private(set) var isLoading = false
     private(set) var isLoadingMore = false
@@ -28,11 +27,16 @@ final class ExplorePostReactorsViewModel {
     }
 
     var summary: String? {
-        guard totalCount > 0, let first = previewNames.first else { return nil }
+        guard totalCount > 0 else { return nil }
+        let previewUsernames = reactors.prefix(min(totalCount, 2)).compactMap {
+            ExplorePost.publicUsernameDisplayValue($0.username)
+        }
+        guard previewUsernames.count == min(totalCount, 2), let first = previewUsernames.first else {
+            return "\(totalCount) \(totalCount == 1 ? "person" : "people") reacted"
+        }
         if totalCount == 1 { return "\(first) reacted" }
-        guard previewNames.count > 1 else { return "\(totalCount) people reacted" }
-        let names = "\(first), \(previewNames[1])"
-        if totalCount == 2 { return "\(first) and \(previewNames[1]) reacted" }
+        let names = "\(first), \(previewUsernames[1])"
+        if totalCount == 2 { return "\(first) and \(previewUsernames[1]) reacted" }
         let others = totalCount - 2
         return "\(names), and \(others) \(others == 1 ? "other" : "others") reacted"
     }
@@ -82,7 +86,6 @@ final class ExplorePostReactorsViewModel {
     func invalidate() {
         generation = UUID()
         reactors = []
-        previewNames = []
         totalCount = 0
         nextCursor = nil
         errorMessage = nil
@@ -93,7 +96,6 @@ final class ExplorePostReactorsViewModel {
 
     private func applySummary(_ page: ExplorePostReactorsPage) {
         totalCount = page.totalCount
-        previewNames = page.previewNames
         nextCursor = page.nextCursor
     }
 }

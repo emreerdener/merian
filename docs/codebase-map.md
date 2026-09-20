@@ -418,9 +418,10 @@ in `Core/UI/Components/MediaCarousel`; feature-owned page values project their
 own stable controller-reuse keys into that boundary. Equal ID/reuse keys
 preserve a mounted controller; a sequence or key change invalidates the native
 data-source cache before the selected page is reinstalled.
-`App/Presentation/AppRootPresentation.swift` owns the app-wide top scroll-edge
-modifier applied by `MerianApp`. `Core/Media/MediaExportService.swift` owns
-bounded export and share preparation for both Insight and Scans.
+`Core/UI/Modifiers/TopToolbarAppearance.swift` owns the transparent top-toolbar
+modifier applied directly by native scrolling views, lists, and forms.
+`Core/Media/MediaExportService.swift` owns bounded export and share preparation
+for both Insight and Scans.
 
 Within Capture, Scan's contained task owner generation-fences still shutters,
 video admission/start, recording, and progress work. Shell invalidates pending

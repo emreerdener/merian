@@ -112,6 +112,7 @@ struct FieldTripsView: View {
                     .padding(.bottom, 32)
                 }
             }
+            .transparentTopToolbar()
             .refreshable {
                 await viewModel.refresh(userRegion: userRegion)
             }
@@ -209,6 +210,7 @@ struct FieldTripsView: View {
                 }
                 .padding()
             }
+            .transparentTopToolbar()
             .navigationTitle("Outing filters")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -369,6 +371,7 @@ struct FieldTripsView: View {
                 .padding(.top, 8)
                 .padding(.bottom, 32)
             }
+            .transparentTopToolbar()
             .refreshable {
                 await viewModel.refresh(userRegion: userRegion)
             }

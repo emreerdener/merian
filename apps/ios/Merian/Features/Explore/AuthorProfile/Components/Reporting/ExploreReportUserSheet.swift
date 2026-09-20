@@ -58,6 +58,7 @@ struct ExploreReportUserSheet: View {
                     .foregroundStyle(.secondary)
                 }
             }
+            .transparentTopToolbar()
             .navigationTitle("Report \(profile.publicAuthorDisplayName)")
             .navigationBarTitleDisplayMode(.inline)
             .interactiveDismissDisabled(viewModel.isSubmitting)

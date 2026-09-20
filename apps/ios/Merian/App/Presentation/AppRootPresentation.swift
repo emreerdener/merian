@@ -130,17 +130,3 @@ struct StartupRecoveryNoticeView: View {
         #endif
     }
 }
-
-/// Applied outside the root presentation tree so sheets and navigation routes
-/// inherit the same top-edge treatment. Individual control glass and bottom
-/// scroll-edge effects keep their native appearance.
-struct AppTopScrollEdgeEffectModifier: ViewModifier {
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if #available(iOS 26.0, *) {
-            content.scrollEdgeEffectHidden(true, for: .top)
-        } else {
-            content
-        }
-    }
-}

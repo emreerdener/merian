@@ -132,6 +132,7 @@ struct CommunityFeedbackSheet: View {
                 .padding(.bottom, 24)
             }
         }
+        .transparentTopToolbar()
     }
 
     private var successContent: some View {

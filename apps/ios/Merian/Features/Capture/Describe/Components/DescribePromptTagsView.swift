@@ -78,6 +78,7 @@ struct DescribePromptTagsView: View {
                 value: promptViewModel.activeQuestionIndex
             )
         }
+        .transparentTopToolbar()
         .contentMargins(.horizontal, 20, for: .scrollContent)
         .padding(.bottom, 16)
         .task(id: pendingAutoAdvance?.id) {

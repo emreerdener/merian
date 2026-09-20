@@ -67,6 +67,7 @@ struct AchievementDetailSheet: View {
                 .padding(.top, 20)
                 .padding(.bottom, 32)
             }
+            .transparentTopToolbar()
             .background(Color(uiColor: .systemGroupedBackground))
             .navigationTitle(resolvedAward.title)
             .navigationBarTitleDisplayMode(.inline)

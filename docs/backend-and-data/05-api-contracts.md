@@ -10961,6 +10961,7 @@ applies. The server derives the viewer from authentication, never from JSON.
     {
       "user_id": "00000000-0000-4000-8000-000000000001",
       "display_name": "Observer A",
+      "username": "observer_a",
       "avatar_url": null,
       "emojis": ["😂", "❤️"]
     }
@@ -10983,6 +10984,18 @@ notification self-suppression is unchanged. Each row carries all its canonical
 emoji in catalog order, bounded by the catalog. Public names/avatars come only
 from `users.public_author_name` and `public_avatar_url`; blank names fall back
 to “Nature lover.” No private Auth metadata is returned.
+
+Each reactor also carries `username`, the bare public handle from
+`users.public_username`. The native Reactions sheet and detail aggregate render
+it as `@username`. The aggregate takes usernames from the first two loaded
+reactors, retains those actors across pagination, and uses count-only copy when
+an expected username is absent; it does not render `preview_names`. Display
+names and preview names remain unchanged on the wire. The additive field
+requires `20260919203823_add_explore_post_reactor_usernames.sql`; the existing
+Edge route passes it through without a handler change. Native clients decode it
+optionally for older-server compatibility. Until that migration is applied,
+sheet rows show "Username unavailable" and the aggregate shows only the count;
+neither renders a first/last-name fallback.
 
 The service-only RPC applies the existing post visibility guard, then filters
 both directions of viewer/actor blocks and shadowbanned actors before totals,

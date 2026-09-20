@@ -100,6 +100,7 @@ struct OnboardingStepWrapper: View {
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: geometry.size.height)
             }
+            .transparentTopToolbar()
             .scrollIndicators(.hidden)
             .scrollBounceBehavior(.basedOnSize)
         }

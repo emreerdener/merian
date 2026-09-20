@@ -10,6 +10,7 @@ struct ExplorePostDetailSheetContent: View {
     let presentation: ExplorePostDetailPresentation
     let currentPost: ExplorePost?
     var onSelectReaction: (String) -> Void = { _ in }
+    var onOpenReactorProfile: ((ExplorePostReactor) -> Void)?
     let localFieldNotes: String?
     let onUpdateLocalFieldNotes: @MainActor (String) -> Void
     let onSaveFieldNotes: @MainActor (
@@ -144,7 +145,9 @@ struct ExplorePostDetailSheetContent: View {
             }
 
         case .reactors:
-            if matchingPost != nil { ExplorePostReactorsSheet(model: reactorsModel) }
+            if matchingPost != nil {
+                ExplorePostReactorsSheet(model: reactorsModel, onOpenProfile: onOpenReactorProfile)
+            }
 
         case .paywall:
             PaywallView()

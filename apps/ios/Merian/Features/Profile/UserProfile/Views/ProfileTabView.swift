@@ -223,6 +223,7 @@ struct ProfileTabView: View {
                 }
             }
         }
+        .transparentTopToolbar()
         .background(Color(uiColor: .systemGroupedBackground))
         // Match the Profile shell's horizontal paging width.
         .containerRelativeFrame(.horizontal)

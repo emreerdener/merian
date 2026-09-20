@@ -59,6 +59,7 @@ struct ExploreCommunityRequestsFeedView: View {
                 }
                 .padding(.bottom, 24)
             }
+            .transparentTopToolbar()
             .refreshable {
                 await reload()
             }

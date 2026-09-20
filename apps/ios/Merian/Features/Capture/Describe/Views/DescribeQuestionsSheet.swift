@@ -65,6 +65,7 @@ struct DescribeQuestionsSheet: View {
                     }
                 }
             }
+            .transparentTopToolbar()
             .navigationTitle("Prompts")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

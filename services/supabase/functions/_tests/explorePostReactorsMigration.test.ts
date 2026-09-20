@@ -26,3 +26,30 @@ Deno.test("post reactors migration is guarded, service-only, and filters before 
     ]
   ) assertStringIncludes(sql, contract);
 });
+
+Deno.test("reactor usernames are additive and preserve service-only visibility and pagination", async () => {
+  const sql = await Deno.readTextFile(
+    new URL(
+      "../../migrations/20260919203823_add_explore_post_reactor_usernames.sql",
+      import.meta.url,
+    ),
+  );
+  for (
+    const contract of [
+      "CREATE OR REPLACE FUNCTION public.get_explore_post_reactors",
+      "internal.require_service_role()",
+      "internal.explore_reaction_post(self_id, 'post', target_post_id)",
+      "SECURITY DEFINER SET search_path = ''",
+      "'username', u.public_username",
+      "'display_name', COALESCE(NULLIF(btrim(u.public_author_name), ''), 'Nature lover')",
+      "'preview_names'",
+      "NOT u.is_shadowbanned",
+      "b.blocker_id = self_id",
+      "b.blocked_id = self_id",
+      "LIMIT 33",
+      "LIMIT 32",
+      "FROM PUBLIC,anon,authenticated,service_role",
+      "TO service_role",
+    ]
+  ) assertStringIncludes(sql, contract);
+});

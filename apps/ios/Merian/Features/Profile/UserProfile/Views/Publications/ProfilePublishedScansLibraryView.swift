@@ -73,6 +73,7 @@ struct ProfilePublishedScansLibraryView: View {
             .padding(.top, 16)
             .padding(.bottom, 32)
         }
+        .transparentTopToolbar()
         .background(Color(uiColor: .systemGroupedBackground))
         .navigationTitle("Your published scans")
         .navigationBarTitleDisplayMode(.inline)

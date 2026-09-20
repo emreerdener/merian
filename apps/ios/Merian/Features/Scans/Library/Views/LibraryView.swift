@@ -148,6 +148,7 @@ struct LibraryView: View {
                         }
                     }
                 }
+                .transparentTopToolbar()
                 .scrollClipDisabled()
 
             }

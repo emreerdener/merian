@@ -38,6 +38,7 @@ struct SpeciesDictionaryDetailLoadingSkeleton: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .transparentTopToolbar()
             .background(Color(uiColor: .systemBackground))
             .ignoresSafeArea(.container, edges: .top)
             .contentMargins(.top, 0, for: .scrollContent)
@@ -176,6 +177,7 @@ struct SpeciesDictionaryDetailLoadingSkeleton: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 8)
             }
+            .transparentTopToolbar()
             .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, -16)
             .disabled(true)

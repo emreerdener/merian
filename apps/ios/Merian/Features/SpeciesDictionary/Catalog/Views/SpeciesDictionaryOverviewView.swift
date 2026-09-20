@@ -89,6 +89,7 @@ struct SpeciesDictionaryOverviewView: View {
                 .padding(.top, 12)
                 .padding(.bottom, 24)
             }
+            .transparentTopToolbar()
             .refreshable {
                 await viewModel.load(userRegion: userRegion)
             }
@@ -237,6 +238,7 @@ struct SpeciesDictionaryOverviewView: View {
                 .padding(.top, 12)
                 .padding(.bottom, 24)
             }
+            .transparentTopToolbar()
         }
         .accessibilityHidden(true)
     }

@@ -11,14 +11,13 @@ struct ExplorePostReactionSummary: View {
                     HapticManager.shared.triggerSheetSpring(source: "explore.reaction.people.open")
                     onOpen()
                 } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "person.2")
-                        Text(summary).font(.subheadline).multilineTextAlignment(.leading)
+                    HStack(spacing: 6) {
+                        Image(systemName: "person.2").font(.caption)
+                        Text(summary).font(.caption).multilineTextAlignment(.leading)
                         Spacer(minLength: 0)
-                        Image(systemName: "chevron.right").font(.caption)
                     }
                     .foregroundStyle(.secondary)
-                    .frame(minHeight: 44)
+                    .frame(minHeight: 32)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -34,64 +33,84 @@ struct ExplorePostReactionSummary: View {
 
 struct ExplorePostReactorsSheet: View {
     @Bindable var model: ExplorePostReactorsViewModel
-    @Environment(\.dismiss) private var dismiss
+    let onOpenProfile: ((ExplorePostReactor) -> Void)?
     @ScaledMetric(relativeTo: .title3) private var emojiRowHeight: CGFloat = 48
 
     var body: some View {
         NavigationStack {
             List {
-                if model.isLoading {
-                    ProgressView("Loading reactions…")
-                } else if model.hasLoaded && model.reactors.isEmpty {
-                    ContentUnavailableView("No reactions yet", systemImage: "face.smiling")
-                }
-                ForEach(model.reactors) { reactor in
-                    HStack(alignment: .top, spacing: 12) {
-                        ExploreAuthorAvatar(url: reactor.avatarUrl.flatMap(URL.init(string:)), size: 44)
-                            .accessibilityHidden(true)
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(reactor.displayName).font(.body.weight(.semibold))
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                LazyHStack(spacing: 6) {
-                                    ForEach(reactor.emojis, id: \.self) { emoji in
-                                        Text(emoji).font(.title3)
-                                            .padding(6)
-                                            .background(.quaternary, in: Circle())
-                                            .accessibilityLabel(ExploreEmojiCatalog.name(for: emoji))
-                                    }
-                                }
+                Section {
+                    if model.isLoading {
+                        ProgressView("Loading reactions…")
+                    } else if model.hasLoaded && model.reactors.isEmpty {
+                        ContentUnavailableView("No reactions yet", systemImage: "face.smiling")
+                    }
+                    ForEach(model.reactors) { reactor in
+                        if let onOpenProfile {
+                            Button {
+                                onOpenProfile(reactor)
+                            } label: {
+                                reactorRow(reactor)
                             }
-                            .frame(height: emojiRowHeight)
+                            .buttonStyle(.plain)
+                            .accessibilityHint("Open public profile")
+                        } else {
+                            reactorRow(reactor)
                         }
                     }
-                    .padding(.vertical, 6)
-                    .accessibilityElement(children: .contain)
-                }
-                if let error = model.errorMessage {
-                    Text(error).font(.footnote).foregroundStyle(.secondary)
-                    Button("Try again") {
-                        Task {
-                            if model.hasLoaded { await model.loadMore() } else { await model.refresh() }
+                    if let error = model.errorMessage {
+                        Text(error).font(.footnote).foregroundStyle(.secondary)
+                        Button("Try again") {
+                            Task {
+                                if model.hasLoaded { await model.loadMore() } else { await model.refresh() }
+                            }
+                        }
+                    } else if model.isLoadingMore {
+                        ProgressView()
+                    } else if model.nextCursor != nil {
+                        Button("Load more") {
+                            HapticManager.shared.triggerSelectionPulse(source: "explore.reaction.people.more")
+                            Task { await model.loadMore() }
                         }
                     }
-                } else if model.isLoadingMore {
-                    ProgressView()
-                } else if model.nextCursor != nil {
-                    Button("Load more") {
-                        HapticManager.shared.triggerSelectionPulse(source: "explore.reaction.people.more")
-                        Task { await model.loadMore() }
-                    }
                 }
+                .listSectionSeparator(.hidden)
             }
+            .transparentTopToolbar()
             .listStyle(.plain)
             .refreshable { await model.refresh() }
             .navigationTitle("Reactions")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
         }
         .task { await model.refresh() }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
         .exploreVideoPresentedOverlayLifecycle(reason: "explore-post-reactors")
+    }
+
+    private func reactorRow(_ reactor: ExplorePostReactor) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            ExploreAuthorAvatar(url: reactor.avatarUrl.flatMap(URL.init(string:)), size: 44)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 8) {
+                Text(reactor.publicUsernameDisplayName)
+                    .font(.body.weight(.semibold))
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(spacing: 6) {
+                        ForEach(reactor.emojis, id: \.self) { emoji in
+                            Text(emoji).font(.title3)
+                                .padding(6)
+                                .background(.quaternary, in: Circle())
+                                .accessibilityLabel(ExploreEmojiCatalog.name(for: emoji))
+                        }
+                    }
+                }
+                .transparentTopToolbar()
+                .frame(height: emojiRowHeight)
+            }
+        }
+        .padding(.vertical, 6)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
     }
 }

@@ -54,6 +54,7 @@ struct FullscreenMediaGallery: View {
                 }
                 .scrollTargetLayout()
             }
+            .transparentTopToolbar()
             .scrollTargetBehavior(.paging)
             .scrollPosition(id: $selectedItemID)
             .ignoresSafeArea()

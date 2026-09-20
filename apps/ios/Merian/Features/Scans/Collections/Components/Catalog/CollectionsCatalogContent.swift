@@ -47,6 +47,7 @@ struct CollectionsCatalogContent: View {
             .padding(.top, presentation.headerTitle == nil ? 16 : 0)
             .padding(.bottom, 16)
         }
+        .transparentTopToolbar()
     }
 
     private func catalogHeader(title: String) -> some View {

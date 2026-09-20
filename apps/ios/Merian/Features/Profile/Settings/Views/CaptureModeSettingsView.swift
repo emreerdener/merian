@@ -26,6 +26,7 @@ struct CaptureModeSettingsView: View {
                 Text("Drag to reorder. The first mode opens by default.")
             }
         }
+        .transparentTopToolbar()
         .environment(\.editMode, .constant(.active))
         .navigationTitle("Reorder modes")
         .navigationBarTitleDisplayMode(.inline)

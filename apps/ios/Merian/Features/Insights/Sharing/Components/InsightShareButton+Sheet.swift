@@ -56,6 +56,7 @@ extension InsightShareButton {
             .padding(.top, 32)
             .padding(.bottom, 96)
         }
+        .transparentTopToolbar()
     }
 
 // MARK: - Explore Feature Panel

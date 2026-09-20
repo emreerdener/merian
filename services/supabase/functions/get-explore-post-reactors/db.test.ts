@@ -2,6 +2,7 @@ import { assertEquals, assertRejects } from "@std/assert";
 import { PublicHttpError } from "../_shared/http.ts";
 import { fetchPostReactors } from "./db.ts";
 import { parseReactorsRequest } from "./types.ts";
+import type { ExplorePostReactorsPage } from "./types.ts";
 
 Deno.test("reactor adapter passes authenticated identity and unchanged cursor to the guarded RPC", async () => {
   const postId = "00000000-0000-4000-8000-000000000001";
@@ -11,10 +12,16 @@ Deno.test("reactor adapter passes authenticated identity and unchanged cursor to
     after_user_id: cursor,
     self_id: "untrusted",
   });
-  const expected = {
-    total_count: 0,
-    preview_names: [],
-    reactors: [],
+  const expected: ExplorePostReactorsPage = {
+    total_count: 1,
+    preview_names: ["Observer"],
+    reactors: [{
+      user_id: cursor,
+      display_name: "Observer",
+      username: "nature_observer",
+      avatar_url: null,
+      emojis: ["😂"],
+    }],
     next_cursor: null,
   };
   const client = {

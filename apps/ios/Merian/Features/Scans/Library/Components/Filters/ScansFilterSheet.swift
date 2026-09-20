@@ -275,6 +275,7 @@ struct ScansFilterSheet: View {
                     )
                 }
             }
+            .transparentTopToolbar()
             .listSectionSpacing(12)
             .contentMargins(.top, 8, for: .scrollContent)
             .filterSheetOpaqueBackground()

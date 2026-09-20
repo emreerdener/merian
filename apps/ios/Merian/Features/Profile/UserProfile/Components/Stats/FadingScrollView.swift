@@ -16,6 +16,7 @@ struct FadingScrollView<Content: View>: View {
             content
                 .background(contentGeometryReader)
         }
+        .transparentTopToolbar()
         .coordinateSpace(name: "FadingScrollSpace")
         .defaultScrollAnchor(.trailing)
         .background(containerGeometryReader)

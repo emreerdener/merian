@@ -8773,10 +8773,10 @@ when gateway failures undo optimistic selections.
 
 | Surface or state                                         | Manual verification                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Feed, hashtag cards, Map preview, post detail            | Comment → Heart → Add reaction → emoji chips → Share. Feed comments open their sheet; detail comments focus the inline thread. Sharing retains content and destinations. Author/grid navigation opens the same shared post state.                                                                                                                                                                                                                                       |
+| Feed, hashtag cards, Map preview, post detail            | Comment → Heart → Add reaction → emoji chips, with no Share in any action row. Feed and hashtag chips reach the right edge with a scrollable end inset; Map discovery cards match the Map preview controls. Feed comments open their sheet; detail comments focus the inline thread. Share remains in the detail toolbar before Options and retains content and destinations. Author/grid navigation opens the same shared post state.                                  |
 | Picker on posts, comments, replies, notification replies | Starts at medium, expands to large and on search; Search names/keywords and category metadata. Verify a dense emoji-only grid, no category filter row or Done button, default skin tones only (also in search), flags and joined sequences, and VoiceOver names. Existing toned reaction chips remain usable. Swipe down dismisses without selecting. Selecting adds once and dismisses; reselecting does not remove. Post ❤️ uses Like; comment ❤️ remains a reaction. |
 | Counts and overflow                                      | Multiple different reactions per viewer; chip taps toggle, highlight viewer selection, remove zero-count chips. Load more groups, retry failures, and reveal a newly selected out-of-page group. Existing count changes and pagination do not jump the strip.                                                                                                                                                                                                           |
-| Layout and accessibility                                 | Narrow screens, light/dark mode, VoiceOver names/selected state/counts, and Dynamic Type through accessibility sizes. At `xxxLarge` and accessibility sizes, chips occupy a second scrolling row. Fixed controls remain usable; scrolling clips before Share's hit area and fades only toward hidden content.                                                                                                                                                           |
+| Layout and accessibility                                 | Narrow screens, light/dark mode, VoiceOver names/selected state/counts, and Dynamic Type through accessibility sizes. At `xxxLarge` and accessibility sizes, chips occupy a second scrolling row. Fixed controls remain usable; reaction scrolling fills the remaining row width and fades only toward hidden content.                                                                                                                                                  |
 | Lifecycle and failures                                   | Video suspends while the picker is presented and resumes according to existing playback intent. Exercise dismissals, navigation, refresh, account changes, blocked/unavailable targets, network failure, visible errors, and rollback across feed/detail and notification reply copies.                                                                                                                                                                                 |
 | Activity and compatibility                               | Another actor's addition groups by post/emoji, updates unread state, and routes to post detail; self-actions are suppressed. Removal recomputes without a push. List/count/read and registered devices with omitted/false capability exclude post reactions; true capability includes only eligible activity. Verify push opt-ins and badges only in an explicitly authorized test environment.                                                                         |
 
@@ -8798,8 +8798,12 @@ so links to the versioned emoji catalog maintenance guide are verified.
 identity-based page merging, complete emoji arrays, refresh/page races,
 invalidation, account changes, and explicit failure retry.
 `ExploreInteractionEndpointTests` locks the initial/cursor request and typed
-response. Include existing reaction, detail presentation, and shared
-architecture suites when running the local iOS wrapper.
+response, including the reactor's public username. Reactor decoding covers
+username preference and a neutral label for missing/blank usernames without
+falling back to first/last names. `ExploreAuthorProfilePresentationTests` covers
+reactor user ID and public metadata mapping to a profile route. Include existing
+reaction, detail presentation, and shared architecture suites when running the
+local iOS wrapper.
 
 Backend `get-explore-post-reactors/types.test.ts` covers UUID and
 optional-cursor validation. `exploreReactionsDb.test.ts` covers likes plus
@@ -8807,14 +8811,24 @@ multiple emoji counted once, inclusion of self/owner, blocked and shadowbanned
 actor removal from every projection, stable UUID continuation after cursor-actor
 removal, and denied callers/hidden/unshared/deleted posts. The migration
 contract and `explore_post_reactors_security.sql` pin grants and caller guards.
-Full candidate Deno and pgTAP discovery includes these tests.
+The username migration contract and populated database test verify projection
+from `users.public_username` without replacing display or preview names. Full
+candidate Deno and pgTAP discovery includes these tests.
 
 Manual device checks: summary appears only below detail actions; zero actors
 hides it; loading and failed summary reads show no spinner, retry message, or
 reserved space; a successful nonempty read reveals the line. One/two/many copy
 matches distinct people; tapping opens medium/large sheet with feedback and
 pauses video; all emojis remain readable via horizontal overflow; More and retry
-work; dismiss restores the existing media intent. Check long names, large
-Dynamic Type, VoiceOver names, dark mode, and removal or account switching while
-requests are pending. Automated passes do not establish these manual or deployed
-checks.
+work; dismiss restores the existing media intent. Confirm sheet rows use
+`@username` in both sheet rows and the aggregate summary. Tap a reactor avatar,
+username, and row background: the sheet must dismiss before the public profile
+opens in the parent stack or standalone host. Verify profile depth restrictions,
+horizontal emoji scrolling, and no stale navigation after leaving the detail.
+With an older payload, the sheet must show "Username unavailable" rather than a
+first/last name; applying the username migration is required for real handles.
+Aggregate tests cover one/two/many username grammar, count-only fallback for
+missing/blank usernames, retention of initial actors across later pages, and
+replacement on refresh. Check long usernames, large Dynamic Type, VoiceOver
+names, dark mode, and removal or account switching while requests are pending.
+Automated passes do not establish these manual or deployed checks.

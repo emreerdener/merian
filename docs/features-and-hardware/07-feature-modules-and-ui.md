@@ -7,14 +7,22 @@ framerate.
 
 ## Shared Top Toolbar Appearance
 
-`AppTopScrollEdgeEffectModifier` in `App/Presentation/AppRootPresentation.swift`
-hides the top scroll-edge effect on iOS 26 and later. `MerianApp` applies it
-outside the root presentation tree so scrolling screens, sheets, and navigation
-destinations inherit the same treatment. Header images scrolling offscreen do
-not restore the effect. Explicit navigation-bar backgrounds in Scans selection
-and Field-trip detail are also hidden. Individual toolbar controls retain their
-native glass, and bottom toolbar/search treatments remain unchanged. Earlier iOS
-versions skip the unavailable scroll-edge API.
+`View.transparentTopToolbar()` in `Core/UI/Modifiers/TopToolbarAppearance.swift`
+is applied directly to native `ScrollView`, `List`, and `Form` instances. It
+hides the top scroll-edge effect on iOS 26 and later and the navigation-bar
+background on all supported versions. The previous modifier at the app root did
+not reliably reach scrolling content inside navigation and sheet hosts; each
+scroll owner now applies the shared policy locally, including loading states,
+horizontal pagers, nested sheets, and pushed destinations.
+
+Header images scrolling offscreen do not restore the effect. Individual toolbar
+controls retain their native glass, and bottom toolbar/search treatments remain
+unchanged. Earlier iOS versions skip only the unavailable scroll-edge API.
+
+`TopToolbarAppearanceTests` captures the Scans sheet and a pushed Insight before
+and after scrolling, and the Profile/Settings sheet. Its retained screenshot
+attachments require visual review; successful navigation assertions alone do not
+prove toolbar transparency.
 
 Visual QA should scroll Scans/Collections (including selection), Explore,
 Profile/Settings, Insight, Field-trip detail, and Species Dictionary in light
@@ -1111,9 +1119,9 @@ an Edge API response or opened offline via the Scans library.
   `ImagesCarousel` instead uses the shared `NativePageCarousel`, which wraps
   `UIPageViewController` directly, eagerly mounts its feature-supplied pages,
   clips its native view, and lets the internal `UIScrollView` arbitrate with the
-  sheet pan. The hero retains its top-edge underlap while the App presentation
-  root keeps the top scroll-edge effect hidden at every scroll position; the
-  current implementation does not use a `TabView` shim.
+  sheet pan. The hero retains its top-edge underlap while the scroll view’s
+  shared `transparentTopToolbar()` modifier keeps the top effect hidden at every
+  scroll position; the current implementation does not use a `TabView` shim.
 - **Dynamic Contextual Header**: To replace the `ConfidenceBadge` with the
   truncated Common Name during active scrolling, the layout maps an invisible
   `GeometryReader` onto a native `ScrollView` coordinate tracking axis

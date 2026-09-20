@@ -8,10 +8,21 @@ request fields return 400.
 
 The response contains `total_count` (unique visible people), `preview_names`
 (first two public names), `reactors`, and nullable `next_cursor`. Each reactor
-has `user_id`, `display_name`, nullable `avatar_url`, and all their canonical
-`emojis`. Likes contribute ❤️. A person who liked and used several emoji occurs
-once, including the viewer and post owner. Notifications retain their separate
-self-suppression rules.
+has `user_id`, `display_name`, `username`, nullable `avatar_url`, and all their
+canonical `emojis`. Likes contribute ❤️. A person who liked and used several
+emoji occurs once, including the viewer and post owner. Notifications retain
+their separate self-suppression rules.
+
+`username` is the bare public handle from `users.public_username`. The native
+Reactions sheet and aggregate format it as `@username`; `display_name` and
+`preview_names` retain their existing meaning. The additive field is supplied by
+`20260919203823_add_explore_post_reactor_usernames.sql`. Apply that migration
+before expecting usernames in the sheet; the existing Edge adapter passes the
+RPC payload through. The aggregate uses the first two loaded reactor usernames
+and retains those initial actors across subsequent pages. Native decoding
+tolerates older responses without the field: the sheet shows "Username
+unavailable", while the aggregate shows only the count and never displays
+`preview_names` or first/last names.
 
 Pages contain at most 32 people ordered by UUID ascending, with one lookahead
 row. Pass `next_cursor` as `after_user_id`. Immutable actor IDs avoid moving a

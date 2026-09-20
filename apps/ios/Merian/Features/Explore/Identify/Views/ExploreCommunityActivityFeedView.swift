@@ -55,6 +55,7 @@ struct ExploreCommunityActivityFeedView: View {
                 }
                 .padding(.bottom, 24)
             }
+            .transparentTopToolbar()
             .refreshable {
                 await viewModel.reload()
             }

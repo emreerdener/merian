@@ -23,6 +23,7 @@ struct FieldTripPublishForm<Output>: View {
                     }
                 }
             }
+            .transparentTopToolbar()
             .navigationTitle(navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

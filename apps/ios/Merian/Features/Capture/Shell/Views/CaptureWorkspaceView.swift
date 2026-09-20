@@ -177,6 +177,7 @@ struct CaptureWorkspaceView: View {
                             }
                             .scrollTargetLayout()
                         }
+                        .transparentTopToolbar()
                         .scrollTargetBehavior(.paging)
                         .scrollPosition(id: $scrollPageMode)
                         .scrollDisabled(isVerticalZooming || isToggleDragging)

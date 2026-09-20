@@ -46,6 +46,7 @@ struct FieldTripLevelArtworkExpandedView: View {
                     }
                     .scrollTargetLayout()
                 }
+                .transparentTopToolbar()
                 .scrollTargetBehavior(.paging)
                 .scrollPosition(id: $selectedItemID)
                 .ignoresSafeArea()

@@ -112,7 +112,8 @@ coordinator otherwise own eager mounting and selection synchronization;
 `ZoomPageViewController` owns pinch, pan, and snap-back behavior.
 `MediaGalleryPresentation` and `MediaGalleryItem` provide the normalized
 cross-feature gallery input. The same directory owns shared pagination dots. The
-App presentation root owns the app-wide transparent top scroll-edge treatment.
+`Modifiers/TopToolbarAppearance.swift` owns the shared transparent top-toolbar
+treatment, applied directly to scroll views, lists, and forms across features.
 Feature owners remain responsible for media ordering, source and attribution
 policy, availability state, navigation, and their reuse-key projection.
 

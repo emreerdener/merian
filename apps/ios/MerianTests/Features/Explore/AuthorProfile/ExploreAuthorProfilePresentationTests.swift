@@ -3,6 +3,19 @@ import XCTest
 @testable import Merian
 
 final class ExploreAuthorProfilePresentationTests: XCTestCase {
+    func testReactorProfileRouteUsesStableUserIdentityAndPublicMetadata() {
+        let reactor = ExplorePostReactor(
+            userId: "reactor-id", displayName: "Test Observer", username: "nature_observer",
+            avatarUrl: "https://example.invalid/avatar.jpg", emojis: ["❤️", "😂"]
+        )
+        let route = ExploreAuthorProfileRoute(reactor: reactor, navigationDepth: 1)
+        XCTAssertEqual(route.authorUserId, "reactor-id")
+        XCTAssertEqual(route.authorName, "Test Observer")
+        XCTAssertEqual(route.authorUsername, "nature_observer")
+        XCTAssertEqual(route.authorAvatarUrl, reactor.avatarUrl)
+        XCTAssertEqual(route.navigationDepth, 1)
+    }
+
     func testProfileNavigationCanOpenAtRootButStopsAtMaxDepth() {
         XCTAssertTrue(ExploreAuthorProfileNavigationPolicy.canOpenProfile(from: 0))
         XCTAssertFalse(

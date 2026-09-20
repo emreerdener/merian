@@ -151,5 +151,6 @@ private struct UserTagsCardContent: View {
                 }
             }
         }
+        .transparentTopToolbar()
     }
 }

@@ -4,6 +4,44 @@ import XCTest
 
 @MainActor
 final class ExplorePostDetailViewModelTests: XCTestCase {
+    func testExplicitRefreshTargetsOnlyTheOpenPostEvenBeforeItLoads() {
+        XCTAssertEqual(ExplorePostDetailRefreshPolicy.postIDToRefresh(
+            for: .explorePostNeedsRefresh(postId: "post-1"),
+            postID: "post-1", currentPost: nil
+        ), "post-1")
+        XCTAssertNil(ExplorePostDetailRefreshPolicy.postIDToRefresh(
+            for: .explorePostNeedsRefresh(postId: "post-2"),
+            postID: "post-1", currentPost: ExploreFeedTestFixtures.post(id: "post-1")
+        ))
+    }
+
+    func testAuthorIdentityRefreshMatchesPreviousOrCurrentAuthor() {
+        let post = ExploreFeedTestFixtures.post(id: "post-1", authorUserId: "AUTHOR-1")
+        XCTAssertEqual(ExplorePostDetailRefreshPolicy.postIDToRefresh(
+            for: .publicAuthorIdentityChanged(previousUserId: "author-1", currentUserId: "author-2"),
+            postID: "post-1", currentPost: post
+        ), "post-1")
+        XCTAssertEqual(ExplorePostDetailRefreshPolicy.postIDToRefresh(
+            for: .publicAuthorIdentityChanged(previousUserId: nil, currentUserId: "author-1"),
+            postID: "post-1", currentPost: post
+        ), "post-1")
+        XCTAssertNil(ExplorePostDetailRefreshPolicy.postIDToRefresh(
+            for: .publicAuthorIdentityChanged(previousUserId: "author-2", currentUserId: "author-3"),
+            postID: "post-1", currentPost: post
+        ))
+    }
+
+    func testMissingAuthorAndUnrelatedEventsDoNotRequestRefresh() {
+        XCTAssertNil(ExplorePostDetailRefreshPolicy.postIDToRefresh(
+            for: .publicAuthorIdentityChanged(previousUserId: nil, currentUserId: "author-1"),
+            postID: "post-1", currentPost: nil
+        ))
+        XCTAssertNil(ExplorePostDetailRefreshPolicy.postIDToRefresh(
+            for: .scanLibraryChanged,
+            postID: "post-1", currentPost: ExploreFeedTestFixtures.post(id: "post-1")
+        ))
+    }
+
     private struct RequestedContent {
         let name: String
         let fieldNotes: String?

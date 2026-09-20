@@ -25,6 +25,7 @@ struct EarnedFieldTripPatchCarousel: View {
             }
             .padding(.horizontal, 12)
         }
+        .transparentTopToolbar()
         .padding(.horizontal, -12)
         .fullScreenCover(
             item: $selectedPatch,
@@ -78,6 +79,7 @@ struct EarnedFieldTripPatchCarouselSkeleton: View {
             }
             .padding(.horizontal, 12)
         }
+        .transparentTopToolbar()
         .padding(.horizontal, -12)
         .allowsHitTesting(false)
         .accessibilityHidden(true)

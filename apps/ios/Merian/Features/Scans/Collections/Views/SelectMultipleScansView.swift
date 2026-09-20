@@ -52,6 +52,7 @@ struct SelectMultipleScansView: View {
                         )
                     }
                 }
+                .transparentTopToolbar()
             }
             .navigationTitle("Add to \(collection.name)")
             .navigationBarTitleDisplayMode(.inline)

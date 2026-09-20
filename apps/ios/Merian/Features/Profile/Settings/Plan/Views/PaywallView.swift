@@ -76,6 +76,7 @@ struct PaywallView: View {
                                 )
                         )
                     }
+                    .transparentTopToolbar()
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -238,6 +239,7 @@ struct PaywallView: View {
                     .padding(.horizontal, 20)
                     .padding(.vertical, 2)
                 }
+                .transparentTopToolbar()
                 .padding(.horizontal, -20)
                 .scrollTargetBehavior(.viewAligned)
             }

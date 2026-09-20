@@ -22,6 +22,7 @@ struct ChangelogView: View {
                 }
             }
         }
+        .transparentTopToolbar()
         .listStyle(.insetGrouped)
         .navigationTitle("Changelog")
         .navigationBarTitleDisplayMode(.inline)

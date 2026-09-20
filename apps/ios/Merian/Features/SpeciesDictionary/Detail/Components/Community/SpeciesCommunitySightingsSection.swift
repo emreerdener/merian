@@ -215,6 +215,7 @@ private struct SpeciesCommunitySightingsGrid: View {
                 Color.clear.frame(height: 32)
             }
         }
+        .transparentTopToolbar()
         .background(Color(uiColor: .systemGroupedBackground))
         .navigationTitle("Community sightings")
         .navigationBarTitleDisplayMode(.inline)

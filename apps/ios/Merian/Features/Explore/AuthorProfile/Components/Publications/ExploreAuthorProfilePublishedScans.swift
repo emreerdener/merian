@@ -117,6 +117,7 @@ struct ExploreAuthorProfileLibraryView: View {
             .padding(.top, 16)
             .padding(.bottom, 32)
         }
+        .transparentTopToolbar()
         .background(Color(uiColor: .systemGroupedBackground))
         .refreshable {
             await onRefresh()

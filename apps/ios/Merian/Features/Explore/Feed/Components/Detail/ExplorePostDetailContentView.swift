@@ -79,6 +79,7 @@ struct ExplorePostDetailContentView: View {
                         .background(commentsPositionReader)
                 }
             }
+            .transparentTopToolbar()
             .coordinateSpace(name: "ExplorePostDetailScrollSpace")
             .safeAreaInset(edge: .bottom) {
                 if presentedComposerIsSticky {
@@ -202,11 +203,11 @@ struct ExplorePostDetailContentView: View {
             onAddReaction: onAddReaction,
             onReaction: { emoji, selected in Task { await viewModel.setPostReaction(for: post, emoji: emoji, selected: selected) } },
             onLoadMore: { Task { await viewModel.loadMorePostReactions(for: post) } },
-            onShare: { viewModel.share(post, playbackCoordinator: playbackCoordinator) },
             revealEmoji: revealReactionEmoji
         )
         .padding(.horizontal, 12)
-        .padding(.vertical, 6)
+        .padding(.top, 6)
+        .padding(.bottom, reactorsModel.summary == nil ? 6 : 0)
     }
 
     private var detailSections: some View {
@@ -341,7 +342,15 @@ struct ExplorePostDetailContentView: View {
             )
         }
 
-        ToolbarItem(placement: .topBarTrailing) {
+        ToolbarItemGroup(placement: .topBarTrailing) {
+            Button {
+                viewModel.share(post, playbackCoordinator: playbackCoordinator)
+            } label: {
+                Image(systemName: "square.and.arrow.up")
+            }
+            .tint(.primary)
+            .accessibilityLabel("Share post")
+
             ExplorePostDetailMenuButton(
                 isOwnedByCurrentUser: isOwnedByCurrentUser,
                 allowsInsightPresentation: canOpenOwnedPostInsight,

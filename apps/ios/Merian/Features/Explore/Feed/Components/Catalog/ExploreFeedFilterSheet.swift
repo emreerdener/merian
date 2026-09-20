@@ -33,6 +33,7 @@ struct ExploreFeedFilterSheet: View {
                 }
                 .padding()
             }
+            .transparentTopToolbar()
             .navigationTitle("Feed filters")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

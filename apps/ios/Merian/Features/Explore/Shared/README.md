@@ -110,12 +110,34 @@ Added reaction chips use a compact 28-point capsule and subheadline emoji, with
 6-point horizontal padding and no outline. Selected chips retain a subtle accent
 fill and accent-colored count. The visible capsule scales with Dynamic Type; its
 separate tap target remains at least 44 by 44 points on posts and comments.
+Comment/reply Add reaction capsules use the same height, padding, internal
+spacing, and Dynamic Type scaling, while retaining a subtle 1-point outline
+drawn inside the capsule.
 
-Post action icons use 20-point symbols inside 44-point tap targets. Feed,
-hashtag, and detail bars use 12-point horizontal insets and symmetric 6-point
-vertical insets around the 44-point default row, for a 56-point bar. Empty
-hashtag rows reserve no space. The shared strip still grows for Dynamic Type and
-moves beneath controls at the existing large-text threshold.
+Post action icons use 20-point symbols inside 44-point tap targets. Add reaction
+and the comment/heart labels each use 12-point horizontal hit padding with no
+additional stack spacing, giving adjacent labels equal 24-point gaps. The first
+label stays at the bar's leading inset while its hit padding extends into it.
+Add reaction forces outline smiley and plus-circle symbols, independent of
+inherited symbol variants. Comment and heart counts use Dynamic Type body text
+(17 points at the default size). Detail bars use 12-point horizontal insets;
+feed and hashtag cards use only a 12-point leading inset so chips reach the
+right edge. Bars use symmetric 6-point vertical insets around the 44-point
+default row, for a 56-point bar. Detail omits the bottom inset when the reaction
+summary is visible beneath it. Empty hashtag rows reserve no space. The shared
+strip still grows for Dynamic Type and moves beneath controls at the existing
+large-text threshold.
+
+Post detail omits Share from the action row and presents it in the top-right
+toolbar immediately before Options. All feed, hashtag, and Map preview/discovery
+cards use the same action row without Share. Feed and hashtag chips fill the
+remaining width through the right edge with overflow fades.
+
+Feed and hashtag strips include 12 points of trailing scrollable space after the
+final emoji or More control. The viewport still reaches the screen edge; the
+final item rests inset when scrolled to the end. This space belongs to the final
+item's scroll target so revealing a newly selected last emoji also preserves the
+inset.
 
 `ExploreErrorFormatter.reactionMutationMessage(selected:)` supplies the
 action-specific add/remove failure copy for post, comment, and notification

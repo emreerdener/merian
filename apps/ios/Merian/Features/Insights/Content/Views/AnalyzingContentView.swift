@@ -10,7 +10,8 @@ import SwiftUI
     let viewModel = InsightSheetViewModel(inferenceEngine: engine)
     return ScrollView {
         AnalyzingContentView(viewModel: viewModel).padding(.horizontal)
-    }.environment(engine)
+    }
+    .transparentTopToolbar().environment(engine)
 }
 
 #Preview("Analyzing — vision streaming") {
@@ -20,7 +21,8 @@ import SwiftUI
     let viewModel = InsightSheetViewModel(inferenceEngine: engine)
     return ScrollView {
         AnalyzingContentView(viewModel: viewModel).padding(.horizontal)
-    }.environment(engine)
+    }
+    .transparentTopToolbar().environment(engine)
 }
 
 #Preview("Analyzing — vision complete") {
@@ -30,7 +32,8 @@ import SwiftUI
     let viewModel = InsightSheetViewModel(inferenceEngine: engine)
     return ScrollView {
         AnalyzingContentView(viewModel: viewModel).padding(.horizontal)
-    }.environment(engine)
+    }
+    .transparentTopToolbar().environment(engine)
 }
 #endif
 

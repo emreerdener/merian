@@ -61,7 +61,8 @@ Feed declarations are grouped by responsibility:
   fixtures. Cards consume `ExplorePostCardAuthorPresentation`, send mutations
   through parent callbacks, and do not resolve identity or entitlement services.
 - `Components/Media/` owns Feed-only square feed/detail hosts and detail zoom.
-- `Components/Shared/` owns the Feed-only hashtag pill.
+- `Components/Shared/` owns the Feed-only hashtag pill and the shared
+  post/detail action-row skeleton.
 - The remaining comment, post-detail action/header, composer, and reference
   gallery components are Feed-owned UI with no direct networking.
 - `../Shared/Media/` owns the Explore-wide public-media renderer, remote hero
@@ -171,6 +172,11 @@ backing scan's `image_storage_urls`, allowing backend and app changes to roll
 out independently.
 
 ## Post-detail presentation ownership
+
+`ExplorePostDetailRefreshPolicy`, colocated with the detail presentation
+services, selects matching post and author-identity invalidations. The detail
+host retains the refresh task and its ordered post/detail reloads, and reuses
+its local Field Notes preservation helper when opening Insight.
 
 The Observation card consumes the optional `map_point` from the public Explore
 detail payload. It renders a noninteractive exact marker or 10 km approximate
@@ -440,10 +446,25 @@ Dictionary community sightings.
 
 ## Emoji reactions
 
-Comment and reply Add reaction buttons retain the compact 28-point capsule,
-secondary smiley/plus icons, and subtle fill/border, with a minimum 44-point tap
-target. They open the shared full emoji picker and retain its selection
-feedback.
+Comment and reply Add reaction buttons match the reaction chips' 28-point
+capsule, 6-point horizontal padding, 4-point internal spacing, and Dynamic Type
+scaling. Secondary smiley/plus icons use subheadline/caption text sizes, inside
+a minimum 44-point tap target. They open the shared full emoji picker and retain
+its selection feedback. The Add button keeps its subtle 1-point outline, drawn
+inside the capsule so its outer height stays aligned with the reaction chips.
+
+Feed and hashtag cards omit Share from the action row, letting emoji chips
+extend to the right edge while retaining overflow fades. Share remains available
+in detail's top-right toolbar immediately before Options.
+
+Feed and detail loading views share `ExplorePostActionSkeleton`: three
+left-aligned 20-point nodes in a single row. Detail also represents both toolbar
+controls while loading. Each node occupies a 44-point frame; the bar uses
+8-point gaps and 6-point vertical insets. Feed uses a 12-point leading inset and
+no trailing inset; detail retains 12-point side insets. Loading does not show
+counts or emoji chip placeholders. Headers and detail species spacing mirror the
+loaded views. Skeletons remain noninteractive and hidden from VoiceOver; the
+optional reactor summary reserves no space until its own successful read.
 
 Shared reaction UI and Unicode catalog presentation live in
 `../Shared/Reactions`. Feed Services own the idempotent set/page dependencies;
@@ -469,20 +490,39 @@ reuse the checkout-managed build cache.
 
 `ExplorePostReactorsViewModel` owns the detail-only unique-person summary and
 paged Reactions sheet. `ExplorePostReactionSummary` sits below detail actions;
-`ExplorePostReactorsSheet` renders public identity and each person's complete
-emoji list, with likes represented as ❤️. Both share one detail-owned model. The
-typed `ExplorePostDetailPresentation.reactors` route retains sheet and media
-overlay ownership. The detail summary occupies no space while loading, after a
-failed read, or when no people reacted; only a successfully loaded summary is
-visible. Loading, empty, failed-read retry, and explicit pagination remain local
-UI state inside the opened sheet; views do not resolve a network client.
+`ExplorePostReactorsSheet` renders the public avatar, `@username`, and each
+person's complete emoji list, with likes represented as ❤️. Both share one
+detail-owned model. The list keeps separators between rows and hides the outer
+lines above the first row and below the last row. The typed
+`ExplorePostDetailPresentation.reactors` route retains sheet and media overlay
+ownership. The detail summary occupies no space while loading, after a failed
+read, or when no people reacted; only a successfully loaded summary is visible.
+Loading, empty, failed-read retry, and explicit pagination remain local UI state
+inside the opened sheet; views do not resolve a network client.
+
+Usernames use the feed's shared public-username formatter. The detail aggregate
+uses the first two loaded reactors' `@username` values; subsequent pages keep
+those initial actors while updating the total. Missing or blank usernames use
+count-only copy ("1 person reacted" or "N people reacted"), never display names.
+The wire `preview_names` field remains compatible but is not rendered by the
+aggregate. The Reactions sheet shows "Username unavailable" for missing or blank
+usernames, never a first/last-name fallback. Actual usernames require the
+existing `20260919203823_add_explore_post_reactor_usernames.sql` migration in
+the target database. Tapping a reactor row dismisses the sheet, then opens the
+public profile by user ID through the detail host's existing author route and
+depth policy. The summary uses caption-sized text and people icon without a
+trailing chevron, 6-point internal spacing, and a 32-point minimum row height.
+Its 16-point side insets align with the detail content. When the summary is
+visible, the action bar removes its bottom padding to tighten the gap above the
+summary. Text and icons continue to scale with Dynamic Type.
 
 `ExploreReactionDependencies.loadPeople` is the injected read seam. The Feed
 state increments `postReactorsRevision` after post reactions/likes complete so
 the summary rereads authoritative unique people; it does not sum emoji counts.
 Refresh generations, current viewer checks, and invalidation fence late results.
-The sheet refreshes on opening and supports pull-to-refresh. Feed/Map/hashtag
-cards do not show this line. See the
+The sheet refreshes on opening, supports pull-to-refresh, and dismisses with a
+downward swipe without a Done button. Feed/Map/hashtag cards do not show this
+line. See the
 [product contract](../../../../../../docs/rfcs/explore-page.md#detail-reaction-people-2026-09-18)
 and
 [verification matrix](../../../../../../docs/development-guides/08-testing-strategy.md#post-reaction-people-verification).

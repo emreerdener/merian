@@ -118,6 +118,7 @@ struct DeleteAccountSheet: View {
                     .listRowBackground(isDeleteEnabled ? Color.red : nil)
                 }
             }
+            .transparentTopToolbar()
             .navigationTitle("Delete Account")
             .navigationBarTitleDisplayMode(.inline)
             .interactiveDismissDisabled(

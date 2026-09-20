@@ -193,6 +193,7 @@ private struct ExplorePostMediaCarousel<Content: View>: View {
                         }
                         .scrollTargetLayout()
                     }
+                    .transparentTopToolbar()
                     .scrollTargetBehavior(.paging)
                     .scrollPosition(id: $selectedPageID)
                 }

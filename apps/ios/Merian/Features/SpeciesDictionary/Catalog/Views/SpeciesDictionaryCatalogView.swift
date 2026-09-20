@@ -108,6 +108,7 @@ struct SpeciesDictionaryCatalogView: View {
             .padding(.top, 12)
             .padding(.bottom, 24)
         }
+        .transparentTopToolbar()
         .refreshable {
             await reload()
         }
@@ -124,6 +125,7 @@ struct SpeciesDictionaryCatalogView: View {
             .padding(.top, 12)
             .padding(.bottom, 24)
         }
+        .transparentTopToolbar()
         .accessibilityHidden(true)
     }
 

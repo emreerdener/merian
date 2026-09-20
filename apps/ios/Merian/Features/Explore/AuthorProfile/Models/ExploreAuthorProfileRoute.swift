@@ -47,6 +47,14 @@ struct ExploreAuthorProfileRoute: Identifiable, Equatable, Hashable {
         self.navigationDepth = navigationDepth
     }
 
+    init(reactor: ExplorePostReactor, navigationDepth: Int = 0) {
+        self.authorUserId = reactor.userId
+        self.authorName = reactor.displayName
+        self.authorUsername = reactor.username
+        self.authorAvatarUrl = reactor.avatarUrl
+        self.navigationDepth = navigationDepth
+    }
+
     init(
         authorUserId: String,
         authorName: String,

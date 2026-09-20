@@ -19,6 +19,7 @@ struct ExploreReactionResponse: Decodable {
 struct ExplorePostReactor: Decodable, Identifiable, Equatable {
     let userId: String
     let displayName: String
+    let username: String?
     let avatarUrl: String?
     let emojis: [String]
     var id: String { userId }

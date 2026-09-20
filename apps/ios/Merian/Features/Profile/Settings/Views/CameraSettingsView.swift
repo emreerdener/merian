@@ -75,6 +75,7 @@ struct CameraSettingsView: View {
                 Text("Zoom")
             }
         }
+        .transparentTopToolbar()
         .environment(\.editMode, .constant(.active))
         .navigationTitle("Camera")
         .navigationBarTitleDisplayMode(.inline)

@@ -68,6 +68,7 @@ struct CategoryFilterBar<Item: Hashable>: View {
             }
             .padding(.horizontal)
         }
+        .transparentTopToolbar()
         .padding(.top, 8)
         .padding(.bottom, 8)
     }

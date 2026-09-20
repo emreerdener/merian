@@ -178,6 +178,7 @@ struct ExploreCommunityIdentificationDetailView: View {
                 .padding(.bottom, 88)
             }
         }
+        .transparentTopToolbar()
         .ignoresSafeArea(.container, edges: .top)
         .contentMargins(.top, 0, for: .scrollContent)
         .refreshable {

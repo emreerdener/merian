@@ -15,10 +15,9 @@ struct ExplorePostDetailSkeleton: View {
                 mediaView
                     .padding(.horizontal, 16)
 
-                actionRow
-                    .padding(.horizontal, 16)
-                    .padding(.top, 14)
-                    .padding(.bottom, 12)
+                ExplorePostActionSkeleton(fill: placeholderFill(secondary: true))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
 
                 VStack(spacing: 24) {
                     speciesSection
@@ -30,13 +29,16 @@ struct ExplorePostDetailSkeleton: View {
                 .padding(.bottom, 16)
             }
         }
+        .transparentTopToolbar()
         .background(Color(uiColor: .systemBackground))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Circle()
-                    .fill(Color(uiColor: .tertiarySystemFill))
-                    .frame(width: 34, height: 34)
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                ForEach(0..<2) { _ in
+                    Circle()
+                        .fill(Color(uiColor: .tertiarySystemFill))
+                        .frame(width: 34, height: 34)
+                }
             }
         }
         .opacity(isGlowing ? 1.0 : 0.6)
@@ -49,12 +51,12 @@ struct ExplorePostDetailSkeleton: View {
     }
 
     private var headerRow: some View {
-        HStack(alignment: .center, spacing: 12) {
+        HStack(alignment: .center, spacing: 8) {
             Circle()
                 .fill(Color(uiColor: .tertiarySystemFill))
                 .frame(width: 40, height: 40)
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     RoundedRectangle(cornerRadius: 5, style: .continuous)
                         .fill(Color(uiColor: .secondarySystemFill))
@@ -92,31 +94,8 @@ struct ExplorePostDetailSkeleton: View {
             }
     }
 
-    private var actionRow: some View {
-        HStack(spacing: 20) {
-            actionGroup
-            actionGroup
-            Spacer(minLength: 12)
-            Circle()
-                .fill(Color(uiColor: .tertiarySystemFill))
-                .frame(width: 24, height: 24)
-        }
-    }
-
-    private var actionGroup: some View {
-        HStack(spacing: 8) {
-            Circle()
-                .fill(placeholderFill(secondary: true))
-                .frame(width: 24, height: 24)
-
-            RoundedRectangle(cornerRadius: 5, style: .continuous)
-                .fill(placeholderFill())
-                .frame(width: 18, height: 14)
-        }
-    }
-
     private var speciesSection: some View {
-        VStack(alignment: .center, spacing: 10) {
+        VStack(alignment: .center, spacing: 8) {
             RoundedRectangle(cornerRadius: 5, style: .continuous)
                 .fill(placeholderFill(secondary: true))
                 .frame(width: 154, height: 20)

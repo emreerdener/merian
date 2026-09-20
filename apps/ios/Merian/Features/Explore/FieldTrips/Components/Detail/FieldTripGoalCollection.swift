@@ -48,6 +48,7 @@ struct FieldTripLevelGoalCollection: View {
                 }
                 .padding(.horizontal, 16)
             }
+            .transparentTopToolbar()
             .frame(height: FieldTripLevelGoalCollectionLayout.scrollTileSize)
             .padding(.horizontal, -16)
         }
@@ -306,6 +307,7 @@ struct FieldTripCompactLevelStrip: View {
             }
             .padding(.horizontal, 12)
         }
+        .transparentTopToolbar()
         .frame(height: FieldTripScanPreviewLayout.tileSize)
         .padding(.horizontal, -12)
     }

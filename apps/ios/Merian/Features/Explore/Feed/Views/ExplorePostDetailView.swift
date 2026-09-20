@@ -27,6 +27,7 @@ struct ExplorePostDetailView: View {
     @State private var revealReactionEmoji: String?
     @State private var fieldNotesEditorInitialText = ""
     @State private var presentedSheet: ExplorePostDetailPresentation?
+    @State private var pendingReactorProfileRoute: ExploreAuthorProfileRoute?
     @State private var insightDismissalRoute: ScanInsightRoute?
     @State private var pendingInsightCommunityRequestId: String?
     @State private var isRefreshingAfterInsightDismiss = false
@@ -144,7 +145,10 @@ struct ExplorePostDetailView: View {
         .task(id: "\(postId)-\(supabase.currentUser?.id.uuidString ?? "none")-\(viewModel.postReactorsRevision)") {
             await reactorsModel.refresh()
         }
-        .onDisappear { reactorsModel.invalidate() }
+        .onDisappear {
+            reactorsModel.invalidate()
+            pendingReactorProfileRoute = nil
+        }
         .onChange(of: offlineQueueManager.isOnline, initial: true) { _, isOnline in
             exploreChatViewModel.updateConnectivity(isOnline: isOnline)
         }
@@ -172,6 +176,7 @@ struct ExplorePostDetailView: View {
                 presentation: presentation,
                 currentPost: currentPost,
                 onSelectReaction: { revealReactionEmoji = $0 },
+                onOpenReactorProfile: canOpenAuthorProfileRoutes ? openReactorProfile : nil,
                 localFieldNotes: localFieldNotes,
                 onUpdateLocalFieldNotes: updateLocalFieldNotes,
                 onSaveFieldNotes: { text, isPublic, post in
@@ -199,25 +204,12 @@ struct ExplorePostDetailView: View {
     }
 
     private func handleAppEvent(_ event: AppEvent) {
-        switch event {
-        case .explorePostNeedsRefresh(let changedPostId) where changedPostId == postId:
-            Task {
-                await viewModel.refreshPost(postId: changedPostId)
-                await loadDetail(force: true)
-            }
-        case .publicAuthorIdentityChanged(let previousUserId, let currentUserId):
-            guard let post = currentPost,
-                  ExplorePostDetailAuthorIdentityPolicy.changeAffectsAuthor(
-                    post.authorUserId,
-                    previousUserID: previousUserId,
-                    currentUserID: currentUserId
-                  ) else { return }
-            Task {
-                await viewModel.refreshPost(postId: post.id)
-                await loadDetail(force: true)
-            }
-        default:
-            break
+        guard let refreshPostId = ExplorePostDetailRefreshPolicy.postIDToRefresh(
+            for: event, postID: postId, currentPost: currentPost
+        ) else { return }
+        Task {
+            await viewModel.refreshPost(postId: refreshPostId)
+            await loadDetail(force: true)
         }
     }
 
@@ -249,6 +241,11 @@ struct ExplorePostDetailView: View {
         }
     }
     private func handlePresentedSheetDismissed() {
+        if let route = pendingReactorProfileRoute {
+            pendingReactorProfileRoute = nil
+            if currentPost != nil { openAuthorProfile(route) }
+            return
+        }
         guard insightDismissalRoute != nil else { return }
         insightDismissalRoute = nil
 
@@ -292,6 +289,14 @@ struct ExplorePostDetailView: View {
         postComposerPreparationTask?.cancel()
         postComposerPreparationTask = nil
         postComposerPreparationID = nil
+    }
+
+    private func openReactorProfile(_ reactor: ExplorePostReactor) {
+        guard canOpenAuthorProfileRoutes,
+              case .reactors(let presentedPostId) = presentedSheet,
+              presentedPostId == currentPost?.id else { return }
+        pendingReactorProfileRoute = ExploreAuthorProfileRoute(reactor: reactor)
+        presentedSheet = nil
     }
 
     private func openAuthorProfile(_ route: ExploreAuthorProfileRoute) {
@@ -532,11 +537,7 @@ struct ExplorePostDetailView: View {
 
         let scanId = post.scanId
         if let fieldNotes = detailViewModel.detail?.trimmedFieldNotes {
-            localFieldNotes = FieldNotesRepository.promoteExternalFieldNotesIfLocalMissing(
-                fieldNotes,
-                for: scanId,
-                modelContext: modelContext
-            )
+            preserveLocalFieldNotes(fieldNotes, for: post)
         }
 
         if let onOpenOwnedPostInsight {

@@ -1,16 +1,12 @@
 import SwiftUI
 
-private struct ReactionContentFrame: PreferenceKey {
-    static var defaultValue: CGRect { .zero }
-    static func reduce(value: inout CGRect, nextValue: () -> CGRect) { value = nextValue() }
-}
-
 struct ExploreReactionStrip: View {
     let reactions: [ExploreCommentReaction]
     let hasMore: Bool
     let onToggle: (String, Bool) -> Void
     let onLoadMore: () -> Void
     var revealEmoji: String?
+    var trailingContentPadding: CGFloat = 0
     @ScaledMetric(relativeTo: .title3) private var rowHeight: CGFloat = 44
     @ScaledMetric(relativeTo: .subheadline) private var chipHeight: CGFloat = 28
     @State private var contentFrame = CGRect.zero
@@ -42,6 +38,7 @@ struct ExploreReactionStrip: View {
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
+                        .padding(.trailing, !hasMore && reaction.id == reactions.last?.id ? trailingContentPadding : 0)
                         .id(reaction.emoji)
                         .accessibilityLabel(
                             "\(ExploreEmojiCatalog.name(for: reaction.emoji)), \(reaction.count) reactions"
@@ -56,25 +53,23 @@ struct ExploreReactionStrip: View {
                             onLoadMore()
                         }
                         .frame(minWidth: 44, minHeight: 44)
+                        .padding(.trailing, trailingContentPadding)
                         .accessibilityLabel("Load more reactions")
                     }
                 }
-                .background(
-                    GeometryReader { geometry in
-                        Color.clear.preference(
-                            key: ReactionContentFrame.self, value: geometry.frame(in: .named(scrollSpace)))
-                    })
+                .onGeometryChange(for: CGRect.self) { geometry in
+                    geometry.frame(in: .named(scrollSpace))
+                } action: { frame in
+                    contentFrame = frame
+                }
             }
+            .transparentTopToolbar()
             .contentShape(Rectangle())
             .coordinateSpace(name: scrollSpace)
-            .background(
-                GeometryReader { geometry in
-                    Color.clear.onAppear { viewportWidth = geometry.size.width }
-                        .onChange(of: geometry.size.width) { _, width in viewportWidth = width }
-                }
-            )
-            .onPreferenceChange(ReactionContentFrame.self) { frame in
-                contentFrame = frame
+            .onGeometryChange(for: CGFloat.self) { geometry in
+                geometry.size.width
+            } action: { width in
+                viewportWidth = width
             }
             .mask {
                 HStack(spacing: 0) {
@@ -86,7 +81,7 @@ struct ExploreReactionStrip: View {
                     LinearGradient(
                         colors: [.black, contentFrame.maxX > viewportWidth + 1 ? .clear : .black], startPoint: .leading,
                         endPoint: .trailing
-                    ).frame(width: 14)
+                    ).frame(width: 24)
                 }
             }
             .onChange(of: reactions) { previous, current in
@@ -107,15 +102,17 @@ struct ExplorePostReactionActions: View {
     let onAddReaction: () -> Void
     let onReaction: (String, Bool) -> Void
     let onLoadMore: () -> Void
-    let onShare: () -> Void
     var revealEmoji: String?
+    var trailingContentPadding: CGFloat = 0
     @Environment(\.dynamicTypeSize) private var dynamicType
     private var usesSecondRow: Bool { dynamicType.isAccessibilitySize || dynamicType == .xxxLarge }
 
     var body: some View {
         VStack(spacing: 8) {
-            HStack(spacing: 8) {
+            HStack(spacing: 0) {
                 action("bubble.right", count: post.commentCount, label: "Comments", action: onComments)
+                    // Keep the first label at the bar inset; its tap target extends into that inset.
+                    .padding(.leading, -12)
                 action(
                     post.viewerHasLiked ? "heart.fill" : "heart", count: post.likeCount,
                     label: post.viewerHasLiked ? "Unlike post" : "Like post", highlighted: post.viewerHasLiked,
@@ -125,18 +122,18 @@ struct ExplorePostReactionActions: View {
                     onAddReaction()
                 } label: {
                     Image(systemName: "face.smiling").overlay(alignment: .bottomTrailing) {
-                        Image(systemName: "plus.circle.fill").font(.system(size: 9)).background(
+                        Image(systemName: "plus.circle").font(.system(size: 9)).background(
                             .background, in: Circle()
                         ).offset(x: 4, y: 2)
                     }
-                    .font(.system(size: 20)).frame(minWidth: 44, minHeight: 44)
+                    .environment(\.symbolVariants, .none)
+                    .font(.system(size: 20))
+                    .padding(.horizontal, 12)
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain).accessibilityLabel("Add reaction")
                 if !usesSecondRow { strip } else { Spacer(minLength: 0) }
-                Button(action: onShare) {
-                    Image(systemName: "square.and.arrow.up").font(.system(size: 20)).frame(minWidth: 44, minHeight: 44)
-                }
-                .buttonStyle(.plain).accessibilityLabel("Share post")
             }
             if usesSecondRow { strip }
         }
@@ -144,7 +141,8 @@ struct ExplorePostReactionActions: View {
     private var strip: some View {
         ExploreReactionStrip(
             reactions: post.reactions ?? [], hasMore: post.reactionsNextCursor != nil,
-            onToggle: onReaction, onLoadMore: onLoadMore, revealEmoji: revealEmoji
+            onToggle: onReaction, onLoadMore: onLoadMore, revealEmoji: revealEmoji,
+            trailingContentPadding: trailingContentPadding
         )
         .frame(maxWidth: .infinity)
     }
@@ -155,9 +153,12 @@ struct ExplorePostReactionActions: View {
             HStack(spacing: 4) {
                 Image(systemName: symbol).font(.system(size: 20)).foregroundStyle(highlighted ? .red : .primary)
                 if !dynamicType.isAccessibilitySize {
-                    Text(count.formatted(.number.notation(.compactName))).font(.caption)
+                    Text(count.formatted(.number.notation(.compactName))).font(.body)
                 }
-            }.frame(minWidth: 44, minHeight: 44)
+            }
+            .padding(.horizontal, 12)
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain).accessibilityLabel("\(label), \(count)")
     }
@@ -169,7 +170,7 @@ struct ExplorePostReactionBar: View {
     let onLike: () -> Void
     let onReaction: (String, Bool) -> Void
     let onLoadMore: () -> Void
-    let onShare: () -> Void
+    var trailingContentPadding: CGFloat = 0
     @State private var picker: PickerRoute?
     @State private var revealEmoji: String?
     private struct PickerRoute: Identifiable { let id: String }
@@ -178,7 +179,8 @@ struct ExplorePostReactionBar: View {
         ExplorePostReactionActions(
             post: post, onComments: onComments, onLike: onLike,
             onAddReaction: { picker = PickerRoute(id: post.id) }, onReaction: onReaction,
-            onLoadMore: onLoadMore, onShare: onShare, revealEmoji: revealEmoji
+            onLoadMore: onLoadMore, revealEmoji: revealEmoji,
+            trailingContentPadding: trailingContentPadding
         )
         .sheet(item: $picker) { _ in
             ExploreEmojiPicker(
