@@ -130,6 +130,11 @@ toolbar immediately before Options. Feed cards also omit Share; their chips fill
 the remaining width through the right edge with overflow fades. Hashtag and Map
 preview rows retain their trailing Share button.
 
+Feed strips include 12 points of trailing scrollable space after the final emoji
+or More control. The viewport still reaches the screen edge; the final item
+rests inset when scrolled to the end. This space belongs to the final item's
+scroll target so revealing a newly selected last emoji also preserves the inset.
+
 `ExploreErrorFormatter.reactionMutationMessage(selected:)` supplies the
 action-specific add/remove failure copy for post, comment, and notification
 reply mutations. A failed reaction never claims that the entire Explore feed is

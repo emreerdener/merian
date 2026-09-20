@@ -212,7 +212,7 @@ struct ExplorePostCard: View {
 
     private var actionRow: some View {
         ExplorePostReactionBar(post: post, onComments: onComments, onLike: onLike,
-            onReaction: onReaction, onLoadMore: onLoadMoreReactions)
+            onReaction: onReaction, onLoadMore: onLoadMoreReactions, trailingContentPadding: 12)
     }
 
     @ViewBuilder

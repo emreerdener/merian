@@ -18,9 +18,7 @@ final class ExplorePostReactorsViewModelTests: XCTestCase {
         {"user_id":"fixture-user","display_name":"Observer A.","username":"nature_observer","avatar_url":null,"emojis":["😂"]}
         """#.utf8))
         XCTAssertEqual(reactor.username, "nature_observer")
-        XCTAssertEqual(ExplorePost.publicAuthorDisplayName(
-            from: reactor.displayName, username: reactor.username, preferUsername: true
-        ), "@nature_observer")
+        XCTAssertEqual(reactor.publicUsernameDisplayName, "@nature_observer")
     }
 
     func testReactorStillDecodesResponseBeforeUsernameRollout() throws {
@@ -30,9 +28,22 @@ final class ExplorePostReactorsViewModelTests: XCTestCase {
         {"user_id":"fixture-user","display_name":"Observer","avatar_url":null,"emojis":["😂"]}
         """#.utf8))
         XCTAssertNil(reactor.username)
-        XCTAssertEqual(ExplorePost.publicAuthorDisplayName(
-            from: reactor.displayName, username: reactor.username, preferUsername: true
-        ), "Observer")
+        XCTAssertEqual(reactor.publicUsernameDisplayName, "Username unavailable")
+    }
+
+    func testReactorSheetNeverFallsBackToFirstOrLastName() {
+        for username in [nil, "", "   ", "@"] as [String?] {
+            let reactor = ExplorePostReactor(
+                userId: "actor", displayName: "Test Observer", username: username,
+                avatarUrl: nil, emojis: ["❤️"]
+            )
+            XCTAssertEqual(reactor.publicUsernameDisplayName, "Username unavailable")
+        }
+        let reactor = ExplorePostReactor(
+            userId: "actor", displayName: "Test Observer", username: " @nature_observer ",
+            avatarUrl: nil, emojis: ["❤️"]
+        )
+        XCTAssertEqual(reactor.publicUsernameDisplayName, "@nature_observer")
     }
 
     func testSummaryCountsPeopleRatherThanEmojiAndHandlesGrammar() async {

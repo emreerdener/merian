@@ -1708,12 +1708,14 @@ The shared action row appears on observation feed cards, hashtag feeds, Map
 previews/discovery cards, and post detail. Comment, Heart, and Add reaction stay
 fixed. Hashtag and Map preview rows also keep Share fixed at the trailing edge;
 feed cards omit Share and their trailing inset so chips reach the right edge.
-Detail presents Share in its top-right toolbar before Options. Emoji scrolling
-is clipped to the remaining row width and stays outside any Share hit region;
-leading and trailing fades appear only when content extends beyond that edge. At
-`xxxLarge` and accessibility text sizes the chips move to a second row. Selected
-chips are highlighted, announce their catalog name/count/selection to VoiceOver,
-and disappear when their authoritative count reaches zero.
+Their final emoji or More control carries 12 points of trailing scrollable
+space, preserving an end margin when fully scrolled without narrowing the
+viewport. Detail presents Share in its top-right toolbar before Options. Emoji
+scrolling is clipped to the remaining row width and stays outside any Share hit
+region; leading and trailing fades appear only when content extends beyond that
+edge. At `xxxLarge` and accessibility text sizes the chips move to a second row.
+Selected chips are highlighted, announce their catalog name/count/selection to
+VoiceOver, and disappear when their authoritative count reaches zero.
 
 Post action bars use smaller 20-point symbols and equal 6-point top/bottom
 insets around the default 44-point row on feed, hashtag, and detail surfaces.

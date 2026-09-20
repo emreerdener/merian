@@ -1,5 +1,11 @@
 import Foundation
 
+extension ExplorePostReactor {
+    var publicUsernameDisplayName: String {
+        ExplorePost.publicUsernameDisplayValue(username) ?? "Username unavailable"
+    }
+}
+
 extension ExplorePost {
     private static let exploreTimeFormatter: DateFormatter = {
         let formatter = DateFormatter()

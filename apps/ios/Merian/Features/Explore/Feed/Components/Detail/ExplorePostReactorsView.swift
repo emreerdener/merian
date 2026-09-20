@@ -33,6 +33,7 @@ struct ExplorePostReactionSummary: View {
 
 struct ExplorePostReactorsSheet: View {
     @Bindable var model: ExplorePostReactorsViewModel
+    let onOpenProfile: ((ExplorePostReactor) -> Void)?
     @ScaledMetric(relativeTo: .title3) private var emojiRowHeight: CGFloat = 48
 
     var body: some View {
@@ -45,30 +46,17 @@ struct ExplorePostReactorsSheet: View {
                         ContentUnavailableView("No reactions yet", systemImage: "face.smiling")
                     }
                     ForEach(model.reactors) { reactor in
-                        HStack(alignment: .top, spacing: 12) {
-                            ExploreAuthorAvatar(url: reactor.avatarUrl.flatMap(URL.init(string:)), size: 44)
-                                .accessibilityHidden(true)
-                            VStack(alignment: .leading, spacing: 8) {
-                                Text(ExplorePost.publicAuthorDisplayName(
-                                    from: reactor.displayName, username: reactor.username, preferUsername: true
-                                ))
-                                .font(.body.weight(.semibold))
-                                ScrollView(.horizontal, showsIndicators: false) {
-                                    LazyHStack(spacing: 6) {
-                                        ForEach(reactor.emojis, id: \.self) { emoji in
-                                            Text(emoji).font(.title3)
-                                                .padding(6)
-                                                .background(.quaternary, in: Circle())
-                                                .accessibilityLabel(ExploreEmojiCatalog.name(for: emoji))
-                                        }
-                                    }
-                                }
-                                .transparentTopToolbar()
-                                .frame(height: emojiRowHeight)
+                        if let onOpenProfile {
+                            Button {
+                                onOpenProfile(reactor)
+                            } label: {
+                                reactorRow(reactor)
                             }
+                            .buttonStyle(.plain)
+                            .accessibilityHint("Open public profile")
+                        } else {
+                            reactorRow(reactor)
                         }
-                        .padding(.vertical, 6)
-                        .accessibilityElement(children: .contain)
                     }
                     if let error = model.errorMessage {
                         Text(error).font(.footnote).foregroundStyle(.secondary)
@@ -98,5 +86,31 @@ struct ExplorePostReactorsSheet: View {
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
         .exploreVideoPresentedOverlayLifecycle(reason: "explore-post-reactors")
+    }
+
+    private func reactorRow(_ reactor: ExplorePostReactor) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            ExploreAuthorAvatar(url: reactor.avatarUrl.flatMap(URL.init(string:)), size: 44)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 8) {
+                Text(reactor.publicUsernameDisplayName)
+                    .font(.body.weight(.semibold))
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(spacing: 6) {
+                        ForEach(reactor.emojis, id: \.self) { emoji in
+                            Text(emoji).font(.title3)
+                                .padding(6)
+                                .background(.quaternary, in: Circle())
+                                .accessibilityLabel(ExploreEmojiCatalog.name(for: emoji))
+                        }
+                    }
+                }
+                .transparentTopToolbar()
+                .frame(height: emojiRowHeight)
+            }
+        }
+        .padding(.vertical, 6)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
     }
 }

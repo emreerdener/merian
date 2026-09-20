@@ -18,6 +18,9 @@ exposing private scan IDs or opening private achievement evidence.
   `ExplorePostDetailPresentation` host.
 - Tapping the post media still opens `ExplorePostDetailView`; author-profile
   navigation is intentionally scoped to the header.
+- Tapping a user in the post's Reactions sheet dismisses that sheet before
+  opening their public profile through the same parent route or standalone modal
+  host. The existing profile-depth limit still applies.
 - The user's own Profile tab shows a server-authoritative `Published scans`
   preview for currently visible Explore publications. Local files may supply a
   thumbnail fallback for an already-visible server post, but local share cache

@@ -500,13 +500,16 @@ uses the first two loaded reactors' `@username` values; subsequent pages keep
 those initial actors while updating the total. Missing or blank usernames use
 count-only copy ("1 person reacted" or "N people reacted"), never display names.
 The wire `preview_names` field remains compatible but is not rendered by the
-aggregate. The Reactions sheet retains its public-display-name fallback for
-older server responses without `username`. The summary uses caption-sized text
-and people icon without a trailing chevron, 6-point internal spacing, and a
-32-point minimum row height. Its 16-point side insets align with the detail
-content. When the summary is visible, the action bar removes its bottom padding
-to tighten the gap above the summary. Text and icons continue to scale with
-Dynamic Type.
+aggregate. The Reactions sheet shows "Username unavailable" for missing or blank
+usernames, never a first/last-name fallback. Actual usernames require the
+existing `20260919203823_add_explore_post_reactor_usernames.sql` migration in
+the target database. Tapping a reactor row dismisses the sheet, then opens the
+public profile by user ID through the detail host's existing author route and
+depth policy. The summary uses caption-sized text and people icon without a
+trailing chevron, 6-point internal spacing, and a 32-point minimum row height.
+Its 16-point side insets align with the detail content. When the summary is
+visible, the action bar removes its bottom padding to tighten the gap above the
+summary. Text and icons continue to scale with Dynamic Type.
 
 `ExploreReactionDependencies.loadPeople` is the injected read seam. The Feed
 state increments `postReactorsRevision` after post reactions/likes complete so

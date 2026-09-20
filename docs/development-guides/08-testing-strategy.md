@@ -8790,9 +8790,11 @@ identity-based page merging, complete emoji arrays, refresh/page races,
 invalidation, account changes, and explicit failure retry.
 `ExploreInteractionEndpointTests` locks the initial/cursor request and typed
 response, including the reactor's public username. Reactor decoding covers
-username preference and older responses without the additive field. Include
-existing reaction, detail presentation, and shared architecture suites when
-running the local iOS wrapper.
+username preference and a neutral label for missing/blank usernames without
+falling back to first/last names. `ExploreAuthorProfilePresentationTests` covers
+reactor user ID and public metadata mapping to a profile route. Include existing
+reaction, detail presentation, and shared architecture suites when running the
+local iOS wrapper.
 
 Backend `get-explore-post-reactors/types.test.ts` covers UUID and
 optional-cursor validation. `exploreReactionsDb.test.ts` covers likes plus
@@ -8810,9 +8812,14 @@ reserved space; a successful nonempty read reveals the line. One/two/many copy
 matches distinct people; tapping opens medium/large sheet with feedback and
 pauses video; all emojis remain readable via horizontal overflow; More and retry
 work; dismiss restores the existing media intent. Confirm sheet rows use
-`@username` in both sheet rows and the aggregate summary. Aggregate tests cover
-one/two/many username grammar, count-only fallback for missing/blank usernames,
-retention of initial actors across later pages, and replacement on refresh.
-Check long usernames, large Dynamic Type, VoiceOver names, dark mode, and
-removal or account switching while requests are pending. Automated passes do not
-establish these manual or deployed checks.
+`@username` in both sheet rows and the aggregate summary. Tap a reactor avatar,
+username, and row background: the sheet must dismiss before the public profile
+opens in the parent stack or standalone host. Verify profile depth restrictions,
+horizontal emoji scrolling, and no stale navigation after leaving the detail.
+With an older payload, the sheet must show "Username unavailable" rather than a
+first/last name; applying the username migration is required for real handles.
+Aggregate tests cover one/two/many username grammar, count-only fallback for
+missing/blank usernames, retention of initial actors across later pages, and
+replacement on refresh. Check long usernames, large Dynamic Type, VoiceOver
+names, dark mode, and removal or account switching while requests are pending.
+Automated passes do not establish these manual or deployed checks.

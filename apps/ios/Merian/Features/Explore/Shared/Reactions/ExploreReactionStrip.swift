@@ -6,6 +6,7 @@ struct ExploreReactionStrip: View {
     let onToggle: (String, Bool) -> Void
     let onLoadMore: () -> Void
     var revealEmoji: String?
+    var trailingContentPadding: CGFloat = 0
     @ScaledMetric(relativeTo: .title3) private var rowHeight: CGFloat = 44
     @ScaledMetric(relativeTo: .subheadline) private var chipHeight: CGFloat = 28
     @State private var contentFrame = CGRect.zero
@@ -37,6 +38,7 @@ struct ExploreReactionStrip: View {
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
+                        .padding(.trailing, !hasMore && reaction.id == reactions.last?.id ? trailingContentPadding : 0)
                         .id(reaction.emoji)
                         .accessibilityLabel(
                             "\(ExploreEmojiCatalog.name(for: reaction.emoji)), \(reaction.count) reactions"
@@ -51,6 +53,7 @@ struct ExploreReactionStrip: View {
                             onLoadMore()
                         }
                         .frame(minWidth: 44, minHeight: 44)
+                        .padding(.trailing, trailingContentPadding)
                         .accessibilityLabel("Load more reactions")
                     }
                 }
@@ -101,6 +104,7 @@ struct ExplorePostReactionActions: View {
     let onLoadMore: () -> Void
     var onShare: (() -> Void)? = nil
     var revealEmoji: String?
+    var trailingContentPadding: CGFloat = 0
     @Environment(\.dynamicTypeSize) private var dynamicType
     private var usesSecondRow: Bool { dynamicType.isAccessibilitySize || dynamicType == .xxxLarge }
 
@@ -139,7 +143,8 @@ struct ExplorePostReactionActions: View {
     private var strip: some View {
         ExploreReactionStrip(
             reactions: post.reactions ?? [], hasMore: post.reactionsNextCursor != nil,
-            onToggle: onReaction, onLoadMore: onLoadMore, revealEmoji: revealEmoji
+            onToggle: onReaction, onLoadMore: onLoadMore, revealEmoji: revealEmoji,
+            trailingContentPadding: trailingContentPadding
         )
         .frame(maxWidth: .infinity)
     }
@@ -165,6 +170,7 @@ struct ExplorePostReactionBar: View {
     let onReaction: (String, Bool) -> Void
     let onLoadMore: () -> Void
     var onShare: (() -> Void)? = nil
+    var trailingContentPadding: CGFloat = 0
     @State private var picker: PickerRoute?
     @State private var revealEmoji: String?
     private struct PickerRoute: Identifiable { let id: String }
@@ -173,7 +179,8 @@ struct ExplorePostReactionBar: View {
         ExplorePostReactionActions(
             post: post, onComments: onComments, onLike: onLike,
             onAddReaction: { picker = PickerRoute(id: post.id) }, onReaction: onReaction,
-            onLoadMore: onLoadMore, onShare: onShare, revealEmoji: revealEmoji
+            onLoadMore: onLoadMore, onShare: onShare, revealEmoji: revealEmoji,
+            trailingContentPadding: trailingContentPadding
         )
         .sheet(item: $picker) { _ in
             ExploreEmojiPicker(

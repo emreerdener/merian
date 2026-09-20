@@ -10982,8 +10982,8 @@ names and preview names remain unchanged on the wire. The additive field
 requires `20260919203823_add_explore_post_reactor_usernames.sql`; the existing
 Edge route passes it through without a handler change. Native clients decode it
 optionally for older-server compatibility. Until that migration is applied,
-sheet rows fall back to the public display name and the aggregate shows only the
-count.
+sheet rows show "Username unavailable" and the aggregate shows only the count;
+neither renders a first/last-name fallback.
 
 The service-only RPC applies the existing post visibility guard, then filters
 both directions of viewer/actor blocks and shadowbanned actors before totals,
