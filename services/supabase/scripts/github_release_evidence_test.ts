@@ -487,6 +487,24 @@ for (const environment of ["Release%20Evidence", "Production"]) {
   }
 }
 
+Deno.test("automatic release accepts GitHub's omitted empty bypass field", async () => {
+  const controls = soloControls();
+  const protection = controls["/branches/main/protection"] as Record<
+    string,
+    unknown
+  >;
+  const reviews = protection.required_pull_request_reviews as Record<
+    string,
+    unknown
+  >;
+  delete reviews.bypass_pull_request_allowances;
+  const verified = await verifierForControls(controls).verifyRepositoryControls(
+    candidateSha,
+  );
+  assertEquals(verified.includes("main_branch_protection"), true);
+  assertEquals(verified.includes("production_environment_protection"), true);
+});
+
 for (
   const [name, override] of Object.entries({
     "missing PR requirement": { required_pull_request_reviews: null },
@@ -532,7 +550,9 @@ for (
     "app bypass": {
       bypass_pull_request_allowances: { users: [], teams: [], apps: [{}] },
     },
-    "unknown bypass": { bypass_pull_request_allowances: undefined },
+    "null bypass": { bypass_pull_request_allowances: null },
+    "malformed bypass": { bypass_pull_request_allowances: "none" },
+    "incomplete bypass": { bypass_pull_request_allowances: { users: [] } },
   })
 ) {
   Deno.test(`sole maintainer rejects PR rule: ${name}`, async () => {

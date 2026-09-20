@@ -1795,6 +1795,17 @@ activation candidate SHA, activation migration SHA-256, three nullable
 route-bundle SHA-256 values, and `pending`/`ready`/`active` state; browser roles
 cannot read or mutate the internal state.
 
+The September 19 immediate-beta forward migration may advance a still-pending
+fence to database time. Private `beta_original_not_before_utc` and
+`beta_early_activation_at` columns retain the original UTC boundary and the
+one-time eligibility change. Both must be present together, with the original
+boundary later and at exact UTC midnight. Deployment tooling verifies the new
+eligibility time matches this evidence. The service RPC shape is unchanged.
+Known daily counts are untouched; deleted pre-migration usage remains unknown
+for this partial UTC day. Already-ready and active cutovers are not rewritten.
+See the
+[owner decision](../release-evidence/field-chat-immediate-beta-activation-2026-09-19.md).
+
 Database time can make the cutover `ready`, but cannot open it. The service-only
 `activate_field_chat_admission_cutover(text,text,text,text,text)` routine takes
 the singleton row lock, rejects pre-boundary activation, is idempotent only for

@@ -528,10 +528,8 @@ Deno.serve((req: Request) =>
       safetyRatings = candidate?.safetyRatings;
       responseText = result.text ?? "";
 
-      // Defensive fallback: result.text returns "" when the @google/genai@1.0.0
-      // text getter finds no non-thought text parts — observed when candidatesTokenCount > 0
-      // but all parts are typed differently under schema-constrained JSON output.
-      // Directly reading parts[0].text recovers the response in that case.
+      // Retain the legacy first-part fallback when the SDK text getter is
+      // empty for an unexpected schema-constrained candidate representation.
       if (!responseText) {
         const firstPart = result.candidates?.[0]?.content?.parts?.[0];
         if (

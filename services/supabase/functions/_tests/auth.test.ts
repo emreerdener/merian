@@ -117,7 +117,7 @@ Deno.test("claims authentication shares the pinned SDK and remains opt-in", asyn
 
   assertEquals(
     denoConfig.imports?.["@supabase/supabase-js"],
-    "npm:@supabase/supabase-js@2.110.8",
+    "npm:@supabase/supabase-js@2.116.0",
   );
   assertEquals(claimsAuthSource.includes("@supabase/supabase-js"), true);
   assertEquals(authSource.includes("@supabase/supabase-js"), true);

@@ -1,5 +1,16 @@
 # API Contracts and Network Mappings
 
+> **Beta policy update — September 18, 2026:** The owner authorized the existing
+> beta backend rollout under the
+> [Field Chat beta release decision](../release-evidence/field-chat-beta-release-decision-2026-09-18.md).
+> `species_dictionary_chat_production_hold` is inactive by explicit exception,
+> not because every full-release criterion passed. Statements below requiring
+> all external/device/hosted-token evidence before backend rollout describe the
+> full-release policy; that evidence remains open. Exact-SHA backend validation,
+> live repository controls, runtime security/consent, and audited cutover
+> activation remain required. This exception does not authorize iOS
+> distribution.
+
 Naturebook operates through a decoupled backend. The iOS application exclusively
 hits Supabase Edge Functions, abstracting its networking away from 3rd-party
 providers like Google Gemini.
@@ -7290,10 +7301,11 @@ the normalized label in Unicode scalars, cap it at 64, accept Unicode letters,
 marks, decimal digits, and the enumerated punctuation (including ASCII hyphen
 and U+2013 EN DASH), collapse only the enumerated whitespace scalars (including
 U+0085), and reject U+FEFF. Identical vectors cover combining marks, exact
-scalar boundaries, non-BMP input, punctuation, U+FEFF, and U+0085. Production
-remains blocked by the checked-in `species_dictionary_chat_production_hold`
-until database evidence, same-SHA hosted gates, the released-binary migration
-gate, and external approvals are complete. The hold is an operational gate, not
+scalar boundaries, non-BMP input, punctuation, U+FEFF, and U+0085. The
+checked-in `species_dictionary_chat_production_hold` is inactive under the
+owner-authorized beta decision above. Exact-SHA backend validation and live
+repository controls remain mandatory; incomplete device/hosted/external evidence
+stays on the full-release checklist. Hold status is an operational control, not
 an API compatibility promise.
 
 | Status | Body                                                 | Meaning                                                 |

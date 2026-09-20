@@ -1267,11 +1267,16 @@ provider dispatch:
   historical message-less threads, blocks every novel reservation through its
   recorded next UTC boundary and until explicit post-bundle activation, and
   permanently reserves conversation insertion for the atomic RPC; exact
-  persisted replays remain available. Token usage and bounded telemetry retain
-  route-specific events without prompt/chat text or dictionary identity. All
-  routes use `_shared/fieldChatResponse.ts` so every empty/populated thread and
-  action success echoes the exact requested scan/post/species as `subject_id`;
-  iOS treats `200` as candidate evidence and validates that echo plus populated
+  persisted replays remain available. The
+  [September 19 immediate-beta exception](../release-evidence/field-chat-immediate-beta-activation-2026-09-19.md)
+  permits a forward migration to advance only a pending fence using audited
+  database time. Known counts remain intact; deleted pre-migration sends may be
+  undercounted for that partial UTC day. Explicit bundle-verified activation is
+  still required. Token usage and bounded telemetry retain route-specific events
+  without prompt/chat text or dictionary identity. All routes use
+  `_shared/fieldChatResponse.ts` so every empty/populated thread and action
+  success echoes the exact requested scan/post/species as `subject_id`; iOS
+  treats `200` as candidate evidence and validates that echo plus populated
   message/conversation identity before applying it. Every send requires a UUID
   request identity; the assistant stores its canonical lowercase form in private
   metadata and projects it as `client_message_id`, allowing duplicate,
@@ -1613,11 +1618,12 @@ provider dispatch:
   Detailed failures remain observable in Supabase Edge Function logs without
   exposing internals to the client.
 - **Shared Gemini Singleton** (`_shared/gemini.ts`): The `GoogleGenAI` client
-  (from `@google/genai@1.0.0`) is instantiated once at module scope (`_genAI`)
-  in `_shared/gemini.ts` and imported by `identify`, `enrich-scan`, and
-  `_shared/diagnostic.ts`. Deno reuses the same V8 isolate across warm
-  invocations, so a module-scope singleton avoids re-creating the SDK object and
-  its internal HTTP pool on every request.
+  from `@google/genai@2.22.0` is constructed lazily on the first provider call
+  and reused within a warm isolate through `_genAI.models`. A missing
+  `GEMINI_PAID_API_KEY` fails before dispatch. Identification, audio moderation,
+  biological enrichment, and all three Field Chat routes use this owner. Calls
+  retain the 90-second HTTP timeout and single-attempt transport; the durable
+  quota/replay layer owns retries. The Interactions API is not used.
   `createFlashModel(systemInstruction, maxOutputTokens)` is a shared factory for
   all Flash-only background calls (encyclopedic data, group tags, diagnostic
   comparison, enrichment); it returns the **native `@google/genai`

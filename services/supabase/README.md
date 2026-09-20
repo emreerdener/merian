@@ -1,5 +1,16 @@
 # Merian Supabase Backend
 
+> **Beta policy update — September 18, 2026:** The owner authorized the existing
+> beta backend rollout under the
+> [Field Chat beta release decision](../../docs/release-evidence/field-chat-beta-release-decision-2026-09-18.md).
+> `species_dictionary_chat_production_hold` is inactive by explicit exception,
+> not because every full-release criterion passed. Statements below requiring
+> all external/device/hosted-token evidence before backend rollout describe the
+> full-release policy; that evidence remains open. Exact-SHA backend validation,
+> live repository controls, runtime security/consent, and audited cutover
+> activation remain required. This exception does not authorize iOS
+> distribution.
+
 The Supabase backend for Merian. This directory contains the PostgreSQL database
 migrations, Deno Edge Functions, and related configuration.
 
@@ -32,6 +43,18 @@ Route-specific READMEs remain authoritative for payload examples; the
 [`deployment runbook`](../../docs/backend-and-data/06-supabase-deployment-runbook.md)
 define the cross-route boundary. Repository success never substitutes for an
 exact-SHA fresh-catalog replay and deployed integration smokes.
+
+## Field Chat hosted authentication evidence
+
+The staging-only
+[`verify_field_chat_hosted_auth.ts`](scripts/verify_field_chat_hosted_auth.ts)
+probe checks real GoTrue authentication and the candidate bundle identity for
+all three Field Chat routes, without subject reads, chat writes, or provider
+calls. Its deterministic tests are discovered by `make test-supabase-tooling`.
+Execution requires a separately authorized non-production project and test
+token; it is not part of automatic candidate validation and does not clear a
+hold. Follow the
+[canonical probe procedure](../../docs/backend-and-data/06-supabase-deployment-runbook.md#field-chat-hosted-authentication-probe).
 
 ## Migration Replay
 
@@ -97,10 +120,11 @@ the automated repository-control gate. It requires
 `MERIAN_GITHUB_RELEASE_AUDIT_TOKEN` for live branch/environment checks, but no
 per-commit clearance secret or environment approval. Both environments permit
 protected branches only with no reviewers or waiting gates. Scheduled monitors
-sharing Production run automatically. The existing active hold remains a
-one-time blocker until its evidence is complete and it is resolved in source.
-The [release-evidence operations guide](../../docs/release-evidence/README.md)
-owns optional retained-evidence publication and audit procedures.
+sharing Production run automatically. The Field Chat hold is inactive under the
+owner-authorized beta decision above; the unfinished full-release checklist is
+not an automatic backend blocker. The
+[release-evidence operations guide](../../docs/release-evidence/README.md) owns
+optional retained-evidence publication and audit procedures.
 
 Catalog fixtures preserve production signup behavior. An `auth.users` insert
 fires `on_auth_user_created` and can create `public.users` synchronously; a
@@ -406,7 +430,7 @@ profile updates, and Explore feed projections.
   `deno.json` that points at the shared frozen `functions/dependencies.lock`.
   Runtime imports use those aliases instead of direct `esm.sh`, `deno.land`,
   npm, or JSR specifiers. The whole fleet uses one exact
-  `@supabase/supabase-js@2.110.8` graph; `_shared/claimsAuth.ts` remains the
+  `@supabase/supabase-js@2.116.0` graph; `_shared/claimsAuth.ts` remains the
   opt-in authentication policy boundary for cached-JWKS claims verification, not
   a second SDK dependency. Generated configs explicitly retain Deno's one-day
   minimum dependency age; reviewed versions already present in the frozen lock
@@ -1727,9 +1751,9 @@ revoked. Static contracts lock the account-row-before-stream lock order, and
 `legalConsentConcurrencyDb.test.ts` releases overlapping grant/revocation
 callers for both providers and requires the final head to remain revoked. Static
 backend contracts pass, and all tracked iOS lifecycle findings are closed in
-source. Internal test builds may continue. Public production remains blocked by
-hosted exact-SHA runtime/rollout evidence, disposable-catalog replay, and
-external release evidence in the
+source. The existing beta backend is eligible for the owner-authorized exception
+above, with exact-SHA backend validation still required. Full-public-launch
+approval still needs the runtime/rollout and external release evidence in the
 [production consent readiness record](../../docs/legal/production-consent-readiness-2026-08-03.md).
 
 Terminal quota reservations ordinarily prune after 30 days.
@@ -1855,6 +1879,15 @@ Deno configuration, and frozen lock. A `ready` rerun force-selects all three
 bundles; activation persists candidate, migration, and all three live digests.
 These source controls still require non-skipped disposable PostgreSQL and hosted
 exact-SHA evidence before the hold may be cleared.
+
+The
+[September 19 immediate-beta decision](../../docs/release-evidence/field-chat-immediate-beta-activation-2026-09-19.md)
+supersedes only the initial next-day wait. Its forward migration advances a
+still-pending fence to database time and preserves the original boundary in
+private audit columns. Recorded daily counts stay intact, with a documented
+partial-day lower-bound exception for deleted pre-migration messages. The
+workflow still requires all three live bundle digests and explicit activation;
+ready and active installations are unchanged.
 
 Executable security fixtures insert test profiles directly instead of running
 the Auth signup trigger. Any such owner-only fixture must first insert the
@@ -2302,12 +2335,30 @@ schema. After an intentional media-wire change, run
 `make generate-captured-media-dto-contract`, review the Swift diff, then run
 `make validate-edge-dto-contract`.
 
+The reviewed maintenance graph pins `@std/encoding` to 1.0.11 and the JSZip
+archive-test dependency to 3.10.2. Supabase JS is aligned at the reviewed
+2.116.0 version across the Edge fleet, public web, and internal admin. JOSE
+6.2.12 uses the Deno WebCrypto runtime for Apple RS256 identity verification and
+ES256 Apple client-secret/APNs signing. Real-crypto tests retain fixed
+algorithm, issuer, audience, signature, expiry, and safe-error behavior using
+only generated keys and synthetic JWKS responses. Google Gen AI 2.22.0 retains
+`models.generateContent` with the existing model choices, schemas, thinking
+budgets, 90-second HTTP timeout, and no SDK retry options. The real-SDK tests in
+`_shared/gemini_test.ts` intercept HTTP using synthetic input to check Field
+Chat JSON, image/audio parts, schema constraints, thought exclusion, safety,
+token usage, paid-key denial, single-attempt errors, and timeout cancellation.
+These tests do not make paid provider calls or establish live model quality. See
+the
+[dependency maintenance policy](../../docs/CONTRIBUTING.md#dependency-maintenance).
+
 After changing a pin in `functions/deno.json`, regenerate the function-local
 configs with `sync_function_deno_configs.ts`, refresh
-`functions/dependencies.lock`, and commit all three surfaces together. CI
-rejects stale generated configs, unlocked packages, direct runtime specifiers,
-and any missing or stale `config.toml` function entry. When the fleet changes,
-fix the reported name mismatch; never update a numeric expected-function count.
+`functions/dependencies.lock`, then regenerate the Field Chat bundle identities
+with `generate_field_chat_deployment_identity.ts --write`. Commit the manifest,
+lockfile, local configs, and generated identities together. CI rejects stale
+generated configs, unlocked packages, direct runtime specifiers, and any missing
+or stale `config.toml` function entry. When the fleet changes, fix the reported
+name mismatch; never update a numeric expected-function count.
 
 The checked-in `deno task test` is the canonical complete function source and
 unit suite. Its read allowlist includes the function tree plus migrations,
@@ -2775,15 +2826,14 @@ marker plus each route's candidate-derived bundle digest, and activation stores
 all three live identities. Database `ready` force-selects the full Field Chat
 fleet even after the migration becomes the deployment baseline. The current
 handler test executes the post-authenticated core, not a hosted real-token HTTP
-request. Supabase production is blocked by the checked-in
-`species_dictionary_chat_production_hold`; Candidate Validation may run, but the
-separate source hold job must pass before the GitHub `Production` environment or
-any mutation-capable deployment step is reached. After the hold is legitimately
-resolved, the exact-SHA Production job verifies live branch/environment controls
-automatically, without a renewed manual clearance record on every commit. Keep
-the hold active until non-skipped database and wrapper-auth execution, both
-same-SHA hosted gates, the released-V49 install-over, and every external gate in
-the canonical deployment runbook are retained.
+request. The checked-in `species_dictionary_chat_production_hold` is inactive
+under the owner-authorized beta decision above. Candidate Validation and the
+source-status job still precede the GitHub `Production` environment. The
+exact-SHA Production job verifies live branch/environment controls
+automatically, without a renewed manual clearance record on every commit.
+Non-skipped backend tests remain required. Hosted real-token, complete same-SHA
+iOS, released-V49 install-over, and external approval records remain incomplete
+full-release checklist items, not active backend deployment prerequisites.
 
 For the Field trip Scan indicator and starter enrollment, apply the complete
 ordered Field trip chain through

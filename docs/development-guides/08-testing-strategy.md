@@ -1,5 +1,11 @@
 # Merian Testing & Quality Assurance Strategy
 
+> **Field Chat beta release scope:** The
+> [September 18 owner decision](../release-evidence/field-chat-beta-release-decision-2026-09-18.md)
+> defers the unfinished full-release evidence package for the existing beta
+> backend. Test requirements and outcomes below remain unchanged; deferred
+> hosted-token and physical-device evidence must not be reported as passing.
+
 Merian uses a lightweight, Swift-native testing structure built on the `Testing`
 framework, isolating offline UI queues and core engine components from Apple
 lifecycle dependencies.
@@ -5522,10 +5528,11 @@ completed-quota recovery. It also invokes the actual `withEdgeHandler` boundary
 with deterministic accepted/refused authenticators, proving authentication
 precedes route binding and refusal never reaches the handler. The source route
 contract separately checks wrapper registration; a hosted real-JWT smoke remains
-required. The daily-limit and cutover cases prove no provider dispatch and
-refund any uncommitted provider lease, while the database fixture proves no
-conversation or message write. Route source contracts reject any reintroduction
-of pre-admission `getOrCreateConversation` helpers. Swift and Deno execute
+on the full-release checklist and is deferred for the beta backend exception.
+The daily-limit and cutover cases prove no provider dispatch and refund any
+uncommitted provider lease, while the database fixture proves no conversation or
+message write. Route source contracts reject any reintroduction of pre-admission
+`getOrCreateConversation` helpers. Swift and Deno execute
 `docs/contracts/species-dictionary-prompt-label-policy.json` for ASCII hyphen,
 U+2013 EN DASH, curly apostrophe, combining marks, exact 64-Unicode-scalar
 acceptance, 65-scalar fallback, emoji fallback, U+0085 normalization, and U+FEFF
@@ -5534,33 +5541,35 @@ the recursive Edge gate executes the Deno consumer on the same candidate.
 `ci-detect-ios-build-source-changes.sh` treats that shared fixture as an iOS
 build input, so a policy-only JSON change cannot skip the macOS gate.
 
-This local evidence still does not authorize release. Candidate Validation must
-execute the complete disposable PostgreSQL and recursive Edge suite on the same
-immutable SHA as the hosted iOS gate. The checked-in
-`species_dictionary_chat_production_hold` remains active until the Ghost
-registry, real three-family database cases, post-bundle cutover activation,
-no-write denial, and exact label-policy parity execute without skips on the
-immutable candidate. The cutover tests cover a ready-state rerun after the
+Local test results do not themselves authorize release. The owner-authorized
+beta backend exception above makes `species_dictionary_chat_production_hold`
+inactive; it does not mark the full-release evidence checklist complete.
+Candidate Validation must execute the complete disposable PostgreSQL and
+recursive Edge suite on the immutable release SHA. Its database cases cover the
+Ghost registry, real three-family reservations, post-bundle cutover activation,
+and no-write denials. Cutover tests cover a ready-state rerun after the
 migration becomes the successful baseline and match each immutable live bundle
 digest to the candidate; the compatibility marker alone is insufficient. The
-hosted real-token HTTP-wrapper evidence must also pass. The fail-closed source
-verifier requires the named ID. If it is later reviewed inactive, the
+hosted real-token and complete same-SHA iOS evidence remain deferred beta
+prerequisites. The source verifier still requires the named hold ID. The
 exact-SHA-checked mutation job runs the automatic repository-control gate:
 current protected main, merged-main PR provenance, strict Candidate readiness,
 branch rules without bypass, and protected environment branches without
-reviewer/timer/custom gates. It requires no per-commit clearance secret.
-Optional evidence audits fetch and recompute each artifact, validate embedded
-evidence and exact-SHA runs, reject observations/supporting runs older than 30
-days, and prevent artifact reuse across criteria. The manual evidence workflow
-passes `${{ inputs.* }}` through step environment variables before Bash consumes
-them; direct expression interpolation in a `run` script is a workflow-security
-regression. The historical genuine released-binary V49→V50 baseline, the current
-V50→V51 physical install-over, and the canonical external consent/App
-Store/billing/DPA evidence must also pass. Artifact integrity does not
-authenticate an off-platform issuer or establish independent secret
-administration; follow the
-[release-evidence operations guide](../release-evidence/README.md) and keep the
-hold active if those external controls cannot be verified.
+reviewer/timer/custom gates. It requires no per-commit clearance secret. This
+policy does not independently require iOS checks beyond the configured
+branch/workflow gates. Optional evidence audits fetch and recompute each
+artifact, validate embedded evidence and exact-SHA runs, reject
+observations/supporting runs older than 30 days, and prevent artifact reuse
+across criteria. The manual evidence workflow passes `${{ inputs.* }}` through
+step environment variables before Bash consumes them; direct expression
+interpolation in a `run` script is a workflow-security regression. The
+historical genuine released-binary V49→V50 baseline, the current V50→V51
+physical install-over, and the canonical external consent/App Store/billing/DPA
+evidence must also pass. Artifact integrity does not authenticate an
+off-platform issuer or establish independent secret administration; follow the
+[release-evidence operations guide](../release-evidence/README.md). These remain
+full-release checklist items; the beta exception does not certify them or
+reinstate the source hold automatically.
 
 Media-ingestion durability has focused Deno coverage as well:
 `_shared/scanIngestionJobs_test.ts` locks client-safe job-state projection and

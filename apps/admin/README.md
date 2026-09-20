@@ -57,6 +57,33 @@ validated origin. Callback `next` values must be single-leading-slash paths;
 absolute, protocol-relative, backslash, and encoded-separator forms fall back to
 the fixed local destination.
 
+### Supabase client compatibility
+
+Supabase JS is pinned to 2.116.0, aligned with the Edge fleet. The SSR adapter
+is pinned to 0.12.7. Keep the request-scoped server client and the
+`getAll`/`setAll` cookie bridge; `getUser()` remains a routing check, while RPCs
+enforce authorization. `lib/supabase-ssr.test.ts` exercises missing sessions,
+refreshed-cookie reuse, and invalid-refresh cleanup through the real SDK with
+synthetic transport fixtures.
+
+See the
+[SDK release notes](https://github.com/supabase/supabase-js/releases/tag/v2.116.0).
+Dependency upgrades must preserve authentication, cookie, and request-transport
+behavior.
+
+### TypeScript compiler
+
+Both `npm run typecheck` and Next.js builds use the pinned native TypeScript
+7.0.2 CLI. `experimental.useTypeScriptCli: true` is explicit in
+`next.config.ts`; keep build-time type checking enabled. TypeScript 7 does not
+provide the legacy JavaScript compiler API. See Microsoft's
+[TypeScript 7 migration guidance](https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/#running-side-by-side-with-typescript-60).
+
+The source-security tests import `@typescript/typescript6` 6.0.2 solely for AST
+inspection. It is a development dependency, not the build compiler. Keep those
+negative credential/environment tests active; do not replace their syntax
+analysis with string matching to remove the compatibility package.
+
 ## Local commands
 
 ```bash
@@ -78,7 +105,7 @@ npm run build
 that complete sequence for every pull request and every affected `main` push. It
 deliberately reports on every pull request so GitHub can require a stable check
 without path-filtered changes remaining pending. The currently protected graph
-pins Next.js 16.3.5 and PostCSS 8.5.25 and overrides Next.js's private Sharp
+pins Next.js 16.3.5 and PostCSS 8.5.28 and overrides Next.js's private Sharp
 dependency to 0.35.4. `lib/dependency-security.test.ts` rejects a lockfile below
 those floors or a workflow that drops or reorders the frozen install, blocking
 audit, tests, type-check, and production build. Keep the overrides until a
@@ -97,6 +124,16 @@ Add that GitHub Action as a required Vercel Deployment Check so a production
 build is not promoted to the custom domain until the exact commit's check
 passed; never treat Force Promote or a direct manual deployment as routine
 bypass authority.
+
+Mantine core and hooks are pinned together at 9.6.1. Dependabot groups their
+minor and patch updates; keep their exact peer versions aligned. Node types
+remain on the supported Node 24 major. React and React DOM are paired at 19.3.0
+with matching 19.3 type declarations; Dependabot groups those packages and the
+dependency tests reject mismatched runtime versions. The lockfile also resolves
+`baseline-browser-mapping` to 2.11.25, above the 2.11.0 fix for
+[invalid-input process termination](https://github.com/advisories/GHSA-w5vr-8v7q-w6rv).
+See the
+[dependency maintenance policy](../../docs/CONTRIBUTING.md#dependency-maintenance).
 
 When changing dependencies:
 

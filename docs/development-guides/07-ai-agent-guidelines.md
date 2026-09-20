@@ -558,7 +558,12 @@ owns every edit. Run `make validate-agent-assets` after any change to these
 instructions, skills, agents, compatibility pointers, or Agent Quality workflow.
 Deterministic validation is the required check. Live Codex evaluations are
 non-blocking during their documented calibration window and are scored from
-enumerated expectations rather than a second model judge.
+enumerated expectations rather than a second model judge. The live job checks
+only whether its optional `OPENAI_API_KEY` input is available before invoking
+Codex Action. If absent, it records a visible not-run notice and summary, skips
+evaluation and scoring, and produces no calibration evidence. The deterministic
+gate still runs. Never count that configuration skip as a successful model
+evaluation or provide production credentials to make the optional job run.
 
 ## 11. SwiftData Schema Migration Safety
 

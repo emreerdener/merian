@@ -374,7 +374,7 @@ email in the URL.
 The npm supply-chain boundary is the committed `package-lock.json`, installed
 with `npm ci` following the
 [Supabase npm security guidance](https://supabase.com/docs/guides/security/npm-security).
-The current reviewed graph uses Next.js 16.3.5, PostCSS 8.5.25, and Sharp
+The current reviewed graph uses Next.js 16.3.5, PostCSS 8.5.28, and Sharp
 0.35.4. `lib/dependency-security.test.ts` rejects resolved versions below the
 reviewed floors and protects the CI command order;
 `lib/admin-foundation.test.ts` parses the production TypeScript graph and

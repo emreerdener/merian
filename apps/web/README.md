@@ -171,6 +171,39 @@ separate staging Supabase project and Turnstile widget if preview deployments
 need live backend behavior. See the canonical destination matrix in
 [`docs/development-guides/05-keychain-and-secrets.md`](../../docs/development-guides/05-keychain-and-secrets.md#deployment-environment-ownership).
 
+### Supabase client compatibility
+
+Supabase JS is pinned to 2.116.0, aligned with the Edge fleet. Public and
+privileged clients retain their separate credential boundaries; the privileged
+factory stays server-only and removes only the opaque API-key-as-Bearer
+fallback.
+
+See the
+[SDK release notes](https://github.com/supabase/supabase-js/releases/tag/v2.116.0).
+Dependency upgrades must preserve authentication, cookie, and request-transport
+behavior.
+
+### TypeScript compiler
+
+Both `npm run typecheck` and Next.js builds use the pinned native TypeScript
+7.0.2 CLI. `experimental.useTypeScriptCli: true` is explicit in
+`next.config.ts`; keep build-time type checking enabled. TypeScript 7 does not
+provide the legacy JavaScript compiler API. See Microsoft's
+[TypeScript 7 migration guidance](https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/#running-side-by-side-with-typescript-60).
+
+### Dependency maintenance
+
+All direct Mantine packages are pinned together at 9.6.1. Dependabot groups
+minor and patch updates because Mantine uses exact peer versions. Node types
+remain on the supported Node 24 major. React and React DOM are paired at 19.3.0
+with matching 19.3 type declarations; Dependabot groups those packages and the
+dependency tests reject mismatched runtime versions. The lockfile also resolves
+`baseline-browser-mapping` to 2.11.25, above the 2.11.0 fix for
+[invalid-input process termination](https://github.com/advisories/GHSA-w5vr-8v7q-w6rv).
+Follow the
+[dependency maintenance policy](../../docs/CONTRIBUTING.md#dependency-maintenance)
+and retain the complete frozen-install, audit, test, type-check, and build gate.
+
 ### Web Security Boundary
 
 The package pins the reviewed Next.js release exactly; do not replace it with a
@@ -183,7 +216,7 @@ edge and retains an exact reviewed Sharp pin. Do not remove security constraints
 merely because image optimization is disabled or CSS inputs are currently
 trusted.
 
-The Next PostCSS 8.5.25 override covers both
+The Next PostCSS 8.5.28 override covers both
 [attacker-controlled source-map file reads](https://github.com/advisories/GHSA-6g55-p6wh-862q)
 and the remaining
 [source-map path traversal](https://github.com/advisories/GHSA-r28c-9q8g-f849).

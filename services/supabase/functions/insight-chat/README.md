@@ -239,7 +239,7 @@ approved paid Gemini test key configured outside chat:
 
 ```bash
 deno run --frozen --config services/supabase/functions/deno.json \
-  --allow-env=GEMINI_PAID_API_KEY,GOOGLE_SDK_NODE_LOGGING,GOOGLE_GENAI_USE_VERTEXAI,GOOGLE_API_KEY,GOOGLE_CLOUD_PROJECT,GOOGLE_CLOUD_LOCATION,GOOGLE_VERTEX_BASE_URL,GOOGLE_GEMINI_BASE_URL \
+  --allow-env=GEMINI_PAID_API_KEY,GOOGLE_SDK_NODE_LOGGING,GOOGLE_GENAI_USE_VERTEXAI,GOOGLE_GENAI_USE_ENTERPRISE,GOOGLE_API_KEY,GEMINI_API_KEY,GOOGLE_CLOUD_PROJECT,GOOGLE_CLOUD_LOCATION,GOOGLE_VERTEX_BASE_URL,GOOGLE_GEMINI_BASE_URL,WS_NO_BUFFER_UTIL,WS_NO_UTF_8_VALIDATE \
   --allow-net=generativelanguage.googleapis.com \
   services/supabase/scripts/evaluate_field_chat_answers.ts --live
 ```

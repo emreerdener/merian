@@ -46,8 +46,11 @@ async function readStatus(
       status_row.activated_explore_bundle_sha256,
       status_row.activated_insight_bundle_sha256,
       status_row.activated_species_dictionary_bundle_sha256,
-      status_row.status
+      status_row.status,
+      cutover.beta_early_activation_at::TEXT AS beta_early_activation_at,
+      cutover.beta_original_not_before_utc::TEXT AS beta_original_not_before_utc
     FROM public.get_field_chat_admission_cutover_status() AS status_row
+    JOIN internal.field_chat_admission_cutover AS cutover ON cutover.singleton
   `;
   return validateFieldChatCutoverRows(rows, expectedMigrationSha256);
 }

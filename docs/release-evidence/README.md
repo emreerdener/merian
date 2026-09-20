@@ -1,5 +1,16 @@
 # Release Evidence Operations
 
+> **Beta policy update — September 18, 2026:** The owner authorized the existing
+> beta backend rollout under the
+> [Field Chat beta release decision](field-chat-beta-release-decision-2026-09-18.md).
+> `species_dictionary_chat_production_hold` is inactive by explicit exception,
+> not because every full-release criterion passed. Statements below requiring
+> all external/device/hosted-token evidence before backend rollout describe the
+> full-release policy; that evidence remains open. Exact-SHA backend validation,
+> live repository controls, runtime security/consent, and audited cutover
+> activation remain required. This exception does not authorize iOS
+> distribution.
+
 ## Automatic deployment policy
 
 Backend-relevant pushes to protected main trigger `deploy.yml` automatically.
@@ -28,9 +39,12 @@ This policy supersedes the reviewer-based policy introduced earlier on
 ## One-time release hold
 
 `services/supabase/release-holds.json` is the source authority. The
-`species_dictionary_chat_production_hold` remains active until all eight
-technical/external criteria have actual retained evidence. The owner-requested
-removal of recurring reviews does not waive those criteria.
+`species_dictionary_chat_production_hold` is inactive under the owner-authorized
+beta decision above. All eight original criteria remain an incomplete
+full-release checklist. It is not a machine-enforced backend hold: ordinary
+qualifying main pushes may deploy automatically without renewing this exception.
+There is no automatic expiry or audience gate. A broader public launch requires
+an owner decision on the unfinished checklist and any renewed source hold.
 
 A valid active hold reports `release_status=held` and `deploy_allowed=false`;
 Production is skipped before secrets or mutation. Malformed or missing required
@@ -38,11 +52,11 @@ holds fail closed. A green held/skipped run is never deployment evidence or a
 successful deployment baseline. If no safe deployment baseline is available, the
 planner selects the full Function fleet and all predeploy fences.
 
-After completing the hold's requirements, resolve it through a protected source
-PR and validate the resulting commit. Every deployment still checks current
-source status and live controls. Ordinary subsequent commits do not require
-renewing manual evidence or a clearance secret. Do not dispatch a production
-deployment merely to test a hold.
+Any future source-hold change requires a protected source PR and validation of
+the resulting commit. Every deployment still checks current source status and
+live controls. Ordinary subsequent commits do not require renewing manual
+evidence or a clearance secret. Do not dispatch a production deployment merely
+to test a hold.
 
 ## Retained evidence and optional audits
 

@@ -586,10 +586,16 @@ SELECT extensions.ok(
     (
         SELECT
             status_row.not_before_utc > status_row.seeded_at
-            AND status_row.not_before_utc = pg_catalog.DATE_TRUNC(
-                'day',
-                status_row.not_before_utc,
-                'UTC'
+            AND (
+                status_row.not_before_utc = pg_catalog.DATE_TRUNC(
+                    'day', status_row.not_before_utc, 'UTC'
+                )
+                OR EXISTS (
+                    SELECT 1 FROM internal.field_chat_admission_cutover AS cutover
+                    WHERE cutover.singleton
+                      AND cutover.beta_early_activation_at = status_row.not_before_utc
+                      AND cutover.beta_original_not_before_utc > status_row.not_before_utc
+                )
             )
             AND status_row.activated_at IS NULL
             AND status_row.activated_candidate_sha IS NULL
@@ -604,7 +610,7 @@ SELECT extensions.ok(
             END
         FROM public.get_field_chat_admission_cutover_status() AS status_row
     ),
-    'fresh migration exposes a self-consistent PostgreSQL-clock UTC boundary'
+    'fresh migration exposes a self-consistent database boundary or audited beta eligibility'
 );
 
 -- Make the pending-state behavior deterministic even if this catalog happens

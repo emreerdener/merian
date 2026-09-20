@@ -3,10 +3,10 @@
   "holds": [
     {
       "id": "species_dictionary_chat_production_hold",
-      "active": true,
+      "active": false,
       "scope": "supabase_production",
       "owner": "Merian release owner",
-      "reason": "Production remains blocked until every criterion below has retained evidence and the checked-in hold is resolved. Pushes to protected main deploy automatically after candidate validation, an inactive source hold, and live repository-control verification; recurring environment review and per-commit clearance approval are not required.",
+      "reason": "The repository owner authorized the existing beta backend rollout on 2026-09-18 with the incomplete public-launch evidence explicitly deferred in docs/release-evidence/field-chat-beta-release-decision-2026-09-18.md. This is an owner release-policy exception, not evidence that all exit criteria passed. Exact-SHA Candidate Validation, live repository controls, runtime authorization/consent, migration ordering, database cutover, bundle verification, activation, and production smokes remain mandatory.",
       "exit_criteria": [
         {
           "id": "field_chat_database_and_ghost_merge",

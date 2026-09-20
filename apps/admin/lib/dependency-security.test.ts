@@ -94,9 +94,9 @@ test("the frozen admin graph excludes reviewed vulnerable dependency ranges", ()
 
 test("Next.js transitive security overrides remain explicit", () => {
   assert.equal(packageManifest.dependencies?.next, "16.3.5");
-  assert.equal(packageManifest.devDependencies?.postcss, "8.5.25");
+  assert.equal(packageManifest.devDependencies?.postcss, "8.5.28");
   assert.deepEqual(packageManifest.overrides?.next, {
-    postcss: "8.5.25",
+    postcss: "8.5.28",
     sharp: "0.35.4",
   });
 });
@@ -110,9 +110,21 @@ test("the admin CSS parser excludes the reviewed recursion vulnerability", () =>
   );
 });
 
-test("the admin build installs its pinned TypeScript compiler API", () => {
-  assert.equal(packageManifest.devDependencies?.typescript, "5.9.3");
-  assert.deepEqual(packageVersions("typescript"), ["5.9.3"]);
+test("the admin build uses the pinned native TypeScript CLI and retains the test parser API", () => {
+  assert.equal(packageManifest.devDependencies?.typescript, "7.0.2");
+  assert.deepEqual(packageVersions("typescript"), ["7.0.2"]);
+  const config = readFileSync(
+    new URL("../next.config.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(config, /useTypeScriptCli:\s*true/);
+  assert.doesNotMatch(config, /ignoreBuildErrors:\s*true/);
+  assert.equal(
+    packageManifest.devDependencies?.["@typescript/typescript6"],
+    "6.0.2",
+  );
+  assert.deepEqual(packageVersions("@typescript/typescript6"), ["6.0.2"]);
+
   assert.match(adminQualityWorkflow, /run: npm ci --include=dev/);
 });
 
@@ -152,5 +164,25 @@ test("admin quality gates the frozen graph before test, type-check, and build", 
     const index = adminQualityWorkflow.indexOf(command);
     assert.ok(index > previousIndex, `${command} is missing or out of order`);
     previousIndex = index;
+  }
+});
+
+test("React and React DOM resolve to the same exact release", () => {
+  const react = packageManifest.dependencies?.react;
+  assert.match(react ?? "", /^\d+\.\d+\.\d+$/);
+  assert.equal(packageManifest.dependencies?.["react-dom"], react);
+  assert.deepEqual(packageVersions("react"), [react]);
+  assert.deepEqual(packageVersions("react-dom"), [react]);
+});
+
+test("all direct Mantine packages share their exact peer version", () => {
+  const core = packageManifest.dependencies?.["@mantine/core"];
+  assert.match(core ?? "", /^\d+\.\d+\.\d+$/);
+  for (
+    const [name, version] of Object.entries(packageManifest.dependencies ?? {})
+  ) {
+    if (!name.startsWith("@mantine/")) continue;
+    assert.equal(version, core, `${name} must match Mantine core`);
+    assert.deepEqual(packageVersions(name), [core]);
   }
 });

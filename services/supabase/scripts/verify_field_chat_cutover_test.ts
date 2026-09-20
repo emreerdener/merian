@@ -134,3 +134,40 @@ Deno.test("Field Chat cutover requires all three bundle digests as one evidence 
     ])
   );
 });
+
+Deno.test("early beta eligibility requires complete matching database audit evidence", () => {
+  const beta = {
+    not_before_utc: "2026-08-24 18:45:00+00",
+    beta_early_activation_at: "2026-08-24 18:45:00+00",
+    beta_original_not_before_utc: "2026-08-25 00:00:00+00",
+    status: "ready",
+  };
+  assertEquals(validateFieldChatCutoverRows([row(beta)]).status, "ready");
+  for (
+    const change of [
+      { beta_early_activation_at: null },
+      { beta_original_not_before_utc: null },
+      { beta_early_activation_at: "2026-08-24 18:44:00+00" },
+      { beta_original_not_before_utc: "2026-08-25 00:00:01+00" },
+      { beta_original_not_before_utc: "2026-08-24 00:00:00+00" },
+      { database_now: "2026-08-24 18:40:00+00", status: "pending" },
+    ]
+  ) {
+    assertThrows(() =>
+      validateFieldChatCutoverRows([row({ ...beta, ...change })])
+    );
+  }
+  assertEquals(
+    validateFieldChatCutoverRows([row({
+      ...beta,
+      activated_at: "2026-08-24 18:46:00+00",
+      activated_candidate_sha: "a".repeat(40),
+      activated_migration_sha256: "b".repeat(64),
+      activated_explore_bundle_sha256: "c".repeat(64),
+      activated_insight_bundle_sha256: "d".repeat(64),
+      activated_species_dictionary_bundle_sha256: "e".repeat(64),
+      status: "active",
+    })], "b".repeat(64)).status,
+    "active",
+  );
+});

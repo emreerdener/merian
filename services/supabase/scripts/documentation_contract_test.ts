@@ -4338,9 +4338,42 @@ Deno.test("Species Dictionary production hold is machine enforced and documented
   );
   assert(hold, "Missing Species Dictionary production hold.");
   assertEquals(manifest.schema_version, 3);
-  assertEquals(hold.active, true);
+  assertEquals(hold.active, false);
   assertEquals(hold.scope, "supabase_production");
   assertEquals(hold.owner, "Merian release owner");
+  const betaDecision = await read(
+    "docs/release-evidence/field-chat-beta-release-decision-2026-09-18.md",
+  );
+  assertStringIncludes(betaDecision, "not mean those eight criteria passed");
+  assertStringIncludes(betaDecision, "next database-observed UTC-day");
+  assertStringIncludes(betaDecision, "MERIAN_GITHUB_RELEASE_AUDIT_TOKEN");
+  for (
+    const policy of [
+      "not a machine-enforced backend hold",
+      "no automatic expiry or beta/public audience enforcement",
+      "subsequent qualifying main pushes",
+      "deferred as beta backend prerequisites, not recorded as successful",
+    ]
+  ) {
+    assertStringIncludes(compact(betaDecision), policy);
+  }
+  for (
+    const source of [
+      functionSource,
+      featureSource,
+      apiSource,
+      runbookSource,
+      legalSource,
+      releaseSource,
+      evidenceGuideSource,
+    ]
+  ) {
+    assertStringIncludes(
+      source,
+      "field-chat-beta-release-decision-2026-09-18.md",
+    );
+  }
+
   assertEquals(
     hold.exit_criteria.map((criterion) => [
       criterion.id,
@@ -5285,9 +5318,9 @@ Deno.test("production consent documentation preserves the release hold and exit 
       'transport_security: "ats-default"',
       "Superseded Fixed Test Defects",
       "Supabase Candidate Validation",
-      "No green hosted evidence for the post-fence candidate is recorded yet",
-      "Production remains blocked until hosted exact-SHA validation and every external production control are closed",
-      "Those operator controls remain deferred for internal-only test builds",
+      "No complete paired hosted result is recorded for the final beta-policy commit",
+      "Full-public-launch approval remains unrecorded until hosted exact-SHA validation",
+      "These deferred records are not a machine-enforced backend hold",
     ]
   ) {
     assertStringIncludes(canonicalCompact, fragment);

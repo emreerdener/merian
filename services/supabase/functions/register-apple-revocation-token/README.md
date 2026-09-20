@@ -57,3 +57,13 @@ check.
 The complete deletion state machine, legacy fallback, key-rotation procedure,
 and production exit gate are normative in the
 [Sign in with Apple account-deletion contract](../../../../docs/backend-and-data/20-sign-in-with-apple-account-deletion.md).
+
+## Cryptography compatibility
+
+The shared JOSE 6.2.12 dependency runs on Deno WebCrypto. Apple identity tokens
+remain RS256-only with the fixed Apple issuer and native client audience; client
+secrets remain ES256 with a five-minute lifetime. `_shared/appleSignIn_test.ts`
+verifies real signatures and rejects altered signatures, wrong
+issuer/audience/algorithm/key, expired or not-yet-valid tokens, and invalid
+subjects through the actual JWKS verifier. Keys and tokens exist only in test
+memory; the synthetic JWKS transport never contacts Apple.
