@@ -102,7 +102,7 @@ struct ExplorePostReactionActions: View {
     let onAddReaction: () -> Void
     let onReaction: (String, Bool) -> Void
     let onLoadMore: () -> Void
-    var onShare: (() -> Void)? = nil
+    var onShare: (() -> Void)?
     var revealEmoji: String?
     var trailingContentPadding: CGFloat = 0
     @Environment(\.dynamicTypeSize) private var dynamicType
@@ -169,7 +169,7 @@ struct ExplorePostReactionBar: View {
     let onLike: () -> Void
     let onReaction: (String, Bool) -> Void
     let onLoadMore: () -> Void
-    var onShare: (() -> Void)? = nil
+    var onShare: (() -> Void)?
     var trailingContentPadding: CGFloat = 0
     @State private var picker: PickerRoute?
     @State private var revealEmoji: String?
