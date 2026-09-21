@@ -851,6 +851,9 @@ assert_file_contains \
   "private static let queueBackedForegroundIdentifyRequestTimeout: TimeInterval = 15"
 assert_file_contains \
   "$inference_endpoint_source" \
+  "private static let proQueueBackedForegroundIdentifyRequestTimeout: TimeInterval = 30"
+assert_file_contains \
+  "$inference_endpoint_source" \
   "durableQueueOwnsRecovery: Bool = false"
 assert_file_contains \
   "$inference_endpoint_source" \
@@ -883,7 +886,7 @@ durable_queue_generation_bindings="$(
     "Both live pipeline request call sites must derive durable queue recovery from the admitted foreground owner."
 assert_file_contains \
   "$inference_endpoint_transport_test_source" \
-  "request.timeoutInterval == 15"
+  "request.timeoutInterval == (isProFunded ? 30 : 15)"
 assert_file_contains \
   "$inference_endpoint_transport_test_source" \
   "request.timeoutInterval == 90"
@@ -1111,10 +1114,13 @@ while IFS="|" read -r \
   [[ -n "$protected_case_name" ]] \
     || fail "Critical-result validator emitted an empty protected test-case name."
 
+  # XCResult includes argument labels for parameterized Swift Testing cases.
+  # Swift declarations still begin with the base function name.
+  protected_declaration_name="${protected_case_name%%(*}"
   protected_declarations="$(
     grep -REn \
       --include='*.swift' \
-      "^[[:space:]]*(@Test(\\([^)]*\\))?[[:space:]]+)?func[[:space:]]+${protected_case_name}[[:space:]]*\\(" \
+      "^[[:space:]]*(@Test(\\([^)]*\\))?[[:space:]]+)?func[[:space:]]+${protected_declaration_name}[[:space:]]*\\(" \
       "$ios_test_sources" \
       || true
   )"
@@ -1202,8 +1208,8 @@ for exact_scan_regression in \
   "recoveredBackgroundResultCanReplaceExactReleasedAttempt" \
   "recoveredQueuedResultCanReplaceExactRetainedPresentation" \
   "recoveredQueuedResultRejectsStaleOrMismatchedScan" \
-  "queueBackedIdentifyReturnsFirstTransportFailureWithoutInlineReplay" \
-  "queueLessIdentifyRetainsOneReviewedInlineTransportReplay" \
+  "queueBackedIdentifyReturnsFirstTransportFailureWithoutInlineReplay(isProFunded:)" \
+  "queueLessIdentifyRetainsOneReviewedInlineTransportReplay(isProFunded:)" \
   "observationRejectionStaysTerminalAndOutOfNetworkCircuitForVisualAndNonVisual" \
   "testEdgeFunctionSelfHealingRefreshesInvalidSessionBeforeRetry" \
   "scheduledServerFailureRetryBreaksStatusUploadDeadlock" \

@@ -422,12 +422,12 @@ assert_suite_has_passed_test_case \
   "Queue-backed transport replay suppression" \
   "InferenceEndpointTransportTests" \
   "Inference Endpoint Transport" \
-  "queueBackedIdentifyReturnsFirstTransportFailureWithoutInlineReplay"
+  "queueBackedIdentifyReturnsFirstTransportFailureWithoutInlineReplay(isProFunded:)"
 assert_suite_has_passed_test_case \
   "Queue-less reviewed transport replay" \
   "InferenceEndpointTransportTests" \
   "Inference Endpoint Transport" \
-  "queueLessIdentifyRetainsOneReviewedInlineTransportReplay"
+  "queueLessIdentifyRetainsOneReviewedInlineTransportReplay(isProFunded:)"
 assert_suite_has_passed_test_case \
   "Stable auth-session refresh before request replay" \
   "MerianNetworkClientTests" \

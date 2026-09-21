@@ -339,14 +339,22 @@ extension CaptureWorkspaceViewModelRefinementTests {
 
         await viewModel.submitStagedCapture(modelContext: modelContext)
 
-        try await waitUntil {
-            viewModel.offlineToastMessage?.title ==
-                "Unable to save capture. Please try again."
-        }
-        try await waitUntil {
-            !FileManager.default.fileExists(atPath: videoURL.path)
-                && !FileManager.default.fileExists(atPath: audioURL.path)
-        }
+        // Capacity rejection reports failure synchronously; only file deletion
+        // is dispatched to the utility-priority FileIOActor task.
+        XCTAssertEqual(
+            viewModel.offlineToastMessage?.title,
+            "Unable to save capture. Please try again."
+        )
+        let mediaDeleted = XCTNSPredicateExpectation(
+            predicate: NSPredicate { _, _ in
+                !FileManager.default.fileExists(atPath: videoURL.path)
+                    && !FileManager.default.fileExists(atPath: audioURL.path)
+            },
+            object: nil
+        )
+        mediaDeleted.expectationDescription =
+            "Rejected capture deletes both temporary video and audio files"
+        await fulfillment(of: [mediaDeleted], timeout: 10)
 
         XCTAssertFalse(diContainer.inferenceEngine.isProcessing)
         XCTAssertNil(viewModel.activeSheet)

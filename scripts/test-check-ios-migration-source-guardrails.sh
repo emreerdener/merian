@@ -89,6 +89,14 @@ if mode == "safe-mode-plan":
     factory_source = factory_source[:start] + function + factory_source[end:]
 (Path(fixture) / factory_path).write_text(factory_source)
 
+recovery_path = Path(
+    "apps/ios/Merian/Core/Data/StoreRecovery/Services/StoreRecoveryMetadataService.swift"
+)
+recovery_source = (Path(repo) / recovery_path).read_text()
+if mode == "reconstructed-store-path":
+    recovery_source += '\nlet storeURL = URL.applicationSupportDirectory.appending(path: "default.store")\n'
+(Path(fixture) / recovery_path).write_text(recovery_source)
+
 test_path = Path("apps/ios/MerianTests/Models/MigrationPlanTests.swift")
 test_source = (Path(repo) / test_path).read_text()
 if mode == "weakened-full-plan-test":
@@ -135,5 +143,6 @@ assert_rejected missing-stage "Recent V47 plan must run migrateV47toV49."
 assert_rejected forbidden-source "Recent V46 plan must not use the V45 source representative."
 assert_rejected safe-mode-plan "The empty current-schema safe-mode container must not validate the historical migration plan."
 assert_rejected weakened-full-plan-test "MigrationPlanTests must validate the full historical plan independently from safe mode."
+assert_rejected reconstructed-store-path "Store recovery must not reconstruct the SwiftData store under Application Support."
 
 echo "iOS migration source guardrail tests passed."
