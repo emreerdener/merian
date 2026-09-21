@@ -230,31 +230,6 @@ struct BiologicalView: View {
                 )
                 .insightCardEntrance(index: 3, isAnimationEnabled: cardEntranceAnimationEnabled)
 
-                if viewModel.shouldShowFieldNotesCard {
-                    FieldNotesCard(
-                        previewText: viewModel.fieldNotesText,
-                        promptContext: viewModel.fieldNotesPromptContext,
-                        visibility: viewModel.state.sharedExplorePostId == nil
-                            ? nil
-                            : (viewModel.state.exploreFieldNotesArePublic ? .published : .privateNotes),
-                        onDismiss: {
-                            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                                viewModel.dismissFieldNotesCard(
-                                    expectedScanId: fieldNotesScanId,
-                                    expectedGeneration: fieldNotesGeneration
-                                )
-                            }
-                        },
-                        action: {
-                            viewModel.presentFieldNotes(
-                                expectedScanId: fieldNotesScanId,
-                                expectedGeneration: fieldNotesGeneration
-                            )
-                        }
-                    )
-                    .insightCardEntrance(index: 4, isAnimationEnabled: cardEntranceAnimationEnabled)
-                }
-
                 // MARK: - Educational Reference
                 OverviewCard(
                     isSafariPresented: safariPresentedBinding(
@@ -266,7 +241,7 @@ struct BiologicalView: View {
                         generation: fieldNotesGeneration
                     )
                 )
-                .insightCardEntrance(index: 5, isAnimationEnabled: cardEntranceAnimationEnabled)
+                .insightCardEntrance(index: 4, isAnimationEnabled: cardEntranceAnimationEnabled)
 
                 // MARK: - Habitat & Distribution
                 if !isUnknownSubject {
@@ -323,13 +298,38 @@ struct BiologicalView: View {
                 )
                 .insightCardEntrance(index: 9, isAnimationEnabled: cardEntranceAnimationEnabled)
 
+                if viewModel.shouldShowFieldNotesCard {
+                    FieldNotesCard(
+                        previewText: viewModel.fieldNotesText,
+                        promptContext: viewModel.fieldNotesPromptContext,
+                        visibility: viewModel.state.sharedExplorePostId == nil
+                            ? nil
+                            : (viewModel.state.exploreFieldNotesArePublic ? .published : .privateNotes),
+                        onDismiss: {
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                                viewModel.dismissFieldNotesCard(
+                                    expectedScanId: fieldNotesScanId,
+                                    expectedGeneration: fieldNotesGeneration
+                                )
+                            }
+                        },
+                        action: {
+                            viewModel.presentFieldNotes(
+                                expectedScanId: fieldNotesScanId,
+                                expectedGeneration: fieldNotesGeneration
+                            )
+                        }
+                    )
+                    .insightCardEntrance(index: 10, isAnimationEnabled: cardEntranceAnimationEnabled)
+                }
+
                 // MARK: - Custom Tags
                 if let scanId = viewModel.presentedLocalRecordScanId,
                    inferenceEngine.speciesData?.scanId?
                     .caseInsensitiveCompare(scanId) == .orderedSame {
                     UserTagsCard(scanId: scanId)
                         .id(scanId.lowercased())
-                        .insightCardEntrance(index: 10, isAnimationEnabled: cardEntranceAnimationEnabled)
+                        .insightCardEntrance(index: 11, isAnimationEnabled: cardEntranceAnimationEnabled)
                 }
             }
         }

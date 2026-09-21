@@ -853,29 +853,33 @@ The catch paths now use full durable ownership for provider results and generic
 failures, but retain the exact local presentation UUID solely for the queued
 connectivity acknowledgement. They release queue-backed recovery state
 idempotently and never record device connectivity loss against the provider
-circuit. Queue-backed `identifyMultiModal` has one 15-second foreground
-transport window and returns its first transient `URLError` without the shared
-inline transport replay; queue-less callers retain the reviewed 90-second window
-and replay. Handler-owned Auth refresh, route propagation, and idempotent 5xx
-handling stay in the shared transport. `InferenceEndpointTransportTests` owns
-the protected URLSession-level deadline/replay and pre-dispatch cancellation
-regressions, `DetachedWorkTests` locks parent cancellation reaching the detached
-preparation handle, and `InferenceRequestPolicyTests` owns account/request
-policy. The engine regression retires durable ownership before releasing visual
-and nonvisual transport errors, including data-path and session-disconnect
-variants, and separately delivers `.timedOut` while the exact durable owner and
-path-satisfied state remain active. The shared scan connectivity policy
-recursively recognizes wrapped URL failures while keeping certificate,
-authentication, and ATS policy errors out of both decisions even when a broader
-outer error would otherwise be eligible. It proves exact queued routing, one
-request, bounded handoff, eventual durable retirement, and row survival. A
-companion case proves a successful transport response that loses durable
-ownership before the post-request check also hands the exact local presentation
-to the queue; a transport-owned cancellation does the same. **Analysis delayed**
-remains an error placeholder through the explicit `.inferenceError` presentation
-role; customer-facing title changes cannot alter that routing. Do not describe
-this as shipped until the remaining exact-SHA and physical-device closure gates
-in the
+circuit. Queue-backed `identifyMultiModal` uses a 30-second URLRequest timeout
+for Pro-funded scans (local trial) and 15 seconds otherwise and returns its
+first transient `URLError` without the shared inline transport replay;
+queue-less callers retain the reviewed 90-second window and replay. The pipeline
+snapshots paid/complimentary Pro funding from the exact generation-matched
+durable job immediately after synchronous foreground admission; missing or
+legacy metadata uses 15 seconds. The snapshot is local transport policy and does
+not change the provider payload or server tier. Handler-owned Auth refresh,
+route propagation, and idempotent 5xx handling stay in the shared transport.
+`InferenceEndpointTransportTests` owns the protected URLSession-level
+deadline/replay and pre-dispatch cancellation regressions, `DetachedWorkTests`
+locks parent cancellation reaching the detached preparation handle, and
+`InferenceRequestPolicyTests` owns account/request policy. The engine regression
+retires durable ownership before releasing visual and nonvisual transport
+errors, including data-path and session-disconnect variants, and separately
+delivers `.timedOut` while the exact durable owner and path-satisfied state
+remain active. The shared scan connectivity policy recursively recognizes
+wrapped URL failures while keeping certificate, authentication, and ATS policy
+errors out of both decisions even when a broader outer error would otherwise be
+eligible. It proves exact queued routing, one request, bounded handoff, eventual
+durable retirement, and row survival. A companion case proves a successful
+transport response that loses durable ownership before the post-request check
+also hands the exact local presentation to the queue; a transport-owned
+cancellation does the same. **Analysis delayed** remains an error placeholder
+through the explicit `.inferenceError` presentation role; customer-facing title
+changes cannot alter that routing. Do not describe this as shipped until the
+remaining exact-SHA and physical-device closure gates in the
 [live scan connectivity handoff incident](../../../../../docs/incidents/2026-08-live-scan-connectivity-handoff-gap.md)
 pass.
 

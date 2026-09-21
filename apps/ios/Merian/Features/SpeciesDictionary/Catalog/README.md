@@ -108,3 +108,10 @@ Network's `SpeciesDictionaryCatalogAPIModelsTests` and
 wire and payload tests. Schema, identity, deterministic memo, and shared
 transport coverage stays with Core Network; see the
 [Dictionary verification matrix](../../../Core/Network/README.md#species-dictionary-verification).
+
+The overview also renders `SpeciesSearchEntry` as its first item in loaded,
+loading, and error states. The typed route opens sibling
+[Search](../Search/README.md), whose session lifetime belongs to Explore Shell.
+Category-local toolbar search retains its existing behavior. The reused compact
+species row wraps names and taxonomy at accessibility text sizes so search and
+catalog cards remain readable.

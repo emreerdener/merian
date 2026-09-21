@@ -6,11 +6,10 @@ extension MerianNetworkClient {
     /// caller owns any retry or recovery UI.
     private static let directIdentifyRequestTimeout: TimeInterval = 90
 
-    /// A durable queue can take over safely after this foreground window. The
-    /// 15-second bound is more than twice the documented six-second cache-hit
-    /// end-to-end p95 target while preventing a black-holed path from holding
-    /// the live Insight in analysis for the direct caller's 90-second window.
+    /// Local foreground trial: give Pro-funded scans room for the observed
+    /// 15–25 second provider stage while retaining durable timeout recovery.
     private static let queueBackedForegroundIdentifyRequestTimeout: TimeInterval = 15
+    private static let proQueueBackedForegroundIdentifyRequestTimeout: TimeInterval = 30
 
     /// Opens the actual pinned inference connection pool used by live scans.
     /// Authentication is prewarmed separately because Supabase Auth owns a
@@ -304,6 +303,7 @@ extension MerianNetworkClient {
         clientScanId: String? = nil,
         preferredGoal: FieldTripPreferredGoal? = nil,
         durableQueueOwnsRecovery: Bool = false,
+        isProFunded: Bool = false,
         onRequestBodySent: (@Sendable () -> Void)? = nil
     ) async throws -> Data {
         let authenticatedRequest = try await buildMultiModalRequest(
@@ -325,7 +325,9 @@ extension MerianNetworkClient {
         return try await performAuthenticatedInferenceRequest(
             authenticatedRequest,
             timeoutInterval: durableQueueOwnsRecovery
-                ? Self.queueBackedForegroundIdentifyRequestTimeout
+                ? (isProFunded
+                    ? Self.proQueueBackedForegroundIdentifyRequestTimeout
+                    : Self.queueBackedForegroundIdentifyRequestTimeout)
                 : Self.directIdentifyRequestTimeout,
             // Once the durable queue owns recovery, suppress the shared transient
             // URLError replay. Auth refresh, route propagation, and idempotent 5xx

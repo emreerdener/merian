@@ -2075,13 +2075,13 @@ in-handler auth boundary or provide a replacement short-lived user smoke
 identity. Final Function failures report only HTTP status plus handler-marker
 presence; Data API failures instead identify the PostgREST/RPC diagnostic path
 without expecting a Function header. The production gate additionally calls all
-fourteen customer-critical scan, signing, share-state, Explore, Field Chat,
+fifteen customer-critical scan, signing, share-state, Explore, Field Chat,
 Community, identity-handoff, and deletion routes without Authorization until
 each returns fail-closed `401` with the fixed handler marker:
 `generate-upload-urls`, `identify-multimodal`, `check-scan-status`,
 `share-scan-to-explore`, `get-scan-explore-share-state`,
 `get-explore-composer-media`, `get-explore-media-incidents`, `insight-chat`,
-`explore-post-chat`, `species-dictionary-chat`,
+`explore-post-chat`, `species-dictionary-chat`, `species-discovery-search`,
 `request-community-identification`, `transfer-signout-purchases`,
 `resolve-purchase-principal`, and `delete-scan`. A platform `404` therefore
 cannot be mistaken for an application-level missing scan or a successful
@@ -2758,11 +2758,11 @@ explicit type-only edges, deploys bounded batches, and isolates retries to
 members of a failed batch. Whole-tree Deno checks still validate compile-only
 imports. A manual workflow dispatch intentionally selects the full fleet. Every
 deployment finishes with a graph-derived all-route handler-marker probe,
-followed by stricter fail-closed authorization probes for fourteen
+followed by stricter fail-closed authorization probes for fifteen
 customer-critical scan, signing, share-state, Explore media-incident, Field
-Chat, Community, identity-handoff, and deletion routes. It then reaches the
-exact no-write SQLSTATE `22023` boundary in `ensure_scan_user_profile`,
-`publish_scan_to_explore_atomically`,
+Chat, dictionary search, Community, identity-handoff, and deletion routes. It
+then reaches the exact no-write SQLSTATE `22023` boundary in
+`ensure_scan_user_profile`, `publish_scan_to_explore_atomically`,
 `request_community_identification_atomically`, `recover_missing_owned_scan`,
 `get_media_abandoned_scan_recovery_proofs`, `reserve_field_chat_send`, and
 `recover_stale_field_chat_quota` with server authority. It also reaches the

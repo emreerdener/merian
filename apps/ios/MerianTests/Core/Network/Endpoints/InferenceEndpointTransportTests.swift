@@ -101,7 +101,8 @@ struct InferenceEndpointTransportTests {
         #expect(probe.wasMarked)
     }
 
-    @Test func queueBackedIdentifyReturnsFirstTransportFailureWithoutInlineReplay() async {
+    @Test(arguments: [false, true])
+    func queueBackedIdentifyReturnsFirstTransportFailureWithoutInlineReplay(isProFunded: Bool) async {
         let fixture = inferenceFixture()
         defer { fixture.close() }
         let requestProbe = InferenceRequestProbe()
@@ -109,7 +110,7 @@ struct InferenceEndpointTransportTests {
         let scanID = "019f6650-34cc-7dc0-a31b-e8ec3d8eadd6"
         fixture.transport.register(path: "/identify-multimodal") { request in
             #expect(
-                request.timeoutInterval == 15,
+                request.timeoutInterval == (isProFunded ? 30 : 15),
                 "Durable queue ownership must bound the foreground wait."
             )
             _ = requestProbe.record(
@@ -124,6 +125,7 @@ struct InferenceEndpointTransportTests {
                 telemetry: telemetry(),
                 clientScanId: scanID,
                 durableQueueOwnsRecovery: true,
+                isProFunded: isProFunded,
                 onRequestBodySent: { bodySentProbe.mark() }
             )
             Issue.record("Expected the first transport failure to reach the queue owner.")
@@ -141,7 +143,8 @@ struct InferenceEndpointTransportTests {
         #expect(bodySentProbe.wasMarked)
     }
 
-    @Test func queueLessIdentifyRetainsOneReviewedInlineTransportReplay() async throws {
+    @Test(arguments: [false, true])
+    func queueLessIdentifyRetainsOneReviewedInlineTransportReplay(isProFunded: Bool) async throws {
         let fixture = inferenceFixture()
         defer { fixture.close() }
         let requestProbe = InferenceRequestProbe()
@@ -166,7 +169,8 @@ struct InferenceEndpointTransportTests {
         _ = try await fixture.client.identifyMultiModal(
             base64ImageDatas: ["AA=="],
             telemetry: telemetry(),
-            clientScanId: scanID
+            clientScanId: scanID,
+            isProFunded: isProFunded
         )
 
         #expect(requestProbe.count == 2)

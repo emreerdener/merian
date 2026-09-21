@@ -61,6 +61,9 @@ extension InsightSheetView {
                 speciesData: speciesData,
                 displayName: viewModel.resolvedHeaderTitle,
                 timestamp: viewModel.activeRecordTimestamp,
+                media: InsightFieldChatMedia.images(
+                    from: viewModel.activeMedia, wikipediaURL: speciesData.wikipediaUrl
+                ),
                 prepareForInitialLoad: {
                     await prepareInsightChatForInitialLoad(
                         expectedScanId: scanId,

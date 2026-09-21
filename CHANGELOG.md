@@ -6,6 +6,22 @@ TestFlight, App Store, support, and QA.
 
 ## Unreleased
 
+### Species discovery search
+
+- Search by name or describe what you want to discover with **Search or ask
+  Naturebook** above the featured species card.
+- Browse matching species and public community sightings, then refine the same
+  search by species group or sighting media. Opening a result and returning
+  keeps your place during the current Explore session.
+- This is unreleased source work. The search database migration and backend
+  function must be released before hosted use.
+
+### Recording previews
+
+- Make quiet recordings easier to hear before submitting with **Boost audio**.
+  Enable **Boost recording previews** in Audio settings to select it for new
+  recordings. AI analysis always uses the original recording.
+
 ### Explore emoji reactions
 
 - Post details show a unique-person reactions summary that opens a paginated

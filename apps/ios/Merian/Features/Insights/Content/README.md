@@ -69,19 +69,31 @@ present the canonical taxonomy.
 
 `BiologicalView` composes the persistent
 `Components/FieldTrips/FieldTripProgressCard`. It appears after toxicity and
-identification-review content and before Field notes and educational cards when
-the view model has server-backed contribution rows. The card shows every
-credited outing/Event under the visible **Field trips** header. While eligible
-contribution rows are loading, the same position is reserved by a card-shaped,
-motion-aware skeleton so later content does not jump when the server response
-arrives; empty and failed responses still hide silently. The heading reuses the
-Core-owned `MerianCardHeader`; its undivided rows use an uppercase **GOAL
-COMPLETE** eyebrow, headline-sized goal name, enlarged goal artwork/check badge,
+identification-review content and before educational cards when the view model
+has server-backed contribution rows. The card shows every credited outing/Event
+under the visible **Field trips** header. While eligible contribution rows are
+loading, the same position is reserved by a card-shaped, motion-aware skeleton
+so later content does not jump when the server response arrives; empty and
+failed responses still hide silently. The heading reuses the Core-owned
+`MerianCardHeader`; its undivided rows use an uppercase **GOAL COMPLETE**
+eyebrow, headline-sized goal name, enlarged goal artwork/check badge,
 experience-only subtitle, and a prominent trailing `GoalProgressRing`. The full
 row is tappable without a redundant chevron and forwards a card-specific
 overview destination that deliberately omits Capture's checklist-item focus. The
 card does not load data, cache contribution rows, or trigger celebration
 effects.
+
+## Personal scan context
+
+AI response text in biological and non-biological results uses unlimited lines
+and its full wrapped height inside the Insight scroll view. The response must
+remain readable inline without layout truncation or an expansion action;
+existing inference limits and fallback messages remain unchanged.
+
+Completed biological results place the **Your scan** context card after the
+species reference cards, followed by the separate **Field notes** card and then
+**Tags**. Field notes retains its existing visibility, dismissal, and editing
+behavior.
 
 ## Scanning presentation
 

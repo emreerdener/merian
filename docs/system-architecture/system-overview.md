@@ -220,11 +220,11 @@ sightings, local observation aggregates, user media, or server credentials.
 
 The native Explore root contains Observations, Field trips, and Identify only.
 Identify defaults to its leading Species mode, which renders the Species
-Dictionary overview. Its Requests mode concurrently reads a 12-row unresolved
+Dictionary overview. Its Community mode concurrently reads a 12-row unresolved
 request preview and 10 grouped Activity rows under one scope/organism filter.
 Complete **Identify requests** and **Identify activity** feeds push onto the
 shared stack with independent cursor pagination. Species links select
-Identify/Species before detail, while request links select Identify/Requests.
+Identify/Species before detail, while request links select Identify/Community.
 
 Identify Activity is projected from identification and consensus inserts, then
 privacy-filtered at read time through an authenticated Edge Function and

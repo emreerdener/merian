@@ -2,8 +2,8 @@
 
 The `Identify` directory owns community-driven species identification inside
 Explore. Identify is one of the three root bottom-navigation items and contains
-the `Species` / `Requests` root mode picker. Product behavior remains defined by
-the canonical
+the `Species` / `Community` root mode picker. Product behavior remains defined
+by the canonical
 [Explore bottom-menu contract](../../../../../../docs/features-and-hardware/24-explore-bottom-menu.md).
 
 ## Purpose
@@ -26,10 +26,10 @@ routes; see the
 the default for a plain Identify entry:
 
 - `.index` is titled **Species** and renders `SpeciesDictionaryOverviewView`.
-- `.requests` is titled **Requests** and renders
+- `.requests` is titled **Community** and renders
   `ExploreCommunityIdentificationView`.
 
-The Requests root is a dashboard with one shared
+The Community root is a dashboard with one shared
 `CommunityIdentificationRequestFilter`. `All` and `Yours` precede Plants, Birds,
 Insects, Fungi, Mammals, and Herps. `Yours` maps to API scope `mine` and means
 requests owned by the viewer, not suggestions made by the viewer. Organism
@@ -37,7 +37,7 @@ filters apply to Requests and Activity together.
 
 The dashboard layout is:
 
-1. **Identify requests** / **See all requests** heading row.
+1. **Identification requests** / **See all requests** heading row.
 2. Dismissible **Ask the community** information banner.
 3. Up to 12 open request cards.
 4. A deliberately larger section gap.
@@ -60,7 +60,7 @@ The dashboard pushes two typed routes while preserving the selected filter:
 - `ExploreCommunityActivityFeedRoute` opens `ExploreCommunityActivityFeedView`,
   titled **Identify activity**.
 
-Both pages hide the root tab bar and Species/Requests picker. Back navigation
+Both pages hide the root tab bar and Species/Community picker. Back navigation
 returns to the dashboard with its prior filter. Complete feeds request 30 rows
 per page and de-duplicate IDs while appending:
 

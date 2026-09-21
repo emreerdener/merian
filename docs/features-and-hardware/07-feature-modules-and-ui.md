@@ -634,11 +634,11 @@ production Shell and Library file remains below the 600-line review guard.
   `Observations`, `Field trips`, and `Identify`. The Observations tab owns a
   root-only Feed/Map segmented header toggle with Feed first, Field trips opens
   directly to Outings and always includes its Outings/Events segmented view, and
-  Identify owns Species/Requests with Species leading and selected by default.
-  Requests shows shared filters over a 12-card **Identify requests** preview,
-  places the dismissible Ask the community banner directly under that heading,
-  and separates it from 10 grouped **Recent activity** rows with a larger
-  section gap. Stack pages for the complete feeds are titled **Identify
+  Identify owns Species/Community with Species leading and selected by default.
+  Community shows shared filters over a 12-card **Identification requests**
+  preview, places the dismissible Ask the community banner directly under that
+  heading, and separates it from 10 grouped **Recent activity** rows with a
+  larger section gap. Stack pages for the complete feeds are titled **Identify
   requests** and **Identify activity**. Requests and Activity maintain
   independent load/error states. Species renders the existing catalog overview.
   Taxonomy remains catalog/detail reference data and has no separate
@@ -1976,7 +1976,7 @@ dependency composition.
   Shell notification coordinator fences post preparation, commits matching
   success/failure outcomes, and separates staged state from the pending
   destination consumed after dismissal; `Shell/Views` owns the view-local
-  navigation path, root Feed/Map/Field trips router, Identify Species/Requests
+  navigation path, root Feed/Map/Field trips router, Identify Species/Community
   mode, destination registration, sheet and lifecycle timing, and playback
   state. It also retains the Catalog overview model for the Explore
   presentation; Catalog owns its five-minute same-country reuse and refresh

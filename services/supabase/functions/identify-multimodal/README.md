@@ -429,8 +429,24 @@ mapping, and complete-last checks remain fail-closed.
 Successful responses add diagnostic headers without changing the JSON body:
 
 - `Server-Timing`: `auth`, `body_read`, `tier`, `pre_gemini_db`, `gemini`,
-  `dictionary`, `post_gemini`, and `edge_total`.
+  `quota_commit`, `provider`, `video_promotion`, `primary_enrichment`,
+  `database_finalization`, `dictionary`, `post_gemini`, and `edge_total`.
 - `X-Merian-Edge-Region`: the observed Edge region when available.
+
+The successful `multimodal/latency` event also includes `quota_commit_ms`,
+`provider_ms`, `video_promotion_ms`, `primary_enrichment_ms`, and
+`database_finalization_ms`, matching the new header spans. `provider` measures
+only the awaited Gemini SDK call, including provider transport; the legacy
+`gemini` / `gemini_latency_ms` still includes quota commit for comparison with
+older logs. `video_promotion` measures playback promotion after its job-state
+checkpoint. `primary_enrichment` measures the awaited primary external lookup,
+including a caught lookup failure, and excludes optional candidate enrichment.
+`database_finalization` covers the scan-insert checkpoint, insertion, and
+canonical finalization/read-back; it excludes earlier species-dictionary work.
+Optional phases that do not run report zero. These components do not partition
+`edge_total`: moderation, audio promotion, dictionary work, and other overhead
+remain in the existing broader spans. Failure responses and idempotent replay
+responses do not emit this successful-request event.
 
 The structured `multimodal/latency` event is tagged by tier, model, image count,
 payload bytes, Edge region, and constrained-network state. It must not include

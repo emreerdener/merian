@@ -26,6 +26,21 @@ microphone permission, start, pause, resume, stop, discard, playback, and
 confirmation actions. `Capture/Submission` retains live/offline analysis
 orchestration.
 
+## Review boost
+
+Finished-recording spectrograms expose **Boost audio** independently of
+scrubbing. The presentation snapshot carries immutable boost state; the Services
+adapter routes the toggle and explicit-action haptics through the existing
+injected view model seam. The selected default is announced even before its lazy
+preparation. Record views never process files or change the submission source.
+
+Core Hardware's `AudioReviewBoostController` prepares and retires a temporary
+listening copy. Manual activation prepares without autoplay; the optional Audio
+setting defers preparation until Play. Both keep original WAV storage and AI
+analysis unchanged. See
+[Audio Listen Mode](../../../../../../docs/features-and-hardware/12-audio-listen-mode.md#recording-review-audio-boost)
+for lifecycle, fallback, and preference semantics.
+
 ## Reanalysis staging
 
 Shell checks the same evidence capacity at audio admission and

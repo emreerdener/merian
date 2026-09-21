@@ -51,6 +51,6 @@ struct CommunityIdentificationPresentationTests {
     @Test func speciesIsTheLeadingIdentifyMode() {
         #expect(ExploreIdentifyMode.allCases == [.index, .requests])
         #expect(ExploreIdentifyMode.index.title == "Species")
-        #expect(ExploreIdentifyMode.requests.title == "Requests")
+        #expect(ExploreIdentifyMode.requests.title == "Community")
     }
 }

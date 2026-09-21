@@ -12,15 +12,15 @@ and configuration, torch/focus/zoom/frame-rate mutations, shared serial camera
 queue, rotation state, and hardware still-photo execution. The manager injects
 that controller's queue and a lazy controller-backed session provider into
 `CameraVideoRecordingService`, which creates the movie output lazily and owns
-audio preparation, rotation/stabilization configuration, recording operations,
-cleanup/logging, and file-output delegate correlation. Constructing these owners
-resolves no AVFoundation capture object; preview mounting or explicit camera
-lifecycle work performs the first lazy access. `Camera/Models` owns value-only
-recording identities, `Camera/Policies` owns session/zoom/frame-rate,
-microphone, and generation-correlation decisions, and `Camera/Coordination` owns
-the lock-contained still-photo and video request lifetimes plus target-FPS
-debounce lifetime. Models, Policies, and Coordination do not access the capture
-session or mutate AVFoundation state.
+rotation/stabilization configuration, recording operations, cleanup/logging, and
+file-output delegate correlation. Constructing these owners resolves no
+AVFoundation capture object; preview mounting or explicit camera lifecycle work
+performs the first lazy access. `Camera/Models` owns value-only recording
+identities, `Camera/Policies` owns session/zoom/frame-rate, microphone, and
+generation-correlation decisions, and `Camera/Coordination` owns the
+lock-contained still-photo and video request lifetimes plus target-FPS debounce
+lifetime. Models, Policies, and Coordination do not access the capture session
+or mutate AVFoundation state.
 
 `Features/Capture/Scan` owns the visual-modality UI and actions around that
 hardware. Its Models define platform-neutral preparation values; Services adapt
@@ -663,8 +663,11 @@ lease so stopped work cannot clear a replacement. The view shows three states:
 - **Recording or paused**: shared countdown badge, raster-backed live
   spectrogram sized around the composing center, and non-interactive
   signal-quality guidance.
-- **Review**: fit-to-data spectrogram with a scrub gesture and playhead; the
-  lower guidance slot is hidden.
+- **Review**: fit-to-data spectrogram with a scrub gesture, playhead, and a
+  bottom-left **Boost audio** listening control. The optional Audio setting
+  selects boost for new recordings and prepares only when Play is requested. AI
+  analysis and storage retain the original WAV; the lower guidance slot is
+  hidden.
 
 See [Audio Listen Mode](./12-audio-listen-mode.md) for the full Record/Core
 ownership, `SpectrogramActor`, `AudioCaptureManager`,
@@ -826,7 +829,9 @@ uses it, so both audio and video countdowns use monospaced semibold subheadline
 digits, white text, ultra-thin material, dark color scheme, and capsule chrome.
 Video uses `CaptureWorkspaceViewModel.videoMaxDuration` to count down from the
 5-second cap while the shutter progress ring and stop icon continue to come from
-`CapturePrimaryActionButton`.
+`CapturePrimaryActionButton`. On completion, the countdown and stop chrome end
+immediately; a busy shutter indicates media preparation while cancel remains
+available. The recording generation stays active until staging or cancellation.
 
 **Video capture preparation**: During `CameraSessionController`'s first session
 configuration, it invokes the injected `CameraVideoRecordingService` preparation
@@ -837,15 +842,25 @@ path, the service's session provider and movie-output factory remain
 unevaluated, preserving cold-launch and Onboarding permission priming behavior.
 `CapturePrimaryActionButton` uses a single short hold threshold, then calls
 `startVideoCapture()` directly; `CameraManager.recordVideo(...)` delegates
-microphone/audio-input preparation to the service on that start path. This keeps
-entering the camera from showing an early audio prompt while making the
-hold-to-record interaction feel nearly immediate. The pre-attached movie output
-keeps recorded-video stabilization off until a video is actually starting. The
-service asks AVFoundation for `.auto` stabilization when the movie connection
-supports it, logs the requested and active stabilization modes for device QA,
-and resets the connection to `.off` when recording completes, fails, or is
-canceled so prepared video support does not reduce still-photo dimensions or add
-capture latency.
+microphone/audio-input preparation to `CameraVideoAudioSession` on that start
+path. Each authorized recording acquires a fresh `.videoRecording` lease from
+`AudioSessionCoordinator` before attaching the microphone. AVFoundation
+automatic audio-session configuration is disabled, so delayed playback cleanup
+cannot deactivate the recording through an obsolete playback lease. The
+microphone is detached before the lease is released on success, failure,
+timeout, or cancellation. Silent recordings acquire no audio lease and never
+request microphone permission. Overlapping requests are rejected before audio or
+movie configuration changes; audio readiness is not cached across attempts.
+Empty microphone removal and an already-attached movie output avoid redundant
+session configuration transactions; connection settings still refresh on the
+serial camera queue. This keeps entering the camera from showing an early audio
+prompt while making the hold-to-record interaction feel nearly immediate. The
+pre-attached movie output keeps recorded-video stabilization off until a video
+is actually starting. The service asks AVFoundation for `.auto` stabilization
+when the movie connection supports it, logs the requested and active
+stabilization modes for device QA, and resets the connection to `.off` when
+recording completes, fails, or is canceled so prepared video support does not
+reduce still-photo dimensions or add capture latency.
 
 Each recording owns a UUID generation and a UUID-derived temporary URL. The
 value identities live in `Core/Hardware/Camera/Models`, and the pure matching
@@ -858,12 +873,19 @@ Terminal claiming removes the request before any scheduled task is canceled or
 continuation is resumed. The returned completion shares an atomic one-shot box,
 so copying that value cannot resume the checked continuation twice. AVFoundation
 start/finish callbacks are accepted by `CameraVideoRecordingService` only from
-its configured movie output and only when its standardized URL matches the
-current request. This keeps a late callback or delayed task from recording A
-from stopping, failing, or completing recording B. All movie-output and
-connection access stays in the service on the controller-owned serial camera
-queue; only generation-checked presentation state returns to `CameraManager` on
-`MainActor`.
+its configured movie output and only when its canonical file URL matches the
+current request. Canonicalization resolves the existing parent directory before
+appending the filename, so sandbox aliases such as `/var` and `/private/var`
+match even though the movie does not yet exist when the request is created. The
+coordinator resolves aliases outside its lock, then revalidates the exact UUID
+generation under the lock before claiming start or completion. A different
+filename or directory remains rejected. Rejected callbacks emit bounded
+state/error diagnostics, and watchdog failures report recording state, bytes,
+and duration without exposing file paths. This keeps a late callback or delayed
+task from recording A from stopping, failing, or completing recording B. All
+movie-output and connection access stays in the service on the controller-owned
+serial camera queue; only generation-checked presentation state returns to
+`CameraManager` on `MainActor`.
 
 **Session lifecycle**: The camera session is tightly coupled to the UI state to
 conserve thermal budget and prevent hardware deadlocks.
@@ -1132,42 +1154,47 @@ A dedicated `PHPhotoLibrary` handler.
   scan. The original recording is deleted only after a separate compressed
   playback clip is staged. The video-audio export uses `AVAssetReader` plus
   `AVAssetWriter` with copied sample buffers, avoiding the fragile no-copy
-  `AVAudioFile.write(from:)` path while preserving the WAV format expected by
-  the Edge audio parser. Companion WAV and compressed-playback outputs remain in
-  temporary file leases until staging accepts them; cancellation, timeout,
-  supersession, validation failure, or an unconsumed late result releases the
-  lease and deletes the file. Once the prepared video is staged, the recording
-  generation and cancel UI finish before the optional Camera Roll write is
-  awaited. PhotoKit retains the original recording through that write, so this
-  prevents post-commit cancellation without shortening source-file lifetime.
-  Scan lists, widgets, sharing previews, and Explore compact surfaces use that
-  poster thumbnail; the Insight carousel opens the video item itself.
-  `CaptureSubmissionPayload` places that cover in its display-image collection
-  and records the exact index on the video timeline item without creating a
-  separate image timeline item. Core AI suppresses only that explicitly indexed
-  cover from the carousel. A separately staged still immediately before the
-  video is retained as its own page. Submission-owned `IdentifyVisualMediaItem`
-  and `IdentifyAudioMediaItem` metadata travel with the sampled frames/audio so
-  `/identify-multimodal` can label still photos, ordered video frames, and
-  accompanying video audio accurately for AI. Offline queue persistence keeps
-  sampled video frames in `inferenceImagePaths` and stores only the playback
-  video item plus thumbnail in the captured-media timeline, so UI/share surfaces
-  never treat inference frames as user-selected photos.
-  `handlePhotoPickerSelection` skips any actor-prepared still image whose
-  encoded payloads fail the byte or dimension budgets, rather than appending
-  empty `Data()`, which would base64-encode to an empty string and cause Gemini
-  to reject the request with an opaque AI processing error.
-  `CaptureScanStillMediaPreparer` and `CaptureScanVideoMediaPreparer` apply the
-  matching camera/video-frame guard. Cancel, remove, replace, and
-  queue-rejection paths call the discard helper so temporary playback `.mp4`
-  files and companion WAV files are deleted through `FileIOActor`; submit paths
-  use reference-only clearing after queue acceptance so durable queue/live
-  persistence keeps ownership. All per-image copies inside each `StagedImage`
-  (compressed inference data, 2048 px display data, bounded `UIImage` thumbnail,
-  and crop/metadata bundle) are released with the same value reset — index
-  mismatches between parallel arrays are impossible because media stays
-  co-located in typed staging models. `submitStagedCapture(...)` extracts
-  `historicalContext` from `stagedCapture.images[0]` (via the
+  `AVAudioFile.write(from:)` path. Appended buffers are released through ARC,
+  never invalidated while the writer may still consume them. Since the writer
+  can emit WAVE_EXTENSIBLE even for Int16 PCM settings, `InferenceAudioPreparer`
+  normalizes noncanonical exports to standard mono 44.1 kHz Int16 PCM WAV under
+  the existing inference byte cap and validates the result before staging. This
+  preserves the Edge parser's strict format contract without discarding valid
+  video audio solely for its container variant. Companion WAV and
+  compressed-playback outputs remain in temporary file leases until staging
+  accepts them; cancellation, timeout, supersession, validation failure, or an
+  unconsumed late result releases the lease and deletes the file. Once the
+  prepared video is staged, the recording generation and cancel UI finish before
+  the optional Camera Roll write is awaited. PhotoKit retains the original
+  recording through that write, so this prevents post-commit cancellation
+  without shortening source-file lifetime. Scan lists, widgets, sharing
+  previews, and Explore compact surfaces use that poster thumbnail; the Insight
+  carousel opens the video item itself. `CaptureSubmissionPayload` places that
+  cover in its display-image collection and records the exact index on the video
+  timeline item without creating a separate image timeline item. Core AI
+  suppresses only that explicitly indexed cover from the carousel. A separately
+  staged still immediately before the video is retained as its own page.
+  Submission-owned `IdentifyVisualMediaItem` and `IdentifyAudioMediaItem`
+  metadata travel with the sampled frames/audio so `/identify-multimodal` can
+  label still photos, ordered video frames, and accompanying video audio
+  accurately for AI. Offline queue persistence keeps sampled video frames in
+  `inferenceImagePaths` and stores only the playback video item plus thumbnail
+  in the captured-media timeline, so UI/share surfaces never treat inference
+  frames as user-selected photos. `handlePhotoPickerSelection` skips any
+  actor-prepared still image whose encoded payloads fail the byte or dimension
+  budgets, rather than appending empty `Data()`, which would base64-encode to an
+  empty string and cause Gemini to reject the request with an opaque AI
+  processing error. `CaptureScanStillMediaPreparer` and
+  `CaptureScanVideoMediaPreparer` apply the matching camera/video-frame guard.
+  Cancel, remove, replace, and queue-rejection paths call the discard helper so
+  temporary playback `.mp4` files and companion WAV files are deleted through
+  `FileIOActor`; submit paths use reference-only clearing after queue acceptance
+  so durable queue/live persistence keeps ownership. All per-image copies inside
+  each `StagedImage` (compressed inference data, 2048 px display data, bounded
+  `UIImage` thumbnail, and crop/metadata bundle) are released with the same
+  value reset — index mismatches between parallel arrays are impossible because
+  media stays co-located in typed staging models. `submitStagedCapture(...)`
+  extracts `historicalContext` from `stagedCapture.images[0]` (via the
   `StagedImage.original` bundle) before reference-only staging reset to preserve
   EXIF location data from library uploads.
 - **Video Upload Signing Shape**: One video scan signs six staged media files:

@@ -48,6 +48,8 @@ write_test_tree() {
           name: (
             if ($name | startswith("display:")) then
               $name | ltrimstr("display:")
+            elif ($name | endswith(")")) then
+              $name
             else
               $name + "()"
             end
@@ -189,8 +191,8 @@ write_test_tree() {
             ]),
             suite("Inference Endpoint Transport"; [
               "testAnalyzeSubjectSuccessfullyConstructsPayloadAndParsesJSON",
-              "queueBackedIdentifyReturnsFirstTransportFailureWithoutInlineReplay",
-              "queueLessIdentifyRetainsOneReviewedInlineTransportReplay"
+              "queueBackedIdentifyReturnsFirstTransportFailureWithoutInlineReplay(isProFunded:)",
+              "queueLessIdentifyRetainsOneReviewedInlineTransportReplay(isProFunded:)"
             ]),
             suite("Scan Publication Endpoints"; [
               "testExploreShareSendsStableAIIdempotencyKey",
@@ -285,19 +287,23 @@ assert_rejected() {
 assert_rehomed_case_rejected() {
   local rehomed_case="$1"
   local retired_suite="$2"
+  local rehomed_result_name="$rehomed_case"
+  if [[ "$rehomed_result_name" != *')' ]]; then
+    rehomed_result_name+="()"
+  fi
 
   write_test_tree
   jq \
-    --arg rehomed_case "$rehomed_case" \
+    --arg rehomed_case "$rehomed_result_name" \
     --arg retired_suite "$retired_suite" \
     '
       .testNodes |= (
-        [.[] | .children[]? | select(.name == ($rehomed_case + "()"))] as $moved
+        [.[] | .children[]? | select(.name == $rehomed_case)] as $moved
         | map(
             if .name == $retired_suite then
               .children += $moved
             else
-              .children |= map(select(.name != ($rehomed_case + "()")))
+              .children |= map(select(.name != $rehomed_case))
             end
           )
       )
@@ -310,6 +316,23 @@ write_summary "Passed" 4 4 0
 write_test_tree
 bash "$validator" "$summary_path" "$test_tree_path" >/dev/null \
   || fail "A valid critical-suite result was rejected."
+
+for parameterized_case in \
+  "queueBackedIdentifyReturnsFirstTransportFailureWithoutInlineReplay" \
+  "queueLessIdentifyRetainsOneReviewedInlineTransportReplay"; do
+  write_test_tree
+  jq --arg case_name "$parameterized_case" '
+    (
+      .testNodes[]
+      | select(.name == "Inference Endpoint Transport")
+      | .children[]
+      | select(.name == ($case_name + "(isProFunded:)"))
+      | .name
+    ) = ($case_name + "()")
+  ' "$test_tree_path" > "$tmp_dir/stale-signature.json"
+  mv "$tmp_dir/stale-signature.json" "$test_tree_path"
+  assert_rejected "$parameterized_case reported with its retired no-argument signature"
+done
 
 write_test_tree
 jq \
@@ -447,8 +470,8 @@ required_cases=(
   "cloudDeletionRetriesNeverEnterAnUnrecoverableState"
   "cloudDeletionDrainIsProcessSingleFlight"
   "testAnalyzeSubjectSuccessfullyConstructsPayloadAndParsesJSON"
-  "queueBackedIdentifyReturnsFirstTransportFailureWithoutInlineReplay"
-  "queueLessIdentifyRetainsOneReviewedInlineTransportReplay"
+  "queueBackedIdentifyReturnsFirstTransportFailureWithoutInlineReplay(isProFunded:)"
+  "queueLessIdentifyRetainsOneReviewedInlineTransportReplay(isProFunded:)"
   "testEdgeFunctionSelfHealingRefreshesInvalidSessionBeforeRetry"
   "testDeleteScanRejectsUnconfirmedSuccessResponse"
   "testExploreShareSendsStableAIIdempotencyKey"
@@ -499,8 +522,8 @@ done
 
 for rehomed_case in \
   "testAnalyzeSubjectSuccessfullyConstructsPayloadAndParsesJSON" \
-  "queueBackedIdentifyReturnsFirstTransportFailureWithoutInlineReplay" \
-  "queueLessIdentifyRetainsOneReviewedInlineTransportReplay" \
+  "queueBackedIdentifyReturnsFirstTransportFailureWithoutInlineReplay(isProFunded:)" \
+  "queueLessIdentifyRetainsOneReviewedInlineTransportReplay(isProFunded:)" \
   "testDeleteScanRejectsUnconfirmedSuccessResponse" \
   "testCheckScanStatusRejectsMalformedOrMismatchedSuccess" \
   "testBulkScanStatusRejectsDuplicateMissingOrForeignRows" \

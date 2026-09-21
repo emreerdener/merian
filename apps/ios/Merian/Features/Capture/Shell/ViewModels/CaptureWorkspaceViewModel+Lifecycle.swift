@@ -101,6 +101,7 @@ extension CaptureWorkspaceViewModel {
         if newPhase == .inactive || newPhase == .background {
             handleVisualCaptureInterruption()
             audioCaptureManager.cancelPendingRecordingTransition()
+            audioCaptureManager.stopPlayback()
             if audioCaptureManager.isRecording && !audioCaptureManager.isPaused {
                 audioCaptureManager.pauseRecording()
             }
@@ -125,6 +126,7 @@ extension CaptureWorkspaceViewModel {
 
         if newMode != .audio {
             audioCaptureManager.cancelPendingRecordingTransition()
+            audioCaptureManager.stopPlayback()
             if audioCaptureManager.isRecording && !audioCaptureManager.isPaused {
                 audioCaptureManager.pauseRecording()
             }

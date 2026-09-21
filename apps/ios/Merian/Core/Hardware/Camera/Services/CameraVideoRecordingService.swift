@@ -7,9 +7,9 @@ import os
 /// Owns movie-output configuration, camera-queue operations, file cleanup, and
 /// delegate callbacks. The injected coordinator owns request lifetime, while
 /// the caller-provided MainActor handlers retain observable presentation.
-/// `@unchecked Sendable` is limited to this AVFoundation bridge: preparation
-/// cache access is MainActor-only, and capture objects are resolved and mutated
-/// only on the injected serial queue.
+/// `@unchecked Sendable` is limited to this AVFoundation bridge: audio-lifetime
+/// access is MainActor-only, and capture objects are resolved and mutated only
+/// on the injected serial queue.
 final class CameraVideoRecordingService: NSObject, AVCaptureFileOutputRecordingDelegate, @unchecked Sendable {
     typealias SessionProvider = @Sendable () -> AVCaptureSession
     typealias MovieOutputFactory = @Sendable () -> AVCaptureMovieFileOutput
@@ -22,8 +22,9 @@ final class CameraVideoRecordingService: NSObject, AVCaptureFileOutputRecordingD
     private let queue: DispatchQueue
     private let coordinator: CameraVideoRecordingCoordinator
 
-    @MainActor private var preparationTask: Task<Bool, Error>?
-    @MainActor private var preparationIncludesAudio: Bool?
+    @MainActor private lazy var recordingAudioSession = CameraVideoAudioSession(
+        sessionProvider: sessionProvider, queue: queue
+    )
 
     init(
         sessionProvider: @escaping SessionProvider,
@@ -65,9 +66,28 @@ final class CameraVideoRecordingService: NSObject, AVCaptureFileOutputRecordingD
         onInstalled: @escaping InstallationHandler,
         onStarted: CameraVideoRecordingCoordinator.StartHandler?
     ) async throws -> CameraVideoRecording {
-        _ = try await preparedVideoRecordingAudioAllowed(
-            rotationAngle: rotationAngle
+        let includeAudio = CameraVideoAudioPermissionPolicy.shouldIncludeAudio(
+            for: AVAudioApplication.shared.recordPermission
         )
+        return try await recordingAudioSession.withAudio(includeAudio: includeAudio) {
+            try await self.configureMovieRecording(rotationAngle: rotationAngle)
+            try Task.checkCancellation()
+            return try await self.recordPreparedVideo(
+                generation: generation, maxDuration: maxDuration,
+                rotationAngle: rotationAngle, onInstalled: onInstalled,
+                onStarted: onStarted
+            )
+        }
+    }
+
+    @MainActor
+    private func recordPreparedVideo(
+        generation: CameraVideoRecordingGeneration,
+        maxDuration: TimeInterval,
+        rotationAngle: @escaping RotationAngleProvider,
+        onInstalled: @escaping InstallationHandler,
+        onStarted: CameraVideoRecordingCoordinator.StartHandler?
+    ) async throws -> CameraVideoRecording {
         let resolvedMaxDuration = max(maxDuration, 0.5)
         try? FileManager.default.removeItem(at: generation.outputURL)
         return try await withTaskCancellationHandler {
@@ -122,37 +142,7 @@ final class CameraVideoRecordingService: NSObject, AVCaptureFileOutputRecordingD
         requestCancellation(for: generation)
     }
 
-    @MainActor
-    private func preparedVideoRecordingAudioAllowed(
-        rotationAngle: @escaping RotationAngleProvider
-    ) async throws -> Bool {
-        let includeAudio = CameraVideoAudioPermissionPolicy.shouldIncludeAudio(
-            for: AVAudioApplication.shared.recordPermission
-        )
-        if preparationIncludesAudio == includeAudio,
-           let preparationTask {
-            return try await preparationTask.value
-        }
-        let task = Task<Bool, Error> {
-            try await self.configureMovieRecording(
-                includeAudio: includeAudio,
-                rotationAngle: rotationAngle
-            )
-            return includeAudio
-        }
-        preparationTask = task
-        preparationIncludesAudio = includeAudio
-        do {
-            return try await task.value
-        } catch {
-            preparationTask = nil
-            preparationIncludesAudio = nil
-            throw error
-        }
-    }
-
     private func configureMovieRecording(
-        includeAudio: Bool,
         rotationAngle: @escaping RotationAngleProvider
     ) async throws {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
@@ -163,8 +153,6 @@ final class CameraVideoRecordingService: NSObject, AVCaptureFileOutputRecordingD
                 }
                 preconditionOnCameraQueue()
                 let session = sessionProvider()
-                session.beginConfiguration()
-                defer { session.commitConfiguration() }
                 if !session.outputs.contains(movieOutput) {
                     guard session.canAddOutput(movieOutput) else {
                         continuation.resume(throwing: Self.recordingError(
@@ -173,25 +161,14 @@ final class CameraVideoRecordingService: NSObject, AVCaptureFileOutputRecordingD
                         ))
                         return
                     }
+                    session.beginConfiguration()
                     session.addOutput(movieOutput)
+                    session.commitConfiguration()
                 }
                 configureMovieOutputConnection(
                     maxDuration: 5,
                     rotationAngle: rotationAngle()
                 )
-                let audioInputs = session.inputs.filter {
-                    ($0 as? AVCaptureDeviceInput)?.device.hasMediaType(.audio) == true
-                }
-                if !includeAudio {
-                    for audioInput in audioInputs {
-                        session.removeInput(audioInput)
-                    }
-                } else if audioInputs.isEmpty,
-                          let audioDevice = AVCaptureDevice.default(for: .audio),
-                          let audioInput = try? AVCaptureDeviceInput(device: audioDevice),
-                          session.canAddInput(audioInput) {
-                    session.addInput(audioInput)
-                }
                 continuation.resume(returning: ())
             }
         }
@@ -282,9 +259,10 @@ final class CameraVideoRecordingService: NSObject, AVCaptureFileOutputRecordingD
             rotationAngle: rotationAngle,
             prefersVideoStabilization: true
         )
-        let preferredStabilizationMode = movieOutput
-            .connection(with: .video)?
-            .preferredVideoStabilizationMode
+        let session = sessionProvider()
+        let videoConnection = movieOutput.connection(with: .video)
+        let audioConnection = movieOutput.connection(with: .audio)
+        let preferredStabilizationMode = videoConnection?.preferredVideoStabilizationMode
             .rawValue ?? AVCaptureVideoStabilizationMode.off.rawValue
         MerianLog.hardware.debug(
             """
@@ -292,6 +270,10 @@ final class CameraVideoRecordingService: NSObject, AVCaptureFileOutputRecordingD
             generation=\(generation.id.uuidString, privacy: .public), \
             url=\(generation.outputURL.lastPathComponent, privacy: .private), \
             maxDuration=\(maxDuration, privacy: .public), \
+            sessionRunning=\(session.isRunning, privacy: .public), \
+            interrupted=\(session.isInterrupted, privacy: .public), \
+            videoActive=\(videoConnection?.isActive == true, privacy: .public), \
+            audioActive=\(audioConnection?.isActive == true, privacy: .public), \
             preferredStabilizationMode=\(preferredStabilizationMode, privacy: .public)
             """
         )
@@ -410,6 +392,9 @@ final class CameraVideoRecordingService: NSObject, AVCaptureFileOutputRecordingD
         preconditionOnCameraQueue()
         guard coordinator.isCurrentTimeout(action) else { return }
 
+        MerianLog.hardware.error(
+            "Video watchdog: recording=\(self.movieOutput.isRecording, privacy: .public), bytes=\(self.movieOutput.recordedFileSize, privacy: .public), duration=\(self.movieOutput.recordedDuration.seconds, privacy: .public)"
+        )
         if movieOutput.isRecording {
             movieOutput.stopRecording()
         }
@@ -486,10 +471,17 @@ final class CameraVideoRecordingService: NSObject, AVCaptureFileOutputRecordingD
         callbackURL: URL
     ) {
         preconditionOnCameraQueue()
-        guard outputID == ObjectIdentifier(movieOutput) else { return }
+        guard outputID == ObjectIdentifier(movieOutput) else {
+            MerianLog.hardware.warning("Video start callback ignored: output instance mismatch.")
+            return
+        }
 
         let startContext = coordinator.claimStart(callbackURL: callbackURL)
-        guard let startContext else { return }
+        guard let startContext else {
+            let active = coordinator.activeGeneration
+            MerianLog.hardware.warning("Video start callback ignored: activeRequest=\(active != nil, privacy: .public), matchesURL=\(active?.matches(callbackURL: callbackURL) == true, privacy: .public).")
+            return
+        }
 
         if startContext.stopWasRequested {
             if movieOutput.isRecording {
@@ -523,6 +515,7 @@ final class CameraVideoRecordingService: NSObject, AVCaptureFileOutputRecordingD
             Video recording started: \
             generation=\(startContext.generation.id.uuidString, privacy: .public), \
             url=\(callbackURL.lastPathComponent, privacy: .private), \
+            urlAliasNormalized=\(callbackURL.standardizedFileURL != startContext.generation.outputURL, privacy: .public), \
             activeStabilizationMode=\(activeStabilizationMode, privacy: .public)
             """
         )
@@ -555,12 +548,18 @@ final class CameraVideoRecordingService: NSObject, AVCaptureFileOutputRecordingD
         error: NSError?
     ) {
         preconditionOnCameraQueue()
-        guard outputID == ObjectIdentifier(movieOutput) else { return }
+        guard outputID == ObjectIdentifier(movieOutput) else {
+            MerianLog.hardware.warning("Video finish callback ignored: output instance mismatch.")
+            return
+        }
 
         // The callback URL is AVFoundation's only correlation value. A delayed
         // callback for generation A must not clear or resolve generation B.
         let result = coordinator.take(callbackURL: callbackURL)
-        guard let result else { return }
+        guard let result else {
+            MerianLog.hardware.warning("Video finish callback ignored: activeRequest=\(self.coordinator.activeGeneration != nil, privacy: .public), error=\(String(describing: error), privacy: .private)")
+            return
+        }
 
         disableRecordedVideoStabilization()
 

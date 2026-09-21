@@ -208,7 +208,7 @@ extension OfflineQueueManager {
         persistServerStatus(scanId: scanId, response: response)
 
         let action = BackgroundInferencePolicy.scanStatusRecoveryAction(
-            for: response
+            for: response, isInitialStatusCheck: serverPollToken == nil
         )
         guard allowsAutomaticNetworkWorkOnCurrentPath else {
             // Keep exact completed-owner evidence persisted, but do not begin

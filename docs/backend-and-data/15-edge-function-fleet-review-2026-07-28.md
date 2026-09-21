@@ -276,6 +276,7 @@ set-user-follow
 share-scan-to-explore
 species-dictionary
 species-dictionary-chat
+species-discovery-search
 species-observation-stats
 submit-community-feedback
 submit-community-identification
@@ -318,3 +319,13 @@ customer journey. Before closing the incident:
 
 See [Supabase deployment runbook](./06-supabase-deployment-runbook.md) and
 [July 2026 Edge route incident](../incidents/2026-07-supabase-edge-route-not-found.md).
+
+### 2026-09-20 source inventory addition
+
+`species-discovery-search` is the new session-only, viewer-aware dictionary
+search route. It uses `withEdgeHandler` / `requireAuth` before bounded parsing
+and retrieval; `verify_jwt = false` delegates to that in-handler user-JWT check.
+Its provider path uses a separate quota operation and current Gemini consent.
+The entry above records repository scope, not a production deployment or hosted
+verification. See its
+[contract](../../services/supabase/functions/species-discovery-search/README.md).

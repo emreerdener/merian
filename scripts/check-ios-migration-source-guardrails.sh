@@ -772,7 +772,7 @@ contains "$recovery_policy_file" "shouldRescueStoreAfterMigrationFailure" \
   || fail "Store recovery must keep the legacy migration rescue decision."
 contains "$recovery_file" "groupContainer: .automatic" \
   || fail "Store recovery must resolve the persistent URL through SwiftData's automatic App Group configuration."
-if rg -Fq -- 'URL.applicationSupportDirectory.appending(path: "default.store")' "$recovery_root"; then
+if grep -RFq -- 'URL.applicationSupportDirectory.appending(path: "default.store")' "$recovery_root"; then
   fail "Store recovery must not reconstruct the SwiftData store under Application Support."
 fi
 contains "$container_factory_file" "ModelStoreRecoveryCoordinator.productionStoreConfiguration(" \

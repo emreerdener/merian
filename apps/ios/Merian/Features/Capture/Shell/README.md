@@ -15,6 +15,13 @@ selected during workspace initialization, and camera-session startup remains
 gated on visual mode. Keep page sizing and `scrollTargetLayout()` on the lazy
 stack when changing pager behavior.
 
+Audio recording start passes the device's **Boost recording previews** default
+into the capture manager. Review remains playback-only: confirm and staging use
+the original WAV. Leaving Audio, losing scene activity, or tearing down the
+controls stops review playback and invalidates pending boost playback intent.
+See
+[Audio Listen Mode](../../../../../../docs/features-and-hardware/12-audio-listen-mode.md#recording-review-audio-boost).
+
 ## Ownership
 
 The Shell is organized by responsibility rather than as a pair of aggregate
@@ -66,7 +73,10 @@ files:
   or disabled, or the view disappears; the eventual release cannot dispatch an
   action for a different mode. Pro video eligibility is sampled when the hold
   matures rather than frozen at touch-down. Components send user intents through
-  injected closures or the view model and contain no direct networking.
+  injected closures or the view model and contain no direct networking. The
+  primary shutter shows activity during visual startup/preparation and accepts
+  stop only during active recording. Video preparation retains cancel while
+  disabling competing capture, library, and flash actions.
 
 Shell is the lifecycle authority for in-flight visual work. Scene inactivity,
 leaving Scan, root or feature presentation takeover, workspace teardown, and

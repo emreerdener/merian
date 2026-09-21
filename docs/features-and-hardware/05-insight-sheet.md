@@ -41,6 +41,53 @@ a canceled in-flight send returns the exact current pending bubble to retryable
 state under its original UUID. These shared rules apply equally to Insight,
 Explore-post, and Species Dictionary hosts.
 
+An empty Field Chat displays a 184-point elevated image stack from the source
+sheet, with its featured image first, horizontal swiping that loops in both
+directions, a compact page count, and reference-image credits. The front card
+tracks the drag, then slides and rotates outward while the next card moves
+forward; the outgoing card returns behind the deck without an opacity fade.
+Insights retains capture order and includes existing video posters and displayed
+reference images; Explore and Dictionary use their existing public media
+projections. Audio and video playback are excluded. Images are presentation-only
+and never change the text-only AI context. Missing or failed images fall back to
+the twinkle graphic, independently of chat loading.
+
+The welcome aligns to the top of the content below the toolbar, with 24 points
+of top padding. It is a distinct presentation state with a conversational
+heading and three full-width, multiline suggested-question buttons beneath the
+image. Their opaque fill is white in light mode and a contrasting
+secondary-system background in dark mode. A decorative directional arrow is
+vertically centered at the trailing edge of each prompt. The question area stays
+reserved while generated suggestions load, without showing temporary questions.
+The finished set animates in once; failure or a four-second deadline reveals the
+local fallback set instead. The deadline runs from welcome presentation, even
+while drafting or offline hides the questions; returning after it reveals the
+best available set immediately. Once shown, welcome questions remain stable for
+that presentation, including across typing or connectivity changes. Late
+generated results do not replace visible questions. Reduce Motion disables the
+reveal animation, and dismissing or replacing the welcome cancels its deadline
+task. A tap uses the existing send flow, telemetry, and preference-aware
+selection haptic. The welcome is never persisted as an assistant message. Once a
+saved or pending message exists, the welcome disappears and suggestions use
+compact chips above the pinned composer. Drafting and offline states hide the
+initial questions; large text and the keyboard allow the welcome content to
+scroll.
+
+Committed swipe or VoiceOver page changes produce one selection haptic through
+the existing preference-aware feedback owner. Automatic loading/fallback
+changes, canceled swipes, and single-image navigation stay silent. The stack
+supports Reduce Motion and disappears when messages appear; the empty content
+scrolls when large text or the keyboard requires more space. Thumbnail loading
+retains the selected image and next two images in circular order, capped at 600
+pixels each, and refills visible slots after a failed rear image. Rear cards
+wait for decoding before appearing, avoiding blank cards. Canceled gestures
+restore the front card, and navigation waits for the current card to decode. The
+animation may retain one additional outgoing thumbnail until it finishes or the
+view leaves; stale loads and animation completions cannot update a replacement
+subject. See the
+[Field Chat owner](../../apps/ios/Merian/Features/FieldChat/README.md) for
+adapters and validation ownership.
+
 The Species Dictionary source is a release-held candidate. Its shared sheet and
 entitlement wiring do not authorize product promotion until the Ghost merge and
 three-family admission contracts, explicit post-deploy cutover activation,
@@ -278,14 +325,13 @@ sessions, empty responses, and network failures render no placeholder or error.
 Event rows are presented alongside standard outing contributions.
 
 The card is rendered after toxicity and identification-review content and before
-Field notes and educational cards. Its visible header is **Field trips**. It
-shows all returned contributions without collapsing or selecting a primary
-experience. Rows have no separators or disclosure chevrons: each uses an
-uppercase **GOAL COMPLETE** eyebrow above the standalone goal name, followed by
-the experience title and credited level. Enlarged exact goal artwork and a green
-completion badge lead the row; a prominent trailing ring shows the credited
-level's current count. The entire row remains the navigation target. Its
-VoiceOver label follows the form
+educational cards. Its visible header is **Field trips**. It shows all returned
+contributions without collapsing or selecting a primary experience. Rows have no
+separators or disclosure chevrons: each uses an uppercase **GOAL COMPLETE**
+eyebrow above the standalone goal name, followed by the experience title and
+credited level. Enlarged exact goal artwork and a green completion badge lead
+the row; a prominent trailing ring shows the credited level's current count. The
+entire row remains the navigation target. Its VoiceOver label follows the form
 `Butterfly or moth goal complete in Park Pollinators, 3 of 4`. The card adds no
 haptic, confetti, or milestone notification; the existing transient milestone
 queue remains the only immediate celebration surface.
@@ -335,6 +381,11 @@ scan/media write succeeds. It does so before award calculation or Field trips.
 Field trips remain gated on `/check-scan-status` confirming server ingestion,
 and optional enrichment may fill cards later without blocking the initial
 result.
+
+Completed biological and non-biological results show the full available AI
+response inline in the scroll view. Response text has no line cap and takes its
+full wrapped height, preventing layout compression from replacing the ending
+with an ellipsis. Existing inference limits and fallback messages still apply.
 
 `InsightSheetView` records tap-to-first-render with a one-shot 1x1 UIKit draw
 probe installed on the result hierarchy. The measurement closes only after an
@@ -1336,10 +1387,15 @@ freely.
 
 ## Scan Information Card
 
-`ScanInformationCard` renders the spatiotemporal context captured at the moment
-of the scan after applying `ProfileViewModel.defaultGeoprivacy`. It is hidden
-entirely when no privacy-visible data remains (for example, a private scan with
-only location/weather telemetry), preventing the card from appearing as an empty
+`ScanInformationCard` uses the visible heading **Your scan**. Completed
+biological results place it after the species reference cards, followed by the
+separate **Field notes** card and then **Tags**. Foreground and queued scanning
+retain their earlier Field notes prompt position.
+
+The card renders the spatiotemporal context captured at the moment of the scan
+after applying `ProfileViewModel.defaultGeoprivacy`. It is hidden entirely when
+no privacy-visible data remains (for example, a private scan with only
+location/weather telemetry), preventing the card from appearing as an empty
 placeholder.
 
 Rows displayed when present:

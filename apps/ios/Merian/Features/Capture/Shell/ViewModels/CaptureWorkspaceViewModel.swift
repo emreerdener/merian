@@ -108,6 +108,7 @@ final class CaptureWorkspaceViewModel {
     // MARK: - Camera & Scanning State
     var isCapturing: Bool = false
     var isVideoRecording: Bool = false
+    var isPreparingVideo: Bool = false
     var videoRecordingProgress: Double = 0
     var flashOpacity: Double = 0.0
 

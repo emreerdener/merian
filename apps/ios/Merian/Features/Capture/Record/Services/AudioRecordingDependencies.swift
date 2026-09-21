@@ -16,7 +16,8 @@ extension AudioRecordingPresentation {
             snrLevel: audioCaptureManager.snrLevel,
             audioHintsEnabled: audioHintsEnabled,
             maximumDuration: AudioCaptureManager.maxDuration,
-            liveColumnCapacity: AudioCaptureManager.columnCap
+            liveColumnCapacity: AudioCaptureManager.columnCap,
+            reviewBoost: audioCaptureManager.reviewBoostState
         )
     }
 }
@@ -41,6 +42,15 @@ extension AudioRecordingViewModel.Dependencies {
                 HapticManager.shared.triggerSelectionPulse(
                     source: "media.capture.audio.seek.commit"
                 )
+            },
+            toggleReviewBoost: {
+                let wasEnabled = audioCaptureManager.reviewBoostState.isEnabled
+                audioCaptureManager.toggleReviewAudioBoost()
+                if wasEnabled {
+                    HapticManager.shared.triggerLightImpact(source: "media.capture.audio.boost.off")
+                } else {
+                    HapticManager.shared.triggerMediumPulse(source: "media.capture.audio.boost.on")
+                }
             }
         )
     }

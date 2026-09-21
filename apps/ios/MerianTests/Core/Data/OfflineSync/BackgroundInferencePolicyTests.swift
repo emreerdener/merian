@@ -223,6 +223,46 @@ struct BackgroundInferencePolicyTests {
         }
     }
 
+    @Test func videoFinalizationGetsOnlyOneEarlyPollAndHonorsServerDelay() {
+        let finalizing = ScanStatusResponse(
+            status: .notFound, jobStatus: .finalizing,
+            jobStage: "video_promotion_started", jobAttemptCount: 1,
+            retryAfter: nil, lastError: nil
+        )
+        let initial = BackgroundInferencePolicy.scanStatusRecoveryAction(
+            for: finalizing, isInitialStatusCheck: true
+        )
+        #expect(initial == .waitForServer(3))
+        #expect(!BackgroundInferencePolicy.scanStatusActionPermitsInferenceDispatch(
+            initial, hasScheduledServerFailureRetry: false
+        ))
+        #expect(BackgroundInferencePolicy.scanStatusRecoveryAction(
+            for: finalizing, isInitialStatusCheck: false
+        ) == .waitForServer(15))
+        for (status, stage) in [
+            (ScanIngestionJobStatus.processing, "video_promotion_started"),
+            (.finalizing, "scan_insert_started")
+        ] {
+            let response = ScanStatusResponse(
+                status: .notFound, jobStatus: status, jobStage: stage,
+                jobAttemptCount: 1, retryAfter: nil, lastError: nil
+            )
+            #expect(BackgroundInferencePolicy.scanStatusRecoveryAction(
+                for: response, isInitialStatusCheck: true
+            ) == .waitForServer(15))
+        }
+        let now = Date(timeIntervalSince1970: 1_000)
+        let serverDirected = ScanStatusResponse(
+            status: .notFound, jobStatus: .finalizing,
+            jobStage: "video_promotion_started", jobAttemptCount: 1,
+            retryAfter: ISO8601DateFormatter().string(from: now.addingTimeInterval(120)),
+            lastError: nil
+        )
+        #expect(BackgroundInferencePolicy.scanStatusRecoveryAction(
+            for: serverDirected, now: now, isInitialStatusCheck: true
+        ) == .waitForServer(120))
+    }
+
     @Test func testScanStatusRecoveryActionRespectsServerIngestionState() throws {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]

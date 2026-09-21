@@ -67,34 +67,49 @@ concrete lease, so teardown with no owned lease emits no synthetic release.
 contract and sendable presentation values outside the lifecycle owner.
 
 `AudioCapture/Services/AudioReviewPlaybackController` is the focused review
-playback owner behind that stable manager API. It owns `AVAudioPlayer`, progress
-and completion tasks, and the playback-specific audio-session lease. Every
-asynchronous callback is fenced by both a playback generation and exact player
-identity. Stop-before-activation rejects and deactivates a late lease, and a
-cancelled completion cannot clear replacement playback. A player that refuses to
-start or a completion wait that fails is finalized immediately, including
-exact-lease release. Manager reset always stops this independent playback owner,
-even while recording startup is still resolving. The manager receives the
-controller's live dependencies through its existing small dependency value;
-tests inject deterministic players, session effects, and wait gates.
+playback owner behind that stable manager API. It owns `AVAudioPlayer`,
+activation, progress, and completion tasks, and the playback-specific
+audio-session lease. Seeking reschedules completion from the new position;
+cancelled waits cannot finish the replacement timer. Source switches preserve
+the live player position, including seeks made while session activation is
+pending. Every asynchronous callback is fenced by both a playback generation and
+exact player identity. Stop-before-activation rejects and deactivates a late
+lease, and a cancelled completion cannot clear replacement playback. A player
+that refuses to start or a completion wait that fails is finalized immediately,
+including exact-lease release. Manager reset always stops this independent
+playback owner, even while recording startup is still resolving. The manager
+receives the controller's live dependencies through its existing small
+dependency value; tests inject deterministic players, session effects, and wait
+gates.
+
+`AudioCapture/Services/AudioReviewBoostController` separately owns the
+review-only boost selection, cancellable preparation generation, and temporary
+derivative. It invokes the shared DSP through an uncached local-preview entry
+point so retirement cannot invalidate Explore or Insight caches. The manager
+keeps original WAV paths for review confirmation, staging, persistence, and
+inference; only the playback controller switches sources while retaining
+position and playback intent. Late results are deleted after disable, submit,
+discard, reset, or lifecycle exit. The Audio preference defaults off and is
+sampled per recording; automatic preview boost waits for Play. See the
+[canonical review boost contract](../../../../../docs/features-and-hardware/12-audio-listen-mode.md#recording-review-audio-boost).
 
 `AudioSessionCoordinator` is the cross-feature, token-aware lease owner for
 recording and playback audio sessions. `AudioRecordingEngineController`,
-`AudioReviewPlaybackController`, `AudioPlaybackSessionController`, and
-`SpeechManager` release only their current lease, so delayed teardown from an
-older operation cannot deactivate a replacement session. The reusable playback
-owner adds the established ducking configuration, coalesces activation, rejects
-late acquisition after teardown, and reacquires a lease made stale by a newer
-owner. Keep this owner separate from either feature and do not call
-`AVAudioSession.sharedInstance()` from a paged view. A lease becomes current
-only after configuration and activation both succeed, and successful
-deactivation consumes it. A failed replacement restores the prior configuration
-before leaving that lease current. If restoration also fails, the coordinator
-deactivates the partial session and invalidates prior ownership rather than
-publishing a lease for an unknown configuration. A failed first activation
-likewise deactivates any partially activated session before returning the error.
-A task cancelled before its queued activation reaches the coordinator performs
-no audio-session mutation.
+`AudioReviewPlaybackController`, `AudioPlaybackSessionController`,
+`CameraVideoAudioSession`, and `SpeechManager` release only their current lease,
+so delayed teardown from an older operation cannot deactivate a replacement
+session. The reusable playback owner adds the established ducking configuration,
+coalesces activation, rejects late acquisition after teardown, and reacquires a
+lease made stale by a newer owner. Keep this owner separate from either feature
+and do not call `AVAudioSession.sharedInstance()` from a paged view. A lease
+becomes current only after configuration and activation both succeed, and
+successful deactivation consumes it. A failed replacement restores the prior
+configuration before leaving that lease current. If restoration also fails, the
+coordinator deactivates the partial session and invalidates prior ownership
+rather than publishing a lease for an unknown configuration. A failed first
+activation likewise deactivates any partially activated session before returning
+the error. A task cancelled before its queued activation reaches the coordinator
+performs no audio-session mutation.
 
 `SpectrogramActor` owns the off-main FFT, mel-scale projection, and bounded
 rolling ambient-noise floor. Its guidance policy classifies clipping by peak and
@@ -331,10 +346,12 @@ Focused camera support lives below `Camera/`:
   the serial camera queue. It exposes no observable state and does not resolve
   app-level orchestration or viewfinder services.
 - `Services/CameraVideoRecordingService.swift` owns lazy movie-output creation
-  and attachment, audio-input preparation, rotation and stabilization
-  configuration, start/stop/cancel/timeout camera-queue operations, file
-  cleanup, hardware logging, and recording delegate correlation. It exposes no
-  observable state.
+  and attachment, rotation and stabilization configuration,
+  start/stop/cancel/timeout camera-queue operations, file cleanup, hardware
+  logging, and recording delegate correlation. It exposes no observable state.
+- `Services/CameraVideoAudioSession.swift` owns recording audio admission,
+  per-request shared audio leases, and camera-queue microphone attachment and
+  removal. It never prompts for microphone permission.
 
 `CameraArchitectureTests` freezes those owners and framework boundaries. It also
 caps the value, policy, and FPS files at 100 lines, caps the photo coordinator
@@ -389,7 +406,14 @@ microphone decision. A video request is identified by both a UUID generation and
 its UUID-derived output URL. Delayed timeouts and automatic stops also carry an
 action UUID so a cooperatively cancelled task cannot act after replacement.
 Recording delegate callbacks must match the service's configured output and the
-current URL before they may clear state or resume a continuation.
+canonical file URL before they may clear state or resume a continuation. The
+recording identity resolves symlinks on the existing parent directory before
+appending the UUID filename, including when the output file has not yet been
+created. This admits equivalent sandbox paths without admitting another file or
+directory. Callback canonicalization runs outside the coordinator lock; the
+locked transition revalidates the exact generation after normalization. Rejected
+start/finish callbacks and watchdog output state are logged so a callback
+rejection is distinguishable from missing AVFoundation callbacks.
 `CameraManager` alone publishes generation-checked observable recording state on
 `@MainActor`.
 
@@ -402,17 +426,31 @@ completion outside the lock. That completion atomically consumes its checked
 continuation, so even a copied handle cannot resume the request twice. The
 coordinator imports no AVFoundation, UI, network, or persistence framework. The
 service's narrow `@unchecked Sendable` conformance is justified only by its
-documented split: preparation cache access is MainActor-only, while capture
-objects are lazily resolved and mutated only on the injected queue. Never call a
-coordinator, controller, or service while holding `CameraManager`'s
+documented split: recording audio-lifetime access is MainActor-only, while
+capture objects are lazily resolved and mutated only on the injected queue.
+Never call a coordinator, controller, or service while holding `CameraManager`'s
 frame-analysis lock.
+
+`CameraVideoAudioSession` owns per-request movie audio admission and cleanup. It
+acquires a fresh `.videoRecording` lease before microphone attachment, disables
+AVFoundation automatic shared-audio-session configuration, and detaches the
+microphone before releasing the exact lease on every terminal path. Silent
+recordings do not acquire or deactivate a lease. Concurrent movie requests
+cannot reconfigure an admitted recording. This closes the unregistered
+video-owner gap where delayed Explore/Insight playback teardown could deactivate
+camera audio. Empty microphone removals and an already-attached movie output
+avoid unnecessary session configuration transactions while still refreshing
+connection settings. `CameraVideoAudioSessionTests` covers that delayed
+teardown, failure/retry, cancellation, silent recording, overlapping admission,
+and replacement playback.
 
 ## Camera verification
 
 Changes to `CameraManager.swift` or `Camera/` must run the generated-project and
 source-membership gates, the focused `CameraManagerTests`,
 `CameraPhotoCaptureCoordinatorTests`, `CameraVideoRecordingCoordinatorTests`,
-`CameraSessionPolicyTests`, `CameraSessionControllerTests`, and
+`CameraSessionPolicyTests`, `CameraSessionControllerTests`,
+`CameraVideoAudioSessionTests`, `AudioSessionCoordinatorTests`, and
 `CameraArchitectureTests` selectors, and then the complete `merianTests` target.
 Use the canonical commands and evidence rules in the
 [testing strategy](../../../../../docs/development-guides/08-testing-strategy.md#camera-verification).
@@ -429,5 +467,9 @@ microphone authorization, photo capture completes, a five-second recording and
 an early manual stop each finish exactly once, rotation and stabilization remain
 correct, foreground/session interruption recovery succeeds, and rapid
 thermal/FPS target changes settle on the latest target. Exercise the same flows
-with depth capture enabled on supported hardware. Record evidence obtained on
-simulators and physical devices separately; neither substitutes for the other.
+with depth capture enabled on supported hardware. Play audible media in Explore
+or Insights, return to Scan, and test the first and repeated Pro video captures
+with microphone access both granted and denied. Confirm the microphone is
+released after completion, cancellation, and timeout, and that playback works
+afterward. Record evidence obtained on simulators and physical devices
+separately; neither substitutes for the other.

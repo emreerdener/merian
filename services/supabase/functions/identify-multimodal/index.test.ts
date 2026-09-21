@@ -1177,3 +1177,64 @@ Deno.test("latency telemetry is privacy-safe and keeps the Gemini boundary exact
   assert(geminiStop > generationCall);
   assert(geminiStop < responseExtraction);
 });
+
+Deno.test("latency phase spans isolate quota, provider, promotion, enrichment, and persistence", async () => {
+  const source = await Deno.readTextFile(
+    new URL("./index.ts", import.meta.url),
+  );
+  function assertOrdered(...fragments: string[]) {
+    let previous = -1;
+    for (const fragment of fragments) {
+      const next = source.indexOf(fragment, previous + 1);
+      assert(
+        next > previous,
+        `missing or out-of-order latency boundary: ${fragment}`,
+      );
+      previous = next;
+    }
+  }
+  assertOrdered(
+    "const quotaCommitStart = performance.now();",
+    "await quotaLease.commit();",
+    "const providerStart = performance.now();",
+    "await _genAI.models.generateContent",
+    "providerMs = performance.now() - providerStart;",
+    "quotaCommitMs = providerStart - quotaCommitStart;",
+    "geminiLatencyMs = Date.now() - geminiStart;",
+    "finishReason = result.candidates",
+  );
+  assertOrdered(
+    '"video_promotion_started"',
+    "const videoPromotionStart = performance.now();",
+    "videoStorageUrls = await promoteSafeMedia",
+    "videoPromotionMs = performance.now() - videoPromotionStart;",
+  );
+  assertOrdered(
+    "const primaryEnrichmentStart = performance.now();",
+    "externalData = await fetchExternalEnrichment",
+    "} finally {",
+    "primaryEnrichmentMs = performance.now() - primaryEnrichmentStart;",
+  );
+  assertOrdered(
+    "const databaseFinalizationStart = performance.now();",
+    '"scan_insert_started"',
+    "await insertScan(",
+    "await completeScanIngestionFinalization(",
+    "databaseFinalizationMs = performance.now() - databaseFinalizationStart;",
+    "await runDurableIngestion();",
+    'event: "multimodal/latency"',
+  );
+  const latency = source.slice(source.indexOf('event: "multimodal/latency"'));
+  for (
+    const [name, variable] of [
+      ["quota_commit", "quotaCommitMs"],
+      ["provider", "providerMs"],
+      ["video_promotion", "videoPromotionMs"],
+      ["primary_enrichment", "primaryEnrichmentMs"],
+      ["database_finalization", "databaseFinalizationMs"],
+    ]
+  ) {
+    assert(latency.includes(`${name}_ms: Math.round(${variable})`));
+    assert(latency.includes(`{ name: "${name}", durationMs: ${variable} }`));
+  }
+});

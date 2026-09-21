@@ -24,6 +24,68 @@ private actor CameraVideoRecordingControlledSleeper {
 
 @Suite("Camera video recording coordinator")
 struct CameraVideoRecordingCoordinatorTests {
+    @Test(arguments: [false, true])
+    func directoryAliasCallbacksStartAndCompleteRecording(reverseAliases: Bool) async throws {
+        let fileManager = FileManager.default
+        let root = fileManager.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let realDirectory = root.appendingPathComponent("real", isDirectory: true)
+        let aliasDirectory = root.appendingPathComponent("alias", isDirectory: true)
+        let otherDirectory = root.appendingPathComponent("other", isDirectory: true)
+        try fileManager.createDirectory(at: realDirectory, withIntermediateDirectories: true)
+        defer { try? fileManager.removeItem(at: root) }
+        try fileManager.createDirectory(at: otherDirectory, withIntermediateDirectories: true)
+        try fileManager.createSymbolicLink(at: aliasDirectory, withDestinationURL: realDirectory)
+
+        let id = UUID()
+        let fileName = "\(id.uuidString)_video.mp4"
+        let requestedURL = (reverseAliases ? realDirectory : aliasDirectory)
+            .appendingPathComponent(fileName)
+        let callbackURL = (reverseAliases ? aliasDirectory : realDirectory)
+            .appendingPathComponent(fileName)
+        let generation = CameraVideoRecordingGeneration(id: id, outputURL: requestedURL)
+
+        // Construct identity before AVFoundation creates the movie. Resolving
+        // symlinks on the full nonexistent filename does not fix this case.
+        #expect(!fileManager.fileExists(atPath: requestedURL.path))
+        #expect(generation.matches(callbackURL: callbackURL))
+        try Data().write(to: requestedURL)
+        #expect(generation.matches(callbackURL: callbackURL))
+        #expect(!generation.matches(callbackURL: otherDirectory.appendingPathComponent(fileName)))
+        #expect(!generation.matches(callbackURL: callbackURL.deletingLastPathComponent()
+            .appendingPathComponent("\(UUID().uuidString)_video.mp4")))
+        #expect(!generation.matches(callbackURL: URL(string: "https://example.invalid/video.mp4")!))
+
+        let coordinator = CameraVideoRecordingCoordinator()
+        let recording: CameraVideoRecording = try await withCheckedThrowingContinuation { continuation in
+            guard coordinator.install(
+                generation: generation, maxDuration: 5,
+                startHandler: nil, continuation: continuation
+            ) else {
+                continuation.resume(throwing: TestFailure.setup)
+                return
+            }
+            #expect(coordinator.claimStart(
+                callbackURL: otherDirectory.appendingPathComponent(fileName)
+            ) == nil)
+            #expect(coordinator.claimStart(callbackURL: callbackURL)?.generation == generation)
+            if let wrongCompletion = coordinator.take(callbackURL: otherDirectory.appendingPathComponent(fileName)) {
+                Issue.record("A callback for another directory completed the recording")
+                wrongCompletion.resume(throwing: TestFailure.setup)
+                return
+            }
+            guard let completion = coordinator.take(callbackURL: callbackURL) else {
+                Issue.record("The recording callback was rejected through a directory alias")
+                coordinator.take(generation: generation)?.resume(throwing: TestFailure.setup)
+                return
+            }
+            #expect(completion.startedAt != nil)
+            completion.resume(returning: CameraVideoRecording(fileURL: generation.outputURL, duration: 1))
+        }
+        #expect(recording.fileURL == generation.outputURL)
+        #expect(coordinator.activeGeneration == nil)
+        #expect(coordinator.take(callbackURL: callbackURL) == nil)
+    }
+
     @Test func installAndCompletionExposeOnlyTheActiveGeneration() async throws {
         let coordinator = CameraVideoRecordingCoordinator()
         let generation = makeGeneration(id: "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")

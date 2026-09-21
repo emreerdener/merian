@@ -5,6 +5,23 @@ import Testing
 @Suite("AudioRecordingViewModel")
 @MainActor
 struct AudioRecordingViewModelTests {
+    @Test("Boost delegates a discrete action without seeking or changing artwork")
+    func boostActionDelegates() {
+        var toggles = 0
+        var seeks = 0
+        let model = AudioRecordingViewModel(dependencies: .init(
+            seekPlayback: { _ in seeks += 1 },
+            idleArtworkSelectionFeedback: {},
+            scrubBeginFeedback: {},
+            scrubCommitFeedback: {},
+            toggleReviewBoost: { toggles += 1 }
+        ))
+        model.toggleReviewBoost()
+        #expect(toggles == 1)
+        #expect(seeks == 0)
+        #expect(model.idleArtworkIndex == 0)
+    }
+
     @Test("Automatic and selected artwork advances keep feedback distinct")
     func artworkAdvanceFeedback() {
         var selectionFeedbackCount = 0

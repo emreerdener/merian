@@ -17,6 +17,7 @@ struct ExploreShellNavigationView: View {
     let feedViewModel: ExploreFeedViewModel
     let mapViewModel: ExploreMapViewModel
     let dictionaryOverviewViewModel: SpeciesDictionaryOverviewViewModel
+    let dictionarySearchViewModel: SpeciesSearchViewModel
     let dictionaryUserRegionIdentifier: String?
     let allowsInsightPresentation: Bool
     let onOpenOwnedPostInsight: ((String) -> Bool)?
@@ -155,6 +156,15 @@ struct ExploreShellNavigationView: View {
                 )
                 .toolbar(.hidden, for: .tabBar)
             }
+            .navigationDestination(for: SpeciesSearchRoute.self) { _ in
+                SpeciesSearchView(model: dictionarySearchViewModel, exploreViewModel: feedViewModel) { post in
+                    feedViewModel.upsertPost(post)
+                    navigationPath.append(ExplorePostRoute(
+                        postId: post.id, shouldFocusCommentComposer: false, shouldOpenInsight: false,
+                        targetCommentId: nil, targetReplyParentCommentId: nil, authorProfileDepth: 0
+                    ))
+                }
+            }
             .navigationDestination(for: SpeciesDictionaryCategoryRoute.self) { route in
                 speciesDictionaryCategoryDestination(route)
             }
@@ -287,6 +297,7 @@ struct ExploreShellNavigationView: View {
         ToolbarItem(placement: .topBarLeading) {
             Button {
                 dependencies.triggerLightImpact(0.45)
+                dictionarySearchViewModel.newSearch()
                 dismiss()
             } label: {
                 Image(systemName: "xmark")

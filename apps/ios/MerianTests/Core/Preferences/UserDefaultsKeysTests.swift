@@ -53,6 +53,7 @@ struct UserDefaultsKeysTests {
         "zoomSliderVisible": "zoomSliderVisible",
         "saveToCameraRoll": "saveToCameraRoll",
         "audioHintsEnabled": "audioHintsEnabled",
+        "boostRecordingPreviewsEnabled": "boostRecordingPreviewsEnabled",
         "gridColumns": "gridColumns",
         "needsCollectionSync": "needsCollectionSync",
         "hiddenSmartCollectionIDs": "hiddenSmartCollectionIDs",

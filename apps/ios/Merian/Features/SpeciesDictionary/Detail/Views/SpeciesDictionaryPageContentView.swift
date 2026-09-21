@@ -218,6 +218,9 @@ struct SpeciesDictionaryPageContentView: View {
                 speciesData: nil,
                 displayName: chat.displayName,
                 timestamp: nil,
+                media: SpeciesDictionaryFieldChatMedia.images(
+                    for: chat.id, species: viewModel.loadedSpecies
+                ),
                 publicScientificName: chat.scientificName,
                 publicAlternativeNames: chat.alternativeScientificNames,
                 allowsOwnerActions: false,
@@ -315,9 +318,6 @@ struct SpeciesDictionaryPageContentView: View {
                     header(for: species)
 
                     VStack(alignment: .leading, spacing: 32) {
-                        SpeciesDictionaryContentQualityCard(
-                            quality: species.effectiveContentQuality
-                        )
                         SpeciesDictionaryStatusCard(
                             hazardType: species.hazardType
                         )

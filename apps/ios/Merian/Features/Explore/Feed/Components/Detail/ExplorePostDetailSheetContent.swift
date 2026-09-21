@@ -118,6 +118,9 @@ struct ExplorePostDetailSheetContent: View {
                         speciesData: nil,
                         displayName: feedViewModel.resolvedSpeciesCommonName(for: post),
                         timestamp: post.sharedAtDate,
+                        media: ExploreFieldChatMedia.images(
+                            items: post.resolvedMediaItems, heroImageURL: post.heroImageUrl
+                        ),
                         publicScientificName: post.speciesScientificName,
                         publicAlternativeNames: detailViewModel.detail?.similarSpecies?.map(\.scientificName) ?? [],
                         allowsOwnerActions: false,

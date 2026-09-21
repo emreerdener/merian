@@ -12,9 +12,9 @@ experience used by Insights, Explore posts, and Species Dictionary pages.
   `MerianNetworkClient`, haptics, telemetry, the clipboard, or other process
   services.
 - `ViewModels/` owns `@MainActor @Observable` conversation, prompt, feedback,
-  availability, and identification-review state. `FieldChatOperationState`
-  contains mutable task and generation bookkeeping so late work cannot cross a
-  subject boundary.
+  availability, identification-review, and empty-state thumbnail state.
+  `FieldChatOperationState` contains mutable task and generation bookkeeping so
+  late work cannot cross a subject boundary.
 - `Views/` composes the shared sheet and retains UI-only focus, scrolling,
   keyboard/composer, confirmation, and dismissal timing.
 - `Components/` owns focused conversation, feedback, notes, shared visual
@@ -43,11 +43,81 @@ Services or task and generation state. The Supabase functions remain the
 authorization, context, quota, persistence, and provider owners.
 
 `InsightChatSheet`, `InsightChatViewModel`, `InsightChatReplyAction`, and
-`InsightChatFieldNotesAppendKind` keep their existing names and initializer
-signatures for source compatibility. The historical names do not imply Insights
-ownership; new shared Field Chat implementation belongs here.
+`InsightChatFieldNotesAppendKind` keep their existing names and
+source-compatible initializers; the sheet's presentation-only `media` input
+defaults to empty. The historical names do not imply Insights ownership; new
+shared Field Chat implementation belongs here.
+
+The sheet toolbar button uses Core UI's shared `rainbowCapsuleAccent` for its
+rainbow glow and occasional border sweep. Species search reuses that visual
+owner; button actions, accessibility, and routing remain feature-owned.
 
 ## Purpose
+
+The empty conversation shows a 184-point, elevated image stack from its host:
+Insights supplies ordered capture stills, existing video posters, and displayed
+reference images; Explore supplies public post stills/posters with its featured
+image first; Dictionary supplies ordered reference images and their existing
+credit labels. Host-owned adapters produce platform-neutral `FieldChatMedia`
+values. These images never enter endpoint requests, AI context, or the
+transcript.
+
+`FieldChatEmptyState` owns rendering and swipe/VoiceOver interaction.
+`FieldChatImageStackModel` owns failed-image exclusion, selection, and a window
+of at most three decoded thumbnails: the selected image and the next two in
+circular order. The view renders that same window, and failed rear images are
+replaced until each available visible slot is loaded. Rear cards are shown only
+after decoding, so pending requests do not appear as blank cards.
+`FieldChatImageDependencies` reuses the shared image loader and off-main
+live-image preparation at a 600-pixel cap. Loading is independent of chat
+readiness, retries failed images on reconnection, and rejects canceled or
+superseded results. Subject or media identity replacement creates a fresh stack.
+Failed candidates are skipped; no usable image restores the existing twinkle
+graphic. The stack disappears when a message is visible.
+
+Each committed user page change requests exactly one `.selection` effect through
+the existing Field Chat feedback dependency, respecting the haptics preference.
+Initial loading, image failures, single-image navigation, canceled swipes, and
+automatic selection changes remain silent. Swiping and VoiceOver adjustment wrap
+from the last image to the first and back, without opening a viewer. During a
+swipe the front card follows the finger; a committed change slides and rotates
+that card outward, promotes the next card, then tucks the outgoing card behind
+the deck. Stable media identities avoid opacity transitions. The view holds at
+most one additional outgoing thumbnail during the swap and releases it on
+completion or disappearance. Repeated gestures are ignored until the swap
+finishes and the selected image has decoded. Gesture cancellation restores the
+front card automatically; failed destinations, dismissal, and enabling Reduce
+Motion discard the in-flight swap. Obsolete animation completions cannot restore
+dismissed state. Reduce Motion disables drag and page-change animation, and the
+empty-state content can scroll with large text or a visible keyboard.
+
+The welcome remains a separate presentation state, not an assistant message. It
+aligns to the top of the scrollable content below the toolbar, with 24 points of
+top padding, so taller containers leave extra space below the welcome. Beneath
+the image and conversational heading, up to three full-width, multiline question
+buttons have an opaque white fill in light mode and a contrasting
+secondary-system fill in dark mode. A directional arrow sits at the trailing
+edge, vertically centered opposite the multiline prompt and hidden from
+VoiceOver as decoration. `FieldChatWelcomePrompts` reserves the question area
+without showing or enabling temporary questions while generated prompts load.
+`FieldChatWelcomePromptsModel` reveals the existing ranked suggestions once
+ready, or the deterministic fallback set on failure or after four seconds. The
+set fades and rises into view together; Reduce Motion makes the reveal
+immediate. Once visible, the questions remain fixed for that welcome
+presentation, even when late results arrive or drafting/offline temporarily
+hides them. Questions that have not yet been shown can still adopt newer results
+while hidden. The deadline runs from welcome presentation and does not restart
+when questions are temporarily hidden; returning after it reveals the best
+available set immediately. A new subject or a newly created welcome gets a fresh
+presentation; disappearance cancels the deadline task and canceled work cannot
+reveal old questions. Cached generated questions can reveal immediately. Compact
+conversation chips retain their existing refresh behavior. Selecting a welcome
+question uses the same send, telemetry, and preference-aware selection feedback
+as a compact chip. The privacy caption and pinned composer remain visible;
+questions hide while drafting or offline. A pending or saved message removes the
+welcome, and subsequent suggestions use the compact horizontal chips above the
+composer. Welcome questions scroll with the rest of the content at large text
+sizes or with the keyboard visible.
 
 This area allows Pro users to ask contextual follow-up questions about a
 completed biological scan without needing to re-upload raw images. It also
@@ -364,6 +434,11 @@ See:
   fencing, and architecture coverage live under
   `MerianTests/Features/FieldChat/`. `FieldChatPresentationTests` includes the
   shared-common-name lookalike prompt regression.
+- `FieldChatMediaTests` covers host image ordering, posters, deduplication, and
+  attribution. `FieldChatImageStackTests` covers bounded loading, failures,
+  reconnection, cancellation, stale results, and selection-feedback admission.
+  `FieldChatEmptyStateRenderingTests` retains deterministic light/dark,
+  compact/large-text, single/stack, and fallback visual fixtures in XCResult.
 - `FieldChatArchitectureTests` enforces the cross-feature owner,
   platform-neutral Models, Services-only live resolution, and the 600-line
   production-file ceiling.

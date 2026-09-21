@@ -172,9 +172,13 @@ final class CameraVideoRecordingCoordinator: Sendable {
         callbackURL: URL,
         startedAt: Date = Date()
     ) -> StartContext? {
-        state.withLock { state in
+        // Resolve filesystem aliases outside the lock, then revalidate the
+        // exact generation so cancellation or replacement cannot win an ABA race.
+        guard let generation = activeGeneration,
+              generation.matches(callbackURL: callbackURL) else { return nil }
+        return state.withLock { state in
             guard var active = state.activeRequest,
-                  active.gate.matches(callbackURL: callbackURL),
+                  active.gate.matches(generation),
                   active.startedAt == nil else {
                 return nil
             }
@@ -253,9 +257,11 @@ final class CameraVideoRecordingCoordinator: Sendable {
     }
 
     func take(callbackURL: URL) -> Completion? {
+        guard let generation = activeGeneration,
+              generation.matches(callbackURL: callbackURL) else { return nil }
         let request = state.withLock { state -> ActiveRequest? in
             guard let active = state.activeRequest,
-                  active.gate.matches(callbackURL: callbackURL) else {
+                  active.gate.matches(generation) else {
                 return nil
             }
 

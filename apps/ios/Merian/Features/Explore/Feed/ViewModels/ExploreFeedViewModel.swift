@@ -292,6 +292,7 @@ final class ExploreFeedViewModel {
     var postReactorsRevision: UInt64 = 0
     @ObservationIgnored var reactionRevisions: [String: UInt64] = [:]
     @ObservationIgnored var postRemovalRevisions: [String: UInt64] = [:]
+    var blockedAuthorUserIDs = Set<String>()
     @ObservationIgnored let reactionMutationQueue = ExploreReactionMutationQueue()
     @ObservationIgnored var reactionRequestsInFlight = Set<String>()
     @ObservationIgnored var reactionPageRequestsInFlight = Set<String>()

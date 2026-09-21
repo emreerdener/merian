@@ -5924,3 +5924,22 @@ order. See the [wire contract](./05-api-contracts.md#post-reaction-people).
 `username` from `users.public_username` to that RPC's JSON projection. Existing
 display names, preview names, visibility filters, ordering, and service-only
 grants remain unchanged.
+
+### Species discovery search index and RPC
+
+Migration `20260920221622_add_species_discovery_search.sql` adds the stored
+`species_dictionary.discovery_search_document` English tsvector and partial GIN
+index for public biological entries. Only canonical names, taxonomy, overview,
+and habitat enter that document. `internal.species_discovery_matches`
+centralizes eligibility for both tabs. `public.search_species_discovery` is a
+service-only security-invoker RPC with an explicit current-role check and
+20-result pages. Species use rank/UUID keysets; sightings use share-time/UUID
+keysets after joining effective species through the existing viewer-aware public
+post projection.
+
+A separate `species_discovery_search` operation in `internal.ai_quota_policies`
+uses content-free accounting and the existing consent/reservation flow. It
+permits 20 daily provider calls for free and 120 for Pro, independently of
+scan/chat allowances. See the
+[endpoint contract](../../services/supabase/functions/species-discovery-search/README.md)
+and disposable `species_discovery_search.sql` catalog/denial tests.

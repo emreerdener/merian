@@ -12,11 +12,22 @@ struct CameraVideoRecordingGeneration: Equatable, Sendable {
 
     init(id: UUID, outputURL: URL) {
         self.id = id
-        self.outputURL = outputURL.standardizedFileURL
+        self.outputURL = Self.canonicalFileURL(outputURL)
     }
 
     func matches(callbackURL: URL) -> Bool {
-        outputURL == callbackURL.standardizedFileURL
+        callbackURL.isFileURL && outputURL == Self.canonicalFileURL(callbackURL)
+    }
+
+    private static func canonicalFileURL(_ url: URL) -> URL {
+        // The movie does not exist when the request is created. Resolve its
+        // existing parent, since resolving a nonexistent leaf leaves aliases
+        // such as /var versus /private/var intact on Apple platforms.
+        let standardized = url.standardizedFileURL
+        return standardized.deletingLastPathComponent()
+            .resolvingSymlinksInPath()
+            .appendingPathComponent(standardized.lastPathComponent, isDirectory: false)
+            .standardizedFileURL
     }
 }
 

@@ -45,6 +45,7 @@ extension InferenceLivePipelineCoordinator {
         let attemptGeneration: UUID
         let foregroundGeneration: UUID?
         let modality: Modality
+        var isProFunded: Bool = false
 
         var durableQueueOwnsRecovery: Bool {
             foregroundGeneration != nil

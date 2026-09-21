@@ -43,7 +43,7 @@ struct ScanInformationCard: View {
 
         if hasVisibleData {
             VStack(alignment: .leading, spacing: 16) {
-                MerianCardHeader(systemImage: "viewfinder", title: "Scan")
+                MerianCardHeader(systemImage: "viewfinder", title: "Your scan")
 
                 VStack(spacing: 12) {
                     // Location

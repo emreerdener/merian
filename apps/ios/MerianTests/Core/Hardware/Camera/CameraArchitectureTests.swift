@@ -122,7 +122,7 @@ struct CameraArchitectureTests {
         #expect(videoService.contains("@unchecked Sendable"))
         #expect(videoService.contains("private let sessionProvider: SessionProvider"))
         #expect(videoService.contains("private let makeMovieOutput: MovieOutputFactory"))
-        #expect(videoService.contains("@MainActor private var preparationTask"))
+        #expect(videoService.contains("@MainActor private lazy var recordingAudioSession"))
         #expect(videoService.contains("dispatchPrecondition(condition: .onQueue(queue))"))
         #expect(videoService.contains("private let coordinator: CameraVideoRecordingCoordinator"))
         #expect(!videoService.contains("@Observable"))
@@ -375,6 +375,8 @@ struct CameraArchitectureTests {
         "apps/ios/Merian/Core/Hardware/Camera/Services/CameraSessionController.swift"
     private static let videoServicePath =
         "apps/ios/Merian/Core/Hardware/Camera/Services/CameraVideoRecordingService.swift"
+    private static let videoAudioPath =
+        "apps/ios/Merian/Core/Hardware/Camera/Services/CameraVideoAudioSession.swift"
     private static let behaviorTestsPath =
         "apps/ios/MerianTests/Core/Hardware/CameraManagerTests.swift"
     private static let photoCoordinatorTestsPath =
@@ -448,6 +450,11 @@ struct CameraArchitectureTests {
             owner: videoServicePath
         ),
         (
+            name: "CameraVideoAudioSession",
+            signature: "final class CameraVideoAudioSession",
+            owner: videoAudioPath
+        ),
+        (
             name: "CameraManager",
             signature: "@Observable final class CameraManager",
             owner: managerPath
@@ -519,6 +526,14 @@ struct CameraArchitectureTests {
                 "@preconcurrency import AVFoundation",
                 "import Foundation",
                 "import os"
+            ])
+        ),
+        (
+            path: videoAudioPath,
+            lineCeiling: 150,
+            imports: Set([
+                "@preconcurrency import AVFoundation",
+                "import Foundation"
             ])
         ),
         (

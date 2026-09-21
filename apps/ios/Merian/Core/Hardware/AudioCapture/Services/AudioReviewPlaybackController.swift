@@ -58,6 +58,8 @@ final class AudioReviewPlaybackController {
     private struct ActivePlayback {
         let generation: UUID
         let player: any AudioReviewPlaybackPlayer
+        let onCompletion: CompletionHandler
+        var activationTask: Task<Void, Never>?
         var lease: AudioSessionCoordinator.Lease?
         var progressTask: Task<Void, Never>?
         var completionTask: Task<Void, Never>?
@@ -74,18 +76,27 @@ final class AudioReviewPlaybackController {
     func start(
         fileURL: URL,
         resumeProgress: Double,
+        replacingCurrent: Bool = false,
         onProgress: @escaping ProgressHandler,
         onCompletion: @escaping CompletionHandler
     ) -> Bool {
-        guard activePlayback == nil,
+        guard replacingCurrent || activePlayback == nil,
               let player = try? dependencies.makePlayer(fileURL) else {
             return false
         }
 
+        let previous = activePlayback?.player
+        let progress = replacingCurrent && (previous?.duration ?? 0) > 0
+            ? (previous?.currentTime ?? 0) / (previous?.duration ?? 1)
+            : resumeProgress
+        if replacingCurrent { stop() }
+        player.currentTime = player.duration * min(1, max(0, progress))
+        if replacingCurrent, previous != nil { onProgress(min(1, max(0, progress))) }
         let generation = UUID()
         activePlayback = ActivePlayback(
             generation: generation,
-            player: player
+            player: player,
+            onCompletion: onCompletion
         )
 
         let progressTask = Task { @MainActor [weak self] in
@@ -108,7 +119,7 @@ final class AudioReviewPlaybackController {
         }
         activePlayback?.progressTask = progressTask
 
-        let completionTask = Task { @MainActor [weak self] in
+        let activationTask = Task { @MainActor [weak self] in
             guard let self else { return }
             let lease: AudioSessionCoordinator.Lease
             do {
@@ -132,10 +143,6 @@ final class AudioReviewPlaybackController {
                 return
             }
 
-            let clampedResumeProgress = min(1, max(0, resumeProgress))
-            if clampedResumeProgress > 0 {
-                player.currentTime = player.duration * clampedResumeProgress
-            }
             guard player.play() else {
                 finishIfCurrent(
                     generation,
@@ -145,28 +152,9 @@ final class AudioReviewPlaybackController {
                 return
             }
 
-            let remainingDuration = max(
-                0,
-                player.duration * (1 - clampedResumeProgress)
-            )
-            do {
-                try await dependencies.waitForCompletion(remainingDuration)
-            } catch {
-                finishIfCurrent(
-                    generation,
-                    player: player,
-                    onCompletion: onCompletion
-                )
-                return
-            }
-            guard !Task.isCancelled else { return }
-            finishIfCurrent(
-                generation,
-                player: player,
-                onCompletion: onCompletion
-            )
+            scheduleCompletion()
         }
-        activePlayback?.completionTask = completionTask
+        activePlayback?.activationTask = activationTask
         return true
     }
 
@@ -174,6 +162,7 @@ final class AudioReviewPlaybackController {
         guard let playback = activePlayback else { return }
         activePlayback = nil
         playback.progressTask?.cancel()
+        playback.activationTask?.cancel()
         playback.completionTask?.cancel()
         playback.player.stop()
         deactivate(playback.lease)
@@ -183,6 +172,26 @@ final class AudioReviewPlaybackController {
         guard let playback = activePlayback else { return }
         let clamped = min(1, max(0, progress))
         playback.player.currentTime = playback.player.duration * clamped
+        if playback.lease != nil { scheduleCompletion() }
+    }
+
+    private func scheduleCompletion() {
+        guard let playback = activePlayback else { return }
+        playback.completionTask?.cancel()
+        let generation = playback.generation
+        let player = playback.player
+        let onCompletion = playback.onCompletion
+        let remaining = max(0, player.duration - player.currentTime)
+        activePlayback?.completionTask = Task { @MainActor [weak self] in
+            guard let self, !Task.isCancelled else { return }
+            do {
+                try await dependencies.waitForCompletion(remaining)
+            } catch {
+                if Task.isCancelled { return }
+            }
+            guard !Task.isCancelled else { return }
+            finishIfCurrent(generation, player: player, onCompletion: onCompletion)
+        }
     }
 
     private func install(
@@ -212,6 +221,8 @@ final class AudioReviewPlaybackController {
         }
         activePlayback = nil
         playback.progressTask?.cancel()
+        playback.activationTask?.cancel()
+        playback.completionTask?.cancel()
         playback.player.stop()
         deactivate(playback.lease)
         onCompletion()

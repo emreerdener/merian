@@ -10,6 +10,11 @@ global public feed, a following-only feed, trending observations, and
 geographically nearby posts, and the viewer’s liked observations while
 preserving one shared `ExplorePostStore` for cross-surface mutations.
 
+The Feed state retains author IDs blocked during the current Explore session.
+Dictionary search checks this set along with per-post removal revisions before
+registering or rendering results, including unseen posts arriving from an older
+request. Account changes clear the session's author suppression set.
+
 The
 [canonical Explore product contract](../../../../../../docs/rfcs/explore-page.md)
 remains authoritative for shipped behavior, copy, routing, privacy, and backend

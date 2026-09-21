@@ -20,6 +20,17 @@ state, geometry, copy, task lifetime, and replacement content; the Core view
 owns only the mounted visual treatment. The unreferenced `ShimmerModifier` and
 `View.shimmering()` API were retired rather than carried into this package.
 
+## Rainbow capsule accent
+
+`Modifiers/RainbowCapsuleAccent.swift` owns the shared multicolor glow and
+occasional 1.8-second border shimmer used by the Field Chat sheet button and
+Species search entry. It sizes to the control unless the caller supplies
+explicit bounds; Field Chat retains its 140-by-42-point treatment. The sweep
+pauses for 5.5–8.5 seconds between passes, cancels when the view leaves, and is
+hidden with Reduce Motion while the static glow remains. Decoration ignores hit
+testing and accessibility; the feature owns the glass/material background, text,
+routing, and accessible label.
+
 ## System share presentation
 
 `Services/ShareSheetPresenter.swift` is the single main-actor UIKit bridge for

@@ -18,6 +18,7 @@ extension CaptureWorkspaceViewModel {
         isCapturing = true
         videoRecordingProgress = 0
 
+        let captureStartedAt = CFAbsoluteTimeGetCurrent()
         let generation = scanOperationState.beginVideoRecording()
         let recordingTask = Task { @MainActor [weak self] in
             guard let self else { return }
@@ -45,6 +46,7 @@ extension CaptureWorkspaceViewModel {
                         guard let self,
                               self.scanOperationState.isCurrent(generation),
                               self.isCapturing else { return }
+                        MerianLog.hardware.debug("Video shutter to recording: seconds=\(CFAbsoluteTimeGetCurrent() - captureStartedAt, privacy: .public)")
                         self.isVideoRecording = true
                         self.videoRecordingProgress = 0
                         self.dependencies.scan.feedback.videoStarted()
@@ -62,6 +64,9 @@ extension CaptureWorkspaceViewModel {
                     throw CancellationError()
                 }
 
+                self.isVideoRecording = false
+                self.isPreparingVideo = true
+                self.videoRecordingProgress = 0
                 self.dependencies.scan.feedback.videoCompleted()
                 let resolvedShutterLocation = await shutterLocation
                 let instantLocation = resolvedShutterLocation
@@ -187,7 +192,7 @@ extension CaptureWorkspaceViewModel {
         cancelStillCapture()
         if isVideoRecording {
             stopVideoCapture()
-        } else if scanOperationState.hasActiveVideoCapture {
+        } else if !isPreparingVideo, scanOperationState.hasActiveVideoCapture {
             cancelVideoCapture()
         }
     }
@@ -210,7 +215,8 @@ extension CaptureWorkspaceViewModel {
                 try? await Task.sleep(nanoseconds: tickNanoseconds)
                 guard !Task.isCancelled,
                       let self,
-                      self.scanOperationState.isCurrent(generation) else {
+                      self.scanOperationState.isCurrent(generation),
+                      self.isVideoRecording else {
                     return
                 }
                 elapsed += tickDuration
@@ -242,12 +248,14 @@ extension CaptureWorkspaceViewModel {
         }
         isCapturing = false
         isVideoRecording = false
+        isPreparingVideo = false
     }
 
     private func finishVideoCaptureUIAfterCancellation() {
         videoRecordingProgress = 0
         isCapturing = false
         isVideoRecording = false
+        isPreparingVideo = false
     }
 
     private func discardPreparedVideo(

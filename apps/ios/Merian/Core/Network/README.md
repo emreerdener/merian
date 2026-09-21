@@ -350,10 +350,10 @@ and feature state/presentation tests stay feature-owned.
 [`Endpoints/MerianNetworkClient+Inference.swift`](Endpoints/MerianNetworkClient+Inference.swift)
 owns the existing `/identify` compatibility request, `/identify-multimodal`
 request construction and dispatch, pinned-session prewarm, consent preflight,
-and the queue-backed 15-second versus direct 90-second transport selection.
-Public method names, defaults, request-body completion behavior, entitlement
-protocol, stable idempotency keys, and Auth-account fencing are unchanged. The
-three off-main body-preparation blocks use
+and the queue-backed 15-second (30-second Pro trial) versus direct 90-second
+transport selection. Public method names, defaults, request-body completion
+behavior, entitlement protocol, stable idempotency keys, and Auth-account
+fencing are unchanged. The three off-main body-preparation blocks use
 `DetachedWork.value(category: .inferenceRequestPreparation)` so cancellation of
 the owning request reaches the detached handle. The endpoint checks cancellation
 before and after JSON construction and between inline-audio file reads; the
@@ -2890,10 +2890,11 @@ The durable queue, rather than the foreground HTTP helper, owns retry after the
 first transport failure of a queue-backed live Identify request. The client uses
 one explicit per-call ownership policy:
 
-- queue-backed `identifyMultiModal` gets one 15-second foreground attempt and
-  returns its first transient `URLError` through `InferenceLiveRequestService`
-  to `InferenceLivePipelineCoordinator`, after the idempotent body-sent callback
-  releases the upload hold;
+- queue-backed `identifyMultiModal` gets one foreground attempt, with a
+  30-second URLRequest timeout for Pro-funded scans and 15 seconds otherwise,
+  and returns its first transient `URLError` through
+  `InferenceLiveRequestService` to `InferenceLivePipelineCoordinator`, after the
+  idempotent body-sent callback releases the upload hold;
 - `InferenceLiveFailureCoordinator` asks `InferenceLiveAttemptCoordinator` to
   retire durable foreground ownership idempotently and returns the exact queue-
   transition action for `InferenceEngine` to apply as **Queued for later**; and
@@ -2906,12 +2907,20 @@ handler-owned authentication refresh, or Supabase route-propagation recovery. A
 returned handler/provider `5xx` also remains a service failure rather than
 evidence that the device is offline.
 
-The 15-second foreground bound is intentionally more than twice the documented
-six-second cache-hit end-to-end p95 target. It prevents black-holed Wi-Fi from
-holding a saved scan in live analysis for the direct caller's 90-second window.
-A slow valid server result remains recoverable under the same idempotency key
-and durable scan ID; the foreground deadline is a presentation/ownership
-handoff, not scan loss.
+The 30-second Pro trial follows eight supplied successful Pro samples whose
+legacy Gemini stage exceeded 15 seconds (15.2–24.6 seconds). It can reduce
+avoidable queue handoffs but does not accelerate inference or guarantee a
+30-second total wall-clock limit: URLRequest applies an inactivity timeout. It
+also increases the wait on a stalled Pro connection. Other funding sources
+retain the 15-second timeout, and direct callers retain 90 seconds.
+
+The live pipeline snapshots Pro funding synchronously after claiming its exact
+foreground generation. The queue reads the matching durable ingestion job and
+funding reservation; paid and complimentary Pro qualify. Missing, stale, or
+legacy metadata conservatively keeps 15 seconds. The snapshot crosses the
+request service only as local transport policy, never as a JSON entitlement
+claim. A slow valid result remains recoverable under the same idempotency key
+and durable scan ID.
 
 **Current source status (2026-08-10): remediated; release acceptance pending.**
 `performAuthenticatedRequest` carries `allowsTransientTransportRetry` through
@@ -2919,9 +2928,9 @@ transport, auth-refresh, route-propagation, and handler retry recursion.
 `identifyMultiModal` exposes `durableQueueOwnsRecovery`; the admitted pipeline
 session derives that ownership decision and includes it in
 `InferenceLiveRequestService`'s request value, which the service forwards
-unchanged. Queue-backed calls therefore couple the 15-second bound with no
-inline retry, while queue-less calls keep the 90-second/replay default.
-Protected request-policy regressions assert both request deadlines, one
+unchanged. Queue-backed calls therefore couple the selected 15/30-second timeout
+with no inline retry, while queue-less calls keep the 90-second/replay default.
+Protected request-policy regressions assert all three request timeouts, one
 immediate queue-backed failure, and one stable-key queue-less replay. The engine
 integration regression also proves that a deadline timeout can retire the active
 owner without a prior path-monitor callback. Exact-SHA hosted and physical
@@ -3637,3 +3646,14 @@ read for detail reactor identities. `ExplorePostReactorsPage` contains unique
 count, preview names, public reactor rows, and a nullable UUID cursor. The
 [people contract](../../../../../docs/backend-and-data/05-api-contracts.md#post-reaction-people)
 defines visibility, likes-as-heart, and pagination semantics.
+
+### Conversational dictionary search
+
+`Endpoints/MerianNetworkClient+SpeciesDiscoverySearch.swift` adds the dedicated
+`searchSpecies` operation through the existing authenticated encoded-JSON
+bridge. `SpeciesDiscoverySearchAPIModels.swift` owns hand-written bounded
+request and response DTOs; `Decoding/SpeciesSearchResponseValidator.swift`
+checks identity, version, result kind, context, row bounds and cursors before
+feature state changes. No automatic replay is enabled for provider-backed
+search. Search state and tests remain in
+[Species Dictionary Search](../../Features/SpeciesDictionary/Search/README.md).

@@ -71,59 +71,86 @@ enum CaptureScanVideoMediaPreparer {
     private static let audioExtractionTimeout: TimeInterval = 5
     private static let playbackPreparationTimeout: TimeInterval = 10
 
+    struct PlaybackArtifact: Sendable {
+        let playback: PreparedCaptureScanVideoPlayback
+        var lease: CaptureScanTemporaryFileLease?
+    }
+
+    struct Dependencies: Sendable {
+        var frames: @Sendable (CaptureScanVideoPreparationRequest) async throws -> [PreparedCaptureScanStill]
+        var audio: @Sendable (URL) async -> CaptureScanTemporaryFileLease?
+        var playback: @Sendable (URL) async throws -> PlaybackArtifact
+
+        nonisolated static var live: Self {
+            Self(
+                frames: { try await prepareFrames($0) },
+                audio: { await CaptureScanVideoAudioExtractor.extract(videoURL: $0) },
+                playback: { try await preparePlaybackClip(videoURL: $0) }
+            )
+        }
+    }
+
     nonisolated static func prepare(
-        _ request: CaptureScanVideoPreparationRequest
+        _ request: CaptureScanVideoPreparationRequest,
+        dependencies: Dependencies = .live
     ) async throws -> PreparedCaptureScanVideo {
-        let sampledFrames = try await withTimeout(
+        let preparationStart = CFAbsoluteTimeGetCurrent()
+        // Three bounded readers share the finished source. Keep their artifacts
+        // leased until all required work succeeds, including late cancellation.
+        async let framesTask = withTimeout(
             seconds: framePreparationTimeout,
             message: "Preparing video frames timed out."
         ) {
-            try await prepareFrames(request)
+            try await dependencies.frames(request)
         }
+        async let audioTask = optionalAudio(videoURL: request.videoURL, dependencies: dependencies)
+        async let playbackTask = dependencies.playback(request.videoURL)
+
+        let sampledFrames = try await framesTask
         guard !sampledFrames.isEmpty else {
             throw NSError(
-                domain: "CaptureWorkspaceViewModel",
-                code: -20,
-                userInfo: [
-                    NSLocalizedDescriptionKey:
-                        "Unable to sample frames from the recorded video."
-                ]
+                domain: "CaptureWorkspaceViewModel", code: -20,
+                userInfo: [NSLocalizedDescriptionKey: "Unable to sample frames from the recorded video."]
             )
         }
-        try Task.checkCancellation()
-
-        let audioLease: CaptureScanTemporaryFileLease? = try? await withTimeout(
-            seconds: audioExtractionTimeout,
-            message: "Extracting video audio timed out."
-        ) {
-            await CaptureScanVideoAudioExtractor.extract(
-                videoURL: request.videoURL
-            )
-        }
-
-        let playback = try await preparePlaybackClip(
-            videoURL: request.videoURL
-        )
+        let (audioLease, playbackArtifact) = try await (audioTask, playbackTask)
         var acceptedAudioURL: URL?
+        var acceptedPlaybackURL: URL?
         do {
+            try Task.checkCancellation()
             if let audioLease {
                 acceptedAudioURL = try await audioLease.relinquishOwnership()
             }
+            if let lease = playbackArtifact.lease {
+                acceptedPlaybackURL = try await lease.relinquishOwnership()
+            }
             try Task.checkCancellation()
         } catch {
-            if let acceptedAudioURL {
-                try? FileManager.default.removeItem(at: acceptedAudioURL)
-            }
-            if playback.isCompressed {
-                try? FileManager.default.removeItem(at: playback.fileURL)
+            for url in [acceptedAudioURL, acceptedPlaybackURL].compactMap({ $0 }) {
+                try? FileManager.default.removeItem(at: url)
             }
             throw error
         }
+        MerianLog.hardware.debug(
+            "Video preparation completed: totalSeconds=\(CFAbsoluteTimeGetCurrent() - preparationStart, privacy: .public)"
+        )
         return PreparedCaptureScanVideo(
             sampledFrames: sampledFrames,
             audioFilePath: acceptedAudioURL?.lastPathComponent,
-            playback: playback
+            playback: playbackArtifact.playback
         )
+    }
+
+    nonisolated private static func optionalAudio(
+        videoURL: URL,
+        dependencies: Dependencies
+    ) async -> CaptureScanTemporaryFileLease? {
+        try? await withTimeout(
+            seconds: audioExtractionTimeout,
+            message: "Extracting video audio timed out."
+        ) {
+            await dependencies.audio(videoURL)
+        }
     }
 
     nonisolated private static func withTimeout<T: Sendable>(
@@ -252,7 +279,7 @@ enum CaptureScanVideoMediaPreparer {
 
     nonisolated private static func preparePlaybackClip(
         videoURL: URL
-    ) async throws -> PreparedCaptureScanVideoPlayback {
+    ) async throws -> PlaybackArtifact {
         let originalSize = try fileSize(at: videoURL)
         let exportStart = CFAbsoluteTimeGetCurrent()
 
@@ -286,14 +313,14 @@ enum CaptureScanVideoMediaPreparer {
                     compressedBytes=\(compressedSize, privacy: .public)
                     """
                 )
-                return PreparedCaptureScanVideoPlayback(
+                return PlaybackArtifact(playback: PreparedCaptureScanVideoPlayback(
                     fileURL: videoURL,
                     isCompressed: false,
                     originalBytes: originalSize,
                     playbackBytes: originalSize,
                     preparationDuration:
                         CFAbsoluteTimeGetCurrent() - exportStart
-                )
+                ))
             }
             MerianLog.hardware.debug(
                 """
@@ -319,31 +346,24 @@ enum CaptureScanVideoMediaPreparer {
                     fallback=true
                     """
                 )
-                return PreparedCaptureScanVideoPlayback(
+                return PlaybackArtifact(playback: PreparedCaptureScanVideoPlayback(
                     fileURL: videoURL,
                     isCompressed: false,
                     originalBytes: originalSize,
                     playbackBytes: originalSize,
                     preparationDuration:
                         CFAbsoluteTimeGetCurrent() - exportStart
-                )
+                ))
             }
             try Task.checkCancellation()
-            let acceptedURL = try await compressedLease.relinquishOwnership()
-            do {
-                try Task.checkCancellation()
-            } catch {
-                try? FileManager.default.removeItem(at: acceptedURL)
-                throw error
-            }
-            return PreparedCaptureScanVideoPlayback(
-                fileURL: acceptedURL,
+            return PlaybackArtifact(playback: PreparedCaptureScanVideoPlayback(
+                fileURL: compressedURL,
                 isCompressed: true,
                 originalBytes: originalSize,
                 playbackBytes: compressedSize,
                 preparationDuration:
                     CFAbsoluteTimeGetCurrent() - exportStart
-            )
+            ), lease: compressedLease)
         } catch is CancellationError {
             throw CancellationError()
         } catch {
@@ -369,14 +389,14 @@ enum CaptureScanVideoMediaPreparer {
                 fallback=true
                 """
             )
-            return PreparedCaptureScanVideoPlayback(
+            return PlaybackArtifact(playback: PreparedCaptureScanVideoPlayback(
                 fileURL: videoURL,
                 isCompressed: false,
                 originalBytes: originalSize,
                 playbackBytes: originalSize,
                 preparationDuration:
                     CFAbsoluteTimeGetCurrent() - exportStart
-            )
+            ))
         }
     }
 

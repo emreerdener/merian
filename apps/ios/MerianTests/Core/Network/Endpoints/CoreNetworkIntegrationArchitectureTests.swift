@@ -4453,6 +4453,7 @@ struct CoreNetworkIntegrationArchitectureTests {
         "MerianNetworkClient+ScanEnrichment.swift",
         "MerianNetworkClient+ScanLifecycle.swift",
         "MerianNetworkClient+ScanPublication.swift",
+        "MerianNetworkClient+SpeciesDiscoverySearch.swift",
         "MerianNetworkClient+SpeciesDictionary.swift"
     ]
 

@@ -223,7 +223,7 @@ struct MediaUploadSyncTests {
             "guard allowsAutomaticNetworkWorkOnCurrentPath, isServerIngestionPollCurrent("
         ))
         #expect(normalizedInferencePipelineSource.contains(
-            "let action = BackgroundInferencePolicy.scanStatusRecoveryAction( for: response ) guard allowsAutomaticNetworkWorkOnCurrentPath else {"
+            "let action = BackgroundInferencePolicy.scanStatusRecoveryAction( for: response, isInitialStatusCheck: serverPollToken == nil ) guard allowsAutomaticNetworkWorkOnCurrentPath else {"
         ))
     }
 }

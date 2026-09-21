@@ -725,3 +725,8 @@ verify_jwt = false
 
 [functions.get-explore-post-reactors]
 verify_jwt = false
+
+# Shared withEdgeHandler validates the user Bearer JWT with Auth.getUser before
+# parsing or retrieval, matching the viewer-aware Explore routes. Not public.
+[functions.species-discovery-search]
+verify_jwt = false

@@ -68,6 +68,12 @@ only exact `observation_rejected` is terminal.
 
 ### Deployment gate
 
+**2026-09-20 source update:** The checked-in critical-route inventory now also
+includes `species-discovery-search`, bringing it to fifteen. The fourteen-route
+list below records the earlier incident boundary. See the
+[current deployment runbook](../backend-and-data/06-supabase-deployment-runbook.md)
+for the maintained inventory; this source update does not record a deployment.
+
 Production deployment now derives the complete Edge Function inventory and
 requires every route to answer an `OPTIONS` probe with `X-Merian-Handler: 1`.
 Unresolved routes retry together for roughly two and a half minutes, then fail

@@ -56,6 +56,25 @@ final class CaptureControlBarPresentationTests: XCTestCase {
         XCTAssertTrue(presentation.isFlashAvailable)
     }
 
+    func testVideoPreparationShowsBusyShutterAndRetainsCancel() {
+        let controls = makePresentation(
+            captureMode: .visual, isCapturing: true, isPreparingVideo: true
+        )
+        XCTAssertTrue(controls.showsVideoCancel)
+        XCTAssertFalse(controls.showsPhotoLibrary)
+        XCTAssertFalse(controls.isPhotoLibraryAvailable)
+        XCTAssertFalse(controls.isFlashAvailable)
+        XCTAssertTrue(controls.isPrimaryActionDisabled)
+        let shutter = CapturePrimaryActionPresentation(
+            captureMode: .visual, willStageOnly: false, isInputActive: true,
+            isVisualCaptureAllowed: true, isVideoRecording: false,
+            videoRecordingProgress: 0, audioState: .idle,
+            audioRecordingProgress: 0, isCapturing: true
+        )
+        XCTAssertTrue(shutter.showsProcessingProgress)
+        XCTAssertFalse(shutter.shouldShowRecordingChrome)
+    }
+
     func testAudioControlsTrackRecordingAndReviewIndependently() {
         let recording = makePresentation(
             captureMode: .audio,
@@ -203,7 +222,9 @@ final class CaptureControlBarPresentationTests: XCTestCase {
         hasPendingAudio: Bool = false,
         isCheckingScanAdmission: Bool = false,
         isStagingRefinement: Bool = false,
-        isDescriptionEmpty: Bool = false
+        isDescriptionEmpty: Bool = false,
+        isCapturing: Bool = false,
+        isPreparingVideo: Bool = false
     ) -> CaptureControlBarPresentation {
         CaptureControlBarPresentation(
             captureMode: captureMode,
@@ -221,7 +242,9 @@ final class CaptureControlBarPresentationTests: XCTestCase {
             hasPendingAudio: hasPendingAudio,
             isCheckingScanAdmission: isCheckingScanAdmission,
             isStagingRefinement: isStagingRefinement,
-            isDescriptionEmpty: isDescriptionEmpty
+            isDescriptionEmpty: isDescriptionEmpty,
+            isCapturing: isCapturing,
+            isPreparingVideo: isPreparingVideo
         )
     }
 }

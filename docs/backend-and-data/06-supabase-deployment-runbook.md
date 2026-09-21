@@ -5544,7 +5544,7 @@ Deploy in this order:
    handler.
 5. Run the staging/production smoke matrix below without logging response
    bodies, actor identities, request IDs, or media URLs.
-6. Release the exact iOS build that shows the Requests dashboard and complete
+6. Release the exact iOS build that shows the Community dashboard and complete
    **Identify activity** stack feed.
 
 Database authorization checks:
@@ -5578,8 +5578,8 @@ Smoke matrix:
 After the iOS rollout, verify:
 
 - root Explore shows exactly Observations, Field trips, and Identify;
-- Identify shows Species/Requests only, with Species selected by default;
-- the Requests dashboard caps previews at 12 request cards and 10 Activity
+- Identify shows Species/Community only, with Species selected by default;
+- the Community dashboard caps previews at 12 request cards and 10 Activity
   groups under one filter;
 - Requests and Activity expose independent loading/error/Retry states;
 - suggestion summaries attribute contributors by public username rather than
@@ -5588,7 +5588,7 @@ After the iOS rollout, verify:
   stack pages titled **Identify requests** and **Identify activity**;
 - Back returns to the dashboard without exposing root chrome on the pushed page;
 - species links select Identify/Species and request links select
-  Identify/Requests; and
+  Identify/Community; and
 - Identify/Species has no separate taxonomy visualization entry point.
 
 Rollback is forward-only for data. Do not drop or truncate the additive
@@ -6443,17 +6443,18 @@ such a route but the legacy JWT is unavailable, the workflow fails closed before
 route probing. Before deactivating the legacy anon key, migrate every remaining
 gateway-verified route to the reviewed in-handler auth boundary or provision a
 replacement short-lived user smoke identity; do not weaken this probe to accept
-an unmarked gateway response. The workflow then separately probes fourteen
+an unmarked gateway response. The workflow then separately probes fifteen
 customer-critical routes without Authorization: `generate-upload-urls`,
 `identify-multimodal`, `check-scan-status`, `share-scan-to-explore`,
 `get-scan-explore-share-state`, `get-explore-composer-media`,
 `get-explore-media-incidents`, `insight-chat`, `explore-post-chat`,
-`species-dictionary-chat`, `request-community-identification`,
-`transfer-signout-purchases`, `resolve-purchase-principal`, and `delete-scan`.
-Each critical route must return `401` with the marker, additionally proving
-user-scoped access fails closed. A gateway `404` with no handler marker never
-counts as a missing scan and never permits the production workflow to report
-success. Do not run the matching iOS smoke while either gate is still retrying.
+`species-dictionary-chat`, `species-discovery-search`,
+`request-community-identification`, `transfer-signout-purchases`,
+`resolve-purchase-principal`, and `delete-scan`. Each critical route must return
+`401` with the marker, additionally proving user-scoped access fails closed. A
+gateway `404` with no handler marker never counts as a missing scan and never
+permits the production workflow to report success. Do not run the matching iOS
+smoke while either gate is still retrying.
 
 Using the same resolved server credential, the workflow then posts exactly
 `{"dry_run":true}` to `reconcile-account-deletions` and requires the exact

@@ -20,6 +20,7 @@ struct CaptureControlBar: View {
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var audioRecordingStartTask: Task<Void, Never>?
+    @State private var audioDiscardConfirmationPath: String?
 
     private var isRefining: Bool {
         viewModel.baseRefinementContext != nil
@@ -45,7 +46,9 @@ struct CaptureControlBar: View {
             isCheckingScanAdmission: viewModel.isCheckingScanAdmission,
             isStagingRefinement: viewModel.isStagingRefinement,
             isDescriptionEmpty: observationContext.isEmpty,
-            canStageRefinementDescription: viewModel.stagedCapture.canStageRefinementDescription
+            canStageRefinementDescription: viewModel.stagedCapture.canStageRefinementDescription,
+            isCapturing: viewModel.isCapturing,
+            isPreparingVideo: viewModel.isPreparingVideo
         )
     }
 
@@ -66,7 +69,8 @@ struct CaptureControlBar: View {
                 hasPendingRecording:
                     audioCaptureManager.pendingPlaybackPath != nil
             ),
-            audioRecordingProgress: audioCaptureManager.recordingProgress
+            audioRecordingProgress: audioCaptureManager.recordingProgress,
+            isCapturing: viewModel.isCapturing
         )
     }
 
@@ -87,15 +91,26 @@ struct CaptureControlBar: View {
         }
         .onChange(of: captureMode) { _, newMode in
             if newMode != .audio {
+                audioDiscardConfirmationPath = nil
                 cancelPendingAudioTransition()
+            }
+        }
+        .onChange(of: audioCaptureManager.pendingPlaybackPath) { _, _ in
+            audioDiscardConfirmationPath = nil
+        }
+        .onChange(of: isSuppressed) { _, suppressed in
+            if suppressed {
+                audioDiscardConfirmationPath = nil
             }
         }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase != .active {
+                audioDiscardConfirmationPath = nil
                 cancelPendingAudioTransition()
             }
         }
         .onDisappear {
+            audioDiscardConfirmationPath = nil
             cancelPendingAudioTransition()
         }
         .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -145,6 +160,28 @@ struct CaptureControlBar: View {
                 isRecording: audioCaptureManager.isRecording,
                 onTap: deleteAudioRecording
             )
+            .confirmationDialog(
+                "Discard this recording?",
+                isPresented: Binding(
+                    get: { audioDiscardConfirmationPath != nil },
+                    set: { if !$0 { audioDiscardConfirmationPath = nil } }
+                ),
+                titleVisibility: .visible,
+                presenting: audioDiscardConfirmationPath
+            ) { recordingPath in
+                Button("Discard Recording", role: .destructive) {
+                    guard captureMode == .audio,
+                          !isSuppressed,
+                          scenePhase == .active,
+                          !audioCaptureManager.isRecording,
+                          audioCaptureManager.pendingPlaybackPath == recordingPath
+                    else { return }
+                    audioCaptureManager.discardPending()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: { _ in
+                Text("This recording will be permanently deleted.")
+            }
             .opacity(presentation.showsAudioDelete ? 1 : 0)
             .allowsHitTesting(presentation.showsAudioDelete)
         }
@@ -293,7 +330,9 @@ struct CaptureControlBar: View {
                 guard scenePhase == .active else { return }
                 try await audioCaptureManager.startRecording(
                     autoSubmitOnMaxDuration:
-                        !appSettings.requiresScanConfirmation
+                        !appSettings.requiresScanConfirmation,
+                    boostRecordingPreview:
+                        appSettings.boostRecordingPreviewsEnabled
                 )
             } catch is CancellationError {
                 // Expected when the user leaves audio mode during startup.
@@ -351,7 +390,7 @@ struct CaptureControlBar: View {
         if audioCaptureManager.isRecording {
             audioCaptureManager.cancelRecording()
         } else {
-            audioCaptureManager.discardPending()
+            audioDiscardConfirmationPath = audioCaptureManager.pendingPlaybackPath
         }
     }
 
@@ -389,5 +428,6 @@ struct CaptureControlBar: View {
     private func cancelPendingAudioTransition() {
         audioRecordingStartTask?.cancel()
         audioCaptureManager.cancelPendingRecordingTransition()
+        audioCaptureManager.stopPlayback()
     }
 }

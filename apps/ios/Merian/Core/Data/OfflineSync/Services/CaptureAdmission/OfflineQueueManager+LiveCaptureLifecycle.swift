@@ -88,6 +88,23 @@ extension OfflineQueueManager {
         return true
     }
 
+    /// Snapshots the persisted funding decision for the admitted attempt. This
+    /// affects only its local timeout; server entitlement remains authoritative.
+    func isForegroundInferenceProFunded(
+        scanId: String,
+        generation: UUID
+    ) -> Bool {
+        guard isForegroundInferenceAttemptCurrent(scanId: scanId, generation: generation),
+              let context = modelContext,
+              let job = try? context.fetchOfflineJob(id: Self.scanIngestionJobId(scanId: scanId)),
+              InferenceGenerationMetadataContract.matches(generation, in: job.metadataJSON),
+              let funding = OfflineScanJobMetadataContract.funding(in: job.metadataJSON),
+              funding.scanId.caseInsensitiveCompare(scanId) == .orderedSame else {
+            return false
+        }
+        return funding.source == .paidPro || funding.source == .complimentaryPro
+    }
+
     /// Synchronously retires a foreground UUID, then retries its durable handoff
     /// with capped backoff. Registering the task before yielding closes the
     /// cancellation-to-handoff window for every caller, including pre-provider

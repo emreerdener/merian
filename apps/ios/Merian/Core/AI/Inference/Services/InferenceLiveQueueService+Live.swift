@@ -54,6 +54,12 @@ extension InferenceLiveQueueService {
                     httpStatus: 400,
                     needsAttention: false
                 )
+            },
+            isForegroundInferenceProFunded: { scanId, generation in
+                OfflineQueueManager.shared.isForegroundInferenceProFunded(
+                    scanId: scanId,
+                    generation: generation
+                )
             }
         )
     )

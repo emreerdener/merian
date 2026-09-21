@@ -9,12 +9,14 @@ private final class InferenceLiveQueueRecorder {
         case released(String, UUID?, String)
         case retired(String, UUID, Bool, String)
         case claimed(String, UUID)
+        case fundingRead(String, UUID)
         case checked(String, UUID)
         case generationRead(String)
         case deleted(String, [String], UUID)
         case rejected(String, String, String)
     }
 
+    var isProFunded = false
     var claimResult = true
     var currentResult = true
     var deleteResult = true
@@ -51,6 +53,10 @@ private final class InferenceLiveQueueRecorder {
             rejectQueuedScan: { [self] scanId, reason, errorCode in
                 events.append(.rejected(scanId, reason, errorCode))
                 return rejectResult
+            },
+            isForegroundInferenceProFunded: { [self] scanId, generation in
+                events.append(.fundingRead(scanId, generation))
+                return isProFunded
             }
         ))
     }
@@ -59,6 +65,17 @@ private final class InferenceLiveQueueRecorder {
 @MainActor
 @Suite("Inference Live Queue Service")
 struct InferenceLiveQueueServiceTests {
+    @Test(arguments: [false, true])
+    func forwardsExactFundingLookup(isProFunded: Bool) {
+        let recorder = InferenceLiveQueueRecorder()
+        recorder.isProFunded = isProFunded
+        let generation = UUID()
+        #expect(recorder.service.isForegroundInferenceProFunded(
+            scanId: "scan-a", generation: generation
+        ) == isProFunded)
+        #expect(recorder.events == [.fundingRead("scan-a", generation)])
+    }
+
     @Test func forwardsAdmissionOwnershipAndLifecycleValuesExactly() {
         let recorder = InferenceLiveQueueRecorder()
         let service = recorder.service

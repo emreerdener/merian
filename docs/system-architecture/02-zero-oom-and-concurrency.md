@@ -496,12 +496,12 @@ layers keep obsolete UI graphs alive or block interaction.
 ### Field Chat Operation Ownership
 
 `@MainActor FieldChatOperationState` is the sole owner of Field Chat's mutable
-subject, load, prompt, request, and availability-preparation generations. It
-retains at most one preparation task: concurrent requests for the same subject
-join that task, while subject replacement, clearing, or reactivating the current
-subject against a different preparation cancels and invalidates obsolete work.
-Every waiter rechecks cancellation, subject identity, and generation before a
-successful readiness result can commit.
+conversation subject, load, prompt, request, and availability-preparation
+generations. It retains at most one preparation task: concurrent requests for
+the same subject join that task, while subject replacement, clearing, or
+reactivating the current subject against a different preparation cancels and
+invalidates obsolete work. Every waiter rechecks cancellation, subject identity,
+and generation before a successful readiness result can commit.
 
 Prompt refresh allocates its generation synchronously before creating
 asynchronous work, so the latest user or lifecycle trigger owns the visible
@@ -511,6 +511,14 @@ Send cleanup is fenced to the exact subject and request generation: cancellation
 after a pending bubble enters `sending` changes that same bubble to failed and
 retryable without replacing its UUID, while stale cleanup cannot mutate a new
 subject. Views and components retain no network or long-lived operation tasks.
+
+The presentation-only `FieldChatImageStackModel` separately fences thumbnail
+loads to its current selection generation. The empty-state view scopes that
+model to the subject and media identities, cancels its structured load on
+replacement, and retains only the current thumbnail and its immediate neighbors.
+Each decode is capped at 600 pixels through the existing image-loading services.
+Image failure and automatic selection changes never emit haptics or affect the
+conversation's readiness, identity, or AI context.
 
 ### Capture Startup AttributeGraph Isolation
 

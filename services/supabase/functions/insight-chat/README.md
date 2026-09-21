@@ -60,6 +60,16 @@ ecological annotations, species group tags, `ai_reasoning`, field notes, capture
 date/month, location label, weather, elevation, and image/capture-quality
 metadata.
 
+Answers, prompt suggestions, and field-note drafts also receive saved
+`extracted_visual_traits` under `AI-extracted observation traits`. Entries are
+trimmed, non-string/empty values are discarded, and output is limited to ten
+traits, 500 characters per trait, and 2,000 characters including quoting and
+separators. Missing or empty traits are `Unavailable`. Traits are quoted data,
+not instructions: they remain fallible original AI observations even after a
+user correction and cannot establish measurements without supporting scale
+evidence. This uses existing scan records without reanalysis or raw-image
+access.
+
 Do not add raw image bytes, R2 object keys, cloud image URLs, Explore comments,
 public post metadata, or Darwin Core export payloads to the prompt.
 

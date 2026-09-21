@@ -89,6 +89,21 @@ actor AudioBoostProcessor {
         }
     }
 
+    /// Capture review owns this uncached output; shared playback caches are untouched.
+    nonisolated static func prepareLocalPreview(sourceURL: URL) async throws -> AudioBoostResult {
+        try Task.checkCancellation()
+        let task = Task.detached(priority: .userInitiated) {
+            try Task.checkCancellation()
+            try validateSize(of: sourceURL)
+            return try renderBoostedAudio(sourceURL: sourceURL)
+        }
+        return try await withTaskCancellationHandler {
+            try await task.value
+        } onCancel: {
+            task.cancel()
+        }
+    }
+
     private static func resolveSource(_ source: String) async throws -> AudioSourceLease {
         if let remoteURL = SecureTransportPolicy.httpsURL(from: source) {
             var request = URLRequest(url: remoteURL)
@@ -136,6 +151,7 @@ actor AudioBoostProcessor {
         var peak = 0.0
         var analyzedFrameLength: AVAudioFramePosition = 0
         while analyzedFrameLength < source.length {
+            try Task.checkCancellation()
             guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCapacity) else {
                 throw CocoaError(.fileReadCorruptFile)
             }
@@ -207,6 +223,7 @@ actor AudioBoostProcessor {
             var previousOutput = Array(repeating: 0.0, count: Int(format.channelCount))
             var renderedFrameLength: AVAudioFramePosition = 0
             while renderedFrameLength < source.length {
+                try Task.checkCancellation()
                 guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCapacity),
                       let channels = buffer.floatChannelData else {
                     throw CocoaError(.fileReadCorruptFile)
@@ -252,6 +269,7 @@ actor AudioBoostProcessor {
         let validationCapacity = AVAudioFrameCount(min(expectedFrameLength, 4096))
         var decodedFrameLength: AVAudioFramePosition = 0
         while decodedFrameLength < expectedFrameLength {
+            try Task.checkCancellation()
             guard let buffer = AVAudioPCMBuffer(
                 pcmFormat: rendered.processingFormat,
                 frameCapacity: validationCapacity

@@ -575,12 +575,12 @@ imagery, short video, and audio. Canonical public links use `naturebook.earth`.
 
 The native Explore root has exactly three bottom items: Observations, Field
 trips, and Identify. Observations contains Feed/Map. Identify contains
-Species/Requests. Species is the leading/default mode and renders the existing
-Species Dictionary catalog. Requests is a dashboard with shared
+Species/Community. Species is the leading/default mode and renders the existing
+Species Dictionary catalog. Community is a dashboard with shared
 All/Yours/organism filters, 12 open request cards, and 10 recent grouped
 Activity rows; complete feeds push as **Identify requests** and **Identify
 activity** pages. Species links select Identify/Species and request links select
-Identify/Requests before opening detail.
+Identify/Community before opening detail.
 
 Returning to Species within the same Explore session preserves the loaded
 overview. Recent content is reused for five minutes, with older content kept
@@ -588,6 +588,28 @@ visible during a refresh on return; pull-to-refresh updates immediately. Closing
 Explore clears this in-memory state. See the
 [Species overview lifecycle](../features-and-hardware/16-species-dictionary.md#ios-catalog-ownership-and-request-lifecycle)
 for country changes and refresh behavior.
+
+### Species discovery search — implemented source, not deployed
+
+**Search or ask Naturebook** sits above the featured species card and opens a
+focused search inside Explore. Users can look up a name or describe traits,
+explore Species and public Sightings, and refine the current results without a
+chat transcript. Both tabs share species criteria; media filters apply only to
+Sightings. Descriptive results are possible matches supported by dictionary
+excerpts, not identification confidence scores. Sightings label publication time
+as **Shared**.
+
+The session retains the draft, selected tab, results, and scroll anchors while
+opening details and returning. New search, closing Explore, or changing accounts
+clears it. Matching initial name lookups within the supported bound bypass AI;
+question interpretation uses a separate daily allowance of 20 for Free and 120
+for Pro, with authoritative server consent and quota checks. Nearby search,
+observation-date filters, private observations, and factual comparison answers
+are outside v1. The forward migration and dedicated endpoint require a
+separately authorized rollout before hosted use. See the
+[canonical search contract](../features-and-hardware/16-species-dictionary.md#conversational-discovery-search)
+and
+[verification matrix](../development-guides/08-testing-strategy.md#species-discovery-search-verification).
 
 The retired taxonomy visualization is not a product surface. Taxonomy remains
 reference data within Species and species detail; no separate taxonomy route,

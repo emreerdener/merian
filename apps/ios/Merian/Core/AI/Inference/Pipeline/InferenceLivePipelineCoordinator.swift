@@ -48,6 +48,7 @@ final class InferenceLivePipelineCoordinator {
         foregroundGeneration: UUID?,
         modality: Modality
     ) -> Session? {
+        var isProFunded = false
         if let scanId {
             guard let foregroundGeneration else {
                 dependencies.logAdmission(
@@ -76,6 +77,10 @@ final class InferenceLivePipelineCoordinator {
                 )
                 return nil
             }
+            isProFunded = attemptCoordinator.isForegroundInferenceProFunded(
+                scanId: scanId,
+                generation: foregroundGeneration
+            )
         } else if foregroundGeneration != nil {
             dependencies.logAdmission(.foregroundOwnerWithoutScan, modality)
             return nil
@@ -87,7 +92,8 @@ final class InferenceLivePipelineCoordinator {
                 scanId ?? UUID().uuidString.lowercased(),
             attemptGeneration: foregroundGeneration ?? UUID(),
             foregroundGeneration: foregroundGeneration,
-            modality: modality
+            modality: modality,
+            isProFunded: isProFunded
         )
     }
 
@@ -131,7 +137,8 @@ final class InferenceLivePipelineCoordinator {
                     preferredGoal: request.preferredGoal,
                     durableQueueOwnsRecovery:
                         session.durableQueueOwnsRecovery,
-                    pipelineStartedAt: pipelineStartedAt
+                    pipelineStartedAt: pipelineStartedAt,
+                    isProFunded: session.isProFunded
                 ),
                 validateAttempt: { try self.check(session) },
                 onProviderDispatchReady: {
@@ -264,7 +271,8 @@ final class InferenceLivePipelineCoordinator {
                     telemetry: request.telemetry,
                     clientScanId: session.scanId,
                     durableQueueOwnsRecovery:
-                        session.durableQueueOwnsRecovery
+                        session.durableQueueOwnsRecovery,
+                    isProFunded: session.isProFunded
                 ),
                 validateAttempt: { try self.check(session) }
             )

@@ -23,6 +23,8 @@ struct InferenceLiveQueueService {
             @MainActor @Sendable (String, [String], UUID) async -> Bool
         let rejectQueuedScan:
             @MainActor @Sendable (String, String, String) -> Bool
+        var isForegroundInferenceProFunded:
+            @MainActor @Sendable (String, UUID) -> Bool = { _, _ in false }
     }
 
     private let dependencies: Dependencies
@@ -62,6 +64,10 @@ struct InferenceLiveQueueService {
         generation: UUID
     ) -> Bool {
         dependencies.claimForegroundInferenceStart(scanId, generation)
+    }
+
+    func isForegroundInferenceProFunded(scanId: String, generation: UUID) -> Bool {
+        dependencies.isForegroundInferenceProFunded(scanId, generation)
     }
 
     func isForegroundInferenceAttemptCurrent(

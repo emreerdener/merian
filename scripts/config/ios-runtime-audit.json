@@ -166,6 +166,24 @@
       "owner": "apps/ios/MerianTests/Features/Explore/Feed/ExploreFeedViewModelTests.swift"
     },
     {
+      "selector": "merianTests/SpeciesSearchViewModelTests",
+      "suite_names": ["SpeciesSearchViewModelTests"],
+      "owner": "apps/ios/MerianTests/Features/SpeciesDictionary/Search/SpeciesSearchViewModelTests.swift"
+    },
+    {
+      "selector": "merianTests/SpeciesSearchResponseTests",
+      "suite_names": ["SpeciesSearchResponseTests"],
+      "owner": "apps/ios/MerianTests/Features/SpeciesDictionary/Search/SpeciesSearchResponseTests.swift"
+    },
+    {
+      "selector": "merianTests/SpeciesDiscoverySearchEndpointTests",
+      "suite_names": [
+        "SpeciesDiscoverySearchEndpointTests",
+        "Species Discovery Search Endpoint"
+      ],
+      "owner": "apps/ios/MerianTests/Core/Network/Endpoints/SpeciesDiscoverySearchEndpointTests.swift"
+    },
+    {
       "selector": "merianTests/AuthLocalSignOutCoordinatorTests",
       "suite_names": [
         "AuthLocalSignOutCoordinatorTests"

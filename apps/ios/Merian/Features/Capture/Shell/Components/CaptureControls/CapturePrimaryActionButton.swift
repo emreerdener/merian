@@ -135,7 +135,7 @@ struct CapturePrimaryActionButton: View {
         }
         .onChange(of: isInteractionEnabled) { _, isEnabled in
             if !isEnabled {
-                cancelPendingPress()
+                invalidatePendingPress(awaitingRelease: true)
             }
         }
         .onDisappear {
@@ -145,8 +145,12 @@ struct CapturePrimaryActionButton: View {
 
     @ViewBuilder
     private var actionIcon: some View {
-        if presentation.captureMode == .visual,
-           presentation.isVideoRecording {
+        if presentation.showsProcessingProgress {
+            ProgressView()
+                .tint(Color.black)
+                .accessibilityLabel("Preparing capture")
+        } else if presentation.captureMode == .visual,
+                  presentation.isVideoRecording {
             Image(systemName: "stop.fill")
                 .font(.system(size: 24, weight: .semibold))
                 .foregroundStyle(Color.white)

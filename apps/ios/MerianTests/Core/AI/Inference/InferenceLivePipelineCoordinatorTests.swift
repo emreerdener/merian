@@ -39,6 +39,8 @@ final class InferenceLivePipelineHarness {
         case failurePresentation
     }
 
+    private(set) var providerFundingSnapshots: [Bool] = []
+    var isProFunded = false
     var claimResult = true
     var circuitIsTripped = false
     var encodedImages = ["encoded-image"]
@@ -83,7 +85,8 @@ final class InferenceLivePipelineHarness {
                 events.append(.delete(scanId, generation))
                 return true
             },
-            rejectQueuedScan: { _, _, _ in true }
+            rejectQueuedScan: { _, _, _ in true },
+            isForegroundInferenceProFunded: { [self] _, _ in isProFunded }
         ))
         let attempt = InferenceLiveAttemptCoordinator(queueService: queueService ?? queue)
         let request = InferenceLiveRequestService(dependencies: .init(
@@ -92,7 +95,8 @@ final class InferenceLivePipelineHarness {
                 return encodedImages
             },
             uploadStagedVideoFiles: { _, _ in [] },
-            identify: { [self] _, onRequestBodySent in
+            identify: { [self] request, onRequestBodySent in
+                providerFundingSnapshots.append(request.isProFunded)
                 events.append(.identify)
                 if sendsRequestBodyCallback {
                     onRequestBodySent?()
@@ -306,6 +310,49 @@ final class InferenceLivePipelineHarness {
 @MainActor
 @Suite("Inference Live Pipeline Coordinator")
 struct InferenceLivePipelineCoordinatorTests {
+    @Test(arguments: [false, true])
+    func dispatchRetainsAdmissionFundingAcrossPreparation(isVisual: Bool) async throws {
+        let harness = InferenceLivePipelineHarness()
+        let system = harness.makeSystem()
+        harness.isProFunded = true
+        let session = try #require(system.pipeline.admit(
+            scanId: "pro-scan", foregroundGeneration: UUID(),
+            modality: isVisual ? .visual : .nonVisual(hasAudio: true)
+        ))
+        system.pipeline.activate(session)
+        harness.isProFunded = false
+        if isVisual {
+            await system.pipeline.executeVisual(
+                harness.visualRequest(session: session), callbacks: harness.visualCallbacks()
+            )
+        } else {
+            await system.pipeline.executeNonVisual(
+                harness.nonVisualRequest(session: session), callbacks: harness.callbacks()
+            )
+        }
+        #expect(harness.providerFundingSnapshots == [true])
+    }
+
+    @Test func admissionFreezesFundingForTheExactSession() throws {
+        let harness = InferenceLivePipelineHarness()
+        let system = harness.makeSystem()
+        harness.isProFunded = true
+        let session = try #require(system.pipeline.admit(
+            scanId: "funded-scan", foregroundGeneration: UUID(), modality: .visual
+        ))
+        harness.isProFunded = false
+        #expect(session.isProFunded)
+        let next = try #require(system.pipeline.admit(
+            scanId: "flash-scan", foregroundGeneration: UUID(), modality: .visual
+        ))
+        #expect(!next.isProFunded)
+        harness.isProFunded = true
+        let direct = try #require(system.pipeline.admit(
+            scanId: nil, foregroundGeneration: nil, modality: .nonVisual(hasAudio: true)
+        ))
+        #expect(!direct.isProFunded)
+    }
+
     @Test func admissionRejectsIncompleteUnavailableAndDuplicateOwners() throws {
         let harness = InferenceLivePipelineHarness()
         let system = harness.makeSystem()

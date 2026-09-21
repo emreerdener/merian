@@ -78,7 +78,7 @@ private struct UserTagsCardContent: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
-            MerianCardHeader(systemImage: "tag", title: "Tags") {
+            MerianCardHeader(systemImage: "tag", title: "Your tags") {
                 Spacer()
 
                 Button(action: onAddTapped) {

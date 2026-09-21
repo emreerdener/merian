@@ -264,11 +264,12 @@ production submission or public release.
   `/species-dictionary-chat`, `/field-trips` starter enrollment, preferred
   progress, and scan contributions, `/update-public-avatar`, Community
   Identification request/detail and grouped Activity endpoints,
-  `/species-dictionary`, `/species-observation-stats`, `/sync-collections`,
-  `/report-user`, the internal admin RPC surface, Explore detail similar
-  species, and internal cron workers such as Merian reference-image refresh,
-  diagnostic `Server-Timing`, and `/update-scan-context`, plus the
-  owner-authenticated `/repair-scan-image` inspection and recovery contract.
+  `/species-dictionary`, `/species-discovery-search`,
+  `/species-observation-stats`, `/sync-collections`, `/report-user`, the
+  internal admin RPC surface, Explore detail similar species, and internal cron
+  workers such as Merian reference-image refresh, diagnostic `Server-Timing`,
+  and `/update-scan-context`, plus the owner-authenticated `/repair-scan-image`
+  inspection and recovery contract.
 - **[`/backend-and-data/06-supabase-deployment-runbook.md`](./backend-and-data/06-supabase-deployment-runbook.md)**
   — Validation-only Supabase candidate gate, separately authorized production
   deployment path, required GitHub secrets, local emergency fallback, frozen
@@ -396,9 +397,11 @@ production submission or public release.
 - **[`/features-and-hardware/16-species-dictionary.md`](./features-and-hardware/16-species-dictionary.md)**
   — Standalone public species dictionary page, `species-dictionary` Edge
   Function detail/catalog/overview contracts, similar-species entry points from
-  Insight and Explore detail, release-held in-app private Field Chat, cache
-  rules, content quality, media attribution, enrichment queue/backfill, and
-  refresh provenance.
+  Insight and Explore detail, conversational Species/Sightings search,
+  release-held in-app private Field Chat, cache rules, content quality, media
+  attribution, enrichment queue/backfill, and refresh provenance. Search's
+  [verification matrix](./development-guides/08-testing-strategy.md#species-discovery-search-verification)
+  distinguishes automated coverage from device and live-provider checks.
 - **[`/features-and-hardware/17-public-web-share-pages.md`](./features-and-hardware/17-public-web-share-pages.md)**
   — Next.js public web share pages for `naturebook.earth`, including Explore
   posts, UUID-first readable Species Dictionary references, legacy-domain and
@@ -430,7 +433,7 @@ production submission or public release.
   rendering, and verification.
 - **[`/features-and-hardware/24-explore-bottom-menu.md`](./features-and-hardware/24-explore-bottom-menu.md)**
   — Explore launch entry points, exactly-three-item root navigation,
-  Observations Feed/Map, Field trips, Identify Species/Requests, filtered
+  Observations Feed/Map, Field trips, Identify Species/Community, filtered
   request and Activity previews/full feeds, deep-link mode policy, stack chrome,
   Species catalog ownership, and the absence of a separate taxonomy browser.
 - **[`/features-and-hardware/25-field-trips.md`](./features-and-hardware/25-field-trips.md)**

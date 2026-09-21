@@ -3,10 +3,12 @@ import SwiftUI
 
 struct ExploreView: View {
     @Environment(EnvironmentContextManager.self) private var environmentContextManager
+    @Environment(SupabaseManager.self) private var searchAuth
     @Environment(\.modelContext) private var modelContext
 
     @State private var viewModel = ExploreFeedViewModel()
     @State private var mapViewModel = ExploreMapViewModel()
+    @State private var dictionarySearchViewModel = SpeciesSearchViewModel()
     @State private var dictionaryOverviewViewModel = SpeciesDictionaryOverviewViewModel()
     @State private var navigationPath = NavigationPath()
     @State private var selectedInsightRoute: ScanInsightRoute?
@@ -94,6 +96,7 @@ struct ExploreView: View {
             feedViewModel: viewModel,
             mapViewModel: mapViewModel,
             dictionaryOverviewViewModel: dictionaryOverviewViewModel,
+            dictionarySearchViewModel: dictionarySearchViewModel,
             dictionaryUserRegionIdentifier: dictionaryUserRegionIdentifier,
             allowsInsightPresentation: allowsInsightPresentation,
             onOpenOwnedPostInsight: onOpenOwnedPostInsight,
@@ -101,6 +104,11 @@ struct ExploreView: View {
             onOpenPost: openPostDetail,
             onOpenCommunityIdentificationRequest: openCommunityIdentificationRequest
         )
+        .onDisappear { dictionarySearchViewModel.newSearch() }
+        .onChange(of: searchAuth.currentUser?.id) { _, _ in
+            dictionarySearchViewModel.newSearch()
+            viewModel.blockedAuthorUserIDs.removeAll()
+        }
         .environment(playbackCoordinator)
         .modifier(ExploreShellLifecycleModifier(
             feedViewModel: viewModel,

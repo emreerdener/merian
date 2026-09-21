@@ -19,7 +19,7 @@ enum ExploreIdentifyMode: Hashable, CaseIterable {
         case .index:
             "Species"
         case .requests:
-            "Requests"
+            "Community"
         }
     }
 }

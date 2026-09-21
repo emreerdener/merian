@@ -70,11 +70,16 @@ final class AudioCaptureManager {
     private let maxDurationFeedback: @MainActor () -> Void
     private let recordingController: AudioRecordingEngineController
     private let playbackController: AudioReviewPlaybackController
+    private let reviewBoostController: AudioReviewBoostController
+    private var boostRecordingPreview = false
+
+    var reviewBoostState: AudioReviewBoostState { reviewBoostController.state }
 
     init(
         maxDurationFeedback: @escaping @MainActor () -> Void = {},
         dependencies: Dependencies = .live
     ) {
+        self.reviewBoostController = AudioReviewBoostController(dependencies: dependencies.reviewBoost)
         self.maxDurationFeedback = maxDurationFeedback
         self.recordingController = AudioRecordingEngineController(
             dependencies: dependencies.recording
@@ -94,13 +99,17 @@ final class AudioCaptureManager {
         }
     }
 
-    func startRecording(autoSubmitOnMaxDuration: Bool = false) async throws {
+    func startRecording(
+        autoSubmitOnMaxDuration: Bool = false,
+        boostRecordingPreview: Bool = false
+    ) async throws {
         guard !isRecording, !isStartingRecording else { return }
         isStartingRecording = true
         self.autoSubmitOnMaxDuration = autoSubmitOnMaxDuration
         defer { isStartingRecording = false }
 
         discardPending()
+        self.boostRecordingPreview = boostRecordingPreview
 
         // Permission prompts belong exclusively to the explicit action above.
         guard AVAudioApplication.shared.recordPermission == .granted else {
@@ -251,6 +260,7 @@ final class AudioCaptureManager {
         let startupWasInProgress = isStartingRecording
         invalidateRecordingTransitions()
         stopPlayback()
+        reviewBoostController.reset()
         recordingTask?.cancel()
         recordingTask = nil
         if !startupWasInProgress {
@@ -276,14 +286,31 @@ final class AudioCaptureManager {
 
     // MARK: - Review / Playback
 
-    /// Plays the pending recording through the speaker.
+    /// Plays the selected review copy; the submission source remains original.
     func playPendingRecording() {
-        guard let path = pendingPlaybackPath, !isPlaying else { return }
-        let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent(path)
+        guard pendingPlaybackPath != nil, !isPlaying else { return }
+        isPlaying = true
+        if !reviewBoostController.prepareIfNeeded(onReady: { [weak self] in
+            self?.startReviewPlayback()
+        }) { startReviewPlayback() }
+    }
+
+    func toggleReviewAudioBoost() {
+        guard pendingPlaybackPath != nil else { return }
+        reviewBoostController.toggle()
+        if !reviewBoostController.prepareIfNeeded(onReady: { [weak self] in
+            self?.startReviewPlayback()
+        }) { startReviewPlayback() }
+    }
+
+    private func startReviewPlayback() {
+        guard let path = pendingPlaybackPath, isPlaying else { return }
+        let originalURL = FileManager.default.temporaryDirectory.appendingPathComponent(path)
+        let url = reviewBoostController.playbackURL ?? originalURL
         let started = playbackController.start(
             fileURL: url,
             resumeProgress: playbackProgress,
+            replacingCurrent: true,
             onProgress: { [weak self] progress in
                 self?.playbackProgress = progress
             },
@@ -292,12 +319,17 @@ final class AudioCaptureManager {
                 self?.playbackProgress = 0
             }
         )
-        if started {
-            isPlaying = true
+        if !started, url != originalURL {
+            reviewBoostController.rejectPreparedAudio()
+            startReviewPlayback()
+        } else {
+            if !started { playbackController.stop() }
+            isPlaying = started
         }
     }
 
     func stopPlayback() {
+        reviewBoostController.suspend()
         playbackController.stop()
         isPlaying = false
         playbackProgress = 0
@@ -315,6 +347,7 @@ final class AudioCaptureManager {
         stopPlayback()
         audioFilePath = pendingPlaybackPath
         pendingPlaybackPath = nil
+        reviewBoostController.reset()
     }
 
     /// Restores a failed direct submission without deleting its recording.
@@ -323,11 +356,13 @@ final class AudioCaptureManager {
               let submittedPath = audioFilePath else { return }
         pendingPlaybackPath = submittedPath
         audioFilePath = nil
+        configureReviewBoost()
     }
 
     /// Discards the pending review recording and returns to idle state.
     func discardPending() {
         stopPlayback()
+        reviewBoostController.reset()
         if let name = pendingPlaybackPath {
             deleteTemporaryFile(named: name)
             pendingPlaybackPath = nil
@@ -410,12 +445,21 @@ final class AudioCaptureManager {
             audioFilePath = completedFileName
         } else {
             pendingPlaybackPath = completedFileName
+            configureReviewBoost()
         }
         pendingFileName = nil
         isRecording = false
         isPaused = false
         recordingTask = nil
         autoSubmitOnMaxDuration = false
+    }
+
+    private func configureReviewBoost() {
+        guard let path = pendingPlaybackPath else { return }
+        reviewBoostController.configure(
+            sourceURL: FileManager.default.temporaryDirectory.appendingPathComponent(path),
+            enabled: boostRecordingPreview
+        )
     }
 
     private func completeMaximumDurationRecording() {
@@ -498,8 +542,10 @@ final class AudioCaptureManager {
 
     func debugStageRecordingForFinish(
         fileName: String,
-        autoSubmitOnMaxDuration: Bool
+        autoSubmitOnMaxDuration: Bool,
+        boostRecordingPreview: Bool = false
     ) {
+        self.boostRecordingPreview = boostRecordingPreview
         pendingFileName = fileName
         isRecording = true
         self.autoSubmitOnMaxDuration = autoSubmitOnMaxDuration

@@ -84,6 +84,11 @@ private actor AudioReviewPlaybackLeaseProbe {
     }
 }
 
+private actor AudioReviewDurationProbe {
+    private(set) var values: [TimeInterval] = []
+    func record(_ value: TimeInterval) { values.append(value) }
+}
+
 private struct AudioReviewPlaybackWaitFailure: Error {}
 
 @Suite("Audio review playback controller")
@@ -283,6 +288,10 @@ struct AudioReviewPlaybackControllerTests {
         #expect(secondCallbacks.completionCount == 0)
         #expect(secondPlayer.currentTime == 6)
 
+        try await waitUntil { await completionGate.waiterCount == 2 }
+        await completionGate.releaseFirst() // cancelled pre-seek completion
+        try await Task.sleep(for: .milliseconds(20))
+        #expect(secondCallbacks.completionCount == 0)
         await completionGate.releaseFirst()
         try await waitUntil {
             secondCallbacks.completionCount == 1
@@ -387,6 +396,87 @@ struct AudioReviewPlaybackControllerTests {
         #expect(manager.playbackProgress == 0)
         #expect(manager.pendingPlaybackPath == nil)
         #expect(player.stopCount == 1)
+    }
+
+    @Test("Seeking before activation is preserved when playback starts")
+    func seekDuringActivationIsPreserved() async throws {
+        let player = AudioReviewPlaybackPlayerSpy()
+        let activation = AudioReviewPlaybackWaitGate()
+        let session = makeSessionCoordinator()
+        let lease = try await session.activate(.playback)
+        let controller = AudioReviewPlaybackController(dependencies: .init(
+            makePlayer: { _ in player },
+            activateSession: { await activation.wait(); return lease },
+            deactivateSession: { await session.deactivate(ifCurrent: $0) },
+            waitForProgressTick: { try await Task.sleep(for: .seconds(60)) },
+            waitForCompletion: { _ in try await Task.sleep(for: .seconds(60)) }
+        ))
+        controller.start(fileURL: temporaryAudioURL(), resumeProgress: 0.1, onProgress: { _ in }, onCompletion: {})
+        try await waitUntil { await activation.waiterCount == 1 }
+        controller.seek(to: 0.7)
+        await activation.releaseFirst()
+        try await waitUntil { player.playCount == 1 }
+        #expect(player.currentTime == 7)
+        controller.stop()
+    }
+
+    @Test("Forward and backward seeks replace completion timers and reject cancelled waits")
+    func seeksRescheduleCompletion() async throws {
+        let player = AudioReviewPlaybackPlayerSpy()
+        let gate = AudioReviewPlaybackWaitGate()
+        let session = makeSessionCoordinator()
+        let callbacks = AudioReviewPlaybackCallbackProbe()
+        let durations = AudioReviewDurationProbe()
+        let controller = AudioReviewPlaybackController(dependencies: .init(
+            makePlayer: { _ in player },
+            activateSession: { try await session.activate(.playback) },
+            deactivateSession: { await session.deactivate(ifCurrent: $0) },
+            waitForProgressTick: { try await Task.sleep(for: .seconds(60)) },
+            waitForCompletion: { remaining in
+                await durations.record(remaining)
+                await gate.wait()
+            }
+        ))
+        controller.start(fileURL: temporaryAudioURL(), resumeProgress: 0, onProgress: { _ in }, onCompletion: { callbacks.recordCompletion() })
+        try await waitUntil { await gate.waiterCount == 1 }
+        controller.seek(to: 0.8)
+        try await waitUntil { await gate.waiterCount == 2 }
+        controller.seek(to: 0.2)
+        try await waitUntil { await gate.waiterCount == 3 }
+        #expect(await durations.values == [10, 2, 8])
+        await gate.releaseFirst()
+        await gate.releaseFirst()
+        try await Task.sleep(for: .milliseconds(20))
+        #expect(callbacks.completionCount == 0)
+        #expect(player.stopCount == 0)
+        await gate.releaseFirst()
+        try await waitUntil { callbacks.completionCount == 1 }
+        #expect(player.stopCount == 1)
+    }
+
+    @Test("First playback publishes live progress without a replacement source")
+    func firstPlaybackPublishesProgress() async throws {
+        let player = AudioReviewPlaybackPlayerSpy()
+        let ticks = AudioReviewPlaybackWaitGate()
+        let session = makeSessionCoordinator()
+        let callbacks = AudioReviewPlaybackCallbackProbe()
+        let controller = AudioReviewPlaybackController(dependencies: .init(
+            makePlayer: { _ in player },
+            activateSession: { try await session.activate(.playback) },
+            deactivateSession: { await session.deactivate(ifCurrent: $0) },
+            waitForProgressTick: { await ticks.wait() },
+            waitForCompletion: { _ in try await Task.sleep(for: .seconds(60)) }
+        ))
+        controller.start(fileURL: temporaryAudioURL(), resumeProgress: 0, replacingCurrent: true, onProgress: { callbacks.recordProgress($0) }, onCompletion: {})
+        try await waitUntil {
+            let count = await ticks.waiterCount
+            return player.playCount == 1 && count == 1
+        }
+        player.currentTime = 3
+        await ticks.releaseFirst()
+        try await waitUntil { callbacks.progressValues == [0.3] }
+        controller.stop()
+        await ticks.releaseFirst()
     }
 
     private func makeDependencies(

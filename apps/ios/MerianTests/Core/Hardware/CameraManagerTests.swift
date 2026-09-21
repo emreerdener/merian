@@ -216,7 +216,7 @@ final class CameraManagerTests: XCTestCase {
         var activeBGate = CameraVideoRecordingGenerationGate(generation: generationB)
 
         XCTAssertFalse(activeBGate.matches(generationA))
-        XCTAssertFalse(activeBGate.matches(callbackURL: generationA.outputURL))
+        XCTAssertFalse(activeBGate.generation.matches(callbackURL: generationA.outputURL))
         XCTAssertFalse(activeBGate.installTimeoutAction(staleTimeout))
         XCTAssertFalse(activeBGate.installStopAction(staleStop))
         XCTAssertFalse(activeBGate.acceptsTimeoutAction(staleTimeout))
