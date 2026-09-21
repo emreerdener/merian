@@ -440,16 +440,22 @@ frame-analysis lock.
 acquires a fresh `.videoRecording` lease before microphone attachment, disables
 AVFoundation automatic shared-audio-session configuration, and detaches the
 microphone before releasing the exact lease on every terminal path. Silent
-recordings do not acquire or deactivate a lease. Concurrent movie requests
-cannot reconfigure an admitted recording. This closes the unregistered
-video-owner gap where delayed Explore/Insight playback teardown could deactivate
-camera audio. Empty microphone removals and an already-attached movie output
-avoid unnecessary session configuration transactions while still refreshing
-connection settings. `CameraVideoAudioSessionTests` covers that delayed
-teardown, failure/retry, cancellation, silent recording, overlapping admission,
-and replacement playback. Its live-input adapter tests also prove an empty
-detach never discovers a microphone, silent recording stays microphone-free, and
-an audio-enabled failure/retry discovers input only after lease activation.
+recordings do not acquire or deactivate a lease. If microphone admission fails
+with the OSStatus `insufficientPriority` error (for example during a phone
+call), video continues through this silent path after audio-session rollback. No
+microphone is attached and no failed lease is released. Cancellation, other
+activation errors, and errors from movie configuration/recording still fail; the
+movie operation is never retried by this fallback. A later capture attempts
+audio admission again. Concurrent movie requests cannot reconfigure an admitted
+recording. This closes the unregistered video-owner gap where delayed
+Explore/Insight playback teardown could deactivate camera audio. Empty
+microphone removals and an already-attached movie output avoid unnecessary
+session configuration transactions while still refreshing connection settings.
+`CameraVideoAudioSessionTests` covers that delayed teardown, failure/retry,
+cancellation, silent recording, overlapping admission, and replacement playback.
+Its live-input adapter tests also prove an empty detach never discovers a
+microphone, silent recording stays microphone-free, and an audio-enabled
+failure/retry discovers input only after lease activation.
 
 ## Camera verification
 

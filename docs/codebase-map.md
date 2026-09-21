@@ -2715,8 +2715,10 @@ Detail reactor identities use `get-explore-post-reactors` and its guarded
 
 ### Conversational species discovery
 
-`Features/SpeciesDictionary/Search/` owns the results-first Search route, entry,
-filters, two result tabs, keyboard UI and generation-fenced session state.
+`Features/SpeciesDictionary/Search/` owns the results-first Search route, glass
+entry, keyboard-closed illustrated welcome, rotating prompts, real-species
+starter grid, filters, two result tabs, and generation-fenced session state. Its
+starter grid composes the existing Catalog view model and remote-image owner.
 Explore Shell retains that model for one presentation. The entry and Field Chat
 toolbar button share the presentation-only rainbow glow/shimmer in
 `Core/UI/Modifiers/RainbowCapsuleAccent.swift`; feature controls retain their

@@ -6,7 +6,23 @@ final class SpeciesSearchViewModel {
     struct Dependencies {
         let search: (SpeciesSearchRequest) async throws -> SpeciesSearchResponse
         let errorMessage: (Error) -> String
+        var starterCatalog: SpeciesDictionaryCatalogViewModel.Dependencies = .init(
+            loadPage: { _ in .init(schemaVersion: 1, data: [], nextCursor: nil) },
+            errorMessage: { _ in "Species suggestions are unavailable." }
+        )
     }
+    let starterCatalog: SpeciesDictionaryCatalogViewModel
+    private(set) var suggestedPrompts: [String]
+    private(set) var illustrationName = "bird-magnifier"
+    private static let illustrationPool = [
+        "bird-magnifier", "butterfly-monarch", "fern", "frog", "mushroom", "blue-bird"
+    ]
+    private static let promptPool = [
+        "Small birds with red heads", "Orange and black butterflies", "Fungi that grow on trees",
+        "Flowers with purple petals", "Beetles with metallic shells", "Birds with long beaks",
+        "Plants with heart-shaped leaves", "Mushrooms with spotted caps", "Moths with patterned wings",
+        "Frogs with striped backs", "Trees with peeling bark", "Insects that look like leaves"
+    ]
     var draft = ""
     var selectedTab: SpeciesSearchResultKind = .species
     var speciesScrollID: String?
@@ -26,7 +42,11 @@ final class SpeciesSearchViewModel {
     private var clarificationContext: SpeciesSearchContext?
     @ObservationIgnored private let dependencies: Dependencies
 
-    init(dependencies: Dependencies) { self.dependencies = dependencies }
+    init(dependencies: Dependencies) {
+        self.dependencies = dependencies
+        starterCatalog = SpeciesDictionaryCatalogViewModel(pageLimit: 6, dependencies: dependencies.starterCatalog)
+        suggestedPrompts = Array(Self.promptPool.shuffled().prefix(3))
+    }
     convenience init() { self.init(dependencies: .live) }
     var hasResults: Bool { context != nil }
     var needsClarification: Bool { clarificationContext != nil }
@@ -43,7 +63,12 @@ final class SpeciesSearchViewModel {
         begin(question: request.question, context: request.context, cursor: request.cursor,
               replacement: isReplacement, resultKind: request.resultKind)
     }
+    func rotateIllustration() {
+        illustrationName = Self.illustrationPool.filter { $0 != illustrationName }.randomElement() ?? illustrationName
+    }
     func newSearch() {
+        rotateIllustration()
+        suggestedPrompts = Array(Self.promptPool.filter { !suggestedPrompts.contains($0) }.shuffled().prefix(3))
         generation = UUID()
         request = nil
         isLoading = false

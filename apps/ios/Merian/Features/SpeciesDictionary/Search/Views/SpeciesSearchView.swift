@@ -4,9 +4,8 @@ struct SpeciesSearchView: View {
     @Bindable var model: SpeciesSearchViewModel
     let exploreViewModel: ExploreFeedViewModel
     let onOpenPost: (ExplorePost) -> Void
+    var starterImageDependencies: SpeciesCatalogImageDependencies = .live
     @FocusState private var inputFocused: Bool
-
-    private let examples = ["Small birds with red heads", "Orange and black butterflies", "Fungi that grow on trees"]
     var body: some View {
         VStack(spacing: 0) {
             if model.hasResults {
@@ -38,7 +37,7 @@ struct SpeciesSearchView: View {
         .toolbar(.hidden, for: .tabBar)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button { model.newSearch(); inputFocused = true } label: {
+                Button { model.newSearch(); inputFocused = false } label: {
                     Image(systemName: "arrow.counterclockwise")
                 }
                     .buttonStyle(.plain)
@@ -49,8 +48,10 @@ struct SpeciesSearchView: View {
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) { composer }
+        .onAppear {
+            if !model.hasResults { model.rotateIllustration() }
+        }
         .task(id: model.request?.requestId) { await model.execute() }
-        .onAppear { if !model.hasResults { inputFocused = true } }
         .onChange(of: model.needsClarification) { _, needsAnswer in
             if needsAnswer { inputFocused = true }
         }
@@ -67,27 +68,14 @@ struct SpeciesSearchView: View {
         .accessibilityIdentifier("SpeciesSearchView")
     }
     private var introduction: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                Image(systemName: "sparkle.magnifyingglass")
-                    .font(.system(size: 36)).foregroundStyle(.tint).accessibilityHidden(true)
-                Text("What would you like to discover?")
-                    .font(.title2.bold()).accessibilityAddTraits(.isHeader)
-                Text("Search by name, describe a species, or explore public sightings.")
-                    .foregroundStyle(.secondary)
-                ForEach(examples, id: \.self) { example in
-                    Button { submit(example) } label: {
-                        HStack { Text(example).multilineTextAlignment(.leading); Spacer(); Image(systemName: "arrow.right") }
-                            .padding(14).frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(model.isLoading)
-                }
-            }
-            .padding(20)
-        }
-        .scrollDismissesKeyboard(.interactively)
+        SpeciesSearchIntroduction(
+            prompts: model.suggestedPrompts,
+            illustrationName: model.illustrationName,
+            catalog: model.starterCatalog,
+            isSearching: model.isLoading,
+            imageDependencies: starterImageDependencies,
+            onSubmit: { submit($0) }
+        )
     }
     private var resultsHeader: some View {
         VStack(alignment: .leading, spacing: 10) {

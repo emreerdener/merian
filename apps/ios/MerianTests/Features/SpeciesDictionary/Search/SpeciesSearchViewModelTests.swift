@@ -1,5 +1,6 @@
-import XCTest
 import SwiftUI
+import XCTest
+
 @testable import Merian
 
 @MainActor
@@ -217,10 +218,61 @@ final class SpeciesSearchViewModelTests: XCTestCase {
         XCTAssertEqual(model.draft, "birds")
     }
 
+    func testNewSearchRotatesPromptsWithoutRepeatingCurrentSet() async {
+        let model = SpeciesSearchViewModel(dependencies: .init(search: { self.response($0) }, errorMessage: { _ in "Failed" }))
+        let initialIllustration = model.illustrationName
+        model.rotateIllustration()
+        XCTAssertNotEqual(model.illustrationName, initialIllustration)
+        let illustration = model.illustrationName
+        XCTAssertNotNil(UIImage(named: illustration))
+        let original = model.suggestedPrompts
+        XCTAssertEqual(Set(original).count, 3)
+        model.submit(original[0])
+        await model.execute()
+        XCTAssertEqual(model.suggestedPrompts, original)
+        XCTAssertEqual(model.illustrationName, illustration)
+        model.newSearch()
+        XCTAssertEqual(Set(model.suggestedPrompts).count, 3)
+        XCTAssertTrue(Set(original).isDisjoint(with: model.suggestedPrompts))
+        XCTAssertNotEqual(model.illustrationName, illustration)
+        XCTAssertNotNil(UIImage(named: model.illustrationName))
+    }
+
+    func testStarterCatalogLoadsWithoutAIAndReusesSuccessfulPage() async {
+        var catalogCalls = 0
+        let model = SpeciesSearchViewModel(dependencies: .init(search: { request in
+            XCTFail("Browsing starter species must not invoke AI search")
+            return self.response(request)
+        }, errorMessage: { _ in "Failed" }, starterCatalog: .init(loadPage: { request in
+            catalogCalls += 1
+            XCTAssertEqual(request.category, .recentlyAdded)
+            XCTAssertEqual(request.limit, 6)
+            return .init(schemaVersion: 1, data: self.starterFixtures, nextCursor: nil)
+        }, errorMessage: { _ in "Failed" })))
+        await model.starterCatalog.loadIfNeeded(category: .recentlyAdded, region: nil, group: nil, query: nil)
+        model.newSearch()
+        await model.starterCatalog.loadIfNeeded(category: .recentlyAdded, region: nil, group: nil, query: nil)
+        XCTAssertEqual(catalogCalls, 1)
+        XCTAssertEqual(model.starterCatalog.items, starterFixtures)
+        XCTAssertNil(model.context)
+    }
+
+    private var starterFixtures: [SpeciesDictionaryCatalogItem] {
+        [("Monarch", "Danaus plexippus"), ("Common sunflower", "Helianthus annuus"),
+         ("Fly agaric", "Amanita muscaria"), ("Northern cardinal", "Cardinalis cardinalis")]
+            .enumerated().map { index, names in
+                .init(id: "00000000-0000-4000-8000-00000000000\(index + 1)",
+                      scientificName: names.1, commonName: names.0, contentQuality: nil, taxonomy: nil,
+                      iucnRedListStatus: nil, hazardType: nil, groupTags: [],
+                      referenceImageUrl: "https://example.invalid/species-\(index).jpg")
+            }
+    }
+
     func testSearchVisualFixtures() async throws {
         for (name, hasResults, dark, largeText) in [
             ("intro-light", false, false, false),
             ("intro-dark", false, true, false),
+            ("intro-large", false, false, true),
             ("results-light", true, false, false),
             ("results-large-dark", true, true, true)
         ] {
@@ -233,11 +285,19 @@ final class SpeciesSearchViewModelTests: XCTestCase {
                         groupTags: ["insect"], referenceImageUrl: nil),
                         excerpt: "An orange and black butterfly. Illustrative dictionary excerpt.")],
                     sightings: [], nextCursor: nil)
-            }, errorMessage: { _ in "Offline" }))
+            }, errorMessage: { _ in "Offline" }, starterCatalog: .init(
+                loadPage: { _ in .init(schemaVersion: 1, data: self.starterFixtures, nextCursor: nil) },
+                errorMessage: { _ in "Unavailable" }
+            )))
             if hasResults { model.submit("Orange and black butterflies"); await model.execute() }
             let feed = ExploreFeedViewModel(dependencies: ExploreFeedTestFixtures.dependencies())
             let content = NavigationStack {
-                SpeciesSearchView(model: model, exploreViewModel: feed, onOpenPost: { _ in })
+                SpeciesSearchView(model: model, exploreViewModel: feed, onOpenPost: { _ in },
+                    starterImageDependencies: .init { source, _ in
+                        let assets = ["fieldtrip-park-butterfly", "fieldtrip-park-flowering-plant", "fieldtrip-backyard-mushrooms", "bird-cardinal"]
+                        let index = (0..<4).first { source.contains("species-\($0)") } ?? 0
+                        return UIImage(named: assets[index])
+                    })
             }
             .environment(\.colorScheme, dark ? .dark : .light)
             .environment(\.dynamicTypeSize, largeText ? .accessibility3 : .large)
@@ -262,6 +322,11 @@ final class SpeciesSearchViewModelTests: XCTestCase {
             attachment.lifetime = .keepAlways
             add(attachment)
             XCTAssertEqual(rendered.size.width, 390)
+            XCTAssertFalse(containsFirstResponder(controller.view), "Search should not open the keyboard automatically")
         }
+    }
+
+    private func containsFirstResponder(_ view: UIView) -> Bool {
+        view.isFirstResponder || view.subviews.contains(where: containsFirstResponder)
     }
 }
