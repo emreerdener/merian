@@ -38,38 +38,26 @@ final class ExploreMediaLayoutTests: XCTestCase {
         }
     }
 
-    private func render<V: View>(_ view: V, width: CGFloat = 320) -> UIImage {
-        let fittingSize = CGSize(width: width, height: width)
-        if #available(iOS 16.0, *) {
-            let renderer = ImageRenderer(content: view.frame(width: width, height: width))
-            renderer.scale = 1
-            if let image = renderer.uiImage {
-                return image
-            }
-        }
-
-        let controller = UIHostingController(rootView: view.frame(width: width, height: width))
-        controller.view.bounds = CGRect(origin: .zero, size: fittingSize)
-        controller.view.frame = CGRect(origin: .zero, size: fittingSize)
-        controller.view.backgroundColor = .clear
-
-        let window = UIWindow(frame: controller.view.bounds)
-        window.rootViewController = controller
-        window.makeKeyAndVisible()
-
-        controller.view.setNeedsLayout()
-        window.layoutIfNeeded()
-        controller.view.layoutIfNeeded()
-        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
-
+    private func render<V: View>(_ view: V, width: CGFloat = 320) throws -> UIImage {
+        let renderer = ImageRenderer(content: view.frame(width: width, height: width))
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1
-        let image = UIGraphicsImageRenderer(size: fittingSize, format: format).image { context in
-            controller.view.layer.render(in: context.cgContext)
-        }
+        format.opaque = false
+        format.preferredRange = .standard
 
-        window.isHidden = true
-        return image
+        // Draw the actual SwiftUI hierarchy into a synchronous bitmap context.
+        // ImageRenderer.uiImage can return incomplete pixels when its image
+        // provider times out during cold simulator pipeline compilation.
+        var image: UIImage?
+        renderer.render(rasterizationScale: 1) { size, draw in
+            image = UIGraphicsImageRenderer(size: size, format: format).image { context in
+                // ImageRenderer expects a bottom-left origin; UIKit uses top-left.
+                context.cgContext.translateBy(x: 0, y: size.height)
+                context.cgContext.scaleBy(x: 1, y: -1)
+                draw(context.cgContext)
+            }
+        }
+        return try XCTUnwrap(image, "Expected the media hierarchy to render into a bitmap")
     }
 
     private struct RGBAPixel {
@@ -125,6 +113,21 @@ final class ExploreMediaLayoutTests: XCTestCase {
 
         assertPixel(rgbaPixel(in: image, x: 0, y: 0), approximately: .blue, tolerance: 0)
         XCTAssertEqual(rgbaPixel(in: image, x: 1, y: 0).a, 0)
+    }
+
+    func testRendererPreservesStripeOrientationAndTransparentPadding() throws {
+        let image = try render(
+            VStack(spacing: 0) {
+                Color(uiColor: .red)
+                Color(uiColor: .blue)
+            }
+            .frame(width: 160, height: 160)
+        )
+
+        XCTAssertEqual(image.size, CGSize(width: 320, height: 320))
+        assertPixel(rgbaPixel(in: image, x: 160, y: 100), approximately: .red)
+        assertPixel(rgbaPixel(in: image, x: 160, y: 220), approximately: .blue)
+        XCTAssertEqual(rgbaPixel(in: image, x: 8, y: 160).a, 0)
     }
 
     private func assertPixel(
@@ -404,7 +407,7 @@ final class ExploreMediaLayoutTests: XCTestCase {
         XCTAssertFalse(state.finishAudioSeek())
     }
 
-    func testExploreFeedMediaViewLandscapeImageFillsSquare() {
+    func testExploreFeedMediaViewLandscapeImageFillsSquare() throws {
         let topColor = UIColor.systemTeal
         let bottomColor = UIColor.systemOrange
         let image = makeStripedImage(
@@ -413,7 +416,7 @@ final class ExploreMediaLayoutTests: XCTestCase {
             bottomColor: bottomColor
         )
 
-        let rendered = render(
+        let rendered = try render(
             ExploreFeedMediaView(
                 postId: "preview-landscape",
                 imageUrl: "preview-landscape",
@@ -429,7 +432,7 @@ final class ExploreMediaLayoutTests: XCTestCase {
         assertPixel(rgbaPixel(in: rendered, x: 160, y: 311), approximately: bottomColor)
     }
 
-    func testExploreFeedMediaViewPortraitImageFillsSquare() {
+    func testExploreFeedMediaViewPortraitImageFillsSquare() throws {
         let topColor = UIColor.systemPink
         let bottomColor = UIColor.systemIndigo
         let image = makeStripedImage(
@@ -438,7 +441,7 @@ final class ExploreMediaLayoutTests: XCTestCase {
             bottomColor: bottomColor
         )
 
-        let rendered = render(
+        let rendered = try render(
             ExploreFeedMediaView(
                 postId: "preview-portrait",
                 imageUrl: "preview-portrait",
@@ -454,7 +457,7 @@ final class ExploreMediaLayoutTests: XCTestCase {
         assertPixel(rgbaPixel(in: rendered, x: 160, y: 311), approximately: bottomColor)
     }
 
-    func testExploreDetailMediaViewLandscapeImageFillsSquare() {
+    func testExploreDetailMediaViewLandscapeImageFillsSquare() throws {
         let topColor = UIColor.systemGreen
         let bottomColor = UIColor.systemBlue
         let image = makeStripedImage(
@@ -463,7 +466,7 @@ final class ExploreMediaLayoutTests: XCTestCase {
             bottomColor: bottomColor
         )
 
-        let rendered = render(
+        let rendered = try render(
             ExploreDetailMediaView(
                 postId: "preview-detail",
                 imageUrl: "preview-detail",

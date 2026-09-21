@@ -399,7 +399,11 @@ Focused tests mirror their production owners:
   covers overlay reduction, center-hit policy, resume intent, contained playback
   state, and nested coordinator tokens.
 - `MerianTests/Features/Explore/Feed/ExploreMediaLayoutTests.swift` covers the
-  stable Feed-owned square feed/detail hosts.
+  stable Feed-owned square feed/detail hosts. It draws the SwiftUI hierarchy
+  directly into a synchronous Core Graphics bitmap, preserving the edge-pixel
+  color and opacity checks. A renderer calibration checks vertical orientation
+  and transparent padding without installing a key window or waiting on a fixed
+  layout delay.
 - `MerianTests/Features/Explore/Feed/ExplorePostCardAuthorPresentationTests.swift`
   covers prepared avatar fallback and Pro presentation without live services.
 - `ExploreFeedViewModelTests`, `ExploreHashtagPostsViewModelTests`, and

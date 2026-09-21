@@ -7550,11 +7550,18 @@ Explore media tests mirror the final production owners.
 locks overlay reduction, center play/pause hit policy, system resume intent,
 contained player/task/observer state, and nested coordinator-token behavior.
 `MerianTests/Features/Explore/Feed/ExploreMediaLayoutTests.swift` locks stable
-square rendering for Feed-owned feed/detail hosts, and
-`ExplorePostCardAuthorPresentationTests.swift` locks prepared avatar and Pro
-presentation without live identity or entitlement services. Run these focused
-XCTest suites after changing card/media extraction, playback recovery, overlay
-ownership, or square-host layout:
+square rendering for Feed-owned feed/detail hosts. Its helper uses
+`ImageRenderer.render(rasterizationScale:renderer:)` to draw the actual SwiftUI
+hierarchy into a synchronous Core Graphics bitmap. The September 21 hosted
+detail-image failure followed an image-provider timeout during cold rendering
+pipeline compilation; a non-nil `ImageRenderer.uiImage` contained a transparent
+sample. The bitmap path retains the original dimension, color, and opacity
+assertions, with an additional orientation/transparent-padding calibration. It
+requires no key window, fixed sleep, repeated snapshots, or relaxed pixel
+tolerance. `ExplorePostCardAuthorPresentationTests.swift` locks prepared avatar
+and Pro presentation without live identity or entitlement services. Run these
+focused XCTest suites after changing card/media extraction, playback recovery,
+overlay ownership, or square-host layout:
 
 ```bash
 xcodebuild -scheme Merian -project Merian.xcodeproj \
