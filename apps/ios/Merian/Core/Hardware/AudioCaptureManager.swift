@@ -317,6 +317,16 @@ final class AudioCaptureManager {
             onCompletion: { [weak self] in
                 self?.isPlaying = false
                 self?.playbackProgress = 0
+            },
+            onStartFailure: { [weak self] in
+                guard let self else { return }
+                if url != originalURL {
+                    reviewBoostController.rejectPreparedAudio()
+                    startReviewPlayback()
+                } else {
+                    isPlaying = false
+                    playbackProgress = 0
+                }
             }
         )
         if !started, url != originalURL {

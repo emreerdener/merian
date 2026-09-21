@@ -7232,30 +7232,36 @@ late-activation rejection, controller-level duplicate-resume coalescing, and
 resume retry after activation failure. The same file's
 `AudioRecordingWAVFormatPolicyTests` freezes signed Int16 interleaved PCM and
 invalid-format rejection. Run `AudioReviewPlaybackControllerTests` for
-stop-before-activation lease rejection, failed-player-start and completion-wait
-cleanup, stale-completion fencing, scrubbed resume, unconditional manager-reset
-cleanup, and natural manager-state finalization. Run `AudioCaptureManagerTests`
-for facade state, startup cleanup, injected maximum-duration feedback, review
-routing, and duplicate-resume coalescing; its activation gate also proves
-lifecycle cancellation fences a late result. Run `SpectrogramActorTests` for
-bounded FFT/noise-floor behavior and reset semantics. Run
-`AudioCaptureTransitionStateTests` for generation replacement/invalidation,
-`AudioSessionCoordinatorTests` for successful replacement, failed-activation
-configuration restoration, first-activation cleanup, and rollback-failure
-invalidation plus cancellation before session mutation. Run the Core Media-owned
-`AudioPlaybackSessionControllerTests` for idle-mount isolation, lazy activation
-coalescing and retry, stale-token reacquisition, immediate teardown,
-cancellation before coordinator mutation, cancellation-ignoring late
-acquisition, teardown during lease validation, and replacement-safe cleanup, and
-`AudioSpectrogramRendererTests` for reusable palette, raster orientation,
-live-horizon, and fit-to-data behavior. The playback-session architecture check
-also requires reusable Core UI and Explore audio to await exact-token validation
-before every audible start and keeps generic media dependencies free of direct
-AVAudioSession mutation. These suites live under mirrored
-`Features/Capture/Record`, `Core/Hardware`, and `Core/Media` test paths; do not
-move playback, hardware, or reusable renderer assertions back into an aggregate
-manager suite. Keep `merianUITests.testAudioFirstLaunchSelectsRecordMode` in the
-focused matrix for the real pager selection and mounted Audio presentation.
+stop-before-activation lease rejection, off-main live-player construction,
+stop/replacement during a suspended player start, asynchronous file-preparation
+failure, failed-player-start and completion-wait cleanup, stale-completion
+fencing, scrubbed resume, unconditional manager-reset cleanup, and natural
+manager-state finalization. The actor adapter keeps hardware play/stop off the
+main actor; physical-device review playback must still be checked with Xcode
+Thread Performance Checker, including rapid Play/Stop, scrubbing, boost source
+switches, and recording-to-playback session handoff. Run
+`AudioCaptureManagerTests` for facade state, startup cleanup, injected
+maximum-duration feedback, review routing, and duplicate-resume coalescing; its
+activation gate also proves lifecycle cancellation fences a late result. Run
+`SpectrogramActorTests` for bounded FFT/noise-floor behavior and reset
+semantics. Run `AudioCaptureTransitionStateTests` for generation
+replacement/invalidation, `AudioSessionCoordinatorTests` for successful
+replacement, failed-activation configuration restoration, first-activation
+cleanup, and rollback-failure invalidation plus cancellation before session
+mutation. Run the Core Media-owned `AudioPlaybackSessionControllerTests` for
+idle-mount isolation, lazy activation coalescing and retry, stale-token
+reacquisition, immediate teardown, cancellation before coordinator mutation,
+cancellation-ignoring late acquisition, teardown during lease validation, and
+replacement-safe cleanup, and `AudioSpectrogramRendererTests` for reusable
+palette, raster orientation, live-horizon, and fit-to-data behavior. The
+playback-session architecture check also requires reusable Core UI and Explore
+audio to await exact-token validation before every audible start and keeps
+generic media dependencies free of direct AVAudioSession mutation. These suites
+live under mirrored `Features/Capture/Record`, `Core/Hardware`, and `Core/Media`
+test paths; do not move playback, hardware, or reusable renderer assertions back
+into an aggregate manager suite. Keep
+`merianUITests.testAudioFirstLaunchSelectsRecordMode` in the focused matrix for
+the real pager selection and mounted Audio presentation.
 
 Capture startup diagnostics must also exercise the user-configurable first-mode
 matrix. For each of Camera, Audio, and Description, persist that mode first,

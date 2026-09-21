@@ -66,21 +66,26 @@ concrete lease, so teardown with no owned lease emits no synthetic release.
 `AudioRecordingWAVFormatPolicy` and `AudioRecordingEngineModels` keep the file
 contract and sendable presentation values outside the lifecycle owner.
 
-`AudioCapture/Services/AudioReviewPlaybackController` is the focused review
-playback owner behind that stable manager API. It owns `AVAudioPlayer`,
-activation, progress, and completion tasks, and the playback-specific
-audio-session lease. Seeking reschedules completion from the new position;
-cancelled waits cannot finish the replacement timer. Source switches preserve
-the live player position, including seeks made while session activation is
-pending. Every asynchronous callback is fenced by both a playback generation and
-exact player identity. Stop-before-activation rejects and deactivates a late
-lease, and a cancelled completion cannot clear replacement playback. A player
-that refuses to start or a completion wait that fails is finalized immediately,
-including exact-lease release. Manager reset always stops this independent
-playback owner, even while recording startup is still resolving. The manager
-receives the controller's live dependencies through its existing small
-dependency value; tests inject deterministic players, session effects, and wait
-gates.
+`AudioCapture/Services/AudioReviewPlaybackController` owns review presentation,
+activation, progress, completion, and the playback-specific audio-session lease
+on `@MainActor`. `AudioReviewPlaybackFilePlayer` privately owns `AVAudioPlayer`
+on an actor backed by a dedicated serial executor: file opening, synchronous
+hardware start/stop, seeking, and position reads never execute on the UI thread
+or Swift's cooperative executor pool. Only sendable values cross that boundary;
+the AVFoundation player never escapes.
+
+Every accepted playback request has a generation. Stop clears UI ownership
+immediately, cancels and joins pending startup/seek work, then stops the player
+before releasing its exact lease. Replacement waits for this retirement and
+preserves the last live position, unless a newer seek superseded it. Late
+startup cannot restart audio after teardown. Seeks made during preparation or
+activation remain pending; seeks during playback cancel and replace completion
+and reject obsolete progress reads. A failed file open reports an asynchronous
+startup failure so the manager can retain its original-recording fallback for an
+unusable boosted preview. Session and completion failures still finalize the
+current request. Manager reset always stops review playback, even while
+recording startup is resolving. Tests inject deterministic players, session
+effects, and wait gates through the existing dependency value.
 
 `AudioCapture/Services/AudioReviewBoostController` separately owns the
 review-only boost selection, cancellable preparation generation, and temporary

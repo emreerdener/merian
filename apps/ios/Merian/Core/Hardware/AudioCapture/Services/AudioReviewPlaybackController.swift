@@ -1,22 +1,6 @@
-import AVFoundation
 import Foundation
 
-@MainActor
-protocol AudioReviewPlaybackPlayer: AnyObject {
-    var duration: TimeInterval { get }
-    var currentTime: TimeInterval { get set }
-
-    @discardableResult
-    func play() -> Bool
-    func stop()
-}
-
-extension AVAudioPlayer: AudioReviewPlaybackPlayer {}
-
-/// Owns review-player, progress-task, completion-task, and audio-session lifetime.
-///
-/// Every asynchronous path carries a generation so cancellation that completes
-/// cooperatively cannot publish progress or finish a replacement playback.
+/// Owns presentation and task/session lifetime; the player owns hardware work.
 @MainActor
 final class AudioReviewPlaybackController {
     struct Dependencies: Sendable {
@@ -31,7 +15,7 @@ final class AudioReviewPlaybackController {
             @Sendable (_ remainingDuration: TimeInterval) async throws -> Void
 
         static let live = Self(
-            makePlayer: { try AVAudioPlayer(contentsOf: $0) },
+            makePlayer: { AudioReviewPlaybackFilePlayer(contentsOf: $0) },
             activateSession: {
                 try await AudioSessionCoordinator.shared.activate(.playback)
             },
@@ -58,19 +42,25 @@ final class AudioReviewPlaybackController {
     private struct ActivePlayback {
         let generation: UUID
         let player: any AudioReviewPlaybackPlayer
+        let onProgress: ProgressHandler
         let onCompletion: CompletionHandler
+        let onStartFailure: CompletionHandler
+        var progress: Double
+        var duration: TimeInterval = 0
+        var seekRevision = 0
+        var isPlaying = false
         var activationTask: Task<Void, Never>?
         var lease: AudioSessionCoordinator.Lease?
+        var seekTask: Task<Void, Never>?
         var progressTask: Task<Void, Never>?
         var completionTask: Task<Void, Never>?
     }
 
     private let dependencies: Dependencies
     private var activePlayback: ActivePlayback?
+    private var retirementTask: Task<Double, Never>?
 
-    init(dependencies: Dependencies = .live) {
-        self.dependencies = dependencies
-    }
+    init(dependencies: Dependencies = .live) { self.dependencies = dependencies }
 
     @discardableResult
     func start(
@@ -78,170 +68,149 @@ final class AudioReviewPlaybackController {
         resumeProgress: Double,
         replacingCurrent: Bool = false,
         onProgress: @escaping ProgressHandler,
-        onCompletion: @escaping CompletionHandler
+        onCompletion: @escaping CompletionHandler,
+        onStartFailure: CompletionHandler? = nil
     ) -> Bool {
         guard replacingCurrent || activePlayback == nil,
-              let player = try? dependencies.makePlayer(fileURL) else {
-            return false
-        }
-
-        let previous = activePlayback?.player
-        let progress = replacingCurrent && (previous?.duration ?? 0) > 0
-            ? (previous?.currentTime ?? 0) / (previous?.duration ?? 1)
-            : resumeProgress
-        if replacingCurrent { stop() }
-        player.currentTime = player.duration * min(1, max(0, progress))
-        if replacingCurrent, previous != nil { onProgress(min(1, max(0, progress))) }
+              let player = try? dependencies.makePlayer(fileURL) else { return false }
+        let preservesPosition = replacingCurrent && activePlayback != nil
+        stop()
+        let retirement = retirementTask
         let generation = UUID()
         activePlayback = ActivePlayback(
-            generation: generation,
-            player: player,
-            onCompletion: onCompletion
+            generation: generation, player: player,
+            onProgress: onProgress, onCompletion: onCompletion,
+            onStartFailure: onStartFailure ?? onCompletion,
+            progress: min(1, max(0, resumeProgress))
         )
-
-        let progressTask = Task { @MainActor [weak self] in
+        activePlayback?.activationTask = Task { [weak self] in
             guard let self else { return }
-            while !Task.isCancelled {
-                do {
-                    try await dependencies.waitForProgressTick()
-                } catch {
-                    return
-                }
-                guard !Task.isCancelled,
-                      isCurrent(generation, player: player) else {
-                    return
-                }
-                let progress = player.duration > 0
-                    ? player.currentTime / player.duration
-                    : 0
-                onProgress(min(1, max(0, progress)))
+            let previousProgress = await retirement?.value
+            guard isCurrent(generation), !Task.isCancelled else { return }
+            if preservesPosition, let previousProgress, activePlayback?.seekRevision == 0 {
+                activePlayback?.progress = previousProgress
+                onProgress(previousProgress)
             }
-        }
-        activePlayback?.progressTask = progressTask
-
-        let activationTask = Task { @MainActor [weak self] in
-            guard let self else { return }
-            let lease: AudioSessionCoordinator.Lease
             do {
-                lease = try await dependencies.activateSession()
-            } catch {
-                finishIfCurrent(
-                    generation,
-                    player: player,
-                    onCompletion: onCompletion
-                )
+                let duration = try await player.prepare()
+                guard isCurrent(generation), !Task.isCancelled else { return }
+                activePlayback?.duration = duration
+            } catch { finishIfCurrent(generation, failedToStart: true); return }
+            let lease: AudioSessionCoordinator.Lease
+            do { lease = try await dependencies.activateSession() } catch {
+                finishIfCurrent(generation)
                 return
             }
-
-            guard !Task.isCancelled,
-                  install(
-                      lease: lease,
-                      generation: generation,
-                      player: player
-                  ) else {
+            guard isCurrent(generation), !Task.isCancelled else {
                 await dependencies.deactivateSession(lease)
                 return
             }
-
-            guard player.play() else {
-                finishIfCurrent(
-                    generation,
-                    player: player,
-                    onCompletion: onCompletion
-                )
-                return
+            activePlayback?.lease = lease
+            await synchronizePosition(generation)
+            guard isCurrent(generation), !Task.isCancelled else { return }
+            let revision = activePlayback?.seekRevision
+            let started = await player.play()
+            guard isCurrent(generation), !Task.isCancelled else { return }
+            guard started else { finishIfCurrent(generation, failedToStart: true); return }
+            activePlayback?.isPlaying = true
+            if revision != activePlayback?.seekRevision {
+                await synchronizePosition(generation)
             }
-
+            guard isCurrent(generation), !Task.isCancelled else { return }
+            startProgress(generation)
             scheduleCompletion()
         }
-        activePlayback?.activationTask = activationTask
         return true
     }
 
     func stop() {
         guard let playback = activePlayback else { return }
         activePlayback = nil
-        playback.progressTask?.cancel()
         playback.activationTask?.cancel()
+        playback.seekTask?.cancel()
+        playback.progressTask?.cancel()
         playback.completionTask?.cancel()
-        playback.player.stop()
-        deactivate(playback.lease)
+        let priorRetirement = retirementTask
+        let deactivateSession = dependencies.deactivateSession
+        retirementTask = Task {
+            // Join in-flight operations before stop: an uncancellable late play
+            // must not restart audio after teardown, or overlap its replacement.
+            _ = await priorRetirement?.value
+            await playback.activationTask?.value
+            await playback.seekTask?.value
+            let time = await playback.player.playbackTime()
+            await playback.player.stop()
+            if let lease = playback.lease { await deactivateSession(lease) }
+            return playback.isPlaying && playback.seekTask == nil && playback.duration > 0
+                ? min(1, max(0, time / playback.duration)) : playback.progress
+        }
     }
 
     func seek(to progress: Double) {
-        guard let playback = activePlayback else { return }
-        let clamped = min(1, max(0, progress))
-        playback.player.currentTime = playback.player.duration * clamped
-        if playback.lease != nil { scheduleCompletion() }
+        guard activePlayback != nil else { return }
+        activePlayback?.progress = min(1, max(0, progress))
+        activePlayback?.seekRevision += 1
+        activePlayback?.completionTask?.cancel()
+        activePlayback?.seekTask?.cancel()
+        guard let playback = activePlayback, playback.isPlaying else { return }
+        activePlayback?.seekTask = Task { [weak self] in
+            guard let self else { return }
+            await synchronizePosition(playback.generation)
+            guard isCurrent(playback.generation), !Task.isCancelled else { return }
+            activePlayback?.seekTask = nil
+            scheduleCompletion()
+        }
+    }
+
+    private func synchronizePosition(_ generation: UUID) async {
+        while let playback = activePlayback,
+              playback.generation == generation, !Task.isCancelled {
+            await playback.player.seek(to: playback.progress * playback.duration)
+            guard playback.seekRevision != activePlayback?.seekRevision else { return }
+        }
+    }
+
+    private func startProgress(_ generation: UUID) {
+        activePlayback?.progressTask = Task { [weak self] in
+            guard let self else { return }
+            while !Task.isCancelled {
+                do { try await dependencies.waitForProgressTick() } catch { return }
+                guard let playback = activePlayback,
+                      playback.generation == generation, !Task.isCancelled else { return }
+                guard playback.seekTask == nil else { continue }
+                let time = await playback.player.playbackTime()
+                guard isCurrent(generation), !Task.isCancelled,
+                      activePlayback?.seekTask == nil,
+                      activePlayback?.seekRevision == playback.seekRevision else { continue }
+                let progress = playback.duration > 0
+                    ? min(1, max(0, time / playback.duration)) : 0
+                activePlayback?.progress = progress
+                playback.onProgress(progress)
+            }
+        }
     }
 
     private func scheduleCompletion() {
         guard let playback = activePlayback else { return }
         playback.completionTask?.cancel()
-        let generation = playback.generation
-        let player = playback.player
-        let onCompletion = playback.onCompletion
-        let remaining = max(0, player.duration - player.currentTime)
-        activePlayback?.completionTask = Task { @MainActor [weak self] in
+        let remaining = max(0, playback.duration - playback.duration * playback.progress)
+        activePlayback?.completionTask = Task { [weak self] in
             guard let self, !Task.isCancelled else { return }
-            do {
-                try await dependencies.waitForCompletion(remaining)
-            } catch {
+            do { try await dependencies.waitForCompletion(remaining) } catch {
                 if Task.isCancelled { return }
             }
             guard !Task.isCancelled else { return }
-            finishIfCurrent(generation, player: player, onCompletion: onCompletion)
+            finishIfCurrent(playback.generation)
         }
     }
 
-    private func install(
-        lease: AudioSessionCoordinator.Lease,
-        generation: UUID,
-        player: any AudioReviewPlaybackPlayer
-    ) -> Bool {
-        guard var playback = activePlayback,
-              playback.generation == generation,
-              playback.player === player else {
-            return false
-        }
-        playback.lease = lease
-        activePlayback = playback
-        return true
+    private func finishIfCurrent(_ generation: UUID, failedToStart: Bool = false) {
+        guard let playback = activePlayback, playback.generation == generation else { return }
+        stop()
+        if failedToStart { playback.onStartFailure() } else { playback.onCompletion() }
     }
 
-    private func finishIfCurrent(
-        _ generation: UUID,
-        player: any AudioReviewPlaybackPlayer,
-        onCompletion: CompletionHandler
-    ) {
-        guard let playback = activePlayback,
-              playback.generation == generation,
-              playback.player === player else {
-            return
-        }
-        activePlayback = nil
-        playback.progressTask?.cancel()
-        playback.activationTask?.cancel()
-        playback.completionTask?.cancel()
-        playback.player.stop()
-        deactivate(playback.lease)
-        onCompletion()
-    }
-
-    private func isCurrent(
-        _ generation: UUID,
-        player: any AudioReviewPlaybackPlayer
-    ) -> Bool {
-        guard let playback = activePlayback else { return false }
-        return playback.generation == generation
-            && playback.player === player
-    }
-
-    private func deactivate(_ lease: AudioSessionCoordinator.Lease?) {
-        guard let lease else { return }
-        let deactivateSession = dependencies.deactivateSession
-        Task {
-            await deactivateSession(lease)
-        }
+    private func isCurrent(_ generation: UUID) -> Bool {
+        activePlayback?.generation == generation
     }
 }

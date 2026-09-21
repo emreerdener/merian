@@ -17,7 +17,7 @@ The audio pipeline is split across explicit ownership and isolation boundaries:
 | DSP / FFT            | `Core/Hardware/SpectrogramActor`                                                                                       | Swift actor                              |
 | Recording facade     | `Core/Hardware/AudioCaptureManager`                                                                                    | `@MainActor` observable state            |
 | Recording engine     | `Core/Hardware/AudioCapture/Services/AudioRecordingEngineController`                                                   | `@MainActor` exact-resource owner        |
-| Review playback      | `Core/Hardware/AudioCapture/Services/AudioReviewPlaybackController`                                                    | `@MainActor` player/task owner           |
+| Review playback      | `Core/Hardware/AudioCapture/Services/AudioReviewPlaybackController`                                                    | `@MainActor` presentation/task owner     |
 | Audio-session leases | `Core/Hardware/AudioSessionCoordinator`                                                                                | Swift actor                              |
 | Raster policy        | `Core/Media/AudioSpectrogramRenderer`                                                                                  | Deterministic value operations           |
 | Shared rendering     | `Core/UI/Components/AudioSpectrogramView`                                                                              | `@MainActor` SwiftUI                     |
@@ -144,25 +144,32 @@ the manager without deleting it.
 **File**:
 `apps/ios/Merian/Core/Hardware/AudioCapture/Services/AudioReviewPlaybackController.swift`
 
-The focused `@MainActor` owner creates `AVAudioPlayer`, retains progress and
-completion tasks, and holds the playback-specific `AudioSessionCoordinator`
-lease. The manager injects live playback dependencies through its existing
-dependency value and forwards only presentation updates to its observable state.
+The focused `@MainActor` controller owns presentation, progress/completion
+tasks, and the playback-specific `AudioSessionCoordinator` lease.
+`AudioReviewPlaybackFilePlayer` privately owns the AVFoundation player on a
+separate actor with a dedicated serial executor. File opening, hardware
+start/stop, seeking, and position reads run there, away from both the UI thread
+and Swift's cooperative executor pool; the UI receives only sendable values.
+This is necessary even after session activation because `AVAudioPlayer.play()`
+and `stop()` synchronously acquire and release audio hardware.
 
-Every playback instance has a generation and exact player-identity fence.
-Activation and completion use separate tasks so seeking can cancel and replace
-only the completion timer. A seek made before activation finishes is retained;
-forward and backward seeks reschedule completion from the current position.
-Stopping before activation clears ownership immediately; if a
-cancellation-ignoring activation later returns a lease, the stale task
-deactivates it without starting audio. A cancelled completion from a prior
-player likewise cannot finish or reset a replacement. Natural completion stops
-the current player, releases its exact lease, resets manager playback state, and
-leaves the pending review file available for confirmation or replay. Session
-activation failure, a false `AVAudioPlayer.play()` result, and an unexpected
-completion-wait failure use the same exact-player finalizer. Manager reset
-always stops this playback owner even while recording startup is resolving
-because the recording and playback leases are independent.
+Every accepted request has a generation. Stopping clears presentation ownership
+immediately and cancels startup, seek, progress, and completion tasks.
+Retirement joins startup and seek before stopping the player and releasing its
+exact session lease, so a late player start cannot outlive Stop or overlap a
+replacement. Source replacement waits for retirement and resumes at the live
+position, while retaining any newer scrub request. Progress reads cannot
+supersede a pending seek, and cancelled completion timers cannot finish the
+replacement request.
+
+`start()` reports request acceptance; file preparation can subsequently fail on
+the player actor. The asynchronous startup-failure callback preserves the
+manager's fallback from an unusable boosted preview to the original recording.
+Failure of that original clears playback intent. Session activation failure and
+unexpected completion-wait failure finalize the current request. Natural
+completion stops the player, releases its lease, resets presentation, and leaves
+the pending recording available for confirmation or replay. Manager reset always
+stops the independent review owner even while recording startup is resolving.
 
 ### Recording Review Audio Boost
 

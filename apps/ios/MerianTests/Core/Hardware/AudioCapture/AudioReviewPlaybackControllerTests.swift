@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 import Testing
 
@@ -10,6 +11,8 @@ private final class AudioReviewPlaybackPlayerSpy: AudioReviewPlaybackPlayer {
     private(set) var playCount = 0
     private(set) var stopCount = 0
     private let playsSuccessfully: Bool
+    var beforePlay: (@MainActor @Sendable () async -> Void)?
+    var preparationFails = false
 
     init(
         duration: TimeInterval = 10,
@@ -19,9 +22,20 @@ private final class AudioReviewPlaybackPlayerSpy: AudioReviewPlaybackPlayer {
         self.playsSuccessfully = playsSuccessfully
     }
 
-    func play() -> Bool {
+    func play() async -> Bool {
         playCount += 1
+        await beforePlay?()
         return playsSuccessfully
+    }
+
+    func prepare() throws -> TimeInterval {
+        if preparationFails { throw CocoaError(.fileReadCorruptFile) }
+        return duration
+    }
+    func playbackTime() -> TimeInterval { currentTime }
+    func seek(to time: TimeInterval) {
+        guard !Task.isCancelled else { return }
+        currentTime = time
     }
 
     func stop() {
@@ -94,6 +108,88 @@ private struct AudioReviewPlaybackWaitFailure: Error {}
 @Suite("Audio review playback controller")
 @MainActor
 struct AudioReviewPlaybackControllerTests {
+    @Test("Live player file construction is off the main thread")
+    func livePlayerConstructionRunsOffMainThread() async throws {
+        let url = temporaryAudioURL()
+        try makeInferenceTestPCM16WAVData().write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let player = AudioReviewPlaybackFilePlayer(contentsOf: url) { url in
+            #expect(!Thread.isMainThread)
+            return try AVAudioPlayer(contentsOf: url)
+        }
+        #expect(try await player.prepare() > 0)
+        await player.stop()
+    }
+
+    @Test("Stop joins a late player start before stopping and releasing the session")
+    func stopDuringPlayerStartJoinsBeforeReleasingLease() async throws {
+        let player = AudioReviewPlaybackPlayerSpy()
+        let playGate = AudioReviewPlaybackWaitGate()
+        player.beforePlay = { await playGate.wait() }
+        let session = makeSessionCoordinator()
+        let leases = AudioReviewPlaybackLeaseProbe()
+        let callbacks = AudioReviewPlaybackCallbackProbe()
+        let controller = AudioReviewPlaybackController(dependencies: makeDependencies(
+            playerFactory: .init(players: [player]), sessionCoordinator: session,
+            completionGate: .init(), leaseProbe: leases
+        ))
+        controller.start(fileURL: temporaryAudioURL(), resumeProgress: 0,
+                         onProgress: { callbacks.recordProgress($0) },
+                         onCompletion: { callbacks.recordCompletion() })
+        try await waitUntil { await playGate.waiterCount == 1 }
+        controller.stop()
+        #expect(player.stopCount == 0)
+        #expect(await leases.deactivationCount == 0)
+        await playGate.releaseFirst()
+        try await waitUntil { await leases.deactivationCount == 1 }
+        #expect(player.stopCount == 1)
+        #expect(callbacks.completionCount == 0)
+        #expect(callbacks.progressValues.isEmpty)
+    }
+
+    @Test("Replacement waits for a cancelled late start to stop")
+    func replacementWaitsForLatePlayerStart() async throws {
+        let first = AudioReviewPlaybackPlayerSpy()
+        let second = AudioReviewPlaybackPlayerSpy()
+        let playGate = AudioReviewPlaybackWaitGate()
+        first.beforePlay = { await playGate.wait() }
+        let callbacks = AudioReviewPlaybackCallbackProbe()
+        let controller = AudioReviewPlaybackController(dependencies: makeDependencies(
+            playerFactory: .init(players: [first, second]),
+            sessionCoordinator: makeSessionCoordinator(), completionGate: .init()
+        ))
+        controller.start(fileURL: temporaryAudioURL(), resumeProgress: 0,
+                         onProgress: { _ in }, onCompletion: { callbacks.recordCompletion() })
+        try await waitUntil { await playGate.waiterCount == 1 }
+        controller.start(fileURL: temporaryAudioURL(), resumeProgress: 0,
+                         replacingCurrent: true, onProgress: { _ in }, onCompletion: {})
+        #expect(second.playCount == 0)
+        await playGate.releaseFirst()
+        try await waitUntil { second.playCount == 1 }
+        #expect(first.stopCount == 1)
+        #expect(callbacks.completionCount == 0)
+        controller.stop()
+        try await waitUntil { second.stopCount == 1 }
+    }
+
+    @Test("File preparation failure reports startup failure without a session lease")
+    func preparationFailureReportsStartupFailure() async throws {
+        let player = AudioReviewPlaybackPlayerSpy()
+        player.preparationFails = true
+        let leases = AudioReviewPlaybackLeaseProbe()
+        let failures = AudioReviewPlaybackCallbackProbe()
+        let controller = AudioReviewPlaybackController(dependencies: makeDependencies(
+            playerFactory: .init(players: [player]),
+            sessionCoordinator: makeSessionCoordinator(), completionGate: .init(), leaseProbe: leases
+        ))
+        controller.start(fileURL: temporaryAudioURL(), resumeProgress: 0,
+                         onProgress: { _ in }, onCompletion: { Issue.record("Unexpected completion") },
+                         onStartFailure: { failures.recordCompletion() })
+        try await waitUntil { failures.completionCount == 1 && player.stopCount == 1 }
+        #expect(player.playCount == 0)
+        #expect(await leases.deactivationCount == 0)
+    }
+
     @Test("Stop before activation rejects the late lease and never starts playback")
     func stopBeforeActivationRejectsLateLease() async throws {
         let player = AudioReviewPlaybackPlayerSpy()
@@ -138,7 +234,7 @@ struct AudioReviewPlaybackControllerTests {
         controller.stop()
         await activationGate.releaseFirst()
         try await waitUntil {
-            await leaseProbe.deactivationCount == 1
+            await leaseProbe.deactivationCount == 1 && player.stopCount == 1
         }
 
         #expect(player.playCount == 0)
@@ -283,6 +379,7 @@ struct AudioReviewPlaybackControllerTests {
         await completionGate.releaseFirst()
         try await Task.sleep(for: .milliseconds(20))
         controller.seek(to: 0.6)
+        try await waitUntil { secondPlayer.currentTime == 6 }
 
         #expect(firstCallbacks.completionCount == 0)
         #expect(secondCallbacks.completionCount == 0)
@@ -294,7 +391,7 @@ struct AudioReviewPlaybackControllerTests {
         #expect(secondCallbacks.completionCount == 0)
         await completionGate.releaseFirst()
         try await waitUntil {
-            secondCallbacks.completionCount == 1
+            secondCallbacks.completionCount == 1 && secondPlayer.stopCount == 1
         }
 
         #expect(firstCallbacks.completionCount == 0)
