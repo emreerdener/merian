@@ -1,10 +1,12 @@
 # Incident: Video recording microphone admission regression
 
 - **Date detected:** 2026-09-21
-- **Status:** Mitigated in source; follow-up device logs verify recording and
-  staging; downstream analysis failure remains open
-- **Affected versions/environments:** Reported on iOS app 1.0.3 (275); exact
-  source revision and device/OS combination unavailable in supplied evidence
+- **Status:** Recording works after an active call ends; call-contention
+  mitigation is implemented in source and awaits device verification. Earlier
+  downstream deployment/verification remains separate.
+- **Affected versions/environments:** Initially reported on iOS app 1.0.3 (275),
+  without source revision or device/OS details. The later active-call report
+  follows a local archive of `7bcb680e0`; see the dated evidence below.
 - **Affected surfaces:** iOS camera recording and Capture Scan feedback
 - **Current contract:**
   [Camera and hardware](../features-and-hardware/01-camera-and-hardware.md)
@@ -228,3 +230,49 @@ Device acceptance after deployment and installing the matching iOS build:
 Retain only redacted status codes and timings, together with the installed
 build's source provenance. A successful simulator suite does not replace these
 hardware and deployed-path checks.
+
+### 2026-09-21 — Active-call recording failure
+
+The user reported an immediate "Video couldn't be recorded" toast after merging
+and archiving. The latest local archive identifies source revision
+`7bcb680e05e48635ccb2667186d07df01d6852cc`, which includes the prior fixes. Its
+version remains 1.0.3 (275); version/build alone therefore cannot distinguish it
+from earlier archives. The installed binary was not independently inspected.
+
+The screenshot shows an active-call context. The user then confirmed that the
+same app records successfully after the call ends. This comparison identifies
+the call as the observed trigger. No fresh AVFoundation/OSStatus log was
+supplied, so the exact error code remains inferred from the native admission
+path and Apple's SDK contract.
+
+`AVAudioSession.setActive` documentation in the installed SDK states that
+another app's call prevents activation of recording categories with
+`insufficientPriority`. The current movie path activates `.playAndRecord` before
+configuring or starting its writer and previously propagated this optional-audio
+failure as failure of the whole video request.
+
+The source now handles only `NSOSStatusErrorDomain` / `insufficientPriority`
+during audio-lease admission. After coordinator rollback, video proceeds without
+a microphone input or lease. Other activation failures, cancellation, and movie
+configuration/writer errors retain their existing failure behavior. No movie is
+retried, no active-call audio is captured, and a subsequent capture tries audio
+admission again. Regression tests cover fallback, a later audible attempt,
+restored playback ownership, cancellation during failed admission, unrelated
+errors, and non-retry of a movie-operation error.
+
+Physical-device acceptance remains open: verify silent video during a call, then
+video with audio after the call, with exactly one completion and responsive
+preview. Ending the call verifies ordinary recording on the current archive; it
+does not verify the new fallback, which has not been archived or deployed.
+
+Call-contention source validation:
+
+- Complete iOS unit target: 4,227 tests, 6,244 total runs, zero failures or
+  skips. Evidence:
+  `.artifacts/local-ios/894d9c0ee7f7436eb77d362b7ec86f70.xcresult`.
+- Focused camera/audio suites: 60 tests, 61 runs, zero failures or skips.
+  Evidence: `.artifacts/local-ios/90e9b3836d614c878a337f2a85d8ff0b.xcresult`.
+- Generated-project validation, source-membership checks, Markdown formatting,
+  and diff whitespace checks passed. Incidental XcodeGen serialization changes
+  were discarded; this change adds no project sources or build settings.
+- Independent read-only review found no cancellation or lease-ownership blocker.

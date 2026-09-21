@@ -849,10 +849,15 @@ automatic audio-session configuration is disabled, so delayed playback cleanup
 cannot deactivate the recording through an obsolete playback lease. The
 microphone is detached before the lease is released on success, failure,
 timeout, or cancellation. Silent recordings acquire no audio lease and never
-request microphone permission. Overlapping requests are rejected before audio or
-movie configuration changes; audio readiness is not cached across attempts. An
-empty microphone-detach request must neither discover nor attach an input. Only
-an explicit audio-enabled request may attach one after lease activation; cleanup
+request microphone permission. An OSStatus `insufficientPriority` error while
+acquiring the microphone lease uses the same silent-video path after the audio
+coordinator rolls back activation; a phone call can cause this denial even when
+microphone permission is granted. Cancellation and other activation or camera
+errors still fail normally. The next capture independently retries audio
+admission. Overlapping requests are rejected before audio or movie configuration
+changes; audio readiness is not cached across attempts. An empty
+microphone-detach request must neither discover nor attach an input. Only an
+explicit audio-enabled request may attach one after lease activation; cleanup
 cannot introduce a new microphone input. A failure before a recording file
 returns displays "Video couldn't be recorded. Please try again." Failures
 preparing a returned file retain the staging-specific retry message. Empty

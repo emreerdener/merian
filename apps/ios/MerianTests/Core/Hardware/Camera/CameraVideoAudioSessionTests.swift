@@ -75,6 +75,120 @@ struct CameraVideoAudioSessionTests {
         ))
     }
 
+    private var priorityError: NSError {
+        NSError(domain: NSOSStatusErrorDomain, code: AVAudioSession.ErrorCode.insufficientPriority.rawValue)
+    }
+
+    @Test func microphonePriorityConflictRecordsSilentlyAndNextAttemptCanUseAudio() async throws {
+        let probe = Probe()
+        let attempts = OSAllocatedUnfairLock(initialState: 0)
+        let error = priorityError
+        let coordinator = AudioSessionCoordinator(operations: .init(
+            configureAndActivate: { _ in
+                probe.append("activate")
+                let attempt = attempts.withLock { $0 += 1; return $0 }
+                if attempt == 1 { throw error }
+            },
+            deactivate: { probe.append("deactivate") }
+        ))
+        let owner = CameraVideoAudioSession(dependencies: .init(
+            coordinator: coordinator,
+            configureInput: { probe.append($0 ? "attach" : "detach") }
+        ))
+        for _ in 0..<2 {
+            let result = try await owner.withAudio(includeAudio: true) {
+                probe.append("record")
+                return 42
+            }
+            #expect(result == 42)
+        }
+        #expect(probe.snapshot == [
+            "detach", "activate", "deactivate", "record", "detach",
+            "detach", "activate", "attach", "record", "detach", "deactivate"
+        ])
+    }
+
+    @Test func silentPriorityFallbackPreservesRestoredPlaybackOwner() async throws {
+        let probe = Probe()
+        let error = priorityError
+        let coordinator = AudioSessionCoordinator(operations: .init(
+            configureAndActivate: { configuration in
+                probe.append(configuration == .videoRecording ? "video" : "playback")
+                if configuration == .videoRecording { throw error }
+            },
+            deactivate: { probe.append("deactivate") }
+        ))
+        let playback = try await coordinator.activate(.playback)
+        let owner = CameraVideoAudioSession(dependencies: .init(
+            coordinator: coordinator,
+            configureInput: { probe.append($0 ? "attach" : "detach") }
+        ))
+        try await owner.withAudio(includeAudio: true) { probe.append("record") }
+        #expect(await coordinator.isCurrent(playback))
+        #expect(probe.snapshot == ["playback", "detach", "video", "playback", "record", "detach"])
+    }
+
+    @Test func otherActivationErrorsDoNotStartSilentRecording() async {
+        let errors: [any Error] = [
+            CancellationError(),
+            NSError(domain: "Unrelated", code: priorityError.code),
+            NSError(domain: NSOSStatusErrorDomain, code: AVAudioSession.ErrorCode.cannotInterruptOthers.rawValue),
+            NSError(domain: NSOSStatusErrorDomain, code: AVAudioSession.ErrorCode.mediaServicesFailed.rawValue)
+        ]
+        for error in errors {
+            let probe = Probe()
+            let coordinator = AudioSessionCoordinator(operations: .init(
+                configureAndActivate: { _ in throw error },
+                deactivate: { probe.append("deactivate") }
+            ))
+            let owner = CameraVideoAudioSession(dependencies: .init(
+                coordinator: coordinator,
+                configureInput: { probe.append($0 ? "attach" : "detach") }
+            ))
+            do {
+                try await owner.withAudio(includeAudio: true) { probe.append("record") }
+                Issue.record("Unexpected activation failure was swallowed")
+            } catch {}
+            #expect(probe.snapshot == ["detach", "deactivate", "detach"])
+        }
+    }
+
+    @Test func cancellationDuringPriorityFailurePreventsSilentRecording() async {
+        let probe = Probe()
+        let error = priorityError
+        let coordinator = AudioSessionCoordinator(operations: .init(
+            configureAndActivate: { _ in
+                withUnsafeCurrentTask { $0?.cancel() }
+                throw error
+            },
+            deactivate: { probe.append("deactivate") }
+        ))
+        let owner = CameraVideoAudioSession(dependencies: .init(
+            coordinator: coordinator,
+            configureInput: { probe.append($0 ? "attach" : "detach") }
+        ))
+        let task = Task {
+            try await owner.withAudio(includeAudio: true) { probe.append("record") }
+        }
+        await #expect(throws: CancellationError.self) { try await task.value }
+        #expect(probe.snapshot == ["detach", "deactivate", "detach"])
+    }
+
+    @Test func priorityErrorFromMovieOperationIsNotRetriedOrSwallowed() async throws {
+        let probe = Probe()
+        let (owner, _) = fixture(probe)
+        do {
+            try await owner.withAudio(includeAudio: true) {
+                probe.append("record")
+                throw priorityError
+            }
+            Issue.record("Movie failure was swallowed")
+        } catch {
+            #expect((error as NSError).code == priorityError.code)
+        }
+        #expect(probe.snapshot == ["detach", "video", "attach", "record", "detach", "deactivate"])
+    }
+
     @Test func delayedPlaybackCleanupCannotDeactivateVideo() async throws {
         let probe = Probe()
         let (owner, coordinator) = fixture(probe)
