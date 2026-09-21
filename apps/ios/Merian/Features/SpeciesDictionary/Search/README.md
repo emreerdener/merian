@@ -13,6 +13,19 @@ Explore's existing image/media primitives. `Models` owns the typed route.
 context, filters and retry. Only `Services` resolves live networking. Codable
 payloads and strict decoding remain in Core Network.
 
+`Components/SpeciesSearchIntroduction.swift` owns the keyboard-closed welcome: a
+rotating selection of existing 3D nature artwork, centered heading, three
+rotating prompts, and a two-column grid of recent real species (one column at
+accessibility text sizes). `SpeciesSearchViewModel` keeps the prompt set stable
+until New search and owns a six-item `SpeciesDictionaryCatalogViewModel` with
+Services-injected dependencies. That existing public catalog read and its
+cancellation/retry rules are separate from AI search. Successful starter rows
+remain in the current Explore session; tiles route straight to dictionary
+detail. Grid loading, empty, and failure states never prevent question entry.
+New search also leaves the keyboard closed. The illustration changes without an
+immediate repeat whenever the welcome screen reappears or New search is tapped,
+and stays fixed during typing and loading.
+
 The overview entry remains available during loading and failure. Search pushes
 onto Explore's shared stack. Species and Sightings share species criteria; media
 filters are explicitly Sightings-only. Dictionary excerpts are source text, not

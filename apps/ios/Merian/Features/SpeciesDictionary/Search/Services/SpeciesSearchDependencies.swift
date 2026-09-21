@@ -1,7 +1,8 @@
 extension SpeciesSearchViewModel.Dependencies {
     static var live: Self {
         Self(search: { try await MerianNetworkClient.shared.searchSpecies($0) },
-             errorMessage: { ExploreErrorFormatter.message(for: $0) })
+             errorMessage: { ExploreErrorFormatter.message(for: $0) },
+             starterCatalog: .live)
     }
 }
 

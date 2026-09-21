@@ -1349,17 +1349,36 @@ glow and occasional 1.8-second border sweep as the Field Chat sheet button,
 sized to the entry. Reduce Motion keeps the glow static without the shimmer; the
 decoration does not intercept taps or add VoiceOver elements. The existing
 18-point stack spacing to the featured card remains. It pushes Search in
-Explore's shared navigation stack and focuses the input. Root controls give way
-to Back, Search, and an icon-only New search button with its VoiceOver label
+Explore's shared navigation stack with the keyboard closed. Root controls give
+way to Back, Search, and an icon-only New search button with its VoiceOver label
 retained; the bottom menu is hidden. Composer text is vertically centered beside
 the send control, and example prompts use right-pointing arrows.
 
-Before submission, show **What would you like to discover?** and “Search by
-name, describe a species, or explore public sightings.” Tappable examples submit
-“Small birds with red heads”, “Orange and black butterflies”, and “Fungi that
-grow on trees”. The single bottom input changes from **Ask Naturebook…** to
-**Refine your search…** after successful results. Submissions are explicit; the
-current source does not issue model calls or show name suggestions while typing.
+Before submission, a bundled 3D nature illustration sits above the centered
+**What would you like to discover?** heading. The selection includes the
+bird/magnifier, monarch butterfly, fern, frog, mushroom, and blue bird. Each
+welcome-screen appearance and New search chooses a different illustration from
+the current one; it stays fixed during typing and request loading. There is no
+blue symbol or explanatory subheading. Three prompts are sampled from a curated
+pool of twelve supported descriptive searches. They stay fixed while reading,
+typing, opening details, or receiving results; New search selects three prompts
+outside the current set and keeps the keyboard closed. A fresh Explore session
+samples again. The keyboard opens when the user taps the composer or answers a
+clarification.
+
+Below the prompts, **Explore a species** shows up to six recently added, real
+dictionary records in a two-column thumbnail grid, changing to one column at
+accessibility text sizes. Tiles show common/scientific names and open the
+existing species detail route directly. The retained Catalog view model loads
+one six-item `recently_added` page through the existing `/species-dictionary`
+endpoint, independently of AI search and its allowance. Successful rows survive
+New search and detail navigation during the session. Loading and retry are local
+to the grid; missing images use the existing leaf placeholder and an empty page
+omits the grid without blocking questions.
+
+The single bottom input changes from **Ask Naturebook…** to **Refine your
+search…** after successful results. Submissions are explicit; the current source
+does not issue model calls or show name suggestions while typing.
 
 Species opens first. Results show the latest interpretation, editable scope
 chips, Species/Sightings selector, scrollable cards, a group-refinement

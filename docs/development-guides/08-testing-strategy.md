@@ -8894,11 +8894,16 @@ is separate from single-species Field Chat and category-list name filtering.
 | Session and concurrency               | `SpeciesSearchViewModelTests`: follow-up context, lazy tab reads, reset during a suspended request, obsolete-result rejection, failed replacement preserving draft/results, cancellation recovery, clarification across tabs, retries retaining the failed tab/cursor, and rapid filter edits composing against the pending context.     |
 | Local visibility                      | The same suite covers removed-post revisions and a blocked author's previously unseen post arriving after the block, while preserving another author's result. `SpeciesSearchSightings` gates both shared-store registration and rendered cards.                                                                                         |
 | Wire validation                       | `SpeciesSearchResponseTests`: version, request identity, result kind, context, clarification message/context, cursor key decoding, and cursor-to-page binding. `SpeciesDiscoverySearchEndpointTests` locks the typed authenticated POST, absence of caller-supplied viewer identity, and rejection of another request's response.        |
-| Layout artifacts                      | `testSearchVisualFixtures` attaches introduction and result renderings in light/dark appearance, including results at `accessibility3`. These are synthetic UI fixtures, not real database records or live-provider evidence, and require visual inspection.                                                                             |
+| Layout artifacts                      | `testSearchVisualFixtures` attaches introduction and result renderings in light/dark appearance, including welcome and results at `accessibility3`, and checks that no text field becomes first responder on entry. These are synthetic UI fixtures, not real database records or live-provider evidence, and require visual inspection. |
 | Edge interpretation and orchestration | `species-discovery-search/contract_test.ts` validates bounded requests, enums, cursors, nonempty model messages, and prompt boundaries. `handler_test.ts` covers consent/quota commit before provider dispatch, direct name lookup without AI, context-only reads, unsupported requests, and provider-failure accounting.                |
 | Visibility-safe enrichment            | `species-discovery-search/db_test.ts` preserves the RPC's health-filtered media array and rejects an unexpected raw-media table read.                                                                                                                                                                                                    |
 | Database security and retrieval       | `_tests/speciesDiscoverySearchMigrationContract.test.ts` and `tests/species_discovery_search.sql` cover service-only invoker privileges, caller denial, public biological eligibility, names and descriptive matching, cursor continuation, and viewer-aware public-sighting removal/block/quarantine rules on a fresh migration replay. |
 | Operational inventory                 | `_tests/aiQuotaCoverage.test.ts` includes the dedicated provider operation. `tooling_gate_test.ts` requires the route in deployment's critical user-route denial smoke; `documentation_contract_test.ts` keeps the current runbook and historical incident scope aligned.                                                                |
+
+`SpeciesSearchViewModelTests` also verifies nonrepeating prompt/illustration
+rotation and that loading/reusing the starter catalog never invokes AI search.
+Existing `SpeciesDictionaryCatalogViewModelTests` owns the reused loader's
+cancellation, retry, and stale-response contracts.
 
 The native search suites are selectors in
 `scripts/config/ios-runtime-audit.json`. Run focused tests through
@@ -8910,9 +8915,14 @@ checks documentation links and source contracts.
 Manual acceptance remains separate from automated passes:
 
 - Open search while the overview is loaded, loading, and unavailable. Check
-  entry spacing, initial keyboard focus, all three example prompts, explicit
-  keyboard and send-button submission, and New search while a request is
-  pending.
+  entry spacing and the keyboard staying closed until composer interaction.
+  Verify the 3D illustration changes when the welcome screen reappears or New
+  search is tapped, without changing during typing. Check the centered heading,
+  three stable prompts, a different prompt set after New search, explicit
+  submission, and reset during a request. Confirm the six-item recent-species
+  grid opens real detail routes, uses two columns (one at accessibility text
+  sizes), and retains successful rows on return. Exercise grid loading, empty,
+  failed-image, and retry states without blocking the composer.
 - Retrieve a known common/scientific name, then a descriptive query with
   dictionary-supported excerpts. Refine “Orange and black insects” with “Only
   butterflies”; check both tabs use the updated criteria and media scope is
