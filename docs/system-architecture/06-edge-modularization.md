@@ -708,8 +708,8 @@ dependency requires it. Required join resolution, moderation state, media
 promotion, scan creation, and owner read-back must remain awaited at their
 owning boundaries.
 
-**Strategic Thinking Budget Rule — `@google/genai@2.22.0`:** `thinkingConfig` is
-a first-class typed field in `@google/genai@2.22.0` (the SDK pinned in
+**Strategic Thinking Budget Rule — `@google/genai@2.23.0`:** `thinkingConfig` is
+a first-class typed field in `@google/genai@2.23.0` (the SDK pinned in
 `deno.json`). No cast is needed and `thinkingBudget` is reliably honoured at
 runtime. Budgets are set strategically per call type:
 
@@ -719,7 +719,7 @@ runtime. Budgets are set strategically per call type:
 | `identify` Flash vision (`gemini-2.5-flash`)              | `2,048`          | Raised from 1,024 after production data showed complex/invasive species hitting 99% utilisation; 2,048 covers observed worst-case with headroom      |
 | `identify` Pro vision (`gemini-2.5-pro`)                  | `5,000`          | Covers the hardest observed cases (fossil discrimination, rare cultivars, look-alike subspecies) where extended reasoning directly improves accuracy |
 
-The `@google/genai@2.22.0` SDK exposes `thoughtsTokenCount` in `UsageMetadata`,
+The `@google/genai@2.23.0` SDK exposes `thoughtsTokenCount` in `UsageMetadata`,
 making thinking token consumption observable in Edge Function logs. The
 `identify` function logs all four counters on every scan:
 

@@ -361,7 +361,7 @@ contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-re
   iNaturalist and GBIF media untouched. Keep it aligned with the iOS
   `ExternalReferenceImagePolicy`; use a new cleanup/prevention migration for
   every added outlier.
-- **`gemini.ts`**: Lazy paid-key `GoogleGenAI` 2.22.0 client plus
+- **`gemini.ts`**: Lazy paid-key `GoogleGenAI` 2.23.0 client plus
   structured-output and JSON extraction helpers. The 90-second HTTP deadline and
   single-attempt transport preserve durable quota/retry ownership.
   `gemini_test.ts` exercises the actual SDK through intercepted HTTP with

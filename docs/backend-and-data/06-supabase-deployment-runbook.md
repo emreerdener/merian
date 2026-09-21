@@ -4476,7 +4476,9 @@ satisfy the one-day delay. Do not disable the protection with
 the reviewed dependency-update flow instead.
 
 When changing dependencies, update the root manifest, regenerate all local
-configs, refresh the lockfile, and commit the three surfaces together:
+configs, refresh the lockfile, regenerate the Field Chat deployment identity,
+and commit all four surfaces together. A manifest-only Dependabot proposal
+requires these companion artifacts before candidate validation can pass:
 
 ```bash
 deno run --allow-read=services/supabase \
@@ -4488,6 +4490,10 @@ deno install --config services/supabase/functions/deno.json \
   --frozen=false --lockfile-only --entrypoint \
   $(rg --files services/supabase/functions services/supabase/scripts \
     | rg '\.ts$')
+
+deno run --allow-read=services/supabase \
+  --allow-write=services/supabase/functions/_shared/fieldChatDeploymentIdentity.ts \
+  services/supabase/scripts/generate_field_chat_deployment_identity.ts --write
 
 deno run --allow-read=services/supabase \
   services/supabase/scripts/validate_function_dependencies.ts

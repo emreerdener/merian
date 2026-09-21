@@ -2,6 +2,7 @@ import Foundation
 @testable import Merian
 import SwiftUI
 import Testing
+import UIKit
 
 @MainActor
 @Suite(.serialized, .sharedProcessState(.gamificationManager))
@@ -234,12 +235,21 @@ struct MilestoneToastPresenterTests {
         #expect(ToastStackPresentation.visibleBackingLayerCount(for: 5) == 2)
     }
 
-    @Test func stackedToastBackingSurfaceStaysVisibleWhenForegroundDismisses() {
-        let stackedAlpha = renderedToastCenterAlpha(pendingItemCount: 1)
-        let singleAlpha = renderedToastCenterAlpha(pendingItemCount: 0)
+    @Test func stackedToastBackingSurfaceStaysVisibleWhenForegroundDismisses() throws {
+        let stackedAlpha = try renderedToastCenterAlpha(pendingItemCount: 1)
+        let singleAlpha = try renderedToastCenterAlpha(pendingItemCount: 0)
 
         #expect(stackedAlpha > 80)
         #expect(singleAlpha < 8)
+    }
+
+    @Test(arguments: [0.0, 0.5, 1.0])
+    func bitmapAlphaSamplerPreservesTransparencyAndOpacity(opacity: Double) throws {
+        let alpha = try renderedCenterAlpha(
+            Color.black.opacity(opacity).frame(width: 40, height: 40)
+        )
+
+        #expect(abs(Int(alpha) - Int((opacity * 255).rounded())) <= 1)
     }
 
     @Test func milestoneStackPresentationKeepsOnlyTheActivePayloadAndReportsQueueDepth() {
@@ -330,7 +340,7 @@ struct MilestoneToastPresenterTests {
             - MilestoneToastDismissalGesture.offscreenDistance) < 0.001)
     }
 
-    private func renderedToastCenterAlpha(pendingItemCount: Int) -> UInt8 {
+    private func renderedToastCenterAlpha(pendingItemCount: Int) throws -> UInt8 {
         let size = CGSize(width: 320, height: 140)
         let view = ToastBanner(
             onDismiss: nil,
@@ -344,34 +354,49 @@ struct MilestoneToastPresenterTests {
         }
         .frame(width: size.width, height: size.height)
 
+        return try renderedCenterAlpha(view)
+    }
+
+    private func renderedCenterAlpha<V: View>(_ view: V) throws -> UInt8 {
         let renderer = ImageRenderer(content: view)
-        renderer.scale = 1
-        guard let image = renderer.uiImage?.cgImage,
-              let centerPixel = image.cropping(to: CGRect(
-                  x: CGFloat(image.width / 2),
-                  y: CGFloat(image.height / 2),
-                  width: 1,
-                  height: 1
-              )) else {
-            Issue.record("Expected the toast renderer to produce a center pixel")
-            return 0
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = false
+        format.preferredRange = .standard
+
+        // Render into a synchronous bitmap rather than accepting a non-nil
+        // uiImage whose image provider may not have finished drawing.
+        var renderedImage: UIImage?
+        renderer.render(rasterizationScale: 1) { size, draw in
+            renderedImage = UIGraphicsImageRenderer(size: size, format: format).image { context in
+                context.cgContext.translateBy(x: 0, y: size.height)
+                context.cgContext.scaleBy(x: 1, y: -1)
+                draw(context.cgContext)
+            }
         }
+        let image = try #require(renderedImage?.cgImage)
+        let centerPixel = try #require(image.cropping(to: CGRect(
+            x: CGFloat(image.width / 2),
+            y: CGFloat(image.height / 2),
+            width: 1,
+            height: 1
+        )))
 
         var pixel = [UInt8](repeating: 0, count: 4)
-        guard let context = CGContext(
-            data: &pixel,
-            width: 1,
-            height: 1,
-            bitsPerComponent: 8,
-            bytesPerRow: 4,
-            space: CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        ) else {
-            Issue.record("Expected a pixel-sampling context")
-            return 0
+        // CGContext retains this pointer until drawing finishes. Keep both
+        // construction and drawing within the array's scoped buffer lifetime.
+        try pixel.withUnsafeMutableBytes { buffer in
+            let context = try #require(CGContext(
+                data: buffer.baseAddress,
+                width: 1,
+                height: 1,
+                bitsPerComponent: 8,
+                bytesPerRow: 4,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            ))
+            context.draw(centerPixel, in: CGRect(x: 0, y: 0, width: 1, height: 1))
         }
-
-        context.draw(centerPixel, in: CGRect(x: 0, y: 0, width: 1, height: 1))
         return pixel[3]
     }
 }

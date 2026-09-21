@@ -4,11 +4,11 @@
 export const FIELD_CHAT_BUNDLE_SHA256 = Object.freeze(
   {
     "explore-post-chat":
-      "2895f417e16cc267a743121a9335cbefd7d5c6815ef865e118cb4d39a66e0484",
+      "7c2d91a8d5ffdd117273700a69a7ae9b859fa7c11d3a16a4a62cb1a0bc15be7f",
     "insight-chat":
-      "2b93c3997d3b98f12f894b54ea7947fc29a2f60bbf41c04609ad61ca20b9a2a7",
+      "74991402d029cedef70deae0b5c1df26673973c136f6dc9ac4c064d0a292d175",
     "species-dictionary-chat":
-      "eed24b31f60128bc0dd8ef38d4915c0e04132abe8e4b9f714f3aa359abfb28a8",
+      "179e9d6c801cf28b572bbebdc415643d842c539d93e9c75e791129dc3bef9863",
   } as const,
 );
 

@@ -1618,7 +1618,7 @@ provider dispatch:
   Detailed failures remain observable in Supabase Edge Function logs without
   exposing internals to the client.
 - **Shared Gemini Singleton** (`_shared/gemini.ts`): The `GoogleGenAI` client
-  from `@google/genai@2.22.0` is constructed lazily on the first provider call
+  from `@google/genai@2.23.0` is constructed lazily on the first provider call
   and reused within a warm isolate through `_genAI.models`. A missing
   `GEMINI_PAID_API_KEY` fails before dispatch. Identification, audio moderation,
   biological enrichment, and all three Field Chat routes use this owner. Calls

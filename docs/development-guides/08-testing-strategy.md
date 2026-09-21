@@ -2729,7 +2729,13 @@ prove visual parity, live Auth/provider behavior, or migration execution.
   retryable resolver is suspended, same-key processing in the replacement
   session, completed-scan deduplication across same-account session advance, the
   global retry-task bound, and routing account/cache/acknowledgement/
-  achievement effects only through injected dependencies.
+  achievement effects only through injected dependencies. The stacked-toast
+  rendering regression keeps its visible-backing and transparent-single-toast
+  alpha thresholds. It draws the real SwiftUI view into a synchronous Core
+  Graphics bitmap and holds the pixel buffer inside `withUnsafeMutableBytes`
+  through context creation and drawing. Transparent, half-opaque, and opaque
+  calibration cases cover the same renderer and sampler; missing images or
+  contexts fail immediately instead of returning zero alpha.
 - **Source guardrails**: `make validate-ios-event-routing` scans production
   sources; `make test-ios-event-routing` exercises missing canonical model/bus,
   multiline, alias, application-name/post, duplicate-subject, singleton,
