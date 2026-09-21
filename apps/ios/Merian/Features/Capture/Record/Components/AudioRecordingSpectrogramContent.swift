@@ -22,7 +22,7 @@ struct AudioRecordingSpectrogramContent: View {
                 reviewInteractionLayer
             }
         }
-        .overlay(alignment: .bottomLeading) {
+        .overlay(alignment: .bottomTrailing) {
             if presentation.isReviewing {
                 reviewBoostControl
                     .padding(14)
@@ -32,7 +32,7 @@ struct AudioRecordingSpectrogramContent: View {
     }
 
     private var reviewBoostControl: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .trailing, spacing: 6) {
             if presentation.reviewBoost.hasFailed {
                 Text("Audio boost unavailable. Playing original.")
                     .font(.caption)
@@ -57,7 +57,7 @@ struct AudioRecordingSpectrogramContent: View {
                 .background(.black.opacity(0.28), in: Capsule())
                 .background(.ultraThinMaterial, in: Capsule())
                 .shadow(color: .black.opacity(0.3), radius: 2, y: 1)
-                .frame(minHeight: 44)
+                .frame(minHeight: 44, alignment: .bottom)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)

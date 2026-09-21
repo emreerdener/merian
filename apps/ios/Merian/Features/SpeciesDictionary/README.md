@@ -53,6 +53,15 @@ detail/stats TTLs, alias capacity, warm-cache cancellation, and DEBUG reset
 semantics, use the
 [Core identity/cache contract](../../Core/Network/README.md#species-dictionary-identity-and-cache-boundary).
 
+When a name-only read returns an external reference, Detail's live service calls
+authenticated resolution, validates the receipt, then fetches and checks the
+exact verified UUID. The page retains reference content while waiting and
+exposes Retry on failure. The view owns task cancellation; the state owner
+rejects stale completion and retry replay. Resolution enables the existing Share
+and Field Chat actions without starting a conversation. See the
+[Detail contract](Detail/README.md#field-chat) for identity and presentation
+ownership. The public dictionary read remains read-only.
+
 Species is the only dictionary browser. Taxonomy remains metadata in Catalog and
 Detail; the Tree implementation, route, feature flag, DTOs, and endpoint mode
 are retired. Decode-only handling of the former `taxonomy` overview category
@@ -70,5 +79,7 @@ aggregate has been removed. Use the
 [canonical iOS matrix](../../../../../docs/features-and-hardware/16-species-dictionary.md#testing)
 and the complete unit target for this boundary. Backend request, eligibility,
 handler, and disposable-database coverage lives beside
-`services/supabase/functions/species-dictionary/` and under
+`services/supabase/functions/species-dictionary/` and
+`services/supabase/functions/resolve-species-dictionary/`, with migration and
+concurrency contracts under `functions/_tests/` and catalog assertions under
 `services/supabase/tests/`.

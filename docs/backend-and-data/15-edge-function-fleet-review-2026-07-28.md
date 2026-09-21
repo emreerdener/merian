@@ -277,6 +277,7 @@ share-scan-to-explore
 species-dictionary
 species-dictionary-chat
 species-discovery-search
+resolve-species-dictionary
 species-observation-stats
 submit-community-feedback
 submit-community-identification
@@ -329,3 +330,11 @@ Its provider path uses a separate quota operation and current Gemini consent.
 The entry above records repository scope, not a production deployment or hosted
 verification. See its
 [contract](../../services/supabase/functions/species-discovery-search/README.md).
+
+### 2026-09-21 source inventory addition
+
+`resolve-species-dictionary` validates the user JWT through `withEdgeHandler`
+before bounded admission, exact GBIF verification, or canonical insertion. It
+uses separate non-AI request counters and leaves public dictionary reads
+read-only. This inventory records source scope, not deployment evidence. See the
+[resolver contract](../../services/supabase/functions/resolve-species-dictionary/README.md).

@@ -247,6 +247,26 @@ app claims the same URL through Universal Links.
 
 ## In-App Field Chat
 
+Name-only Similar Species links, including older saved Insights, may initially
+load an `external:` reference entry. iOS then calls the authenticated
+`/resolve-species-dictionary` route to reuse or create a verified canonical
+species record. Reference content stays visible during resolution; failure shows
+an explanation and Retry. A successful identity receipt binds the original name
+to the accepted species UUID, which is fetched and checked for exact identity
+before Share and Field Chat become available. Retry tasks are view-owned and
+cancel on dismissal; replaying an old resolution retry cannot invalidate a newer
+page load. Already-visible public reference fields can fill missing canonical
+content in the current presentation while background enrichment runs; this does
+not alter the network cache. Opening the page never starts chat.
+
+The resolver checks exact accepted GBIF identities, handles verified synonyms,
+preserves existing curated rows, and limits requests per user and globally. It
+creates no lookalike relationships or recursive lookalike work. The public
+dictionary read remains read-only. See the
+[resolver contract](../../services/supabase/functions/resolve-species-dictionary/README.md).
+This is source behavior; migration, endpoint deployment, and iOS distribution
+remain separate release steps.
+
 `SpeciesDictionaryPageContentView` shows the shared `FieldChatToolbarButton` at
 the bottom right only when its loaded response contains a valid canonical
 species UUID. Loading, not-found, error, and invalid ID states keep the bottom
@@ -1160,6 +1180,44 @@ and the complete `merianTests` target. Native cache/validator/architecture
 execution and cached-dependency typechecking do not replace a fresh iOS build,
 Simulator tests, or the manual checks below.
 
+For name-only resolution changes, also run:
+
+```sh
+deno check --frozen --config services/supabase/functions/resolve-species-dictionary/deno.json \
+  services/supabase/functions/resolve-species-dictionary/index.ts
+deno test --frozen --allow-env --allow-read=. --config services/supabase/functions/deno.json \
+  services/supabase/functions/resolve-species-dictionary/ \
+  services/supabase/functions/refresh-species-model-content/lookalikeCandidates.test.ts \
+  services/supabase/functions/_tests/speciesDictionaryResolutionMigrationContract.test.ts
+```
+
+The complete disposable-database gate must execute
+`services/supabase/tests/species_dictionary_resolution.sql` and both cases in
+`functions/_tests/speciesDictionaryResolutionDb.test.ts`. The latter requires
+`SUPABASE_DB_TEST_URL` for a disposable loopback database; a skipped test is not
+concurrency evidence. Coverage includes denied callers, independent admission,
+identity conflicts, ambiguous keys, legacy missing-key persistence, curated
+content preservation, suppressed recursive lookalikes, and concurrent new or
+legacy records reusing one UUID across accepted-name variants. Never print the
+database URL or use a hosted database for these tests.
+
+On iOS, `SpeciesDictionaryResponseValidatorTests` checks the versioned receipt;
+`SpeciesDictionaryDetailServiceTests` checks receipt-to-detail ordering and
+exact UUID binding; `SpeciesDictionaryPageViewModelTests` checks readable
+reference state, failure/retry, cancellation, and retry replay during a fresh
+load; `SpeciesDictionaryDetailPresentationTests` checks merge precedence. Run
+these through `make ios-local-build`, then the complete `merianTests` target.
+
+Local working-tree validation on 2026-09-21 passed 1,327 XCTest tests and 2,883
+Swift Testing tests, 2,024 Edge tests, all 383 catalog assertions after clean
+migration replay, and both explicitly enabled resolution concurrency cases. The
+ordinary Edge run reported six conditional tests ignored; the two resolution
+concurrency cases were executed separately against the disposable database.
+Recursive Deno checks, tooling, migration/DTO contracts, project validation,
+formatting, and whitespace checks also passed. Hosted deployment, exact-SHA CI
+release evidence, and the on-device navigation checks below remain separate
+outstanding verification.
+
 For overview-retention changes, start with
 `SpeciesDictionaryOverviewViewModelTests` and the Explore Shell navigation
 suites through `make ios-local-build`; then run the applicable matrix above and
@@ -1255,7 +1313,19 @@ Manual acceptance:
   Insight, Explore, the Dictionary catalog, or the Dictionary detail gallery.
   Confirm the next live image is used when available and the leaf placeholder
   appears when every candidate is blocked or fails.
-- Confirm a missing dictionary row shows the not-found/retry state.
+- Follow the reported path: own Explore post → own Insight → Similar Species → a
+  name-only dictionary reference. Use an explicitly authorized local/staging
+  target and a biological species absent from that test catalog. Confirm the
+  reference remains readable during preparation, then Share and Field Chat
+  appear after verified resolution. Opening the page must not create or load a
+  conversation. Repeat using an older saved Insight.
+- Simulate verification failure or offline state, retry, navigate away while
+  waiting, and return after Retry was used. Confirm no stuck loading state,
+  stale species replacement, duplicate record, or automatic chat presentation.
+  Exercise a verified synonym and an existing legacy record with no taxon ID;
+  confirm the correct existing UUID is reused when it can be verified.
+- Confirm an unrecoverable UUID lookup shows not-found/retry; a name-only public
+  reference follows the resolution flow above.
 - Share a loaded dictionary page and confirm the payload uses the canonical UUID
   HTTPS URL and common-name subject.
 - Open canonical and legacy HTTPS/custom-scheme species links and confirm

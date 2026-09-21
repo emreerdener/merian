@@ -43,35 +43,45 @@ Explore-post, and Species Dictionary hosts.
 
 An empty Field Chat displays a 184-point elevated image stack from the source
 sheet, with its featured image first, horizontal swiping that loops in both
-directions, a compact page count, and reference-image credits. The front card
-tracks the drag, then slides and rotates outward while the next card moves
-forward; the outgoing card returns behind the deck without an opacity fade.
-Insights retains capture order and includes existing video posters and displayed
-reference images; Explore and Dictionary use their existing public media
-projections. Audio and video playback are excluded. Images are presentation-only
-and never change the text-only AI context. Missing or failed images fall back to
-the twinkle graphic, independently of chat loading.
+directions and reference-image credits. Page position is announced by VoiceOver
+without a visible numeric label. The front card tracks the drag, then slides and
+rotates outward while the next card moves forward; a 0.12-second eased exit
+flows into a 0.16-second eased return behind the deck without an opacity fade or
+spring-settling pause. Insights retains capture order and includes existing
+video posters and displayed reference images; Explore and Dictionary use their
+existing public media projections. Audio and video playback are excluded. Images
+are presentation-only and never change the text-only AI context. Missing or
+failed images fall back to the twinkle graphic, independently of chat loading.
 
-The welcome aligns to the top of the content below the toolbar, with 24 points
-of top padding. It is a distinct presentation state with a conversational
-heading and three full-width, multiline suggested-question buttons beneath the
-image. Their opaque fill is white in light mode and a contrasting
-secondary-system background in dark mode. A decorative directional arrow is
-vertically centered at the trailing edge of each prompt. The question area stays
-reserved while generated suggestions load, without showing temporary questions.
-The finished set animates in once; failure or a four-second deadline reveals the
-local fallback set instead. The deadline runs from welcome presentation, even
-while drafting or offline hides the questions; returning after it reveals the
-best available set immediately. Once shown, welcome questions remain stable for
-that presentation, including across typing or connectivity changes. Late
-generated results do not replace visible questions. Reduce Motion disables the
-reveal animation, and dismissing or replacing the welcome cancels its deadline
-task. A tap uses the existing send flow, telemetry, and preference-aware
-selection haptic. The welcome is never persisted as an assistant message. Once a
-saved or pending message exists, the welcome disappears and suggestions use
-compact chips above the pinned composer. Drafting and offline states hide the
-initial questions; large text and the keyboard allow the welcome content to
-scroll.
+The welcome aligns to the top of the content below the toolbar, with 8 points of
+top padding. It is a distinct presentation state with a conversational heading
+and three full-width, multiline suggested-question buttons beneath the image,
+with 16-point side margins matching the composer. Their opaque fill is white in
+light mode and a contrasting secondary-system background in dark mode. A
+decorative directional arrow is vertically centered at the trailing edge of each
+prompt. The question area stays reserved while generated suggestions load,
+without showing temporary questions. The finished set animates in once; failure
+or a four-second deadline reveals the local fallback set instead. The deadline
+runs from welcome presentation, even while drafting or offline hides the
+questions; returning after it reveals the best available set immediately. Once
+shown, welcome questions remain stable for that presentation, including across
+typing or connectivity changes. Late generated results do not replace visible
+questions. Reduce Motion disables the reveal animation, and dismissing or
+replacing the welcome cancels its deadline task. A tap uses the existing send
+flow, telemetry, and preference-aware selection haptic. The welcome is never
+persisted as an assistant message. Once a saved or pending message exists, the
+welcome disappears and suggestions use compact chips above the pinned composer.
+Compact chips use the same delayed reveal and four-second fallback policy. They
+exclude stale generated questions while loading and remain fixed once revealed.
+Each new reply or subject starts a fresh set; typing and background refreshes do
+not replace an already visible set. The compact row reserves its height while
+loading and respects Reduce Motion, without moving the pinned composer. Drafting
+and offline states hide the initial questions; large text and the keyboard allow
+the welcome content to scroll.
+
+Explore and Species Dictionary keep the privacy caption below the pinned
+composer near the bottom of the viewport, including after the conversation
+begins. Focusing the input hides the caption; dismissing focus restores it.
 
 Committed swipe or VoiceOver page changes produce one selection haptic through
 the existing preference-aware feedback owner. Automatic loading/fallback

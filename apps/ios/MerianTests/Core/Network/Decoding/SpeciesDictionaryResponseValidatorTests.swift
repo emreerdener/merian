@@ -8,6 +8,24 @@ struct SpeciesDictionaryResponseValidatorTests {
     private typealias Fixtures = SpeciesDictionaryNetworkFixtures
     private typealias Validator = SpeciesDictionaryResponseValidator
 
+    @Test func resolutionBindsCanonicalIdentityToRequestedNameAndAllowsVerifiedSynonym() throws {
+        let response = SpeciesDictionaryResolutionResponse(
+            schemaVersion: 1, requestedScientificName: "Fixtureus synonym",
+            speciesId: Fixtures.speciesID, scientificName: "Fixtureus accepted"
+        )
+        #expect(try Validator.resolution(response, requestedScientificName: "Fixtureus synonym").speciesId == Fixtures.speciesID)
+        #expect(throws: MerianError.invalidResponse) {
+            try Validator.resolution(response, requestedScientificName: "Unrelated species")
+        }
+        for invalid in [
+            SpeciesDictionaryResolutionResponse(schemaVersion: 2, requestedScientificName: "Fixtureus synonym", speciesId: Fixtures.speciesID, scientificName: "Fixtureus accepted"),
+            SpeciesDictionaryResolutionResponse(schemaVersion: 1, requestedScientificName: "Fixtureus synonym", speciesId: "external:fixture", scientificName: "Fixtureus accepted"),
+            SpeciesDictionaryResolutionResponse(schemaVersion: 1, requestedScientificName: "Fixtureus synonym", speciesId: Fixtures.speciesID, scientificName: "")
+        ] {
+            #expect(throws: MerianError.invalidResponse) { try Validator.resolution(invalid, requestedScientificName: "Fixtureus synonym") }
+        }
+    }
+
     @Test func catalogAndOverviewRequireExactlySchemaOne() throws {
         let overview = try Fixtures.decode(SpeciesDictionaryOverviewResponse.self, json: Fixtures.overviewJSON).data
         for schema: Int? in [nil, 0, 1, 2, 99] {

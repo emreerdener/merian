@@ -5,6 +5,30 @@ import Testing
 
 @MainActor
 struct FieldChatPresentationTests {
+    @Test func compactFallbackIgnoresStaleGeneratedQuestionsAcrossPublicHosts() {
+        for source in [FieldChatSource.explorePost, .speciesDictionary] {
+            let viewModel = InsightChatViewModel(source: source)
+            viewModel.suggestedPrompts = [.init(text: "Question from the previous reply?", category: "ecology")]
+            let fallback = viewModel.publicPostSuggestionChips(displayName: "Monarch", includeSuggestedPrompts: false)
+            #expect(fallback.count == 3)
+            #expect(!fallback.contains("Question from the previous reply?"))
+            #expect(viewModel.publicPostSuggestionChips(displayName: "Monarch").first == "Question from the previous reply?")
+        }
+    }
+
+    @Test func compactFallbackRetainsLocalConfidenceQuestionWithoutStaleGeneratedQuestion() {
+        let viewModel = InsightChatViewModel()
+        let species = SpeciesData(
+            commonName: "Monarch", scientificName: "Danaus plexippus",
+            insightData: InsightData(aiReasoning: "", hazardType: "none"), confidenceScore: 0.6
+        )
+        viewModel.suggestedPrompts = [.init(text: "Previous confidence question?", category: "confidence")]
+        let fallback = viewModel.suggestionChips(for: species, timestamp: nil, includeSuggestedPrompts: false)
+        #expect(fallback.contains("What makes this ID uncertain?"))
+        #expect(!fallback.contains("Previous confidence question?"))
+        #expect(fallback.count <= 3)
+    }
+
     @Test func copyAnswerPerformsOnlyClipboardSideEffect() {
         var copiedText: String?
 
@@ -14,7 +38,6 @@ struct FieldChatPresentationTests {
 
         #expect(copiedText == "The saved traits support this identification.")
     }
-
 
     @Test func speciesDictionarySourceHasPrivateTelemetryClassification() {
         #expect(FieldChatSource.speciesDictionary.telemetryValue == "species_dictionary")
@@ -411,7 +434,6 @@ struct FieldChatPresentationTests {
         ])
     }
 
-
     @Test func testIdentificationConcernPromptDetection() {
         let concernPrompts = [
             "I think this identification is incorrect",
@@ -546,8 +568,7 @@ private struct SpeciesDictionaryPromptLabelFixture: Decodable {
 }
 
 private func speciesDictionaryPromptLabelContract() throws
-    -> SpeciesDictionaryPromptLabelContract
-{
+    -> SpeciesDictionaryPromptLabelContract {
     var repositoryRoot = URL(fileURLWithPath: #filePath)
     for _ in 0..<6 {
         repositoryRoot.deleteLastPathComponent()

@@ -4,17 +4,19 @@ extension InsightChatViewModel {
     func suggestionChips(
         for speciesData: SpeciesData,
         timestamp: Date?,
-        displayName: String? = nil
+        displayName: String? = nil,
+        includeSuggestedPrompts: Bool = true
     ) -> [String] {
         let fallbackChips = Self.suggestionChips(
             for: speciesData,
             timestamp: timestamp,
             displayName: displayName
         )
+        let prompts = includeSuggestedPrompts ? suggestedPrompts : []
         let sentTexts = Set(sentAndPendingPromptTexts)
         var seen = Set<String>()
         var chips: [String] = []
-        let availableConfidencePrompt = suggestedPrompts.first { prompt in
+        let availableConfidencePrompt = prompts.first { prompt in
             let key = normalizedPromptKey(prompt.text)
             return prompt.category == "confidence"
                 && !key.isEmpty
@@ -34,7 +36,7 @@ extension InsightChatViewModel {
         var ordinaryChipCount = 0
         var includedRequiredConfidencePrompt = false
 
-        for prompt in suggestedPrompts.map(\.text) + fallbackChips {
+        for prompt in prompts.map(\.text) + fallbackChips {
             let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
             let key = normalizedPromptKey(trimmed)
             guard !trimmed.isEmpty,
@@ -64,7 +66,7 @@ extension InsightChatViewModel {
         return chips
     }
 
-    func publicPostSuggestionChips(displayName: String) -> [String] {
+    func publicPostSuggestionChips(displayName: String, includeSuggestedPrompts: Bool = true) -> [String] {
         let name = source == .speciesDictionary
             ? Self.speciesDictionaryPromptLabel(displayName)
             : displayName.trimmedNonEmptyValue
@@ -76,7 +78,8 @@ extension InsightChatViewModel {
         ]
         let sentTexts = Set(sentAndPendingPromptTexts)
         var seen = Set<String>()
-        return (suggestedPrompts.map(\.text) + fallback).filter { prompt in
+        let prompts = includeSuggestedPrompts ? suggestedPrompts : []
+        return (prompts.map(\.text) + fallback).filter { prompt in
             let key = prompt.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
             return !key.isEmpty && !sentTexts.contains(key) && seen.insert(key).inserted
         }.prefix(3).map { $0 }

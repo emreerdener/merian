@@ -2,7 +2,11 @@
 
 Returns public species-level dictionary data for the standalone iOS and public
 web species pages. The endpoint is intentionally shared-safe and must not expose
-user-specific scan data.
+user-specific scan data. This endpoint remains read-only. A name-only external
+reference can be upgraded by the separate authenticated
+[`resolve-species-dictionary`](../resolve-species-dictionary/README.md) route;
+iOS explicitly calls that route before enabling canonical-ID actions. Public web
+reads do not initiate resolution or persistence.
 
 ## Request
 

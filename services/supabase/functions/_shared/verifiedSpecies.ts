@@ -1,13 +1,10 @@
-import type { SimilarSpeciesEntry } from "../_shared/biology.ts";
-import {
-  fetchWithDeadline,
-  readResponseJsonWithinLimit,
-} from "../_shared/outbound.ts";
+import type { SimilarSpeciesEntry } from "./biology.ts";
+import { fetchWithDeadline, readResponseJsonWithinLimit } from "./outbound.ts";
 import {
   normalizePublicConfidence,
   sanitizeLookalikeVisualTraits,
   stringValue,
-} from "../_shared/publicSpeciesProjection.ts";
+} from "./publicSpeciesProjection.ts";
 
 export const MAX_LOOKALIKE_CANDIDATES = 3;
 const GBIF_TIMEOUT_MS = 6_000;
@@ -153,6 +150,7 @@ export async function fetchVerifiedLookalikeTaxon(
   scientificName: string,
   primary: LookalikeTaxonomy,
   fetcher: typeof fetch = fetch,
+  signal?: AbortSignal,
 ): Promise<VerifiedLookalikeTaxon | null> {
   const url = new URL("https://api.gbif.org/v1/species/match");
   url.searchParams.set("name", scientificName);
@@ -161,7 +159,7 @@ export async function fetchVerifiedLookalikeTaxon(
   for (const key of ["kingdom", "order", "family"] as const) {
     if (rank(primary[key])) url.searchParams.set(key, text(primary[key])!);
   }
-  const match = await fetchGbifObject(url, fetcher);
+  const match = await fetchGbifObject(url, fetcher, signal);
   if (
     match.matchType !== "EXACT" || match.rank !== "SPECIES" ||
     text(match.canonicalName)?.toLowerCase() !== scientificName.toLowerCase()
@@ -175,6 +173,7 @@ export async function fetchVerifiedLookalikeTaxon(
     accepted = await fetchGbifObject(
       new URL(`https://api.gbif.org/v1/species/${taxonKey}`),
       fetcher,
+      signal,
     );
     if (positiveKey(accepted.key) !== taxonKey) return null;
   }
@@ -201,10 +200,11 @@ export async function fetchVerifiedLookalikeTaxon(
 async function fetchGbifObject(
   url: URL,
   fetcher: typeof fetch,
+  signal?: AbortSignal,
 ): Promise<Record<string, unknown>> {
   const response = await fetchWithDeadline(
     url,
-    { headers: { Accept: "application/json" } },
+    { headers: { Accept: "application/json" }, signal },
     { fetcher, timeoutMs: GBIF_TIMEOUT_MS },
   );
   if (!response.ok) {

@@ -14,6 +14,15 @@
 The Supabase backend for Merian. This directory contains the PostgreSQL database
 migrations, Deno Edge Functions, and related configuration.
 
+## Verified dictionary resolution
+
+The authenticated
+[`resolve-species-dictionary`](functions/resolve-species-dictionary/README.md)
+route upgrades name-only pages to canonical GBIF-verified records. Its separate
+request budgets do not consume AI or scan allowances. Apply the service-only
+admission/materialization migration before deploying the endpoint and shipping
+its iOS caller. The public dictionary read stays read-only.
+
 ## Structure
 
 ```text
@@ -2075,7 +2084,7 @@ in-handler auth boundary or provide a replacement short-lived user smoke
 identity. Final Function failures report only HTTP status plus handler-marker
 presence; Data API failures instead identify the PostgREST/RPC diagnostic path
 without expecting a Function header. The production gate additionally calls all
-fifteen customer-critical scan, signing, share-state, Explore, Field Chat,
+sixteen customer-critical scan, signing, share-state, Explore, Field Chat,
 Community, identity-handoff, and deletion routes without Authorization until
 each returns fail-closed `401` with the fixed handler marker:
 `generate-upload-urls`, `identify-multimodal`, `check-scan-status`,

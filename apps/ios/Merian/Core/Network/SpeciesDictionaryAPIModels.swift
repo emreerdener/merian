@@ -1,5 +1,12 @@
 import Foundation
 
+struct SpeciesDictionaryResolutionResponse: Decodable {
+    let schemaVersion: Int
+    let requestedScientificName: String
+    let speciesId: String
+    let scientificName: String
+}
+
 struct SpeciesDictionaryResponse: Decodable {
     let schemaVersion: Int?
     let data: SpeciesDictionaryEntry

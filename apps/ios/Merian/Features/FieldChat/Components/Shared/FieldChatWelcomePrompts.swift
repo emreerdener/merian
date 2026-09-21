@@ -9,7 +9,7 @@ struct FieldChatWelcomePrompts: View {
     let onSelection: (String) -> Void
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var model = FieldChatWelcomePromptsModel()
+    @State private var model = FieldChatPromptRevealModel()
 
     private struct Input: Equatable {
         let candidates: [String]
@@ -37,7 +37,7 @@ struct FieldChatWelcomePrompts: View {
                         .transition(.identity)
                     }
                 }
-                .padding(.horizontal, 24)
+                .padding(.horizontal, 16)
                 .padding(.vertical, 14)
                 .accessibilityIdentifier("FieldChatWelcomePrompts")
             }

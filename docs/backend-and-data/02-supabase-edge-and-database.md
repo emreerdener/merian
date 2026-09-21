@@ -876,6 +876,32 @@ See `docs/backend-and-data/05-api-contracts.md`,
 `docs/features-and-hardware/17-public-web-share-pages.md` for the
 request/response, iOS, and web contracts.
 
+## The Authenticated Species Resolution Node (`resolve-species-dictionary`)
+
+The iOS name-only dictionary flow can first show an `external:` public
+reference, then call `POST /resolve-species-dictionary` to obtain a canonical
+identity. This separate mutating route uses `withEdgeHandler` to validate the
+live user before admission, lookup, or writes, even though gateway
+`verify_jwt = false`. Responses are private/no-store; the public read node above
+remains read-only.
+
+Only a bounded scientific name comes from the caller. Names absent from the
+dictionary use exact GBIF verification through `_shared/verifiedSpecies.ts`;
+client taxonomy or IDs are not proof. Service-only routines apply independent
+per-user/global limits, reuse verified taxon identities, and insert a missing
+species or fill only an existing exact-name record's missing GBIF key. Curated
+content and conflicting keys are preserved. No scan, Explore post, lookalike
+relationship, or chat conversation is created or rebound. Reference/habitat/tag
+hydration remains permitted; recursive lookalike generation is suppressed.
+
+The versioned receipt carries the requested name, canonical UUID, and stored
+scientific name. iOS fetches that UUID and checks exact identity before exposing
+Share and Field Chat. Request limits, proof rules, expected denials, concurrency
+limits, and tests are owned by the
+[resolver contract](../../services/supabase/functions/resolve-species-dictionary/README.md).
+Rollout is owned by the
+[resolution release gate](06-supabase-deployment-runbook.md#species-dictionary-resolution-release-gate).
+
 ## The Authenticated Species Sightings Node (`get-explore-species-posts`)
 
 `/get-explore-species-posts` keeps viewer-aware Explore cards out of the public,
@@ -1990,6 +2016,12 @@ that operate on anonymous IDFV boundaries:
     have no stable identity to bind an export to.
   - **`species-dictionary`**: Keeps `verify_jwt = false` but intentionally skips
     `requireAuth` because it returns only public species-level dictionary data.
+  - **`resolve-species-dictionary`**: Uses `verify_jwt = false` with
+    `withEdgeHandler` live-user validation before all resolution work. The user
+    identity owns admission counters; server-verified GBIF proof and
+    service-only RPC guards authorize the limited public-species mutation. It is
+    not an anonymous public read, and request-supplied IDs or taxonomy are not
+    trusted.
   - **`species-observation-stats`**: Keeps `verify_jwt = false` but returns only
     public species-level iNaturalist aggregates and cache metadata. Its
     replacement boundary is canonical dictionary binding, optional live-user

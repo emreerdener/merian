@@ -3,12 +3,12 @@ import Testing
 @testable import Merian
 
 @MainActor
-struct FieldChatWelcomePromptsTests {
+struct FieldChatPromptRevealTests {
     private let fallback = ["Features?", "Habitat?", "Lookalikes?"]
     private let generated = ["How does it flower?", "What pollinates it?", "How does it spread?"]
 
     @Test func waitsForGeneratedQuestionsThenKeepsTheRevealedSet() {
-        let model = FieldChatWelcomePromptsModel()
+        let model = FieldChatPromptRevealModel()
         model.update(candidates: fallback, isLoading: true, isVisible: true)
         #expect(model.displayedPrompts == nil)
         model.update(candidates: generated, isLoading: false, isVisible: true)
@@ -18,14 +18,14 @@ struct FieldChatWelcomePromptsTests {
     }
 
     @Test func completedFailureUsesFallbackImmediately() {
-        let model = FieldChatWelcomePromptsModel()
+        let model = FieldChatPromptRevealModel()
         model.update(candidates: fallback, isLoading: true, isVisible: true)
         model.update(candidates: fallback, isLoading: false, isVisible: true)
         #expect(model.displayedPrompts == fallback)
     }
 
     @Test func timeoutRevealsFallbackAndLateResultsCannotReplaceIt() async {
-        let model = FieldChatWelcomePromptsModel()
+        let model = FieldChatPromptRevealModel()
         model.update(candidates: fallback, isLoading: true, isVisible: true)
         await model.waitForFallback(wait: {})
         #expect(model.displayedPrompts == fallback)
@@ -34,7 +34,7 @@ struct FieldChatWelcomePromptsTests {
     }
 
     @Test func generatedQuestionsWinWhenTheyArriveBeforeTheDeadline() async {
-        let model = FieldChatWelcomePromptsModel()
+        let model = FieldChatPromptRevealModel()
         model.update(candidates: fallback, isLoading: true, isVisible: true)
         await model.waitForFallback {
             model.update(candidates: generated, isLoading: false, isVisible: true)
@@ -43,7 +43,7 @@ struct FieldChatWelcomePromptsTests {
     }
 
     @Test func hiddenWelcomeCanAcceptNewResultsUntilQuestionsAreActuallyShown() async {
-        let model = FieldChatWelcomePromptsModel()
+        let model = FieldChatPromptRevealModel()
         model.update(candidates: fallback, isLoading: true, isVisible: false)
         await model.waitForFallback(wait: {})
         #expect(model.displayedPrompts == nil)
@@ -57,7 +57,7 @@ struct FieldChatWelcomePromptsTests {
     }
 
     @Test func emptyCandidatesDoNotCommitAnEmptyWelcome() async {
-        let model = FieldChatWelcomePromptsModel()
+        let model = FieldChatPromptRevealModel()
         model.update(candidates: [], isLoading: true, isVisible: true)
         await model.waitForFallback(wait: {})
         #expect(model.displayedPrompts == nil)
@@ -66,7 +66,7 @@ struct FieldChatWelcomePromptsTests {
     }
 
     @Test func readyCachedQuestionsDoNotWaitAndRemainLimitedToThree() async {
-        let model = FieldChatWelcomePromptsModel()
+        let model = FieldChatPromptRevealModel()
         model.update(candidates: generated + ["Fourth?"], isLoading: false, isVisible: true)
         var waited = false
         await model.waitForFallback { waited = true }
@@ -75,7 +75,7 @@ struct FieldChatWelcomePromptsTests {
     }
 
     @Test func dismissedSubjectCannotRevealAfterItsCancelledTimerReturns() async {
-        let old = FieldChatWelcomePromptsModel()
+        let old = FieldChatPromptRevealModel()
         old.update(candidates: fallback, isLoading: true, isVisible: true)
         var continuation: CheckedContinuation<Void, Never>?
         let timer = Task {
@@ -85,7 +85,7 @@ struct FieldChatWelcomePromptsTests {
         }
         while continuation == nil { await Task.yield() }
         timer.cancel()
-        let replacement = FieldChatWelcomePromptsModel()
+        let replacement = FieldChatPromptRevealModel()
         replacement.update(candidates: generated, isLoading: false, isVisible: true)
         continuation?.resume()
         await timer.value

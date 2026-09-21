@@ -598,6 +598,9 @@ verify_jwt = false
 [functions.species-dictionary]
 verify_jwt = false
 
+[functions.resolve-species-dictionary]
+verify_jwt = false
+
 [functions.species-observation-stats]
 verify_jwt = false
 

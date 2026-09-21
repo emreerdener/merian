@@ -1114,12 +1114,12 @@ Explore-post, and Species Dictionary chat methods, while
 `Decoding/FieldChatResponseDecoder.swift` owns their stateless strict
 candidate-success validation. Shared Field Chat Services and ViewModels retain
 source/effect adaptation and generation-fenced presentation state.
-`Endpoints/MerianNetworkClient+SpeciesDictionary.swift` owns the six detail,
-catalog, overview, and stats method variants;
-`Decoding/SpeciesDictionaryResponseValidator.swift` owns typed schema/identity
-validation, and `Caching/SpeciesDictionaryResponseCache.swift` contains the
-separate locked detail/stats memos. Dictionary and Species Reference Services
-retain their adapters and state owners.
+`Endpoints/MerianNetworkClient+SpeciesDictionary.swift` owns seven method
+variants: authenticated resolution plus the six detail, catalog, overview, and
+stats reads; `Decoding/SpeciesDictionaryResponseValidator.swift` owns typed
+schema/identity validation, and `Caching/SpeciesDictionaryResponseCache.swift`
+contains the separate locked detail/stats memos. Dictionary and Species
+Reference Services retain their adapters and state owners.
 `Endpoints/MerianNetworkClient+ScanLifecycle.swift` owns detailed/bulk status,
 the status-string compatibility wrapper, and scan deletion.
 `ScanLifecycleAPIModels.swift` owns their unchanged status DTOs;
@@ -1830,7 +1830,13 @@ Server species-count projection:
 
 Public species data:
 
-- `species-dictionary`
+- `species-dictionary` — read-only public detail/catalog/overview projection
+- `resolve-species-dictionary` — authenticated name-only page resolution;
+  `index.ts` owns admission and verification orchestration, `db.ts` owns bounded
+  lookups and service-only persistence, and `_shared/verifiedSpecies.ts` owns
+  exact GBIF verification. Its migration adds the resolution rate counters,
+  taxon-key index, and canonical identity reuse; see the
+  [resolver contract](../services/supabase/functions/resolve-species-dictionary/README.md).
 - `species-observation-stats` — public global iNaturalist charts behind
   canonical dictionary binding, optional user plus daily-HMAC IP limits,
   negative caching, bounded provider fetches, fenced database cold-fill leases,
@@ -2171,10 +2177,11 @@ Scheduled/background workers:
 
 - `refresh-species-content`
 - `refresh-species-model-content` — priority-ordered model-content worker for
-  habitat, lookalikes, and group tags. `lookalikeCandidates.ts` owns bounded
-  exact-GBIF identity and taxonomy validation; `db.ts` separates retryable
-  provider/partial failures from terminal empty results and persists validated
-  candidates through service-only claim/write RPCs.
+  habitat, lookalikes, and group tags. `_shared/verifiedSpecies.ts` owns bounded
+  exact-GBIF identity and taxonomy validation shared with authenticated
+  dictionary resolution; `db.ts` separates retryable provider/partial failures
+  from terminal empty results and persists validated candidates through
+  service-only claim/write RPCs.
 - `refresh-taxonomy-nodes`
 - `community-taxonomy-status`
 - `sync-community-taxonomy-index`

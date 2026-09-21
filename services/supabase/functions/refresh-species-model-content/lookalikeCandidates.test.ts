@@ -5,7 +5,7 @@ import {
   normalizeLookalikeCandidates,
   prepareLookalikeCandidates,
   type VerifiedLookalikeTaxon,
-} from "./lookalikeCandidates.ts";
+} from "../_shared/verifiedSpecies.ts";
 
 const primary = { kingdom: "Plantae", order: "Rosales", family: "Rosaceae" };
 const entry = {

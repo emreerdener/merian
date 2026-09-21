@@ -96,6 +96,22 @@ for legacy payloads.
 
 ## Field Chat
 
+Name-only pages that return an external reference identity now resolve through
+the authenticated `/resolve-species-dictionary` endpoint. The page state owner
+keeps reference content visible while resolving and offers Retry on failure. Its
+existing request generation and cancellation checks reject late results. Both
+retry actions run in view-owned tasks; replaying a resolution retry cannot
+invalidate a fresh page load or repeat a successful resolution. The Core
+endpoint validates the echoed name and canonical UUID; the live service checks
+cancellation before fetching that UUID, including name changes verified by the
+backend. The fetched UUID must exactly match the verified receipt; ordinary
+stale-ID recovery cannot substitute another record. A presentation-only merge
+retains missing public imagery and overview content while durable enrichment
+fills the new record; it never populates the public response cache. The normal
+Field Chat and Share actions appear after resolution. Community sightings also
+wait for a canonical UUID. Opening or resolving the page does not load or create
+a conversation.
+
 Every loaded detail whose returned `SpeciesDictionaryEntry.id` is a valid UUID
 shows `FieldChatToolbarButton` at the bottom right. Loading, error, not-found,
 and noncanonical-ID states hide the bottom bar; the native Share action remains
@@ -127,11 +143,9 @@ canonical species UUID before applying success. Dictionary telemetry includes
 only entry point, content quality, entitlement state, and broad action fields;
 it never includes species names or IDs.
 
-This is a source candidate, not a released capability. Release remains blocked
-until same-day sends survive conversation deletion, the Dictionary route is in
-the iOS ambiguous-replay allowlist with a lost-response regression, executable
-authenticated route tests run in the deploy gate, and refusals/local fallback
-chips use fully source-specific, safely bounded labels. See the
+Source implementation and local tests do not establish deployment or release.
+The resolution migration and endpoint must precede the iOS caller; this addition
+does not clear the separate Field Chat release controls. Use the
 [canonical Species Dictionary release status](../../../../../../docs/features-and-hardware/16-species-dictionary.md#candidate-release-status).
 
 ## Reference Gallery Safety
@@ -153,19 +167,23 @@ navigation route.
 Mirrored tests live under `MerianTests/Features/SpeciesDictionary/Detail/`:
 
 - `SpeciesDictionaryPageViewModelTests` owns identity normalization, state,
-  telemetry, retry, and stale success/failure fencing.
+  telemetry, retry, and stale success/failure fencing, including
+  external-reference retention, cancelled resolution, and replayed retry versus
+  a fresh load.
 - `SpeciesCommunitySightingsViewModelTests` owns initial load, pagination,
   de-duplication, failures, species replacement, and refresh/pagination overlap.
 - `SpeciesDictionaryDetailPresentationTests` owns share, gallery, attribution,
-  alternate-name, Field Chat, and grid policies. Cross-surface route and
-  reference-image behavior/ownership is guarded by
-  `SpeciesDictionarySharedPresentationTests` and the sibling Shared architecture
-  suite.
+  alternate-name, Field Chat, grid policies, and canonical/reference merge
+  precedence. Cross-surface route and reference-image behavior/ownership is
+  guarded by `SpeciesDictionarySharedPresentationTests` and the sibling Shared
+  architecture suite.
 - `SimilarSpeciesTests` owns lookalike identity filtering, including canonical
   self IDs, normalized-name duplicates, invalid or missing IDs, and distinct
   species that share one common name.
 - `SpeciesDictionaryDetailServiceTests` owns both UUID-first and scientific-name
-  endpoint-adapter paths plus failure classification.
+  endpoint-adapter paths plus failure classification, receipt-to-detail
+  sequencing, echoed-name rejection, and rejection of stale-ID recovery during
+  resolution.
 - `SpeciesDictionaryDetailArchitectureTests` enforces directory ownership,
   Services-only live resolution, platform-neutral Models, Core-owned wire DTOs,
   separated root/content views, retired aggregate-file removal, and the 600-line

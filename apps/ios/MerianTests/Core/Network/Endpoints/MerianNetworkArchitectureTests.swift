@@ -398,16 +398,16 @@ struct MerianNetworkArchitectureTests {
             contentsOf: root.appendingPathComponent("Endpoints/MerianNetworkClient+SpeciesDictionary.swift"), encoding: .utf8
         )
         let client = try String(contentsOf: root.appendingPathComponent("MerianNetworkClient.swift"), encoding: .utf8)
-        let methods = ["getSpeciesDictionary", "getSpeciesDictionaryCatalog", "getSpeciesDictionaryOverview", "getSpeciesObservationStats"]
+        let methods = ["resolveSpeciesDictionary", "getSpeciesDictionary", "getSpeciesDictionaryCatalog", "getSpeciesDictionaryOverview", "getSpeciesObservationStats"]
         let declarations = try NSRegularExpression(pattern: #"(?m)^    func ([A-Za-z0-9_]+)\("#)
         let matches = declarations.matches(in: endpoint, range: NSRange(endpoint.startIndex..., in: endpoint))
         let actualMethods = try matches.map { String(endpoint[try #require(Range($0.range(at: 1), in: endpoint))]) }
-        #expect(matches.count == 6 && Set(actualMethods) == Set(methods))
+        #expect(matches.count == 7 && Set(actualMethods) == Set(methods))
         #expect(actualMethods.filter { $0 == "getSpeciesDictionary" }.count == 2)
         #expect(actualMethods.filter { $0 == "getSpeciesDictionaryCatalog" }.count == 2)
         #expect(endpoint.split(separator: "\n", omittingEmptySubsequences: false).count <= 600)
         #expect(endpoint.contains("private func performSpeciesDictionaryRequest("))
-        #expect(endpoint.components(separatedBy: "performAuthenticatedJSONPost(").count == 3)
+        #expect(endpoint.components(separatedBy: "performAuthenticatedJSONPost(").count == 4)
         #expect(endpoint.components(separatedBy: "performCachedSpeciesDictionaryRequest(").count == 2)
         #expect(endpoint.components(separatedBy: "performCachedSpeciesObservationStatsRequest(").count == 2)
         #expect(endpoint.components(separatedBy: "validateEndpointConfiguration(").count == 5)

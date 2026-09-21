@@ -664,7 +664,7 @@ lease so stopped work cannot clear a replacement. The view shows three states:
   spectrogram sized around the composing center, and non-interactive
   signal-quality guidance.
 - **Review**: fit-to-data spectrogram with a scrub gesture, playhead, and a
-  bottom-left **Boost audio** listening control. The optional Audio setting
+  bottom-right **Boost audio** listening control. The optional Audio setting
   selects boost for new recordings and prepares only when Play is requested. AI
   analysis and storage retain the original WAV; the lower guidance slot is
   hidden.

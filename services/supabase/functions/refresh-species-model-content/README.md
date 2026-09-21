@@ -44,6 +44,11 @@ Manual service-role calls may include:
 
 ## Behavior
 
+Exact GBIF verification and bounded candidate preparation live in
+`../_shared/verifiedSpecies.ts`, shared with authenticated on-open Dictionary
+resolution. The scheduled worker retains its taxonomy compatibility checks,
+relation persistence, retry policy, and independent candidate generation.
+
 - `habitat`: calls `fetchStaticEncyclopedicData` and persists taxonomy/habitat
   through `updateSpeciesEnrichment`.
 - `lookalikes`: calls `fetchSimilarSpecies`, takes at most three candidates,

@@ -166,13 +166,14 @@ because the recording and playback leases are independent.
 
 ### Recording Review Audio Boost
 
-Finished recordings expose a bottom-left **Boost audio** control on the review
-spectrogram, above the scrub interaction layer. Explicit activation prepares a
-local listening copy without starting playback. The control reads **Boosting…**
-during preparation and **Boosted audio** once ready. It remains tappable during
-preparation to turn boost off. Source changes preserve the live playback
-position and play/stop intent; the spectrogram always represents the original
-recording.
+Finished recordings expose a bottom-right **Boost audio** control on the review
+spectrogram, above the scrub interaction layer. The visible pill has equal
+14-point bottom and trailing insets; its 44-point minimum tap target extends
+upward. Explicit activation prepares a local listening copy without starting
+playback. The control reads **Boosting…** during preparation and **Boosted
+audio** once ready. It remains tappable during preparation to turn boost off.
+Source changes preserve the live playback position and play/stop intent; the
+spectrogram always represents the original recording.
 
 **Audio → Boost recording previews** is device-local and defaults off. Its
 helper reads “Make quiet recordings louder during playback. AI analysis uses the

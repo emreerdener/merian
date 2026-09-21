@@ -13,12 +13,15 @@ final class SpeciesDictionaryPageViewModel {
         let track: @MainActor (
             SpeciesDictionaryDetailTelemetryEvent
         ) -> Void
+        var resolveSpecies: (@MainActor (String) async throws -> SpeciesDictionaryEntry)? = nil
     }
 
     let scientificName: String
     let speciesId: String?
     let entryPoint: SpeciesDictionaryEntryPoint
     private(set) var state: SpeciesDictionaryPageState = .idle
+    private(set) var isResolving = false
+    private(set) var resolutionFailed = false
 
     @ObservationIgnored private let dependencies: Dependencies
     @ObservationIgnored private var hasTrackedOpen = false
@@ -52,6 +55,8 @@ final class SpeciesDictionaryPageViewModel {
 
         requestGeneration &+= 1
         let generation = requestGeneration
+        isResolving = false
+        resolutionFailed = false
         let request = SpeciesDictionaryDetailRequest(
             speciesId: speciesId,
             scientificName: scientificName
@@ -74,6 +79,7 @@ final class SpeciesDictionaryPageViewModel {
                 entryPoint: entryPoint.rawValue,
                 contentQuality: species.effectiveContentQuality.telemetryValue
             ))
+            await resolveReferenceEntry(generation: generation)
         } catch is CancellationError {
             return
         } catch {
@@ -94,6 +100,39 @@ final class SpeciesDictionaryPageViewModel {
     func retry() async {
         dependencies.track(.retry(entryPoint: entryPoint.rawValue))
         await load()
+    }
+
+    func retryResolution() async {
+        // SwiftUI can restart the retry task when this page reappears. An old
+        // retry must not invalidate a newer load or repeat a successful resolve.
+        guard resolutionFailed, !isResolving else { return }
+        requestGeneration &+= 1
+        await resolveReferenceEntry(generation: requestGeneration)
+    }
+
+    private func resolveReferenceEntry(generation: UInt64) async {
+        guard isCurrent(generation), let reference = loadedSpecies,
+              SpeciesDictionaryIdentity.canonicalSpeciesID(reference.id) == nil,
+              let resolve = dependencies.resolveSpecies else { return }
+        isResolving = true
+        resolutionFailed = false
+        defer {
+            if requestGeneration == generation { isResolving = false }
+        }
+        do {
+            let canonical = try await resolve(reference.scientificName)
+            guard isCurrent(generation) else { return }
+            guard SpeciesDictionaryIdentity.canonicalSpeciesID(canonical.id) != nil else {
+                resolutionFailed = true
+                return
+            }
+            state = .loaded(SpeciesDictionaryResolutionContent.merging(
+                canonical: canonical, reference: reference
+            ))
+        } catch {
+            guard isCurrent(generation) else { return }
+            resolutionFailed = true
+        }
     }
 
     private func trackOpenIfNeeded() {

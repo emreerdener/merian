@@ -3,6 +3,19 @@ import Foundation
 /// Species Dictionary request mapping and stateless catalog validation.
 /// The client retains private transport and validated response-cache access.
 extension MerianNetworkClient {
+    func resolveSpeciesDictionary(scientificName: String) async throws -> SpeciesDictionaryResolutionResponse {
+        guard let name = SpeciesDictionaryIdentity.normalizedScientificName(scientificName),
+              name.count <= 160 else { throw MerianError.invalidResponse }
+        let response = try await performAuthenticatedJSONPost(
+            function: "resolve-species-dictionary",
+            payload: ["scientific_name": name],
+            responseType: SpeciesDictionaryResolutionResponse.self
+        )
+        return try SpeciesDictionaryResponseValidator.resolution(
+            response, requestedScientificName: name
+        )
+    }
+
     func getSpeciesDictionary(scientificName: String) async throws -> SpeciesDictionaryEntry {
         try await performSpeciesDictionaryRequest(speciesId: nil, scientificName: scientificName)
     }

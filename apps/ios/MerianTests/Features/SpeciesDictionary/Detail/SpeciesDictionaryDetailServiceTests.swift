@@ -109,6 +109,85 @@ final class SpeciesDictionaryDetailServiceTests: XCTestCase {
         XCTAssertEqual(species.scientificName, "Testus floridus")
     }
 
+    func testResolutionUsesAuthenticatedReceiptThenCanonicalRead() async throws {
+        let transport = ScopedMockTransport()
+        let client = MerianNetworkClient()
+        client.overridingSession = transport.makeSession()
+        client.overridingAuthUserID = UUID(uuidString: "22222222-2222-4222-8222-222222222222")
+        let response = try XCTUnwrap(HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil))
+        transport.register(path: "/resolve-species-dictionary") { request in
+            let body = try XCTUnwrap(MockURLProtocol.bodyData(for: request))
+            let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: String])
+            XCTAssertEqual(payload, ["scientific_name": "Testus synonym"])
+            return (response, Data("""
+            {"schema_version":1,"requested_scientific_name":"Testus synonym","species_id":"\(Self.speciesID)","scientific_name":"Testus floridus"}
+            """.utf8))
+        }
+        transport.register(path: "/species-dictionary") { request in
+            let body = try XCTUnwrap(MockURLProtocol.bodyData(for: request))
+            let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: String])
+            XCTAssertEqual(payload["species_id"], Self.speciesID)
+            XCTAssertEqual(payload["scientific_name"], "Testus floridus")
+            return (response, Self.responseData)
+        }
+        let dependencies = SpeciesDictionaryPageViewModel.Dependencies.live(networkClient: client)
+        let resolve = try XCTUnwrap(dependencies.resolveSpecies)
+        let species = try await resolve("Testus synonym")
+        XCTAssertEqual(species.id, Self.speciesID)
+    }
+
+    func testMismatchedResolutionReceiptNeverFetchesAnotherSpecies() async throws {
+        let transport = ScopedMockTransport()
+        let client = MerianNetworkClient()
+        client.overridingSession = transport.makeSession()
+        client.overridingAuthUserID = UUID(uuidString: "22222222-2222-4222-8222-222222222222")
+        let response = try XCTUnwrap(HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil))
+        transport.register(path: "/resolve-species-dictionary") { _ in
+            (response, Data("""
+            {"schema_version":1,"requested_scientific_name":"Unrelated species","species_id":"\(Self.speciesID)","scientific_name":"Testus floridus"}
+            """.utf8))
+        }
+        transport.register(path: "/species-dictionary") { _ in
+            XCTFail("Invalid resolution must not load a different species")
+            return (response, Self.responseData)
+        }
+        let dependencies = SpeciesDictionaryPageViewModel.Dependencies.live(networkClient: client)
+        let resolve = try XCTUnwrap(dependencies.resolveSpecies)
+        do {
+            _ = try await resolve("Testus synonym")
+            XCTFail("Expected invalid receipt rejection")
+        } catch {
+            XCTAssertEqual(error as? MerianError, .invalidResponse)
+        }
+    }
+
+    func testResolutionRejectsStaleIDRecoveryToAnotherCanonicalRecord() async throws {
+        let transport = ScopedMockTransport()
+        let client = MerianNetworkClient()
+        client.overridingSession = transport.makeSession()
+        client.overridingAuthUserID = UUID(uuidString: "22222222-2222-4222-8222-222222222222")
+        let response = try XCTUnwrap(HTTPURLResponse(url: URL(string: "https://example.com")!, statusCode: 200, httpVersion: nil, headerFields: nil))
+        transport.register(path: "/resolve-species-dictionary") { _ in
+            (response, Data("""
+            {"schema_version":1,"requested_scientific_name":"Testus floridus","species_id":"\(Self.speciesID)","scientific_name":"Testus floridus"}
+            """.utf8))
+        }
+        let replacementID = "33333333-3333-4333-8333-333333333333"
+        transport.register(path: "/species-dictionary") { _ in
+            let json = String(decoding: Self.responseData, as: UTF8.self)
+                .replacingOccurrences(of: Self.speciesID, with: replacementID)
+            return (response, Data(json.utf8))
+        }
+        let dependencies = SpeciesDictionaryPageViewModel.Dependencies.live(networkClient: client)
+        let resolve = try XCTUnwrap(dependencies.resolveSpecies)
+        do {
+            _ = try await resolve("Testus floridus")
+            XCTFail("A resolution must not adopt another ID through ordinary name recovery")
+        } catch {
+            XCTAssertEqual(error as? MerianError, .invalidResponse)
+        }
+    }
+
     private static let responseData = Data("""
     {
         "schema_version": 1,

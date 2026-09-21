@@ -30,10 +30,14 @@ struct InsightChatSheet: View {
             return viewModel.suggestionChips(
                 for: speciesData,
                 timestamp: timestamp,
-                displayName: displayName
+                displayName: displayName,
+                includeSuggestedPrompts: !hasVisibleMessages || !viewModel.isLoadingPrompts
             )
         }
-        return viewModel.publicPostSuggestionChips(displayName: displayName)
+        return viewModel.publicPostSuggestionChips(
+            displayName: displayName,
+            includeSuggestedPrompts: !hasVisibleMessages || !viewModel.isLoadingPrompts
+        )
     }
 
     private var hasVisibleMessages: Bool {
@@ -64,7 +68,7 @@ struct InsightChatSheet: View {
             return false
         }
 
-        return !hasVisibleMessages || !viewModel.isLoadingPrompts || !viewModel.suggestedPrompts.isEmpty
+        return true
     }
 
     private var showsBlockingError: Bool {
@@ -100,7 +104,7 @@ struct InsightChatSheet: View {
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { toolbarContent }
                 .safeAreaInset(edge: .bottom, spacing: 0) {
-                    if hasVisibleMessages && !showsBlockingError && showsSuggestions {
+                    if hasVisibleMessages && !showsBlockingError {
                         promptSuggestionsInset
                     }
                 }
@@ -308,7 +312,6 @@ struct InsightChatSheet: View {
     private var emptyState: some View {
         FieldChatEmptyState(
             displayName: displayName,
-            showsPrivacyCaption: !allowsOwnerActions,
             media: media,
             isOnline: !viewModel.isOffline,
             prompts: chips,
@@ -364,6 +367,14 @@ struct InsightChatSheet: View {
             } else {
                 composerInput
             }
+            if !allowsOwnerActions && !composerFocused {
+                Text("This Field chat is private and visible only to you.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 16)
+            }
         }
         .padding(.top, 8)
         .padding(.bottom, 8)
@@ -372,41 +383,14 @@ struct InsightChatSheet: View {
     }
 
     private var promptSuggestionsInset: some View {
-        promptChipsRow
-            .padding(.top, 8)
-            .padding(.bottom, 2)
-    }
-
-    private var promptChipsRow: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(chips, id: \.self) { chip in
-                    Button {
-                        selectPrompt(chip)
-                    } label: {
-                        Text(chip)
-                            .lineLimit(1)
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.primary)
-                            .padding(.horizontal, 13)
-                            .padding(.vertical, 9)
-                            .background(
-                                Capsule(style: .continuous)
-                                    .fill(Color(uiColor: .secondarySystemBackground))
-                            )
-                            .overlay(
-                                Capsule(style: .continuous)
-                                    .stroke(Color.accentColor.opacity(0.28), lineWidth: 1)
-                            )
-                            .contentShape(Capsule(style: .continuous))
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(viewModel.isSending || viewModel.isOffline)
-                }
-            }
-            .padding(.horizontal, 16)
-        }
-        .transparentTopToolbar()
+        FieldChatCompactPrompts(
+            candidates: chips,
+            isLoading: viewModel.isLoadingPrompts,
+            isVisible: showsSuggestions,
+            isOnline: !viewModel.isOffline,
+            onSelection: selectPrompt
+        )
+        .id([scanId, viewModel.messages.last?.id ?? ""])
     }
 
     private var offlineComposerNotice: some View {
