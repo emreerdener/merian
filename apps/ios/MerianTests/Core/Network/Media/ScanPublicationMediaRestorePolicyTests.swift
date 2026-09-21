@@ -69,14 +69,14 @@ struct ScanPublicationMediaRestorePolicyTests {
 
     @Test func testExploreRestoreMediaBudgetRejectsPartialStagingBeforeUpload() throws {
         try ScanPublicationMediaRestorePolicy.validatePayload(
-            imageSizes: [1, 2, 3],
+            imageSizes: [1, 2, 3, 4, 5],
             videoSizes: [ScanMediaPayloadPolicy.maxSavedVideoBytes],
             audioSizes: [1, ScanMediaPayloadPolicy.maxInferenceAudioBytes]
         )
         try ScanPublicationMediaRestorePolicy.validateBudget(
             imageCount: 5,
             videoCount: 1,
-            audioCount: 0
+            audioCount: 2
         )
 
         for counts in [
@@ -84,7 +84,7 @@ struct ScanPublicationMediaRestorePolicyTests {
             (image: 6, video: 0, audio: 0),
             (image: 0, video: 2, audio: 0),
             (image: 0, video: 0, audio: 3),
-            (image: 5, video: 0, audio: 2)
+            (image: 6, video: 1, audio: 2)
         ] {
             #expect(throws: MerianError.payloadTooLarge) {
                 try ScanPublicationMediaRestorePolicy.validateBudget(

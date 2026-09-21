@@ -73,10 +73,14 @@ final class CameraVideoAudioSession {
         await dependencies.coordinator.deactivate(ifCurrent: lease)
     }
 
-    nonisolated private static func configureInput(
+    nonisolated static func configureInput(
         _ includeAudio: Bool,
         sessionProvider: @escaping @Sendable () -> AVCaptureSession,
-        queue: DispatchQueue
+        queue: DispatchQueue,
+        makeAudioInput: @escaping @Sendable () -> AVCaptureDeviceInput? = {
+            guard let device = AVCaptureDevice.default(for: .audio) else { return nil }
+            return try? AVCaptureDeviceInput(device: device)
+        }
     ) async {
         await withCheckedContinuation { continuation in
             queue.async {
@@ -85,13 +89,15 @@ final class CameraVideoAudioSession {
                 let inputs = session.inputs.filter {
                     ($0 as? AVCaptureDeviceInput)?.device.hasMediaType(.audio) == true
                 }
+                // Empty detach requests must stay inert: discovering an input
+                // here attaches the microphone before the recording lease, or
+                // even when permission policy selected a silent recording.
                 if !includeAudio, !inputs.isEmpty {
                     session.beginConfiguration()
                     inputs.forEach { session.removeInput($0) }
                     session.commitConfiguration()
-                } else if inputs.isEmpty,
-                          let device = AVCaptureDevice.default(for: .audio),
-                          let input = try? AVCaptureDeviceInput(device: device),
+                } else if includeAudio, inputs.isEmpty,
+                          let input = makeAudioInput(),
                           session.canAddInput(input) {
                     session.beginConfiguration()
                     session.addInput(input)

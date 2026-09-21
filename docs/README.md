@@ -93,6 +93,12 @@ production submission or public release.
 
 ### Incidents
 
+- **[Beta reconciliation and system analytics log errors](./incidents/2026-09-beta-reconciliation-and-system-analytics.md)**
+  — Repeated free-account reconciliation and non-UUID system telemetry,
+  repository repairs, and pending production verification.
+- **[Video recording microphone admission regression](./incidents/2026-09-video-recording-microphone-admission.md)**
+  — Pre-start recording failure, unintended microphone attachment, source
+  mitigation, and outstanding physical-device verification.
 - **[Identification notification gaps](./incidents/2026-09-identification-notification-gaps.md)**
   — Post-result permission-prompt dismissal and recovered-result alert/badge
   omissions, source mitigation, and remaining candidate/device checks.

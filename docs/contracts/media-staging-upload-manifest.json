@@ -1,10 +1,10 @@
 {
-  "schemaVersion": 6,
+  "schemaVersion": 7,
   "endpoint": "/generate-upload-urls",
   "requestBodyMustBeObject": true,
   "legacyTopLevelArraysAccepted": false,
   "missingSizeErrorCode": "size_bytes_required",
-  "maxFilesPerRequest": 6,
+  "maxFilesPerRequest": 8,
   "minFileBytes": 1,
   "maxImageBytes": 5242880,
   "maxImageFiles": 5,

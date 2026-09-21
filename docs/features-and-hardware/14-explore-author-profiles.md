@@ -28,12 +28,17 @@ exposing private scan IDs or opening private achievement evidence.
 - When a publication needs media recovery, the owner sees concise, anchored copy
   showing the unavailable-media count, a `Review scans` link, and an
   account-scoped dismiss action. Dismissal hides only the Profile notice for the
-  current published-recovery totals; changed totals show it again, and resolving
-  all published incidents clears the saved dismissal. The link opens Scan
-  Library, where a matching compact count and refresh action remain anchored
-  above the filters. The refresh link becomes an in-line loading indicator while
-  the incident request runs. The grid automatically scopes to local scans with
-  media issues when their incident IDs are available.
+  acknowledged unavailable-media count across reloads and app launches. Changes
+  to healthy publication totals or quarantine status do not show it again. A
+  lower confirmed unavailable count reduces the saved count, an increase shows
+  the notice again, and resolving all published incidents clears the dismissal.
+  Loading or failed refreshes preserve it. This uses aggregate counts, so
+  replacing one unavailable item with another at the same count cannot be
+  distinguished without incident-level data. The link opens Scan Library, where
+  a matching compact count and refresh action remain anchored above the filters.
+  The refresh link becomes an in-line loading indicator while the incident
+  request runs. The grid automatically scopes to local scans with media issues
+  when their incident IDs are available.
 - The user's own Profile tab also shows active and published Field trip modules
   when the Field trips endpoint returns visible summaries, plus lightweight
   Field trip challenge badges when awarded. Automatic Backyard Safari enrollment

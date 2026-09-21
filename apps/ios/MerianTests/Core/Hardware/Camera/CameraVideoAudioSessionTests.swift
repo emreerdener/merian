@@ -1,3 +1,4 @@
+@preconcurrency import AVFoundation
 import Foundation
 import os
 import Testing
@@ -26,6 +27,52 @@ struct CameraVideoAudioSessionTests {
             configureInput: { probe.append($0 ? "attach" : "detach") }
         ))
         return (owner, coordinator)
+    }
+
+    @Test func liveInputAdapterNeverDiscoversMicrophoneForSilentVideo() async throws {
+        let probe = Probe()
+        let owner = liveInputFixture(probe)
+        try await owner.withAudio(includeAudio: false) { probe.append("record") }
+        #expect(probe.snapshot == ["record"])
+    }
+
+    @Test func liveInputAdapterDiscoversMicrophoneOnlyAfterLeaseAndNeverDuringCleanup() async throws {
+        let probe = Probe()
+        let owner = liveInputFixture(probe)
+        for _ in 0..<2 {
+            await #expect(throws: Failure.self) {
+                try await owner.withAudio(includeAudio: true) {
+                    probe.append("record")
+                    throw Failure.recording
+                }
+            }
+        }
+        #expect(probe.snapshot == [
+            "activate", "microphone", "record", "deactivate",
+            "activate", "microphone", "record", "deactivate"
+        ])
+    }
+
+    private func liveInputFixture(_ probe: Probe) -> CameraVideoAudioSession {
+        let session = AVCaptureSession()
+        let queue = DispatchQueue(label: "CameraVideoAudioSessionTests.input")
+        let coordinator = AudioSessionCoordinator(operations: .init(
+            configureAndActivate: { _ in probe.append("activate") },
+            deactivate: { probe.append("deactivate") }
+        ))
+        return CameraVideoAudioSession(dependencies: .init(
+            coordinator: coordinator,
+            configureInput: { includeAudio in
+                await CameraVideoAudioSession.configureInput(
+                    includeAudio, sessionProvider: { session }, queue: queue,
+                    makeAudioInput: {
+                        dispatchPrecondition(condition: .onQueue(queue))
+                        probe.append("microphone")
+                        return nil
+                    }
+                )
+            }
+        ))
     }
 
     @Test func delayedPlaybackCleanupCannotDeactivateVideo() async throws {

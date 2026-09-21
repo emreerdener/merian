@@ -98,8 +98,8 @@ struct ProfilePublishedScansLibraryView: View {
                 await profileViewModel.fetchSocialStats()
             }
         }
-        .onChange(of: profileViewModel.socialStats) { _, stats in
-            clearRecoveryDismissalIfResolved(stats: stats)
+        .onChange(of: profileViewModel.socialStats, initial: true) { _, stats in
+            reconcileRecoveryDismissal(stats: stats)
         }
         .refreshable {
             registerPosts(await publications.reload(authorUserID: authorUserID))
@@ -276,12 +276,11 @@ struct ProfilePublishedScansLibraryView: View {
         publications.reviewRecovery(ownerUserID: authorUserID)
     }
 
-    private func clearRecoveryDismissalIfResolved(
-        stats: ProfileSocialStats?
-    ) {
-        guard let stats,
-              ProfilePublicationRecoverySummary.publishedOnly(from: stats) == nil
-        else { return }
-        ProfileRecoveryNoticePreferences.clear(ownerUserID: authorUserID)
+    private func reconcileRecoveryDismissal(stats: ProfileSocialStats?) {
+        guard profileViewModel.currentUserId?.lowercased() == authorUserID.lowercased() else { return }
+        ProfileRecoveryNoticePreferences.reconcile(
+            stats: stats,
+            ownerUserID: authorUserID
+        )
     }
 }

@@ -48,12 +48,19 @@ extension OfflineQueueManager {
         var selected: [PendingScanPayload] = []
         selected.reserveCapacity(OfflineQueueBatchPolicy.uploadBatchSize)
         var uploadItemCount = 0
+        var imageCount = 0
+        var audioCount = 0
+        var videoCount = 0
 
         for scan in scans {
             guard selected.count < OfflineQueueBatchPolicy.uploadBatchSize else { break }
             let scanUploadCount = scan.localUploadPaths.count
             guard scanUploadCount > 0 else { continue }
-            if uploadItemCount + scanUploadCount > maxPresignedURLsPerRequest {
+            let exceedsBudget = uploadItemCount + scanUploadCount > maxPresignedURLsPerRequest
+                || imageCount + scan.localImagePaths.count > MediaStagingContract.maxImageItemsPerRequest
+                || audioCount + scan.localAudioPaths.count > MediaStagingContract.maxAudioItemsPerRequest
+                || videoCount + scan.localVideoPaths.count > MediaStagingContract.maxVideoItemsPerRequest
+            if exceedsBudget {
                 // Let the normal media-contract validator quarantine one
                 // oversized head row, but do not let a later non-fitting row
                 // prevent still-smaller work from filling the batch.
@@ -65,6 +72,9 @@ extension OfflineQueueManager {
             }
             selected.append(scan)
             uploadItemCount += scanUploadCount
+            imageCount += scan.localImagePaths.count
+            audioCount += scan.localAudioPaths.count
+            videoCount += scan.localVideoPaths.count
             if uploadItemCount >= maxPresignedURLsPerRequest {
                 break
             }

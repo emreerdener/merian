@@ -58,7 +58,7 @@ Deno.test("media staging constants match the documented cross-language contract"
   const contract = mediaStagingContract as MediaStagingUploadManifestContract;
 
   assertEquals(contract.endpoint, "/generate-upload-urls");
-  assertEquals(contract.schemaVersion, 6);
+  assertEquals(contract.schemaVersion, 7);
   assertEquals(contract.minFileBytes, 1);
   assertEquals(MAX_STAGING_FILES, contract.maxFilesPerRequest);
   assertEquals(MAX_STAGED_IMAGE_BYTES, contract.maxImageBytes);
@@ -211,40 +211,50 @@ Deno.test("parseStagingUploadFiles accepts structured mixed-media manifests", ()
   assertEquals(parsed.files?.[2].mediaRole, "playback");
 });
 
-Deno.test("parseStagingUploadFiles accepts one video scan signing batch", () => {
-  const clientScanId = "00000000-0000-0000-0000-000000000001";
-  const parsed = parseStagingUploadFiles({
-    files: [
-      ...Array.from({ length: 5 }, (_, index) => ({
-        fileName: `scan-1_frame-${index}.webp`,
-        mediaKind: "image",
-        contentType: "image/webp",
-        sizeBytes: 125_000,
-        clientScanId,
-        mediaRole: "display",
-      })),
-      {
-        fileName: "scan-1_video.mp4",
-        mediaKind: "video",
-        contentType: "video/mp4",
-        sizeBytes: 840_000,
-        clientScanId,
-        mediaRole: "playback",
-      },
-    ],
-  });
+for (const audioCount of [0, 1, 2]) {
+  Deno.test(`parseStagingUploadFiles accepts a video scan with ${audioCount} audio inputs`, () => {
+    const clientScanId = "00000000-0000-0000-0000-000000000001";
+    const parsed = parseStagingUploadFiles({
+      files: [
+        ...Array.from({ length: 5 }, (_, index) => ({
+          fileName: `scan-1_frame-${index}.webp`,
+          mediaKind: "image",
+          contentType: "image/webp",
+          sizeBytes: 125_000,
+          clientScanId,
+          mediaRole: "display",
+        })),
+        ...Array.from({ length: audioCount }, (_, index) => ({
+          fileName: `scan-1_audio-${index}.wav`,
+          mediaKind: "audio",
+          contentType: "audio/wav",
+          sizeBytes: 42_000,
+          clientScanId,
+          mediaRole: "audio",
+        })),
+        {
+          fileName: "scan-1_video.mp4",
+          mediaKind: "video",
+          contentType: "video/mp4",
+          sizeBytes: 840_000,
+          clientScanId,
+          mediaRole: "playback",
+        },
+      ],
+    });
 
-  assertEquals(parsed.error, undefined);
-  assertEquals(parsed.files?.length, 6);
-  assertEquals(
-    parsed.files?.filter((file) => file.mediaKind === "image").length,
-    5,
-  );
-  assertEquals(
-    parsed.files?.filter((file) => file.mediaKind === "video").length,
-    1,
-  );
-});
+    assertEquals(parsed.error, undefined);
+    assertEquals(parsed.files?.length, 6 + audioCount);
+    assertEquals(
+      parsed.files?.filter((file) => file.mediaKind === "image").length,
+      5,
+    );
+    assertEquals(
+      parsed.files?.filter((file) => file.mediaKind === "video").length,
+      1,
+    );
+  });
+}
 
 Deno.test("parseStagingUploadFiles accepts exact scan-share restore manifests", () => {
   const clientScanId = "00000000-0000-4000-8000-000000000001";
@@ -590,7 +600,7 @@ Deno.test("parseStagingUploadFiles rejects arrays over the signing cap", () => {
   assertEquals(parsed.status, 400);
 });
 
-Deno.test("parseStagingUploadFiles reserves the sixth slot for non-image media", () => {
+Deno.test("parseStagingUploadFiles rejects a sixth image even with room in the total file budget", () => {
   const structured = parseStagingUploadFiles({
     files: Array.from(
       { length: MAX_STAGED_IMAGE_FILES + 1 },

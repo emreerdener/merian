@@ -329,12 +329,14 @@ before decoding or parsing. Signed R2 requests are the only direct
 client-transport calls; CI enumerates those adapter modules and verifies each
 call receives a deadline-bound `Request`.
 
-Telemetry follows the same rule even though it is best-effort. PostHog capture
-first resolves the account/provider greatest `consent_revision` without a
-disclosure-version filter. A missing head or head revocation fails closed; only
-a head grant carrying the current analytics disclosure permits delivery. A
-permitted capture has a 2.5-second deadline. A timeout or provider diagnostic is
-logged privately and does not become a raw public API error.
+Telemetry follows the same rule even though it is best-effort. PostHog rejects
+non-UUID system identities before any consent lookup or capture request. For an
+account UUID, capture first resolves the account/provider greatest
+`consent_revision` without a disclosure-version filter. A missing head or head
+revocation fails closed; only a head grant carrying the current analytics
+disclosure permits delivery. A permitted capture has a 2.5-second deadline. A
+timeout or provider diagnostic is logged privately and does not become a raw
+public API error.
 
 ## Deno `/field-trips` Edge Node
 
@@ -1388,19 +1390,19 @@ the
 The server extracts the verified user identity from the `Authorization` Header
 JWT (`supabaseAdmin.auth.getUser()`), ignoring any `user_id` value in the
 request body. To prevent array-abuse memory locking on the Edge Node, the
-endpoint strictly requires exactly 1 to 6 `files`, with at most 5 images, 2
-audio files, and 1 video file. The six-file ceiling exists for the canonical Pro
-video scan shape: five sampled `image/webp` inference frames plus one
-`video/mp4` playback clip. It is not a general expansion to six images. The main
-app queue builds this manifest through `MediaStagingContract` and must apply the
-same filename sanitization as the Edge function before upload URL generation.
-For scan uploads, each structured entry may also include `clientScanId` and
-`mediaRole`; when present, `/generate-upload-urls` creates a server-owned staged
-`scan_media_assets` row before returning the signed URL. Those staged rows are
-valid with `scan_id = NULL` until the final scan row exists and with
-`url = NULL` until media promotion produces a public URL; they are keyed by
-owner, client scan id, deterministic object key, and upload session for later
-promotion or cleanup. Image roles may be `display`, `thumbnail`, or
+endpoint strictly requires exactly 1 to 8 `files`, with at most 5 images, 2
+audio files, and 1 video file. A video scan can carry five sampled `image/webp`
+inference frames, one `video/mp4` playback clip, its companion WAV, and an
+optional standalone audio recording. Byte and per-kind limits remain unchanged.
+The main app queue builds this manifest through `MediaStagingContract` and must
+apply the same filename sanitization as the Edge function before upload URL
+generation. For scan uploads, each structured entry may also include
+`clientScanId` and `mediaRole`; when present, `/generate-upload-urls` creates a
+server-owned staged `scan_media_assets` row before returning the signed URL.
+Those staged rows are valid with `scan_id = NULL` until the final scan row
+exists and with `url = NULL` until media promotion produces a public URL; they
+are keyed by owner, client scan id, deterministic object key, and upload session
+for later promotion or cleanup. Image roles may be `display`, `thumbnail`, or
 `inference_frame`; video uses `playback`; audio uses `audio`. The Edge parser
 rejects unsanitized filenames, duplicate filenames, invalid `mediaKind` values,
 invalid role/kind combinations, content-type/kind mismatches, empty media, and
@@ -1511,7 +1513,7 @@ rows also fail closed. A partial unique index serializes registration races,
 while the repair migration retains historical extras as
 `failed / superseded_staging_registration` audit rows. New rows use a
 per-client-scan media index, never a flat position among other scans in the
-signing request. The six-item union counts active staged/processing sources;
+signing request. The eight-item union counts active staged/processing sources;
 historical promoted capture rows remain audit evidence but do not consume a
 later explicit share-repair budget. Any response manifest mismatch starts no
 upload and returns the claimed scans to `.pending` with durable backoff.
@@ -5924,12 +5926,13 @@ optionality, header, timeout, or server contract.
 ```json
 {
   "r2ObjectKeys": [
-    "staging/A1B2C3D4.../uuid_image_1.webp"
+    "staging/a1b2c3d4.../uuid_image_1.webp",
+    "staging/a1b2c3d4.../uuid_frame_0.webp"
   ],
   "videoR2ObjectKeys": [
     "staging/a1b2c3d4.../uuid_video_1.mp4"
   ],
-  "videoFrameCount": 5,
+  "videoFrameCount": 1,
   "visualMediaItems": [
     {
       "kind": "image",
@@ -5942,11 +5945,7 @@ optionality, header, timeout, or server contract.
         "source": "vision_objectness"
       }
     },
-    { "kind": "video_frame", "clipIndex": 0, "frameIndex": 0 },
-    { "kind": "video_frame", "clipIndex": 0, "frameIndex": 1 },
-    { "kind": "video_frame", "clipIndex": 0, "frameIndex": 2 },
-    { "kind": "video_frame", "clipIndex": 0, "frameIndex": 3 },
-    { "kind": "video_frame", "clipIndex": 0, "frameIndex": 4 }
+    { "kind": "video_frame", "clipIndex": 0, "frameIndex": 0 }
   ],
   "audioMediaItems": [
     { "kind": "video_audio", "clipIndex": 0 }
@@ -5959,8 +5958,8 @@ optionality, header, timeout, or server contract.
   "audioR2ObjectKeys": [
     "staging/a1b2c3d4.../uuid_audio.wav"
   ],
-  "imageBase64s": ["<base64>"],
-  "audioBase64s": ["<base64>"],
+  "imageBase64s": [],
+  "audioBase64s": [],
   "user_id": "Supabase Auth UUID",
   "gpsLatitude": 37.7749,
   "gpsLongitude": -122.4194,
@@ -6154,11 +6153,16 @@ optionality, header, timeout, or server contract.
   malformed shape returns `400 invalid_audio_transport`; two nonempty transports
   return `400 ambiguous_audio_transport`.
 - Requires every resolved inference clip to have a RIFF/WAVE container before
-  executing `processWAV` in Deno to enforce mono/16kHz processing before Gemini
-  ingestion. A different container returns `400 unsupported_audio_codec`; a
-  malformed WAV returns `400 invalid_audio_content`. The request fails as a
-  unit, so mixed visual/audio inference cannot silently drop invalid audio or
-  persist it under an `audio/wav` label.
+  executing `processMultimodalWAV` in Deno to enforce mono/16kHz processing
+  before Gemini ingestion. A different container returns
+  `400 unsupported_audio_codec`; a malformed WAV returns
+  `400 invalid_audio_content`. The request fails as a unit, so mixed
+  visual/audio inference cannot silently drop invalid audio or persist it under
+  an `audio/wav` label. For `video_audio` mapped to a clip by a present,
+  validated owner timeline, preprocessing retains the original audio when
+  silence trimming alone would leave less than 0.5 seconds. The source must
+  still be a valid WAV of at least 0.5 seconds. Standalone and legacy unproven
+  audio keep the strict post-trim duration check.
 - Queued replay audio uses `audioR2ObjectKeys`; queued and live video use
   `videoR2ObjectKeys`; live foreground audio uses size-preflighted inline
   `audioBase64s`. The edge rejects oversized declared media JSON

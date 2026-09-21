@@ -174,7 +174,8 @@ private struct ActiveScanTooltipOverlay: View {
             .symbolRenderingMode(.palette)
             .foregroundStyle(.white.opacity(0.9), .blue)
             .font(.caption.weight(.medium))
-            .multilineTextAlignment(.center)
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: true)
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
             .background(

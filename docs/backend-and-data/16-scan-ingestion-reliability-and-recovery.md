@@ -443,13 +443,13 @@ deterministic object key:
 - requested subsets compose with unrequested rows for the same scan;
 - new order indexes are assigned within each scan represented by a signing call,
   so unrelated scans in a mixed batch cannot perturb them; and
-- the combined active staged/processing capture-key set cannot exceed six;
+- the combined active staged/processing capture-key set cannot exceed eight;
   promoted historical capture rows do not consume a later restore budget.
 
 The partial unique index `idx_scan_media_assets_active_staging_key_unique`
 serializes identical active keys. The `enforce_staged_scan_media_budget` trigger
 additionally takes an owner-scoped transaction advisory lock and enforces the
-six-row cap across concurrent disjoint-key requests. Historical duplicates
+eight-row cap across concurrent disjoint-key requests. Historical duplicates
 remain as failed `superseded_staging_registration` audit rows and are the only
 extras the narrow historical finalization repair may ignore.
 
@@ -934,7 +934,7 @@ database update independently excludes both `complete` and `failed_terminal`.
 All exact failed/committed normal and replay quota reservations are retained as
 chronological authority until recovery or explicit operator resolution changes
 the terminal ledger; ordinary 30-day pruning then resumes. Only active
-staged/processing rows consume the six-item repair budget; historical promoted
+staged/processing rows consume the eight-item repair budget; historical promoted
 capture rows remain identity/audit evidence without blocking a later repair. A
 lost signing response reuses the exact committed restore row and upload session.
 
@@ -979,7 +979,7 @@ require an image when an eligible resolved non-Human biological observation has
 only video or audio. It reuses the same server subject validator as direct
 Explore publication. All keys pass the same flat traversal-safe
 authenticated-owner validator. One shared parser applies the canonical maxima of
-five images, one playback video, two standalone audio clips, and six aggregate
+five images, one playback video, two standalone audio clips, and eight aggregate
 keys and rejects a key claimed under multiple media kinds before promotion,
 moderation, and the atomic Community transaction. The iOS repair planner applies
 the same complete-set limits before its first signing call, preventing an
@@ -1387,7 +1387,7 @@ Treat any current Identify `200` immediately followed by owner status
 - Field Chat `scan_not_ready` after a current successful analysis;
 - Explore `Scan not found` or restored-media persistence uncertainty;
 - staged upload generations that never reach an exact complete key set;
-- active capture-upload duplicates or a staged union above six; and
+- active capture-upload duplicates or a staged union above eight; and
 - cleanup rollback failures.
 
 Use restricted owner/scan identifiers only for incident correlation. Retained

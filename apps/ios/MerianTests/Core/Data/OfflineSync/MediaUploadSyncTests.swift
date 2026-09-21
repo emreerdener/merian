@@ -5,6 +5,37 @@ import Testing
 @Suite("Media Upload Sync", .serialized, .sharedProcessState(.offlineQueueManager))
 @MainActor
 struct MediaUploadSyncTests {
+    @Test func uploadBatchSelectionPreservesCompleteVideoBundleAndPerKindCaps() {
+        let video = PendingScanPayload(
+            id: "video-with-companion",
+            localImagePaths: (0..<5).map { "frame-\($0).webp" },
+            localAudioPaths: ["companion.wav"],
+            localVideoPaths: ["playback.mp4"]
+        )
+        let extraVideo = PendingScanPayload(
+            id: "extra-video", localImagePaths: [], localAudioPaths: [], localVideoPaths: ["other.mp4"]
+        )
+        let audio = PendingScanPayload(
+            id: "standalone-audio", localImagePaths: [], localAudioPaths: ["sound.wav"], localVideoPaths: []
+        )
+        let selected = OfflineQueueManager.shared.selectUploadBatch(from: [video, extraVideo, audio])
+        #expect(selected.map(\.id) == [video.id, audio.id])
+        #expect(selected.flatMap(\.localUploadPaths).count == 8)
+
+        let twoAudio = PendingScanPayload(
+            id: "two-audio", localImagePaths: [], localAudioPaths: ["a.wav", "b.wav"], localVideoPaths: []
+        )
+        #expect(OfflineQueueManager.shared.selectUploadBatch(from: [twoAudio, audio, extraVideo]).map(\.id)
+            == [twoAudio.id, extraVideo.id])
+
+        let oversized = PendingScanPayload(
+            id: "oversized", localImagePaths: (0..<9).map { "image-\($0).webp" },
+            localAudioPaths: [], localVideoPaths: []
+        )
+        // Oversized head rows still reach validation and quarantine instead of starving the queue.
+        #expect(OfflineQueueManager.shared.selectUploadBatch(from: [oversized, audio]).map(\.id) == [oversized.id])
+    }
+
     @Test func uploadBatchSelectionSkipsBlockedHeadRowsAndPacksLaterWork() throws {
         let emptyRows = (0..<5).map { index in
             PendingScanPayload(
@@ -28,8 +59,8 @@ struct MediaUploadSyncTests {
         )
         let oneItem = PendingScanPayload(
             id: "one-item",
-            localImagePaths: ["later-fit.webp"],
-            localAudioPaths: [],
+            localImagePaths: [],
+            localAudioPaths: ["later-fit.wav"],
             localVideoPaths: []
         )
 

@@ -850,11 +850,16 @@ cannot deactivate the recording through an obsolete playback lease. The
 microphone is detached before the lease is released on success, failure,
 timeout, or cancellation. Silent recordings acquire no audio lease and never
 request microphone permission. Overlapping requests are rejected before audio or
-movie configuration changes; audio readiness is not cached across attempts.
-Empty microphone removal and an already-attached movie output avoid redundant
-session configuration transactions; connection settings still refresh on the
-serial camera queue. This keeps entering the camera from showing an early audio
-prompt while making the hold-to-record interaction feel nearly immediate. The
+movie configuration changes; audio readiness is not cached across attempts. An
+empty microphone-detach request must neither discover nor attach an input. Only
+an explicit audio-enabled request may attach one after lease activation; cleanup
+cannot introduce a new microphone input. A failure before a recording file
+returns displays "Video couldn't be recorded. Please try again." Failures
+preparing a returned file retain the staging-specific retry message. Empty
+microphone removal and an already-attached movie output avoid redundant session
+configuration transactions; connection settings still refresh on the serial
+camera queue. This keeps entering the camera from showing an early audio prompt
+while making the hold-to-record interaction feel nearly immediate. The
 pre-attached movie output keeps recorded-video stabilization off until a video
 is actually starting. The service asks AVFoundation for `.auto` stabilization
 when the movie connection supports it, logs the requested and active
@@ -1197,10 +1202,10 @@ A dedicated `PHPhotoLibrary` handler.
   extracts `historicalContext` from `stagedCapture.images[0]` (via the
   `StagedImage.original` bundle) before reference-only staging reset to preserve
   EXIF location data from library uploads.
-- **Video Upload Signing Shape**: One video scan signs six staged media files:
-  five `image/webp` inference frames plus one `video/mp4` playback clip. The
-  general image cap remains five; the sixth slot exists only so the playback
-  clip can travel with the sampled frames and be promoted after moderation.
+- **Video Upload Signing Shape**: One video scan signs five `image/webp`
+  inference frames, one `video/mp4` playback clip, and an optional companion
+  WAV. The eight-file total cap also permits one standalone audio clip; the
+  per-kind caps remain five images, two audio clips, and one playback video.
 - **Staged Video Review**: `ActiveScanToolbar` renders staged video thumbnails
   with the same circular media slot as photos plus a small play badge. Tapping a
   staged video opens `StagedVideoPreviewModal` as a full-screen black preview

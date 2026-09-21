@@ -60,3 +60,30 @@ Deno.test("staged scan registration migration preserves audit state and enforces
     "Transactional migrations must not use CREATE INDEX CONCURRENTLY.",
   );
 });
+
+Deno.test("video staging budget forward migration preserves serialization and matches the shared cap", async () => {
+  const sql = normalized(
+    await Deno.readTextFile(
+      new URL(
+        "../../migrations/20260921160739_align_video_staging_media_budget.sql",
+        import.meta.url,
+      ),
+    ),
+  );
+  const { MEDIA_BUDGETS } = await import("../_shared/mediaBudgets.ts");
+  for (
+    const fragment of [
+      "CREATE OR REPLACE FUNCTION internal.enforce_staged_scan_media_budget()",
+      "SECURITY INVOKER SET search_path = ''",
+      "pg_catalog.PG_ADVISORY_XACT_LOCK",
+      "'merian-staged-scan-media-owner:' || NEW.user_id::TEXT",
+      "assets.user_id = NEW.user_id",
+      "assets.client_scan_id = NEW.client_scan_id",
+      "assets.status = 'staged'",
+      "assets.id IS DISTINCT FROM NEW.id",
+      `existing_staged_count >= ${MEDIA_BUDGETS.maxStagingFiles}`,
+      "USING ERRCODE = '54000'",
+      "REVOKE ALL ON FUNCTION internal.enforce_staged_scan_media_budget() FROM PUBLIC, anon, authenticated, service_role",
+    ]
+  ) assertStringIncludes(sql, fragment);
+});

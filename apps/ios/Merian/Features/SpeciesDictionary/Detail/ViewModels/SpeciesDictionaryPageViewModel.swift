@@ -13,7 +13,7 @@ final class SpeciesDictionaryPageViewModel {
         let track: @MainActor (
             SpeciesDictionaryDetailTelemetryEvent
         ) -> Void
-        var resolveSpecies: (@MainActor (String) async throws -> SpeciesDictionaryEntry)? = nil
+        var resolveSpecies: (@MainActor (String) async throws -> SpeciesDictionaryEntry)?
     }
 
     let scientificName: String

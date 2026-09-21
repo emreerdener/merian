@@ -47,6 +47,13 @@ is not a browser or iOS API.
   cannot reserve an identity or alert forever after a lost installation.
 - Successful Pro rows are due again in six hours; free rows in 24 hours.
   Failures release their claim with durable bounded backoff.
+- Accounts with no webhook history can reconcile repeatedly, including free beta
+  accounts that have never subscribed. Migration
+  `20260921160147_fix_revenuecat_reconciliation_without_webhook_event.sql`
+  creates or reuses an ignored, zero-subject seed whenever the input event ID is
+  null. This satisfies the customer-watermark foreign key without creating
+  purchase evidence. The repair requires no account backfill; normal queue
+  retries handle previously failed rows.
 - Periodic repair cannot restore a historical refunded detached `pro_week`
   purchase over a free/refunded customer watermark. Each stable-principal claim
   carries a durable pass-policy flag. Signed webhook purchase evidence may

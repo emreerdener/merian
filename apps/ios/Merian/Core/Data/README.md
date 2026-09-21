@@ -935,3 +935,10 @@ persistence.
 The canonical diagnostics, tests, recovery behavior, and physical-device
 install-over release gate are documented in
 [`docs/backend-and-data/08-startup-store-recovery.md`](../../../../../docs/backend-and-data/08-startup-store-recovery.md).
+
+Video upload manifests permit eight total source files: five sampled frames, one
+playback clip, companion WAV, and optional standalone audio. Queue batch
+selection enforces the image/audio/video caps across the entire signing request,
+while retaining an oversized head row for normal validation and quarantine.
+`MediaStagingBudgetTests` and `MediaUploadSyncTests` cover these boundaries; the
+cross-language manifest and database trigger use the same total cap.

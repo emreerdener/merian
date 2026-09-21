@@ -1,7 +1,7 @@
 import Foundation
 
 enum MediaStagingContract {
-    static let maxUploadItemsPerRequest = 6
+    static let maxUploadItemsPerRequest = 8
     static let maxImageItemsPerRequest = 5
     static let maxAudioItemsPerRequest = 2
     static let maxVideoItemsPerRequest = 1

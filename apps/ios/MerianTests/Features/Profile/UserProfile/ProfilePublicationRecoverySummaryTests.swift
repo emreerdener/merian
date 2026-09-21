@@ -79,7 +79,7 @@ final class ProfilePublicationRecoverySummaryTests: XCTestCase {
         )
     }
 
-    func testRecoveryNoticeDismissalSignatureChangesWithPublishedTotals() {
+    func testRecoveryNoticeDismissalSignatureChangesWithUnavailableCount() {
         let summary = ProfilePublicationRecoverySummary(
             publicationIntentCount: 41,
             visibleCount: 34,
@@ -93,11 +93,89 @@ final class ProfilePublicationRecoverySummaryTests: XCTestCase {
             quarantinedCount: 6
         )
 
-        XCTAssertEqual(summary.overviewDismissalSignature, "41:34:5:5")
+        XCTAssertEqual(summary.overviewDismissalSignature, "5")
         XCTAssertNotEqual(
             summary.overviewDismissalSignature,
             changedSummary.overviewDismissalSignature
         )
+    }
+
+    func testDismissalSurvivesReloadAndUnrelatedPublicationChanges() throws {
+        let suiteName = "ProfileRecoveryReloadTests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let owner = UUID().uuidString
+        // Simulate a dismissal from the previous app version.
+        ProfileRecoveryNoticePreferences.dismiss(
+            signature: "41:34:5:5", ownerUserID: owner, defaults: defaults
+        )
+        let reloadedDefaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        let summary = ProfilePublicationRecoverySummary(
+            publicationIntentCount: 50, visibleCount: 48,
+            recoveryNeededCount: 5, quarantinedCount: 2
+        )
+        XCTAssertTrue(ProfileRecoveryNoticePreferences.isDismissed(
+            summary: summary,
+            signature: ProfileRecoveryNoticePreferences.dismissedSignature(
+                ownerUserID: owner, defaults: reloadedDefaults
+            )
+        ))
+        ProfileRecoveryNoticePreferences.reconcile(
+            stats: nil, ownerUserID: owner, defaults: reloadedDefaults
+        )
+        XCTAssertEqual(ProfileRecoveryNoticePreferences.dismissedSignature(
+            ownerUserID: owner, defaults: reloadedDefaults
+        ), "41:34:5:5")
+    }
+
+    func testResolvedMediaLowersDismissalAndNewUnavailableMediaReopensNotice() throws {
+        let suiteName = "ProfileRecoveryCountTests-\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let owner = UUID().uuidString
+        ProfileRecoveryNoticePreferences.dismiss(
+            signature: "5", ownerUserID: owner, defaults: defaults
+        )
+
+        func reconcile(_ count: Int) {
+            ProfileRecoveryNoticePreferences.reconcile(
+                stats: ProfileSocialStats(
+                    followerCount: 0, followingCount: 0,
+                    visiblePublishedPostCount: 10 - count,
+                    publicationIntentCount: 10,
+                    recoveryNeededPostCount: count,
+                    degradedPostCount: 0, quarantinedPostCount: count
+                ),
+                ownerUserID: owner, defaults: defaults
+            )
+        }
+
+        func isDismissed(_ count: Int) -> Bool {
+            ProfileRecoveryNoticePreferences.isDismissed(
+                summary: ProfilePublicationRecoverySummary(
+                    publicationIntentCount: 10, visibleCount: 10 - count,
+                    recoveryNeededCount: count, quarantinedCount: count
+                ),
+                signature: ProfileRecoveryNoticePreferences.dismissedSignature(
+                    ownerUserID: owner, defaults: defaults
+                )
+            )
+        }
+
+        XCTAssertTrue(isDismissed(5))
+        XCTAssertFalse(isDismissed(6))
+        reconcile(3)
+        XCTAssertTrue(isDismissed(3))
+        reconcile(4)
+        XCTAssertFalse(isDismissed(4))
+        // Reloading must not silently acknowledge the additional unavailable media.
+        reconcile(4)
+        XCTAssertFalse(isDismissed(4))
+        reconcile(0)
+        XCTAssertNil(ProfileRecoveryNoticePreferences.dismissedSignature(
+            ownerUserID: owner, defaults: defaults
+        ))
+        XCTAssertFalse(isDismissed(1))
     }
 
     func testRecoveryNoticeDismissalIsAccountScopedAndClearable() throws {

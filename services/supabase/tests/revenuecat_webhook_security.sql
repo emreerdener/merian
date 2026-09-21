@@ -801,7 +801,7 @@ BEGIN
         reconciliation_claim.user_id,
         reconciliation_claim.claim_token,
         14000,
-        'pro',
+        'free',
         NULL
     );
 
@@ -816,7 +816,7 @@ BEGIN
           ON events.event_id = states.last_event_id
         WHERE users.id = seed_user_id
           AND users.subscription_tier =
-                'pro'::public.subscription_tier_enum
+                'free'::public.subscription_tier_enum
           AND states.last_event_id =
                 'reconcile-seed:' || seed_user_id::TEXT
           AND states.last_authoritative_snapshot_at_ms = 14000
@@ -839,6 +839,73 @@ BEGIN
     ) THEN
         RAISE EXCEPTION
             'missing-watermark reconciliation did not seed atomically';
+    END IF;
+
+    -- No purchase or webhook has ever occurred. A prior free snapshot creates
+    -- legacy state with a NULL event ID, so every later reconciliation must
+    -- reuse the synthetic seed without treating it as purchase evidence.
+    IF NOT EXISTS (
+        SELECT 1
+        FROM internal.legacy_revenuecat_entitlement_state AS state
+        WHERE state.merian_user_id = seed_user_id
+          AND state.last_event_id IS NULL
+    ) THEN
+        RAISE EXCEPTION 'free reconciliation fixture has unexpected webhook evidence';
+    END IF;
+
+    UPDATE internal.revenuecat_reconciliation_queue AS queue
+    SET next_reconcile_at = pg_catalog.NOW(),
+        attempt_count = 1,
+        last_error_code = 'reconciliation_apply_failed'
+    WHERE queue.merian_user_id = seed_user_id;
+
+    SELECT * INTO STRICT reconciliation_claim
+    FROM public.claim_revenuecat_reconciliations(1);
+
+    IF reconciliation_claim.user_id <> seed_user_id THEN
+        RAISE EXCEPTION 'repeat free reconciliation claimed the wrong fixture';
+    END IF;
+
+    reconciliation_applied := public.apply_revenuecat_reconciliation(
+        seed_user_id, reconciliation_claim.claim_token, 15000, 'free', NULL
+    );
+
+    IF reconciliation_applied IS NOT TRUE OR NOT EXISTS (
+        SELECT 1
+        FROM public.users AS users
+        JOIN internal.legacy_revenuecat_entitlement_state AS legacy
+          ON legacy.merian_user_id = users.id
+        JOIN internal.revenuecat_customer_state AS state
+          ON state.merian_user_id = users.id
+        JOIN internal.revenuecat_reconciliation_queue AS queue
+          ON queue.merian_user_id = users.id
+        WHERE users.id = seed_user_id
+          AND users.subscription_tier = 'free'::public.subscription_tier_enum
+          AND legacy.last_event_id IS NULL
+          AND legacy.authoritative_snapshot_at_ms = 15000
+          AND state.last_event_id = 'reconcile-seed:' || seed_user_id::TEXT
+          AND state.last_authoritative_snapshot_at_ms = 15000
+          AND queue.last_snapshot_at_ms = 15000
+          AND queue.claim_token IS NULL
+          AND queue.claim_expires_at IS NULL
+          AND queue.attempt_count = 0
+          AND queue.last_error_code IS NULL
+          AND queue.next_reconcile_at >= pg_catalog.NOW() + INTERVAL '24 hours'
+    ) OR (
+        SELECT pg_catalog.COUNT(*)
+        FROM internal.revenuecat_webhook_events AS events
+        WHERE events.event_id = 'reconcile-seed:' || seed_user_id::TEXT
+          AND events.event_timestamp_ms = 14000
+          AND events.event_type = 'RECONCILIATION'
+          AND events.outcome = 'ignored'
+          AND events.subject_count = 0
+          AND events.applied_count = 0
+    ) <> 1 OR EXISTS (
+        SELECT 1
+        FROM internal.revenuecat_webhook_event_subjects AS subjects
+        WHERE subjects.event_id = 'reconcile-seed:' || seed_user_id::TEXT
+    ) THEN
+        RAISE EXCEPTION 'repeat free reconciliation did not reuse its non-purchase seed';
     END IF;
 END;
 $test$;

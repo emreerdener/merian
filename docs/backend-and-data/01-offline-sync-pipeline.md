@@ -742,9 +742,10 @@ Batch sizing is divided by responsibility:
   state and media before committing queue/job/event state. The selected scan
   batch is additionally capped by
   `MediaStagingContract.maxUploadItemsPerRequest` to the `generate-upload-urls`
-  limit of 6 media files total. This covers the canonical Pro video shape (five
-  sampled inference frames plus one playback clip) while keeping mixed scans
-  inside the pre-signed URL contract.
+  limit of 8 media files total. A video contributes five sampled inference
+  frames, one playback clip, and optional companion WAV; a separate audio
+  capture can use the eighth slot. Selection also enforces the combined per-kind
+  limits across scans before requesting signed URLs.
 - **`MediaStagingContract.maxAudioItemsPerRequest`** (2): maximum audio files in
   one upload-signing request, matching the Edge parser and the documented
   cross-language contract in
@@ -752,8 +753,8 @@ Batch sizing is divided by responsibility:
   is `audio/wav` only. `audio/mp4` is reserved for a deterministic
   `scan_share_restore` request whose filename ends in `.m4a`.
 - **`MediaStagingContract.maxImageItemsPerRequest`** (5): maximum images in one
-  signing request. The sixth total slot is reserved for the canonical five-frame
-  plus one-playback-video shape, not a sixth still.
+  signing request. The eight-file aggregate cap does not increase this image
+  limit.
 - **`MediaStagingContract.maxVideoItemsPerRequest`** (1): maximum video files in
   one upload-signing request, with `video/mp4` as the canonical queued content
   type. New Pro video captures prefer a compressed 720p playback clip of roughly
@@ -845,10 +846,12 @@ subsets: a foreground inline generation may have no staged sources while its
 queued recovery later adds them, and live video may sign separately from queue
 frames/audio/video for the same scan. Existing unrequested rows do not define an
 immutable full manifest. Edge code bounds the combined active staged/processing
-capture-key set at six and ignores historical promoted rows when a completed
+capture-key set at eight and ignores historical promoted rows when a completed
 scan needs a later restore. A database trigger takes an owner-scoped transaction
-advisory lock before enforcing the same active staged-row cap, so concurrent
-disjoint subsets cannot evade it.
+advisory lock before enforcing the eight-row cap on `status = staged` rows, so
+concurrent disjoint staging subsets cannot evade it. The Edge preflight also
+counts unrequested `processing` keys; an explicitly requested processing row
+remains a registration conflict.
 
 After that preflight, the focused
 `Database/BackgroundDatabaseActor+UploadLifecycle.swift` persistence owner uses
@@ -2184,7 +2187,7 @@ configuration aggregate:
 | ---------------------------------------------------------------- | -------------------------------------------------------------------- |
 | `OfflineQueueBatchPolicy.uploadBatchSize` = 5                    | Scans dispatched per sync cycle                                      |
 | `OfflineQueueBatchPolicy.pendingScanFetchLimit` = 50             | `OfflineQueuedScan` records fetched per cycle                        |
-| `MediaStagingContract.maxUploadItemsPerRequest` = 6              | Media files allowed by `generate-upload-urls` per request            |
+| `MediaStagingContract.maxUploadItemsPerRequest` = 8              | Media files allowed by `generate-upload-urls` per request            |
 | `MediaStagingContract.maxVideoItemsPerRequest` = 1               | Video files allowed by `generate-upload-urls` per request            |
 | `ScanMediaPayloadPolicy.maxStagedImageBytes` = 5 MiB             | Maximum staged image bytes fetched by edge inference                 |
 | `ScanMediaPayloadPolicy.maxInferenceAudioBytes` = 2.7 MB         | Maximum inline or staged audio bytes accepted for inference          |

@@ -93,6 +93,46 @@ Deno.test("PostHog lookup reads the provider head without a disclosure filter", 
   });
 });
 
+Deno.test("PostHog skips non-account identities before consent lookup or capture", async () => {
+  await withPostHogDatabaseEnvironment(async () => {
+    const previousKey = Deno.env.get("POSTHOG_API_KEY");
+    Deno.env.set("POSTHOG_API_KEY", "test-project-key");
+    let requestCount = 0;
+    let consentCheckCount = 0;
+    const fetcher: typeof fetch = () => {
+      requestCount += 1;
+      return Promise.resolve(new Response("[]", { status: 200 }));
+    };
+
+    try {
+      for (
+        const identity of [
+          "system:refresh-species-model-content",
+          "",
+          "not-a-user-id",
+        ]
+      ) {
+        assertEquals(await hasCurrentPostHogConsent(identity, fetcher), false);
+        await trackPostHogEvent(
+          identity,
+          "SystemWorkerTest",
+          {},
+          fetcher,
+          () => {
+            consentCheckCount += 1;
+            return Promise.resolve(true);
+          },
+        );
+      }
+      assertEquals(consentCheckCount, 0);
+      assertEquals(requestCount, 0);
+    } finally {
+      if (previousKey === undefined) Deno.env.delete("POSTHOG_API_KEY");
+      else Deno.env.set("POSTHOG_API_KEY", previousKey);
+    }
+  });
+});
+
 Deno.test("PostHog capture performs no request when account permission is absent", async () => {
   const previousKey = Deno.env.get("POSTHOG_API_KEY");
   Deno.env.set("POSTHOG_API_KEY", "test-project-key");

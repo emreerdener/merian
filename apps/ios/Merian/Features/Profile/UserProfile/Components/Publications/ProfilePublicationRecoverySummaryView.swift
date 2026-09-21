@@ -6,7 +6,22 @@ struct ProfilePublicationRecoverySummaryView: View {
     let onReview: () -> Void
     let onDismissFeedback: () -> Void
 
-    @State private var locallyDismissedContext: String?
+    @AppStorage private var dismissedSignature: String?
+
+    init(
+        summary: ProfilePublicationRecoverySummary,
+        ownerUserID: String,
+        onReview: @escaping () -> Void,
+        onDismissFeedback: @escaping () -> Void
+    ) {
+        self.summary = summary
+        self.ownerUserID = ownerUserID
+        self.onReview = onReview
+        self.onDismissFeedback = onDismissFeedback
+        _dismissedSignature = AppStorage(
+            ProfileRecoveryNoticePreferences.preferenceKey(ownerUserID: ownerUserID)
+        )
+    }
 
     var body: some View {
         if !isDismissed {
@@ -39,28 +54,17 @@ struct ProfilePublicationRecoverySummaryView: View {
         }
     }
 
-    private var dismissalContext: String {
-        ownerUserID
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-            + "|\(summary.overviewDismissalSignature)"
-    }
-
     private var isDismissed: Bool {
-        locallyDismissedContext == dismissalContext ||
-            ProfileRecoveryNoticePreferences.dismissedSignature(
-                ownerUserID: ownerUserID
-            ) == summary.overviewDismissalSignature
+        ProfileRecoveryNoticePreferences.isDismissed(
+            summary: summary,
+            signature: dismissedSignature
+        )
     }
 
     private func dismiss() {
         onDismissFeedback()
-        ProfileRecoveryNoticePreferences.dismiss(
-            signature: summary.overviewDismissalSignature,
-            ownerUserID: ownerUserID
-        )
         withAnimation(.easeInOut(duration: 0.2)) {
-            locallyDismissedContext = dismissalContext
+            dismissedSignature = summary.overviewDismissalSignature
         }
     }
 }

@@ -147,12 +147,13 @@ contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-re
   use `deleteAvatarR2Object(...)` with the owning user ID.
 - **`mediaBudgets.ts`**: Shared media byte ceilings, allowed staging content
   types, inline/staged audio and image validation, clip-count limits, and
-  `Content-Length` prechecks. The shared staging cap is six files so one video
-  scan can sign five sampled inference frames plus one playback clip; image,
-  audio, and video sub-limits still prevent broad over-batching. Request and
-  response bodies that may be chunked or omit `Content-Length` must be consumed
-  through `readRequestJsonWithinBudget`, `readResponseArrayBufferWithinBudget`,
-  or `readStreamArrayBufferWithinBudget` so the byte counter rejects oversized
+  `Content-Length` prechecks. The shared staging cap is eight files so one video
+  scan can sign five sampled inference frames, playback, companion WAV, and an
+  optional standalone audio clip; image, audio, and video sub-limits still
+  prevent broad over-batching. Request and response bodies that may be chunked
+  or omit `Content-Length` must be consumed through
+  `readRequestJsonWithinBudget`, `readResponseArrayBufferWithinBudget`, or
+  `readStreamArrayBufferWithinBudget` so the byte counter rejects oversized
   streams before V8 can allocate past the Edge heap budget. The request JSON
   adapter delegates to `http.ts`; `mediaBudgets.ts` owns only the larger
   reviewed ceiling and media-specific error copy. The shared storage allowlist
@@ -336,8 +337,12 @@ contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-re
 - **`audioProcessing.ts`**: Shared WAV container probe and complete
   decode/trim/resample/encode pipeline used by `audio-spec` and
   `identify-multimodal`. `isWavContainer(...)` is the cheap RIFF/WAVE gate;
-  `processWAV(...)` remains the structural parser and normalization authority,
-  so a matching extension or header prefix alone cannot establish valid audio.
+  `processWavBuffer(...)` remains the structural parser and normalization
+  authority, so a matching extension or header prefix alone cannot establish
+  valid audio. Strict trimming is the default. The multimodal adapter opts into
+  preserving source context only for a timeline-validated video companion when
+  trimming alone makes it too short; malformed or genuinely short source WAVs
+  still fail.
 - **`external.ts`**: Wikipedia and GBIF enrichment helpers used by identify,
   enrichment, species refresh, and dictionary paths. All returned reference
   image URLs pass through `externalImagePolicy.ts` before the enrichment object
@@ -396,13 +401,15 @@ contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-re
   relationship. It also owns the rollout read and dual-mode protocol-2-to-3
   `426` response. Edge isolate memory is never an entitlement authority.
 - **`posthog.ts`**: Fail-closed, account-consent-gated PostHog HTTP capture
-  helpers. Every capture resolves the provider-wide greatest `consent_revision`
-  across all disclosure versions, denies any head revocation, and permits only a
-  head grant carrying the current PostHog disclosure. The query must never
-  pre-filter disclosure version before selecting the head. Its 2.5-second
-  deadline prevents optional telemetry from consuming request-critical Edge
-  wall-clock time. This server helper passing focused tests does not establish
-  the separate iOS SDK lifecycle; the aggregate release remains held by the
+  helpers. Non-UUID system labels are skipped before consent lookup or capture;
+  they cannot own account consent. Every account capture resolves the
+  provider-wide greatest `consent_revision` across all disclosure versions,
+  denies any head revocation, and permits only a head grant carrying the current
+  PostHog disclosure. The query must never pre-filter disclosure version before
+  selecting the head. Its 2.5-second deadline prevents optional telemetry from
+  consuming request-critical Edge wall-clock time. This server helper passing
+  focused tests does not establish the separate iOS SDK lifecycle; the aggregate
+  release remains held by the
   [production consent readiness record](../../../../docs/legal/production-consent-readiness-2026-08-03.md).
 - **`subscriptionPass.ts`**: Exact product policy for the detached `pro_week`
   pass, including the 7-day duration. The webhook derives purchase time from

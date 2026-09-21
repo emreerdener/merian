@@ -1,4 +1,5 @@
 import type { User } from "@supabase/supabase-js";
+import { UUID_RE } from "./explore.ts";
 import { fetchWithDeadline } from "./outbound.ts";
 import { createServiceRoleClientFromEnvironmentWithOptions } from "./serviceRoleClient.ts";
 
@@ -21,6 +22,9 @@ export async function hasCurrentPostHogConsent(
   userId: string,
   fetcher: typeof fetch = fetch,
 ): Promise<boolean> {
+  // Scheduled workers use system labels, which cannot own account consent.
+  if (!UUID_RE.test(userId)) return false;
+
   try {
     const supabaseAdmin = createServiceRoleClientFromEnvironmentWithOptions({
       fetchImplementation: fetcher,
@@ -56,13 +60,15 @@ export async function trackPostHogEvent(
     fetcher: typeof fetch,
   ) => Promise<boolean> = hasCurrentPostHogConsent,
 ) {
+  const userId = typeof userOrId === "string" ? userOrId : userOrId.id;
+  if (!UUID_RE.test(userId)) return;
+
   const apiKey = Deno.env.get("POSTHOG_API_KEY");
   if (!apiKey) {
     console.warn("POSTHOG_API_KEY not set. Skipping PostHog telemetry.");
     return;
   }
 
-  const userId = typeof userOrId === "string" ? userOrId : userOrId.id;
   if (!await consentChecker(userId, fetcher)) {
     return;
   }

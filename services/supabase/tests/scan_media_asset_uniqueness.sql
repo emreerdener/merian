@@ -1,7 +1,7 @@
 \set ON_ERROR_STOP on
 
 BEGIN;
-SELECT extensions.plan(3);
+SELECT extensions.plan(8);
 
 DO $$
 BEGIN
@@ -190,6 +190,57 @@ $$;
 SELECT extensions.pass(
   'duplicate generated rows remain rejected within the same source and role'
 );
+
+
+SELECT extensions.ok(
+  NOT pg_catalog.has_function_privilege('anon', 'internal.enforce_staged_scan_media_budget()', 'EXECUTE')
+  AND NOT pg_catalog.has_function_privilege('authenticated', 'internal.enforce_staged_scan_media_budget()', 'EXECUTE')
+  AND NOT pg_catalog.has_function_privilege('service_role', 'internal.enforce_staged_scan_media_budget()', 'EXECUTE'),
+  'staged budget trigger remains unavailable for direct API execution'
+);
+
+SELECT extensions.lives_ok($test$
+  INSERT INTO public.scan_media_assets (
+    upload_session_id, client_scan_id, user_id, kind, role, status, source, storage_key, order_index
+  )
+  SELECT
+    '00000000-0000-0000-0000-000000000532'::UUID,
+    '00000000-0000-0000-0000-000000000511'::UUID,
+    '00000000-0000-0000-0000-000000000501'::UUID,
+    CASE WHEN n <= 5 THEN 'image' WHEN n <= 7 THEN 'audio' ELSE 'video' END,
+    CASE WHEN n <= 5 THEN 'inference_frame' WHEN n <= 7 THEN 'audio' ELSE 'playback' END,
+    'staged', 'capture_upload', 'staging/synthetic-video-budget/' || n::TEXT, n
+  FROM pg_catalog.generate_series(1, 8) AS n;
+$test$, 'five frames, two audio clips, and playback video fit the staged source budget');
+
+SELECT extensions.throws_ok($test$
+  INSERT INTO public.scan_media_assets (
+    upload_session_id, client_scan_id, user_id, kind, role, status, source, storage_key, order_index
+  ) VALUES (
+    pg_catalog.gen_random_uuid(),
+    '00000000-0000-0000-0000-000000000511',
+    '00000000-0000-0000-0000-000000000501',
+    'image', 'display', 'staged', 'capture_upload', 'staging/synthetic-video-budget/9', 9
+  );
+$test$, '54000', 'staged_scan_media_budget_exceeded', 'a ninth staged source is rejected');
+
+SELECT extensions.lives_ok($test$
+  UPDATE public.scan_media_assets SET updated_at = pg_catalog.NOW()
+  WHERE storage_key = 'staging/synthetic-video-budget/8';
+$test$, 'updating an existing source at the cap does not count itself twice');
+
+SELECT extensions.lives_ok($test$
+  UPDATE public.scan_media_assets SET status = 'failed'
+  WHERE storage_key = 'staging/synthetic-video-budget/8';
+  INSERT INTO public.scan_media_assets (
+    upload_session_id, client_scan_id, user_id, kind, role, status, source, storage_key, order_index
+  ) VALUES (
+    pg_catalog.gen_random_uuid(),
+    '00000000-0000-0000-0000-000000000511',
+    '00000000-0000-0000-0000-000000000501',
+    'video', 'playback', 'staged', 'capture_upload', 'staging/synthetic-video-budget/replacement', 8
+  );
+$test$, 'historical failed and promoted rows do not consume active staging slots');
 
 SELECT * FROM extensions.finish();
 ROLLBACK;

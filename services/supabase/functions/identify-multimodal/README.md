@@ -16,10 +16,10 @@ Common fields:
 {
   "user_id": "ignored-client-value",
   "client_scan_id": "00000000-0000-0000-0000-000000000001",
-  "r2ObjectKeys": ["staging/user-id/photo.webp"],
+  "r2ObjectKeys": ["staging/user-id/photo.webp", "staging/user-id/frame.webp"],
   "audioR2ObjectKeys": ["staging/user-id/audio.wav"],
   "videoR2ObjectKeys": ["staging/user-id/playback.mp4"],
-  "videoFrameCount": 5,
+  "videoFrameCount": 1,
   "visualMediaItems": [
     {
       "kind": "image",
@@ -36,6 +36,11 @@ Common fields:
   ],
   "audioMediaItems": [
     { "kind": "video_audio", "clipIndex": 0 }
+  ],
+  "ownerMediaTimeline": [
+    { "kind": "image", "sourceIndex": 0 },
+    { "kind": "video", "clipIndex": 0 },
+    { "kind": "description", "contextIndex": 0 }
   ],
   "observation_contexts": [
     {
@@ -550,3 +555,13 @@ Database integration tests require a running local Supabase Postgres instance.
 The normative joined client/server contract, recovery order, and deployment unit
 are in
 [`docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md`](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md).
+
+### Sparse video companion audio
+
+`audio.ts` applies `processMultimodalWAV` after owner timeline validation. When
+a validated `video_audio` companion contains only a brief sound, silence
+trimming may reduce it below 0.5 seconds. In that case preprocessing preserves
+the original source context before mono/16 kHz conversion. Malformed WAVs and
+source recordings shorter than 0.5 seconds still fail the whole request.
+Standalone audio and legacy requests without a proven companion mapping keep the
+strict post-trim duration check. No audio input is silently discarded.

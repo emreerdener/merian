@@ -66,6 +66,13 @@ remains pending after the active Auth transition ends. It has no introductory
 helper text. Successful recovery invokes the app-root sign-out confirmation
 callback, so feedback survives replacement by the consent screen.
 
+The publication recovery notice observes an account-scoped persisted dismissal
+shared by the preview and published library. It survives reloads and app
+launches until the unavailable-media count increases; confirmed decreases lower
+the acknowledged count. Existing four-total dismissals remain compatible. The
+[author-profile contract](../../../../../../docs/features-and-hardware/14-explore-author-profiles.md)
+owns the count-based behavior and its aggregate-data limitation.
+
 ## State Boundaries
 
 `ProfileTabViewModel` generation-fences local-stat and server Field trip

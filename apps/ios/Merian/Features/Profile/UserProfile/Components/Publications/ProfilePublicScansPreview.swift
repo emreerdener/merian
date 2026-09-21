@@ -54,8 +54,8 @@ struct ProfilePublicScansPreview: View {
                 }
             }
         }
-        .onChange(of: profileViewModel.socialStats) { _, stats in
-            clearRecoveryDismissalIfResolved(stats: stats)
+        .onChange(of: profileViewModel.socialStats, initial: true) { _, stats in
+            reconcileRecoveryDismissal(stats: stats)
         }
         .navigationDestination(isPresented: $isLibraryPresented) {
             if let currentUserID {
@@ -240,14 +240,12 @@ struct ProfilePublicScansPreview: View {
         publications.reviewRecovery(ownerUserID: currentUserID)
     }
 
-    private func clearRecoveryDismissalIfResolved(
-        stats: ProfileSocialStats?
-    ) {
-        guard let currentUserID,
-              let stats,
-              ProfilePublicationRecoverySummary.publishedOnly(from: stats) == nil
-        else { return }
-        ProfileRecoveryNoticePreferences.clear(ownerUserID: currentUserID)
+    private func reconcileRecoveryDismissal(stats: ProfileSocialStats?) {
+        guard let currentUserID else { return }
+        ProfileRecoveryNoticePreferences.reconcile(
+            stats: stats,
+            ownerUserID: currentUserID
+        )
     }
 
     private func registerPosts(_ posts: [ExplorePost]) {
