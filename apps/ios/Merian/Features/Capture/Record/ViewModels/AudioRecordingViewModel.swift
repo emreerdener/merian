@@ -9,6 +9,7 @@ final class AudioRecordingViewModel {
         let idleArtworkSelectionFeedback: @MainActor () -> Void
         let scrubBeginFeedback: @MainActor () -> Void
         let scrubCommitFeedback: @MainActor () -> Void
+        var toggleReviewBoost: @MainActor () -> Void = {}
     }
 
     private(set) var idleArtworkIndex = 0
@@ -27,6 +28,10 @@ final class AudioRecordingViewModel {
             return AudioRecordingIdleArtwork.names[0]
         }
         return AudioRecordingIdleArtwork.names[idleArtworkIndex]
+    }
+
+    func toggleReviewBoost() {
+        dependencies.toggleReviewBoost()
     }
 
     func advanceIdleArtworkAfterTimer() {

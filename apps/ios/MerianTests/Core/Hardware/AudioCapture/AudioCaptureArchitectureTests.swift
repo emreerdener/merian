@@ -5,6 +5,18 @@ import Testing
 
 @Suite("Audio capture architecture")
 struct AudioCaptureArchitectureTests {
+    @Test("Capture passes the device preference and stops pending review work on lifecycle exit")
+    func reviewBoostLifecycleWiring() throws {
+        let controls = try source("apps/ios/Merian/Features/Capture/Shell/Components/CaptureControls/CaptureControlBar.swift")
+        let lifecycle = try source("apps/ios/Merian/Features/Capture/Shell/ViewModels/CaptureWorkspaceViewModel+Lifecycle.swift")
+        #expect(controls.contains("boostRecordingPreview:\n                        appSettings.boostRecordingPreviewsEnabled"))
+        #expect(controls.contains("audioCaptureManager.stopPlayback()"))
+        #expect(lifecycle.components(separatedBy: "audioCaptureManager.stopPlayback()").count == 3)
+        let boost = try source("apps/ios/Merian/Core/Hardware/AudioCapture/Services/AudioReviewBoostController.swift")
+        #expect(!boost.contains("AudioBoostProcessor.shared"))
+        #expect(!boost.contains("pendingPlaybackPath"))
+    }
+
     @Test("Recording engine, tap, WAV, and DSP have one focused owner")
     func recordingResourcesHaveOneFocusedOwner() throws {
         let manager = try source(Self.managerPath)

@@ -24,6 +24,8 @@ struct NonBiologicalView: View {
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
                         .lineSpacing(4)
+                        .lineLimit(nil)
+                        .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 8)
                 }
 

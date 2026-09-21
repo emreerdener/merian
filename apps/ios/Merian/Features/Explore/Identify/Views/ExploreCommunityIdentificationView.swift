@@ -85,7 +85,7 @@ struct ExploreCommunityIdentificationView: View {
     private var requestSection: some View {
         VStack(spacing: 12) {
             sectionHeader(
-                title: "Identify requests",
+                title: "Identification requests",
                 isLoading: viewModel.loadState.isLoadingRequests && !viewModel.requestItems.isEmpty,
                 actionTitle: "See all requests"
             ) {

@@ -5,6 +5,24 @@ import Testing
 
 @Suite("AudioRecordingPresentation")
 struct AudioRecordingPresentationTests {
+    @Test("Deferred preference, preparation, success, and failure are distinguishable")
+    func boostPresentationStates() {
+        var review = makePresentation(isReviewing: true)
+        #expect(review.boostTitle == "Boost audio")
+        #expect(review.boostAccessibilityValue == "Off")
+        review.reviewBoost.isEnabled = true
+        #expect(review.boostAccessibilityValue == "On for next playback")
+        review.reviewBoost.isPreparing = true
+        #expect(review.boostTitle == "Boosting…")
+        review.reviewBoost.isPreparing = false
+        review.reviewBoost.isReady = true
+        #expect(review.boostTitle == "Boosted audio")
+        review.reviewBoost.isEnabled = false
+        review.reviewBoost.hasFailed = true
+        #expect(review.boostTitle == "Boost audio")
+        #expect(review.boostAccessibilityValue == "Off")
+    }
+
     @Test("Idle, recording, and review states retain their presentation rules")
     func statePresentationRules() {
         let idle = makePresentation(playbackProgress: 0.2)

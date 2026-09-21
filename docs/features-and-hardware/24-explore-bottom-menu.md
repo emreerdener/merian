@@ -39,20 +39,20 @@ seen.
   replace their artwork with the device-local completing scan thumbnail when
   available; tapping the thumbnail pushes the existing Insight view in this same
   Explore navigation stack.
-- **Identify** owns a root-only `Species` / `Requests` segmented control.
+- **Identify** owns a root-only `Species` / `Community` segmented control.
   `Species` is the leading/default segment and renders the existing
-  `SpeciesDictionaryOverviewView` directly, while `Requests` renders
+  `SpeciesDictionaryOverviewView` directly, while `Community` renders
   `ExploreCommunityIdentificationView`.
-- **Requests** is a dashboard rather than the complete request feed. A shared
+- **Community** is a dashboard rather than the complete request feed. A shared
   filter row keeps `All` and `Yours` first, followed by Plants, Birds, Insects,
   Fungi, Mammals, and Herps. `Yours` means requests owned by the viewer.
   Organism filters constrain both dashboard sections. The first section is
-  headed **Identify requests** with **See all requests** opposite it, followed
-  immediately by the dismissible **Ask the community** banner and up to 12
-  unresolved request cards. Cards show the request image and submitted-ID count
-  without exposing the AI-derived name. The second section is headed **Recent
-  activity**, has additional visual separation from the request grid, and
-  renders up to 10 grouped Activity rows.
+  headed **Identification requests** with **See all requests** opposite it,
+  followed immediately by the dismissible **Ask the community** banner and up to
+  12 unresolved request cards. Cards show the request image and submitted-ID
+  count without exposing the AI-derived name. The second section is headed
+  **Recent activity**, has additional visual separation from the request grid,
+  and renders up to 10 grouped Activity rows.
 - **Recent activity** rows show the request thumbnail, visible actor/count
   summary, latest consensus or resolved taxon when available, relative time, and
   a chevron. Tapping a row opens the existing request detail. Requests and
@@ -89,7 +89,10 @@ seen.
   refresh, pagination, and region-map loading. The View records a changed
   selection before its debounce so superseded refresh/page work cannot publish,
   while Views and Components remain free of direct endpoint or platform-service
-  lookup.
+  lookup. **Search or ask Naturebook** precedes the featured card, including
+  during overview loading or failure, and pushes the dedicated conversational
+  Search view. Its Species/Sightings results use `/species-discovery-search`;
+  category-list filtering continues to use `/species-dictionary`.
 - **Taxonomy** remains reference data shown and searched within Species catalog
   rows and species detail. There is no separate taxonomy visualization, feature
   flag, API mode, or Explore route.
@@ -103,23 +106,30 @@ dictionary destinations. `ExploreTab.allCases` contains only `.feed`,
 `.index` and `.requests` in that visible order. A plain Identify entry defaults
 to `.index`; species and request routes continue to select their matching mode
 explicitly. Observations owns a Feed/Map header toggle. Identify owns
-Species/Requests and resets no pushed route merely because the user changes that
-root mode. When the user taps the currently selected bottom item again, its root
-mode returns to the leading segment: Feed for Observations, Outings for Field
-trips, and Species for Identify. Moving between different bottom items preserves
-their remembered root modes.
+Species/Community and resets no pushed route merely because the user changes
+that root mode. When the user taps the currently selected bottom item again, its
+root mode returns to the leading segment: Feed for Observations, Outings for
+Field trips, and Species for Identify. Moving between different bottom items
+preserves their remembered root modes.
 
 `ExploreView` also retains the Species overview model for this Explore
-presentation. Returning from Requests, another root tab, or a pushed page reuses
-recent overview content; after five minutes, a returning view refreshes it while
-keeping same-country content visible. Pull-to-refresh always fetches, and
-closing Explore releases the retained overview. Catalog owns the country,
+presentation. Returning from Community, another root tab, or a pushed page
+reuses recent overview content; after five minutes, a returning view refreshes
+it while keeping same-country content visible. Pull-to-refresh always fetches,
+and closing Explore releases the retained overview. Catalog owns the country,
 freshness, and cancellation rules in the
 [Species overview lifecycle contract](./16-species-dictionary.md#ios-catalog-ownership-and-request-lifecycle).
 
+`ExploreView` separately retains the conversational `SpeciesSearchViewModel`.
+`SpeciesSearchRoute` pushes onto the same stack, hides root controls and the
+bottom menu, and shows Back, Search, and New search. Opening species or post
+details preserves the search session and per-tab scroll anchors; closing Explore
+or changing accounts clears it. See the
+[search contract](./16-species-dictionary.md#conversational-discovery-search).
+
 Species deep links and in-app species routes select Identify/Species before
 pushing `SpeciesDictionaryRoute`. Community request deep links and notifications
-select Identify/Requests before pushing `ExploreCommunityRequestRoute`. This
+select Identify/Community before pushing `ExploreCommunityRequestRoute`. This
 policy keeps canonical and legacy links compatible after removal of the
 Dictionary bottom tab.
 
@@ -298,11 +308,14 @@ species and media groups before clustering, and treats attached media kinds as
 an OR match. The horizontal pill row remains species-focused; image, video, and
 audio choices live in the full Map filters sheet.
 
-Species uses species-level public data only. The Dictionary overview returns
-featured, group, and region summaries, while pushed catalog pages return compact
-species rows with taxonomy, content quality, tags, status fields, and a single
-reference image URL. Promoted Naturebook community photos rank before external
-reference images when available.
+The Species overview and category catalogs use species-level public data only.
+Conversational Search separately retrieves viewer-aware public sightings through
+its authenticated endpoint; those responses are private and no-store and do not
+enter the public dictionary cache. The Dictionary overview returns featured,
+group, and region summaries, while pushed catalog pages return compact species
+rows with taxonomy, content quality, tags, status fields, and a single reference
+image URL. Promoted Naturebook community photos rank before external reference
+images when available.
 
 Identify Activity is a separate service-only projection, not the Explore bell
 feed. It is updated from identification inserts and consensus events, applies

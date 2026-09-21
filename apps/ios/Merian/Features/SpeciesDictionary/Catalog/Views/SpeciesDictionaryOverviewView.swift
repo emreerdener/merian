@@ -47,6 +47,8 @@ struct SpeciesDictionaryOverviewView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
+                    SpeciesSearchEntry()
+
                     if let featuredSpecies = overview.featuredSpecies {
                         NavigationLink(value: featuredSpecies.dictionaryRoute) {
                             SpeciesDictionaryFeaturedSpeciesCard(
@@ -206,6 +208,8 @@ struct SpeciesDictionaryOverviewView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
+                    SpeciesSearchEntry()
+
                     SpeciesDictionaryFeaturedSkeletonCard(
                         width: availableWidth
                     )
@@ -240,22 +244,24 @@ struct SpeciesDictionaryOverviewView: View {
             }
             .transparentTopToolbar()
         }
-        .accessibilityHidden(true)
     }
 
     private func errorState(message: String) -> some View {
-        ContentUnavailableView {
-            Label(
-                "Dictionary unavailable",
-                systemImage: "exclamationmark.triangle"
-            )
-        } description: {
-            Text(message)
-        } actions: {
-            Button("Retry") {
-                Task { await viewModel.load(userRegion: userRegion) }
+        VStack(spacing: 16) {
+            SpeciesSearchEntry().padding(.horizontal, 16).padding(.top, 12)
+            ContentUnavailableView {
+                Label(
+                    "Dictionary unavailable",
+                    systemImage: "exclamationmark.triangle"
+                )
+            } description: {
+                Text(message)
+            } actions: {
+                Button("Retry") {
+                    Task { await viewModel.load(userRegion: userRegion) }
+                }
+                .buttonStyle(.borderedProminent)
             }
-            .buttonStyle(.borderedProminent)
         }
     }
 }

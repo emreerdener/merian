@@ -346,7 +346,12 @@ request body has finished sending:
   durable row eligible for normal synchronization. Before a staged row starts
   background inference, it checks `/check-scan-status`; a processing/finalizing
   foreground ingestion remains server-owned and is polled instead of issuing a
-  duplicate model call.
+  duplicate model call. A first recovery check that sees
+  `finalizing / video_promotion_started` schedules one early follow-up after
+  three seconds when the server has not supplied `retry_after`. Subsequent
+  token-owned polls use the ordinary 15-second fallback; server-directed delays
+  retain priority. This reduces the wait for a nearly completed video without
+  repeatedly polling a stalled finalization at the shorter interval.
 
 Every online live submission, including gallery, audio-bearing, video, and
 text-only Describe paths, is queued before provider dispatch and registers the
@@ -2238,3 +2243,17 @@ retained media and Insight binding. Scoped terminal dependencies isolate SDK
 session state and publication effects while live defaults retain their existing
 behavior. This is local runtime evidence; it does not emulate an OS-delivered
 URLSession callback, camera hardware, or process termination/relaunch.
+
+### Pro foreground timeout trial (2026-09-20)
+
+Live queue-backed Identify uses a 30-second URLRequest timeout for paid or
+complimentary Pro funding, with 15 seconds for other or unknown funding and 90
+seconds for queue-less callers. Admission snapshots funding from the exact
+persisted job and foreground generation without a suspension or a later
+entitlement read. This is local transport policy, not server authorization.
+URLRequest's timeout measures inactivity rather than a total pipeline deadline.
+The longer Pro wait may avoid recovery for a healthy slow response, at the cost
+of waiting longer on a stalled connection. No inline transient replay is added;
+the durable queue retains retry and duplicate-inference ownership. The existing
+three-second initial `video_promotion_started` poll and later 15-second polls
+remain unchanged, with server `retry_after` taking precedence.

@@ -98,11 +98,43 @@ struct CaptureScanDependenciesTests {
         #expect(spy.cancelVideoCount == 1)
     }
 
+    @Test func completedRecordingLeavesRecordingChromeBeforePreparationFinishes() async throws {
+        let spy = CaptureScanDependencySpy()
+        let preparation = ControlledVideoPreparation()
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try Data([1]).write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let viewModel = makeViewModel(
+            spy: spy, recording: .init(fileURL: url, duration: 1),
+            prepareVideo: { _ in try await preparation.prepare() }
+        )
+        viewModel.startVideoCapture()
+        #expect(await waitUntil { preparation.hasStarted })
+        #expect(viewModel.isCapturing)
+        #expect(!viewModel.isVideoRecording)
+        #expect(viewModel.isPreparingVideo)
+        #expect(viewModel.videoRecordingProgress == 0)
+        #expect(viewModel.stagedCapture.isEmpty)
+
+        // Ordinary interruption preserves the completed clip's staging work.
+        viewModel.handleVisualCaptureInterruption()
+        #expect(viewModel.isPreparingVideo)
+        // Explicit discard still cancels preparation and cleans the source.
+        viewModel.cancelAllVisualCaptureWork()
+        preparation.cancel()
+        #expect(await waitUntil { !FileManager.default.fileExists(atPath: url.path) })
+        #expect(!viewModel.isCapturing)
+        #expect(!viewModel.isPreparingVideo)
+        #expect(viewModel.stagedCapture.isEmpty)
+    }
+
     private func makeViewModel(
         spy: CaptureScanDependencySpy,
         captureImage: @escaping @MainActor @Sendable () async throws -> Data = {
             Data()
         },
+        recording: CameraVideoRecording? = nil,
+        prepareVideo: @escaping @Sendable (CaptureScanVideoPreparationRequest) async throws -> PreparedCaptureScanVideo = { _ in throw CancellationError() },
         admissionIsOnline: Bool = false,
         admissionPreview: @escaping @MainActor @Sendable () async ->
             ScanAdmissionPreviewResult = {
@@ -115,9 +147,11 @@ struct CaptureScanDependenciesTests {
             camera: CaptureScanCameraDependencies(
                 setFocusPoint: { spy.focusPoints.append($0) },
                 captureImage: captureImage,
-                recordVideo: { _, _ in
+                recordVideo: { _, onStarted in
                     spy.recordVideoCount += 1
-                    throw CancellationError()
+                    guard let recording else { throw CancellationError() }
+                    onStarted?()
+                    return recording
                 },
                 stopVideoRecording: { spy.stopVideoCount += 1 },
                 cancelVideoRecording: { spy.cancelVideoCount += 1 }
@@ -140,7 +174,7 @@ struct CaptureScanDependenciesTests {
                     }
                     return nil
                 },
-                prepareVideo: { _ in throw CancellationError() }
+                prepareVideo: prepareVideo
             ),
             canStartProScan: { true },
             feedback: CaptureScanFeedbackDependencies(
@@ -289,6 +323,21 @@ private final class ControlledScanAdmission {
             dailyLimit: nil,
             dailyRemaining: nil
         )))
+        continuation = nil
+    }
+}
+
+@MainActor
+private final class ControlledVideoPreparation {
+    private var continuation: CheckedContinuation<PreparedCaptureScanVideo, Error>?
+    var hasStarted: Bool { continuation != nil }
+
+    func prepare() async throws -> PreparedCaptureScanVideo {
+        try await withCheckedThrowingContinuation { continuation = $0 }
+    }
+
+    func cancel() {
+        continuation?.resume(throwing: CancellationError())
         continuation = nil
     }
 }

@@ -59,7 +59,8 @@ private actor CaptureScanAssetWriterFinisher {
 
 enum CaptureScanVideoAudioExtractor {
     nonisolated static func extract(
-        videoURL: URL
+        videoURL: URL,
+        outputDirectory: URL = .documentsDirectory
     ) async -> CaptureScanTemporaryFileLease? {
         do {
             return try await DetachedWork.value(
@@ -77,11 +78,12 @@ enum CaptureScanVideoAudioExtractor {
 
                 let outputName =
                     "\(UUID().uuidString.lowercased())-video-audio.wav"
-                let outputURL = URL.documentsDirectory
+                let outputURL = outputDirectory
                     .appendingPathComponent(outputName)
                 let outputLease = CaptureScanTemporaryFileLease(
                     fileURL: outputURL
                 )
+                defer { withExtendedLifetime(outputLease) {} }
 
                 do {
                     if FileManager.default.fileExists(
@@ -159,10 +161,9 @@ enum CaptureScanVideoAudioExtractor {
                                 reachedEndOfStream = true
                                 return nil
                             }
-                            defer {
-                                _ = CMSampleBufferInvalidate(sampleBuffer)
-                            }
-
+                            // The writer may retain this buffer after append.
+                            // ARC releases our reference; invalidation would
+                            // destroy samples still being encoded by the writer.
                             guard writerInput.append(sampleBuffer) else {
                                 reader.cancelReading()
                                 return writer.error ?? NSError(
@@ -207,17 +208,25 @@ enum CaptureScanVideoAudioExtractor {
                         try? FileManager.default.removeItem(at: outputURL)
                         return nil
                     }
-                    guard InferenceAudioPreparer.isEdgeCompatibleWAV(
+                    if InferenceAudioPreparer.isCanonicalPreparedWAV(
                         at: outputURL
-                    ) else {
-                        try? FileManager.default.removeItem(at: outputURL)
-                        MerianLog.hardware.warning(
-                            "Video audio extraction produced a WAV variant the edge parser cannot use; continuing without video audio."
-                        )
-                        return nil
+                    ) {
+                        return outputLease
                     }
 
-                    return outputLease
+                    // AVAssetWriter can emit WAVE_EXTENSIBLE even for Int16
+                    // PCM. Normalize through the shared bounded converter;
+                    // the original export stays leased until conversion ends.
+                    let canonicalURL = try await InferenceAudioPreparer
+                        .prepareLocalFile(
+                            at: outputURL,
+                            outputDirectory: outputDirectory
+                        )
+                    let canonicalLease = CaptureScanTemporaryFileLease(
+                        fileURL: canonicalURL
+                    )
+                    try Task.checkCancellation()
+                    return canonicalLease
                 } catch is CancellationError {
                     return nil
                 } catch {

@@ -1032,11 +1032,20 @@ export async function handleIdentifyMultimodalRequest(
   let llmTotalTokens: number | null = null;
   let llmUsageMetadata: Record<string, unknown> = {};
   let geminiLatencyMs = 0;
+  let quotaCommitMs = 0;
+  let providerMs = 0;
+  // Zero means this optional phase did not run. These spans cover successful
+  // requests; existing failure events remain the authority for failed requests.
+  let videoPromotionMs = 0;
+  let primaryEnrichmentMs = 0;
+  let databaseFinalizationMs = 0;
   let providerAttempted = false;
 
   try {
+    const quotaCommitStart = performance.now();
     await quotaLease.commit();
     providerAttempted = true;
+    const providerStart = performance.now();
     const result = await _genAI.models.generateContent({
       model: targetModel,
       contents: [{ role: "user", parts: partsArray }],
@@ -1054,6 +1063,8 @@ export async function handleIdentifyMultimodalRequest(
           : getMerianResponseSchema(diagnosticTrigger),
       },
     });
+    providerMs = performance.now() - providerStart;
+    quotaCommitMs = providerStart - quotaCommitStart;
     geminiLatencyMs = Date.now() - geminiStart;
 
     finishReason = result.candidates?.[0]?.finishReason;
@@ -1607,6 +1618,7 @@ export async function handleIdentifyMultimodalRequest(
             "video_promotion_started",
             { leaseSeconds: 300 },
           );
+          const videoPromotionStart = performance.now();
           videoStorageUrls = await promoteSafeMedia({
             userId: user.id,
             r2ObjectKeys: videoR2ObjectKeys,
@@ -1614,6 +1626,7 @@ export async function handleIdentifyMultimodalRequest(
             userTier,
             r2Config: getR2Config(),
           });
+          videoPromotionMs = performance.now() - videoPromotionStart;
           if (videoStorageUrls.length !== videoR2ObjectKeys.length) {
             throw new Error(
               `Video promotion returned ${videoStorageUrls.length}/${videoR2ObjectKeys.length} URL(s).`,
@@ -1694,12 +1707,15 @@ export async function handleIdentifyMultimodalRequest(
         isIdentifiedBio &&
         (!cachedSpecies || !normalizeTaxonomyValue(cachedSpecies.kingdom))
       ) {
+        const primaryEnrichmentStart = performance.now();
         try {
           externalData = await fetchExternalEnrichment(
             parsedData.scientific_name!,
           );
         } catch (error) {
           console.error("Background primary enrichment error:", error);
+        } finally {
+          primaryEnrichmentMs = performance.now() - primaryEnrichmentStart;
         }
       }
 
@@ -1752,6 +1768,7 @@ export async function handleIdentifyMultimodalRequest(
         observationContexts: normalizedObservationContexts,
       });
 
+      const databaseFinalizationStart = performance.now();
       await updateIngestionJobBestEffort(
         "finalizing",
         "scan_insert_started",
@@ -1846,6 +1863,7 @@ export async function handleIdentifyMultimodalRequest(
         },
         supabaseAdmin,
       );
+      databaseFinalizationMs = performance.now() - databaseFinalizationStart;
       if (completion.responseEnvelope) {
         responseEnvelope = parseIdentifySuccessEnvelope(
           completion.responseEnvelope,
@@ -2216,6 +2234,11 @@ export async function handleIdentifyMultimodalRequest(
     tier_resolution_ms: Math.round(tierMs),
     pre_gemini_db_ms: Math.round(preGeminiDbMs),
     gemini_latency_ms: geminiLatencyMs,
+    quota_commit_ms: Math.round(quotaCommitMs),
+    provider_ms: Math.round(providerMs),
+    video_promotion_ms: Math.round(videoPromotionMs),
+    primary_enrichment_ms: Math.round(primaryEnrichmentMs),
+    database_finalization_ms: Math.round(databaseFinalizationMs),
     dictionary_hydration_ms: Math.round(dictionaryHydrationMs),
     post_gemini_ms: Math.round(postGeminiMs),
     non_gemini_ms: Math.max(edgeTotalMs - geminiLatencyMs, 0),
@@ -2232,6 +2255,11 @@ export async function handleIdentifyMultimodalRequest(
         { name: "tier", durationMs: tierMs },
         { name: "pre_gemini_db", durationMs: preGeminiDbMs },
         { name: "gemini", durationMs: geminiLatencyMs },
+        { name: "quota_commit", durationMs: quotaCommitMs },
+        { name: "provider", durationMs: providerMs },
+        { name: "video_promotion", durationMs: videoPromotionMs },
+        { name: "primary_enrichment", durationMs: primaryEnrichmentMs },
+        { name: "database_finalization", durationMs: databaseFinalizationMs },
         { name: "dictionary", durationMs: dictionaryHydrationMs },
         { name: "post_gemini", durationMs: postGeminiMs },
         { name: "edge_total", durationMs: edgeTotalMs },

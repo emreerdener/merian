@@ -77,6 +77,17 @@ Account-deletion recovery models and local stores live in
   device-global legacy names and sync markers are discarded, never adopted by
   the next signed-in account.
 
+## Recording preview preference
+
+`AppSettings.boostRecordingPreviewsEnabled` is a device-local Boolean,
+defaulting off, persisted and externally refreshed through `UserDefaultsKeys`.
+Audio settings labels it **Boost recording previews**. Capture samples it per
+new recording; per-recording controls do not write the setting. It affects
+listening only and never changes original recording bytes or AI inputs. Explore
+and Insight retain their separate per-item stores. The
+[Audio Listen Mode contract](../../../../../docs/features-and-hardware/12-audio-listen-mode.md#recording-review-audio-boost)
+owns preparation and lifecycle behavior.
+
 ## Verification
 
 Mirrored tests live in `MerianTests/Core/Preferences/`:

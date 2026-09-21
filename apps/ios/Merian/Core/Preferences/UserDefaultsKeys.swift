@@ -54,6 +54,7 @@ enum UserDefaultsKeys {
     /// Whether captured photos and videos should also be saved to the iOS camera roll.
     static let saveToCameraRoll = "saveToCameraRoll"
     /// Whether live audio placement hints are visible while recording.
+    static let boostRecordingPreviewsEnabled = "boostRecordingPreviewsEnabled"
     static let audioHintsEnabled = "audioHintsEnabled"
     /// User-selected column count for the scans library grid.
     static let gridColumns = "gridColumns"

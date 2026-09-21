@@ -22,7 +22,50 @@ struct AudioRecordingSpectrogramContent: View {
                 reviewInteractionLayer
             }
         }
+        .overlay(alignment: .bottomLeading) {
+            if presentation.isReviewing {
+                reviewBoostControl
+                    .padding(14)
+            }
+        }
         .padding(.horizontal, 20)
+    }
+
+    private var reviewBoostControl: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if presentation.reviewBoost.hasFailed {
+                Text("Audio boost unavailable. Playing original.")
+                    .font(.caption)
+                    .foregroundStyle(.white)
+                    .padding(8)
+                    .background(.black.opacity(0.65), in: RoundedRectangle(cornerRadius: 8))
+                    .allowsHitTesting(false)
+            }
+            Button(action: viewModel.toggleReviewBoost) {
+                HStack(spacing: 4) {
+                    Text(presentation.boostTitle)
+                    if presentation.reviewBoost.isEnabled && !presentation.reviewBoost.isPreparing {
+                        Image(systemName: "checkmark")
+                    } else if !presentation.reviewBoost.isPreparing {
+                        Image(systemName: "chevron.right")
+                    }
+                }
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.white)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(.black.opacity(0.28), in: Capsule())
+                .background(.ultraThinMaterial, in: Capsule())
+                .shadow(color: .black.opacity(0.3), radius: 2, y: 1)
+                .frame(minHeight: 44)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Boost audio")
+            .accessibilityValue(presentation.boostAccessibilityValue)
+            .accessibilityHint("Changes preview playback only. AI analysis uses the original recording.")
+            .accessibilityIdentifier("capture.audio.boost")
+        }
     }
 
     private var reviewInteractionLayer: some View {

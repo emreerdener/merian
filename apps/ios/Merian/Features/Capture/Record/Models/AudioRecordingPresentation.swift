@@ -12,6 +12,20 @@ struct AudioRecordingPresentation: Equatable {
     let audioHintsEnabled: Bool
     let maximumDuration: TimeInterval
     let liveColumnCapacity: Int
+    var reviewBoost = AudioReviewBoostState()
+
+    var boostTitle: String {
+        if reviewBoost.isPreparing { return "Boosting…" }
+        return reviewBoost.isEnabled && reviewBoost.isReady ? "Boosted audio" : "Boost audio"
+    }
+
+    var boostAccessibilityValue: String {
+        if reviewBoost.isPreparing { return "Preparing. Tap to turn off." }
+        if reviewBoost.isEnabled {
+            return reviewBoost.isReady ? "On" : "On for next playback"
+        }
+        return "Off"
+    }
 
     var showsSpectrogram: Bool {
         isRecording || isReviewing

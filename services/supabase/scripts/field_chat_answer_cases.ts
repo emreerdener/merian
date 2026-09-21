@@ -52,6 +52,7 @@ const scan: ChatScanContext = {
   depth_scale_text: null,
   ai_confidence_score: 0.95,
   ai_reasoning: null,
+  extracted_visual_traits: null,
   candidates: null,
   image_quality_score: null,
   blur_score: null,

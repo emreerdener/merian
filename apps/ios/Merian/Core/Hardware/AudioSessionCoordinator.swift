@@ -5,6 +5,7 @@ import Foundation
 actor AudioSessionCoordinator {
     enum Configuration: Equatable, Sendable {
         case recordMeasurement(preferredSampleRate: Double?)
+        case videoRecording
         case playback
         case playbackDucking
     }
@@ -37,6 +38,9 @@ actor AudioSessionCoordinator {
                             preferredSampleRate
                         )
                     }
+                case .videoRecording:
+                    try session.setCategory(.playAndRecord, mode: .videoRecording)
+                    try session.setAllowHapticsAndSystemSoundsDuringRecording(true)
                 case .playback:
                     try session.setCategory(.playback, mode: .default)
                 case .playbackDucking:

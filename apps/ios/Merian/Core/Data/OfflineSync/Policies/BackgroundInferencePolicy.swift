@@ -106,7 +106,8 @@ enum BackgroundInferencePolicy {
         for response: ScanStatusResponse,
         now: Date = Date(),
         defaultPollDelay: TimeInterval = 15,
-        defaultRetryDelay: TimeInterval = 30
+        defaultRetryDelay: TimeInterval = 30,
+        isInitialStatusCheck: Bool = false
     ) -> ScanStatusRecoveryAction {
         if response.isFound {
             return .recovered
@@ -123,11 +124,17 @@ enum BackgroundInferencePolicy {
             return min(max(date.timeIntervalSince(now), 1), 300)
         }
 
+        // One early follow-up catches a nearly finalized video without making
+        // a slow/stuck ingestion poll rapidly for its entire lifetime.
+        let pollDelay = isInitialStatusCheck
+            && response.jobStatus == .finalizing
+            && response.jobStage == "video_promotion_started"
+            ? min(defaultPollDelay, 3) : defaultPollDelay
         switch response.jobStatus {
         case .processing, .finalizing:
             return .waitForServer(boundedDelay(
                 from: response.retryAfter,
-                fallback: defaultPollDelay
+                fallback: pollDelay
             ))
         case .retrying:
             return .waitForServer(boundedDelay(

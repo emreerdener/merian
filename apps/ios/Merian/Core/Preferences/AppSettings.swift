@@ -132,6 +132,9 @@ final class AppSettings {
     var saveToCameraRoll: Bool {
         didSet { persistBool(saveToCameraRoll, oldValue: oldValue, key: UserDefaultsKeys.saveToCameraRoll) }
     }
+    var boostRecordingPreviewsEnabled: Bool {
+        didSet { persistBool(boostRecordingPreviewsEnabled, oldValue: oldValue, key: UserDefaultsKeys.boostRecordingPreviewsEnabled) }
+    }
     var audioHintsEnabled: Bool {
         didSet { persistBool(audioHintsEnabled, oldValue: oldValue, key: UserDefaultsKeys.audioHintsEnabled) }
     }
@@ -182,6 +185,7 @@ final class AppSettings {
             UserDefaultsKeys.suppressInferenceBanners: false,
             UserDefaultsKeys.saveToCameraRoll: false,
             UserDefaultsKeys.audioHintsEnabled: true,
+            UserDefaultsKeys.boostRecordingPreviewsEnabled: false,
             UserDefaultsKeys.captureModeOrder: "visual,audio,describe",
             UserDefaultsKeys.gridColumns: 3
         ])
@@ -221,6 +225,7 @@ final class AppSettings {
         suppressInferenceBanners = userDefaults.bool(forKey: UserDefaultsKeys.suppressInferenceBanners)
         saveToCameraRoll = userDefaults.bool(forKey: UserDefaultsKeys.saveToCameraRoll)
         audioHintsEnabled = userDefaults.bool(forKey: UserDefaultsKeys.audioHintsEnabled)
+        boostRecordingPreviewsEnabled = userDefaults.bool(forKey: UserDefaultsKeys.boostRecordingPreviewsEnabled)
         captureModeOrderRaw = userDefaults.string(forKey: UserDefaultsKeys.captureModeOrder) ?? "visual,audio,describe"
         gridColumns = min(max(userDefaults.integer(forKey: UserDefaultsKeys.gridColumns), 1), 3)
 
@@ -290,6 +295,7 @@ final class AppSettings {
         suppressInferenceBanners = userDefaults.bool(forKey: UserDefaultsKeys.suppressInferenceBanners)
         saveToCameraRoll = userDefaults.bool(forKey: UserDefaultsKeys.saveToCameraRoll)
         audioHintsEnabled = userDefaults.bool(forKey: UserDefaultsKeys.audioHintsEnabled)
+        boostRecordingPreviewsEnabled = userDefaults.bool(forKey: UserDefaultsKeys.boostRecordingPreviewsEnabled)
         captureModeOrderRaw = userDefaults.string(forKey: UserDefaultsKeys.captureModeOrder) ?? "visual,audio,describe"
         gridColumns = min(max(userDefaults.integer(forKey: UserDefaultsKeys.gridColumns), 1), 3)
     }

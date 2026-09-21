@@ -27,7 +27,7 @@ const CONVERSATION_SELECT = "id,scan_id,user_id,created_at,updated_at";
 const SCAN_CONTEXT_SELECT = `
   id,user_id,timestamp,gps_elevation,weather_condition,weather_temperature_f,
   semantic_location,current_month,time_of_day,depth_scale_text,
-  ai_confidence_score,ai_reasoning,candidates,image_quality_score,blur_score,zoom_factor,
+  ai_confidence_score,ai_reasoning,extracted_visual_traits,candidates,image_quality_score,blur_score,zoom_factor,
   ecology_type,colors,life_stage,reproductive_condition,estimated_size_cm,individual_count,
   ecological_interactions,sex,sex_confidence,sex_evidence,
   is_invasive,invasive_status_region,invasive_rationale,invasive_confidence,

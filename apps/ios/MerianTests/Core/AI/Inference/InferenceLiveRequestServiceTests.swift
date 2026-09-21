@@ -71,7 +71,8 @@ private final class LiveRequestAttemptState {
 @MainActor
 @Suite("Inference Live Request Service")
 struct InferenceLiveRequestServiceTests {
-    @Test func visualDispatchBuildsCanonicalProviderPayload() async throws {
+    @Test(arguments: [false, true])
+    func visualDispatchBuildsCanonicalProviderPayload(isProFunded: Bool) async throws {
         let recorder = LiveRequestDependencyRecorder()
         recorder.encodedImages = ["encoded-image", "encoded-frame"]
         recorder.uploadedVideoKeys = ["video-object-key"]
@@ -114,7 +115,8 @@ struct InferenceLiveRequestServiceTests {
                     clientScanId: "scan-id",
                     preferredGoal: preferredGoal,
                     durableQueueOwnsRecovery: true,
-                    pipelineStartedAt: CFAbsoluteTimeGetCurrent()
+                    pipelineStartedAt: CFAbsoluteTimeGetCurrent(),
+                    isProFunded: isProFunded
                 ),
                 validateAttempt: { try attempt.validate() },
                 onProviderDispatchReady: {
@@ -150,6 +152,7 @@ struct InferenceLiveRequestServiceTests {
         #expect(providerRequest.ownerMediaTimeline == ownerTimeline)
         #expect(providerRequest.clientScanId == "scan-id")
         #expect(providerRequest.preferredGoal == preferredGoal)
+        #expect(providerRequest.isProFunded == isProFunded)
         #expect(providerRequest.durableQueueOwnsRecovery)
         #expect(
             try JSONDecoder().decode(
@@ -306,7 +309,8 @@ struct InferenceLiveRequestServiceTests {
         #expect(recorder.providerRequests.isEmpty)
     }
 
-    @Test func nonVisualDispatchBuildsAudioOnlyPayload() async throws {
+    @Test(arguments: [false, true])
+    func nonVisualDispatchBuildsAudioOnlyPayload(isProFunded: Bool) async throws {
         let recorder = LiveRequestDependencyRecorder()
         let service = InferenceLiveRequestService(
             dependencies: recorder.dependencies()
@@ -327,7 +331,8 @@ struct InferenceLiveRequestServiceTests {
                 ownerMediaTimeline: ownerTimeline,
                 telemetry: makeTelemetry(),
                 clientScanId: nil,
-                durableQueueOwnsRecovery: false
+                durableQueueOwnsRecovery: false,
+                isProFunded: isProFunded
             ),
             validateAttempt: { try attempt.validate() }
         )
@@ -348,6 +353,7 @@ struct InferenceLiveRequestServiceTests {
         #expect(providerRequest.ownerMediaTimeline == ownerTimeline)
         #expect(providerRequest.clientScanId == nil)
         #expect(providerRequest.preferredGoal == nil)
+        #expect(providerRequest.isProFunded == isProFunded)
         #expect(!providerRequest.durableQueueOwnsRecovery)
         #expect(!recorder.requestBodyCallbackWasPresent)
     }

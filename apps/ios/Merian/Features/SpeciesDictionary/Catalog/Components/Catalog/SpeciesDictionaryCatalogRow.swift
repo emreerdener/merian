@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct SpeciesDictionaryCatalogRow: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let item: SpeciesDictionaryCatalogItem
 
     private let thumbnailSize: CGFloat = 88
@@ -21,21 +22,22 @@ struct SpeciesDictionaryCatalogRow: View {
                 Text(item.commonName)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.primary)
-                    .lineLimit(2)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 2)
 
                 Text(item.scientificName)
                     .font(.caption)
                     .italic()
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
 
                 if let taxonomySummary {
                     Text(taxonomySummary)
                         .font(.caption2.weight(.medium))
                         .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                        .lineLimit(dynamicTypeSize.isAccessibilitySize ? nil : 1)
                 }
             }
+            .fixedSize(horizontal: false, vertical: true)
 
             Spacer(minLength: 8)
 

@@ -27,6 +27,7 @@ const guardedRoutes = new Map<string, string[]>([
     "../species-dictionary-chat/index.ts",
     ["species_dictionary_chat_reply"],
   ],
+  ["../species-discovery-search/index.ts", ["species_discovery_search"]],
   ["../share-scan-to-explore/index.ts", ["explore_audio_moderation"]],
   [
     "../request-community-identification/index.ts",
@@ -82,6 +83,7 @@ Deno.test("every direct paid-provider dispatch file is explicitly inventoried", 
     "identify/index.ts",
     "insight-chat/index.ts",
     "species-dictionary-chat/index.ts",
+    "species-discovery-search/provider.ts",
   ]);
 });
 

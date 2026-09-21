@@ -4,6 +4,7 @@ extension AudioCaptureManager {
     struct Dependencies: Sendable {
         let recording: AudioRecordingEngineController.Dependencies
         let playback: AudioReviewPlaybackController.Dependencies
+        let reviewBoost: AudioReviewBoostController.Dependencies
 
         init(
             activateRecordingSession: @escaping @Sendable (
@@ -15,7 +16,8 @@ extension AudioCaptureManager {
             startEngine: @escaping @Sendable (
                 _ engine: AVAudioEngine
             ) throws -> Void,
-            playback: AudioReviewPlaybackController.Dependencies = .live
+            playback: AudioReviewPlaybackController.Dependencies = .live,
+            reviewBoost: AudioReviewBoostController.Dependencies = .live
         ) {
             self.recording = AudioRecordingEngineController.Dependencies(
                 activateSession: activateRecordingSession,
@@ -23,14 +25,17 @@ extension AudioCaptureManager {
                 startEngine: startEngine
             )
             self.playback = playback
+            self.reviewBoost = reviewBoost
         }
 
         init(
             recording: AudioRecordingEngineController.Dependencies,
-            playback: AudioReviewPlaybackController.Dependencies = .live
+            playback: AudioReviewPlaybackController.Dependencies = .live,
+            reviewBoost: AudioReviewBoostController.Dependencies = .live
         ) {
             self.recording = recording
             self.playback = playback
+            self.reviewBoost = reviewBoost
         }
 
         static let live = Self(

@@ -10,6 +10,42 @@ import Testing
 )
 @MainActor
 struct LiveCaptureLifecycleTests {
+    @Test(arguments: [ScanFundingSource.paidPro, .complimentaryPro, .immediateFlash, .deferredFlash])
+    func proTimeoutRequiresExactDurableFunding(source: ScanFundingSource) throws {
+        let manager = OfflineQueueManager.shared
+        let originalContext = manager.modelContext
+        let context = try OfflineSyncTestSupport.makeIsolatedContext()
+        let scanId = UUID().uuidString.lowercased()
+        let generation = UUID()
+        manager.modelContext = context
+        manager.foregroundInferenceGenerations[scanId] = generation
+        manager.startedForegroundInferenceGenerations[scanId] = generation
+        defer {
+            manager.modelContext = originalContext
+            manager.foregroundInferenceGenerations.removeValue(forKey: scanId)
+            manager.startedForegroundInferenceGenerations.removeValue(forKey: scanId)
+        }
+        let job = OfflineJobRecord(
+            id: OfflineQueueManager.scanIngestionJobId(scanId: scanId),
+            kind: .scanIngestion,
+            subjectId: scanId,
+            status: .running,
+            metadataJSON: OfflineScanJobMetadataContract.json(
+                generation: generation,
+                funding: ScanFundingReservation(accountId: UUID(), scanId: scanId, source: source)
+            )
+        )
+        context.insert(job)
+        try context.save()
+        #expect(manager.isForegroundInferenceProFunded(scanId: scanId, generation: generation)
+            == (source == .paidPro || source == .complimentaryPro))
+        #expect(!manager.isForegroundInferenceProFunded(scanId: scanId, generation: UUID()))
+        job.metadataJSON = InferenceGenerationMetadataContract.json(for: UUID())
+        #expect(!manager.isForegroundInferenceProFunded(scanId: scanId, generation: generation))
+        job.metadataJSON = InferenceGenerationMetadataContract.json(for: generation)
+        #expect(!manager.isForegroundInferenceProFunded(scanId: scanId, generation: generation))
+    }
+
     @Test func testForegroundInferenceOwnershipOutlivesBodyUploadHandoff() {
         let manager = OfflineQueueManager.shared
         let scanId = UUID().uuidString

@@ -34,6 +34,7 @@ struct InferenceLiveRequestService {
         let clientScanId: String?
         let preferredGoal: FieldTripPreferredGoal?
         let durableQueueOwnsRecovery: Bool
+        var isProFunded: Bool = false
     }
 
     struct VisualRequest: Sendable {
@@ -46,6 +47,7 @@ struct InferenceLiveRequestService {
         let preferredGoal: FieldTripPreferredGoal?
         let durableQueueOwnsRecovery: Bool
         let pipelineStartedAt: CFAbsoluteTime
+        var isProFunded: Bool = false
     }
 
     struct NonVisualRequest: Sendable {
@@ -54,6 +56,7 @@ struct InferenceLiveRequestService {
         let telemetry: CaptureTelemetry
         let clientScanId: String?
         let durableQueueOwnsRecovery: Bool
+        var isProFunded: Bool = false
     }
 
     struct Response: Sendable {
@@ -98,6 +101,7 @@ struct InferenceLiveRequestService {
                     preferredGoal: request.preferredGoal,
                     durableQueueOwnsRecovery:
                         request.durableQueueOwnsRecovery,
+                    isProFunded: request.isProFunded,
                     onRequestBodySent: onRequestBodySent
                 )
             }
@@ -173,7 +177,8 @@ struct InferenceLiveRequestService {
                 clientScanId: request.clientScanId,
                 preferredGoal: request.preferredGoal,
                 durableQueueOwnsRecovery:
-                    request.durableQueueOwnsRecovery
+                    request.durableQueueOwnsRecovery,
+                isProFunded: request.isProFunded
             ),
             onRequestBodySent
         )
@@ -216,7 +221,8 @@ struct InferenceLiveRequestService {
                 clientScanId: request.clientScanId,
                 preferredGoal: nil,
                 durableQueueOwnsRecovery:
-                    request.durableQueueOwnsRecovery
+                    request.durableQueueOwnsRecovery,
+                isProFunded: request.isProFunded
             ),
             nil
         )

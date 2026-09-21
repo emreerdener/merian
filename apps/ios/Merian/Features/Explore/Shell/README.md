@@ -39,7 +39,7 @@ this README documents the iOS ownership boundary.
   sheet items, Insight handoff state, playback coordinator, and injected
   dependencies. It also retains the Species overview view model for the Explore
   presentation and passes it through the navigation host, preserving loaded
-  content across Species/Requests and root-tab navigation. Catalog owns its
+  content across Species/Community and root-tab navigation. Catalog owns its
   five-minute freshness and refresh policy; dismissing Explore releases it.
   `Views/ExploreShellNavigationView.swift` registers typed destinations and owns
   route-local composition. The lifecycle, presentation, and event/feedback
@@ -82,7 +82,7 @@ library route.
 
 - Species is the plain-entry default and renders the existing Species Dictionary
   overview directly.
-- Requests renders the 12-request/10-Activity dashboard and can push the
+- Community renders the 12-request/10-Activity dashboard and can push the
   complete **Identify requests** and **Identify activity** feeds.
 
 The bottom tab bar and root segmented picker are visible only while
@@ -97,8 +97,8 @@ each section's current root mode until that item is explicitly reselected.
 
 Deep-link policy is explicit. `ExploreInitialTabPolicy` selects Identify for a
 species or community-request destination. `ExploreInitialIdentifyModePolicy`
-selects Species (`.index`) for species and Requests for community requests.
-Runtime request notifications follow the same policy in
+selects Species (`.index`) for species and Community (`.requests`) for community
+requests. Runtime request notifications follow the same policy in
 `openCommunityIdentificationRequest(_:)`. Preserve this selection-before-push
 order when adding entry points.
 
@@ -234,3 +234,9 @@ initial deep links and capture goals; notification selection/dismissal races;
 Insight-to-Community and owned-post dismissal handoffs; missing local scans;
 root comments/notifications/Insight overlay playback; VoiceOver; large Dynamic
 Type; Reduce Motion; and light/dark appearance.
+
+Dictionary Search is another typed destination in the shared stack.
+`ExploreView` retains its `SpeciesSearchViewModel` for this presentation and
+resets it on account changes. Search returns existing species/post routes and
+owns no parallel stack. See
+[Search ownership](../../SpeciesDictionary/Search/README.md).

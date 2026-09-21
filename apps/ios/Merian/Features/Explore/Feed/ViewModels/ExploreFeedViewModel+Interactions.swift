@@ -180,6 +180,7 @@ extension ExploreFeedViewModel {
     }
 
     func removePosts(byAuthorUserId authorUserId: String) {
+        blockedAuthorUserIDs.insert(authorUserId)
         for post in store.allPosts where post.authorUserId == authorUserId {
             postRemovalRevisions[post.id, default: 0] &+= 1
             reactionRevisions["post:\(post.id)", default: 0] &+= 1

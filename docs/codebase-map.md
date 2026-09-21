@@ -555,16 +555,19 @@ rendering. Core Hardware owns the stable `AudioCaptureManager` facade,
 canonical WAV, bounded PCM stream, DSP task, operation identity, recording
 lease, and partial-file cleanup. `AudioReviewPlaybackController` exclusively
 owns the review player, progress/completion tasks, playback generation, and
-playback lease behind the manager API. The coordinator publishes one-shot lease
-ownership only after activation succeeds; mode, background, reset, pause, stop,
-and replacement invalidate pending work before it can start hardware or publish
-into newer Capture state. Mirrored Core Hardware tests lock engine teardown
-order, WAV retention/deletion, route recovery, manager- and controller-level
-duplicate-resume coalescing, transition invalidation,
-stop-before-playback-activation cleanup, failed player-start and completion-wait
-cleanup, stale playback completion rejection, unconditional manager-reset
-cleanup, successful lease replacement, failed-activation configuration
-restoration, rollback-failure invalidation, and first-activation cleanup.
+playback lease behind the manager API. `AudioReviewBoostController` owns the
+review-only preference, cancellable preparation, and uncached temporary boost
+copy; original WAV paths remain the sole staging and inference source. The
+coordinator publishes one-shot lease ownership only after activation succeeds;
+mode, background, reset, pause, stop, and replacement invalidate pending work
+before it can start hardware or publish into newer Capture state. Mirrored Core
+Hardware tests lock engine teardown order, WAV retention/deletion, route
+recovery, manager- and controller-level duplicate-resume coalescing, transition
+invalidation, stop-before-playback-activation cleanup, failed player-start and
+completion-wait cleanup, stale playback completion rejection, unconditional
+manager-reset cleanup, successful lease replacement, failed-activation
+configuration restoration, rollback-failure invalidation, and first-activation
+cleanup.
 
 Within Capture Shared, `Services/ImageFocusRegionDetector.swift` owns the
 Capture-only bounded Vision objectness request, exact 300 ms deadline and
@@ -1885,7 +1888,7 @@ Explore community identification:
 - `submit-community-feedback`
 
 The root iOS contract is Observations / Field trips / Identify. Identify owns
-Species/Requests, with Species leading and selected by default. Its `Models/`
+Species/Community, with Species leading and selected by default. Its `Models/`
 define presentation and route values, `Services/` adapts live
 network/identity/event dependencies, `ViewModels/` owns dashboard, pagination,
 detail, search, and feedback state, and `Views/` plus grouped `Components/`
@@ -2702,3 +2705,21 @@ Detail reactor identities use `get-explore-post-reactors` and its guarded
 `get_explore_post_reactors` RPC. Native ownership is
 `ExplorePostReactorsViewModel` plus the typed detail sheet; see the
 [people API](./backend-and-data/05-api-contracts.md#post-reaction-people).
+
+### Conversational species discovery
+
+`Features/SpeciesDictionary/Search/` owns the results-first Search route, entry,
+filters, two result tabs, keyboard UI and generation-fenced session state.
+Explore Shell retains that model for one presentation. The entry and Field Chat
+toolbar button share the presentation-only rainbow glow/shimmer in
+`Core/UI/Modifiers/RainbowCapsuleAccent.swift`; feature controls retain their
+own actions and labels. Core Network owns the dedicated endpoint,
+`SpeciesDiscoverySearchAPIModels` and `SpeciesSearchResponseValidator`.
+`services/supabase/functions/species-discovery-search/` owns bounded question
+interpretation and real-record retrieval through the new indexed, service-only
+search RPC. See the
+[canonical dictionary contract](features-and-hardware/16-species-dictionary.md#conversational-discovery-search)
+and
+[verification matrix](development-guides/08-testing-strategy.md#species-discovery-search-verification)
+for state, privacy, native selectors, Edge/database tests, and manual
+acceptance.

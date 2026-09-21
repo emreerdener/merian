@@ -32,7 +32,9 @@ struct CaptureControlBarPresentation: Equatable {
         isCheckingScanAdmission: Bool,
         isStagingRefinement: Bool,
         isDescriptionEmpty: Bool,
-        canStageRefinementDescription: Bool = true
+        canStageRefinementDescription: Bool = true,
+        isCapturing: Bool = false,
+        isPreparingVideo: Bool = false
     ) {
         let isAtCapacity = isRefining
             ? (captureMode == .describe ? !canStageRefinementDescription : availableStagedSlots == 0)
@@ -42,16 +44,17 @@ struct CaptureControlBarPresentation: Equatable {
         photoSelectionCount = capacityLimit > 1
             ? max(1, availableStagedSlots)
             : 1
-        showsPhotoLibrary = captureMode == .visual && !isVideoRecording
+        showsPhotoLibrary = captureMode == .visual && !isVideoRecording && !isPreparingVideo
         isPhotoLibraryAvailable = captureMode == .visual
             && !isAtCapacity
+            && !isCapturing
             && !isVideoRecording
-        showsVideoCancel = captureMode == .visual && isVideoRecording
+        showsVideoCancel = captureMode == .visual && (isVideoRecording || isPreparingVideo)
         showsPromptList = captureMode == .describe && !isRefining
         showsAudioDelete = captureMode == .audio
             && (isAudioRecording || hasPendingAudio)
         showsFlash = captureMode == .visual
-        isFlashAvailable = captureMode == .visual && !isAtCapacity
+        isFlashAvailable = captureMode == .visual && !isAtCapacity && !isCapturing
         showsDictation = captureMode == .describe
         showsAudioDone = captureMode == .audio && isAudioRecording
         showsAudioReview = captureMode == .audio && hasPendingAudio
@@ -63,6 +66,7 @@ struct CaptureControlBarPresentation: Equatable {
             || requiresScanConfirmation
         isPrimaryActionDisabled = isAtCapacity
             || isCheckingScanAdmission
+            || (captureMode == .visual && isCapturing && !isVideoRecording)
             || (captureMode == .describe && isStagingRefinement)
         isInputActive = captureMode != .describe || !isDescriptionEmpty
     }
@@ -77,6 +81,11 @@ struct CapturePrimaryActionPresentation: Equatable {
     let videoRecordingProgress: Double
     let audioState: CaptureButtonAudioState
     let audioRecordingProgress: Double
+    var isCapturing: Bool = false
+
+    var showsProcessingProgress: Bool {
+        captureMode == .visual && isCapturing && !isVideoRecording
+    }
 
     var isAudioRecording: Bool {
         captureMode == .audio

@@ -2123,7 +2123,7 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   country reuse, the 299/300-second freshness boundary with an injected clock,
   explicit refresh, retained content during refresh and failure, country
   replacement, cancellation/re-entry, and stale completion. Model tests do not
-  exercise SwiftUI lifetime: Species/Requests, root-tab, and pushed-page return
+  exercise SwiftUI lifetime: Species/Community, root-tab, and pushed-page return
   paths plus Explore dismissal must also satisfy the
   [manual overview acceptance checks](../features-and-hardware/16-species-dictionary.md#testing).
   `SpeciesDictionaryRegionMapViewModelTests` owns stale completion and
@@ -3389,6 +3389,8 @@ xcodebuild test-without-building \
   -only-testing:merianTests/CameraVideoRecordingCoordinatorTests \
   -only-testing:merianTests/CameraSessionPolicyTests \
   -only-testing:merianTests/CameraSessionControllerTests \
+  -only-testing:merianTests/CameraVideoAudioSessionTests \
+  -only-testing:merianTests/AudioSessionCoordinatorTests \
   -only-testing:merianTests/CameraArchitectureTests
 ```
 
@@ -5130,7 +5132,7 @@ not accept one layer as evidence for another.
 iOS focused coverage:
 
 - `Features/Explore/Identify/CommunityIdentificationPresentationTests.swift`
-  locks Species/Requests mode order and titles, 12/10 preview limits, 30-row
+  locks Species/Community mode order and titles, 12/10 preview limits, 30-row
   complete page size, independent request/Activity presentation state, filter
   mapping, empty copy, and current-filter route propagation.
 - `Features/Explore/Identify/IdentifyDashboardViewModelTests.swift` verifies
@@ -5147,7 +5149,7 @@ iOS focused coverage:
   search, debounce-independent search outcomes, 4,000-character feedback
   validation, trimming, success, and failure restoration.
 - `Features/Explore/Shell/ExploreShellNavigationPolicyTests.swift` locks the
-  exact three root tabs plus species-to-Species and request-to-Requests
+  exact three root tabs plus species-to-Species and request-to-Community
   deep-link policy. Identify presentation and asynchronous state tests remain
   with Identify. Catalog routing, presentation, asynchronous state, and
   architecture tests live in `Features/SpeciesDictionary/Catalog/`; detail
@@ -5225,7 +5227,7 @@ requires the fully migrated disposable catalog and the complete
 Manual root-UI acceptance requires:
 
 1. Exactly Observations, Field trips, and Identify in bottom navigation.
-2. Species/Requests at the Identify root, with Species leading/default, and no
+2. Species/Community at the Identify root, with Species leading/default, and no
    separate taxonomy visualization entry point.
 3. Species overview, catalog, and regions navigation retaining their established
    loading, empty, error, search, refresh, pagination, VoiceOver, and large
@@ -5233,8 +5235,8 @@ Manual root-UI acceptance requires:
 4. Rapid catalog search replacement, selection reversion, refresh/pagination
    overlap, and map navigation never publishing stale content or leaving a
    loading state stuck; a current-selection refresh failure retains usable rows.
-5. **Identify requests**, banner, 12-card cap, larger section gap, then **Recent
-   activity** with 10-row cap.
+5. **Identification requests**, banner, 12-card cap, larger section gap, then
+   **Recent activity** with 10-row cap.
 6. Shared filter behavior across both previews and independent outage/Retry
    presentation.
 7. **See all requests** and **See all activity** preserving the filter and
@@ -6143,11 +6145,11 @@ production checks:
   bounded propagation window. It uses only a validated legacy anon JWT to cross
   any intentional gateway `verify_jwt = true` boundary and fails closed if that
   execution credential is unavailable; a publishable key is never sent in Bearer
-  authorization. Fourteen customer-critical scan, signing, share-state, Explore,
-  Field Chat, Community, and deletion routes additionally return marked
-  fail-closed `401` responses without user Authorization. Final Function
-  failures classify only whether the fixed `X-Merian-Handler: 1` marker was
-  present; Data API failures use separate PostgREST/RPC guidance and never
+  authorization. Fifteen customer-critical scan, signing, share-state, Explore,
+  Field Chat, dictionary search, Community, and deletion routes additionally
+  return marked fail-closed `401` responses without user Authorization. Final
+  Function failures classify only whether the fixed `X-Merian-Handler: 1` marker
+  was present; Data API failures use separate PostgREST/RPC guidance and never
   expect a Function marker. Both paths keep the body and request-ID value
   private and never print a variable header value. Do not create a production
   user merely to obtain an authenticated JWT for this smoke: exact-value
@@ -8832,3 +8834,60 @@ missing/blank usernames, retention of initial actors across later pages, and
 replacement on refresh. Check long usernames, large Dynamic Type, VoiceOver
 names, dark mode, and removal or account switching while requests are pending.
 Automated passes do not establish these manual or deployed checks.
+
+## Species discovery search verification
+
+The
+[Species Dictionary search contract](../features-and-hardware/16-species-dictionary.md#conversational-discovery-search)
+owns the user experience and session rules. The
+[endpoint README](../../services/supabase/functions/species-discovery-search/README.md)
+owns wire bounds, AI accounting, public eligibility, and pagination. This search
+is separate from single-species Field Chat and category-list name filtering.
+
+| Boundary                              | Executable coverage                                                                                                                                                                                                                                                                                                                      |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Session and concurrency               | `SpeciesSearchViewModelTests`: follow-up context, lazy tab reads, reset during a suspended request, obsolete-result rejection, failed replacement preserving draft/results, cancellation recovery, clarification across tabs, retries retaining the failed tab/cursor, and rapid filter edits composing against the pending context.     |
+| Local visibility                      | The same suite covers removed-post revisions and a blocked author's previously unseen post arriving after the block, while preserving another author's result. `SpeciesSearchSightings` gates both shared-store registration and rendered cards.                                                                                         |
+| Wire validation                       | `SpeciesSearchResponseTests`: version, request identity, result kind, context, clarification message/context, cursor key decoding, and cursor-to-page binding. `SpeciesDiscoverySearchEndpointTests` locks the typed authenticated POST, absence of caller-supplied viewer identity, and rejection of another request's response.        |
+| Layout artifacts                      | `testSearchVisualFixtures` attaches introduction and result renderings in light/dark appearance, including results at `accessibility3`. These are synthetic UI fixtures, not real database records or live-provider evidence, and require visual inspection.                                                                             |
+| Edge interpretation and orchestration | `species-discovery-search/contract_test.ts` validates bounded requests, enums, cursors, nonempty model messages, and prompt boundaries. `handler_test.ts` covers consent/quota commit before provider dispatch, direct name lookup without AI, context-only reads, unsupported requests, and provider-failure accounting.                |
+| Visibility-safe enrichment            | `species-discovery-search/db_test.ts` preserves the RPC's health-filtered media array and rejects an unexpected raw-media table read.                                                                                                                                                                                                    |
+| Database security and retrieval       | `_tests/speciesDiscoverySearchMigrationContract.test.ts` and `tests/species_discovery_search.sql` cover service-only invoker privileges, caller denial, public biological eligibility, names and descriptive matching, cursor continuation, and viewer-aware public-sighting removal/block/quarantine rules on a fresh migration replay. |
+| Operational inventory                 | `_tests/aiQuotaCoverage.test.ts` includes the dedicated provider operation. `tooling_gate_test.ts` requires the route in deployment's critical user-route denial smoke; `documentation_contract_test.ts` keeps the current runbook and historical incident scope aligned.                                                                |
+
+The native search suites are selectors in
+`scripts/config/ios-runtime-audit.json`. Run focused tests through
+`make ios-local-build`, using its shared checkout cache; then run the complete
+affected native and Supabase candidate gates. Use a freshly replayed disposable
+database for the SQL and Edge integration suites. The Supabase tooling gate also
+checks documentation links and source contracts.
+
+Manual acceptance remains separate from automated passes:
+
+- Open search while the overview is loaded, loading, and unavailable. Check
+  entry spacing, initial keyboard focus, all three example prompts, explicit
+  keyboard and send-button submission, and New search while a request is
+  pending.
+- Retrieve a known common/scientific name, then a descriptive query with
+  dictionary-supported excerpts. Refine “Orange and black insects” with “Only
+  butterflies”; check both tabs use the updated criteria and media scope is
+  visibly Sightings-only. Exercise clarification and unsupported geography/date
+  requests against the live provider in an authorized test environment.
+- Distinguish no species from no public sightings. Exercise pagination, offline
+  submission, recovery, retry, rapid filters, and account changes while requests
+  are suspended; the draft and last successful results must survive failures.
+- Open each detail type and return: selected tab, results, draft, and scroll
+  anchor must remain. Closing Explore and reopening must start a fresh session.
+- Block an author or remove a visible post while a result request is pending.
+  Check cards do not reappear, quarantined media stays absent, and publication
+  dates say **Shared**. Hidden/private records must not enter model
+  explanations.
+- Inspect VoiceOver labels, selected tabs, focus order and keyboard interaction;
+  large Dynamic Type, narrow screens, and light/dark appearance. At all text
+  sizes New search is icon-only visually but retains its spoken label. Confirm
+  the composer text is vertically centered and prompt arrows point right.
+
+Local test passes and inspected fixture attachments establish only local source
+validation. Live-provider behavior, manual VoiceOver/device navigation, and
+hosted deployment verification remain separate evidence; do not infer them from
+simulator fixtures or the existing Field Chat beta authorization.

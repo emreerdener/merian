@@ -5,6 +5,20 @@ import Testing
 @MainActor
 @Suite("App Settings")
 struct AppSettingsTests {
+    @Test func boostRecordingPreviewsDefaultsOffPersistsAndReloads() throws {
+        let name = "merian.tests.preview-boost.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: name))
+        defer { defaults.removePersistentDomain(forName: name) }
+        let settings = AppSettings(userDefaults: defaults, observeExternalChanges: false)
+        #expect(!settings.boostRecordingPreviewsEnabled)
+        settings.boostRecordingPreviewsEnabled = true
+        let restored = AppSettings(userDefaults: defaults, observeExternalChanges: false)
+        #expect(restored.boostRecordingPreviewsEnabled)
+        defaults.set(false, forKey: UserDefaultsKeys.boostRecordingPreviewsEnabled)
+        restored.refreshFromDefaults()
+        #expect(!restored.boostRecordingPreviewsEnabled)
+    }
+
     @Test func testDiscoveryAlertsDefaultOnWithoutOverwritingStoredChoices() throws {
         for savedChoice in [nil, false, true] as [Bool?] {
             let suiteName = "merian.tests.discovery-defaults.\(UUID().uuidString)"

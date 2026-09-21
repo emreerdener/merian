@@ -6,6 +6,7 @@ struct InsightChatSheet: View {
     let speciesData: SpeciesData?
     let displayName: String
     let timestamp: Date?
+    var media: [FieldChatMedia] = []
     // swiftlint:disable:next implicit_optional_initialization
     var publicScientificName: String? = nil
     var publicAlternativeNames: [String] = []
@@ -53,7 +54,7 @@ struct InsightChatSheet: View {
         viewModel.canSend
     }
 
-    private var showsPromptChips: Bool {
+    private var showsSuggestions: Bool {
         guard hasVisibleMessages || !viewModel.isOffline,
               !showsInitialLoadingState,
               !viewModel.isSending,
@@ -63,7 +64,7 @@ struct InsightChatSheet: View {
             return false
         }
 
-        return !viewModel.isLoadingPrompts || !viewModel.suggestedPrompts.isEmpty
+        return !hasVisibleMessages || !viewModel.isLoadingPrompts || !viewModel.suggestedPrompts.isEmpty
     }
 
     private var showsBlockingError: Bool {
@@ -99,7 +100,7 @@ struct InsightChatSheet: View {
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar { toolbarContent }
                 .safeAreaInset(edge: .bottom, spacing: 0) {
-                    if !showsBlockingError && showsPromptChips {
+                    if hasVisibleMessages && !showsBlockingError && showsSuggestions {
                         promptSuggestionsInset
                     }
                 }
@@ -222,7 +223,8 @@ struct InsightChatSheet: View {
                                 .frame(width: geometry.size.width, height: geometry.size.height)
                         } else if !hasVisibleMessages {
                             emptyState
-                                .frame(width: geometry.size.width, height: geometry.size.height)
+                                .frame(width: geometry.size.width)
+                                .frame(minHeight: geometry.size.height, alignment: .top)
                         } else {
                             LazyVStack(alignment: .leading, spacing: 12) {
                                 ForEach(Array(viewModel.messages.enumerated()), id: \.element.id) { index, message in
@@ -304,24 +306,18 @@ struct InsightChatSheet: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: 10) {
-            Image("sparkles")
-                .resizable()
-                .scaledToFit()
-                .frame(width: 100, height: 100)
-            Text("What would you like to know about \(displayName)?")
-                .font(.title2)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 24)
-
-            if !allowsOwnerActions {
-                Text("This Field chat is private and visible only to you.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
-            }
-        }
+        FieldChatEmptyState(
+            displayName: displayName,
+            showsPrivacyCaption: !allowsOwnerActions,
+            media: media,
+            isOnline: !viewModel.isOffline,
+            prompts: chips,
+            isLoadingPrompts: viewModel.isLoadingPrompts && viewModel.suggestedPrompts.isEmpty,
+            showsPrompts: showsSuggestions,
+            onImageSelection: { viewModel.performFeedback(.selection) },
+            onPromptSelection: selectPrompt
+        )
+        .id(scanId)
     }
 
     private var unavailableState: some View {
@@ -386,9 +382,7 @@ struct InsightChatSheet: View {
             HStack(spacing: 8) {
                 ForEach(chips, id: \.self) { chip in
                     Button {
-                        viewModel.performFeedback(.selection)
-                        trackPromptChip(chip)
-                        Task { await viewModel.send(chip, scanId: scanId) }
+                        selectPrompt(chip)
                     } label: {
                         Text(chip)
                             .lineLimit(1)
@@ -582,6 +576,14 @@ struct InsightChatSheet: View {
             hasLookalikes: hasLookalikes,
             promptCategory: promptCategory
         ))
+    }
+
+    private func selectPrompt(_ prompt: String) {
+        guard !viewModel.isSending, !viewModel.isOffline, viewModel.pendingUserMessage == nil else { return }
+        viewModel.performFeedback(.selection)
+        trackPromptChip(prompt)
+        composerFocused = false
+        Task { await viewModel.send(prompt, scanId: scanId) }
     }
 
 }

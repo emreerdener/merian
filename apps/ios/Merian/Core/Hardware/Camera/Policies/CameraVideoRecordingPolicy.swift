@@ -21,10 +21,6 @@ struct CameraVideoRecordingGenerationGate: Sendable {
         generation == candidate
     }
 
-    func matches(callbackURL: URL) -> Bool {
-        generation.matches(callbackURL: callbackURL)
-    }
-
     mutating func installTimeoutAction(_ action: CameraVideoRecordingScheduledAction) -> Bool {
         guard matches(action.generation) else { return false }
         timeoutActionID = action.id

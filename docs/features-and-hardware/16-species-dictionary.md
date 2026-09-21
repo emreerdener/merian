@@ -709,8 +709,8 @@ destinations and owns the shared navigation stack. The feature-local
 is the concise source map for contributors.
 
 `ExploreView` retains the overview model for one Explore presentation and
-injects it through the navigation host. Switching between Species, Requests, and
-other pages therefore preserves the loaded overview. Navigation reuses a
+injects it through the navigation host. Switching between Species, Community,
+and other pages therefore preserves the loaded overview. Navigation reuses a
 successful result for five minutes after completion, keyed to the normalized
 country. After expiry, the existing content remains visible while the view task
 refreshes it; failed or cancelled requests do not renew freshness. Explicit
@@ -863,11 +863,11 @@ Every current `/species-dictionary` response includes additive
 - `needs_enrichment`: fewer than two public content sections are present.
 
 iOS treats the field as optional for backward compatibility and estimates the
-same state when older payloads omit it. `complete` pages render normally.
-`sparse` and `needs_enrichment` pages show a compact status card below the
-species header so missing sections read as limited dictionary coverage, not
-broken layout. The page still renders every available section and continues to
-fall back gracefully when images or text are missing.
+same state when older payloads omit it. All three states render available
+content without a content-quality notice card. Sparse and early entries omit the
+“Limited details” and “Early dictionary entry” notices across every in-app
+Dictionary entry point. Content quality remains available for telemetry; the
+page continues to fall back gracefully when images or text are missing.
 
 A GBIF taxon key can supply a distribution map before habitat prose is
 available. The Dictionary habitat card keeps that map visible and shows
@@ -1199,11 +1199,11 @@ npm run build
 
 Manual acceptance:
 
-- Switch Identify repeatedly between Species and Requests. Confirm Species
+- Switch Identify repeatedly between Species and Community. Confirm Species
   preserves the existing overview layout, Recently Added and organism-group
   order, local region treatment, loading skeletons, empty/error copy, and
   pushed-navigation chrome.
-- After loading Species, switch to Requests or another root tab and return
+- After loading Species, switch to Community or another root tab and return
   within five minutes: content should appear without overview skeletons or a new
   overview request. Return after five minutes and confirm existing content
   remains visible during refresh, including a failed offline refresh. Pull to
@@ -1264,3 +1264,83 @@ Manual acceptance:
 - In a browser, confirm canonical metadata, licensed image attribution, textual
   similar-species navigation, native-app CTA, and clean omission of absent
   optional sections.
+
+## Conversational discovery search
+
+### Entry and interaction
+
+The overview places “Search or ask Naturebook” below the sheet toolbar and
+before the featured card, including loading and error states. The capsule entry
+has a 50-point minimum height and matching card margins, with native interactive
+Liquid Glass on iOS 26+ and an ultra-thin material fallback on earlier systems.
+A single leading `sparkle.magnifyingglass` symbol combines search and AI; there
+is no trailing icon. Core UI's `rainbowCapsuleAccent` adds the same soft rainbow
+glow and occasional 1.8-second border sweep as the Field Chat sheet button,
+sized to the entry. Reduce Motion keeps the glow static without the shimmer; the
+decoration does not intercept taps or add VoiceOver elements. The existing
+18-point stack spacing to the featured card remains. It pushes Search in
+Explore's shared navigation stack and focuses the input. Root controls give way
+to Back, Search, and an icon-only New search button with its VoiceOver label
+retained; the bottom menu is hidden. Composer text is vertically centered beside
+the send control, and example prompts use right-pointing arrows.
+
+Before submission, show **What would you like to discover?** and “Search by
+name, describe a species, or explore public sightings.” Tappable examples submit
+“Small birds with red heads”, “Orange and black butterflies”, and “Fungi that
+grow on trees”. The single bottom input changes from **Ask Naturebook…** to
+**Refine your search…** after successful results. Submissions are explicit; the
+current source does not issue model calls or show name suggestions while typing.
+
+Species opens first. Results show the latest interpretation, editable scope
+chips, Species/Sightings selector, scrollable cards, a group-refinement
+shortcut, and the persistent input. Follow-ups replace the active search instead
+of accumulating chat bubbles. For example, “Orange and black insects” followed
+by “Only butterflies” updates the criteria used by both tabs. Results resolve to
+existing dictionary or Explore detail routes.
+
+Explicit group and Sightings-only media chips show the active scope. Descriptive
+results are “Possible matches”; excerpts are verbatim dictionary text. Sightings
+show public attribution and location labels, with publication dates labeled
+“Shared”. Nearby, date filtering, and private observations are outside v1.
+
+An empty Sightings result says **No matching public sightings** and offers the
+Species tab; it does not imply there are no matching dictionary entries. An
+empty Species result says **No matching species**. Loading retains the last
+successful cards. Failures retain the draft and offer explicit Retry. A
+clarification keeps the unresolved context and refocuses the input; an
+unsupported request explains its limits without replacing successful results.
+
+### Session, retrieval, and scope
+
+Explore owns the in-memory search session. Detail navigation preserves both tabs
+and their scroll anchors. New search, an account change, or closing Explore
+clears the session. Failed follow-ups retain the previous results and draft;
+generation fences reject obsolete completions and disable pagination after a
+failed replacement. Clarifications preserve the unresolved query for the next
+answer, including while browsing the other result tab. A retry retains the
+failed request's tab and pagination cursor. Local block events also suppress
+unseen posts from that author in late search responses; Edge enrichment keeps
+the database projection's filtered media array intact.
+
+The separate `species-discovery-search` operation interprets bounded questions
+into English text-search criteria and retrieves real public biological entries.
+An initial question without context and within the 240 UTF-16-unit name-query
+bound bypasses AI when scientific/common/alternative name substrings match.
+Exact scientific and canonical English common names rank first; alternative-name
+matches do not receive the exact-match bonus. Follow-up questions use
+interpretation; context-only filter/tab/page requests do not. Descriptions use a
+generated search document and partial GIN index. Sightings join all matching
+species through the viewer-aware Explore projection before pagination and
+exclude coordinate fields. No record identities or post content come from the
+model. Search does not reuse single-species Field Chat conversations.
+
+The new source requires the forward search migration and function deployment
+before hosted use; this implementation does not constitute deployment. See the
+[endpoint contract](../../services/supabase/functions/species-discovery-search/README.md)
+for bounds, privacy, pagination, consent, and dedicated 20/free or 120/Pro daily
+AI allowances. The
+[iOS owner](../../apps/ios/Merian/Features/SpeciesDictionary/Search/README.md)
+contains source ownership; the
+[verification matrix](../development-guides/08-testing-strategy.md#species-discovery-search-verification)
+owns automated selectors and remaining manual acceptance. The existing Field
+Chat beta exception does not authorize discovery-search deployment.

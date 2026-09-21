@@ -150,6 +150,9 @@ lease. The manager injects live playback dependencies through its existing
 dependency value and forwards only presentation updates to its observable state.
 
 Every playback instance has a generation and exact player-identity fence.
+Activation and completion use separate tasks so seeking can cancel and replace
+only the completion timer. A seek made before activation finishes is retained;
+forward and backward seeks reschedule completion from the current position.
 Stopping before activation clears ownership immediately; if a
 cancellation-ignoring activation later returns a lease, the stale task
 deactivates it without starting audio. A cancelled completion from a prior
@@ -161,6 +164,50 @@ completion-wait failure use the same exact-player finalizer. Manager reset
 always stops this playback owner even while recording startup is resolving
 because the recording and playback leases are independent.
 
+### Recording Review Audio Boost
+
+Finished recordings expose a bottom-left **Boost audio** control on the review
+spectrogram, above the scrub interaction layer. Explicit activation prepares a
+local listening copy without starting playback. The control reads **Boosting…**
+during preparation and **Boosted audio** once ready. It remains tappable during
+preparation to turn boost off. Source changes preserve the live playback
+position and play/stop intent; the spectrogram always represents the original
+recording.
+
+**Audio → Boost recording previews** is device-local and defaults off. Its
+helper reads “Make quiet recordings louder during playback. AI analysis uses the
+original recording.” Capture Shell samples the preference when a new recording
+starts. With the preference enabled, review displays a selected checkmark and
+announces “On for next playback”; preparation waits until Play. A per-recording
+override never changes the device default, Explore preferences, or completed
+Insight preferences. Pause/resume keeps the unfinished WAV open and performs no
+boost processing. Maximum-duration automatic submission also skips boost.
+
+`AudioReviewBoostController` owns the selected mode, generation-fenced
+preparation, failure state, and temporary derivative. Its injected processor
+uses `AudioBoostProcessor.prepareLocalPreview`, which reuses the shared bounded
+DSP on a cancellable background task but bypasses the shared playback cache.
+Thus review cleanup cannot evict a file owned by another surface. Submit,
+discard, reset, mode changes, scene inactivity/background, and control teardown
+invalidate pending playback intent; late results are deleted without updating
+another review or starting audio. Stopping playback preserves the per-recording
+boost selection.
+
+Only `AudioReviewPlaybackController` receives the derived playback URL.
+`pendingPlaybackPath`, `audioFilePath`, staged media, durable storage, and
+inference continue using the original WAV bytes. Submission never waits for
+preparation. A failed direct submission restores review of the original with the
+recording's initial preview default and no retained derivative. Preparation or
+source-creation failure falls back to original playback and shows **Audio boost
+unavailable. Playing original.**; explicit activation retries preparation.
+
+`AudioReviewBoostControllerTests` covers deferred/coalesced work, cancellation-
+ignoring late results, replacement, fallback/retry, source switching, original
+file preservation, submission recovery, discard, and automatic submission.
+Settings, Record presentation/action, and playback tests cover persistence,
+accessibility state, action routing, position, and completion. Physical-device
+speaker/headphone and microphone handoff verification remains required.
+
 ### Published State
 
 | Property              | Type                  | Description                                                                                                                                                                                                                                                                                                                                                   |
@@ -171,7 +218,7 @@ because the recording and playback leases are independent.
 | `spectrogramColumns`  | `[SpectrogramColumn]` | Rolling display buffer (360 columns ≈ 15 s)                                                                                                                                                                                                                                                                                                                   |
 | `snrLevel`            | `SNRLevel`            | Most recent noise level classification                                                                                                                                                                                                                                                                                                                        |
 | `pendingPlaybackPath` | `String?`             | Non-nil after recording finishes, before user confirms or discards. Drives the review UI state in `AudioRecordingView`.                                                                                                                                                                                                                                       |
-| `isPlaying`           | `Bool`                | Whether `AVAudioPlayer` is currently playing back a pending recording                                                                                                                                                                                                                                                                                         |
+| `isPlaying`           | `Bool`                | Whether review playback is requested, including selected-boost preparation; Stop cancels that pending intent                                                                                                                                                                                                                                                  |
 | `playbackProgress`    | `Double`              | 0.0 → 1.0 playhead position during review playback; a position scrubbed before playback becomes the next start position, while explicit stop resets it to zero                                                                                                                                                                                                |
 | `audioFilePath`       | `String?`             | Non-nil after the user explicitly confirms in review, or after a maximum-duration recording auto-confirms when confirmation is disabled. Setting this triggers `onChange(of: audioFilePath)`, which either stages the clip into `stagedCapture.audios` (mixed-media / confirmation flows) or calls `submitAudio` directly for the standalone audio-only flow. |
 
@@ -288,7 +335,7 @@ actor ignores stale or already consumed leases.
 | `cancelPendingRecordingTransition()`        | Invalidates and cancels pending startup/resume work without concurrently mutating an engine that its startup owner is still configuring                                                                                                                                                                           |
 | `cancelRecording()`                         | Cancels countdown state; the recording controller finishes the stream, removes the tap before engine stop, cancels DSP, releases its exact lease, and deletes the partial `tmp/` file; then the manager clears review state                                                                                       |
 | `finishRecording()` (private)               | Asks the recording controller to retain the completed WAV while tearing down its other resources. Early completion or confirmation-enabled capture enters review; a maximum-duration capture with confirmation disabled enters the established Shell submission handoff.                                          |
-| `playPendingRecording()`                    | Passes the pending file and scrubbed resume position to `AudioReviewPlaybackController`; sets `isPlaying` only when a player is accepted and receives progress/completion through main-actor callbacks                                                                                                            |
+| `playPendingRecording()`                    | Prepares the selected listening copy when needed, then passes its URL and scrubbed position to `AudioReviewPlaybackController`; playback intent includes preparation so Stop can cancel it                                                                                                                        |
 | `stopPlayback()`                            | Atomically clears controller ownership, cancels both playback tasks, stops the exact player, releases its lease, and clears `isPlaying` plus `playbackProgress`                                                                                                                                                   |
 | `seekPlayback(to:)`                         | Clamps and publishes the requested position; while a player is active, the controller also updates its `currentTime`, while a not-yet-playing review retains the parked manager progress for its next start                                                                                                       |
 | `confirmAndSubmit()`                        | Stops playback, sets `audioFilePath = pendingPlaybackPath`, clears `pendingPlaybackPath` — triggers `onChange` in `CaptureWorkspaceView`                                                                                                                                                                          |
@@ -699,7 +746,8 @@ private func startAudioRecording() {
             try Task.checkCancellation()
             guard scenePhase == .active else { return }
             try await audioCaptureManager.startRecording(
-                autoSubmitOnMaxDuration: !appSettings.requiresScanConfirmation
+                autoSubmitOnMaxDuration: !appSettings.requiresScanConfirmation,
+                boostRecordingPreview: appSettings.boostRecordingPreviewsEnabled
             )
         } catch is CancellationError {
             // Expected when the user leaves Audio during startup.
@@ -733,17 +781,30 @@ hidden during review so the ring resets to a clean submit-button appearance.
 
 ### Flanking buttons (left / right slots)
 
-| State                        | Left button                                           | Right button                                               |
-| ---------------------------- | ----------------------------------------------------- | ---------------------------------------------------------- |
-| Idle                         | —                                                     | —                                                          |
-| Recording (active or paused) | `CaptureAudioDeleteButton` (trash — cancel + discard) | `CaptureAudioDoneButton` (checkmark — stop early → review) |
-| Review                       | `CaptureAudioDeleteButton` (trash — discard pending)  | `CaptureAudioReviewPlayButton` (play/stop toggle)          |
+| State                        | Left button                                          | Right button                                               |
+| ---------------------------- | ---------------------------------------------------- | ---------------------------------------------------------- |
+| Idle                         | —                                                    | —                                                          |
+| Recording (active or paused) | `CaptureAudioDeleteButton` (X — cancel + discard)    | `CaptureAudioDoneButton` (checkmark — stop early → review) |
+| Review                       | `CaptureAudioDeleteButton` (trash — discard pending) | `CaptureAudioReviewPlayButton` (play/stop toggle)          |
 
-`CaptureAudioDeleteButton` routes to `cancelRecording()` while recording and
-`discardPending()` during review. `CaptureAudioDoneButton` routes to
-`stopRecordingEarly()`. `CaptureAudioReviewPlayButton` routes to
-`playPendingRecording()` / `stopPlayback()`, showing `play.fill` or `stop.fill`
-with a `.symbolEffect(.replace)` transition.
+`CaptureAudioDeleteButton` routes immediately to `cancelRecording()` while
+recording (including paused recording). During review, the trash button opens a
+native **Discard this recording?** confirmation with **Discard Recording** and
+**Cancel** actions. Opening or dismissing the dialog leaves playback and the
+pending recording intact; only confirming discard calls `discardPending()`,
+which stops playback and deletes the pending recording. Confirmation is bound to
+the reviewed recording and dismissed when it changes, the mode changes, capture
+controls are suppressed, or the workspace becomes inactive or leaves.
+`CaptureAudioDoneButton` routes to `stopRecordingEarly()`.
+`CaptureAudioReviewPlayButton` routes to `playPendingRecording()` /
+`stopPlayback()`, showing `play.fill` or `stop.fill` with a
+`.symbolEffect(.replace)` transition.
+
+The audio cancel and discard control keeps a red icon inside a 50 pt circular
+surface. On iOS 26 and later it uses untinted interactive Liquid Glass; earlier
+versions use adaptive ultra-thin material with a subtle border. Both treatments
+follow the surrounding light or dark appearance without forcing dark material.
+The recording X transitions to a trash icon during review.
 
 All flanking buttons animate in/out with `.easeInOut(duration: 0.2)` keyed on
 `captureMode`, `isRecording`, and `pendingPlaybackPath`.

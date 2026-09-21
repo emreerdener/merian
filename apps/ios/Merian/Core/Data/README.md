@@ -277,23 +277,25 @@ persistence-before-cleanup plus exact-generation retirement ordering. It also
 freezes both inference retry paths' durable save, immediate central wake
 restoration without an intervening suspension, post-save
 cancellation/poll/generation revalidation, and optional process-local poll/retry
-replacement in that order. `QueueMaintenanceTests` covers state transitions,
-fresh automatic-work counts, purging, and flush behavior;
-`SyncStateManagerTests` retains generation-aware upload, inference, finalizing,
-and forced-idle projection coverage. Queue-maintenance and capture-admission
-cases snapshot and restore the shared manager state they mutate; creating an
-isolated store alone does not mutate a singleton field. `CaptureAdmissionTests`,
-`LiveCaptureLifecycleTests`, and `InferenceReplayTests` mirror the newly focused
-owners. `BackgroundTransferOwnershipTests` mirrors terminal tracking, delegate
-routing, Auth quiescence, relaunched lease adoption, and durable retirement. The
-background-inference lifecycle, dispatch, and policy suites mirror exact
-generation fencing, a hard preparation deadline that does not await a
-non-cooperative loser, caller-cancellation identity, durable dispatch ordering,
-and actor-independent response/status decisions. The completion suite mirrors
-exact cancellation retirement, stale callback fencing, and task-result file
-cleanup without disturbing a replacement generation. The watchdog suite mirrors
-exact probe replacement, parsed open-task identity, exact probe/generation
-revalidation after both task-enumeration suspensions, and
+replacement in that order. Video-promotion finalization gets one three-second
+initial recovery follow-up, then ordinary 15-second token-owned polling;
+server-directed retry timing remains authoritative. `QueueMaintenanceTests`
+covers state transitions, fresh automatic-work counts, purging, and flush
+behavior; `SyncStateManagerTests` retains generation-aware upload, inference,
+finalizing, and forced-idle projection coverage. Queue-maintenance and
+capture-admission cases snapshot and restore the shared manager state they
+mutate; creating an isolated store alone does not mutate a singleton field.
+`CaptureAdmissionTests`, `LiveCaptureLifecycleTests`, and `InferenceReplayTests`
+mirror the newly focused owners. `BackgroundTransferOwnershipTests` mirrors
+terminal tracking, delegate routing, Auth quiescence, relaunched lease adoption,
+and durable retirement. The background-inference lifecycle, dispatch, and policy
+suites mirror exact generation fencing, a hard preparation deadline that does
+not await a non-cooperative loser, caller-cancellation identity, durable
+dispatch ordering, and actor-independent response/status decisions. The
+completion suite mirrors exact cancellation retirement, stale callback fencing,
+and task-result file cleanup without disturbing a replacement generation. The
+watchdog suite mirrors exact probe replacement, parsed open-task identity, exact
+probe/generation revalidation after both task-enumeration suspensions, and
 recovery/cancellation/retirement/retry ordering. The recovery and retry suites
 mirror durable result evidence, terminal contract mismatch handling,
 replacement-token fencing, durable marker recovery, and cancellation-independent

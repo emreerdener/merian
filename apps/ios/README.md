@@ -275,7 +275,7 @@ living in the aggregate client suite. See the
 and mirrored test boundaries.
 
 `CoreNetworkIntegrationArchitectureTests` owns the cross-slice source guard: it
-freezes the 18 endpoint owners, prevents duplicate aggregate entry points,
+freezes the 19 endpoint owners, prevents duplicate aggregate entry points,
 enforces the 600-line ceiling across extracted Auth, Endpoint, Inference, Media,
 Recovery, and Transport owners, and applies the same ceiling to the client
 façade. It freezes ownership of the exact sixty-one Auth paths, relocated

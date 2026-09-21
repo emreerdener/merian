@@ -83,11 +83,27 @@ struct CaptureAudioDeleteButton: View {
             Image(systemName: isRecording ? "xmark" : "trash")
                 .font(.system(size: 20, weight: .medium))
                 .foregroundColor(.red)
-                .circularMaterialControl(colorScheme: .dark)
+                .modifier(CaptureAudioDeleteGlassModifier())
                 .contentTransition(.symbolEffect(.replace))
         }
         .buttonStyle(.plain)
         .padding(.leading, 32)
+    }
+}
+
+private struct CaptureAudioDeleteGlassModifier: ViewModifier {
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content
+                .frame(width: 50, height: 50)
+                .glassEffect(.regular.interactive(), in: Circle())
+        } else {
+            content
+                .circularMaterialControl(
+                    borderColor: .primary.opacity(0.15)
+                )
+        }
     }
 }
 

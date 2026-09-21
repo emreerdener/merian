@@ -37,13 +37,28 @@ direct service lookup in a view.
 Still capture performs bounded inference and display downsampling, applies the
 same composing-zone-aware square crop to both outputs, derives a tentative focus
 region, and commits one typed `StagedImage`. Short Pro video capture keeps the
-original recording alive while it samples five deterministic frames, prepares a
-bounded playback clip, and extracts companion WAV audio. Temporary
-audio/compressed artifacts remain leased until staging accepts them, so failed,
-cancelled, timed-out, superseded, and unconsumed preparation results delete
-their files. `DetachedWork` propagates parent cancellation into the bounded
-workers; synchronous ImageIO/AVFoundation work observes cancellation at the
-explicit stage boundaries.
+original recording alive while three bounded child operations concurrently
+sample five deterministic frames, prepare a playback clip, and extract companion
+WAV audio. Completion waits for all required results rather than adding each
+stage's latency. Temporary audio/compressed artifacts remain leased until
+staging accepts them, so failed, cancelled, timed-out, superseded, and
+unconsumed preparation results delete their files. `DetachedWork` propagates
+parent cancellation into the bounded workers; synchronous ImageIO/AVFoundation
+work observes cancellation at the explicit stage boundaries.
+
+The companion-audio extractor leaves appended sample buffers valid for the
+asynchronous asset writer. If that writer emits WAVE_EXTENSIBLE, the shared
+`InferenceAudioPreparer` normalizes it to standard mono 44.1 kHz Int16 PCM WAV
+before staging. Both the intermediate export and canonical sidecar remain leased
+through conversion; only the validated canonical result transfers to staging.
+The existing inference byte limit and strict WAV checks remain in force.
+
+When recording ends, the countdown and stop icon immediately give way to a busy
+shutter while preparation continues. The capture generation remains active, the
+cancel action remains available, and new capture, library, and flash actions are
+blocked. Ordinary lifecycle interruption preserves the already-recorded clip's
+preparation; explicit cancellation still discards it. Shutter-to-recording and
+total preparation timings are logged separately from playback export timing.
 
 Once a prepared video is committed to `StagedCapture`, its recording generation
 and cancel UI finish before the optional Camera Roll save completes. The save
@@ -101,6 +116,10 @@ Swift file at or below 600 lines, requires the ownership folders, rejects the
 removed aggregate `Capture.swift`, forbids global service resolution, including
 direct `CameraManager.shared` lookup, and keeps Models independent of UI
 frameworks.
+
+`CaptureScanVideoAudioExtractorTests` creates synthetic MP4 clips with mono and
+stereo AAC tracks and checks canonical WAV format, audible samples, duration,
+queue eligibility, source preservation, no-audio behavior, and lease cleanup.
 
 The canonical hardware and media contracts remain in
 [`01-camera-and-hardware.md`](../../../../../../docs/features-and-hardware/01-camera-and-hardware.md)

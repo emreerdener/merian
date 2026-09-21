@@ -117,6 +117,7 @@ export interface ChatScanContext {
   depth_scale_text: string | null;
   ai_confidence_score: number | null;
   ai_reasoning: string | null;
+  extracted_visual_traits: string[] | null;
   candidates: unknown;
   image_quality_score: number | null;
   blur_score: number | null;

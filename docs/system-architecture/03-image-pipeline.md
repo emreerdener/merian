@@ -404,8 +404,11 @@ files through the file actor. Submit paths use reference-only clearing after
 queue acceptance so durable queue/live persistence retains media ownership.
 
 **Video-preparation cancellation boundary**: sampled-frame, playback-export, and
-companion-WAV work observe parent cancellation through `DetachedWork` and
-explicit stage checks. Newly created WAV and compressed-playback files stay in
+companion-WAV work run as three bounded concurrent child operations over the
+finished recording. They observe parent cancellation through `DetachedWork` and
+explicit stage checks. Playback and audio results retain their file leases until
+the join succeeds, so an early frame failure cannot leak a concurrently
+completed export. Newly created WAV and compressed-playback files stay in
 temporary leases until the prepared result is accepted for staging. A failed,
 cancelled, timed-out, superseded, or otherwise unconsumed result therefore
 deletes its files even when an AVFoundation operation completes after the
@@ -413,6 +416,13 @@ timeout winner. Accepted paths transfer to the staged-media cleanup contract
 above. Once staging commits, Scan finalizes the recording generation and hides
 its cancel UI before awaiting the optional Camera Roll write; PhotoKit still
 retains the original recording until that write finishes.
+
+The video companion-audio writer retains valid sample buffers through encoding.
+Its WAVE_EXTENSIBLE exports are normalized through the shared bounded
+`InferenceAudioPreparer` to mono 44.1 kHz Int16 PCM WAV before queue admission.
+The intermediate export remains leased through conversion and is then deleted;
+the canonical sidecar alone follows staged-media ownership. Conversion failure
+or cancellation cleans both artifacts without deleting the source recording.
 
 **Why tier-conditional inference resolution (768 px / 1024 px)?** Gemini Vision
 tokenizes images by tiling them into 768×768 blocks: a 768 px square image

@@ -206,6 +206,10 @@ final class InferenceLiveAttemptCoordinator {
         )
     }
 
+    func isForegroundInferenceProFunded(scanId: String, generation: UUID) -> Bool {
+        queueService.isForegroundInferenceProFunded(scanId: scanId, generation: generation)
+    }
+
     func releaseDeferredUpload(
         scanId: String,
         foregroundGeneration: UUID?,

@@ -1874,7 +1874,7 @@ state is cached from that response.
 
 ### `/get-community-identification-feed`
 
-Returns unresolved `needs_id` requests for the Identify Requests dashboard and
+Returns unresolved `needs_id` requests for the Identify Community dashboard and
 full **Identify requests** stack page. `limit` defaults to 30 and is capped at
 100. Optional `scope` accepts `all` or `mine` and defaults to `all`; `mine`
 returns unresolved requests created by the authenticated viewer. Optional
@@ -6200,9 +6200,26 @@ The request and JSON response bodies remain backward-compatible. The endpoint
 adds only diagnostic response headers:
 
 - `Server-Timing`: `auth`, `body_read`, `tier`, `pre_gemini_db`, `gemini`,
-  `dictionary`, `post_gemini`, and `edge_total` durations in milliseconds.
+  `quota_commit`, `provider`, `video_promotion`, `primary_enrichment`,
+  `database_finalization`, `dictionary`, `post_gemini`, and `edge_total`
+  durations in milliseconds.
 - `X-Merian-Edge-Region`: the runtime region reported by the Edge environment,
   when available.
+
+The successful `multimodal/latency` event also includes `quota_commit_ms`,
+`provider_ms`, `video_promotion_ms`, `primary_enrichment_ms`, and
+`database_finalization_ms`, matching the new header spans. `provider` measures
+only the awaited Gemini SDK call, including provider transport; the legacy
+`gemini` / `gemini_latency_ms` still includes quota commit for comparison with
+older logs. `video_promotion` measures playback promotion after its job-state
+checkpoint. `primary_enrichment` measures the awaited primary external lookup,
+including a caught lookup failure, and excludes optional candidate enrichment.
+`database_finalization` covers the scan-insert checkpoint, insertion, and
+canonical finalization/read-back; it excludes earlier species-dictionary work.
+Optional phases that do not run report zero. These components do not partition
+`edge_total`: moderation, audio promotion, dictionary work, and other overhead
+remain in the existing broader spans. Failure responses and idempotent replay
+responses do not emit this successful-request event.
 
 The request may include `X-Merian-Constrained-Network: true|false` for aggregate
 latency segmentation. Logs and headers never contain user ID, scan ID, species,
@@ -6828,6 +6845,17 @@ date/month, location label, weather, elevation, and image/capture-quality
 metadata. It does not include raw image bytes, R2 object keys, cloud image URLs,
 internal scan IDs, exact GPS coordinates, Explore comments, public post
 metadata, or Darwin Core export payloads.
+
+Owned Insight answers, prompt suggestions, and field-note drafts include the
+existing scan's `extracted_visual_traits` as `AI-extracted observation traits`.
+The server trims entries, discards non-string/empty values, and limits output to
+ten traits, 500 characters per trait, and 2,000 characters including quoting and
+separators. Missing or empty traits render as `Unavailable`. Quoted traits are
+data rather than instructions and remain fallible evidence from the original AI
+scan, including after an identification correction. They do not establish
+physical measurements without supporting scale evidence or imply fresh image
+inspection. This internal context addition requires no HTTP payload change, scan
+backfill, or extra AI call; Explore and Dictionary projections are unchanged.
 
 Location-aware answers may use only the saved private location label, month,
 elevation, ecology type, and weather. The prompt explicitly forbids inferring,
@@ -11005,3 +11033,21 @@ through injected dependencies and a refresh/account-fenced state owner. Apply
 `20260918163435_add_explore_post_reactors.sql` and deploy the new route before
 that app update. Existing post/comment DTOs and reaction endpoints are
 unchanged.
+
+## Species discovery search
+
+`POST /species-discovery-search` is an authenticated, no-store, version-1 search
+operation. `request_id` and `result_kind` are echoed and strictly validated by
+iOS. A question plus prior structured context performs refinement; context-only
+requests paginate or switch tabs without invoking AI. Results contain real
+catalog items with source excerpts, or viewer-filtered public Explore cards with
+no map coordinates. `results`, `clarification`, and `unsupported` have distinct
+response semantics. Questions never become retained Field Chat messages.
+
+The
+[owning executable contract and limits](../../services/supabase/functions/species-discovery-search/README.md)
+cover request/context/cursor shapes, result bounds, consent, quota, retry, and
+privacy. iOS hand-written DTOs live in `SpeciesDiscoverySearchAPIModels.swift`;
+`SpeciesSearchResponseValidator` validates the version, request identity, result
+type, context, record identities, and cursor before publishing a page. Existing
+Identify generated DTOs and web/admin consumers are unaffected.
