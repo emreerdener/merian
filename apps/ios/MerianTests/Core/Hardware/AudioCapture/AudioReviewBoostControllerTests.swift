@@ -30,6 +30,16 @@ private final class ReviewBoostPlayer: AudioReviewPlaybackPlayer {
     var currentTime: TimeInterval = 0
     var playCount = 0
     var stopCount = 0
+    var preparationFails = false
+    func prepare() throws -> TimeInterval {
+        if preparationFails { throw CocoaError(.fileReadCorruptFile) }
+        return duration
+    }
+    func playbackTime() -> TimeInterval { currentTime }
+    func seek(to time: TimeInterval) {
+        guard !Task.isCancelled else { return }
+        currentTime = time
+    }
     func play() -> Bool { playCount += 1; return true }
     func stop() { stopCount += 1 }
 }
@@ -39,11 +49,13 @@ private final class ReviewBoostPlayerFactory {
     var urls: [URL] = []
     var players: [ReviewBoostPlayer] = []
     var failingURLs: Set<URL> = []
+    var preparationFailingURLs: Set<URL> = []
 
     func makePlayer(_ url: URL) throws -> ReviewBoostPlayer {
         if failingURLs.contains(url) { throw CocoaError(.fileReadCorruptFile) }
         urls.append(url)
         let player = ReviewBoostPlayer()
+        player.preparationFails = preparationFailingURLs.contains(url)
         players.append(player)
         return player
     }
@@ -97,6 +109,28 @@ private struct ReviewBoostFixture {
 @Suite("Recording preview boost")
 @MainActor
 struct AudioReviewBoostControllerTests {
+    @Test("Asynchronous boosted-file preparation failure falls back to the original")
+    func asynchronousBoostedFileFailureFallsBackToOriginal() async throws {
+        let fixture = try ReviewBoostFixture()
+        defer { fixture.cleanup() }
+        fixture.factory.preparationFailingURLs = [fixture.boosted]
+        let manager = fixture.manager(enabled: true)
+        defer { manager.reset() }
+        manager.seekPlayback(to: 0.4)
+        manager.playPendingRecording()
+        try await waitUntil { fixture.probe.waiters.count == 1 }
+        fixture.probe.succeed(fixture.boosted)
+        try await waitUntil {
+            fixture.factory.players.count == 2 && fixture.factory.players[1].playCount == 1
+        }
+        #expect(fixture.factory.urls == [fixture.boosted, fixture.original])
+        #expect(fixture.factory.players[0].playCount == 0)
+        #expect(fixture.factory.players[0].stopCount == 1)
+        #expect(fixture.factory.players[1].currentTime == 4)
+        #expect(manager.isPlaying)
+        #expect(manager.reviewBoostState.hasFailed)
+    }
+
     @Test("Preference defers work and duplicate requests coalesce")
     func deferredPreferenceCoalescesPreparation() async throws {
         let fixture = try ReviewBoostFixture()
@@ -306,6 +340,7 @@ struct AudioReviewBoostControllerTests {
         fixture.factory.failingURLs = [fixture.original]
         manager.toggleReviewAudioBoost()
         #expect(!manager.isPlaying)
+        try await waitUntil { fixture.factory.players[0].stopCount == 1 }
         #expect(fixture.factory.players[0].stopCount == 1)
         #expect(fixture.factory.players.count == 1)
     }

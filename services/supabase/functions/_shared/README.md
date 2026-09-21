@@ -410,6 +410,13 @@ contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-re
 - **`explore.ts`**: Explore UUID/hashtag validation, public author identity
   sync, feed-card hashtag/pro-badge/username hydration, and shared
   social-surface helpers.
+- **`verifiedSpecies.ts`**: Bounded exact GBIF species verification shared by
+  authenticated dictionary resolution and the model-content lookalike worker. It
+  validates accepted identities and synonyms, supports caller cancellation, and
+  retains the worker's candidate normalization and taxonomy compatibility
+  checks. It owns no database writes or request admission. Verification tests
+  remain in `refresh-species-model-content/lookalikeCandidates.test.ts`; the
+  resolver's handler tests cover cancellation propagation.
 - **`publicSpeciesProjection.ts`**: Public species projection sanitizer that
   prevents private scan/user fields from leaking into dictionary and Explore
   responses. It also filters exact denied external media from normalized rows,

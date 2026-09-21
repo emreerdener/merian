@@ -465,6 +465,21 @@ before calling this RPC.
 
 ### `species_dictionary`
 
+Authenticated name-only page resolution uses the service-only
+`resolve_verified_dictionary_species(jsonb)` routine. It accepts a
+server-verified GBIF species proof, inserts with
+`ON CONFLICT (scientific_name) DO NOTHING`, and rechecks the surviving public
+identity and taxon key. An exact-name legacy row can receive its missing,
+verified GBIF key; conflicting keys and curated content are preserved. This lets
+subsequent accepted-name changes reuse the same UUID. The existing
+materialization guard suppresses same-genus relations and recursive lookalike
+jobs while retaining reference/habitat/tag hydration. Admission is separate:
+`admit_species_dictionary_resolution(uuid)` consumes the existing pruned atomic
+counters under dedicated non-AI buckets (six/user/minute, sixty/user/UTC day,
+120 globally/minute), without provider reservations or scan allowances. Both
+routines require the service role and are recorded in the privileged-routine
+allowlist. No new user table or SwiftData schema is introduced.
+
 The global source-of-truth for biological species models. The identify boundary
 must keep manufactured, processed, or depicted objects out of this table; wool
 rugs, leather goods, wooden furniture, paper, textiles, prepared food, toys,

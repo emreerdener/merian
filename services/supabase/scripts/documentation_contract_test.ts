@@ -4902,11 +4902,11 @@ Deno.test("Edge route availability docs preserve the gateway-handler boundary", 
   );
   assertStringIncludes(
     runbook,
-    "separately probes fifteen customer-critical routes",
+    "separately probes sixteen customer-critical routes",
   );
   assertStringIncludes(
     backend,
-    "all fifteen customer-critical scan, signing, share-state, Explore, Field Chat, Community, identity-handoff, and deletion routes",
+    "all sixteen customer-critical scan, signing, share-state, Explore, Field Chat, Community, identity-handoff, and deletion routes",
   );
   assertStringIncludes(
     incident,
@@ -4922,7 +4922,7 @@ Deno.test("Edge route availability docs preserve the gateway-handler boundary", 
     !backend.includes(
       "stricter fail-closed authorization probes for twelve",
     ),
-    "The Supabase operations README must use the current fifteen-route authorization inventory.",
+    "The Supabase operations README must use the current sixteen-route authorization inventory.",
   );
   assertStringIncludes(
     backend,

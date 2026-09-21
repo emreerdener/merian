@@ -2055,20 +2055,25 @@ consults that Keychain entry.
   [Field Chat endpoint and validation guide](../../apps/ios/Merian/Core/Network/README.md#field-chat-endpoints-and-validation)
   and
   [focused matrix](../../apps/ios/Merian/Core/Network/README.md#field-chat-verification).
-- `MerianNetworkClient+SpeciesDictionary.swift` is the ninth endpoint owner: six
-  public method variants cover detail, catalog, overview, and stats. Dictionary
-  POSTs retain 30-second deadlines; stats uses the private typed authenticated
-  GET helper at 20 seconds. Two fixed-result cache-aware client bridges own
-  lookup, loading, validation, and insertion without exposing the private cache
-  instance or accepting caller-provided response DTOs/loaders. A `Void`
-  configuration guard preserves URL-validation-before-input/cache ordering.
-  Typed response checks live in
-  `Decoding/SpeciesDictionaryResponseValidator.swift`; two independent locked
-  memos live in `Caching/SpeciesDictionaryResponseCache.swift`. Their
-  10-/5-minute insertion-time TTLs, 64-alias-key caps, identity fallback,
-  resets, and cache-hit cancellation behavior remain unchanged. Feature Services
-  retain their adapters; shared logical retry/recovery stays in the request
-  executor and per-attempt Auth/session dispatch stays in
+- `MerianNetworkClient+SpeciesDictionary.swift` is the ninth endpoint owner:
+  seven public method variants cover verified resolution, detail, catalog,
+  overview, and stats. The authenticated resolver returns a
+  schema/identity-checked receipt without public caching or automatic
+  ambiguous-response replay. Detail's live service checks cancellation, fetches
+  the verified UUID, and rejects any replacement UUID even when ordinary detail
+  reads permit stale-ID recovery. Dictionary POSTs retain 30-second deadlines;
+  stats uses the private typed authenticated GET helper at 20 seconds. Two
+  fixed-result cache-aware client bridges own lookup, loading, validation, and
+  insertion without exposing the private cache instance or accepting
+  caller-provided response DTOs/loaders. A `Void` configuration guard preserves
+  URL-validation-before-input/cache ordering for the existing read routes. Typed
+  response checks live in `Decoding/SpeciesDictionaryResponseValidator.swift`;
+  two independent locked memos live in
+  `Caching/SpeciesDictionaryResponseCache.swift`. Their 10-/5-minute
+  insertion-time TTLs, 64-alias-key caps, identity fallback, resets, and
+  cache-hit cancellation behavior remain unchanged. Feature Services retain
+  their adapters; shared logical retry/recovery stays in the request executor
+  and per-attempt Auth/session dispatch stays in
   `AuthenticatedTransportDispatcher`. See the
   [Dictionary boundary and focused matrix](../../apps/ios/Merian/Core/Network/README.md#species-dictionary-verification).
 - `MerianNetworkClient+ScanLifecycle.swift` is the tenth endpoint owner:

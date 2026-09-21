@@ -264,11 +264,12 @@ production submission or public release.
   `/species-dictionary-chat`, `/field-trips` starter enrollment, preferred
   progress, and scan contributions, `/update-public-avatar`, Community
   Identification request/detail and grouped Activity endpoints,
-  `/species-dictionary`, `/species-discovery-search`,
-  `/species-observation-stats`, `/sync-collections`, `/report-user`, the
-  internal admin RPC surface, Explore detail similar species, and internal cron
-  workers such as Merian reference-image refresh, diagnostic `Server-Timing`,
-  and `/update-scan-context`, plus the owner-authenticated `/repair-scan-image`
+  `/species-dictionary`, authenticated `/resolve-species-dictionary`,
+  `/species-discovery-search`, `/species-observation-stats`,
+  `/sync-collections`, `/report-user`, the internal admin RPC surface, Explore
+  detail similar species, and internal cron workers such as Merian
+  reference-image refresh, diagnostic `Server-Timing`, and
+  `/update-scan-context`, plus the owner-authenticated `/repair-scan-image`
   inspection and recovery contract.
 - **[`/backend-and-data/06-supabase-deployment-runbook.md`](./backend-and-data/06-supabase-deployment-runbook.md)**
   — Validation-only Supabase candidate gate, separately authorized production
@@ -397,9 +398,10 @@ production submission or public release.
 - **[`/features-and-hardware/16-species-dictionary.md`](./features-and-hardware/16-species-dictionary.md)**
   — Standalone public species dictionary page, `species-dictionary` Edge
   Function detail/catalog/overview contracts, similar-species entry points from
-  Insight and Explore detail, conversational Species/Sightings search,
-  release-held in-app private Field Chat, cache rules, content quality, media
-  attribution, enrichment queue/backfill, and refresh provenance. Search's
+  Insight and Explore detail, verified resolution of name-only reference pages,
+  conversational Species/Sightings search, release-held in-app private Field
+  Chat, cache rules, content quality, media attribution, enrichment
+  queue/backfill, and refresh provenance. Search's
   [verification matrix](./development-guides/08-testing-strategy.md#species-discovery-search-verification)
   distinguishes automated coverage from device and live-provider checks.
 - **[`/features-and-hardware/17-public-web-share-pages.md`](./features-and-hardware/17-public-web-share-pages.md)**

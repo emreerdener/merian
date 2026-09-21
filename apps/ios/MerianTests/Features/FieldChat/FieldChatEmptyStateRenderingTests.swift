@@ -6,6 +6,38 @@ import XCTest
 /// Retains deterministic visual evidence without opening a live chat endpoint.
 @MainActor
 final class FieldChatEmptyStateRenderingTests: XCTestCase {
+    func testCompactSuggestionVisualFixtures() async throws {
+        for (name, loading, dark) in [
+            ("loading", true, false),
+            ("ready", false, false),
+            ("dark", false, true)
+        ] {
+            let content = FieldChatCompactPrompts(
+                candidates: ["What habitat does it prefer?", "How can I distinguish it?"],
+                isLoading: loading, isVisible: true, isOnline: true, onSelection: { _ in }
+            )
+            let controller = UIHostingController(rootView: content)
+            let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 180))
+            controller.overrideUserInterfaceStyle = dark ? .dark : .light
+            window.overrideUserInterfaceStyle = dark ? .dark : .light
+            window.rootViewController = controller
+            window.makeKeyAndVisible()
+            defer { window.isHidden = true }
+            controller.view.frame = window.bounds
+            try await Task.sleep(for: .milliseconds(350))
+            controller.view.layoutIfNeeded()
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = 1
+            let rendered = UIGraphicsImageRenderer(size: window.bounds.size, format: format).image { _ in
+                controller.view.drawHierarchy(in: controller.view.bounds, afterScreenUpdates: true)
+            }
+            let attachment = XCTAttachment(image: rendered)
+            attachment.name = "field-chat-compact-\(name)"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
+    }
+
     func testEmptyStateVisualFixtures() async throws {
         let image = try XCTUnwrap(UIImage(named: "fieldtrip-park-flowering-plant"))
         for (name, count, dark, largeText, compact, fails) in [
@@ -29,7 +61,7 @@ final class FieldChatEmptyStateRenderingTests: XCTestCase {
             let height: CGFloat = name == "stack-tall" ? 1000 : compact ? 280 : 620
             let content = ScrollView {
                 FieldChatEmptyState(
-                    displayName: "Dakota Mock Vervain", showsPrivacyCaption: true,
+                    displayName: "Dakota Mock Vervain",
                     media: media,
                     imageDependencies: .init { _, _ in
                         loadCount += 1

@@ -14,7 +14,7 @@ import {
 import {
   type LookalikeTaxonFetcher,
   prepareLookalikeCandidates,
-} from "./lookalikeCandidates.ts";
+} from "../_shared/verifiedSpecies.ts";
 
 export interface SpeciesModelContentDependencies {
   fetchSimilarSpecies?: typeof fetchSimilarSpecies;

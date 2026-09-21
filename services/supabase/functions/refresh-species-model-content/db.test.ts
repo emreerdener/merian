@@ -6,7 +6,7 @@ import {
   runSpeciesModelContentRefresh,
   type SpeciesModelEnrichmentJobRow,
 } from "./db.ts";
-import type { VerifiedLookalikeTaxon } from "./lookalikeCandidates.ts";
+import type { VerifiedLookalikeTaxon } from "../_shared/verifiedSpecies.ts";
 
 Deno.test("refresh species model content - parses defaults and filters", () => {
   const defaultResult = parseSpeciesModelContentRefreshRequest({});

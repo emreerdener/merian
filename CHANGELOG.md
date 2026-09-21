@@ -80,6 +80,11 @@ TestFlight, App Store, support, and QA.
 
 ### Species Dictionary Field Chat — Release-Gated
 
+- Species pages opened from **Similar Species**, including older Insights, now
+  prepare Field Chat while keeping the reference page readable. If preparation
+  fails, a Retry action is available. Opening the page does not start a chat.
+  The supporting backend must be released before the app update; this remains
+  unreleased source work under the existing Field Chat release controls.
 - The source candidate adds the existing private Field Chat experience to every
   loaded in-app Species Dictionary page. Share stays in the top bar; Free opens
   the existing paywall; Pro can restore one private saved thread per species,

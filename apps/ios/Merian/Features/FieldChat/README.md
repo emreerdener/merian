@@ -79,45 +79,56 @@ Each committed user page change requests exactly one `.selection` effect through
 the existing Field Chat feedback dependency, respecting the haptics preference.
 Initial loading, image failures, single-image navigation, canceled swipes, and
 automatic selection changes remain silent. Swiping and VoiceOver adjustment wrap
-from the last image to the first and back, without opening a viewer. During a
-swipe the front card follows the finger; a committed change slides and rotates
-that card outward, promotes the next card, then tucks the outgoing card behind
-the deck. Stable media identities avoid opacity transitions. The view holds at
-most one additional outgoing thumbnail during the swap and releases it on
-completion or disappearance. Repeated gestures are ignored until the swap
-finishes and the selected image has decoded. Gesture cancellation restores the
-front card automatically; failed destinations, dismissal, and enabling Reduce
-Motion discard the in-flight swap. Obsolete animation completions cannot restore
-dismissed state. Reduce Motion disables drag and page-change animation, and the
-empty-state content can scroll with large text or a visible keyboard.
+from the last image to the first and back, without opening a viewer. Page
+position remains available to VoiceOver without a visible numeric label;
+reference-image attribution remains beneath the stack. During a swipe the front
+card follows the finger; a committed change slides and rotates that card
+outward, promotes the next card, then tucks the outgoing card behind the deck. A
+0.12-second eased exit flows directly into a 0.16-second eased return, without
+waiting for a spring to settle. Stable media identities avoid opacity
+transitions. The view holds at most one additional outgoing thumbnail during the
+swap and releases it on completion or disappearance. Repeated gestures are
+ignored until the swap finishes and the selected image has decoded. Gesture
+cancellation restores the front card automatically; failed destinations,
+dismissal, and enabling Reduce Motion discard the in-flight swap. Obsolete
+animation completions cannot restore dismissed state. Reduce Motion disables
+drag and page-change animation, and the empty-state content can scroll with
+large text or a visible keyboard.
 
 The welcome remains a separate presentation state, not an assistant message. It
-aligns to the top of the scrollable content below the toolbar, with 24 points of
+aligns to the top of the scrollable content below the toolbar, with 8 points of
 top padding, so taller containers leave extra space below the welcome. Beneath
 the image and conversational heading, up to three full-width, multiline question
-buttons have an opaque white fill in light mode and a contrasting
-secondary-system fill in dark mode. A directional arrow sits at the trailing
-edge, vertically centered opposite the multiline prompt and hidden from
-VoiceOver as decoration. `FieldChatWelcomePrompts` reserves the question area
-without showing or enabling temporary questions while generated prompts load.
-`FieldChatWelcomePromptsModel` reveals the existing ranked suggestions once
-ready, or the deterministic fallback set on failure or after four seconds. The
-set fades and rises into view together; Reduce Motion makes the reveal
-immediate. Once visible, the questions remain fixed for that welcome
-presentation, even when late results arrive or drafting/offline temporarily
-hides them. Questions that have not yet been shown can still adopt newer results
-while hidden. The deadline runs from welcome presentation and does not restart
-when questions are temporarily hidden; returning after it reveals the best
-available set immediately. A new subject or a newly created welcome gets a fresh
-presentation; disappearance cancels the deadline task and canceled work cannot
-reveal old questions. Cached generated questions can reveal immediately. Compact
-conversation chips retain their existing refresh behavior. Selecting a welcome
-question uses the same send, telemetry, and preference-aware selection feedback
-as a compact chip. The privacy caption and pinned composer remain visible;
-questions hide while drafting or offline. A pending or saved message removes the
-welcome, and subsequent suggestions use the compact horizontal chips above the
-composer. Welcome questions scroll with the rest of the content at large text
-sizes or with the keyboard visible.
+buttons use 16-point side margins matching the composer, with an opaque white
+fill in light mode and a contrasting secondary-system fill in dark mode. A
+directional arrow sits at the trailing edge, vertically centered opposite the
+multiline prompt and hidden from VoiceOver as decoration.
+`FieldChatWelcomePrompts` reserves the question area without showing or enabling
+temporary questions while generated prompts load. `FieldChatPromptRevealModel`
+reveals the existing ranked suggestions once ready, or the deterministic
+fallback set on failure or after four seconds. The set fades and rises into view
+together; Reduce Motion makes the reveal immediate. Once visible, the questions
+remain fixed for that welcome presentation, even when late results arrive or
+drafting/offline temporarily hides them. Questions that have not yet been shown
+can still adopt newer results while hidden. The deadline runs from welcome
+presentation and does not restart when questions are temporarily hidden;
+returning after it reveals the best available set immediately. A new subject or
+a newly created welcome gets a fresh presentation; disappearance cancels the
+deadline task and canceled work cannot reveal old questions. Cached generated
+questions can reveal immediately. `FieldChatCompactPrompts` uses the same
+`FieldChatPromptRevealModel` for the horizontal conversation chips: reserve
+space, reveal generated suggestions together, or reveal local fallbacks on
+failure or after four seconds. While loading, candidates exclude generated
+questions from the previous reply. A revealed set survives typing and background
+refreshes; each new last-message identity or subject starts a fresh presentation
+and cancels the previous timer. Reduce Motion skips the reveal animation.
+Selecting a welcome question uses the same send, telemetry, and preference-aware
+selection feedback as a compact chip. The privacy caption sits below the pinned
+composer for public-source chats and hides while the input is focused; questions
+hide while drafting or offline. A pending or saved message removes the welcome,
+and subsequent suggestions use the compact horizontal chips above the composer.
+Welcome questions scroll with the rest of the content at large text sizes or
+with the keyboard visible.
 
 This area allows Pro users to ask contextual follow-up questions about a
 completed biological scan without needing to re-upload raw images. It also
@@ -156,11 +167,12 @@ owns the visible result even when tasks start or finish out of order. A
 connectivity change before scheduled work begins still clears the loading state
 instead of leaving the prompt spinner active.
 
-For Explore posts, the empty state uses the concise trust message
-`This Field chat is private and visible only to you.` The conversation is never
-shown to other viewers. Technical context limitations remain enforced by the
-backend and documented in the API contract instead of being presented as
-additional empty-state disclaimers.
+For Explore posts and Species Dictionary, the composer footer uses the concise
+trust message `This Field chat is private and visible only to you.` It remains
+available after the conversation begins and is shown only while the input is
+unfocused. The conversation is never shown to other viewers. Technical context
+limitations remain enforced by the backend and documented in the API contract
+instead of being presented as additional empty-state disclaimers.
 
 ## Connectivity Ownership
 
@@ -438,7 +450,10 @@ See:
   attribution. `FieldChatImageStackTests` covers bounded loading, failures,
   reconnection, cancellation, stale results, and selection-feedback admission.
   `FieldChatEmptyStateRenderingTests` retains deterministic light/dark,
-  compact/large-text, single/stack, and fallback visual fixtures in XCResult.
+  compact/large-text, single/stack, and fallback visual fixtures in XCResult,
+  plus compact suggestion loading and revealed states.
+  `FieldChatPromptRevealTests` covers shared reveal timing, freezing, hidden
+  updates, and cancellation.
 - `FieldChatArchitectureTests` enforces the cross-feature owner,
   platform-neutral Models, Services-only live resolution, and the 600-line
   production-file ceiling.

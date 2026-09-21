@@ -1,10 +1,10 @@
 import Foundation
 import Observation
 
-/// Freezes one set of welcome questions for this presentation's lifetime.
+/// Freezes one set of suggested questions for this presentation's lifetime.
 @MainActor
 @Observable
-final class FieldChatWelcomePromptsModel {
+final class FieldChatPromptRevealModel {
     private(set) var displayedPrompts: [String]?
     @ObservationIgnored private var candidates: [String] = []
     @ObservationIgnored private var isVisible = false

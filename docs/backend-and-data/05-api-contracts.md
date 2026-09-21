@@ -2943,6 +2943,17 @@ and causes `CaptureWorkspaceView` to prompt re-authentication instead.
 
 ## Public Species Dictionary Edge Node
 
+The separate authenticated `POST /resolve-species-dictionary` accepts a bounded
+`scientific_name` and returns a version-1 identity receipt containing
+`requested_scientific_name`, `species_id`, and the saved `scientific_name` (the
+verified accepted name for a new record). It may materialize one exact
+GBIF-verified taxon or fill an exact-name legacy record's missing GBIF key; the
+public read below does not write. The receipt binds verified synonym changes,
+and iOS requires the follow-up detail UUID to match it exactly. Expected
+identity conflicts return a nondisclosing unavailable response. Request limits,
+status codes, admission, and rollout ordering are defined by the
+[resolver contract](../../services/supabase/functions/resolve-species-dictionary/README.md).
+
 The `/species-dictionary` Edge Function returns species-level dictionary data
 for the standalone Species Dictionary Page, Explore Dictionary catalog, and
 server-rendered `/species/[speciesId]/[slug]` web route. The UUID-only web route
@@ -3297,8 +3308,8 @@ MerianNetworkClient.shared.getSpeciesDictionary(speciesId:scientificName:)
 decodes into `SpeciesDictionaryResponse` / `SpeciesDictionaryEntry` in
 `Core/Network/SpeciesDictionaryAPIModels.swift`, which contains wire DTOs only.
 `Core/Network/SpeciesDictionaryIdentity.swift` owns canonical UUID/name and
-cache key normalization. The six Dictionary/detail/catalog/overview/stats method
-variants live in
+cache key normalization. The six existing detail/catalog/overview/stats read
+variants and the authenticated resolution method live in
 `Core/Network/Endpoints/MerianNetworkClient+SpeciesDictionary.swift`;
 `Decoding/SpeciesDictionaryResponseValidator.swift` owns typed schema/identity
 checks and `Caching/SpeciesDictionaryResponseCache.swift` contains the locked

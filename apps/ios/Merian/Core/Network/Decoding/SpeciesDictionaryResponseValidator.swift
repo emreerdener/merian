@@ -3,6 +3,20 @@ import Foundation
 /// Wire decoding remains in the authenticated client bridge. These checks
 /// validate the schemas and identities accepted by Species Dictionary readers.
 enum SpeciesDictionaryResponseValidator {
+    static func resolution(
+        _ response: SpeciesDictionaryResolutionResponse,
+        requestedScientificName: String
+    ) throws -> SpeciesDictionaryResolutionResponse {
+        guard response.schemaVersion == 1,
+              SpeciesDictionaryIdentity.canonicalSpeciesID(response.speciesId) != nil,
+              SpeciesDictionaryIdentity.normalizedScientificName(response.scientificName) != nil,
+              SpeciesDictionaryIdentity.scientificNameCacheKey(response.requestedScientificName) ==
+                SpeciesDictionaryIdentity.scientificNameCacheKey(requestedScientificName) else {
+            throw MerianError.invalidResponse
+        }
+        return response
+    }
+
     static func catalog(_ response: SpeciesDictionaryCatalogResponse) throws -> SpeciesDictionaryCatalogResponse {
         guard response.schemaVersion == 1 else { throw MerianError.invalidResponse }
         return response

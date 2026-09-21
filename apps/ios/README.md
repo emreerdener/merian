@@ -122,11 +122,11 @@ grouped by feature. Field Trips, Community Identification browsing/contribution,
 the eight Explore browsing reads, 12 Explore interaction methods, four
 notification methods, four public-profile methods, six Explore post-management
 methods, six inference entry points, two direct scan-publication methods, 17
-Field Chat methods, six Species Dictionary method variants, four scan lifecycle
-methods, two scan enrichment/context methods, one export method, two product
-feedback methods, three media storage methods, and six account deletion/recovery
-methods are extracted. Both raw `uploadToR2` overloads, foreground
-`uploadStagedVideoFiles`, and publication-media restoration live in
+Field Chat methods, seven Species Dictionary method variants, four scan
+lifecycle methods, two scan enrichment/context methods, one export method, two
+product feedback methods, three media storage methods, and six account
+deletion/recovery methods are extracted. Both raw `uploadToR2` overloads,
+foreground `uploadStagedVideoFiles`, and publication-media restoration live in
 `Core/Network/Media/`; owned-row publication and Field Chat recovery live in
 `Core/Network/Recovery/`. Existing feature adapters, shared Profile state, Core
 Notifications' push/badge owners, and Core's social guard retain their callers

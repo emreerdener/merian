@@ -18,6 +18,8 @@ struct SpeciesDictionaryPageContentView: View {
     @State private var activePresentation: SpeciesDictionaryPresentation?
     @State private var pendingDictionaryChatSpeciesID: String?
     @State private var dictionaryChatToast: ToastPayload?
+    @State private var resolutionRetry = 0
+    @State private var loadRetry = 0
 
     @MainActor
     init(
@@ -61,9 +63,13 @@ struct SpeciesDictionaryPageContentView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.hidden, for: .navigationBar)
             .toolbar { toolbarContent }
-            .task(id: speciesId ?? scientificName) {
+            .task(id: [speciesId ?? scientificName, String(loadRetry)]) {
                 isCommonNameScrolledPast = false
-                await viewModel.load()
+                if loadRetry == 0 {
+                    await viewModel.load()
+                } else {
+                    await viewModel.retry()
+                }
             }
             .toolbar(
                 fieldChatSpeciesID == nil ? .hidden : .visible,
@@ -77,6 +83,9 @@ struct SpeciesDictionaryPageContentView: View {
             }
             .task(id: pendingDictionaryChatSpeciesID) {
                 await prepareDictionaryFieldChatIfNeeded()
+            }
+            .task(id: resolutionRetry) {
+                if resolutionRetry > 0 { await viewModel.retryResolution() }
             }
             .fullScreenCover(
                 item: fullscreenPresentationBinding
@@ -316,6 +325,18 @@ struct SpeciesDictionaryPageContentView: View {
 
                 VStack(alignment: .leading, spacing: 24) {
                     header(for: species)
+                    if viewModel.isResolving {
+                        ProgressView("Preparing species chat…")
+                            .frame(maxWidth: .infinity)
+                    } else if viewModel.resolutionFailed {
+                        VStack(spacing: 8) {
+                            Text("Species chat is temporarily unavailable. You can still read this page.")
+                                .font(.footnote).foregroundStyle(.secondary)
+                            Button("Retry") { resolutionRetry += 1 }
+                                .accessibilityIdentifier("speciesDictionaryResolutionRetry")
+                        }
+                        .multilineTextAlignment(.center).padding(.horizontal)
+                    }
 
                     VStack(alignment: .leading, spacing: 32) {
                         SpeciesDictionaryStatusCard(
@@ -348,11 +369,13 @@ struct SpeciesDictionaryPageContentView: View {
                             speciesId: species.id,
                             scientificName: species.scientificName
                         )
-                        SpeciesCommunitySightingsSection(
-                            speciesId: species.id,
-                            exploreViewModel: effectiveExploreViewModel,
-                            dependencies: dependencies.communitySightings
-                        )
+                        if let canonicalID = SpeciesDictionaryIdentity.canonicalSpeciesID(species.id) {
+                            SpeciesCommunitySightingsSection(
+                                speciesId: canonicalID,
+                                exploreViewModel: effectiveExploreViewModel,
+                                dependencies: dependencies.communitySightings
+                            )
+                        }
 
                         if let similarData = species.similarSpeciesData {
                             SimilarSpeciesGallery(
@@ -452,7 +475,7 @@ struct SpeciesDictionaryPageContentView: View {
 
     private var retryButton: some View {
         Button {
-            Task { await viewModel.retry() }
+            loadRetry += 1
         } label: {
             Text("Try again")
                 .font(.headline)

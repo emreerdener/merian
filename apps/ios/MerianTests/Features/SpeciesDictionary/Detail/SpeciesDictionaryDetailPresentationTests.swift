@@ -4,6 +4,48 @@ import XCTest
 
 @MainActor
 final class SpeciesDictionaryDetailPresentationTests: XCTestCase {
+    func testResolutionMergeRetainsReferenceContentAndCanonicalIdentity() throws {
+        let reference = try resolutionEntry(
+            id: "external:fixture", commonName: "Reference name", overview: "Reference overview",
+            imageURL: "https://example.com/reference.jpg"
+        )
+        let canonical = try resolutionEntry(
+            id: SpeciesDictionaryNetworkFixtures.speciesID, commonName: "Testus floridus"
+        )
+        let result = SpeciesDictionaryResolutionContent.merging(canonical: canonical, reference: reference)
+        XCTAssertEqual(result.id, canonical.id)
+        XCTAssertEqual(result.scientificName, canonical.scientificName)
+        XCTAssertEqual(result.commonName, reference.commonName)
+        XCTAssertEqual(result.wikipediaOverview, reference.wikipediaOverview)
+        XCTAssertEqual(result.referenceImages, reference.referenceImages)
+        XCTAssertEqual(result.similarSpecies, canonical.similarSpecies)
+    }
+
+    func testResolutionMergeDoesNotReplaceCanonicalContent() throws {
+        let reference = try resolutionEntry(
+            id: "external:fixture", commonName: "Reference name", overview: "Reference overview",
+            imageURL: "https://example.com/reference.jpg"
+        )
+        let canonical = try resolutionEntry(
+            id: SpeciesDictionaryNetworkFixtures.speciesID, commonName: "Curated name", overview: "Curated overview",
+            imageURL: "https://example.com/canonical.jpg"
+        )
+        let result = SpeciesDictionaryResolutionContent.merging(canonical: canonical, reference: reference)
+        XCTAssertEqual(result, canonical)
+    }
+
+    private func resolutionEntry(id: String, commonName: String, overview: String? = nil, imageURL: String? = nil) throws -> SpeciesDictionaryEntry {
+        var value: [String: Any] = [
+            "id": id, "scientific_name": "Testus floridus", "common_name": commonName,
+            "alternative_common_names": [], "group_tags": [], "reference_images": [], "similar_species": []
+        ]
+        value["wikipedia_overview"] = overview
+        if let imageURL { value["reference_images"] = [["url": imageURL, "source": "wikipedia"]] }
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        return try decoder.decode(SpeciesDictionaryEntry.self, from: JSONSerialization.data(withJSONObject: value))
+    }
+
     func testContentQualityUsesServerValueAndLegacyFallback() {
         let serverClassified = SpeciesDictionaryEntry(
             id: "species-server",

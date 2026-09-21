@@ -2099,13 +2099,16 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   not candidate iOS transport or host verification.
 - **`Features/SpeciesDictionary/Detail/`**: Mirrors Detail production ownership.
   `SpeciesDictionaryPageViewModelTests` owns normalized identity, visible state,
-  telemetry, retry, and stale success/failure fencing;
-  `SpeciesCommunitySightingsViewModelTests` owns initial loading, pagination,
-  de-duplication, species replacement, and refresh/pagination overlap;
-  `SpeciesDictionaryDetailPresentationTests` owns route, share, gallery,
-  attribution, alternate-name, Field Chat, and grid policies;
+  telemetry, retry, and stale success/failure fencing, plus reference retention,
+  failed-resolution retry, cancelled page retry, and retry-task replay during a
+  replacement load; `SpeciesCommunitySightingsViewModelTests` owns initial
+  loading, pagination, de-duplication, species replacement, and
+  refresh/pagination overlap; `SpeciesDictionaryDetailPresentationTests` owns
+  route, share, gallery, attribution, alternate-name, Field Chat, grid policies,
+  and canonical/reference merge precedence;
   `SpeciesDictionaryDetailServiceTests` owns UUID-first and scientific-name
-  endpoint adaptation plus error classification; and
+  endpoint adaptation, error classification, verified-receipt sequencing, and
+  rejection of mismatched receipt names or replacement UUIDs; and
   `SpeciesDictionaryDetailArchitectureTests` enforces Services-only live
   resolution, platform-neutral Models, Core-owned wire DTOs, separated root
   views, grouped components, retired aggregate-file removal, and the 600-line
@@ -7229,30 +7232,36 @@ late-activation rejection, controller-level duplicate-resume coalescing, and
 resume retry after activation failure. The same file's
 `AudioRecordingWAVFormatPolicyTests` freezes signed Int16 interleaved PCM and
 invalid-format rejection. Run `AudioReviewPlaybackControllerTests` for
-stop-before-activation lease rejection, failed-player-start and completion-wait
-cleanup, stale-completion fencing, scrubbed resume, unconditional manager-reset
-cleanup, and natural manager-state finalization. Run `AudioCaptureManagerTests`
-for facade state, startup cleanup, injected maximum-duration feedback, review
-routing, and duplicate-resume coalescing; its activation gate also proves
-lifecycle cancellation fences a late result. Run `SpectrogramActorTests` for
-bounded FFT/noise-floor behavior and reset semantics. Run
-`AudioCaptureTransitionStateTests` for generation replacement/invalidation,
-`AudioSessionCoordinatorTests` for successful replacement, failed-activation
-configuration restoration, first-activation cleanup, and rollback-failure
-invalidation plus cancellation before session mutation. Run the Core Media-owned
-`AudioPlaybackSessionControllerTests` for idle-mount isolation, lazy activation
-coalescing and retry, stale-token reacquisition, immediate teardown,
-cancellation before coordinator mutation, cancellation-ignoring late
-acquisition, teardown during lease validation, and replacement-safe cleanup, and
-`AudioSpectrogramRendererTests` for reusable palette, raster orientation,
-live-horizon, and fit-to-data behavior. The playback-session architecture check
-also requires reusable Core UI and Explore audio to await exact-token validation
-before every audible start and keeps generic media dependencies free of direct
-AVAudioSession mutation. These suites live under mirrored
-`Features/Capture/Record`, `Core/Hardware`, and `Core/Media` test paths; do not
-move playback, hardware, or reusable renderer assertions back into an aggregate
-manager suite. Keep `merianUITests.testAudioFirstLaunchSelectsRecordMode` in the
-focused matrix for the real pager selection and mounted Audio presentation.
+stop-before-activation lease rejection, off-main live-player construction,
+stop/replacement during a suspended player start, asynchronous file-preparation
+failure, failed-player-start and completion-wait cleanup, stale-completion
+fencing, scrubbed resume, unconditional manager-reset cleanup, and natural
+manager-state finalization. The actor adapter keeps hardware play/stop off the
+main actor; physical-device review playback must still be checked with Xcode
+Thread Performance Checker, including rapid Play/Stop, scrubbing, boost source
+switches, and recording-to-playback session handoff. Run
+`AudioCaptureManagerTests` for facade state, startup cleanup, injected
+maximum-duration feedback, review routing, and duplicate-resume coalescing; its
+activation gate also proves lifecycle cancellation fences a late result. Run
+`SpectrogramActorTests` for bounded FFT/noise-floor behavior and reset
+semantics. Run `AudioCaptureTransitionStateTests` for generation
+replacement/invalidation, `AudioSessionCoordinatorTests` for successful
+replacement, failed-activation configuration restoration, first-activation
+cleanup, and rollback-failure invalidation plus cancellation before session
+mutation. Run the Core Media-owned `AudioPlaybackSessionControllerTests` for
+idle-mount isolation, lazy activation coalescing and retry, stale-token
+reacquisition, immediate teardown, cancellation before coordinator mutation,
+cancellation-ignoring late acquisition, teardown during lease validation, and
+replacement-safe cleanup, and `AudioSpectrogramRendererTests` for reusable
+palette, raster orientation, live-horizon, and fit-to-data behavior. The
+playback-session architecture check also requires reusable Core UI and Explore
+audio to await exact-token validation before every audible start and keeps
+generic media dependencies free of direct AVAudioSession mutation. These suites
+live under mirrored `Features/Capture/Record`, `Core/Hardware`, and `Core/Media`
+test paths; do not move playback, hardware, or reusable renderer assertions back
+into an aggregate manager suite. Keep
+`merianUITests.testAudioFirstLaunchSelectsRecordMode` in the focused matrix for
+the real pager selection and mounted Audio presentation.
 
 Capture startup diagnostics must also exercise the user-configurable first-mode
 matrix. For each of Camera, Audio, and Description, persist that mode first,
@@ -7947,15 +7956,32 @@ and detail seeking still behaves as documented.
   `refresh-species-model-content/db.test.ts` verifies request validation,
   service-role job claiming, outage recovery, partial-resolution retry,
   persistence accounting, and job completion with a mocked Supabase client.
-  `lookalikeCandidates.test.ts` owns exact GBIF/synonym identity, response
-  bounds, taxonomy compatibility, deduplication, and provider-failure
-  classification. `_tests/speciesLookalikeRecoveryMigrationContract.test.ts`
-  locks service-only RPCs, read-only preview, versioned repair, and trigger
-  suppression. `tests/species_lookalike_recovery.sql` is the transactional
-  fresh-catalog evidence for queue ordering/backoff, one-time recovery,
-  curation/provenance preservation, identity conflicts, bounded fan-out, and
-  settled-empty behavior. It must execute through the database catalog runner; a
-  connection-refused skip is not passing evidence.
+  `lookalikeCandidates.test.ts` covers the shared `_shared/verifiedSpecies.ts`
+  helper's exact GBIF/synonym identity, response bounds, taxonomy compatibility,
+  deduplication, and provider-failure classification.
+  `_tests/speciesLookalikeRecoveryMigrationContract.test.ts` locks service-only
+  RPCs, read-only preview, versioned repair, and trigger suppression.
+  `tests/species_lookalike_recovery.sql` is the transactional fresh-catalog
+  evidence for queue ordering/backoff, one-time recovery, curation/provenance
+  preservation, identity conflicts, bounded fan-out, and settled-empty behavior.
+  It must execute through the database catalog runner; a connection-refused skip
+  is not passing evidence.
+- **Authenticated dictionary resolution**:
+  `resolve-species-dictionary/handler_test.ts` owns authentication-before-work,
+  normalized input, admission, existing-record reuse, provider failures, and
+  cancellation before persistence. `db.test.ts` owns nonpublic lookup denial,
+  strict saved-key/UUID verification, and nondisclosing identity-policy errors.
+  `_tests/speciesDictionaryResolutionMigrationContract.test.ts` locks the
+  service-only RPCs, independent admission, index, advisory lock, and
+  missing-key fill. `tests/species_dictionary_resolution.sql` verifies the real
+  catalog, denied roles, UUID reuse, legacy key persistence, conflicts, rate
+  limits, and curation/trigger boundaries. Both loopback-only cases in
+  `_tests/speciesDictionaryResolutionDb.test.ts` must execute against a
+  disposable fully migrated database to prove concurrent accepted-name variants
+  reuse a new or legacy canonical record; ignored cases are not concurrency
+  evidence. Native service/state/merge regressions and manual navigation checks
+  are listed in the
+  [canonical Dictionary matrix](../features-and-hardware/16-species-dictionary.md#testing).
 - **Native similar-species identity**: `SimilarSpeciesTests` covers canonical
   self/duplicate IDs, normalized scientific names, missing or malformed IDs, and
   distinct species sharing one common name. `FieldChatPresentationTests`

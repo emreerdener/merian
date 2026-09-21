@@ -718,15 +718,19 @@ in [`Features/FieldChat`](../../Features/FieldChat/README.md). Run the
 ### Species Dictionary endpoints, validation, and caches
 
 [`Endpoints/MerianNetworkClient+SpeciesDictionary.swift`](Endpoints/MerianNetworkClient+SpeciesDictionary.swift)
-owns six public method variants: two detail lookups, two catalog overloads,
-overview, and public observation stats. Detail, catalog, and overview retain
-authenticated JSON POSTs at 30 seconds; stats retains an authenticated GET with
-ordered `species_id` and `scientific_name` query items at 20 seconds. Both
-routes keep their existing safe-read replay allowance and add no idempotency
-key. Catalog filters trim only their edges and omit blanks; category `all` is
-omitted, limits remain raw, and cursor fields remain raw with only nil
-`created_at` omitted. Overview generates one uppercase UUID `cache_buster` per
-call, reused across transport retries.
+owns seven public method variants: verified resolution, two detail lookups, two
+catalog overloads, overview, and public observation stats. Detail, catalog, and
+overview retain authenticated JSON POSTs at 30 seconds; stats retains an
+authenticated GET with ordered `species_id` and `scientific_name` query items at
+20 seconds. The dictionary and stats read routes keep their existing safe-read
+replay allowance and add no idempotency key. The separate authenticated
+resolution POST returns a validated identity receipt and does not opt into
+ambiguous-response replay or the public response cache; see
+[verified resolution](#verified-dictionary-resolution). Catalog filters trim
+only their edges and omit blanks; category `all` is omitted, limits remain raw,
+and cursor fields remain raw with only nil `created_at` omitted. Overview
+generates one uppercase UUID `cache_buster` per call, reused across transport
+retries.
 
 Overview responses remain `no-store`, and this client has no overview memo.
 Catalog's overview view model independently retains one successful result for
@@ -741,8 +745,10 @@ owns typed schema/identity validation after wire decoding. Dictionary schemas
 must be exactly 1; stats accepts schema 2 or newer and requires both the
 canonical ID and normalized name to match. Wire decoding failures remain raw
 `DecodingError`s; schema/identity failures remain `MerianError.invalidResponse`.
-Neither failure enters the response cache. Codable contracts remain unchanged in
-`SpeciesDictionaryAPIModels.swift` and `SpeciesObservationStatsAPIModels.swift`.
+Neither failure enters the response cache. Codable contracts stay in
+`SpeciesDictionaryAPIModels.swift`, including
+`SpeciesDictionaryResolutionResponse`, and
+`SpeciesObservationStatsAPIModels.swift`.
 
 [`Caching/SpeciesDictionaryResponseCache.swift`](Caching/SpeciesDictionaryResponseCache.swift)
 contains both per-client locked memos behind a private immutable client
@@ -1992,7 +1998,14 @@ sleep. `MerianNetworkArchitectureTests`,
 `ScanLifecycleNetworkArchitectureTests`,
 `EnrichmentExportFeedbackBoundaryTests`, and `MediaStorageBoundaryTests` lock
 all extracted endpoint owners, the private GET/cache boundary,
-configuration-before-input ordering, and fixed-result cache bridges.
+configuration-before-input ordering, and fixed-result cache bridges. Resolution
+coverage additionally joins `SpeciesDictionaryResponseValidatorTests` with
+Detail's service, page-state, and presentation suites: verified synonym
+receipts, exact UUID binding after the follow-up read, readable reference
+content, merge precedence, failure/retry, cancellation, and retry replay during
+a newer load. Resolver POSTs deliberately remain outside automatic safe-read
+replay.
+
 Rejected-schema and returned-identity regression tests require a fresh dispatch
 after rejection, catching premature cache insertion rather than only asserting
 that the first call throws.
@@ -3657,3 +3670,19 @@ checks identity, version, result kind, context, row bounds and cursors before
 feature state changes. No automatic replay is enabled for provider-backed
 search. Search state and tests remain in
 [Species Dictionary Search](../../Features/SpeciesDictionary/Search/README.md).
+
+## Verified Dictionary resolution
+
+`MerianNetworkClient+SpeciesDictionary.resolveSpeciesDictionary` calls the
+authenticated `resolve-species-dictionary` route and validates its versioned
+identity receipt with `SpeciesDictionaryResponseValidator.resolution`. The
+echoed requested name must match and the returned ID must be canonical; a
+verified synonym may return a different stored canonical name. The feature’s
+live service checks cancellation and then reads by that UUID through the
+existing cache-aware Dictionary endpoint and requires the fetched UUID to match
+the receipt exactly. No public cache alias is created for the requested synonym.
+Field Chat preflight remains a separate user action. Resolution POSTs do not opt
+into automatic safe-read replay. Validate with
+`SpeciesDictionaryResponseValidatorTests`,
+`SpeciesDictionaryDetailServiceTests`, `SpeciesDictionaryPageViewModelTests`,
+and the complete unit target.

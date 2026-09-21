@@ -241,6 +241,154 @@ final class SpeciesDictionaryPageViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.state, .loaded(fresh))
     }
 
+    func testReferenceEntryRemainsVisibleUntilResolutionCompletes() async {
+        let reference = Self.entry(id: "external:testus%20floridus")
+        var pending: CheckedContinuation<SpeciesDictionaryEntry, any Error>?
+        let viewModel = SpeciesDictionaryPageViewModel(
+            scientificName: reference.scientificName, entryPoint: .insightSimilarSpecies,
+            dependencies: .init(loadSpecies: { _ in reference },
+                                classifyLoadError: { _ in .message("Failed") }, track: { _ in },
+                                resolveSpecies: { _ in try await withCheckedThrowingContinuation { pending = $0 } })
+        )
+        let task = Task { await viewModel.load() }
+        while pending == nil { await Task.yield() }
+        XCTAssertEqual(viewModel.loadedSpecies, reference)
+        XCTAssertTrue(viewModel.isResolving)
+        pending?.resume(returning: Self.entry(id: Self.speciesID))
+        await task.value
+        XCTAssertEqual(viewModel.loadedSpecies?.id, Self.speciesID)
+        XCTAssertFalse(viewModel.isResolving)
+        XCTAssertFalse(viewModel.resolutionFailed)
+    }
+
+    func testResolutionFailureKeepsReferenceReadableAndRetryUpgradesIt() async {
+        let reference = Self.entry(id: "external:testus%20floridus")
+        var attempts = 0
+        let viewModel = SpeciesDictionaryPageViewModel(
+            scientificName: reference.scientificName, entryPoint: .insightSimilarSpecies,
+            dependencies: .init(loadSpecies: { _ in reference },
+                                classifyLoadError: { _ in .message("Failed") }, track: { _ in },
+                                resolveSpecies: { _ in
+                attempts += 1
+                if attempts == 1 { throw StubError.failed }
+                return Self.entry(id: Self.speciesID)
+            })
+        )
+        await viewModel.load()
+        XCTAssertEqual(viewModel.loadedSpecies, reference)
+        XCTAssertTrue(viewModel.resolutionFailed)
+        await viewModel.retryResolution()
+        XCTAssertEqual(viewModel.loadedSpecies?.id, Self.speciesID)
+        XCTAssertFalse(viewModel.resolutionFailed)
+        XCTAssertEqual(attempts, 2)
+    }
+
+    func testLateResolutionCannotReplaceNewerLoad() async {
+        var pending: CheckedContinuation<SpeciesDictionaryEntry, any Error>?
+        var loads = 0
+        let fresh = Self.entry(id: Self.speciesID, commonName: "Fresh species")
+        let viewModel = SpeciesDictionaryPageViewModel(
+            scientificName: "Testus floridus", entryPoint: .insightSimilarSpecies,
+            dependencies: .init(loadSpecies: { _ in
+                loads += 1
+                return loads == 1 ? Self.entry(id: "external:testus%20floridus") : fresh
+            }, classifyLoadError: { _ in .message("Failed") }, track: { _ in },
+                                resolveSpecies: { _ in try await withCheckedThrowingContinuation { pending = $0 } })
+        )
+        let stale = Task { await viewModel.load() }
+        while pending == nil { await Task.yield() }
+        await viewModel.load()
+        pending?.resume(returning: Self.entry(id: Self.speciesID, commonName: "Stale species"))
+        await stale.value
+        XCTAssertEqual(viewModel.loadedSpecies, fresh)
+    }
+
+    func testCancelledResolutionDoesNotPublishOrShowFailure() async {
+        let reference = Self.entry(id: "external:testus%20floridus")
+        var pending: CheckedContinuation<SpeciesDictionaryEntry, any Error>?
+        let viewModel = SpeciesDictionaryPageViewModel(
+            scientificName: reference.scientificName, entryPoint: .insightSimilarSpecies,
+            dependencies: .init(loadSpecies: { _ in reference },
+                                classifyLoadError: { _ in .message("Failed") }, track: { _ in },
+                                resolveSpecies: { _ in try await withCheckedThrowingContinuation { pending = $0 } })
+        )
+        let task = Task { await viewModel.load() }
+        while pending == nil { await Task.yield() }
+        task.cancel()
+        pending?.resume(returning: Self.entry(id: Self.speciesID))
+        await task.value
+        XCTAssertEqual(viewModel.loadedSpecies, reference)
+        XCTAssertFalse(viewModel.isResolving)
+        XCTAssertFalse(viewModel.resolutionFailed)
+    }
+
+    func testReplayedResolutionRetryCannotInvalidateFreshLoad() async {
+        let reference = Self.entry(id: "external:testus%20floridus")
+        let fresh = Self.entry(id: Self.speciesID)
+        let loadStarted = expectation(description: "Replacement load started")
+        var pending: CheckedContinuation<SpeciesDictionaryEntry, any Error>?
+        var loads = 0
+        let viewModel = SpeciesDictionaryPageViewModel(
+            scientificName: reference.scientificName,
+            dependencies: .init(
+                loadSpecies: { _ in
+                    loads += 1
+                    if loads == 1 { return reference }
+                    return try await withCheckedThrowingContinuation {
+                        pending = $0
+                        loadStarted.fulfill()
+                    }
+                },
+                classifyLoadError: { _ in .message("Failed") },
+                track: { _ in },
+                resolveSpecies: { _ in throw StubError.failed }
+            )
+        )
+        await viewModel.load()
+        XCTAssertTrue(viewModel.resolutionFailed)
+
+        let replacement = Task { await viewModel.load() }
+        await fulfillment(of: [loadStarted], timeout: 1)
+        await viewModel.retryResolution()
+        pending?.resume(returning: fresh)
+        await replacement.value
+
+        XCTAssertEqual(viewModel.state, .loaded(fresh))
+        XCTAssertFalse(viewModel.resolutionFailed)
+    }
+
+    func testCancelledPageRetryNeverStartsResolutionAfterReferenceLoads() async {
+        let loadStarted = expectation(description: "Retry load started")
+        var pending: CheckedContinuation<SpeciesDictionaryEntry, any Error>?
+        var resolutions = 0
+        let viewModel = SpeciesDictionaryPageViewModel(
+            scientificName: "Testus floridus",
+            dependencies: .init(
+                loadSpecies: { _ in
+                    try await withCheckedThrowingContinuation {
+                        pending = $0
+                        loadStarted.fulfill()
+                    }
+                },
+                classifyLoadError: { _ in .message("Failed") },
+                track: { _ in },
+                resolveSpecies: { _ in
+                    resolutions += 1
+                    return Self.entry(id: Self.speciesID)
+                }
+            )
+        )
+        let retry = Task { await viewModel.retry() }
+        await fulfillment(of: [loadStarted], timeout: 1)
+        retry.cancel()
+        pending?.resume(returning: Self.entry(id: "external:testus%20floridus"))
+        await retry.value
+
+        XCTAssertEqual(resolutions, 0)
+        XCTAssertFalse(viewModel.isResolving)
+        XCTAssertFalse(viewModel.resolutionFailed)
+    }
+
     private static func entry(
         id: String = "species-123",
         commonName: String = "Field Test"

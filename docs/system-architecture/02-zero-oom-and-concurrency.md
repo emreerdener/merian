@@ -1661,6 +1661,16 @@ page generation may publish loaded, not-found, or error state and
 successful-load telemetry. The once-per-owner open event is independent of those
 retries.
 
+Name-only dictionary resolution keeps the reference entry loaded while the same
+generation awaits verification and a canonical detail read. Both page retry and
+resolution retry are view-owned tasks. Resolution retry advances the generation
+only while a failed resolution is eligible for retry, so SwiftUI restarting that
+task on reappearance cannot invalidate a newer loading page. Late and cancelled
+resolutions cannot publish or clear a newer request's flags. The live service
+checks cancellation between the identity receipt and detail read and requires
+the returned UUID to match that receipt exactly. Opening the page does not start
+Field Chat preflight or load a conversation.
+
 Community refresh advances its generation before it clears the old cursor and
 starts the replacement first page. Any active pagination completion therefore
 fails the generation check and cannot merge stale rows into reset state. Species

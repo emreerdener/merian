@@ -63,7 +63,23 @@ extension SpeciesDictionaryPageViewModel.Dependencies {
                         : localized
                 )
             },
-            track: SpeciesDictionaryDetailLiveTelemetry.track
+            track: SpeciesDictionaryDetailLiveTelemetry.track,
+            resolveSpecies: { name in
+                let identity = try await networkClient.resolveSpeciesDictionary(scientificName: name)
+                try Task.checkCancellation()
+                // Fetch by canonical UUID; synonyms must not alias the public name cache.
+                let species = try await networkClient.getSpeciesDictionary(
+                    speciesId: identity.speciesId,
+                    scientificName: identity.scientificName
+                )
+                // Ordinary detail reads allow stale-ID recovery by name. A
+                // resolution must stay bound to the identity just verified.
+                guard SpeciesDictionaryIdentity.canonicalSpeciesID(species.id) ==
+                    SpeciesDictionaryIdentity.canonicalSpeciesID(identity.speciesId) else {
+                    throw MerianError.invalidResponse
+                }
+                return species
+            }
         )
     }
 }

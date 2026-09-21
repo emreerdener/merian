@@ -88,6 +88,14 @@ struct AudioCaptureArchitectureTests {
     func reviewPlaybackStateHasOneFocusedOwner() throws {
         let manager = try source(Self.managerPath)
         let controller = try source(Self.playbackControllerPath)
+        let player = try source("apps/ios/Merian/Core/Hardware/AudioCapture/Services/AudioReviewPlaybackFilePlayer.swift")
+        #expect(player.contains("actor AudioReviewPlaybackFilePlayer"))
+        #expect(player.contains("nonisolated var unownedExecutor: UnownedSerialExecutor"))
+        #expect(player.contains("private var player: AVAudioPlayer?"))
+        #expect(player.contains("protocol AudioReviewPlaybackPlayer: AnyObject, Sendable"))
+        #expect(!player.contains("@MainActor"))
+        #expect(!player.contains("@unchecked Sendable"))
+        #expect(!controller.contains("import AVFoundation"))
 
         for relocatedToken in [
             "private var audioPlayer: AVAudioPlayer?",
@@ -109,12 +117,13 @@ struct AudioCaptureArchitectureTests {
         }
 
         for controllerBoundary in [
-            "protocol AudioReviewPlaybackPlayer: AnyObject",
             "private struct ActivePlayback",
             "private var activePlayback: ActivePlayback?",
             "AudioSessionCoordinator.shared.activate(.playback)",
             "let generation = UUID()",
-            "guard player.play() else",
+            "let started = await player.play()",
+            "await playback.activationTask?.value",
+            "await playback.player.stop()",
             "guard !Task.isCancelled"
         ] {
             #expect(controller.contains(controllerBoundary))

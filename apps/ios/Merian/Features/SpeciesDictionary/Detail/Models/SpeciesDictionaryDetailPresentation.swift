@@ -135,3 +135,27 @@ enum SpeciesDictionaryDetailFeedbackEffect: Equatable {
     case sheet
     case error
 }
+
+/// Keep already-visible public reference content while the new record's durable
+/// enrichment runs. This merge is presentation-only and never enters the cache.
+enum SpeciesDictionaryResolutionContent {
+    static func merging(canonical: SpeciesDictionaryEntry, reference: SpeciesDictionaryEntry) -> SpeciesDictionaryEntry {
+        SpeciesDictionaryEntry(
+            id: canonical.id,
+            scientificName: canonical.scientificName,
+            commonName: canonical.commonName == canonical.scientificName ? reference.commonName : canonical.commonName,
+            contentQuality: canonical.contentQuality,
+            alternativeCommonNames: canonical.alternativeCommonNames.isEmpty ? reference.alternativeCommonNames : canonical.alternativeCommonNames,
+            taxonomy: canonical.taxonomy ?? reference.taxonomy,
+            hazardType: canonical.hazardType,
+            iucnRedListStatus: canonical.iucnRedListStatus,
+            wikipediaUrl: canonical.wikipediaUrl ?? reference.wikipediaUrl,
+            wikipediaOverview: canonical.wikipediaOverview ?? reference.wikipediaOverview,
+            habitatDescription: canonical.habitatDescription ?? reference.habitatDescription,
+            gbifTaxonKey: canonical.gbifTaxonKey,
+            groupTags: canonical.groupTags,
+            referenceImages: canonical.referenceImages.isEmpty ? reference.referenceImages : canonical.referenceImages,
+            similarSpecies: canonical.similarSpecies
+        )
+    }
+}

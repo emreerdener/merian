@@ -2,7 +2,6 @@ import SwiftUI
 
 struct FieldChatEmptyState: View {
     let displayName: String
-    let showsPrivacyCaption: Bool
     let media: [FieldChatMedia]
     var isOnline = true
     var imageDependencies: FieldChatImageDependencies?
@@ -34,15 +33,9 @@ struct FieldChatEmptyState: View {
                 onSelection: onPromptSelection
             )
 
-            if showsPrivacyCaption {
-                Text("This Field chat is private and visible only to you.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
-            }
         }
-        .padding(.vertical, 24)
+        .padding(.top, 8)
+        .padding(.bottom, 24)
     }
 }
 
@@ -115,12 +108,6 @@ struct FieldChatImageStack: View {
                     }
                     .accessibilityIdentifier("FieldChatImageStack")
 
-                if model.availableMedia.count > 1 {
-                    Text("\(model.selectedIndex + 1) / \(model.availableMedia.count)")
-                        .font(.caption2.monospacedDigit())
-                        .foregroundStyle(.secondary)
-                        .accessibilityHidden(true)
-                }
                 if let attribution = selected.attribution {
                     Text(attribution)
                         .font(.caption2)
@@ -214,7 +201,7 @@ struct FieldChatImageStack: View {
         isSwapping = true
         exitDirection = (offset > 0) == (layoutDirection == .leftToRight) ? -1 : 1
         outgoingImage = model.images[selected.id]
-        withAnimation(.spring(duration: 0.3, bounce: 0.12), completionCriteria: .logicallyComplete) {
+        withAnimation(.easeOut(duration: 0.12), completionCriteria: .logicallyComplete) {
             outgoing = selected
             isReturning = false
             model.move(by: offset, onSelection: onSelection)
@@ -222,7 +209,7 @@ struct FieldChatImageStack: View {
         } completion: {
             guard animationGeneration == token else { return }
             // Lower the departing card behind the deck before sliding it back in.
-            withAnimation(.spring(duration: 0.25, bounce: 0.08), completionCriteria: .logicallyComplete) {
+            withAnimation(.easeInOut(duration: 0.16), completionCriteria: .logicallyComplete) {
                 isReturning = true
             } completion: {
                 guard animationGeneration == token else { return }

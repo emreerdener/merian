@@ -1174,6 +1174,61 @@ consumer, which requires schema version 1 and matching response identity before
 caching. Roll back with forward migrations/functions only; do not hand-edit or
 remove the generated column from an applied environment.
 
+### Species Dictionary Resolution Release Gate
+
+Apply `20260921043256_resolve_verified_dictionary_species.sql` before deploying
+`resolve-species-dictionary`, then distribute the iOS caller. The migration
+supplies both service-only RPCs and the bounded GBIF-key lookup index. The
+function shares `_shared/verifiedSpecies.ts` with
+`refresh-species-model-content`; validate both graphs whenever that helper
+changes. This rollout does not authorize or replace the separate Field Chat
+activation and release controls.
+
+Before an explicitly authorized rollout:
+
+- Run the focused resolver handler/db tests, shared verification tests in
+  `refresh-species-model-content/lookalikeCandidates.test.ts`, and
+  `_tests/speciesDictionaryResolutionMigrationContract.test.ts`, followed by the
+  complete Edge, tooling, dependency/config, and recursive type-check gates.
+- Replay the full migration history on a disposable local database and execute
+  every catalog test, including `species_dictionary_resolution.sql`. Enable both
+  cases in `_tests/speciesDictionaryResolutionDb.test.ts` with a disposable
+  loopback `SUPABASE_DB_TEST_URL`. They must execute, not skip: simultaneous
+  accepted-name variants must reuse one UUID for both a new species and a legacy
+  exact-name record missing its GBIF key. Never log the database URL.
+- Run the focused iOS receipt, service, page-state, and presentation tests plus
+  the complete unit target. Complete the
+  [name-only navigation acceptance checks](../features-and-hardware/16-species-dictionary.md#testing)
+  on the candidate app against the intended authorized test environment.
+- Preserve the deploy workflow's critical-route negative smoke: missing user
+  authentication must return a handler-owned `401` before lookup or mutation.
+
+After deployment, use a dedicated test account and an explicitly authorized
+smoke target. Test an existing public identity, then a valid GBIF species absent
+from that test catalog; verify the version-1 receipt, a follow-up UUID read, and
+stable UUID reuse on repeat opens. Use a verified synonym to exercise a legacy
+record with a missing taxon key. Confirm reference content remains readable
+while resolving, Share and Field Chat become available only after exact UUID
+validation, and only an explicit Field Chat tap enters the existing entitlement
+and conversation flow. Do not create a production test record without separate
+authorization for that target and operation.
+
+Verify unavailable/conflicting identities use nondisclosing `404` responses,
+unverified names use `422`, provider failures use `503`, and admission
+exhaustion uses `429`. Exercise rate exhaustion only in an isolated test
+environment so it does not consume the shared production allowance. Resolver
+POSTs have no automatic ambiguous-response replay; manual Retry is bounded by
+admission and must preserve the readable reference page. Detailed limits and
+error semantics are in the
+[resolver contract](../../services/supabase/functions/resolve-species-dictionary/README.md).
+
+For recovery, retain canonical rows and their chat IDs. Use the authorized
+Function/app rollback or a reviewed forward repair; do not drop the migration,
+erase resolved records, or merge historical taxon-key duplicates as part of a
+routine rollback. Historical writers do not share the resolver's advisory lock;
+global uniqueness and historical cleanup require their own migration and
+evidence. Source validation alone does not establish hosted rollout success.
+
 ### Species Lookalike Recovery Release Gate
 
 Migration `20260903163744_recover_species_lookalike_enrichment.sql` must land
@@ -6443,18 +6498,18 @@ such a route but the legacy JWT is unavailable, the workflow fails closed before
 route probing. Before deactivating the legacy anon key, migrate every remaining
 gateway-verified route to the reviewed in-handler auth boundary or provision a
 replacement short-lived user smoke identity; do not weaken this probe to accept
-an unmarked gateway response. The workflow then separately probes fifteen
+an unmarked gateway response. The workflow then separately probes sixteen
 customer-critical routes without Authorization: `generate-upload-urls`,
 `identify-multimodal`, `check-scan-status`, `share-scan-to-explore`,
 `get-scan-explore-share-state`, `get-explore-composer-media`,
 `get-explore-media-incidents`, `insight-chat`, `explore-post-chat`,
 `species-dictionary-chat`, `species-discovery-search`,
-`request-community-identification`, `transfer-signout-purchases`,
-`resolve-purchase-principal`, and `delete-scan`. Each critical route must return
-`401` with the marker, additionally proving user-scoped access fails closed. A
-gateway `404` with no handler marker never counts as a missing scan and never
-permits the production workflow to report success. Do not run the matching iOS
-smoke while either gate is still retrying.
+`resolve-species-dictionary`, `request-community-identification`,
+`transfer-signout-purchases`, `resolve-purchase-principal`, and `delete-scan`.
+Each critical route must return `401` with the marker, additionally proving
+user-scoped access fails closed. A gateway `404` with no handler marker never
+counts as a missing scan and never permits the production workflow to report
+success. Do not run the matching iOS smoke while either gate is still retrying.
 
 Using the same resolved server credential, the workflow then posts exactly
 `{"dry_run":true}` to `reconcile-account-deletions` and requires the exact
