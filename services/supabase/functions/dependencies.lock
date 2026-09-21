@@ -4,7 +4,7 @@
     "jsr:@std/assert@1.0.19": "1.0.19",
     "jsr:@std/encoding@1.0.11": "1.0.11",
     "jsr:@std/internal@^1.0.12": "1.0.14",
-    "npm:@google/genai@2.22.0": "2.22.0",
+    "npm:@google/genai@2.23.0": "2.23.0",
     "npm:@supabase/supabase-js@2.116.0": "2.116.0",
     "npm:aws4fetch@1.0.20": "1.0.20",
     "npm:jose@6.2.12": "6.2.12",
@@ -26,8 +26,8 @@
     }
   },
   "npm": {
-    "@google/genai@2.22.0": {
-      "integrity": "sha512-NE90Nl0AP75YZ2tGxXjQQs6Gkunma7a1JmPCx5g5CxvjHXshmuI2aNoPJ1xLrRixjkNxog898oylM+MyNudUQw==",
+    "@google/genai@2.23.0": {
+      "integrity": "sha512-NFMzktoZ7jJg9AA3vUbWZocnkQP6DSGzL21ORwdVcBWkHli3k7v6B9zy07M4bTiKDAyIWfUh2J/oLYxCu0hNpQ==",
       "dependencies": [
         "google-auth-library",
         "p-retry",
@@ -111,8 +111,8 @@
         "@supabase/storage-js"
       ]
     },
-    "@types/node@26.6.1": {
-      "integrity": "sha512-VqGJBMCtdhqkBUCcBLvywI0NJ+KLuVzgNnlBUNFOQjqVxzo2lxLUNg1DSey8+u2u6ktswSAxg+s68QLzWHNOuA==",
+    "@types/node@26.6.2": {
+      "integrity": "sha512-X1P21scMv4zGKLYqjdGjaKa7COa0RKVYYZZN/NfvLQ1JegxFhdhpZG/Lyn8AXx6CDUavKAd11v6BvfpkDByK8g==",
       "dependencies": [
         "undici-types"
       ]
@@ -516,7 +516,7 @@
     "dependencies": [
       "jsr:@std/assert@1.0.19",
       "jsr:@std/encoding@1.0.11",
-      "npm:@google/genai@2.22.0",
+      "npm:@google/genai@2.23.0",
       "npm:@supabase/supabase-js@2.116.0",
       "npm:aws4fetch@1.0.20",
       "npm:jose@6.2.12",

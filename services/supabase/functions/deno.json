@@ -13,7 +13,7 @@
     "@supabase/supabase-js": "npm:@supabase/supabase-js@2.116.0",
     "jose": "npm:jose@6.2.12",
     "aws4fetch": "npm:aws4fetch@1.0.20",
-    "@google/genai": "npm:@google/genai@2.22.0",
+    "@google/genai": "npm:@google/genai@2.23.0",
     "jszip": "npm:jszip@3.10.2"
   },
   "lint": {
