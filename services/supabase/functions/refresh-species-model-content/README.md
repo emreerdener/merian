@@ -7,6 +7,11 @@ The worker claims `species_enrichment_jobs` for `habitat`, `lookalikes`, and
 primitives behind `enrich-scan` without pretending a user rescanned the
 organism.
 
+The shared biology helpers identify this worker with a system label. PostHog
+skips non-UUID identities before querying account consent, so scheduled refresh
+work produces no user analytics or invalid-UUID consent queries. AI usage
+accounting remains independent of optional PostHog capture.
+
 Jobs are queued by the `species_dictionary` insert trigger and the sparse-row
 backfill in `20260707153931_species_dictionary_enrichment_queue_backfill.sql`,
 plus any explicit service-role calls to

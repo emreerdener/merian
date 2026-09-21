@@ -4,6 +4,9 @@ import UIKit
 extension CaptureWorkspaceViewModel {
     static let videoMaxDuration: TimeInterval = 5
 
+    private static let videoRecordingFailureMessage =
+        "Video couldn't be recorded. Please try again."
+
     private static let videoStagingFailureMessage =
         "Video couldn't be staged. Please try recording again."
 
@@ -165,7 +168,9 @@ extension CaptureWorkspaceViewModel {
                     "Video shutter failure: \(error, privacy: .private)"
                 )
                 self.offlineToastMessage = .error(
-                    Self.videoStagingFailureMessage
+                    recordedFileURL == nil
+                        ? Self.videoRecordingFailureMessage
+                        : Self.videoStagingFailureMessage
                 )
                 self.dependencies.scan.feedback.error()
             }

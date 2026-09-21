@@ -13,8 +13,8 @@ receives durable lifecycle registration before any URL is returned.
   `files` manifest (`fileName`, `mediaKind`, `contentType`, `sizeBytes`,
   optional `clientScanId`, optional `mediaRole`, optional `uploadPurpose`),
   rejects legacy manifests that cannot declare a byte size, blocks requests that
-  exceed the shared six-file staging cap, and creates staged `scan_media_assets`
-  rows for scan media before returning signed URLs.
+  exceed the shared eight-file staging cap, and creates staged
+  `scan_media_assets` rows for scan media before returning signed URLs.
 - **`storage.ts`**: Validates media kind/content type/byte budgets and role/kind
   combinations before signing, enforces the `Promise.all` key generation
   mapping, injects the verified `userId` to strictly namespace objects
@@ -23,11 +23,11 @@ receives durable lifecycle registration before any URL is returned.
   Video signing is strict: the client supplies one upload-bounded `video/mp4`
   playback file per video capture or repair attempt, and downstream
   identify/share flows fail rather than silently accepting a partial video set.
-  The sixth staging slot exists for the Pro video shape: five sampled
-  `image/webp` inference frames plus one playback `.mp4`; image, audio, and
-  video sub-limits still prevent broader over-batching. Audio policy is
-  purpose-aware: ordinary inference signs `.wav`/`audio/wav` only, while an
-  exact `scan_share_restore` may additionally sign `.m4a`/`audio/mp4`.
+  The eight staging slots accommodate five sampled `image/webp` inference
+  frames, one playback `.mp4`, companion WAV, and optional standalone audio;
+  image, audio, and video sub-limits still prevent broader over-batching. Audio
+  policy is purpose-aware: ordinary inference signs `.wav`/`audio/wav` only,
+  while an exact `scan_share_restore` may additionally sign `.m4a`/`audio/mp4`.
   Filename/MIME mismatches fail before lifecycle registration or signing.
 - **`assetRegistration.ts`**: Converts the validated signing response into
   owner-scoped `capture_upload` lifecycle rows. It proposes one upload session
@@ -215,7 +215,7 @@ deterministic object key as the registration identity:
   reopened;
 - requested subsets compose with existing unrequested rows for the same scan;
   and
-- the union of active staged/processing sources remains capped at six.
+- the union of active staged/processing sources remains capped at eight.
 
 This subset rule is intentional. A live inline still has no staged source but
 may later be recovered by the queue, and video/recovery components may be signed
@@ -232,8 +232,10 @@ must be applied before this function version. It:
 - installs partial unique index
   `idx_scan_media_assets_active_staging_key_unique`; and
 - installs `enforce_staged_scan_media_budget`, whose owner-scoped transaction
-  lock prevents concurrent disjoint-key requests from exceeding six staged
-  sources for one scan.
+  lock prevents concurrent disjoint-key requests from exceeding the staged
+  source cap. Forward migration
+  `20260921160739_align_video_staging_media_budget.sql` raises this cap from six
+  to eight, preserving the lock and staged-row scope.
 
 Do not delete superseded rows or weaken the database trigger to clear a signing
 failure. Inspect the exact owner/scan/key lifecycle and repair forward.

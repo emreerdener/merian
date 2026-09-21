@@ -33,12 +33,17 @@ struct MediaStagingBudgetTests {
         }
     }
 
-    @Test func testMediaStagingContractAllowsCanonicalVideoScanUploadShape() throws {
+    @Test(arguments: [0, 1, 2])
+    func testMediaStagingContractAllowsCanonicalVideoScanUploadShape(audioCount: Int) throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
 
         let imageNames = (0..<5).map { "video-frame-\($0).webp" }
+        let audioNames = (0..<audioCount).map { "audio-\($0).wav" }
+        for audioName in audioNames {
+            try makeInferenceTestPCM16WAVData().write(to: directory.appendingPathComponent(audioName))
+        }
         let videoName = "playback.mp4"
         for imageName in imageNames {
             try Data(repeating: 0x21, count: 64).write(to: directory.appendingPathComponent(imageName))
@@ -48,7 +53,7 @@ struct MediaStagingBudgetTests {
         let payload = PendingScanPayload(
             id: "scan-video-budget",
             localImagePaths: imageNames,
-            localAudioPaths: [],
+            localAudioPaths: audioNames,
             localVideoPaths: [videoName]
         )
         let items = MediaStagingContract.uploadItems(
@@ -57,10 +62,11 @@ struct MediaStagingBudgetTests {
             documentsDirectory: directory
         )
 
-        #expect(items.count == 6)
+        #expect(items.count == 6 + audioCount)
         try MediaStagingContract.validateUploadBudget(items)
         let uploadFiles = try MediaStagingContract.uploadFiles(for: items)
-        #expect(uploadFiles.count == 6)
+        #expect(uploadFiles.count == 6 + audioCount)
+        #expect(uploadFiles.filter { $0.mediaKind == .audio }.count == audioCount)
         #expect(uploadFiles.filter { $0.mediaKind == .image }.count == 5)
         #expect(uploadFiles.filter { $0.mediaKind == .video }.count == 1)
     }

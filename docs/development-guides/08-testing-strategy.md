@@ -3456,6 +3456,16 @@ before release.
   timeout/stop rejection, cancellation-ignoring sleeper behavior, and exactly
   one winner across 100 concurrent cancellation/delegate-completion races. The
   suite runs without AVFoundation hardware.
+- **`Core/Hardware/Camera/CameraVideoAudioSessionTests.swift`**: Exercises audio
+  lease ordering, delayed playback cleanup, silent capture, failure/retry,
+  cancellation, and overlapping admission. Live-input adapter tests use an empty
+  capture session and an injected unavailable microphone to prove silent
+  preparation and cleanup never discover input, and audio-enabled attempts
+  discover it only after lease activation. These tests do not activate real
+  audio hardware.
+- **`Features/Capture/Scan/CaptureScanDependenciesTests.swift`**: Also covers
+  recording failure UI reset and repeated admission, recording-specific error
+  copy, and preparation failure cleanup with staging-specific error copy.
 - **`Core/Hardware/Camera/CameraArchitectureTests.swift`**: Inventories the
   exact owners of camera recording values, deterministic policies, photo/video
   request coordination, FPS coordination, the session controller, the
@@ -6936,10 +6946,16 @@ fixture opens the normal analyzing Insight with generic copy and advances to a
 Vision category and a validated image-derived visible-trait cue only after
 explicit badge taps. The smoke requires the exact three labels in order and
 rechecks that the native badge accessibility frame stays inside the app window
-after each opacity-only label transition. Every configured UI-test launch also
-includes `-seedLocationPermissionPromptSuppressed`; the Debug seed coordinator
-accepts it only with the `UITesting` environment contract, and the
-`EnvironmentContextManager` facade forwards suppression to
+after each opacity-only label transition. Label transitions have a bounded
+30-second accessibility synchronization budget and report the observed label on
+failure. The September 21 hosted failure spent roughly 18 seconds in its final
+accessibility lookup despite a four-second waiter; the unchanged smoke passed
+locally on iOS 27. This budget accommodates snapshot latency without changing
+the manual fixture, retrying taps, or relaxing exact label and frame assertions.
+The hosted rerun remains necessary to confirm that diagnosis. Every configured
+UI-test launch also includes `-seedLocationPermissionPromptSuppressed`; the
+Debug seed coordinator accepts it only with the `UITesting` environment
+contract, and the `EnvironmentContextManager` facade forwards suppression to
 `EnvironmentLocationController`, which applies the shared prompt policy at both
 authorization entry points. The portable workflow contract checks suppression
 forwarding for permission validation, authorization requests, and
@@ -8303,8 +8319,11 @@ deployment runbook; it is not inferred from the launch-disabled posture.
   backlog-health telemetry, event-ID/payload conflict, atomic transfer of source
   and destination, a deleted transfer source with a live destination,
   ambiguous-alias rejection, missing-user failure, and entitlement-version
-  advancement. Keep this test in the disposable-database deployment gate
-  alongside `privileged_routine_security.sql` and `ai_quota_security.sql`.
+  advancement. The no-webhook fixture applies two newer free snapshots to a
+  never-subscribed account and verifies one ignored seed, no purchase subjects,
+  cleared retry state, and the next 24-hour schedule. Keep this test in the
+  disposable-database deployment gate alongside
+  `privileged_routine_security.sql` and `ai_quota_security.sql`.
 
 The identity test matrix now has two explicit lanes:
 

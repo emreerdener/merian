@@ -58,7 +58,7 @@ struct MediaStagingContractTests {
     @Test func testMediaStagingContractMatchesDocumentedUploadManifestContract() throws {
         let contract = try loadMediaStagingContract()
 
-        #expect(contract.schemaVersion == 6)
+        #expect(contract.schemaVersion == 7)
         #expect(contract.endpoint == "/generate-upload-urls")
         #expect(MediaStagingContract.maxUploadItemsPerRequest == contract.maxFilesPerRequest)
         #expect(contract.minFileBytes == 1)

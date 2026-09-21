@@ -447,7 +447,9 @@ camera audio. Empty microphone removals and an already-attached movie output
 avoid unnecessary session configuration transactions while still refreshing
 connection settings. `CameraVideoAudioSessionTests` covers that delayed
 teardown, failure/retry, cancellation, silent recording, overlapping admission,
-and replacement playback.
+and replacement playback. Its live-input adapter tests also prove an empty
+detach never discovers a microphone, silent recording stays microphone-free, and
+an audio-enabled failure/retry discovers input only after lease activation.
 
 ## Camera verification
 

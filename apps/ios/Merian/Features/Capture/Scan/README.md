@@ -59,6 +59,9 @@ cancel action remains available, and new capture, library, and flash actions are
 blocked. Ordinary lifecycle interruption preserves the already-recorded clip's
 preparation; explicit cancellation still discards it. Shutter-to-recording and
 total preparation timings are logged separately from playback export timing.
+Recording failures display a recording-specific retry message; only failures
+after a recording file is returned use the staging-failure message. Both paths
+clear capture UI state and permit another attempt without staging partial media.
 
 Once a prepared video is committed to `StagedCapture`, its recording generation
 and cancel UI finish before the optional Camera Roll save completes. The save

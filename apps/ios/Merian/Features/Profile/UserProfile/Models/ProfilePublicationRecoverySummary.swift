@@ -59,13 +59,6 @@ struct ProfilePublicationRecoverySummary: Equatable {
     }
 
     var overviewDismissalSignature: String {
-        [
-            publicationIntentCount,
-            visibleCount,
-            recoveryNeededCount,
-            quarantinedCount
-        ]
-        .map(String.init)
-        .joined(separator: ":")
+        String(recoveryNeededCount)
     }
 }

@@ -76,7 +76,7 @@ import {
   canonicalizeStructuredHumanSubject,
   normalizeAudioOnlySubject,
 } from "../_shared/identify/audioSubjectPolicy.ts";
-import { isWavContainer, processWAV } from "./audio.ts";
+import { isWavContainer, processMultimodalWAV } from "./audio.ts";
 import {
   audioDescriptorsForDurableIntent,
   type AudioMediaDescriptor,
@@ -721,7 +721,11 @@ export async function handleIdentifyMultimodalRequest(
         }, 400);
       }
       try {
-        processedAudios.push(await processWAV(audioBuffer));
+        processedAudios.push(processMultimodalWAV(
+          audioBuffer,
+          normalizedAudioMediaItems[audioInputIndex],
+          ownerTimelineValidation,
+        ));
         processedAudioInputIndexes.push(audioInputIndex);
       } catch (wavErr) {
         logStructuredError("multimodal/wav_parse_failed", {

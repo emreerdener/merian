@@ -2779,10 +2779,13 @@ then permits at most one active staged `capture_upload` row for that identity.
 Identical-key uniqueness alone cannot constrain two concurrent signing requests
 that add different keys to the same scan. BEFORE INSERT/UPDATE trigger
 `enforce_staged_scan_media_budget` therefore takes an owner-scoped transaction
-advisory lock and rejects a seventh active staged source with SQLSTATE `54000`.
-Requested signing subsets remain composable with existing unrequested rows, but
-their combined active staged capture-key set cannot exceed six. Historical
-promoted rows remain audit evidence and do not consume this trigger budget.
+advisory lock. Forward migration
+`20260921160739_align_video_staging_media_budget.sql` raises the cap to eight
+active staged sources and rejects a ninth with SQLSTATE `54000`, preserving the
+original serialization and privilege rules. Requested signing subsets remain
+composable with existing unrequested rows, but their combined active staged
+capture-key set cannot exceed eight. Historical promoted rows remain audit
+evidence and do not consume this trigger budget.
 
 - `scan_id` (UUID FK -> `scans.id`, CASCADE DELETE, nullable): The owning scan
   once the scan row exists. Pre-scan upload-session rows keep this null until
@@ -4274,6 +4277,16 @@ this case contract prevents a lowercase UUID customer from being manufactured
 beside the uppercase iOS customer. The GET can successfully return `200` for an
 existing customer or `201` for a newly created empty customer. Either status is
 transport success; only parsed CustomerInfo determines entitlement.
+
+Accounts that have never received a webhook still reconcile repeatedly.
+Migration
+`20260921160147_fix_revenuecat_reconciliation_without_webhook_event.sql` creates
+or reuses the existing `reconcile-seed:` event whenever the input state's
+`last_event_id` is null, including after an earlier free snapshot. The synthetic
+event remains `ignored`, with zero subjects and zero applied counts; it supplies
+the required customer-watermark foreign key without representing a purchase or
+grant. The migration replaces the routine only, with no account backfill or
+payment-history conversion. Normal claim-fenced retries recover failed rows.
 
 The canonicalization migration makes repaired UUID queue rows immediately due.
 That is desirable for ordinary repair but creates a release-order boundary when

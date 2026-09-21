@@ -128,12 +128,49 @@ struct CaptureScanDependenciesTests {
         #expect(viewModel.stagedCapture.isEmpty)
     }
 
+    @Test func recordingFailureResetsCaptureAndAllowsRetry() async {
+        let spy = CaptureScanDependencySpy()
+        let viewModel = makeViewModel(
+            spy: spy,
+            recordingError: NSError(domain: "AVFoundationErrorDomain", code: -11803)
+        )
+        for attempt in 1...2 {
+            viewModel.startVideoCapture()
+            #expect(await waitUntil { !viewModel.isCapturing })
+            #expect(spy.recordVideoCount == attempt)
+            #expect(!viewModel.isVideoRecording)
+            #expect(!viewModel.isPreparingVideo)
+            #expect(viewModel.videoRecordingProgress == 0)
+            #expect(viewModel.stagedCapture.isEmpty)
+            #expect(viewModel.offlineToastMessage?.title == "Video couldn't be recorded. Please try again.")
+        }
+    }
+
+    @Test func preparationFailureKeepsStagingMessageAndRemovesRecording() async throws {
+        let spy = CaptureScanDependencySpy()
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try Data([1]).write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let viewModel = makeViewModel(
+            spy: spy, recording: .init(fileURL: url, duration: 1),
+            prepareVideo: { _ in throw NSError(domain: "VideoPreparationTest", code: 1) }
+        )
+        viewModel.startVideoCapture()
+        #expect(await waitUntil { !viewModel.isCapturing })
+        #expect(!viewModel.isVideoRecording)
+        #expect(!viewModel.isPreparingVideo)
+        #expect(viewModel.stagedCapture.isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: url.path))
+        #expect(viewModel.offlineToastMessage?.title == "Video couldn't be staged. Please try recording again.")
+    }
+
     private func makeViewModel(
         spy: CaptureScanDependencySpy,
         captureImage: @escaping @MainActor @Sendable () async throws -> Data = {
             Data()
         },
         recording: CameraVideoRecording? = nil,
+        recordingError: NSError? = nil,
         prepareVideo: @escaping @Sendable (CaptureScanVideoPreparationRequest) async throws -> PreparedCaptureScanVideo = { _ in throw CancellationError() },
         admissionIsOnline: Bool = false,
         admissionPreview: @escaping @MainActor @Sendable () async ->
@@ -149,6 +186,7 @@ struct CaptureScanDependenciesTests {
                 captureImage: captureImage,
                 recordVideo: { _, onStarted in
                     spy.recordVideoCount += 1
+                    if let recordingError { throw recordingError }
                     guard let recording else { throw CancellationError() }
                     onStarted?()
                     return recording

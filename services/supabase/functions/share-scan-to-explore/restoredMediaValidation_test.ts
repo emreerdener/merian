@@ -76,7 +76,7 @@ Deno.test("restored media keys enforce the route media budget", () => {
 
 Deno.test("restored media key sets enforce canonical kind and aggregate budgets", () => {
   const imageKeys = Array.from(
-    { length: 3 },
+    { length: 5 },
     (_, index) => `staging/${userId}/image-${index}.webp`,
   );
   assertEquals(
@@ -113,7 +113,7 @@ Deno.test("restored media key sets enforce canonical kind and aggregate budgets"
   });
   assertInvalidMediaKeySet({
     restored_object_keys: Array.from(
-      { length: 5 },
+      { length: 6 },
       (_, index) => `staging/${userId}/image-${index}.webp`,
     ),
     restored_audio_object_keys: [

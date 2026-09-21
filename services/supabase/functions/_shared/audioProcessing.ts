@@ -31,11 +31,21 @@ export function isWavContainer(buffer: ArrayBuffer): boolean {
 export function processWavBuffer(
   rawWavBuffer: ArrayBuffer,
   targetSampleRate = TARGET_AUDIO_SAMPLE_RATE,
+  options: { preserveSourceWhenTrimmedTooShort?: boolean } = {},
 ): ProcessedWavResult {
   const header = parseWavHeader(rawWavBuffer);
   const interleaved = extractSamplesAsFloat32(rawWavBuffer, header);
   const mono = mixToMono(interleaved, header.numChannels);
-  const trimmed = trimSilence(mono, header.sampleRate);
+  let trimmed = trimSilence(mono, header.sampleRate);
+  // A brief sound in a valid video companion must not invalidate its visual
+  // evidence. Retain the source context when trimming alone removes too much.
+  // The duration guard below still rejects genuinely short source recordings.
+  if (
+    options.preserveSourceWhenTrimmedTooShort &&
+    trimmed.length / header.sampleRate < 0.5
+  ) {
+    trimmed = mono;
+  }
   const resampled = resampleLinear(
     trimmed,
     header.sampleRate,

@@ -72,6 +72,9 @@ existing styling and renders all three chronological items. When the refinement
 media row cannot fit, it scrolls horizontally inside the existing tray so Cancel
 and Analyze remain visible without shrinking the media buttons.
 
+The "Tap to edit" tooltip sizes its pill to the full single-line label,
+independently of the media row width, including when only one item is visible.
+
 Photo-library picks and one-photo document imports enter staging only after
 caller-scoped admission and remain required-crop items until confirmed or
 cancelled. A known denial presents the paywall before picker/file preparation;

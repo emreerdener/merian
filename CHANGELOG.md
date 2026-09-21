@@ -39,6 +39,9 @@ TestFlight, App Store, support, and QA.
 
 ### Interface
 
+- Keep dismissed unavailable-media notices hidden when reloading Profile; show
+  them again when the unavailable-media count increases.
+
 - Keep the Species directory visible when returning from Requests or another
   Explore page, with recent content reused and older content refreshed in the
   background. Pull to refresh still updates immediately.
