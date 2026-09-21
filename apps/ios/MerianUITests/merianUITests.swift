@@ -1074,10 +1074,13 @@ final class merianUITests: XCTestCase {
             predicate: predicate,
             object: element
         )
+        // A loaded hosted simulator can spend longer than four seconds taking
+        // one accessibility snapshot. This is a synchronization budget, not a
+        // phrase-cadence assertion: the manual fixture publishes on each tap.
         XCTAssertEqual(
-            XCTWaiter.wait(for: [expectation], timeout: 4.0),
+            XCTWaiter.wait(for: [expectation], timeout: 30.0),
             .completed,
-            "Expected analyzing label \(label)",
+            "Expected analyzing label \(label); observed \(element.label)",
             file: file,
             line: line
         )

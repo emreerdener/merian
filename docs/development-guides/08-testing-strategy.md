@@ -6946,10 +6946,16 @@ fixture opens the normal analyzing Insight with generic copy and advances to a
 Vision category and a validated image-derived visible-trait cue only after
 explicit badge taps. The smoke requires the exact three labels in order and
 rechecks that the native badge accessibility frame stays inside the app window
-after each opacity-only label transition. Every configured UI-test launch also
-includes `-seedLocationPermissionPromptSuppressed`; the Debug seed coordinator
-accepts it only with the `UITesting` environment contract, and the
-`EnvironmentContextManager` facade forwards suppression to
+after each opacity-only label transition. Label transitions have a bounded
+30-second accessibility synchronization budget and report the observed label on
+failure. The September 21 hosted failure spent roughly 18 seconds in its final
+accessibility lookup despite a four-second waiter; the unchanged smoke passed
+locally on iOS 27. This budget accommodates snapshot latency without changing
+the manual fixture, retrying taps, or relaxing exact label and frame assertions.
+The hosted rerun remains necessary to confirm that diagnosis. Every configured
+UI-test launch also includes `-seedLocationPermissionPromptSuppressed`; the
+Debug seed coordinator accepts it only with the `UITesting` environment
+contract, and the `EnvironmentContextManager` facade forwards suppression to
 `EnvironmentLocationController`, which applies the shared prompt policy at both
 authorization entry points. The portable workflow contract checks suppression
 forwarding for permission validation, authorization requests, and
