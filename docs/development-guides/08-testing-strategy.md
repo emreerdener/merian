@@ -978,8 +978,8 @@ HTTP request is dispatched. See the
    pinned Xcode build, generated-project membership, and locked packages in its
    own checkout. Its `build-for-testing` compiles the app and complete UI bundle
    without the unit or performance bundles; `test-without-building` reuses that
-   job's simulator and build output for four deterministic smokes:
-   `testAnalyzingPillProgressesWithoutEscapingAccessibilityWindow`,
+   job's simulator and build output to execute four deterministic runtime UI
+   smokes: `testAnalyzingPillProgressesWithoutEscapingAccessibilityWindow`,
    `testLiveInsightConnectivityFailureTransitionsToDurableQueue`,
    `testQueuedRetryPresentationUsesSafeActionableCopy`, and
    `testQueuedAudioScanRetainsAudioAcrossCompletionHandoff` under
@@ -7436,6 +7436,13 @@ tactile selection cue for a successful selector change and a settled pager
 swipe, no cue for programmatic synchronization or reselecting the active
 segment, and suppression when Haptics is disabled or Expedition mode is active.
 Simulator execution cannot accept the tactile or live-camera optical checks.
+
+`testQueuedRetryPresentationUsesSafeActionableCopy` keeps its scheduled fixture
+deadline one hour beyond seeding, longer than the critical UI job's ten-minute
+limit. This smoke verifies scheduled retry copy and action eligibility; it must
+not race launch or accessibility work against a 30-second deadline. The
+explicit-clock `InsightQueuedRetryPresentationTests` suite owns deadline expiry
+and suppression of elapsed retry actions.
 
 `testQueuedAudioScanRetainsAudioAcrossCompletionHandoff` launches the seeded
 queued-audio flow, opens Scans, and taps the staged tile. It requires the queued

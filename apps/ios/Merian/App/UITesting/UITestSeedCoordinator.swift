@@ -647,7 +647,10 @@ enum UITestSeedCoordinator {
             locationName: "UITest Retry",
             scanState: .staged,
             queueAttemptCount: 1,
-            queueNextRetryAt: Date().addingTimeInterval(30),
+            // This fixture tests scheduled-retry copy, not deadline expiry.
+            // Keep it scheduled beyond the entire critical UI job so launch
+            // and accessibility delays cannot remove the expected action.
+            queueNextRetryAt: Date().addingTimeInterval(60 * 60),
             queueLastErrorCode: "network_timed_out",
             queueLastErrorMessage: "RAW_QUEUE_ERROR_SENTINEL"
         )

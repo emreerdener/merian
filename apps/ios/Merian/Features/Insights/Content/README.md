@@ -148,7 +148,10 @@ The Debug-only `-seedQueuedRetryPresentationFlow` fixture supplies a scheduled
 connection retry and a missing-media attention row. Its raw error field contains
 a sentinel that UI automation must never find; the test instead verifies safe
 reason copy, countdown/action eligibility, and suppression of **Retry now** for
-missing media.
+missing media. The scheduled deadline is one hour after seeding, beyond the
+critical UI job's ten-minute limit, so slow launch or accessibility work cannot
+turn the fixture into an elapsed retry. Deadline expiry remains covered by
+`InsightQueuedRetryPresentationTests` with an explicit clock.
 
 When a live request loses connectivity after this sheet opens, the engine may
 publish a queue presentation only from the exact typed scan-and-attempt owner.
