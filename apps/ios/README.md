@@ -1568,6 +1568,16 @@ inspect disk use and `make ios-clean-build-cache` to preview cleanup. The
 [local build storage procedure](../../docs/development-guides/08-testing-strategy.md#local-ios-build-storage)
 defines commands, isolated checks, disk thresholds, and retained test evidence.
 
+Hosted **iOS Build and Test** runs the complete unit target, four critical scan
+UI smokes, and the Release archive as three independent jobs after source
+scoping. Each uses the same exact commit and pinned toolchain; Production
+readiness requires all three. Unit and UI jobs build only their respective
+bundles (the unit job also compiles the report-only performance bundle) and keep
+separate evidence artifacts. See the
+[CI contract and failure triage](../../docs/development-guides/08-testing-strategy.md#evidence-and-failure-triage)
+for evidence ownership. Full unit coverage and shared-state serialization remain
+required.
+
 Unit tests should mirror the production owner:
 
 ```text

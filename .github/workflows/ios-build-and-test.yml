@@ -43,7 +43,7 @@ jobs:
 
       - name: Summarize workflow context
         env:
-          WORKFLOW_PURPOSE: "Compile both shared test targets, execute the complete iOS unit-test target and deterministic analyzing, live-to-queue, queued-retry, and queued-completion UI smokes, then produce a validation-only Release archive with a validated app privacy manifest from the exact workflow SHA."
+          WORKFLOW_PURPOSE: "Compile all test targets in independent unit and UI jobs, execute the complete iOS unit-test target and deterministic analyzing, live-to-queue, queued-retry, and queued-completion UI smokes, then produce a validation-only Release archive with a validated app privacy manifest from the exact workflow SHA."
           WORKFLOW_REASON: "The final check reports on every pull request so it can be required safely; macOS jobs run only for iOS/watch/project/build-tooling inputs, every merge-queue commit, and manual dispatch."
         run: bash scripts/ci-run-summary.sh
 
@@ -59,7 +59,7 @@ jobs:
     needs: scope
     if: needs.scope.outputs.should_run == 'true'
     runs-on: xcode-27
-    timeout-minutes: 100
+    timeout-minutes: 90
     env:
       DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
 
@@ -83,11 +83,6 @@ jobs:
             echo "XCODE_TEST_SUMMARY=$RUNNER_TEMP/ios-unit-test-summary.json"
             echo "XCODE_TEST_TREE=$RUNNER_TEMP/ios-unit-test-tree.json"
             echo "XCODE_EVIDENCE=$RUNNER_TEMP/ios-unit-test-evidence.json"
-            echo "XCODE_UI_RESULT_BUNDLE=$RUNNER_TEMP/ios-critical-scan-ui.xcresult"
-            echo "XCODE_UI_BUILD_LOG=$RUNNER_TEMP/ios-critical-scan-ui-xcodebuild.log"
-            echo "XCODE_UI_TEST_SUMMARY=$RUNNER_TEMP/ios-critical-scan-ui-summary.json"
-            echo "XCODE_UI_TEST_TREE=$RUNNER_TEMP/ios-critical-scan-ui-tree.json"
-            echo "XCODE_UI_EVIDENCE=$RUNNER_TEMP/ios-critical-scan-ui-evidence.json"
           } >> "$GITHUB_ENV"
 
       - name: Verify exact source revision
@@ -180,7 +175,7 @@ jobs:
           echo "destination=${destination}" >> "$GITHUB_OUTPUT"
           echo "Selected ${destination}"
 
-      - name: Compile app and shared test targets
+      - name: Compile app, unit, and performance test targets
         timeout-minutes: 25
         run: |
           set -o pipefail
@@ -200,7 +195,6 @@ jobs:
             -disableAutomaticPackageResolution \
             -derivedDataPath "$XCODE_DERIVED_DATA" \
             -only-testing:merianTests \
-            -only-testing:merianUITests \
             -only-testing:merianPerformanceTests \
             COMPILER_INDEX_STORE_ENABLE=NO \
             2>&1 | tee "$XCODE_BUILD_LOG"
@@ -300,6 +294,188 @@ jobs:
             echo "- Critical scan-flow regressions: \`passed\`" \
               >> "$GITHUB_STEP_SUMMARY"
           fi
+
+      - name: Print unit test failure diagnostics
+        if: failure()
+        run: |
+          diagnostics="${RUNNER_TEMP}/ios-unit-test-diagnostics.txt"
+          bash scripts/extract-ios-test-failure-diagnostics.sh \
+            "$XCODE_TEST_SUMMARY" \
+            "$XCODE_TEST_TREE" \
+            "$XCODE_BUILD_LOG" > "$diagnostics"
+          {
+            echo ""
+            echo "#### iOS unit test diagnostics"
+            echo ""
+            echo '```text'
+            head -n 160 "$diagnostics"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload unit-test evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ios-unit-test-evidence-${{ github.run_number }}-attempt-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/ios-unit-test-evidence.json
+            ${{ runner.temp }}/ios-unit-test-summary.json
+            ${{ runner.temp }}/ios-unit-test-tree.json
+            ${{ runner.temp }}/ios-unit-xcode-version.txt
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload unit-test failure bundle
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ios-unit-test-failure-${{ github.run_number }}-attempt-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/ios-unit-tests.xcresult
+            ${{ runner.temp }}/ios-unit-xcodebuild.log
+            ${{ runner.temp }}/ios-unit-package-resolution.log
+            ${{ runner.temp }}/ios-unit-test-tree.json
+            ${{ runner.temp }}/ios-unit-test-diagnostics.txt
+          if-no-files-found: ignore
+          retention-days: 14
+
+  ios-critical-scan-ui:
+    name: Critical scan UI smokes
+    needs: scope
+    if: needs.scope.outputs.should_run == 'true'
+    runs-on: xcode-27
+    timeout-minutes: 55
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
+
+    steps:
+      - name: Checkout exact workflow SHA
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Initialize runner-local UI-test paths
+        run: |
+          : "${GITHUB_WORKSPACE:?Missing GITHUB_WORKSPACE}"
+          : "${RUNNER_TEMP:?Missing RUNNER_TEMP}"
+          {
+            echo "SWIFT_PACKAGE_CLONES=$GITHUB_WORKSPACE/.build/xcode-source-packages"
+            echo "SWIFT_PACKAGE_CACHE=$RUNNER_TEMP/ios-ui-package-cache"
+            echo "XCODE_DERIVED_DATA=$RUNNER_TEMP/ios-ui-derived-data"
+            echo "XCODE_BUILD_LOG=$RUNNER_TEMP/ios-ui-build.log"
+            echo "XCODE_PACKAGE_LOG=$RUNNER_TEMP/ios-ui-package-resolution.log"
+            echo "XCODE_UI_RESULT_BUNDLE=$RUNNER_TEMP/ios-critical-scan-ui.xcresult"
+            echo "XCODE_UI_BUILD_LOG=$RUNNER_TEMP/ios-critical-scan-ui-xcodebuild.log"
+            echo "XCODE_UI_TEST_SUMMARY=$RUNNER_TEMP/ios-critical-scan-ui-summary.json"
+            echo "XCODE_UI_TEST_TREE=$RUNNER_TEMP/ios-critical-scan-ui-tree.json"
+            echo "XCODE_UI_EVIDENCE=$RUNNER_TEMP/ios-critical-scan-ui-evidence.json"
+          } >> "$GITHUB_ENV"
+
+      - name: Verify exact source revision
+        run: |
+          actual_sha="$(git rev-parse HEAD)"
+          if [ "$actual_sha" != "$GITHUB_SHA" ]; then
+            echo "Expected workflow SHA $GITHUB_SHA, checked out $actual_sha." >&2
+            exit 1
+          fi
+          if ! git diff --quiet --ignore-submodules --; then
+            echo "Checkout is dirty before the iOS build." >&2
+            git status --short
+            exit 1
+          fi
+          echo "Verified source revision $actual_sha"
+
+      - name: Verify pinned Xcode toolchain
+        run: |
+          if [ ! -x "$DEVELOPER_DIR/usr/bin/xcodebuild" ]; then
+            echo "Pinned Xcode is unavailable at $DEVELOPER_DIR." >&2
+            ls -1 /Applications | grep '^Xcode' || true
+            exit 1
+          fi
+          xcodebuild -version | tee "${RUNNER_TEMP}/ios-ui-xcode-version.txt"
+          if [ "$(xcodebuild -version | sed -n '1p')" != "Xcode 27.0" ]; then
+            echo "This gate requires Xcode 27.0." >&2
+            exit 1
+          fi
+          if [ "$(xcodebuild -version | sed -n '2p')" != "Build version 27A266a" ]; then
+            echo "This gate requires the reviewed Xcode 27.0 build 27A266a." >&2
+            exit 1
+          fi
+          command -v jq >/dev/null
+          sw_vers
+          df -h "$RUNNER_TEMP"
+
+      - name: Verify generated project source membership
+        run: |
+          bash scripts/test-ios-project-source-membership.sh
+          bash scripts/check-ios-project-source-membership.sh
+
+      - name: Restore locked Swift package checkouts
+        id: swift-package-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .build/xcode-source-packages
+          key: ${{ runner.os }}-${{ runner.arch }}-xcode-27.0-27A266a-spm-${{ hashFiles('Merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved', 'merian.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+
+      - name: Resolve only Package.resolved versions
+        timeout-minutes: 10
+        run: |
+          set -o pipefail
+          xcode_project="Merian.xcodeproj"
+          if [ ! -d "$xcode_project" ]; then
+            xcode_project="merian.xcodeproj"
+          fi
+          package_resolved="$xcode_project/project.xcworkspace/xcshareddata/swiftpm/Package.resolved"
+          if [ ! -s "$package_resolved" ] \
+            || ! jq -e '(.pins | type) == "array" and (.pins | length) > 0' \
+              "$package_resolved" >/dev/null; then
+            echo "A non-empty checked-in Package.resolved is required." >&2
+            exit 1
+          fi
+          xcodebuild -resolvePackageDependencies \
+            -scheme Merian \
+            -project "$xcode_project" \
+            -clonedSourcePackagesDirPath "$SWIFT_PACKAGE_CLONES" \
+            -packageCachePath "$SWIFT_PACKAGE_CACHE" \
+            -disablePackageRepositoryCache \
+            -onlyUsePackageVersionsFromResolvedFile \
+            -skipPackageUpdates \
+            2>&1 | tee "$XCODE_PACKAGE_LOG"
+          if ! git diff --quiet -- "$package_resolved"; then
+            echo "Package resolution modified the checked-in lockfile." >&2
+            git diff -- "$package_resolved"
+            exit 1
+          fi
+
+      - name: Select current iOS simulator
+        id: ios-test-simulator
+        run: |
+          destination="$(bash scripts/select-ios-simulator-destination.sh)"
+          echo "destination=${destination}" >> "$GITHUB_OUTPUT"
+          echo "Selected ${destination}"
+
+      - name: Compile app and UI test target
+        timeout-minutes: 25
+        run: |
+          set -o pipefail
+          xcode_project="Merian.xcodeproj"
+          if [ ! -d "$xcode_project" ]; then
+            xcode_project="merian.xcodeproj"
+          fi
+          xcodebuild build-for-testing \
+            -scheme Merian \
+            -project "$xcode_project" \
+            -configuration Debug \
+            -destination "${{ steps.ios-test-simulator.outputs.destination }}" \
+            -clonedSourcePackagesDirPath "$SWIFT_PACKAGE_CLONES" \
+            -packageCachePath "$SWIFT_PACKAGE_CACHE" \
+            -disablePackageRepositoryCache \
+            -skipPackageUpdates \
+            -disableAutomaticPackageResolution \
+            -derivedDataPath "$XCODE_DERIVED_DATA" \
+            -only-testing:merianUITests \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            2>&1 | tee "$XCODE_BUILD_LOG"
 
       - name: Run critical scan UI smokes
         id: xcode-critical-scan-ui
@@ -413,73 +589,49 @@ jobs:
               >> "$GITHUB_STEP_SUMMARY"
           fi
 
-      - name: Print iOS test failure diagnostics
+      - name: Print ui test failure diagnostics
         if: failure()
-        env:
-          UI_TEST_STEP_OUTCOME: ${{ steps.xcode-critical-scan-ui.outcome }}
-          UI_VALIDATION_STEP_OUTCOME: ${{ steps.validate-critical-scan-ui.outcome }}
         run: |
-          diagnostics="${RUNNER_TEMP}/ios-unit-test-diagnostics.txt"
-          ui_failure="false"
-          if [ "${UI_TEST_STEP_OUTCOME:-skipped}" != "success" ] \
-            && [ "${UI_TEST_STEP_OUTCOME:-skipped}" != "skipped" ]; then
-            ui_failure="true"
-          fi
-          if [ "${UI_VALIDATION_STEP_OUTCOME:-skipped}" == "failure" ]; then
-            ui_failure="true"
-          fi
-
-          if [ "$ui_failure" == "true" ]; then
-            bash scripts/extract-ios-test-failure-diagnostics.sh \
-              "$XCODE_UI_TEST_SUMMARY" \
-              "$XCODE_UI_TEST_TREE" \
-              "$XCODE_UI_BUILD_LOG" > "$diagnostics"
-          else
-            bash scripts/extract-ios-test-failure-diagnostics.sh \
-              "$XCODE_TEST_SUMMARY" \
-              "$XCODE_TEST_TREE" \
-              "$XCODE_BUILD_LOG" > "$diagnostics"
-          fi
+          diagnostics="${RUNNER_TEMP}/ios-ui-test-diagnostics.txt"
+          bash scripts/extract-ios-test-failure-diagnostics.sh \
+            "$XCODE_UI_TEST_SUMMARY" \
+            "$XCODE_UI_TEST_TREE" \
+            "$XCODE_UI_BUILD_LOG" > "$diagnostics"
           {
             echo ""
-            echo "#### iOS test diagnostics"
+            echo "#### iOS ui test diagnostics"
             echo ""
             echo '```text'
             head -n 160 "$diagnostics"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Upload unit-test evidence
+      - name: Upload UI-test evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ios-unit-test-evidence-${{ github.run_number }}-attempt-${{ github.run_attempt }}
+          name: ios-critical-scan-ui-evidence-${{ github.run_number }}-attempt-${{ github.run_attempt }}
           path: |
-            ${{ runner.temp }}/ios-unit-test-evidence.json
-            ${{ runner.temp }}/ios-unit-test-summary.json
-            ${{ runner.temp }}/ios-unit-test-tree.json
-            ${{ runner.temp }}/ios-unit-xcode-version.txt
             ${{ runner.temp }}/ios-critical-scan-ui-evidence.json
             ${{ runner.temp }}/ios-critical-scan-ui-summary.json
             ${{ runner.temp }}/ios-critical-scan-ui-tree.json
+            ${{ runner.temp }}/ios-ui-xcode-version.txt
           if-no-files-found: warn
           retention-days: 14
 
-      - name: Upload unit-test failure bundle
+      - name: Upload UI-test failure bundle
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: ios-unit-test-failure-${{ github.run_number }}-attempt-${{ github.run_attempt }}
+          name: ios-critical-scan-ui-failure-${{ github.run_number }}-attempt-${{ github.run_attempt }}
           path: |
-            ${{ runner.temp }}/ios-unit-tests.xcresult
-            ${{ runner.temp }}/ios-unit-xcodebuild.log
-            ${{ runner.temp }}/ios-unit-package-resolution.log
-            ${{ runner.temp }}/ios-unit-test-tree.json
-            ${{ runner.temp }}/ios-unit-test-diagnostics.txt
             ${{ runner.temp }}/ios-critical-scan-ui.xcresult
             ${{ runner.temp }}/ios-critical-scan-ui-xcodebuild.log
             ${{ runner.temp }}/ios-critical-scan-ui-summary.json
             ${{ runner.temp }}/ios-critical-scan-ui-tree.json
+            ${{ runner.temp }}/ios-ui-build.log
+            ${{ runner.temp }}/ios-ui-package-resolution.log
+            ${{ runner.temp }}/ios-ui-test-diagnostics.txt
           if-no-files-found: ignore
           retention-days: 14
 
@@ -880,6 +1032,7 @@ jobs:
     needs:
       - scope
       - ios-unit-tests
+      - ios-critical-scan-ui
       - ios-release-archive
     if: always()
     runs-on: ubuntu-latest
@@ -892,6 +1045,7 @@ jobs:
           SHOULD_RUN: ${{ needs.scope.outputs.should_run }}
           SCOPE_REASON: ${{ needs.scope.outputs.reason }}
           UNIT_TEST_RESULT: ${{ needs.ios-unit-tests.result }}
+          UI_TEST_RESULT: ${{ needs.ios-critical-scan-ui.result }}
           RELEASE_ARCHIVE_RESULT: ${{ needs.ios-release-archive.result }}
         run: |
           {
@@ -901,6 +1055,7 @@ jobs:
             echo "- macOS verification required: \`${SHOULD_RUN:-unknown}\`"
             echo "- Scope reason: ${SCOPE_REASON:-unavailable}"
             echo "- Full iOS tests: \`${UNIT_TEST_RESULT}\`"
+            echo "- Critical scan UI smokes: \`${UI_TEST_RESULT}\`"
             echo "- Current-SHA Release archive: \`${RELEASE_ARCHIVE_RESULT}\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -909,8 +1064,14 @@ jobs:
             exit 1
           fi
 
-          if [ "$SHOULD_RUN" != "true" ]; then
+          if [ "$SHOULD_RUN" != "true" ] && [ "$SHOULD_RUN" != "false" ]; then
+            echo "The iOS scope job did not return a valid decision." >&2
+            exit 1
+          fi
+
+          if [ "$SHOULD_RUN" == "false" ]; then
             if [ "$UNIT_TEST_RESULT" != "skipped" ] \
+              || [ "$UI_TEST_RESULT" != "skipped" ] \
               || [ "$RELEASE_ARCHIVE_RESULT" != "skipped" ]; then
               echo "macOS jobs ran unexpectedly for an out-of-scope change." >&2
               exit 1
@@ -920,9 +1081,11 @@ jobs:
           fi
 
           if [ "$UNIT_TEST_RESULT" != "success" ] \
+            || [ "$UI_TEST_RESULT" != "success" ] \
             || [ "$RELEASE_ARCHIVE_RESULT" != "success" ]; then
             echo \
               "Full iOS tests: ${UNIT_TEST_RESULT:-unknown};" \
+              "critical scan UI smokes: ${UI_TEST_RESULT:-unknown};" \
               "current-SHA Release archive: ${RELEASE_ARCHIVE_RESULT:-unknown}." >&2
             echo "The complete unit target, all four critical scan UI smokes, and current-SHA Release archive must all pass." >&2
             exit 1

@@ -412,12 +412,13 @@ uses an in-memory store: this is interruption coverage, not disk relaunch proof.
 ### Benchmark methodology and supported metrics
 
 `merianPerformanceTests` is a separate unit bundle. The ordinary compiled CI
-gate builds it alongside the app, unit and UI bundles, but its complete-unit
-execution still selects only `merianTests`. The audit selects benchmarks
-separately from acceptance; the ordinary Xcode scheme includes all test bundles,
-so use explicit selectors when running acceptance from the command line. UI
-benchmarks live in `RuntimePerformanceTests` and reuse `UITestAppLauncher`; no
-new production Debug arguments or services are introduced.
+gate builds it alongside the app and unit bundle in the unit job; the UI bundle
+builds in a separate job. Complete-unit execution still selects only
+`merianTests`. The audit selects benchmarks separately from acceptance; the
+ordinary Xcode scheme includes all test bundles, so use explicit selectors when
+running acceptance from the command line. UI benchmarks live in
+`RuntimePerformanceTests` and reuse `UITestAppLauncher`; no new production Debug
+arguments or services are introduced.
 
 | Benchmark                                                      | Measurement and scope                                                                                                                                                                                         |
 | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -538,7 +539,7 @@ A fail-closed scope job starts the macOS work for:
 For a release candidate whose final commits contain only backend, catalog-test,
 or documentation changes after the last iOS input, manually dispatch this
 workflow against the final exact SHA. Confirm the scope reason records a manual
-dispatch and both macOS jobs run. A successful scope-only result is valid
+dispatch and all three macOS jobs run. A successful scope-only result is valid
 changed-file reporting, but it is not compiled iOS release evidence and cannot
 replace the complete unit target, all four critical scan UI smokes, and
 Release-archive gate.
@@ -764,8 +765,8 @@ HTTP request is dispatched. See the
 [iOS App Transport Security Contract](./17-ios-transport-security.md).
 
 1. **Full iOS unit tests** resolves only locked package versions, validates the
-   generated-project source membership against `project.yml`, compiles the app
-   plus both shared test bundles with `build-for-testing`, and executes the
+   generated-project source membership against `project.yml`, compiles the app,
+   unit and performance test bundles with `build-for-testing`, and executes the
    complete `merianTests` target with `test-without-building`. This prevents a
    newly added Swift or Objective-C file from escaping compilation when the
    committed Xcode project was not regenerated. The unit-test selector does not
@@ -773,26 +774,27 @@ HTTP request is dispatched. See the
    because several hardware, networking, and persistence suites exercise shared
    singletons. The complete unit-test step has a 40-minute limit: the expanded
    suite was still making progress when the former 20-minute deadline stopped
-   run 405. The enclosing job has a 100-minute limit, covering the 10-minute
-   package resolution, 25-minute compilation, 40-minute unit tests, and
-   10-minute UI smokes with 15 minutes reserved for setup and evidence
-   collection. The portable workflow contract checks both limits. A timeout
-   still fails the gate; the complete-target selector and result requirements
-   remain unchanged. The result gate fails if Xcode returns success without a
-   `Passed` result, a non-empty test run, zero skipped tests, an exact
-   passed/total count match, and at least one passed test case from each
-   critical concurrency boundary: `CameraManagerTests`, `InferenceEngineTests`,
-   `OfflineQueueManagerTests`, and `SyncStateManagerTests`. It also fails closed
-   unless the structured test tree contains exactly one matching passed suite
-   for each critical boundary and reports every named scan-flow regression
-   exactly once under exactly one matching passed suite as `Passed`. A duplicate
-   matching suite, duplicate protected case, or failed-suite/passed-child
-   contradiction is invalid evidence. The current validator protects 98 exact
-   cases. Twenty-seven were added by the joined scan-reliability follow-up.
-   Eleven more form the live-connectivity follow-up: nine engine-level
-   ownership, presentation, and exact-generation recovery fences plus two
-   network-client replay-policy controls. The former consolidated pre-queue
-   admission declaration is now three exact Core Data Offline Sync cases:
+   run 405. The enclosing job has a 90-minute limit, covering the 10-minute
+   package resolution, 25-minute compilation, and 40-minute unit tests, with 15
+   minutes reserved for setup and evidence collection. UI tests run in a
+   separate job so their failures do not wait behind the complete unit suite.
+   The portable workflow contract checks both limits. A timeout still fails the
+   gate; the complete-target selector and result requirements remain unchanged.
+   The result gate fails if Xcode returns success without a `Passed` result, a
+   non-empty test run, zero skipped tests, an exact passed/total count match,
+   and at least one passed test case from each critical concurrency boundary:
+   `CameraManagerTests`, `InferenceEngineTests`, `OfflineQueueManagerTests`, and
+   `SyncStateManagerTests`. It also fails closed unless the structured test tree
+   contains exactly one matching passed suite for each critical boundary and
+   reports every named scan-flow regression exactly once under exactly one
+   matching passed suite as `Passed`. A duplicate matching suite, duplicate
+   protected case, or failed-suite/passed-child contradiction is invalid
+   evidence. The current validator protects 98 exact cases. Twenty-seven were
+   added by the joined scan-reliability follow-up. Eleven more form the
+   live-connectivity follow-up: nine engine-level ownership, presentation, and
+   exact-generation recovery fences plus two network-client replay-policy
+   controls. The former consolidated pre-queue admission declaration is now
+   three exact Core Data Offline Sync cases:
    `connectivityFailuresSelectQueueOnlyAdmission`,
    `authenticationAndTrustFailuresRemainFailClosed`, and
    `secureTransportFailuresUseOnlyDurableRecovery`. They separately protect the
@@ -971,9 +973,12 @@ HTTP request is dispatched. See the
    validation records `Critical scan-flow regressions: passed` in the job
    summary.
 
-   After the complete unit target passes, the same checkout, simulator
-   destination, locked packages, and `build-for-testing` output execute four
-   deterministic runtime UI smokes:
+2. **Critical scan UI smokes** runs independently of the unit and archive jobs,
+   immediately after the scope job. It verifies the same exact `GITHUB_SHA`,
+   pinned Xcode build, generated-project membership, and locked packages in its
+   own checkout. Its `build-for-testing` compiles the app and complete UI bundle
+   without the unit or performance bundles; `test-without-building` reuses that
+   job's simulator and build output for four deterministic smokes:
    `testAnalyzingPillProgressesWithoutEscapingAccessibilityWindow`,
    `testLiveInsightConnectivityFailureTransitionsToDurableQueue`,
    `testQueuedRetryPresentationUsesSafeActionableCopy`, and
@@ -1027,7 +1032,7 @@ HTTP request is dispatched. See the
    then extracts the main binary's strings and fails if any of those Debug-only
    seed arguments or deterministic fixture identifiers is present.
 
-2. **Current-SHA Release archive** independently checks out `GITHUB_SHA`,
+3. **Current-SHA Release archive** independently checks out `GITHUB_SHA`,
    resolves the same lockfile, and runs a generic-device Release archive with
    signing disabled. It requires production-shaped RevenueCat client
    configuration, verifies app/widget/Messages/watch embedding, checks the
@@ -1045,11 +1050,23 @@ HTTP request is dispatched. See the
    transport-security, dSYM, and shipping-seed exclusion validation—not a
    distributable App Store artifact.
 
-The final Production readiness job uses `if: always()` and requires both macOS
-jobs to succeed whenever scope says the build is relevant. For an unrelated
-change it requires both to be skipped and reports success. Repository and merge
-queue rules should require only the stable final check, not either conditional
-macOS job.
+The UI job has a 55-minute limit: 10 minutes for package resolution, 25 for
+compilation, 10 for execution, and 10 for setup and evidence. It restores the
+same exact-key Swift package cache as the other jobs; the unit job remains the
+cache writer. Each job owns separate build output, simulator execution, logs,
+and evidence artifacts. This duplicates app compilation across the unit and UI
+jobs to shorten feedback time; it can consume more runner minutes and needs
+available macOS capacity to overlap. No hosted speedup is claimed until
+measured.
+
+The final Production readiness job uses `if: always()` and requires all three
+macOS jobs to succeed whenever scope says the build is relevant. For an
+unrelated change it requires all three to be skipped and reports success.
+Missing or invalid scope output, failed, cancelled, or unexpectedly skipped jobs
+fail the check. The portable workflow contract executes this decision across
+every unit/UI/archive outcome combination and checks that all three jobs depend
+only on scope. Release evidence remains the complete unit target, all four UI
+cases, and the archive on one exact SHA; no smaller test selection replaces it.
 
 ### Repository Rule Setup
 
@@ -1148,13 +1165,13 @@ failure:
 | --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Unit compile or execution                                             | Download `ios-unit-test-failure-<run>-attempt-<attempt>` for the unit `.xcresult`, package-resolution log, and `xcodebuild` log.                                           |
 | Unit result is empty, skipped, incomplete, or misses a critical suite | Inspect `ios-unit-test-evidence-<run>-attempt-<attempt>` and rerun the complete target; do not weaken the critical-suite validator.                                        |
-| Critical scan UI smokes or focused-result validation                  | Inspect the `ios-critical-scan-ui` result, summary, tree, evidence, and log in the same evidence/failure artifacts; require the exact four protected cases.                |
+| Critical scan UI smokes or focused-result validation                  | Inspect `ios-critical-scan-ui-evidence-<run>-attempt-<attempt>` and `ios-critical-scan-ui-failure-<run>-attempt-<attempt>`; require the exact four protected cases.        |
 | Privacy manifest source or target membership                          | Run `make validate-ios-privacy-manifest` and `make validate-ios-project`; compare the declaration with the canonical privacy contract rather than weakening the validator. |
 | Privacy manifest missing or invalid in the archive                    | Download `ios-release-archive-failure-<run>-attempt-<attempt>`; inspect `Merian.app/PrivacyInfo.xcprivacy` and regenerate the project if Resources membership drifted.     |
 | ATS exception or insecure source origin                               | Run `make validate-ios-transport-security`; remove the exception or repair the HTTP/credentialed origin rather than weakening the validator.                               |
 | ATS or configured-origin drift in the archive                         | Download `ios-release-archive-failure-<run>-attempt-<attempt>` and inspect the final `Merian.app/Info.plist` plus resolved `SUPABASE_URL`.                                 |
 | Release archive, embedding, or dSYM                                   | Download `ios-release-archive-failure-<run>-attempt-<attempt>` and compare it with `ios-release-archive-evidence-<run>-attempt-<attempt>`.                                 |
-| Intended release SHA was out of scope                                 | Manually dispatch **iOS Build and Test** on that ref so both macOS jobs run and produce current-SHA evidence.                                                              |
+| Intended release SHA was out of scope                                 | Manually dispatch **iOS Build and Test** on that ref so all three macOS jobs run and produce current-SHA evidence.                                                         |
 
 For an executed test failure, the summary prints `testFailures` from Xcode's
 structured result summary. If that is unavailable, it prints failed test cases
@@ -7466,12 +7483,12 @@ delayed reveal and Field Notes synchronization are keyed to the monotonic
 presentation generation, not the unchanged scan ID, ensuring both tasks restart
 after promotion. Keep all navigation, shared-scanning, playable-media,
 downstream-toolbar, and handoff assertions when extending this regression. The
-exact-SHA hosted `Full iOS unit tests` job executes this case after the complete
-unit target; compilation alone is not acceptance evidence. The native-control
-correction is committed at `c7eac9c8f3124437712ee72eeff49d09e6ea55b1`; a local
-exact-SHA generic-Simulator `build-for-testing` compiled and linked the app,
-unit bundle, and UI bundle for arm64 and x86_64, but a hosted XCUI result is
-still required.
+exact-SHA hosted `Critical scan UI smokes` job executes this case independently
+of the complete unit target; compilation alone is not acceptance evidence. The
+native-control correction is committed at
+`c7eac9c8f3124437712ee72eeff49d09e6ea55b1`; a local exact-SHA generic-Simulator
+`build-for-testing` compiled and linked the app, unit bundle, and UI bundle for
+arm64 and x86_64, but a hosted XCUI result is still required.
 
 After installing the intended Debug build on a disposable booted simulator, run
 each mode as a separate cold launch. Launch arguments override the stored order

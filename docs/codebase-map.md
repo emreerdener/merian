@@ -2581,8 +2581,10 @@ and directly calls the existing production queue-promotion method with that same
 context; the library event remains only for parent-list refresh. Release retains
 no-op coordinators. The exact-SHA hosted iOS gate executes all four
 deterministic analyzing, live-to-queue, queued-retry, and queued-completion
-regressions after the complete unit target; the remaining UI tests are compiled
-but retain their feature-specific runtime gates.
+regressions in the independent **Critical scan UI smokes** job, alongside the
+complete unit target and Release archive. Each job checks out the same exact
+SHA, and Production readiness requires all three. The remaining UI tests are
+compiled but retain their feature-specific runtime gates.
 
 Deno tests live under `services/supabase/functions/_tests/` plus function-local
 `*.test.ts` files. Run from `services/supabase/functions` with:

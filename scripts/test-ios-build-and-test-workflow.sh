@@ -362,7 +362,7 @@ assert_contains "  merge_group:"
 assert_contains "    name: Full iOS unit tests"
 # Keep the complete serial target bounded without restoring the deadline that
 # interrupted healthy execution. Reserve job time for package resolution,
-# compilation, UI smokes, and evidence collection as well.
+# compilation and evidence collection as well; UI has its own job budget.
 awk '
   /^  ios-unit-tests:$/ { in_unit_job = 1; next }
   in_unit_job && /^  [A-Za-z0-9_-]+:$/ { in_unit_job = 0 }
@@ -373,18 +373,18 @@ awk '
   }
   in_unit_step && /^        timeout-minutes:/ { unit_timeout = $2 }
   END {
-    exit !(unit_timeout == 40 && job_timeout == 100)
+    exit !(unit_timeout == 40 && job_timeout == 90)
   }
 ' "$workflow" \
-  || fail "Full iOS tests require a 40-minute step and a 100-minute job budget."
+  || fail "Full iOS tests require a 40-minute step and a 90-minute job budget."
 assert_contains 'group: ios-build-and-test-${{ github.event.pull_request.number || github.run_id }}'
-assert_count 2 "runs-on: xcode-27"
-assert_count 2 "/Applications/Xcode_27.0.app/Contents/Developer"
+assert_count 3 "runs-on: xcode-27"
+assert_count 3 "/Applications/Xcode_27.0.app/Contents/Developer"
 # A runner label/path alias may still resolve to a beta during rollout.
 # Require the reviewed release's version and build in every macOS job.
-assert_file_count "$workflow" 2 '"Xcode 27.0"'
-assert_file_count "$workflow" 2 '"Build version 27A266a"'
-assert_file_count "$workflow" 3 'xcode-27.0-27A266a-spm-'
+assert_file_count "$workflow" 3 '"Xcode 27.0"'
+assert_file_count "$workflow" 3 '"Build version 27A266a"'
+assert_file_count "$workflow" 4 'xcode-27.0-27A266a-spm-'
 for checked_workflow in "$startup_workflow" "$runtime_workflow"; do
   assert_file_contains "$checked_workflow" 'runs-on: xcode-27'
   assert_file_contains "$checked_workflow" '/Applications/Xcode_27.0.app/Contents/Developer'
@@ -424,17 +424,17 @@ assert_file_before \
   "$project_guardrails_workflow" \
   "run: make validate-ios-event-routing" \
   "run: make test-ios-ci-tooling"
-assert_count 1 "bash scripts/check-ios-project-source-membership.sh"
-assert_count 1 "bash scripts/test-ios-project-source-membership.sh"
+assert_count 2 "bash scripts/check-ios-project-source-membership.sh"
+assert_count 2 "bash scripts/test-ios-project-source-membership.sh"
 assert_contains "fetch-depth: 0"
-assert_count 3 "persist-credentials: false"
+assert_count 4 "persist-credentials: false"
 # Lock the reviewed Node.js 24 action major releases while allowing Dependabot
 # to advance commit-pinned patch/minor releases. Major upgrades remain an
 # explicit review boundary.
-assert_action_release "actions/checkout" 3 7
-assert_action_release "actions/cache/restore" 2 6
+assert_action_release "actions/checkout" 4 7
+assert_action_release "actions/cache/restore" 3 6
 assert_action_release "actions/cache/save" 1 6
-assert_action_release "actions/upload-artifact" 5 7
+assert_action_release "actions/upload-artifact" 7 7
 assert_actions_share_release "actions/cache/restore" "actions/cache/save"
 assert_contains "actual_sha=\"\$(git rev-parse HEAD)\""
 assert_contains 'actual_sha" != "$GITHUB_SHA'
@@ -449,7 +449,8 @@ assert_contains "Print :MERIAN_SOURCE_STATE"
 assert_contains 'archive_source_revision" != "$GITHUB_SHA'
 assert_contains 'archive_source_state" != "clean'
 assert_contains 'source_state: "clean"'
-assert_contains "Compile app and shared test targets"
+assert_contains "Compile app, unit, and performance test targets"
+assert_contains "Compile app and UI test target"
 assert_contains "xcodebuild build-for-testing"
 assert_contains "xcodebuild test-without-building"
 assert_contains "xcresulttool get test-results tests"
@@ -496,14 +497,84 @@ assert_contains "if: always()"
 assert_contains 'UNIT_TEST_RESULT" != "success'
 assert_contains 'RELEASE_ARCHIVE_RESULT" != "success'
 assert_before \
-  "- name: Validate and summarize unit-test execution" \
-  "- name: Run critical scan UI smokes"
-assert_before \
   "- name: Run critical scan UI smokes" \
   "- name: Validate and summarize critical scan UI smokes"
 assert_before \
   "- name: Validate and summarize critical scan UI smokes" \
-  "- name: Upload unit-test evidence"
+  "- name: Upload UI-test evidence"
+
+# Validate each job boundary, not just global string presence: a UI invocation
+# accidentally moved back into the unit job would restore the long feedback wait.
+contract_tmp="$(mktemp -d "${TMPDIR:-/tmp}/merian-ios-scheduling.XXXXXX")"
+trap 'rm -rf "$contract_tmp"' EXIT
+for job_id in ios-unit-tests ios-critical-scan-ui ios-release-archive production-readiness; do
+  awk -v header="  $job_id:" '
+    $0 == header { in_job = 1; print; next }
+    in_job && /^  [A-Za-z0-9_-]+:$/ { exit }
+    in_job { print }
+  ' "$workflow" > "$contract_tmp/$job_id"
+done
+for job_id in ios-unit-tests ios-critical-scan-ui ios-release-archive; do
+  job_file="$contract_tmp/$job_id"
+  assert_file_count "$job_file" 1 '    needs: scope'
+  assert_file_count "$job_file" 1 "    if: needs.scope.outputs.should_run == 'true'"
+  assert_file_count "$job_file" 1 'actual_sha" != "$GITHUB_SHA'
+  assert_file_count "$job_file" 1 '"Build version 27A266a"'
+  assert_file_contains "$contract_tmp/production-readiness" "      - $job_id"
+done
+unit_job="$contract_tmp/ios-unit-tests"
+ui_job="$contract_tmp/ios-critical-scan-ui"
+assert_file_count "$unit_job" 0 'XCODE_UI_'
+assert_file_count "$unit_job" 0 '-only-testing:merianUITests'
+assert_file_count "$unit_job" 1 'bash scripts/validate-ios-critical-test-results.sh'
+assert_file_count "$ui_job" 0 '-only-testing:merianTests'
+assert_file_count "$ui_job" 0 '-only-testing:merianPerformanceTests'
+assert_file_count "$ui_job" 1 '    timeout-minutes: 55'
+assert_file_count "$ui_job" 1 'xcodebuild build-for-testing'
+assert_file_count "$ui_job" 1 'xcodebuild test-without-building'
+assert_file_count "$ui_job" 1 'bash scripts/validate-ios-focused-test-results.sh'
+assert_file_contains "$ui_job" 'name: ios-critical-scan-ui-evidence-'
+assert_file_contains "$ui_job" 'name: ios-critical-scan-ui-failure-'
+assert_file_before "$ui_job" 'xcodebuild build-for-testing' 'xcodebuild test-without-building'
+assert_file_contains "$contract_tmp/production-readiness" 'UI_TEST_RESULT: ${{ needs.ios-critical-scan-ui.result }}'
+
+# Execute the actual readiness shell for every completion combination. Failure,
+# cancellation, missing output, or skipped UI may never produce a release pass.
+awk '
+  /^        run: \|$/ { in_run = 1; next }
+  in_run { sub(/^          /, ""); print }
+' "$contract_tmp/production-readiness" > "$contract_tmp/readiness.sh"
+bash -n "$contract_tmp/readiness.sh"
+for should_run in true false "" invalid; do
+  for unit_result in success failure cancelled skipped ""; do
+    for ui_result in success failure cancelled skipped ""; do
+      for archive_result in success failure cancelled skipped ""; do
+        expected=1
+        if [[ "$should_run" == true && "$unit_result" == success \
+            && "$ui_result" == success && "$archive_result" == success ]] \
+          || [[ "$should_run" == false && "$unit_result" == skipped \
+            && "$ui_result" == skipped && "$archive_result" == skipped ]]; then
+          expected=0
+        fi
+        actual=0
+        SCOPE_RESULT=success SHOULD_RUN="$should_run" SCOPE_REASON=fixture \
+          UNIT_TEST_RESULT="$unit_result" UI_TEST_RESULT="$ui_result" \
+          RELEASE_ARCHIVE_RESULT="$archive_result" GITHUB_STEP_SUMMARY=/dev/null \
+          bash "$contract_tmp/readiness.sh" > "$contract_tmp/result.log" 2>&1 || actual=$?
+        [[ "$actual" == "$expected" ]] \
+          || fail "Unexpected readiness for scope=$should_run unit=$unit_result ui=$ui_result archive=$archive_result."
+      done
+    done
+  done
+done
+for scope_result in failure cancelled skipped ""; do
+  if SCOPE_RESULT="$scope_result" SHOULD_RUN=true SCOPE_REASON=fixture \
+    UNIT_TEST_RESULT=success UI_TEST_RESULT=success RELEASE_ARCHIVE_RESULT=success \
+    GITHUB_STEP_SUMMARY=/dev/null bash "$contract_tmp/readiness.sh" \
+      > "$contract_tmp/result.log" 2>&1; then
+    fail "Readiness must reject scope result '$scope_result' even when all builds passed."
+  fi
+done
 
 # Keep verbose simulator diagnostics out of the bounded UI smoke invocation.
 # A passed console suite is insufficient: Xcode must still finalize its result.
