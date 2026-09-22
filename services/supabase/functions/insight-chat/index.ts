@@ -5,7 +5,7 @@ import { _genAI, extractJson } from "../_shared/gemini.ts";
 import {
   buildFieldChatReplyRequest,
   extractFieldChatReplyJson,
-} from "../_shared/fieldChatReply.ts";
+} from "../_shared/fieldChat/reply.ts";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 import { parseJsonBody, publicErrorResponse } from "../_shared/http.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";

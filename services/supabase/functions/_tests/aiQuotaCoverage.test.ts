@@ -92,7 +92,7 @@ Deno.test("provider dispatch and SDK imports stay within the adapter and deferre
   assertEquals(sdkFiles.sort(), [
     "functions/_shared/ai/gemini.ts",
     "functions/_shared/ai/geminiContent.ts",
-    "functions/_shared/fieldChatReply.ts",
+    "functions/_shared/fieldChat/reply.ts",
     "functions/_shared/gemini.ts",
     "functions/_shared/identify/googleSchema.ts",
     "functions/_shared/identify/schema.ts",

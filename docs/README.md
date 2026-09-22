@@ -228,6 +228,10 @@ production submission or public release.
 - **[`/system-architecture/06-edge-modularization.md`](./system-architecture/06-edge-modularization.md)**
   — Domain-driven modular architecture for Supabase Edge Functions: `index.ts` /
   `db.ts` / `types.ts` separation rules and shared utility conventions.
+- **[Function directory guide](../services/supabase/functions/README.md)** —
+  Endpoint and shared-owner navigation by product area; the
+  [organization audit](./rfcs/supabase-functions-organization.md) records the
+  dependency baseline, AI validation handoff, and proposed organization slices.
 - **[`/system-architecture/08-public-brand-compatibility.md`](./system-architecture/08-public-brand-compatibility.md)**
   — Canonical Naturebook public values, permanent Merian technical identifiers,
   link/domain compatibility, AASA exceptions, and the allowed-branding audit

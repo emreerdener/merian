@@ -4,7 +4,7 @@ import { _genAI, GEMINI_REQUEST_TIMEOUT_MS } from "./gemini.ts";
 import {
   buildFieldChatReplyRequest,
   extractFieldChatReplyJson,
-} from "./fieldChatReply.ts";
+} from "./fieldChat/reply.ts";
 import { getMerianResponseSchema } from "./identify/schema.ts";
 
 // Exercise the installed SDK, rather than mocking models.generateContent. All

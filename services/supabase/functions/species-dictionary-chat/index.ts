@@ -11,7 +11,7 @@ import { requireUuid } from "../_shared/explore.ts";
 import {
   buildFieldChatReplyRequest,
   extractFieldChatReplyJson,
-} from "../_shared/fieldChatReply.ts";
+} from "../_shared/fieldChat/reply.ts";
 import { countAllFieldChatSendsToday } from "../_shared/fieldChatDailyUsage.ts";
 import {
   fieldChatFeedbackPayload,

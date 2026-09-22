@@ -1,4 +1,4 @@
-import { buildFieldChatReplyRequest } from "../functions/_shared/fieldChatReply.ts";
+import { buildFieldChatReplyRequest } from "../functions/_shared/fieldChat/reply.ts";
 import {
   buildSystemInstruction as insightSystem,
   buildUserPrompt as insightQuestion,
