@@ -2259,10 +2259,14 @@ deno check --frozen \
   services/supabase/functions/<function>/index.ts
 ```
 
-The pull request must then pass the stable **Supabase Candidate Validation /
-Candidate readiness** check. A local source/unit pass cannot substitute for its
-exact-SHA migration replay, database concurrency fixtures, pgTAP catalogs, lint,
-and advisors when the fail-closed scope requires the complete gate.
+Every main push must pass the reusable **Supabase Candidate Validation /
+Candidate readiness** check before backend release. PRs are optional and retain
+their existing checks. The production job consumes this one exact-SHA validation
+pass and selects mutations from the undeployed production-source range; see the
+[direct-main policy](../../docs/release-evidence/README.md#direct-main-development-policy--september-22-2026).
+A local source/unit pass cannot substitute for its exact-SHA migration replay,
+database concurrency fixtures, pgTAP catalogs, lint, and advisors when the
+fail-closed scope requires the complete gate.
 
 `test_supabase_tooling.sh` dynamically type-checks every standard script and
 runs every standard `*_test.ts`, including the ghost-user suites, both Supabase

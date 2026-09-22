@@ -49,49 +49,48 @@ Explore post while preserving its saved post-level location-sharing choice.
 > are complete. Default-off export isolation narrows runtime scope; it does not
 > waive catalog or application evidence for objects that remain deployed.
 
-Pushes to `main` that touch Supabase backend or deployment-support paths, the
-generated inference DTO contract, `SupabaseManager`, the exact scan-admission
-bridge in `MerianNetworkClient`, `PinnedNetworkTransport`, the extracted Auth
-owners, or Core Security execute `.github/workflows/deploy.yml`; manual
-`workflow_dispatch` runs do the same. These iOS owners participate because the
-complete candidate suite reads their cross-surface consent, purchase-identity,
-admission, transport, and Auth contracts. Client-only changes outside those
-reviewed paths and docs-only commits do not automatically deploy production
-backend changes.
+Every `main` push runs `.github/workflows/deploy.yml`, whose reusable **Supabase
+Candidate Validation** job validates the exact source SHA once without
+production access. Optional PRs still receive candidate checks and manual
+validation dispatch remains available. The normal development flow is commit,
+push to main, and wait for the exact-SHA checks; no PR or pre-push check is
+required. See the
+[direct-main policy](../release-evidence/README.md#direct-main-development-policy--september-22-2026).
 
-Use `.github/workflows/supabase-candidate-validation.yml` when the objective is
-exact-SHA evidence without production access. **Supabase Candidate Validation**
-runs a lightweight scope job on every pull request, supports manual dispatch,
-and can be called by another workflow. The detector uses the complete git event
-range rather than workflow path filters, includes every repository root read or
-scanned by its contracts, and requires full validation when comparison fails or
-a changed path is not explicitly reviewed as build-only. Manual, merge-queue,
-and reusable non-PR calls always validate. Configure repository rules to require
-`Supabase Candidate Validation / Candidate
-readiness`. The complete gate uses a
-disposable database and has no GitHub Production environment, production
-secrets, database push, Function deployment, or production smoke. The production
-workflow declares this reusable gate as a required predecessor, followed by a
-non-Production checked-in source-hold job. A valid active hold produces a green
-`held` status and `deploy_allowed=false`; the conditional `deploy` job is then
-skipped before the job enters Production or exposes credentials. A missing or
-malformed hold remains a workflow failure. Only a clear source status allows the
-subsequent `deploy` job to enter the Production environment. That job pins and
-clean-checks the same SHA and runs `--mode automatic-release` before ordinary
-production credentials or mutations. With the read-only
-`MERIAN_GITHUB_RELEASE_AUDIT_TOKEN`, the gate verifies the current protected
-`main` head, merged-main PR provenance, required checks, branch rules without
-bypass, and automatic environment policy. GitHub's optional
-`bypass_pull_request_allowances` field may be omitted when no review bypass is
-configured; a present field must contain empty `users`, `teams`, and `apps`
-arrays. Null, malformed, incomplete, or nonempty allowances fail verification.
-See
-[GitHub's branch-protection response](https://docs.github.com/en/rest/branches/branch-protection#get-branch-protection).
-Both `Production` and `Release Evidence` retain protected-branches-only
-restrictions with no required reviewers, wait timers, or custom approval gates.
-Scheduled monitors sharing `Production` also run without approval clicks.
-Backend-relevant pushes to `main` trigger this path automatically; existing path
-filters and manual dispatch remain unchanged.
+After successful validation, a read-only production-scope job resolves the last
+successful actual `deploy` job and compares that ancestor SHA with the current
+candidate. `PRODUCTION_SOURCE_PATHS` in `deploy.yml` owns the production path
+inventory: backend/deployment-support paths, generated inference DTOs,
+`SupabaseManager`, `MerianNetworkClient`, `PinnedNetworkTransport`, extracted
+Auth owners, and Core Security. The complete Git diff includes deletions and
+both sides of renames without GitHub's path-filter limit. A docs-only candidate
+with no undeployed production inputs skips the hold and Production jobs; if a
+previous backend push is still undeployed, the newer commit includes that work.
+An unavailable or unsafe baseline blocks automatic production selection. Use an
+explicitly authorized manual deployment to establish a baseline; manual dispatch
+selects full production scope.
+
+Candidate Validation retains the pinned tools, full source/type/tooling tests,
+fresh disposable migration replay, every catalog and Edge/concurrency test,
+lint, and advisors. `deploy.yml` requires that successful same-SHA result and
+does not repeat those checks. The validation workflow has no Production secrets,
+migration push, Function deployment, or production smoke. Do not dispatch
+`deploy.yml` merely to obtain candidate evidence; dispatch
+`supabase-candidate-validation.yml` for validation alone.
+
+An in-scope candidate next evaluates the checked-in source hold outside
+Production. A valid active hold yields `held` and `deploy_allowed=false`;
+malformed holds fail closed. Only a clear hold allows the `deploy` job into
+Production. That job pins and clean-checks the exact current-main SHA and runs
+`--mode automatic-release` with read-only `MERIAN_GITHUB_RELEASE_AUDIT_TOKEN`
+before using Supabase credentials. The verifier requires protected main, direct
+pushes without mandatory PRs or pre-push status checks, administrator
+enforcement, no force pushes/deletions, and automatic environment policy.
+`Production` and `Release Evidence` retain protected-branches-only restrictions
+with no required reviewers, wait timers, or custom approval gates. The
+production concurrency lock applies only to the mutation job, so validation-only
+pushes do not replace pending production work. Scheduled health monitors are
+unchanged.
 
 The Field Chat source hold is inactive under the owner-authorized beta decision
 linked above. The unfinished full-release checklist remains an owner obligation;
@@ -143,9 +142,11 @@ changed-file bullets and then append a truncation marker.
 because `set -o pipefail` would otherwise turn an expected SIGPIPE into exit 141
 before validation or deployment begins.
 
-The production workflow first requires the reusable candidate gate, then its
-Production job performs the following defense-in-depth validation and deployment
-steps:
+The workflow separates validation from mutation. Steps 5–8 below run once in the
+reusable Candidate Validation job before production scope, source holds, or
+Production access. The Production job consumes that exact-SHA result and
+performs only setup, live controls, planning, mutation, and runtime
+verification. The combined pipeline retains these checks:
 
 1. Writes the workflow context summary and exercises its large-change regression
    test.
@@ -199,8 +200,9 @@ steps:
    historical `BEGIN → LOCK TABLE → final trigger → COMMIT` cutover ordering.
    Source-inspection tests receive explicit read grants because Deno does not
    grant `readTextFile` access merely because a source is in the import graph.
-8. Starts a disposable local Postgres instance, applies all pending migrations,
-   and discovers every `services/supabase/tests/*.sql` pgTAP fixture through
+8. In the reusable Candidate Validation job, starts a disposable local Postgres
+   instance, applies all pending migrations, and discovers every
+   `services/supabase/tests/*.sql` pgTAP fixture through
    `test_database_catalogs.sh`. An empty fixture directory or any failed catalog
    test blocks deployment; there is no curated SQL allowlist to forget when a
    new security contract is added. It then invokes the checked-in recursive
@@ -245,8 +247,8 @@ steps:
     either fence can mutate production, the exact workflow SHA must pass the
     fresh disposable database replay, every catalog test, the complete Edge
     suite (including the two-session Ghost merge schedules), strict database
-    lint, and both advisors in the same job. No hosted staging project or manual
-    SHA attestation is required.
+    lint, and both advisors in the required same-SHA Candidate Validation job.
+    No hosted staging project or manual SHA attestation is required.
 11. Runs a read-only production `pg_proc.proacl`, `has_function_privilege()`,
     search-path, owner, allowlist, and default-privilege report before any
     database write.
@@ -6322,11 +6324,10 @@ Set these in the repository's GitHub Actions secrets:
   historical clearance audits; it does not introduce a recurring review gate.
 - `MERIAN_GITHUB_RELEASE_AUDIT_TOKEN` — a fine-grained read-only token available
   only to the protected `Production` environment. Grant the minimum repository
-  read permissions needed for Actions artifacts/runs, pull requests, branch
-  protection, and environments. Restrict repository access to
-  `emreerdener/merian` and grant **Read-only** for **Actions**,
-  **Administration**, **Contents**, and **Pull requests** (Metadata is
-  implicit). Actions read also permits reading environment configuration. See
+  read permissions needed for Actions artifacts/runs, branch protection, and
+  environments. Restrict repository access to `emreerdener/merian` and grant
+  **Read-only** for **Actions**, **Administration** and **Contents** (Metadata
+  is implicit). Actions read also permits reading environment configuration. See
   GitHub's
   [fine-grained permission reference](https://docs.github.com/en/rest/authentication/permissions-required-for-fine-grained-personal-access-tokens).
   Create the token in the owner's GitHub account, then enter it directly as this
@@ -7224,11 +7225,11 @@ for every pull request so it can be required reliably, and on affected pushes to
 `main`. Its live audit fails on high/critical findings or registry failure,
 while the admin dependency-security test also enforces reviewed Next.js,
 PostCSS, and Sharp floors directly from the committed lockfile. A green backend
-deployment workflow does not substitute for this admin gate. The repository
-ruleset must require `Naturebook Admin Quality / test`, and the separate admin
-Vercel project must add that GitHub Action as a required Deployment Check.
-Workflow YAML alone does not block a merge, direct deployment, Force Promote, or
-manual deployment. Verify Vercel is releasing the exact checked commit.
+deployment workflow does not substitute for this admin gate. Main accepts direct
+pushes. The separate admin Vercel project must require
+`Naturebook Admin Quality / test` as a Deployment Check. Workflow YAML alone
+does not block a merge, direct deployment, Force Promote, or manual deployment.
+Verify Vercel is releasing the exact checked commit.
 
 After the migration, query grants as a non-owner runtime role or run the pgTAP
 security suite against the candidate database. `anon` must not execute admin
@@ -7754,10 +7755,10 @@ production hold open. Failed runs emit no passing evidence.
   clean-checked and current-main-checked again, and then
   `verify_production_release_holds.ts --mode automatic-release` independently
   rejects active/malformed holds and verifies the current protected `main` head,
-  one merged-main PR, strict Candidate readiness, admin enforcement, no bypass,
-  no force pushes/deletions, and protected environment branches with no reviewer
-  or waiting gates. Code Owner review and last-push approval disabled and zero
-  peer approvals preserve the sole-maintainer PR path. The read-only
+  direct pushes without mandatory PRs or pre-push checks, admin enforcement, no
+  force pushes/deletions, and protected environment branches with no reviewer or
+  waiting gates. Successful same-SHA Candidate Validation remains a required job
+  dependency before production. The read-only
   `MERIAN_GITHUB_RELEASE_AUDIT_TOKEN` is required for these live checks before
   Supabase credentials are used. Missing access fails closed. There is no
   per-deployment approval or clearance-secret requirement.
@@ -7800,12 +7801,12 @@ test does not satisfy an evidence requirement:
    immutable candidate SHA.
 5. **`release_control_exact_sha_and_clearance`** (`release_control_audit`): The
    required hold ID and exact clean mutation SHA are enforced; live GitHub
-   checks require current protected main, merged-main pull-request provenance,
-   required Candidate readiness checks, branch rules without bypass, and an
-   automatic environment policy with protected branches only and no required
-   reviewers or waiting gates. Hold-exit evidence is retained before the source
-   hold is resolved; ordinary subsequent deployments do not require new manual
-   clearance records.
+   checks require current protected main, the direct-push branch policy,
+   successful same-SHA Candidate Validation before mutation, and an automatic
+   environment policy with protected branches only and no required reviewers or
+   waiting gates. Hold-exit evidence is retained before the source hold is
+   resolved; ordinary subsequent deployments do not require new manual clearance
+   records.
 6. **`swiftdata_v49_v50_install_over`** (`device_install_over`): The V49-to-V50
    real released-binary install-over gate passes without safe mode, store
    replacement, or data loss.

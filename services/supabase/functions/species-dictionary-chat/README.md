@@ -187,7 +187,7 @@ malformed, duplicate, and required-ID-absent manifests still fail. The gate
 requires this hold ID and a clean exact checkout. A green held workflow does not
 mean the backend deployed. With the beta source hold inactive, the sole
 Production job independently pins and clean-checks the same SHA, then runs
-automated current-main, merged-PR, branch protection, and environment checks
+automated current-main, direct-push branch protection, and environment checks
 with a read-only GitHub audit token before Supabase mutation. Both Production
 and Release Evidence permit protected branches only and require no reviewers,
 timers, or custom approval gates. No per-commit clearance record is required.

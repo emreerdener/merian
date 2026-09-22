@@ -34,6 +34,11 @@ URL and client-key overrides for routine development; see
 
 ### Release and Verification
 
+Normal development is commit → push to `main` → exact-SHA checks → release.
+Branches and PRs are optional. The
+[direct-main policy](./release-evidence/README.md#direct-main-development-policy--september-22-2026)
+owns branch settings and the boundary between validation and production.
+
 **Public production remains blocked on exact-SHA evidence and external
 controls.** The
 [consent readiness record](./legal/production-consent-readiness-2026-08-03.md)

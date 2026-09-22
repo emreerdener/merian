@@ -249,7 +249,12 @@ Deno.test("Supabase candidate validation is reusable and production-isolated", a
   const focusedWorkflowSecurityReadScope =
     "--allow-read=supabase/functions/deno.json,../.github/workflows,../.github/actions/setup-deno,../.github/CODEOWNERS";
   assertStringIncludes(candidateWorkflow, focusedWorkflowSecurityReadScope);
-  assertStringIncludes(deployWorkflow, focusedWorkflowSecurityReadScope);
+  assert(!deployWorkflow.includes("supabase db start"));
+  assert(
+    !deployWorkflow.includes(
+      "deno task --config supabase/functions/deno.json test",
+    ),
+  );
   assert(
     !candidateWorkflow.includes("environment: Production") &&
       !candidateWorkflow.includes("secrets.") &&
@@ -268,7 +273,7 @@ Deno.test("Supabase candidate validation is reusable and production-isolated", a
   );
   const holdJob = deployWorkflow.indexOf("  production-hold:", reusableCall);
   const holdDependency = deployWorkflow.indexOf(
-    "needs: candidate-validation",
+    "needs: [candidate-validation, production-scope]",
     holdJob,
   );
   const holdVerifier = deployWorkflow.indexOf(
@@ -590,7 +595,7 @@ Deno.test("only the isolated checklist writer requests repository write access",
   );
 });
 
-Deno.test("production deploy invokes the complete Supabase tooling gate", async () => {
+Deno.test("production uses the candidate tooling gate and cumulative deployment scope", async () => {
   const deployWorkflow = await Deno.readTextFile(
     new URL("deploy.yml", workflowsDirectory),
   );
@@ -602,7 +607,7 @@ Deno.test("production deploy invokes the complete Supabase tooling gate", async 
   );
   assertMatch(
     deployWorkflow,
-    /- "apps\/ios\/Merian\/Core\/AI\/InferenceEdgeDTOs\.swift"/,
+    /apps\/ios\/Merian\/Core\/AI\/InferenceEdgeDTOs\.swift/,
     "Swift DTO changes must trigger the contract gate.",
   );
   for (
@@ -616,22 +621,25 @@ Deno.test("production deploy invokes the complete Supabase tooling gate", async 
   ) {
     assertStringIncludes(
       deployWorkflow,
-      `- "${contractPath}"`,
+      contractPath,
       `${contractPath} changes must trigger the production contract gate.`,
     );
   }
+  const candidateWorkflow = await Deno.readTextFile(
+    new URL("supabase-candidate-validation.yml", workflowsDirectory),
+  );
   assertMatch(
-    deployWorkflow,
+    candidateWorkflow,
     /- name: Gate whole-tree Supabase formatting\n\s+run: deno fmt --check supabase\/functions supabase\/scripts/,
     "Production deploy must format-gate functions and tooling.",
   );
   assertMatch(
-    deployWorkflow,
+    candidateWorkflow,
     /- name: Gate whole-tree Supabase TypeScript lint\n\s+run: \|\n\s+deno lint --config supabase\/functions\/deno\.json \\\n\s+supabase\/functions \\\n\s+supabase\/scripts/,
     "Production deploy must lint functions and tooling.",
   );
   assertMatch(
-    deployWorkflow,
+    candidateWorkflow,
     /- name: Test complete Supabase tooling suite\n\s+run: bash supabase\/scripts\/test_supabase_tooling\.sh/,
     "Production deploy must invoke the discovery-based tooling test gate.",
   );
@@ -662,10 +670,14 @@ Deno.test("production deploy invokes the complete Supabase tooling gate", async 
 });
 
 Deno.test("production deploy runs the discovery-based complete Edge suite before mutation", async () => {
-  const [deployWorkflow, denoConfigSource] = await Promise.all([
-    Deno.readTextFile(new URL("deploy.yml", workflowsDirectory)),
-    Deno.readTextFile(functionsDenoConfig),
-  ]);
+  const [deployWorkflow, candidateWorkflow, denoConfigSource] = await Promise
+    .all([
+      Deno.readTextFile(new URL("deploy.yml", workflowsDirectory)),
+      Deno.readTextFile(
+        new URL("supabase-candidate-validation.yml", workflowsDirectory),
+      ),
+      Deno.readTextFile(functionsDenoConfig),
+    ]);
   const denoConfig = JSON.parse(denoConfigSource) as {
     tasks?: Record<string, unknown>;
   };
@@ -682,16 +694,16 @@ Deno.test("production deploy runs the discovery-based complete Edge suite before
     "The complete Edge task must not filter out runtime tests.",
   );
 
-  const databaseStart = deployWorkflow.indexOf(
+  const databaseStart = candidateWorkflow.indexOf(
     "- name: Start disposable database for privileged-routine validation",
   );
-  const catalogValidation = deployWorkflow.indexOf(
+  const catalogValidation = candidateWorkflow.indexOf(
     "- name: Validate database security catalogs",
   );
-  const completeEdgeSuite = deployWorkflow.indexOf(
+  const completeEdgeSuite = candidateWorkflow.indexOf(
     "- name: Test complete Edge Function suite",
   );
-  const databaseAdvisors = deployWorkflow.indexOf(
+  const databaseAdvisors = candidateWorkflow.indexOf(
     "- name: Validate database lint and advisors",
   );
   const deploymentPlan = deployWorkflow.indexOf(
@@ -720,7 +732,7 @@ Deno.test("production deploy runs the discovery-based complete Edge suite before
   );
 
   assertMatch(
-    deployWorkflow,
+    candidateWorkflow,
     /- name: Test complete Edge Function suite\n\s+env:\n\s+SUPABASE_DB_TEST_URL:[^\n]+\n\s+run: deno task --config supabase\/functions\/deno\.json test/,
   );
   for (
@@ -730,14 +742,19 @@ Deno.test("production deploy runs the discovery-based complete Edge suite before
       "supabase db advisors --local --type performance \\\n            --level warn --fail-on error",
     ]
   ) {
-    assertStringIncludes(deployWorkflow, command);
+    assertStringIncludes(candidateWorkflow, command);
   }
+  assertStringIncludes(
+    deployWorkflow,
+    "needs: [candidate-validation, production-hold]",
+  );
+  assert(!deployWorkflow.includes("supabase db start"));
   assert(
     databaseStart >= 0 &&
       databaseStart < catalogValidation &&
       catalogValidation < completeEdgeSuite &&
       completeEdgeSuite < databaseAdvisors &&
-      databaseAdvisors < deploymentPlan &&
+      deploymentPlan >= 0 &&
       deploymentPlan < ghostMergeCiProof &&
       ghostMergeCiProof < compatibilityPredeploy &&
       compatibilityPredeploy < ghostMergePredeploy &&
@@ -1087,13 +1104,22 @@ Deno.test("complete release gates execute the purchase identity rollout tool tes
     completeTestTask,
     "../scripts/control_purchase_identity_rollout_test.ts",
   );
-  for (const filename of ["supabase-candidate-validation.yml", "deploy.yml"]) {
-    const workflow = await Deno.readTextFile(
-      new URL(filename, workflowsDirectory),
-    );
-    assertStringIncludes(
-      workflow,
-      "deno task --config supabase/functions/deno.json test",
-    );
-  }
+  const candidateWorkflow = await Deno.readTextFile(
+    new URL("supabase-candidate-validation.yml", workflowsDirectory),
+  );
+  const deployWorkflow = await Deno.readTextFile(
+    new URL("deploy.yml", workflowsDirectory),
+  );
+  assertStringIncludes(
+    candidateWorkflow,
+    "deno task --config supabase/functions/deno.json test",
+  );
+  assertStringIncludes(
+    deployWorkflow,
+    "uses: ./.github/workflows/supabase-candidate-validation.yml",
+  );
+  assertStringIncludes(
+    deployWorkflow,
+    "needs: [candidate-validation, production-hold]",
+  );
 });

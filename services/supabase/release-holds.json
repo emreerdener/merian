@@ -43,7 +43,7 @@
         },
         {
           "id": "release_control_exact_sha_and_clearance",
-          "description": "The required hold ID and exact clean mutation SHA are enforced; live GitHub checks require current protected main, merged-main pull-request provenance, required Candidate readiness checks, branch rules without bypass, and an automatic environment policy with protected branches only and no required reviewers or waiting gates. Hold-exit evidence is retained before the source hold is resolved; ordinary subsequent deployments do not require new manual clearance records.",
+          "description": "The required hold ID and exact clean mutation SHA are enforced; live GitHub checks require current protected main, the direct-push branch policy, successful same-SHA Candidate Validation before mutation, and an automatic environment policy with protected branches only and no required reviewers or waiting gates. Hold-exit evidence is retained before the source hold is resolved; ordinary subsequent deployments do not require new manual clearance records.",
           "evidence_type": "release_control_audit",
           "required_workflows": []
         },

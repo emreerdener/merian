@@ -171,16 +171,16 @@ an unavailable audit registry both stop the admin release.
 PostCSS, and Sharp versions and protects the workflow sequence from silent
 drift.
 
-In the GitHub repository ruleset, require `Naturebook Admin Quality / test` as a
-[status check](https://docs.github.com/en/pull-requests/reference/status-checks)
-before a pull request can merge. In the separate admin Vercel project's
+Main accepts direct pushes without a required pre-push status check. In the
+separate admin Vercel project's
 [Deployment Checks](https://vercel.com/docs/deployment-checks) settings, add
 that GitHub Action and mark it required. Vercel may build the production
 deployment while the check runs, but must not promote it to
 `admin.naturebook.earth` until the exact commit passes. The checked-in workflow
 creates a status check; it cannot make itself required or prevent Force
-Promote/direct manual promotion. Record and verify these two external controls
-during initial setup and after changing GitHub or Vercel integration settings.
+Promote/direct manual promotion. Record and verify the external deployment
+control during initial setup and after changing GitHub or Vercel integration
+settings.
 
 The checked-in dependency graph, reviewed on 2026-09-19, is:
 

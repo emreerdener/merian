@@ -66,14 +66,20 @@ prerequisites, not recorded as successful:
   [production consent readiness](../legal/production-consent-readiness-2026-08-03.md)
   before public-launch approval. Unfinished review is not a legal exemption.
 
-## Controls retained for every beta deployment
+> **Development-policy update — September 22, 2026:** The
+> [direct-main policy](README.md#direct-main-development-policy--september-22-2026)
+> supersedes the mandatory-PR provenance and pre-push status-check requirements
+> recorded below. Exact-SHA validation, technical holds, runtime protections,
+> and this decision's original release scope remain unchanged.
 
-Production still flows only through the reviewed GitHub Production workflow. It
-requires the exact clean current main SHA, merged-PR provenance, strict
-Candidate readiness and live branch/environment controls. A missing read-only
-`MERIAN_GITHUB_RELEASE_AUDIT_TOKEN` must fail before Supabase mutation. No local
-CLI deployment, fabricated clearance statement, skipped migration, force merge,
-or credential bypass is authorized by this decision.
+## Controls recorded by the September 18 decision
+
+At the time of this decision, production flowed only through the reviewed GitHub
+Production workflow. It required the exact clean current main SHA, merged-PR
+provenance, strict Candidate readiness and live branch/environment controls. A
+missing read-only `MERIAN_GITHUB_RELEASE_AUDIT_TOKEN` must fail before Supabase
+mutation. No local CLI deployment, fabricated clearance statement, skipped
+migration, force merge, or credential bypass is authorized by this decision.
 
 Keep the full disposable database/catalog/security/concurrency suite, runtime
 verified-user authentication, ownership/blocking checks, RLS, consent/provider

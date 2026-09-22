@@ -27,6 +27,7 @@ interface WorkflowJob {
   name: string;
   status: string;
   conclusion: string | null;
+  steps?: Array<{ name: string; status: string; conclusion: string | null }>;
 }
 
 type DeployJobDisposition = "success" | "skipped";
@@ -189,7 +190,24 @@ export function parseWorkflowJobsPage(value: unknown): WorkflowJobsPage {
     if (!isRecord(candidate)) {
       throw new Error(`GitHub workflow job ${index} has an invalid shape.`);
     }
+    if (candidate.steps !== undefined && !Array.isArray(candidate.steps)) {
+      throw new Error(
+        `GitHub workflow job ${index} steps have an invalid shape.`,
+      );
+    }
+    const steps = (candidate.steps as unknown[] | undefined)?.map((step) => {
+      if (!isRecord(step)) throw new Error("Malformed GitHub job step.");
+      return {
+        name: exactString(step.name, "GitHub job step name"),
+        status: exactString(step.status, "GitHub job step status"),
+        conclusion: nullableExactString(
+          step.conclusion,
+          "GitHub job step conclusion",
+        ),
+      };
+    });
     return {
+      steps,
       name: exactString(candidate.name, `GitHub workflow job ${index} name`),
       status: exactString(
         candidate.status,
@@ -329,7 +347,44 @@ async function deployJobDisposition(
       "A successful main production workflow run had an incomplete deploy job.",
     );
   }
-  if (deployJob.conclusion === "success") return "success";
+  if (deployJob.conclusion === "success") {
+    // A queued docs candidate can finish green after the locked scope recheck
+    // skips all mutation. Never use that source SHA as deployed evidence.
+    const requiredSteps = [
+      "Push Database Migrations",
+      "Smoke test production backend endpoints",
+    ].map((name) =>
+      deployJob.steps?.filter((step) => step.name === name) ?? []
+    );
+    if (requiredSteps.some((steps) => steps.length !== 1)) {
+      throw new Error(
+        "Successful deploy job lacks unambiguous mutation and smoke steps.",
+      );
+    }
+    const steps = requiredSteps.map(([step]) => step);
+    if (
+      steps.every((step) =>
+        step.status === "completed" && step.conclusion === "success"
+      )
+    ) {
+      return "success";
+    }
+    const scope = deployJob.steps?.filter((step) =>
+      step.name === "Recheck production scope under the deployment lock"
+    ) ?? [];
+    if (
+      scope.length === 1 && scope[0].status === "completed" &&
+      scope[0].conclusion === "success" &&
+      steps.every((step) =>
+        step.status === "completed" && step.conclusion === "skipped"
+      )
+    ) {
+      return "skipped";
+    }
+    throw new Error(
+      "Successful deploy job has inconsistent mutation and smoke evidence.",
+    );
+  }
   if (deployJob.conclusion === "skipped") return "skipped";
   throw new Error(
     "A successful main production workflow run had an unexpected deploy-job conclusion.",

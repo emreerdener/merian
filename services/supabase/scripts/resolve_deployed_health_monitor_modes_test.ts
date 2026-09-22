@@ -38,6 +38,11 @@ function successfulRunsPage(
   };
 }
 
+const deploymentSteps = [
+  "Push Database Migrations",
+  "Smoke test production backend endpoints",
+].map((name) => ({ name, status: "completed", conclusion: "success" }));
+
 function runtime(
   overrides: Partial<DeploymentEvidenceRuntime> = {},
 ): DeploymentEvidenceRuntime {
@@ -51,6 +56,7 @@ function runtime(
           name: "deploy",
           status: "completed",
           conclusion: "success",
+          steps: deploymentSteps,
         }],
       }),
     isAncestor: () => Promise.resolve(true),
@@ -285,6 +291,7 @@ Deno.test("source-qualified skipped run yields to an older successful deploy", a
               name: "deploy",
               status: "completed",
               conclusion: runId === 43 ? "skipped" : "success",
+              steps: deploymentSteps,
             }],
           }),
       }),
@@ -337,6 +344,7 @@ Deno.test("source-qualified skipped history continues across workflow-run pages"
               name: "deploy",
               status: "completed",
               conclusion: runId <= 49 ? "skipped" : "success",
+              steps: deploymentSteps,
             }],
           }),
       }),
@@ -406,6 +414,7 @@ Deno.test("latest deployment lookup skips green held runs", async () => {
               name: "deploy",
               status: "completed",
               conclusion: runId === 43 ? "skipped" : "success",
+              steps: deploymentSteps,
             }],
           }),
       }),
@@ -624,9 +633,75 @@ Deno.test("GitHub response parsers reject malformed or inconsistent payloads", (
           name: "deploy",
           status: "completed",
           conclusion: "success",
+          steps: deploymentSteps,
         }],
       }),
     Error,
     "pagination metadata is inconsistent",
   );
 });
+
+Deno.test("green production no-op does not become a deployed baseline", async () => {
+  const jobs = parseWorkflowJobsPage({
+    total_count: 1,
+    jobs: [{
+      name: "deploy",
+      status: "completed",
+      conclusion: "success",
+      steps: [
+        {
+          name: "Recheck production scope under the deployment lock",
+          status: "completed",
+          conclusion: "success",
+        },
+        ...deploymentSteps.map((step) => ({ ...step, conclusion: "skipped" })),
+      ],
+    }],
+  });
+  const noOp = runtime({ listRunJobsPage: () => Promise.resolve(jobs) });
+  assertEquals(await resolveLatestSuccessfulDeploySha(CURRENT_SHA, noOp), null);
+  assertEquals(
+    (await resolveDeployedHealthMonitorMode(
+      "purchase-principal-signout-rotation",
+      CURRENT_SHA,
+      noOp,
+    )).evidenceSha,
+    null,
+  );
+});
+
+for (
+  const [name, steps] of Object.entries({
+    "missing steps": undefined,
+    "empty steps": [],
+    "duplicate migration": [...deploymentSteps, deploymentSteps[0]],
+    "partial deployment": [deploymentSteps[0], {
+      ...deploymentSteps[1],
+      conclusion: "skipped",
+    }],
+    "unexplained skip": deploymentSteps.map((step) => ({
+      ...step,
+      conclusion: "skipped",
+    })),
+  })
+) {
+  Deno.test(`baseline rejects ${name}`, async () => {
+    await assertRejects(() =>
+      resolveLatestSuccessfulDeploySha(
+        CURRENT_SHA,
+        runtime({
+          listRunJobsPage: () =>
+            Promise.resolve({
+              totalCount: 1,
+              jobs: [{
+                name: "deploy",
+                status: "completed",
+                conclusion: "success",
+                steps,
+              }],
+            }),
+        }),
+      )
+    );
+  });
+}

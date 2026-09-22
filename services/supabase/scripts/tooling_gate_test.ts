@@ -26,6 +26,10 @@ const deployWorkflowPath = new URL(
   "../../../.github/workflows/deploy.yml",
   scriptsDirectory,
 );
+const candidateWorkflowPath = new URL(
+  "../../../.github/workflows/supabase-candidate-validation.yml",
+  scriptsDirectory,
+);
 const databaseCatalogGatePath = new URL(
   "test_database_catalogs.sh",
   scriptsDirectory,
@@ -181,7 +185,7 @@ Deno.test("Supabase tooling gate covers the isolated DTO and shell graphs", asyn
 Deno.test("migration contract gate discovers tests for local and deploy validation", async () => {
   const [gate, workflow, makefile] = await Promise.all([
     Deno.readTextFile(migrationContractGatePath),
-    Deno.readTextFile(deployWorkflowPath),
+    Deno.readTextFile(candidateWorkflowPath),
     Deno.readTextFile(makefilePath),
   ]);
   const migrationContractTests: string[] = [];
@@ -222,7 +226,7 @@ Deno.test("migration contract gate discovers tests for local and deploy validati
 });
 
 Deno.test("focused DwC-A tests can read every transitive contract root", async () => {
-  const workflow = await Deno.readTextFile(deployWorkflowPath);
+  const workflow = await Deno.readTextFile(candidateWorkflowPath);
   const stepStart = workflow.indexOf(
     "- name: Test Darwin Core export boundary",
   );
@@ -251,7 +255,7 @@ Deno.test("focused DwC-A tests can read every transitive contract root", async (
 });
 
 Deno.test("focused species stats tests can read their catalog contract", async () => {
-  const workflow = await Deno.readTextFile(deployWorkflowPath);
+  const workflow = await Deno.readTextFile(candidateWorkflowPath);
   const stepStart = workflow.indexOf(
     "- name: Test public species observation stats boundary",
   );
@@ -287,7 +291,7 @@ Deno.test("database catalog gate discovers every SQL fixture", async () => {
   const [gate, cliVersionGate, workflow, makefile] = await Promise.all([
     Deno.readTextFile(databaseCatalogGatePath),
     Deno.readTextFile(supabaseCliVersionGatePath),
-    Deno.readTextFile(deployWorkflowPath),
+    Deno.readTextFile(candidateWorkflowPath),
     Deno.readTextFile(makefilePath),
   ]);
   const databaseTests: string[] = [];
@@ -492,7 +496,7 @@ Deno.test("production deploy fences the separate scan-recovery migration transac
       "20260729173000_recover_media_abandoned_owned_scans.sql",
       "20260729200000_harden_media_abandoned_scan_recovery_proof.sql",
       'echo "recovery_predeploy_required=$recovery_predeploy_required" >> "$GITHUB_OUTPUT"',
-      "if: steps.function-plan.outputs.recovery_predeploy_required == 'true'",
+      "if: steps.production-scope.outputs.should_deploy == 'true' && (steps.function-plan.outputs.recovery_predeploy_required == 'true')",
     ]
   ) {
     assert(
@@ -574,7 +578,7 @@ Deno.test("production deploy predeploys the Ghost mapper before Ghost migrations
       ":(top)services/supabase/functions/merge-ghost-profile",
       ":(top)services/supabase/functions/reconcile-ghost-profile-merges",
       'echo "ghost_merge_predeploy_required=$ghost_merge_predeploy_required" >> "$GITHUB_OUTPUT"',
-      "if: steps.function-plan.outputs.ghost_merge_predeploy_required == 'true'",
+      "if: steps.production-scope.outputs.should_deploy == 'true' && (steps.function-plan.outputs.ghost_merge_predeploy_required == 'true')",
     ]
   ) {
     assert(
@@ -725,7 +729,7 @@ Deno.test("production deploy records disposable-CI Ghost proof without hosted st
   for (
     const requiredFragment of [
       "- name: Record Ghost merge disposable-CI proof",
-      "if: steps.function-plan.outputs.ghost_merge_predeploy_required == 'true'",
+      "if: steps.production-scope.outputs.should_deploy == 'true' && (steps.function-plan.outputs.ghost_merge_predeploy_required == 'true')",
       "The exact release SHA passed the disposable database replay",
       "No hosted staging project or operator-managed SHA variable is required.",
     ]
@@ -958,4 +962,96 @@ Deno.test("production deploy proves critical scan RPC readiness without mutation
     !workflow.includes('cat "$rpc_validation_response_file"'),
     "Critical RPC validation responses must never be copied into Actions logs.",
   );
+});
+
+Deno.test("direct main validation is independent of the cumulative production scope", async () => {
+  const workflow = await Deno.readTextFile(deployWorkflowPath);
+  const triggers = workflow.slice(0, workflow.indexOf("\njobs:"));
+  assertMatch(triggers, /push:\n\s+branches:\n\s+- main/);
+  assert(!triggers.includes("paths:"));
+  assert(!triggers.includes("concurrency:"));
+  const scope = workflow.slice(
+    workflow.indexOf("  production-scope:"),
+    workflow.indexOf("  production-hold:"),
+  );
+  assertStringIncludes(scope, "needs: candidate-validation");
+  assertStringIncludes(scope, "--latest-successful-deploy-sha");
+  assertStringIncludes(
+    scope,
+    "DEPLOY_BASE_SHA: ${{ steps.baseline.outputs.sha }}",
+  );
+  assertStringIncludes(scope, "detect_production_source_changes.sh");
+  assert(!scope.includes("if: always()"));
+  assert(!scope.includes("secrets."));
+  assert(!scope.includes("environment: Production"));
+  const hold = workflow.slice(
+    workflow.indexOf("  production-hold:"),
+    workflow.indexOf("  deploy:"),
+  );
+  assertStringIncludes(hold, "needs: [candidate-validation, production-scope]");
+  assertStringIncludes(
+    hold,
+    "if: needs.production-scope.outputs.should_deploy == 'true'",
+  );
+  assert(!hold.includes("if: always()"));
+  const deploy = workflow.slice(workflow.indexOf("  deploy:"));
+  assertStringIncludes(
+    deploy,
+    "needs: [candidate-validation, production-hold]",
+  );
+  assertStringIncludes(
+    deploy,
+    "if: needs.production-hold.outputs.deploy_allowed == 'true'",
+  );
+  assertStringIncludes(deploy, "group: supabase-production-deploy");
+  assertStringIncludes(deploy, "cancel-in-progress: false");
+  const lockedScope = deploy.indexOf(
+    "- name: Recheck production scope under the deployment lock",
+  );
+  const credentials = deploy.indexOf(
+    "- name: Verify automatic Production release controls",
+  );
+  assert(lockedScope >= 0 && credentials > lockedScope);
+  assertStringIncludes(
+    deploy.slice(lockedScope, credentials),
+    "--latest-successful-deploy-sha",
+  );
+  for (
+    const step of deploy.slice(credentials).split(/(?=^ {6}- name: )/m)
+      .filter(Boolean)
+  ) {
+    assertStringIncludes(
+      step,
+      "if: steps.production-scope.outputs.should_deploy == 'true'",
+    );
+    assert(!step.includes("always()"));
+  }
+  for (
+    const duplicate of [
+      "supabase db start",
+      "test_supabase_tooling.sh",
+      "deno task --config supabase/functions/deno.json test",
+      "Validate shared Edge runtime checks",
+    ]
+  ) {
+    assert(
+      !deploy.includes(duplicate),
+      `Duplicate validation in production: ${duplicate}`,
+    );
+  }
+  const candidate = await Deno.readTextFile(candidateWorkflowPath);
+  for (
+    const step of [
+      "Validate shared Edge runtime checks",
+      "Test shared Edge helpers",
+      "Test internal service credential boundary",
+      "Test durable account deletion boundary",
+      "Test public species observation stats boundary",
+      "Validate authoritative AI quota coverage",
+      "Test RevenueCat webhook boundary",
+      "Test Darwin Core export boundary",
+    ]
+  ) {
+    assertEquals(candidate.split(`- name: ${step}\n`).length - 1, 1);
+  }
 });

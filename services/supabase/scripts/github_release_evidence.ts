@@ -373,37 +373,20 @@ export class GitHubReleaseEvidenceVerifier implements ReleaseEvidenceVerifier {
     if (!isRecord(protection)) {
       throw new Error("branch protection is unavailable");
     }
-    const reviews = protection.required_pull_request_reviews;
-    const admins = protection.enforce_admins;
-    const bypass = isRecord(reviews)
-      ? reviews.bypass_pull_request_allowances
-      : undefined;
-    // GitHub omits this optional field when no review bypass is configured.
-    // A present field must still explicitly contain three empty actor lists.
-    const bypassEmpty = bypass === undefined || (isRecord(bypass) &&
-      ["users", "teams", "apps"].every((key) =>
-        Array.isArray(bypass[key]) && (bypass[key] as unknown[]).length === 0
-      ));
+    // Commits enter main before validation. The production workflow requires
+    // successful exact-SHA Candidate Validation before this gate is reachable.
+    // Pre-push checks or mandatory PRs would recreate the two-pass workflow.
     if (
-      !isRecord(reviews) || reviews.dismiss_stale_reviews !== true ||
-      reviews.require_last_push_approval !== false ||
-      reviews.require_code_owner_reviews !== false ||
-      reviews.required_approving_review_count !== 0 ||
-      !isRecord(admins) || admins.enabled !== true || !bypassEmpty
+      protection.required_pull_request_reviews != null ||
+      protection.required_status_checks != null
     ) {
       throw new Error(
-        "main protection must require PRs with zero peer approvals, no Code Owner or last-push approval, stale-review dismissal, admins, and no review bypass",
+        "main must allow direct pushes without mandatory PRs or pre-push status checks",
       );
     }
-    const checks = protection.required_status_checks;
-    if (
-      !isRecord(checks) || checks.strict !== true ||
-      !Array.isArray(checks.contexts) ||
-      !checks.contexts.includes("Candidate readiness")
-    ) {
-      throw new Error(
-        "main protection must require current-branch Candidate readiness checks",
-      );
+    const admins = protection.enforce_admins;
+    if (!isRecord(admins) || admins.enabled !== true) {
+      throw new Error("main protection must apply to administrators");
     }
     for (const field of ["allow_force_pushes", "allow_deletions"] as const) {
       const setting = protection[field];
@@ -411,43 +394,6 @@ export class GitHubReleaseEvidenceVerifier implements ReleaseEvidenceVerifier {
         throw new Error(`main protection does not deny ${field}`);
       }
     }
-
-    const pullRequests = await this.#api(
-      `/repos/${this.#repository}/commits/${candidateSha}/pulls?per_page=100`,
-    );
-    if (!Array.isArray(pullRequests)) {
-      throw new Error("candidate pull-request provenance is unavailable");
-    }
-    if (pullRequests.length >= 100) {
-      throw new Error(
-        "candidate pull-request provenance exceeds the bounded audit page",
-      );
-    }
-    const matchingPullRequests = pullRequests.filter((candidate) =>
-      isRecord(candidate) && candidate.merged_at !== null &&
-      isRecord(candidate.base) && candidate.base.ref === this.#branch &&
-      isRecord(candidate.base.repo) &&
-      nonEmptyText(candidate.base.repo.full_name, 200) &&
-      candidate.base.repo.full_name.toLowerCase() ===
-        this.#repository.toLowerCase() &&
-      (candidate.merge_commit_sha === candidateSha ||
-        (isRecord(candidate.head) && candidate.head.sha === candidateSha))
-    );
-    if (matchingPullRequests.length !== 1) {
-      throw new Error(
-        "candidate is not bound unambiguously to one merged main pull request",
-      );
-    }
-    const pullRequest = matchingPullRequests[0];
-    if (
-      !isRecord(pullRequest) || !Number.isSafeInteger(pullRequest.number) ||
-      (pullRequest.number as number) <= 0 || !isRecord(pullRequest.user) ||
-      pullRequest.user.type !== "User" ||
-      !nonEmptyText(pullRequest.user.login, 80)
-    ) {
-      throw new Error("candidate is not bound to a merged pull request");
-    }
-    // Merged-main provenance is retained; deployment does not require a review click.
 
     for (const environmentName of ["Release Evidence", "Production"]) {
       const value = await this.#api(
@@ -472,7 +418,7 @@ export class GitHubReleaseEvidenceVerifier implements ReleaseEvidenceVerifier {
     return [
       "main_branch_protection",
       "candidate_is_current_main_head",
-      `pull_request_${pullRequest.number}_merged_main_provenance`,
+      "direct_push_release_policy",
       "automatic_environment_policy",
       "release_evidence_environment_protection",
       "production_environment_protection",

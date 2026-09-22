@@ -514,10 +514,13 @@ Deno.test("Apple sign-in captures the one-use code through the authenticated dur
 });
 
 Deno.test("account deletion reaper is service-only, bounded, and deployed", async () => {
-  const [reaper, config, workflow] = await Promise.all([
+  const [reaper, config, workflow, candidateWorkflow] = await Promise.all([
     Deno.readTextFile(reaperUrl),
     Deno.readTextFile(configUrl),
     Deno.readTextFile(workflowUrl),
+    Deno.readTextFile(
+      new URL("supabase-candidate-validation.yml", workflowUrl),
+    ),
   ]);
 
   for (
@@ -553,11 +556,11 @@ Deno.test("account deletion reaper is service-only, bounded, and deployed", asyn
   const section = config.slice(configStart, configEnd);
   assertStringIncludes(section, "verify_jwt = false");
   assertStringIncludes(
-    workflow,
+    candidateWorkflow,
     "supabase/functions/_tests/accountDeletionCoverage.test.ts",
   );
   assertStringIncludes(
-    workflow,
+    candidateWorkflow,
     "supabase/tests/account_deletion_security.sql",
   );
   for (

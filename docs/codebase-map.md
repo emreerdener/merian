@@ -295,8 +295,9 @@ outside all declared targets; its adversarial fixture is
 `scripts/test-ios-build-and-test-workflow.sh` locks the complete unit-target and
 exact queued-scan UI selectors, invocation of that membership check, exact-SHA
 and lockfile behavior, immutable action pins, focused-result validation,
-archive/dSYM checks, and unconditional final decision. Repository rules should
-require only `iOS Build and Test / Production readiness`. On failure,
+archive/dSYM checks, and unconditional final decision. Releases require the
+complete same-SHA `iOS Build and Test / Production readiness` result; ordinary
+main pushes do not require PRs or pre-push checks. On failure,
 `scripts/extract-ios-test-failure-diagnostics.sh` reads the structured result
 summary first, then the failed test tree, and uses the raw build log only as a
 fallback. Its fixture test prevents expected negative-path application logs from
@@ -305,8 +306,10 @@ replacing the actual failed test and assertion in the job summary.
 Backend candidate assurance lives in **Supabase Candidate Validation**
 (`.github/workflows/supabase-candidate-validation.yml`). A fail-closed scope job
 runs on every pull request and reports the stable **Candidate readiness** check;
-manual candidate refs, merge-queue commits, and `.github/workflows/deploy.yml`
-force complete validation. The scope covers the full contract-input roots and
+manual candidate refs, merge-queue commits, and every main push through
+`.github/workflows/deploy.yml` force complete validation once. The mutation job
+consumes this result and uses the cumulative undeployed production-source range
+to select deployment. The scope covers the full contract-input roots and
 unresolved or unclassified comparisons fail closed. The workflow can then verify
 a clean exact SHA with pinned tools, full migration replay, discovered pgTAP
 catalogs, Edge/database-concurrency tests, lint, and advisors against a
@@ -2083,11 +2086,12 @@ real-token authentication remains an evidence gap. The checked-in
 controls execute without database skips, same-SHA hosted gates, the real
 released-binary V49→V50 install-over, and canonical external evidence pass. Its
 source verifier requires the named ID; after a reviewed inactive change, the
-exact-SHA-checked mutation job verifies current protected main, merged-PR
-provenance, required checks, and automatic environment policy. No reviewer click
-or per-commit clearance is required; the active hold remains until its evidence
-is complete. Optional audit tools download and recompute retained artifact
-digests and verify their exact-SHA runs and payloads.
+exact-SHA-checked mutation job requires successful Candidate Validation and
+verifies current protected main, the direct-push branch policy, and automatic
+environment policy. No reviewer click or per-commit clearance is required; the
+active hold remains until its evidence is complete. Optional audit tools
+download and recompute retained artifact digests and verify their exact-SHA runs
+and payloads.
 
 Data lifecycle, identity, and exports:
 

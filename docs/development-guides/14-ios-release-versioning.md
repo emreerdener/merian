@@ -84,6 +84,12 @@ export scripts, or a manually forced distribution identity. Two upload paths
 create competing build-number authorities and are the source of the sequential
 build failures this policy prevents.
 
+Normal development uses direct commits and pushes to `main`, followed by one
+complete iOS validation run for the exact release SHA. Branches and PRs are
+optional; no merge is required to make a passing main commit eligible for the
+existing Organizer process. See the
+[direct-main policy](../release-evidence/README.md#direct-main-development-policy--september-22-2026).
+
 ## Version and Build Policy
 
 `project.yml` is the repository source of truth:

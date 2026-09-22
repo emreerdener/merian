@@ -4,38 +4,75 @@ on:
   push:
     branches:
       - main
-    paths:
-      - ".github/workflows/deploy.yml"
-      - ".github/workflows/release-evidence.yml"
-      - ".github/actions/setup-deno/**"
-      - "scripts/ci-run-summary.sh"
-      - "scripts/test-ci-run-summary.sh"
-      - "scripts/supabase-db-url.sh"
-      - "apps/ios/Merian/Core/AI/InferenceEdgeDTOs.swift"
-      - "apps/ios/Merian/Core/Network/SupabaseManager.swift"
-      - "apps/ios/Merian/Core/Network/MerianNetworkClient.swift"
-      - "apps/ios/Merian/Core/Network/Transport/PinnedNetworkTransport.swift"
-      - "apps/ios/Merian/Core/Network/Auth/**"
-      - "apps/ios/Merian/Core/Security/**"
-      - "services/supabase/**"
   workflow_dispatch:
-
-concurrency:
-  group: supabase-production-deploy
-  cancel-in-progress: false
 
 permissions:
   actions: read
   contents: read
+
+env:
+  # Backend mutation scope; evaluated again after acquiring the production lock.
+  PRODUCTION_SOURCE_PATHS: |
+    .github/workflows/deploy.yml
+    .github/workflows/release-evidence.yml
+    .github/actions/setup-deno/**
+    scripts/ci-run-summary.sh
+    scripts/test-ci-run-summary.sh
+    scripts/supabase-db-url.sh
+    apps/ios/Merian/Core/AI/InferenceEdgeDTOs.swift
+    apps/ios/Merian/Core/Network/SupabaseManager.swift
+    apps/ios/Merian/Core/Network/MerianNetworkClient.swift
+    apps/ios/Merian/Core/Network/Transport/PinnedNetworkTransport.swift
+    apps/ios/Merian/Core/Network/Auth/**
+    apps/ios/Merian/Core/Security/**
+    services/supabase/**
 
 jobs:
   candidate-validation:
     name: Validate candidate without production access
     uses: ./.github/workflows/supabase-candidate-validation.yml
 
+  production-scope:
+    name: Determine production deployment scope
+    needs: candidate-validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      should_deploy: ${{ steps.scope.outputs.should_deploy }}
+    steps:
+      - name: Checkout complete push history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Test production scope detector
+        run: bash services/supabase/scripts/detect_production_source_changes_test.sh
+      - name: Setup Deno
+        uses: ./.github/actions/setup-deno
+        with:
+          deno-version: v2.9.4
+      - name: Resolve last successful production baseline
+        id: baseline
+        if: github.event_name == 'push'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          baseline="$(deno run --quiet --frozen --config services/supabase/functions/deno.json \
+            --allow-env=GITHUB_TOKEN,GITHUB_REPOSITORY,GITHUB_SHA \
+            --allow-net=api.github.com --allow-run=git \
+            services/supabase/scripts/resolve_deployed_health_monitor_modes.ts \
+            --latest-successful-deploy-sha)"
+          echo "sha=$baseline" >> "$GITHUB_OUTPUT"
+      - name: Determine production scope from undeployed source range
+        id: scope
+        env:
+          DEPLOY_BASE_SHA: ${{ steps.baseline.outputs.sha }}
+        run: bash services/supabase/scripts/detect_production_source_changes.sh
+
   production-hold:
     name: Report checked-in production release holds
-    needs: candidate-validation
+    needs: [candidate-validation, production-scope]
+    if: needs.production-scope.outputs.should_deploy == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -89,6 +126,11 @@ jobs:
             --github-output "$GITHUB_OUTPUT"
 
   deploy:
+    # Only mutation jobs share the production lock. Validation-only main
+    # pushes must not replace a queued backend deployment or its CI evidence.
+    concurrency:
+      group: supabase-production-deploy
+      cancel-in-progress: false
     needs: [candidate-validation, production-hold]
     if: needs.production-hold.outputs.deploy_allowed == 'true'
     runs-on: ubuntu-latest
@@ -143,7 +185,7 @@ jobs:
       - name: Summarize workflow context
         env:
           WORKFLOW_PURPOSE: "Production Supabase backend deploy: validate Edge code, push database migrations, deploy functions, and smoke-test production endpoints."
-          WORKFLOW_REASON: "This workflow is path-filtered to Supabase backend and deploy-support changes, reviewed iOS cross-surface contract owners, or manual dispatch. It is intentionally separate from iOS simulator startup safety."
+          WORKFLOW_REASON: "This workflow validates every main push. Only Supabase backend and deploy-support changes, reviewed iOS cross-surface contract owners, or manual dispatch reach production. It is intentionally separate from iOS simulator startup safety."
         run: bash ../scripts/ci-run-summary.sh
 
       - name: Test workflow summary rendering
@@ -153,6 +195,21 @@ jobs:
         uses: ./.github/actions/setup-deno
         with:
           deno-version: v2.9.4
+
+      - name: Recheck production scope under the deployment lock
+        id: production-scope
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            DEPLOY_BASE_SHA="$(deno run --quiet --frozen --config supabase/functions/deno.json \
+              --allow-env=GITHUB_TOKEN,GITHUB_REPOSITORY,GITHUB_SHA \
+              --allow-net=api.github.com --allow-run=git \
+              supabase/scripts/resolve_deployed_health_monitor_modes.ts \
+              --latest-successful-deploy-sha)"
+            export DEPLOY_BASE_SHA
+          fi
+          bash supabase/scripts/detect_production_source_changes.sh
 
       - name: Verify automatic Production release controls
         env:
@@ -168,14 +225,17 @@ jobs:
             --manifest supabase/release-holds.json \
             --candidate-sha "$GITHUB_SHA" \
             --summary "$GITHUB_STEP_SUMMARY"
+        if: steps.production-scope.outputs.should_deploy == 'true'
 
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3.0.0
         with:
           version: 2.109.1
+        if: steps.production-scope.outputs.should_deploy == 'true'
 
       - name: Validate reviewed Supabase CLI
         run: bash supabase/scripts/require_supabase_cli_version.sh
+        if: steps.production-scope.outputs.should_deploy == 'true'
 
       - name: Validate deployment secrets
         env:
@@ -254,353 +314,7 @@ jobs:
               ;;
           esac
           bash ../scripts/supabase-db-url.sh --require >/dev/null
-
-      - name: Gate whole-tree Supabase formatting
-        run: deno fmt --check supabase/functions supabase/scripts
-
-      - name: Gate whole-tree Supabase TypeScript lint
-        run: |
-          deno lint --config supabase/functions/deno.json \
-            supabase/functions \
-            supabase/scripts
-
-      - name: Test complete Supabase tooling suite
-        run: bash supabase/scripts/test_supabase_tooling.sh
-
-      - name: Validate shared Edge runtime checks
-        run: |
-          deno check --frozen --config supabase/functions/deno.json \
-            supabase/functions/_shared/auth.ts \
-            supabase/functions/_shared/claimsAuth.ts \
-            supabase/functions/_shared/serviceRoleAuth.ts \
-            supabase/functions/_shared/serviceRoleClient.ts \
-            supabase/functions/_shared/serviceRoleClient_test.ts \
-            supabase/functions/_shared/edgeHandler.ts \
-            supabase/functions/_tests/edgeHandler.test.ts \
-            supabase/functions/_tests/dwcaLaunchGateCoverage.test.ts \
-            supabase/functions/_tests/dwcaDownloadAndScanFinalizationMigrationContract.test.ts \
-            supabase/functions/_tests/exportDwcaMigrationContract.test.ts \
-            supabase/functions/_tests/exportDwcaSecurityCoverage.test.ts \
-            supabase/functions/_tests/publicWebExploreCoverage.test.ts \
-            supabase/functions/_tests/publicWebExploreMigrationContract.test.ts \
-            supabase/functions/_tests/workflowSecurity.test.ts \
-            supabase/functions/_shared/http.ts \
-            supabase/functions/_shared/http_test.ts \
-            supabase/functions/_shared/outbound.ts \
-            supabase/functions/_shared/outbound_test.ts \
-            supabase/functions/_shared/posthog.ts \
-            supabase/functions/_shared/posthog_test.ts \
-            supabase/functions/_shared/external.ts \
-            supabase/functions/_shared/external_test.ts \
-            supabase/functions/_shared/mediaBudgets.ts \
-            supabase/functions/_shared/mediaBudgets_test.ts \
-            supabase/functions/_shared/clientAddress.ts \
-            supabase/functions/_shared/clientAddress_test.ts \
-            supabase/functions/_shared/aiQuota.ts \
-            supabase/functions/_shared/groupTagQuota.ts \
-            supabase/functions/_shared/aiQuota_test.ts \
-            supabase/functions/_shared/complimentaryScans.ts \
-            supabase/functions/_shared/complimentaryScans_test.ts \
-            supabase/functions/_shared/entitlement.ts \
-            supabase/functions/_shared/entitlement_test.ts \
-            supabase/functions/_shared/biology.ts \
-            supabase/functions/_shared/gemini.ts \
-            supabase/functions/_shared/aws.ts \
-            supabase/functions/_shared/aws_test.ts \
-            supabase/functions/_shared/concurrency.ts \
-            supabase/functions/_shared/concurrency_test.ts \
-            supabase/functions/_shared/identify/latencyDb.ts \
-            supabase/functions/_shared/identify/latencyDb_test.ts \
-            supabase/functions/_shared/scanIngestionCompatibility.ts \
-            supabase/functions/_shared/scanIngestionCompatibility_test.ts \
-            supabase/functions/_shared/scanIngestionIntents_test.ts \
-            supabase/functions/_shared/scanIngestionJobs_test.ts \
-            supabase/functions/_shared/scanMediaDeletion.ts \
-            supabase/functions/_shared/scanMediaDeletion_test.ts \
-            supabase/functions/_shared/audioModeration.ts \
-            supabase/functions/_shared/audioModeration_test.ts \
-            supabase/functions/_shared/subscriptionPass.ts \
-            supabase/functions/_shared/subscriptionPass_test.ts \
-            supabase/functions/_shared/appleSignIn_test.ts \
-            supabase/functions/share-scan-to-explore/index.ts \
-            supabase/functions/register-apple-revocation-token/handler_test.ts \
-            supabase/functions/_tests/accountDeletionCoverage.test.ts \
-            supabase/functions/_tests/accountDeletionMigrationContract.test.ts \
-            supabase/functions/_tests/aiQuotaCoverage.test.ts \
-            supabase/functions/_tests/aiQuotaMigrationContract.test.ts \
-            supabase/functions/_tests/legalConsentMigrationContract.test.ts \
-            supabase/functions/_tests/paidGeminiSecretContract.test.ts \
-            supabase/functions/_tests/complimentaryProScansMigrationContract.test.ts \
-            supabase/functions/_tests/auth.test.ts \
-            supabase/functions/_tests/exploreMediaQuarantineMigrationContract.test.ts \
-            supabase/functions/_tests/jsonEndpointSecurityCoverage.test.ts \
-            supabase/functions/_tests/jsonEndpointSecurityMigrationContract.test.ts \
-            supabase/functions/_tests/outboundDeadlineCoverage.test.ts \
-            supabase/functions/_tests/migrationExecutionContract.test.ts \
-            supabase/functions/_tests/migrationMediaContract.test.ts \
-            supabase/functions/_tests/privilegedRoutineMigrationContract.test.ts \
-            supabase/functions/_tests/serviceRoleAuth.test.ts \
-            supabase/functions/_tests/serviceRoleAuthCoverage.test.ts \
-            supabase/functions/_tests/serviceRoleAuthMigrationContract.test.ts \
-            supabase/functions/_tests/serverApiKeyBoundaryMigrationContract.test.ts \
-            supabase/functions/_tests/revenueCatWebhookCoverage.test.ts \
-            supabase/functions/_tests/revenueCatWebhookMigrationContract.test.ts \
-            supabase/functions/_tests/speciesCountTriggerMigrationContract.test.ts \
-            supabase/functions/_tests/speciesObservationStatsCoverage.test.ts \
-            supabase/functions/_tests/speciesObservationStatsMigrationContract.test.ts \
-            supabase/functions/_tests/scanMediaIngestionContract.test.ts \
-            supabase/functions/_tests/safeDelete.test.ts \
-            supabase/functions/safe-delete/protocol_test.ts \
-            supabase/functions/safe-delete/db_recovery_test.ts \
-            supabase/functions/recover-account-deletion/handler_test.ts \
-            supabase/functions/auto-purge-nonbio/index.ts \
-            supabase/functions/delete-scan/index.ts \
-            supabase/functions/safe-delete/index.ts \
-            supabase/functions/safe-delete/handler.ts \
-            supabase/functions/safe-delete/worker.ts \
-            supabase/functions/safe-delete/protocol.ts \
-            supabase/functions/recover-account-deletion/index.ts \
-            supabase/functions/recover-account-deletion/handler.ts \
-            supabase/functions/register-apple-revocation-token/index.ts \
-            supabase/functions/register-apple-revocation-token/handler.ts \
-            supabase/functions/reconcile-account-deletions/index.ts \
-            supabase/functions/download-dwca/handler_test.ts \
-            supabase/functions/download-dwca/db_test.ts \
-            supabase/functions/reconcile-dwca-archive-cleanup/worker_test.ts \
-            supabase/functions/reconcile-dwca-archive-cleanup/db_test.ts \
-            supabase/functions/reconcile-scan-deletions/index.ts \
-            supabase/functions/reconcile-scan-deletions/worker_test.ts \
-            supabase/functions/reconcile-scan-deletions/db_test.ts \
-            supabase/functions/identify-multimodal/index.ts \
-            supabase/functions/identify-multimodal/index.test.ts \
-            supabase/functions/update-scan-context/index.ts \
-            supabase/functions/get-explore-media-incidents/index.ts \
-            supabase/functions/ingest-r2-media-events/index.ts \
-            supabase/functions/ingest-r2-media-events/validation_test.ts \
-            supabase/functions/reconcile-explore-media-health/index.ts \
-            supabase/functions/reconcile-explore-media-health/worker_test.ts \
-            supabase/functions/explore-post-chat/index.ts \
-            supabase/functions/insight-chat/index.ts \
-            supabase/functions/species-dictionary-chat/index.ts \
-            supabase/functions/replay-scan-ingestion/index.ts \
-            supabase/functions/replay-scan-ingestion/worker_test.ts \
-            supabase/functions/send-push-notification/delivery_test.ts \
-            supabase/functions/revenuecat-webhook/index.ts \
-            supabase/functions/reconcile-revenuecat-subscribers/db_test.ts \
-            supabase/functions/reconcile-revenuecat-subscribers/worker_test.ts \
-            supabase/functions/species-observation-stats/index.ts \
-            supabase/functions/species-observation-stats/db.test.ts \
-            supabase/functions/species-observation-stats/security.test.ts \
-            supabase/functions/revenuecat-webhook/handler_test.ts \
-            supabase/functions/revenuecat-webhook/index_test.ts \
-            supabase/functions/revenuecat-webhook/signature_test.ts \
-            supabase/functions/revenuecat-webhook/subscriber_test.ts \
-            supabase/functions/export-dwca/archive_test.ts \
-            supabase/functions/export-dwca/crc32_test.ts \
-            supabase/functions/export-dwca/index_test.ts \
-            supabase/functions/export-dwca/db_test.ts \
-            supabase/functions/_shared/dwcaReleaseState_test.ts \
-            supabase/functions/export-dwca/mail_test.ts \
-            supabase/functions/export-dwca/pseudonym_test.ts \
-            supabase/functions/export-dwca/storage_test.ts \
-            supabase/functions/export-dwca/worker_test.ts \
-            supabase/functions/export-dwca/zip_test.ts \
-            supabase/functions/request-export-dwca/db_test.ts \
-            supabase/functions/scan-media-health/index.ts
-
-      - name: Validate isolated Edge Function dependency graphs
-        run: |
-          deno run --frozen --config supabase/functions/deno.json \
-            --allow-read=supabase \
-            supabase/scripts/sync_function_deno_configs.ts --check
-
-          deno run --frozen --config supabase/functions/deno.json \
-            --allow-read=supabase \
-            supabase/scripts/validate_function_dependencies.ts
-
-          checked=0
-          for entrypoint in supabase/functions/*/index.ts; do
-            function_dir="${entrypoint%/index.ts}"
-            deno check --frozen \
-              --config "$function_dir/deno.json" \
-              "$entrypoint"
-            checked=$((checked + 1))
-          done
-          echo "Checked $checked Edge Function entrypoints with deploy-time configs."
-
-      - name: Test shared Edge helpers
-        run: |
-          deno test --frozen --config supabase/functions/deno.json \
-            --allow-env \
-            --allow-read=supabase/functions,../apps/web \
-            supabase/functions/_shared/http_test.ts \
-            supabase/functions/_shared/outbound_test.ts \
-            supabase/functions/_shared/posthog_test.ts \
-            supabase/functions/_shared/external_test.ts \
-            supabase/functions/_tests/edgeHandler.test.ts \
-            supabase/functions/_tests/jsonEndpointSecurityCoverage.test.ts \
-            supabase/functions/_tests/outboundDeadlineCoverage.test.ts \
-            supabase/functions/_shared/fieldChat/dailyUsage_test.ts \
-            supabase/functions/_shared/fieldChat/reservation_test.ts \
-            supabase/functions/_shared/aws_test.ts \
-            supabase/functions/_shared/concurrency_test.ts \
-            supabase/functions/_shared/identify/latencyDb_test.ts \
-            supabase/functions/_shared/scanIngestionCompatibility_test.ts \
-            supabase/functions/_shared/scanIngestionIntents_test.ts \
-            supabase/functions/_shared/scanIngestionJobs_test.ts \
-            supabase/functions/_shared/scanMediaDeletion_test.ts \
-            supabase/functions/_shared/clientAddress_test.ts \
-            supabase/functions/_shared/audioModeration_test.ts \
-            supabase/functions/_shared/complimentaryScans_test.ts \
-            supabase/functions/share-scan-to-explore/audioModeration_test.ts \
-            supabase/functions/identify-multimodal/index.test.ts \
-            supabase/functions/replay-scan-ingestion/worker_test.ts \
-            supabase/functions/send-push-notification/delivery_test.ts \
-            supabase/functions/search-community-taxa/gbif.test.ts \
-            supabase/functions/sync-community-taxonomy-index/gbif.test.ts \
-            supabase/functions/ingest-r2-media-events/validation_test.ts \
-            supabase/functions/reconcile-explore-media-health/worker_test.ts \
-            supabase/functions/sync-collections/db_test.ts \
-            supabase/functions/_tests/auth.test.ts \
-            supabase/functions/_tests/scanMediaIngestionContract.test.ts \
-            supabase/functions/explore-post-chat/prompt_test.ts \
-            supabase/functions/species-dictionary-chat/eligibility_test.ts \
-            supabase/functions/species-dictionary-chat/handler_test.ts \
-            supabase/functions/species-dictionary-chat/prompt_test.ts \
-            supabase/functions/species-dictionary-chat/promptSuggestions_test.ts \
-            supabase/functions/species-dictionary-chat/refusal_test.ts \
-            supabase/functions/insight-chat/guards_test.ts \
-            supabase/functions/insight-chat/prompt_test.ts \
-            supabase/functions/scan-media-health/health_test.ts
-
-      - name: Test internal service credential boundary
-        run: |
-          deno test --frozen --config supabase/functions/deno.json \
-            --allow-read=supabase/functions,supabase/migrations,supabase/scripts,../.github/workflows \
-            supabase/functions/_shared/serviceRoleClient_test.ts \
-            supabase/functions/_tests/serviceRoleAuth.test.ts \
-            supabase/functions/_tests/serviceRoleAuthCoverage.test.ts \
-            supabase/functions/_tests/serviceRoleAuthMigrationContract.test.ts \
-            supabase/functions/_tests/serverApiKeyBoundaryMigrationContract.test.ts
-
-      - name: Test durable account deletion boundary
-        run: |
-          deno test --frozen --config supabase/functions/deno.json \
-            --allow-read=supabase/functions,supabase/migrations,supabase/scripts,supabase/tests/account_deletion_security.sql,supabase/config.toml,../apps/ios,../.github/workflows \
-            supabase/functions/_shared/appleSignIn_test.ts \
-            supabase/functions/register-apple-revocation-token/handler_test.ts \
-            supabase/functions/_tests/safeDelete.test.ts \
-            supabase/functions/_tests/accountDeletionCoverage.test.ts \
-            supabase/functions/_tests/accountDeletionMigrationContract.test.ts
-
-      - name: Test public species observation stats boundary
-        run: |
-          deno test --frozen --config supabase/functions/deno.json \
-            --allow-read=supabase/functions,supabase/migrations,supabase/tests/species_observation_stats_security.sql,supabase/config.toml \
-            supabase/functions/_shared/mediaBudgets_test.ts \
-            supabase/functions/species-observation-stats/db.test.ts \
-            supabase/functions/species-observation-stats/security.test.ts \
-            supabase/functions/_tests/speciesObservationStatsCoverage.test.ts \
-            supabase/functions/_tests/speciesObservationStatsMigrationContract.test.ts
-
-      - name: Validate authoritative AI quota coverage
-        run: |
-          deno test --frozen --config supabase/functions/deno.json \
-            --allow-read=supabase/functions,supabase/migrations,supabase/scripts,supabase/tests,../apps/ios,../.github/workflows/deploy.yml \
-            supabase/functions/_shared/aiQuota_test.ts \
-            supabase/functions/_shared/complimentaryScans_test.ts \
-            supabase/functions/_shared/entitlement_test.ts \
-            supabase/functions/_tests/aiQuotaCoverage.test.ts \
-            supabase/functions/_tests/legalConsentMigrationContract.test.ts \
-            supabase/functions/_tests/paidGeminiSecretContract.test.ts \
-            supabase/functions/_tests/complimentaryProScansMigrationContract.test.ts
-
-      - name: Test RevenueCat webhook boundary
-        run: |
-          deno test --frozen --config supabase/functions/deno.json \
-            --allow-read=supabase/functions,supabase/scripts,supabase/config.toml,../.github/workflows \
-            supabase/functions/_tests/revenueCatWebhookCoverage.test.ts \
-            supabase/functions/_shared/subscriptionPass_test.ts \
-            supabase/functions/revenuecat-webhook/handler_test.ts \
-            supabase/functions/revenuecat-webhook/index_test.ts \
-            supabase/functions/revenuecat-webhook/signature_test.ts \
-            supabase/functions/revenuecat-webhook/subscriber_test.ts \
-            supabase/functions/reconcile-revenuecat-subscribers/db_test.ts \
-            supabase/functions/reconcile-revenuecat-subscribers/worker_test.ts
-
-      - name: Test Darwin Core export boundary
-        run: |
-          deno test --frozen --config supabase/functions/deno.json \
-            --allow-read=supabase/functions,supabase/migrations,supabase/scripts,supabase/tests,../apps/ios,../.github/workflows \
-            supabase/functions/_tests/dwcaLaunchGateCoverage.test.ts \
-            supabase/functions/_tests/exportDwcaMigrationContract.test.ts \
-            supabase/functions/_tests/dwcaDownloadAndScanFinalizationMigrationContract.test.ts \
-            supabase/functions/_tests/exportDwcaSecurityCoverage.test.ts \
-            supabase/functions/download-dwca/handler_test.ts \
-            supabase/functions/download-dwca/db_test.ts \
-            supabase/functions/export-dwca/archive_test.ts \
-            supabase/functions/export-dwca/crc32_test.ts \
-            supabase/functions/export-dwca/db_test.ts \
-            supabase/functions/export-dwca/drain_test.ts \
-            supabase/functions/export-dwca/index_test.ts \
-            supabase/functions/_shared/dwcaReleaseState_test.ts \
-            supabase/functions/export-dwca/mail_test.ts \
-            supabase/functions/export-dwca/pseudonym_test.ts \
-            supabase/functions/export-dwca/storage_test.ts \
-            supabase/functions/export-dwca/worker_test.ts \
-            supabase/functions/export-dwca/zip_test.ts \
-            supabase/functions/reconcile-dwca-archive-cleanup/worker_test.ts \
-            supabase/functions/reconcile-dwca-archive-cleanup/db_test.ts \
-            supabase/functions/request-export-dwca/db_test.ts \
-            supabase/functions/delete-scan/db_test.ts \
-            supabase/functions/reconcile-scan-deletions/worker_test.ts \
-            supabase/functions/reconcile-scan-deletions/db_test.ts
-
-      - name: Test production workflow security
-        run: |
-          deno test --frozen --config supabase/functions/deno.json \
-            --allow-read=supabase/functions/deno.json,../.github/workflows,../.github/actions/setup-deno,../.github/CODEOWNERS \
-            supabase/functions/_tests/workflowSecurity.test.ts
-
-      - name: Validate Supabase migration contracts
-        run: bash supabase/scripts/validate_migration_contracts.sh
-
-      - name: Start disposable database for privileged-routine validation
-        env:
-          # config.toml keeps Apple auth available for local integration tests,
-          # but schema-only CI does not need a real OAuth client secret.
-          SUPABASE_AUTH_EXTERNAL_APPLE_SECRET: ci-schema-validation-placeholder
-        run: supabase db start
-
-      - name: Validate database security catalogs
-        env:
-          SUPABASE_AUTH_EXTERNAL_APPLE_SECRET: ci-config-parse-placeholder
-        run: bash supabase/scripts/test_database_catalogs.sh
-
-      - name: Test complete Edge Function suite
-        env:
-          SUPABASE_DB_TEST_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
-        run: deno task --config supabase/functions/deno.json test
-
-      - name: Validate database lint and advisors
-        env:
-          SUPABASE_AUTH_EXTERNAL_APPLE_SECRET: ci-config-parse-placeholder
-        run: |
-          supabase db lint --local --schema public,internal \
-            --level warning --fail-on warning
-          # Advisor warnings include reviewed historical debt. Keep them in the
-          # run log, but block only on errors until that debt has an explicit
-          # baseline or has been retired.
-          supabase db advisors --local --type security \
-            --level warn --fail-on error
-          supabase db advisors --local --type performance \
-            --level warn --fail-on error
-
-      - name: Stop disposable database
-        if: always()
-        env:
-          SUPABASE_AUTH_EXTERNAL_APPLE_SECRET: ci-config-parse-placeholder
-        run: supabase stop --no-backup
+        if: steps.production-scope.outputs.should_deploy == 'true'
 
       - name: Plan affected Edge Function deployment
         id: function-plan
@@ -697,14 +411,15 @@ jobs:
               sed 's/^/- /' "$plan_file"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
+        if: steps.production-scope.outputs.should_deploy == 'true'
 
       - name: Record Ghost merge disposable-CI proof
-        if: steps.function-plan.outputs.ghost_merge_predeploy_required == 'true'
+        if: steps.production-scope.outputs.should_deploy == 'true' && (steps.function-plan.outputs.ghost_merge_predeploy_required == 'true')
         run: |
           {
             echo "### Ghost merge release proof"
             echo
-            echo "The exact release SHA passed the disposable database replay, complete catalog and Edge suites, two-session concurrency tests, strict database lint, and advisors in this job."
+            echo "The exact release SHA passed the disposable database replay, complete catalog and Edge suites, two-session concurrency tests, strict database lint, and advisors in the required Candidate Validation job."
             echo "No hosted staging project or operator-managed SHA variable is required."
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -725,9 +440,10 @@ jobs:
 
           echo "::add-mask::$db_url"
           echo "url=$db_url" >> "$GITHUB_OUTPUT"
+        if: steps.production-scope.outputs.should_deploy == 'true'
 
       - name: Deploy fail-closed recovery consumers before compatibility migrations
-        if: steps.function-plan.outputs.recovery_predeploy_required == 'true'
+        if: steps.production-scope.outputs.should_deploy == 'true' && (steps.function-plan.outputs.recovery_predeploy_required == 'true')
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_AUTH_EXTERNAL_APPLE_SECRET: ci-config-parse-placeholder
@@ -742,7 +458,7 @@ jobs:
             "$PROJECT_ID"
 
       - name: Deploy Ghost merge mapper before Ghost merge migrations
-        if: steps.function-plan.outputs.ghost_merge_predeploy_required == 'true'
+        if: steps.production-scope.outputs.should_deploy == 'true' && (steps.function-plan.outputs.ghost_merge_predeploy_required == 'true')
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_AUTH_EXTERNAL_APPLE_SECRET: ci-config-parse-placeholder
@@ -765,12 +481,14 @@ jobs:
               --allow-net \
               supabase/scripts/audit_privileged_routine_acl.ts \
               --report
+        if: steps.production-scope.outputs.should_deploy == 'true'
 
       - name: Push Database Migrations
         env:
           SUPABASE_DB_PUSH_URL: ${{ steps.database-url.outputs.url }}
           SUPABASE_AUTH_EXTERNAL_APPLE_SECRET: ci-config-parse-placeholder
         run: supabase db push --db-url "$SUPABASE_DB_PUSH_URL"
+        if: steps.production-scope.outputs.should_deploy == 'true'
 
       - name: Enforce production privileged routine ACLs
         env:
@@ -782,6 +500,7 @@ jobs:
               --allow-net \
               supabase/scripts/audit_privileged_routine_acl.ts \
               --enforce
+        if: steps.production-scope.outputs.should_deploy == 'true'
 
       - name: Enforce Field trip capture-context invoker privileges
         env:
@@ -793,6 +512,7 @@ jobs:
               --allow-net \
               supabase/scripts/audit_field_trip_capture_context_acl.ts \
               --enforce
+        if: steps.production-scope.outputs.should_deploy == 'true'
 
       - name: Verify Field Chat admission cutover from database time
         id: field-chat-cutover
@@ -808,6 +528,7 @@ jobs:
             --migration supabase/migrations/20260824210544_preserve_field_chat_daily_usage.sql \
             --output "$GITHUB_OUTPUT" \
             --summary "$GITHUB_STEP_SUMMARY"
+        if: steps.production-scope.outputs.should_deploy == 'true'
 
       - name: Finalize Edge Function plan from Field Chat database state
         id: final-function-plan
@@ -839,6 +560,7 @@ jobs:
               sed 's/^/- /' "$final_plan"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
+        if: steps.production-scope.outputs.should_deploy == 'true'
 
       - name: Synchronize optional AI quota hashing override
         env:
@@ -853,6 +575,7 @@ jobs:
           else
             echo "Using the built-in server key for domain-separated AI quota IP hashing."
           fi
+        if: steps.production-scope.outputs.should_deploy == 'true'
 
       - name: Synchronize paid Gemini API key
         env:
@@ -863,6 +586,7 @@ jobs:
           supabase secrets set \
             "GEMINI_PAID_API_KEY=$GEMINI_PAID_API_KEY" \
             --project-ref "$PROJECT_ID"
+        if: steps.production-scope.outputs.should_deploy == 'true'
 
       - name: Synchronize RevenueCat webhook secrets
         env:
@@ -877,6 +601,7 @@ jobs:
             "REVENUECAT_WEBHOOK_SECRET=$REVENUECAT_WEBHOOK_SECRET" \
             "REVENUECAT_WEBHOOK_SIGNING_SECRET=$REVENUECAT_WEBHOOK_SIGNING_SECRET" \
             --project-ref "$PROJECT_ID"
+        if: steps.production-scope.outputs.should_deploy == 'true'
 
       - name: Synchronize Sign in with Apple revocation credentials
         env:
@@ -894,6 +619,7 @@ jobs:
             "APPLE_SIGN_IN_KEY_ID=$APPLE_SIGN_IN_KEY_ID" \
             "APPLE_SIGN_IN_PRIVATE_KEY=$APPLE_SIGN_IN_PRIVATE_KEY" \
             --project-ref "$PROJECT_ID"
+        if: steps.production-scope.outputs.should_deploy == 'true'
 
       - name: Synchronize Darwin Core pseudonym key
         env:
@@ -904,6 +630,7 @@ jobs:
           supabase secrets set \
             "DWCA_PSEUDONYM_HMAC_KEY_V1=$DWCA_PSEUDONYM_HMAC_KEY_V1" \
             --project-ref "$PROJECT_ID"
+        if: steps.production-scope.outputs.should_deploy == 'true'
 
       - name: Synchronize optional R2 event webhook secret
         env:
@@ -918,6 +645,7 @@ jobs:
           else
             echo "R2 event acceleration is disabled; scheduled origin reconciliation remains authoritative."
           fi
+        if: steps.production-scope.outputs.should_deploy == 'true'
 
       - name: Synchronize read-only R2 credentials
         env:
@@ -930,6 +658,7 @@ jobs:
             "R2_READ_ACCESS_KEY_ID=$R2_READ_ACCESS_KEY_ID" \
             "R2_READ_SECRET_ACCESS_KEY=$R2_READ_SECRET_ACCESS_KEY" \
             --project-ref "$PROJECT_ID"
+        if: steps.production-scope.outputs.should_deploy == 'true'
 
       - name: Load Supabase API keys for authorization smoke tests
         id: service-role
@@ -965,6 +694,7 @@ jobs:
 
           echo "::add-mask::$server_api_key"
           echo "key=$server_api_key" >> "$GITHUB_OUTPUT"
+        if: steps.production-scope.outputs.should_deploy == 'true'
 
       - name: Synchronize active server API key to Edge fallback
         env:
@@ -984,9 +714,10 @@ jobs:
               --allow-env=MERIAN_SUPABASE_SERVER_API_KEY \
               supabase/scripts/verify_edge_secret_digest.ts \
               --secret-name MERIAN_SUPABASE_SERVER_API_KEY
+        if: steps.production-scope.outputs.should_deploy == 'true'
 
       - name: Deploy affected Edge Functions
-        if: steps.final-function-plan.outputs.count != '0'
+        if: steps.production-scope.outputs.should_deploy == 'true' && (steps.final-function-plan.outputs.count != '0')
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_AUTH_EXTERNAL_APPLE_SECRET: ci-config-parse-placeholder
@@ -996,7 +727,7 @@ jobs:
             "$PROJECT_ID"
 
       - name: Verify corrected Field Chat bundles are serving
-        if: steps.field-chat-cutover.outputs.status == 'ready'
+        if: steps.production-scope.outputs.should_deploy == 'true' && (steps.field-chat-cutover.outputs.status == 'ready')
         run: |
           supabase_url="https://${PROJECT_ID}.supabase.co"
           expected_contract="atomic-admission-v1"
@@ -1058,7 +789,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Activate Field Chat admission after all bundles deploy
-        if: steps.field-chat-cutover.outputs.status == 'ready'
+        if: steps.production-scope.outputs.should_deploy == 'true' && (steps.field-chat-cutover.outputs.status == 'ready')
         env:
           MERIAN_DATABASE_URL: ${{ steps.database-url.outputs.url }}
         run: |
@@ -1073,7 +804,7 @@ jobs:
             --summary "$GITHUB_STEP_SUMMARY"
 
       - name: Record staged Field Chat cutover
-        if: steps.field-chat-cutover.outputs.status == 'pending'
+        if: steps.production-scope.outputs.should_deploy == 'true' && (steps.field-chat-cutover.outputs.status == 'pending')
         run: |
           {
             echo "### Field Chat send maintenance is active"
@@ -1084,7 +815,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Confirm no Edge Function deploy is required
-        if: steps.final-function-plan.outputs.count == '0'
+        if: steps.production-scope.outputs.should_deploy == 'true' && (steps.final-function-plan.outputs.count == '0')
         run: echo "No Edge Function runtime or dependency changes were detected."
 
       - name: Smoke test production backend endpoints
@@ -2040,6 +1771,7 @@ jobs:
               '{"self_id":"00000000-0000-0000-0000-000000000000"}'
           )"
           echo "$owned_incidents_response" | jq -e 'type == "array"'
+        if: steps.production-scope.outputs.should_deploy == 'true'
 
       - name: Audit Ghost merge health after deployment
         env:
@@ -2062,3 +1794,4 @@ jobs:
             --summary-md "$summary_md"
           unset database_network_scope
           cat "$summary_md" >> "$GITHUB_STEP_SUMMARY"
+        if: steps.production-scope.outputs.should_deploy == 'true'

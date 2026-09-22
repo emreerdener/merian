@@ -139,10 +139,11 @@ passed.
    database and Edge evidence without production access. Its stable readiness
    check reports on every pull request; a fail-closed scope job decides whether
    the complete disposable-database gate is required. It also supports manual
-   dispatch and is reused by the production workflow. Production Supabase
-   deploys remain a separate GitHub `Production` job using token-based CLI auth,
-   not a developer's interactive local login; that job cannot start until the
-   reusable candidate gate passes. See
+   dispatch and runs once for every main push through the production workflow,
+   including pushes that need validation without production mutation. Production
+   Supabase deploys remain a separate GitHub `Production` job using token-based
+   CLI auth, not a developer's interactive local login; that job cannot start
+   until the reusable candidate gate passes. See
    [`docs/backend-and-data/06-supabase-deployment-runbook.md`](./backend-and-data/06-supabase-deployment-runbook.md)
    for the two workflow boundaries, required secrets, and smoke checks. From the
    repo root, the local emergency fallback remains:
@@ -263,11 +264,11 @@ verification sections in [the Supabase README](../services/supabase/README.md).
   test bundles, execute the complete `merianTests` target, run the four
   deterministic progressive-analyzing, live-to-queue, queued-retry, and
   queued-completion UI smokes, and create an unsigned Release archive from the
-  exact workflow SHA using only `Package.resolved` versions. Repository rules
-  must require `iOS Build and Test / Production readiness`; do not require the
-  conditional macOS jobs or replace the pull-request trigger with workflow-level
-  path filters. The remainder of the UI suite, signed distribution, and physical
-  hardware checks remain separate gates.
+  exact workflow SHA using only `Package.resolved` versions. Release requires
+  the complete `iOS Build and Test / Production readiness` result for that SHA;
+  this is not a pre-push branch requirement. Optional PRs retain their existing
+  checks and in-workflow scope detection. The remainder of the UI suite, signed
+  distribution, and physical hardware checks remain separate gates.
 - **Supabase Functions and Tooling**: You must write and validate code natively
   using Deno testing frameworks. Before opening a PR targeting
   `services/supabase`, run:
@@ -326,9 +327,9 @@ verification sections in [the Supabase README](../services/supabase/README.md).
   npm run typecheck
   npm run build
   ```
-  `Naturebook Admin Quality / test` reports for every pull request so it can be
-  required by the repository ruleset. The separate admin Vercel project must add
-  that GitHub Action as a required Deployment Check and hold production
+  `Naturebook Admin Quality / test` reports for optional PRs and affected main
+  pushes. It does not block direct pushes. The separate admin Vercel project
+  must add that GitHub Action as a required Deployment Check and hold production
   promotion until the exact commit passes. Never add a service-role/secret key,
   direct database URL, provider credential, computed `process.env` access, or
   whole-object environment access to this browser-facing project.
@@ -346,7 +347,15 @@ verification sections in [the Supabase README](../services/supabase/README.md).
   repository mitigation, production deployment, runtime verification, and data
   recovery.
 
-## Submitting a Pull Request 🚀
+## Commit, push, and validate
+
+For normal work, commit the intended changes and push directly to `main`. Wait
+for the exact commit's checks to pass before releasing it. There is no required
+feature branch, PR, merge, or second validation cycle. Branches and PRs remain
+available when useful for isolated work or early feedback. See the canonical
+[direct-main policy](./release-evidence/README.md#direct-main-development-policy--september-22-2026).
+
+## Optional Pull Requests
 
 1. Fork the repository and create your feature branch:
    `git checkout -b feature/my-amazing-feature`.

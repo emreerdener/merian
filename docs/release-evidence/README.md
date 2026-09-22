@@ -13,12 +13,18 @@
 
 ## Automatic deployment policy
 
-Backend-relevant pushes to protected main trigger `deploy.yml` automatically.
-The pipeline runs Candidate Validation, evaluates the checked-in source hold,
-and verifies the exact clean current-main SHA and live repository controls
-before accessing Supabase credentials. `--mode automatic-release` uses the
-read-only `MERIAN_GITHUB_RELEASE_AUDIT_TOKEN`; missing access or failed controls
-block deployment. No per-deployment review or clearance secret is required.
+Every push to protected `main` triggers `deploy.yml` and runs complete Candidate
+Validation once for that exact SHA. The read-only production-scope job compares
+the candidate with the last successful production deployment, using the former
+backend/deploy-support path inventory. Docs-only changes with no pending backend
+changes stop after validation; a newer docs commit still carries any undeployed
+backend changes. An unavailable or non-ancestor baseline blocks automatic
+production selection; an explicitly authorized manual deployment can establish a
+baseline. Only an in-scope candidate evaluates the checked-in source hold, and
+verifies the exact clean current-main SHA and live repository controls before
+accessing Supabase credentials. `--mode automatic-release` uses the read-only
+`MERIAN_GITHUB_RELEASE_AUDIT_TOKEN`; missing access or failed controls block
+deployment. No per-deployment review or clearance secret is required.
 
 Production and Release Evidence retain environment secret scoping and protected
 branches only. Neither has required reviewers, wait timers, or custom approval
@@ -26,15 +32,45 @@ gates. Scheduled health monitors that share Production also run without review.
 Removing reviewer rules does not automatically prove that already-waiting jobs
 have resumed; inspect their job status and rerun a monitor if needed.
 
-`.github/CODEOWNERS` currently routes all critical controls to one account.
-Protected main retains PRs with zero peer approvals, Code Owner review and
-last-push approval disabled, stale-review dismissal, strict Candidate readiness,
-admin enforcement, no bypass, and no force pushes/deletion. A merged PR is the
-source-change record. The automatic gate verifies one unambiguous merged-main PR
-for the current SHA and the branch/environment settings.
+## Direct-main development policy — September 22, 2026
 
-This policy supersedes the reviewer-based policy introduced earlier on
-2026-09-18. It does not attest to any deployment or clear a technical hold.
+The normal path is **commit → push to main → exact-SHA checks pass → release**.
+Branches and PRs remain optional for isolated experiments or early feedback.
+Their existing checks remain available, but are not required before a normal
+push. Do not create a branch, cherry-pick a subset, or merge solely to satisfy
+release provenance. Commit the intended work together; keep unrelated unfinished
+work uncommitted or on an optional branch.
+
+Protected `main` has **Require a pull request before merging** and **Require
+status checks to pass before merging** disabled. Keep administrator enforcement
+(**Do not allow bypassing the above settings**) enabled, and **Allow force
+pushes** and **Allow deletions** disabled. Do not add a ruleset or merge queue
+that reintroduces a mandatory PR or pre-push status gate. `.github/CODEOWNERS`
+currently routes all critical controls to one account and continues to identify
+owners for optional reviews.
+
+A failing commit can enter `main`, but it is not eligible for release. Backend
+mutation requires the successful same-SHA reusable Candidate Validation job,
+source holds, current protected-main identity, and environment controls. The
+mutation job does not repeat the validation suite. iOS release requires the
+complete same-SHA iOS Build and Test run and the existing Xcode Organizer steps;
+a scope-only success is not release evidence. Optional PR evidence never
+replaces the final main-SHA evidence. See the
+[testing strategy](../development-guides/08-testing-strategy.md).
+
+Only production mutation jobs share the production concurrency lock; validation
+runs remain independent so later pushes cannot cancel an earlier candidate's
+coverage. GitHub's pending-production queue may supersede an older pending job;
+the cumulative deployed-to-candidate range retains its changes. Scope is checked
+again after the production lock is acquired; an already-deployed range skips all
+credential, mutation, and probe steps. A green no-op is excluded from deployment
+history: migration and smoke steps must both have succeeded.
+
+This policy supersedes mandatory-PR and pre-push-check rules from September 18.
+It does not attest to any deployment or clear a technical hold. Apply the
+matching GitHub settings when this implementation is ready to land; older
+verifier code will reject the new branch policy until this revision reaches
+main.
 
 ## One-time release hold
 
@@ -52,8 +88,8 @@ holds fail closed. A green held/skipped run is never deployment evidence or a
 successful deployment baseline. If no safe deployment baseline is available, the
 planner selects the full Function fleet and all predeploy fences.
 
-Any future source-hold change requires a protected source PR and validation of
-the resulting commit. Every deployment still checks current source status and
+Any future source-hold change requires a source commit and exact-SHA validation
+of the resulting commit. Every deployment still checks current source status and
 live controls. Ordinary subsequent commits do not require renewing manual
 evidence or a clearance secret. Do not dispatch a production deployment merely
 to test a hold.

@@ -72,7 +72,7 @@ clearance artifacts and their parser remain available for historical audits;
 never commit populated records or synchronize them to Supabase.
 
 `MERIAN_GITHUB_RELEASE_AUDIT_TOKEN` is read-only and confined to Production. It
-reads branch protection, PR provenance, and environment policies for the
+reads current-main identity, branch protection, and environment policies for the
 automatic gate before any Supabase credential is used. Optional evidence audits
 also read Actions runs/artifacts. It must have no repository, deployment,
 environment, or secrets write authority. The gate verifies current protected
@@ -460,12 +460,12 @@ ad-hoc repair SQL merely to turn a monitor green.
 
 Repository tests are necessary but do not prove hosted state. Before calling
 this correction released, require the reusable exact-SHA candidate gate, the
-checked-in source hold gate, merged-main PR provenance, and live branch and
-automatic environment protections described in the deployment runbook. No
-per-deployment review click or fresh manual clearance is required. Hold-exit
-evidence must be real and retained before resolving the hold. Optional artifact
-audits verify retained bytes and provenance; external approvals retain their own
-substantive requirements. Then:
+checked-in source hold gate, successful same-SHA Candidate Validation, and live
+branch and automatic environment protections described in the deployment
+runbook. No per-deployment review click or fresh manual clearance is required.
+Hold-exit evidence must be real and retained before resolving the hold. Optional
+artifact audits verify retained bytes and provenance; external approvals retain
+their own substantive requirements. Then:
 
 1. Replay all migrations and all discovered pgTAP fixtures against disposable
    PostgreSQL 17.

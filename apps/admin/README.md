@@ -117,13 +117,13 @@ reviewed
 [uncontrolled recursion vulnerability](https://github.com/advisories/GHSA-w9m9-85wc-3x92).
 The current lockfile resolves 7.1.6.
 
-Repository and deployment controls must make `Naturebook Admin Quality / test` a
-required check before any change can merge or reach the production Vercel
-project. The workflow file creates the check but cannot make itself required.
-Add that GitHub Action as a required Vercel Deployment Check so a production
-build is not promoted to the custom domain until the exact commit's check
-passed; never treat Force Promote or a direct manual deployment as routine
-bypass authority.
+The Vercel deployment controls must require `Naturebook Admin Quality / test`
+before a commit reaches the production project. Main pushes and PRs do not
+require this check before entering the branch. The workflow file creates the
+check but cannot make itself required. Add that GitHub Action as a required
+Vercel Deployment Check so a production build is not promoted to the custom
+domain until the exact commit's check passed; never treat Force Promote or a
+direct manual deployment as routine bypass authority.
 
 Mantine core and hooks are pinned together at 9.6.1. Dependabot groups their
 minor and patch updates; keep their exact peer versions aligned. Node types

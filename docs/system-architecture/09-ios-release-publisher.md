@@ -62,6 +62,12 @@ Transporter uploader are intentionally not fallback paths. Restoring one would
 reintroduce a second build-number/signing authority and requires a new
 architecture decision.
 
+Normal development uses direct commits and pushes to `main`, followed by one
+complete iOS validation run for the exact release SHA. Branches and PRs are
+optional; no merge is required to make a passing main commit eligible for the
+existing Organizer process. See the
+[direct-main policy](../release-evidence/README.md#direct-main-development-policy--september-22-2026).
+
 ## Source Identity
 
 The Release prebuild phase rejects a dirty checkout and verifies the tracked

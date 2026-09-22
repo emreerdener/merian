@@ -70,10 +70,11 @@ frozen install, live high-severity audit, tests, TypeScript check, and
 production build for every pull request and every affected `main` push. It
 intentionally avoids pull-request path filters so a required check always
 reports. A high/critical advisory or unavailable audit registry blocks this
-high-sensitivity deployment. Configure the repository ruleset to require
-`Naturebook Admin Quality / test`, then add the same GitHub Action as a required
-Vercel Deployment Check. Checked-in workflow YAML creates the check but does not
-itself prevent a direct merge or production promotion.
+high-sensitivity deployment. Keep `Naturebook Admin Quality / test` as a
+required Vercel Deployment Check for the exact production commit. Direct pushes
+to main do not require a pre-push GitHub status check. Checked-in workflow YAML
+creates the check but does not itself prevent a direct merge or production
+promotion.
 
 ## Supabase Functions and Tooling
 
@@ -88,15 +89,15 @@ Its narrow read allowlist includes the full function tree and the repository
 surfaces inspected by security contracts: migrations, Supabase config, the
 complete pgTAP fixture directory, Supabase scripts, the repository workflow
 directory, iOS source surfaces used by cross-boundary contracts, and the web
-waitlist route. Deployment CI runs this task after the disposable database is
-migrated, so database-backed cases execute rather than reporting connection
-skips; its explicit `SUPABASE_DB_TEST_URL` makes an unavailable database a test
-failure. CI must run the complete task rather than substituting a hand-selected
-subset whose permissions happen to pass. Pure request-mapping tests, including
-`sync-collections/index.test.ts`, never conditionally write to credentials
-inherited from the developer shell. Live database behavior belongs to the
-disposable catalog or an explicitly configured `SUPABASE_DB_TEST_URL` test that
-fails when it cannot connect.
+waitlist route. Candidate Validation runs this task after the disposable
+database is migrated, so database-backed cases execute rather than reporting
+connection skips; its explicit `SUPABASE_DB_TEST_URL` makes an unavailable
+database a test failure. CI must run the complete task rather than substituting
+a hand-selected subset whose permissions happen to pass. Pure request-mapping
+tests, including `sync-collections/index.test.ts`, never conditionally write to
+credentials inherited from the developer shell. Live database behavior belongs
+to the disposable catalog or an explicitly configured `SUPABASE_DB_TEST_URL`
+test that fails when it cannot connect.
 
 **Supabase Candidate Validation**
 (`.github/workflows/supabase-candidate-validation.yml`) is the hosted,
@@ -116,17 +117,17 @@ complete Deno task with `SUPABASE_DB_TEST_URL`, and finishes with database lint
 plus security and performance advisors. It declares no Production environment,
 receives no production secrets, and contains no migration push, Function
 deployment, or production smoke. A green candidate run is therefore
-database/runtime evidence, not proof of deployment. Repository rules should
-require `Supabase Candidate
-Validation / Candidate readiness`, not the
-conditionally executed validation job. The shared Deno setup action makes at
-most three attempts with the same immutable installer SHA, then verifies exact
-version `2.9.4`; exhausted retries remain a failed candidate rather than being
-treated as passing evidence.
+database/runtime evidence, not proof of deployment. Every main push invokes this
+complete reusable gate once through `deploy.yml`; only production-relevant
+undeployed changes proceed to the separate mutation job. Candidate readiness is
+a release prerequisite, not a pre-push branch restriction. The shared Deno setup
+action makes at most three attempts with the same immutable installer SHA, then
+verifies exact version `2.9.4`; exhausted retries remain a failed candidate
+rather than being treated as passing evidence.
 
-The production deploy workflow's push filter separately includes the generated
-inference DTO contract, `Core/Network/SupabaseManager.swift`, the exact scan-
-admission bridge in `Core/Network/MerianNetworkClient.swift`, its
+The production workflow's cumulative undeployed-source scope separately includes
+the generated inference DTO contract, `Core/Network/SupabaseManager.swift`, the
+exact scan- admission bridge in `Core/Network/MerianNetworkClient.swift`, its
 `Core/Network/Transport/PinnedNetworkTransport.swift` transport, all extracted
 `Core/Network/Auth` owners, and all `Core/Security` owners. The
 workflow-security suite freezes that inventory, while
@@ -488,7 +489,8 @@ The wrapper retains `.artifacts/local-ios/<uuid>.xcresult` and
 phase's exported summary, test tree and metrics. Build and test failures retain
 their XCResult; a failed preflight has only its explicit failure report. The
 manual CI workflow uploads this directory for 14 days even after failure. The
-existing complete-unit and four critical UI gates remain required on PRs.
+existing complete-unit and four critical UI gates remain required for iOS
+release.
 
 Start with `summary.md`, identify the failing phase and open its XCResult in
 Xcode. Check the exact case and error before using the console log. Compare
@@ -514,9 +516,9 @@ cannot establish those outcomes or a provider/network performance baseline.
 
 `.github/workflows/ios-build-and-test.yml` is the authoritative compiled
 verification gate for iOS changes. It reports a stable
-`iOS Build and Test / Production readiness` check on every pull request so the
-repository ruleset can require it without leaving unrelated pull requests
-pending. A fail-closed scope job starts the macOS work for:
+`iOS Build and Test / Production readiness` check on main pushes and optional
+pull requests. The complete exact-SHA result gates release, not entry into main.
+A fail-closed scope job starts the macOS work for:
 
 > **Current consent candidate:** the former Terms-link compile defect and
 > foreground-replay consent fixture are fixed and no longer active blockers.
@@ -1051,21 +1053,18 @@ macOS job.
 
 ### Repository Rule Setup
 
-The workflow creates status checks but does not block a merge on its own. After
-the workflow has reported once for the default branch, configure the `main`
-ruleset or branch protection rule to require exactly:
+Use the
+[direct-main development policy](../release-evidence/README.md#direct-main-development-policy--september-22-2026):
+allow ordinary main pushes without a required PR or pre-push status check,
+retain administrator enforcement, and prohibit force pushes and branch deletion.
 
-```text
-iOS Build and Test / Production readiness
-```
-
-Apply the requirement to pull requests and the merge queue. Do not require
-`Determine iOS build scope`, `Full iOS unit tests`, or
-`Current-SHA Release archive`: those jobs are conditional and correctly report
-skipped for unrelated pull requests. The workflow already handles `merge_group`;
-keep that trigger if the merge queue is enabled. A repository administrator
-should verify the rule with one unrelated pull request and one iOS pull request
-after any workflow or ruleset change.
+`iOS Build and Test / Production readiness` remains the stable result to inspect
+for the exact main commit. A release requires the full unit target, all four
+critical UI smokes, and Release archive on that SHA; a scope-only success cannot
+substitute. Existing PR and merge-group triggers remain optional validation
+support, not a required development path. A direct main push runs the applicable
+iOS gate once and needs no merge or post-merge rerun. Admin Vercel promotion
+still requires its same-commit Deployment Check independently of branch rules.
 
 ### Xcode Organizer Distribution Contract
 
@@ -5574,8 +5573,8 @@ digest to the candidate; the compatibility marker alone is insufficient. The
 hosted real-token and complete same-SHA iOS evidence remain deferred beta
 prerequisites. The source verifier still requires the named hold ID. The
 exact-SHA-checked mutation job runs the automatic repository-control gate:
-current protected main, merged-main PR provenance, strict Candidate readiness,
-branch rules without bypass, and protected environment branches without
+current protected main, the direct-push branch policy, successful same-SHA
+Candidate Validation, and protected environment branches without
 reviewer/timer/custom gates. It requires no per-commit clearance secret. This
 policy does not independently require iOS checks beyond the configured
 branch/workflow gates. Optional evidence audits fetch and recompute each
@@ -6727,15 +6726,14 @@ optional historical envelopes, third-result persistence, countdowns/exhaustion,
 Pro-only modes, and paid-only badges. See the normative
 [`complimentary scan contract`](../backend-and-data/18-complimentary-pro-scans.md#verification-map).
 
-The reusable candidate gate—and the production workflow that requires it—apply
-all migrations to a disposable database and run
-`bash services/supabase/scripts/test_database_catalogs.sh`. That gate discovers
-every `services/supabase/tests/*.sql` fixture, rejects an empty suite, and
-prevents a new catalog contract from being omitted by a selected CI list. When
-the aggregate run fails, it reruns only pg_prove's failed repository fixtures to
-surface isolated PostgreSQL diagnostics, then still exits nonzero; an isolated
-pass is ordering/shared-state evidence, not a recovered candidate. Do not
-replace executable catalog coverage with source inspection alone.
+The reusable candidate gate applies all migrations to a disposable database and
+runs `bash services/supabase/scripts/test_database_catalogs.sh`. That gate
+discovers every `services/supabase/tests/*.sql` fixture, rejects an empty suite,
+and prevents a new catalog contract from being omitted by a selected CI list.
+When the aggregate run fails, it reruns only pg_prove's failed repository
+fixtures to surface isolated PostgreSQL diagnostics, then still exits nonzero;
+an isolated pass is ordering/shared-state evidence, not a recovered candidate.
+Do not replace executable catalog coverage with source inspection alone.
 
 Focused source-inspection lanes have a separate Deno permission contract. Every
 repository root read through an explicit filesystem API must appear in that

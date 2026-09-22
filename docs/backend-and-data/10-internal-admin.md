@@ -382,11 +382,11 @@ enumerates executable environment reads against the public allowlist. The live
 registry audit remains mandatory because static floors cover known reviewed
 packages, not every present or future advisory.
 
-The quality workflow reports on every pull request so its required status is
-always available. On affected `main` pushes it revalidates the exact production
-candidate. Vercel may build that candidate concurrently, but its required
-Deployment Check must prevent assignment to `admin.naturebook.earth` until the
-matching GitHub check passes.
+The quality workflow reports on optional pull requests. A normal direct push to
+`main` validates the exact production candidate once; no pre-push status
+requirement is configured. Vercel may build that candidate concurrently, but its
+required Deployment Check must prevent assignment to `admin.naturebook.earth`
+until the matching GitHub check passes.
 
 ## V1 exclusions
 

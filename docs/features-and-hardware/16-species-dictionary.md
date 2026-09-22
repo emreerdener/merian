@@ -375,10 +375,11 @@ reviewed 2026-08-24 source now:
    U+FEFF rejection, combining marks, non-BMP scalars, and 64-scalar boundary
    cases; and
 6. requires the named hold ID fail closed, independently pins and clean-checks
-   the mutation SHA, and checks current protected main, merged-PR provenance,
-   required checks, branch rules without bypass, and automatic environment
-   policy before mutation. Optional artifact audits preserve retained evidence;
-   ordinary deployments require no review click or per-commit clearance secret.
+   the mutation SHA, requires successful same-SHA Candidate Validation, and
+   checks current protected main, direct-push branch rules, and automatic
+   environment policy before mutation. Optional artifact audits preserve
+   retained evidence; ordinary deployments require no review click or per-commit
+   clearance secret.
 
 For full-public-launch readiness, the database-backed cases must execute without
 a connection skip on the immutable candidate; the authenticated HTTP wrapper
@@ -386,13 +387,13 @@ boundary passes; a ready-state rerun always selects all three chat bundles;
 every live route's content digest matches the candidate; a genuine released V49
 binary accepts the exact V50 candidate without safe mode/store replacement or
 data loss; and both hosted gates pass on that same SHA. The live verifier must
-accept merged-main PR provenance, protected branch rules without bypass, and
-automatic `Release Evidence` and `Production` environments restricted to
-protected branches with no reviewers or waiting gates. The canonical
-production-consent, App Store privacy/age-rating, paid Gemini billing, DPA, and
-legal evidence must also be approved. Artifact digests establish the retained
-bytes, not the authenticity of an off-platform issuer or independent secret
-administration; those remain external operational approvals.
+accept current-main identity, protected direct-push branch rules, and automatic
+`Release Evidence` and `Production` environments restricted to protected
+branches with no reviewers or waiting gates. The canonical production-consent,
+App Store privacy/age-rating, paid Gemini billing, DPA, and legal evidence must
+also be approved. Artifact digests establish the retained bytes, not the
+authenticity of an off-platform issuer or independent secret administration;
+those remain external operational approvals.
 
 The exact machine-readable exit criteria and rollout order are canonical in the
 [Supabase deployment runbook](../backend-and-data/06-supabase-deployment-runbook.md#species-dictionary-field-chat-hold-exit-criteria).

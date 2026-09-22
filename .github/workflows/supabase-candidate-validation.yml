@@ -116,6 +116,147 @@ jobs:
       - name: Test complete Supabase tooling suite
         run: bash supabase/scripts/test_supabase_tooling.sh
 
+      - name: Validate shared Edge runtime checks
+        run: |
+          deno check --frozen --config supabase/functions/deno.json \
+            supabase/functions/_shared/auth.ts \
+            supabase/functions/_shared/claimsAuth.ts \
+            supabase/functions/_shared/serviceRoleAuth.ts \
+            supabase/functions/_shared/serviceRoleClient.ts \
+            supabase/functions/_shared/serviceRoleClient_test.ts \
+            supabase/functions/_shared/edgeHandler.ts \
+            supabase/functions/_tests/edgeHandler.test.ts \
+            supabase/functions/_tests/dwcaLaunchGateCoverage.test.ts \
+            supabase/functions/_tests/dwcaDownloadAndScanFinalizationMigrationContract.test.ts \
+            supabase/functions/_tests/exportDwcaMigrationContract.test.ts \
+            supabase/functions/_tests/exportDwcaSecurityCoverage.test.ts \
+            supabase/functions/_tests/publicWebExploreCoverage.test.ts \
+            supabase/functions/_tests/publicWebExploreMigrationContract.test.ts \
+            supabase/functions/_tests/workflowSecurity.test.ts \
+            supabase/functions/_shared/http.ts \
+            supabase/functions/_shared/http_test.ts \
+            supabase/functions/_shared/outbound.ts \
+            supabase/functions/_shared/outbound_test.ts \
+            supabase/functions/_shared/posthog.ts \
+            supabase/functions/_shared/posthog_test.ts \
+            supabase/functions/_shared/external.ts \
+            supabase/functions/_shared/external_test.ts \
+            supabase/functions/_shared/mediaBudgets.ts \
+            supabase/functions/_shared/mediaBudgets_test.ts \
+            supabase/functions/_shared/clientAddress.ts \
+            supabase/functions/_shared/clientAddress_test.ts \
+            supabase/functions/_shared/aiQuota.ts \
+            supabase/functions/_shared/groupTagQuota.ts \
+            supabase/functions/_shared/aiQuota_test.ts \
+            supabase/functions/_shared/complimentaryScans.ts \
+            supabase/functions/_shared/complimentaryScans_test.ts \
+            supabase/functions/_shared/entitlement.ts \
+            supabase/functions/_shared/entitlement_test.ts \
+            supabase/functions/_shared/biology.ts \
+            supabase/functions/_shared/gemini.ts \
+            supabase/functions/_shared/aws.ts \
+            supabase/functions/_shared/aws_test.ts \
+            supabase/functions/_shared/concurrency.ts \
+            supabase/functions/_shared/concurrency_test.ts \
+            supabase/functions/_shared/identify/latencyDb.ts \
+            supabase/functions/_shared/identify/latencyDb_test.ts \
+            supabase/functions/_shared/scanIngestionCompatibility.ts \
+            supabase/functions/_shared/scanIngestionCompatibility_test.ts \
+            supabase/functions/_shared/scanIngestionIntents_test.ts \
+            supabase/functions/_shared/scanIngestionJobs_test.ts \
+            supabase/functions/_shared/scanMediaDeletion.ts \
+            supabase/functions/_shared/scanMediaDeletion_test.ts \
+            supabase/functions/_shared/audioModeration.ts \
+            supabase/functions/_shared/audioModeration_test.ts \
+            supabase/functions/_shared/subscriptionPass.ts \
+            supabase/functions/_shared/subscriptionPass_test.ts \
+            supabase/functions/_shared/appleSignIn_test.ts \
+            supabase/functions/share-scan-to-explore/index.ts \
+            supabase/functions/register-apple-revocation-token/handler_test.ts \
+            supabase/functions/_tests/accountDeletionCoverage.test.ts \
+            supabase/functions/_tests/accountDeletionMigrationContract.test.ts \
+            supabase/functions/_tests/aiQuotaCoverage.test.ts \
+            supabase/functions/_tests/aiQuotaMigrationContract.test.ts \
+            supabase/functions/_tests/legalConsentMigrationContract.test.ts \
+            supabase/functions/_tests/paidGeminiSecretContract.test.ts \
+            supabase/functions/_tests/complimentaryProScansMigrationContract.test.ts \
+            supabase/functions/_tests/auth.test.ts \
+            supabase/functions/_tests/exploreMediaQuarantineMigrationContract.test.ts \
+            supabase/functions/_tests/jsonEndpointSecurityCoverage.test.ts \
+            supabase/functions/_tests/jsonEndpointSecurityMigrationContract.test.ts \
+            supabase/functions/_tests/outboundDeadlineCoverage.test.ts \
+            supabase/functions/_tests/migrationExecutionContract.test.ts \
+            supabase/functions/_tests/migrationMediaContract.test.ts \
+            supabase/functions/_tests/privilegedRoutineMigrationContract.test.ts \
+            supabase/functions/_tests/serviceRoleAuth.test.ts \
+            supabase/functions/_tests/serviceRoleAuthCoverage.test.ts \
+            supabase/functions/_tests/serviceRoleAuthMigrationContract.test.ts \
+            supabase/functions/_tests/serverApiKeyBoundaryMigrationContract.test.ts \
+            supabase/functions/_tests/revenueCatWebhookCoverage.test.ts \
+            supabase/functions/_tests/revenueCatWebhookMigrationContract.test.ts \
+            supabase/functions/_tests/speciesCountTriggerMigrationContract.test.ts \
+            supabase/functions/_tests/speciesObservationStatsCoverage.test.ts \
+            supabase/functions/_tests/speciesObservationStatsMigrationContract.test.ts \
+            supabase/functions/_tests/scanMediaIngestionContract.test.ts \
+            supabase/functions/_tests/safeDelete.test.ts \
+            supabase/functions/safe-delete/protocol_test.ts \
+            supabase/functions/safe-delete/db_recovery_test.ts \
+            supabase/functions/recover-account-deletion/handler_test.ts \
+            supabase/functions/auto-purge-nonbio/index.ts \
+            supabase/functions/delete-scan/index.ts \
+            supabase/functions/safe-delete/index.ts \
+            supabase/functions/safe-delete/handler.ts \
+            supabase/functions/safe-delete/worker.ts \
+            supabase/functions/safe-delete/protocol.ts \
+            supabase/functions/recover-account-deletion/index.ts \
+            supabase/functions/recover-account-deletion/handler.ts \
+            supabase/functions/register-apple-revocation-token/index.ts \
+            supabase/functions/register-apple-revocation-token/handler.ts \
+            supabase/functions/reconcile-account-deletions/index.ts \
+            supabase/functions/download-dwca/handler_test.ts \
+            supabase/functions/download-dwca/db_test.ts \
+            supabase/functions/reconcile-dwca-archive-cleanup/worker_test.ts \
+            supabase/functions/reconcile-dwca-archive-cleanup/db_test.ts \
+            supabase/functions/reconcile-scan-deletions/index.ts \
+            supabase/functions/reconcile-scan-deletions/worker_test.ts \
+            supabase/functions/reconcile-scan-deletions/db_test.ts \
+            supabase/functions/identify-multimodal/index.ts \
+            supabase/functions/identify-multimodal/index.test.ts \
+            supabase/functions/update-scan-context/index.ts \
+            supabase/functions/get-explore-media-incidents/index.ts \
+            supabase/functions/ingest-r2-media-events/index.ts \
+            supabase/functions/ingest-r2-media-events/validation_test.ts \
+            supabase/functions/reconcile-explore-media-health/index.ts \
+            supabase/functions/reconcile-explore-media-health/worker_test.ts \
+            supabase/functions/explore-post-chat/index.ts \
+            supabase/functions/insight-chat/index.ts \
+            supabase/functions/species-dictionary-chat/index.ts \
+            supabase/functions/replay-scan-ingestion/index.ts \
+            supabase/functions/replay-scan-ingestion/worker_test.ts \
+            supabase/functions/send-push-notification/delivery_test.ts \
+            supabase/functions/revenuecat-webhook/index.ts \
+            supabase/functions/reconcile-revenuecat-subscribers/db_test.ts \
+            supabase/functions/reconcile-revenuecat-subscribers/worker_test.ts \
+            supabase/functions/species-observation-stats/index.ts \
+            supabase/functions/species-observation-stats/db.test.ts \
+            supabase/functions/species-observation-stats/security.test.ts \
+            supabase/functions/revenuecat-webhook/handler_test.ts \
+            supabase/functions/revenuecat-webhook/index_test.ts \
+            supabase/functions/revenuecat-webhook/signature_test.ts \
+            supabase/functions/revenuecat-webhook/subscriber_test.ts \
+            supabase/functions/export-dwca/archive_test.ts \
+            supabase/functions/export-dwca/crc32_test.ts \
+            supabase/functions/export-dwca/index_test.ts \
+            supabase/functions/export-dwca/db_test.ts \
+            supabase/functions/_shared/dwcaReleaseState_test.ts \
+            supabase/functions/export-dwca/mail_test.ts \
+            supabase/functions/export-dwca/pseudonym_test.ts \
+            supabase/functions/export-dwca/storage_test.ts \
+            supabase/functions/export-dwca/worker_test.ts \
+            supabase/functions/export-dwca/zip_test.ts \
+            supabase/functions/request-export-dwca/db_test.ts \
+            supabase/functions/scan-media-health/index.ts
+
       - name: Validate isolated Edge Function dependency graphs
         run: |
           deno run --frozen --config supabase/functions/deno.json \
@@ -136,6 +277,134 @@ jobs:
           done
           echo "Checked $checked Edge Function entrypoints with deploy-time configs."
 
+      - name: Test shared Edge helpers
+        run: |
+          deno test --frozen --config supabase/functions/deno.json \
+            --allow-env \
+            --allow-read=supabase/functions,../apps/web \
+            supabase/functions/_shared/http_test.ts \
+            supabase/functions/_shared/outbound_test.ts \
+            supabase/functions/_shared/posthog_test.ts \
+            supabase/functions/_shared/external_test.ts \
+            supabase/functions/_tests/edgeHandler.test.ts \
+            supabase/functions/_tests/jsonEndpointSecurityCoverage.test.ts \
+            supabase/functions/_tests/outboundDeadlineCoverage.test.ts \
+            supabase/functions/_shared/fieldChat/dailyUsage_test.ts \
+            supabase/functions/_shared/fieldChat/reservation_test.ts \
+            supabase/functions/_shared/aws_test.ts \
+            supabase/functions/_shared/concurrency_test.ts \
+            supabase/functions/_shared/identify/latencyDb_test.ts \
+            supabase/functions/_shared/scanIngestionCompatibility_test.ts \
+            supabase/functions/_shared/scanIngestionIntents_test.ts \
+            supabase/functions/_shared/scanIngestionJobs_test.ts \
+            supabase/functions/_shared/scanMediaDeletion_test.ts \
+            supabase/functions/_shared/clientAddress_test.ts \
+            supabase/functions/_shared/audioModeration_test.ts \
+            supabase/functions/_shared/complimentaryScans_test.ts \
+            supabase/functions/share-scan-to-explore/audioModeration_test.ts \
+            supabase/functions/identify-multimodal/index.test.ts \
+            supabase/functions/replay-scan-ingestion/worker_test.ts \
+            supabase/functions/send-push-notification/delivery_test.ts \
+            supabase/functions/search-community-taxa/gbif.test.ts \
+            supabase/functions/sync-community-taxonomy-index/gbif.test.ts \
+            supabase/functions/ingest-r2-media-events/validation_test.ts \
+            supabase/functions/reconcile-explore-media-health/worker_test.ts \
+            supabase/functions/sync-collections/db_test.ts \
+            supabase/functions/_tests/auth.test.ts \
+            supabase/functions/_tests/scanMediaIngestionContract.test.ts \
+            supabase/functions/explore-post-chat/prompt_test.ts \
+            supabase/functions/species-dictionary-chat/eligibility_test.ts \
+            supabase/functions/species-dictionary-chat/handler_test.ts \
+            supabase/functions/species-dictionary-chat/prompt_test.ts \
+            supabase/functions/species-dictionary-chat/promptSuggestions_test.ts \
+            supabase/functions/species-dictionary-chat/refusal_test.ts \
+            supabase/functions/insight-chat/guards_test.ts \
+            supabase/functions/insight-chat/prompt_test.ts \
+            supabase/functions/scan-media-health/health_test.ts
+
+      - name: Test internal service credential boundary
+        run: |
+          deno test --frozen --config supabase/functions/deno.json \
+            --allow-read=supabase/functions,supabase/migrations,supabase/scripts,../.github/workflows \
+            supabase/functions/_shared/serviceRoleClient_test.ts \
+            supabase/functions/_tests/serviceRoleAuth.test.ts \
+            supabase/functions/_tests/serviceRoleAuthCoverage.test.ts \
+            supabase/functions/_tests/serviceRoleAuthMigrationContract.test.ts \
+            supabase/functions/_tests/serverApiKeyBoundaryMigrationContract.test.ts
+
+      - name: Test durable account deletion boundary
+        run: |
+          deno test --frozen --config supabase/functions/deno.json \
+            --allow-read=supabase/functions,supabase/migrations,supabase/scripts,supabase/tests/account_deletion_security.sql,supabase/config.toml,../apps/ios,../.github/workflows \
+            supabase/functions/_shared/appleSignIn_test.ts \
+            supabase/functions/register-apple-revocation-token/handler_test.ts \
+            supabase/functions/_tests/safeDelete.test.ts \
+            supabase/functions/_tests/accountDeletionCoverage.test.ts \
+            supabase/functions/_tests/accountDeletionMigrationContract.test.ts
+
+      - name: Test public species observation stats boundary
+        run: |
+          deno test --frozen --config supabase/functions/deno.json \
+            --allow-read=supabase/functions,supabase/migrations,supabase/tests/species_observation_stats_security.sql,supabase/config.toml \
+            supabase/functions/_shared/mediaBudgets_test.ts \
+            supabase/functions/species-observation-stats/db.test.ts \
+            supabase/functions/species-observation-stats/security.test.ts \
+            supabase/functions/_tests/speciesObservationStatsCoverage.test.ts \
+            supabase/functions/_tests/speciesObservationStatsMigrationContract.test.ts
+
+      - name: Validate authoritative AI quota coverage
+        run: |
+          deno test --frozen --config supabase/functions/deno.json \
+            --allow-read=supabase/functions,supabase/migrations,supabase/scripts,supabase/tests,../apps/ios,../.github/workflows/deploy.yml \
+            supabase/functions/_shared/aiQuota_test.ts \
+            supabase/functions/_shared/complimentaryScans_test.ts \
+            supabase/functions/_shared/entitlement_test.ts \
+            supabase/functions/_tests/aiQuotaCoverage.test.ts \
+            supabase/functions/_tests/legalConsentMigrationContract.test.ts \
+            supabase/functions/_tests/paidGeminiSecretContract.test.ts \
+            supabase/functions/_tests/complimentaryProScansMigrationContract.test.ts
+
+      - name: Test RevenueCat webhook boundary
+        run: |
+          deno test --frozen --config supabase/functions/deno.json \
+            --allow-read=supabase/functions,supabase/scripts,supabase/config.toml,../.github/workflows \
+            supabase/functions/_tests/revenueCatWebhookCoverage.test.ts \
+            supabase/functions/_shared/subscriptionPass_test.ts \
+            supabase/functions/revenuecat-webhook/handler_test.ts \
+            supabase/functions/revenuecat-webhook/index_test.ts \
+            supabase/functions/revenuecat-webhook/signature_test.ts \
+            supabase/functions/revenuecat-webhook/subscriber_test.ts \
+            supabase/functions/reconcile-revenuecat-subscribers/db_test.ts \
+            supabase/functions/reconcile-revenuecat-subscribers/worker_test.ts
+
+      - name: Test Darwin Core export boundary
+        run: |
+          deno test --frozen --config supabase/functions/deno.json \
+            --allow-read=supabase/functions,supabase/migrations,supabase/scripts,supabase/tests,../apps/ios,../.github/workflows \
+            supabase/functions/_tests/dwcaLaunchGateCoverage.test.ts \
+            supabase/functions/_tests/exportDwcaMigrationContract.test.ts \
+            supabase/functions/_tests/dwcaDownloadAndScanFinalizationMigrationContract.test.ts \
+            supabase/functions/_tests/exportDwcaSecurityCoverage.test.ts \
+            supabase/functions/download-dwca/handler_test.ts \
+            supabase/functions/download-dwca/db_test.ts \
+            supabase/functions/export-dwca/archive_test.ts \
+            supabase/functions/export-dwca/crc32_test.ts \
+            supabase/functions/export-dwca/db_test.ts \
+            supabase/functions/export-dwca/drain_test.ts \
+            supabase/functions/export-dwca/index_test.ts \
+            supabase/functions/_shared/dwcaReleaseState_test.ts \
+            supabase/functions/export-dwca/mail_test.ts \
+            supabase/functions/export-dwca/pseudonym_test.ts \
+            supabase/functions/export-dwca/storage_test.ts \
+            supabase/functions/export-dwca/worker_test.ts \
+            supabase/functions/export-dwca/zip_test.ts \
+            supabase/functions/reconcile-dwca-archive-cleanup/worker_test.ts \
+            supabase/functions/reconcile-dwca-archive-cleanup/db_test.ts \
+            supabase/functions/request-export-dwca/db_test.ts \
+            supabase/functions/delete-scan/db_test.ts \
+            supabase/functions/reconcile-scan-deletions/worker_test.ts \
+            supabase/functions/reconcile-scan-deletions/db_test.ts
+
       - name: Test production workflow security
         run: |
           deno test --frozen --config supabase/functions/deno.json \
@@ -145,8 +414,10 @@ jobs:
       - name: Validate Supabase migration contracts
         run: bash supabase/scripts/validate_migration_contracts.sh
 
-      - name: Start disposable database
+      - name: Start disposable database for privileged-routine validation
         env:
+          # config.toml keeps Apple auth available for local integration tests,
+          # but schema-only CI does not need a real OAuth client secret.
           SUPABASE_AUTH_EXTERNAL_APPLE_SECRET: ci-schema-validation-placeholder
         run: supabase db start
 
@@ -155,7 +426,7 @@ jobs:
           SUPABASE_AUTH_EXTERNAL_APPLE_SECRET: ci-config-parse-placeholder
         run: bash supabase/scripts/test_database_catalogs.sh
 
-      - name: Test complete Edge Function and database concurrency suite
+      - name: Test complete Edge Function suite
         env:
           SUPABASE_DB_TEST_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
         run: deno task --config supabase/functions/deno.json test
@@ -166,6 +437,9 @@ jobs:
         run: |
           supabase db lint --local --schema public,internal \
             --level warning --fail-on warning
+          # Advisor warnings include reviewed historical debt. Keep them in the
+          # run log, but block only on errors until that debt has an explicit
+          # baseline or has been retired.
           supabase db advisors --local --type security \
             --level warn --fail-on error
           supabase db advisors --local --type performance \

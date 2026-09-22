@@ -83,30 +83,12 @@ Deno.test("GitHub release evidence downloads bytes and validates live controls",
     }
     if (url.endsWith("/branches/main/protection")) {
       return Promise.resolve(json({
-        required_pull_request_reviews: {
-          dismiss_stale_reviews: true,
-          require_last_push_approval: false,
-          require_code_owner_reviews: false,
-          required_approving_review_count: 0,
-          bypass_pull_request_allowances: { users: [], teams: [], apps: [] },
-        },
-        required_status_checks: {
-          strict: true,
-          contexts: ["Candidate readiness"],
-        },
+        required_pull_request_reviews: null,
+        required_status_checks: null,
         enforce_admins: { enabled: true },
         allow_force_pushes: { enabled: false },
         allow_deletions: { enabled: false },
       }));
-    }
-    if (url.endsWith(`/commits/${candidateSha}/pulls?per_page=100`)) {
-      return Promise.resolve(json([{
-        number: 17,
-        merged_at: "2026-08-24T10:00:00Z",
-        merge_commit_sha: candidateSha,
-        base: { ref: "main", repo: { full_name: "Merian/Example" } },
-        user: { login: "author", type: "User" },
-      }]));
     }
     if (
       url.includes("/environments/Release%20Evidence") ||
@@ -168,7 +150,7 @@ Deno.test("GitHub release evidence downloads bytes and validates live controls",
   assertEquals(await verifier.verifyRepositoryControls(candidateSha), [
     "main_branch_protection",
     "candidate_is_current_main_head",
-    "pull_request_17_merged_main_provenance",
+    "direct_push_release_policy",
     "automatic_environment_policy",
     "release_evidence_environment_protection",
     "production_environment_protection",
@@ -300,87 +282,6 @@ Deno.test("repository controls reject a candidate that is not current main", asy
   );
 });
 
-Deno.test("repository controls reject disabled admin enforcement", async () => {
-  const verifier = new GitHubReleaseEvidenceVerifier({
-    token: "test-token",
-    repository,
-    fetcher: (input) => {
-      const url = String(input);
-      if (url.endsWith("/branches/main")) {
-        return Promise.resolve(json({
-          name: "main",
-          protected: true,
-          commit: { sha: candidateSha },
-        }));
-      }
-      return Promise.resolve(json({
-        required_pull_request_reviews: {
-          dismiss_stale_reviews: true,
-          require_last_push_approval: false,
-          require_code_owner_reviews: false,
-          required_approving_review_count: 0,
-          bypass_pull_request_allowances: { users: [], teams: [], apps: [] },
-        },
-        enforce_admins: { enabled: false },
-      }));
-    },
-  });
-
-  await assertRejects(
-    () => verifier.verifyRepositoryControls(candidateSha),
-    Error,
-    "must require PRs with zero peer approvals",
-  );
-});
-
-Deno.test("repository controls reject a merged pull request targeting another branch", async () => {
-  const verifier = new GitHubReleaseEvidenceVerifier({
-    token: "test-token",
-    repository,
-    fetcher: (input) => {
-      const url = String(input);
-      if (url.endsWith("/branches/main")) {
-        return Promise.resolve(json({
-          name: "main",
-          protected: true,
-          commit: { sha: candidateSha },
-        }));
-      }
-      if (url.endsWith("/branches/main/protection")) {
-        return Promise.resolve(json({
-          required_pull_request_reviews: {
-            dismiss_stale_reviews: true,
-            require_last_push_approval: false,
-            require_code_owner_reviews: false,
-            required_approving_review_count: 0,
-            bypass_pull_request_allowances: { users: [], teams: [], apps: [] },
-          },
-          required_status_checks: {
-            strict: true,
-            contexts: ["Candidate readiness"],
-          },
-          enforce_admins: { enabled: true },
-          allow_force_pushes: { enabled: false },
-          allow_deletions: { enabled: false },
-        }));
-      }
-      return Promise.resolve(json([{
-        number: 17,
-        merged_at: "2026-08-24T10:00:00Z",
-        merge_commit_sha: candidateSha,
-        base: { ref: "release", repo: { full_name: repository } },
-        user: { login: "author" },
-      }]));
-    },
-  });
-
-  await assertRejects(
-    () => verifier.verifyRepositoryControls(candidateSha),
-    Error,
-    "one merged main pull request",
-  );
-});
-
 function soloControls(): Record<string, unknown> {
   return {
     "/branches/main": {
@@ -389,28 +290,12 @@ function soloControls(): Record<string, unknown> {
       commit: { sha: candidateSha },
     },
     "/branches/main/protection": {
-      required_pull_request_reviews: {
-        dismiss_stale_reviews: true,
-        require_last_push_approval: false,
-        require_code_owner_reviews: false,
-        required_approving_review_count: 0,
-        bypass_pull_request_allowances: { users: [], teams: [], apps: [] },
-      },
-      required_status_checks: {
-        strict: true,
-        contexts: ["Candidate readiness"],
-      },
+      required_pull_request_reviews: null,
+      required_status_checks: null,
       enforce_admins: { enabled: true },
       allow_force_pushes: { enabled: false },
       allow_deletions: { enabled: false },
     },
-    [`/commits/${candidateSha}/pulls?per_page=100`]: [{
-      number: 17,
-      merged_at: "2026-08-24T10:00:00Z",
-      merge_commit_sha: candidateSha,
-      base: { ref: "main", repo: { full_name: repository } },
-      user: { login: "emreerdener", type: "User" },
-    }],
     "/environments/Release%20Evidence": protectedEnvironment(),
     "/environments/Production": protectedEnvironment(),
   };
@@ -433,7 +318,7 @@ function verifierForControls(controls: Record<string, unknown>) {
   });
 }
 
-Deno.test("automatic environments retain merged PR and protected branch checks", async () => {
+Deno.test("direct main commits pass without any pull-request API access", async () => {
   const controls = await verifierForControls(soloControls())
     .verifyRepositoryControls(candidateSha);
   assertEquals(controls.includes("automatic_environment_policy"), true);
@@ -487,43 +372,42 @@ for (const environment of ["Release%20Evidence", "Production"]) {
   }
 }
 
-Deno.test("automatic release accepts GitHub's omitted empty bypass field", async () => {
+Deno.test("direct pushes accept omitted disabled PR and status-check fields", async () => {
   const controls = soloControls();
   const protection = controls["/branches/main/protection"] as Record<
     string,
     unknown
   >;
-  const reviews = protection.required_pull_request_reviews as Record<
-    string,
-    unknown
-  >;
-  delete reviews.bypass_pull_request_allowances;
+  delete protection.required_pull_request_reviews;
+  delete protection.required_status_checks;
   const verified = await verifierForControls(controls).verifyRepositoryControls(
     candidateSha,
   );
-  assertEquals(verified.includes("main_branch_protection"), true);
-  assertEquals(verified.includes("production_environment_protection"), true);
+  assertEquals(verified.includes("direct_push_release_policy"), true);
 });
 
 for (
   const [name, override] of Object.entries({
-    "missing PR requirement": { required_pull_request_reviews: null },
-    "missing checks": { required_status_checks: null },
-    "wrong checks": {
-      required_status_checks: { strict: true, contexts: ["unrelated"] },
+    "mandatory PR": {
+      required_pull_request_reviews: { required_approving_review_count: 0 },
     },
-    "outdated branch permitted": {
+    "pre-push checks": {
       required_status_checks: {
-        strict: false,
+        strict: true,
         contexts: ["Candidate readiness"],
       },
     },
+    "malformed PR rule": { required_pull_request_reviews: false },
+    "malformed check rule": { required_status_checks: "none" },
     "admin exemption": { enforce_admins: { enabled: false } },
+    "missing admin policy": { enforce_admins: null },
     "force pushes": { allow_force_pushes: { enabled: true } },
+    "missing force-push policy": { allow_force_pushes: null },
     "branch deletion": { allow_deletions: { enabled: true } },
+    "missing deletion policy": { allow_deletions: null },
   })
 ) {
-  Deno.test(`sole maintainer retains branch protection: ${name}`, async () => {
+  Deno.test(`direct push policy rejects ${name}`, async () => {
     const controls = soloControls();
     controls["/branches/main/protection"] = {
       ...(controls["/branches/main/protection"] as Record<string, unknown>),
@@ -537,39 +421,19 @@ for (
 
 for (
   const [name, override] of Object.entries({
-    "peer approval deadlock": { required_approving_review_count: 1 },
-    "Code Owner self-approval deadlock": { require_code_owner_reviews: true },
-    "last-push approval deadlock": { require_last_push_approval: true },
-    "stale review retained": { dismiss_stale_reviews: false },
-    "user bypass": {
-      bypass_pull_request_allowances: { users: [{}], teams: [], apps: [] },
-    },
-    "team bypass": {
-      bypass_pull_request_allowances: { users: [], teams: [{}], apps: [] },
-    },
-    "app bypass": {
-      bypass_pull_request_allowances: { users: [], teams: [], apps: [{}] },
-    },
-    "null bypass": { bypass_pull_request_allowances: null },
-    "malformed bypass": { bypass_pull_request_allowances: "none" },
-    "incomplete bypass": { bypass_pull_request_allowances: { users: [] } },
+    "unprotected main": { protected: false },
+    "another branch": { name: "release" },
+    "missing commit": { commit: null },
   })
 ) {
-  Deno.test(`sole maintainer rejects PR rule: ${name}`, async () => {
+  Deno.test(`direct push policy rejects ${name}`, async () => {
     const controls = soloControls();
-    const protection = controls["/branches/main/protection"] as Record<
-      string,
-      unknown
-    >;
-    protection.required_pull_request_reviews = {
-      ...(protection.required_pull_request_reviews as Record<string, unknown>),
+    controls["/branches/main"] = {
+      ...(controls["/branches/main"] as Record<string, unknown>),
       ...override,
     };
-    await assertRejects(
-      () =>
-        verifierForControls(controls).verifyRepositoryControls(candidateSha),
-      Error,
-      "must require PRs with zero peer approvals",
+    await assertRejects(() =>
+      verifierForControls(controls).verifyRepositoryControls(candidateSha)
     );
   });
 }
@@ -587,5 +451,17 @@ Deno.test("automatic environments permit empty protection rules with protected b
     (await verifierForControls(controls).verifyRepositoryControls(candidateSha))
       .includes("automatic_environment_policy"),
     true,
+  );
+});
+
+Deno.test("direct push release fails closed when protection API is unavailable", async () => {
+  const controls = soloControls();
+  delete controls["/branches/main/protection"];
+  await assertRejects(() =>
+    verifierForControls(controls).verifyRepositoryControls(candidateSha)
+  );
+  controls["/branches/main/protection"] = null;
+  await assertRejects(() =>
+    verifierForControls(controls).verifyRepositoryControls(candidateSha)
   );
 });
