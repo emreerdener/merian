@@ -5472,7 +5472,7 @@ biological species lookup, bounded current dictionary grounding, untrusted-data
 fencing, excluded private/observation/media/attribution sources, stable
 `400 invalid_request` for missing or malformed IDs, `404 species_not_available`
 for a valid unavailable/nonbiological UUID, deterministic chips, and all action
-envelopes. `_shared/fieldChatReservation_test.ts` verifies the fail-closed RPC
+envelopes. `_shared/fieldChat/reservation_test.ts` verifies the fail-closed RPC
 adapter, exact persisted-row binding, replay projection, and stable
 database-error mapping. `_tests/fieldChatReservationMigrationContract.test.ts`
 pins per-user then per-conversation lock ordering, atomic cross-table limits,
@@ -5492,7 +5492,7 @@ merge, cascade deletion, feedback ownership, and shared three-family admission.
 The Dictionary fixture has 14 assertions. Both bind those assertions to
 `20260821030027_add_species_dictionary_field_chat.sql`.
 `_tests/fieldChatDurableDailyUsageMigrationContract.test.ts` and
-`_shared/fieldChatDailyUsage_test.ts` pin
+`_shared/fieldChat/dailyUsage_test.ts` pin
 `20260824210544_preserve_field_chat_daily_usage.sql`, the private content-free
 aggregate, replay-before-consumption ordering, service-only fail-closed read,
 conservative Ghost merge, effective handler allowlist, complete registry

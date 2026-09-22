@@ -13,7 +13,7 @@ const dictionaryFixtureUrl = new URL(
   import.meta.url,
 );
 const sharedReservationUrl = new URL(
-  "../_shared/fieldChatReservation.ts",
+  "../_shared/fieldChat/reservation.ts",
   import.meta.url,
 );
 const fieldChatRouteUrls = [

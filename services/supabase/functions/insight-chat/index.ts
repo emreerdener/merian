@@ -20,11 +20,11 @@ import {
   fieldChatUserMessageForRequest,
   isFieldChatRequestComplete,
   waitForFieldChatRequestCompletion,
-} from "../_shared/fieldChatResponse.ts";
+} from "../_shared/fieldChat/response.ts";
 import {
   fieldChatDeploymentContractHeaders,
   recoverStaleFieldChatQuota,
-} from "../_shared/fieldChatReservation.ts";
+} from "../_shared/fieldChat/reservation.ts";
 import {
   countUserSendsToday,
   deleteConversation,

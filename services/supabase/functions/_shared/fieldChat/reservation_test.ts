@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { assertEquals, assertRejects } from "@std/assert";
-import { PublicHttpError } from "./http.ts";
+import { PublicHttpError } from "../http.ts";
 import {
   FIELD_CHAT_BUNDLE_SHA256_HEADER,
   FIELD_CHAT_DEPLOYMENT_CONTRACT_HEADER,
@@ -8,7 +8,7 @@ import {
   fieldChatDeploymentContractHeaders,
   recoverStaleFieldChatQuota,
   reserveFieldChatSend,
-} from "./fieldChatReservation.ts";
+} from "./reservation.ts";
 
 const USER_ID = "019fac20-20e3-7f2e-b104-35d3b04a2b03";
 const SUBJECT_ID = "019fac20-2370-7911-8bb2-a136ce1ca9c7";

@@ -1658,10 +1658,10 @@ The [Function directory guide](../services/supabase/functions/README.md) is the
 complete endpoint index grouped by product area, with links to local owners. The
 [organization audit](./rfcs/supabase-functions-organization.md) records the
 dated dependency baseline and the status of each organization slice. Shared
-Field Chat prompt/request helpers now live under
+Field Chat prompt/request, admission, daily usage, and response/replay helpers
+live under
 [`_shared/fieldChat/`](../services/supabase/functions/_shared/fieldChat/README.md);
-admission, usage, response helpers, and generated bundle identity retain their
-existing shared-root owners.
+generated bundle identity retains its shared-root owner.
 
 Identification and supporting biological content use
 [`_shared/ai/`](../services/supabase/functions/_shared/ai/README.md):
@@ -2021,7 +2021,7 @@ Explore publishing, activity, and delivery:
 - `send-push-notification`
 - `block-user`
 
-`services/supabase/functions/_shared/fieldChatResponse.ts` owns the additive
+`services/supabase/functions/_shared/fieldChat/response.ts` owns the additive
 success-envelope identity shared by `insight-chat`, `explore-post-chat`, and
 `species-dictionary-chat`. Every empty/populated thread and action success
 echoes its requested scan, post, or species UUID as `subject_id`; iOS validates
@@ -2035,7 +2035,7 @@ conflicting text reuse fails explicitly. Route-local prompt builders keep
 Insight model output and deterministic Explore labels within the shared
 three-prompt, 120-character safety contract.
 
-`services/supabase/functions/_shared/fieldChatReservation.ts` owns the
+`services/supabase/functions/_shared/fieldChat/reservation.ts` owns the
 fail-closed adapter to `20260729163616_reserve_field_chat_sends_atomically.sql`.
 That migration serializes per-user cross-table daily accounting before
 per-conversation capacity admission, inserts the exact subject-bound user row

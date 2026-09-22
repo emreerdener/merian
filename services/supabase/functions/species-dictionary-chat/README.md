@@ -223,8 +223,8 @@ deno test --frozen --config services/supabase/functions/deno.json \
   services/supabase/functions/_tests/speciesDictionaryChatRouteContract.test.ts \
   services/supabase/functions/_tests/speciesDictionaryChatMigrationContract.test.ts \
   services/supabase/functions/_tests/fieldChatDurableDailyUsageMigrationContract.test.ts \
-  services/supabase/functions/_shared/fieldChatDailyUsage_test.ts \
-  services/supabase/functions/_shared/fieldChatReservation_test.ts
+  services/supabase/functions/_shared/fieldChat/dailyUsage_test.ts \
+  services/supabase/functions/_shared/fieldChat/reservation_test.ts
 ```
 
 `handler_test.ts` executes both the handler core and `withEdgeHandler` using

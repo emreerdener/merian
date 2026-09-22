@@ -4,7 +4,7 @@ import {
   InsightChatFeedbackRating,
   MAX_MESSAGES_PER_CONVERSATION,
   MAX_USER_MESSAGE_CHARS,
-} from "../insight-chat/types.ts";
+} from "../../insight-chat/types.ts";
 
 interface FieldChatRequestMessage {
   role: string;

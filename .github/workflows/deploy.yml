@@ -440,8 +440,8 @@ jobs:
             supabase/functions/_tests/edgeHandler.test.ts \
             supabase/functions/_tests/jsonEndpointSecurityCoverage.test.ts \
             supabase/functions/_tests/outboundDeadlineCoverage.test.ts \
-            supabase/functions/_shared/fieldChatDailyUsage_test.ts \
-            supabase/functions/_shared/fieldChatReservation_test.ts \
+            supabase/functions/_shared/fieldChat/dailyUsage_test.ts \
+            supabase/functions/_shared/fieldChat/reservation_test.ts \
             supabase/functions/_shared/aws_test.ts \
             supabase/functions/_shared/concurrency_test.ts \
             supabase/functions/_shared/identify/latencyDb_test.ts \

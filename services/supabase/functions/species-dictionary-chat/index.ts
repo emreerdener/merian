@@ -12,7 +12,7 @@ import {
   buildFieldChatReplyRequest,
   extractFieldChatReplyJson,
 } from "../_shared/fieldChat/reply.ts";
-import { countAllFieldChatSendsToday } from "../_shared/fieldChatDailyUsage.ts";
+import { countAllFieldChatSendsToday } from "../_shared/fieldChat/dailyUsage.ts";
 import {
   fieldChatFeedbackPayload,
   fieldChatPromptSuggestionsPayload,
@@ -20,11 +20,11 @@ import {
   fieldChatUserMessageForRequest,
   isFieldChatRequestComplete,
   waitForFieldChatRequestCompletion,
-} from "../_shared/fieldChatResponse.ts";
+} from "../_shared/fieldChat/response.ts";
 import {
   fieldChatDeploymentContractHeaders,
   recoverStaleFieldChatQuota,
-} from "../_shared/fieldChatReservation.ts";
+} from "../_shared/fieldChat/reservation.ts";
 import { _genAI } from "../_shared/gemini.ts";
 import {
   parseJsonBody,

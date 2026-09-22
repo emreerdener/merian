@@ -1,7 +1,7 @@
 # Supabase Functions organization
 
 Date: 21 September 2026\
-Status: O1–O2 complete locally; exact-commit candidate validation remains
+Status: O1–O3 complete locally; O3 exact-commit candidate validation remains
 pending\
 Audited source: `7cb12cce16bd736ea1dc725663cacd10471cac46`
 
@@ -150,12 +150,12 @@ owner's semantics.
 
 These O-prefixed slices are separate from the completed AI S1–S6 slices.
 
-| Slice                                  | Scope                                                                                                                                       | Completion boundary                                              |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
-| O1 — Inventory and navigation          | Current endpoint/shared-owner index, dependency audit, AI handoff, and bounded next-slice proposal                                          | Complete locally; documentation-only                             |
-| O2 — Field Chat prompt/request helpers | Move the two helpers and their colocated unit test as listed below; update consumers, source guards, docs, and generated identities         | Complete locally, 21 September 2026; no behavioral change        |
-| O3 — Further shared-domain groups      | Select the next cohesive group using refreshed consumer and lifecycle inventories; consider remaining Field Chat or focused Explore helpers | Proposed; exact scope selected after O2 review                   |
-| O4 — Large handler responsibilities    | Extract independently testable stages only after admission, timeout, quota, persistence, and replay ordering are mapped                     | Deferred until the AI validation work has a stable accepted base |
+| Slice                                  | Scope                                                                                                                                    | Completion boundary                                              |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| O1 — Inventory and navigation          | Current endpoint/shared-owner index, dependency audit, AI handoff, and bounded next-slice proposal                                       | Complete locally; documentation-only                             |
+| O2 — Field Chat prompt/request helpers | Move the two helpers and their colocated unit test as listed below; update consumers, source guards, docs, and generated identities      | Complete locally, 21 September 2026; no behavioral change        |
+| O3 — Remaining Field Chat helpers      | Move daily usage, reservation/recovery, response/replay helpers and colocated tests into `fieldChat/`; preserve all lifecycle boundaries | Complete locally; 21 September 2026                              |
+| O4 — Large handler responsibilities    | Extract independently testable stages only after admission, timeout, quota, persistence, and replay ordering are mapped                  | Deferred until the AI validation work has a stable accepted base |
 
 Stop a slice when the remaining owner is cohesive or the move would require
 unplanned behavior changes. Directory uniformity alone is insufficient reason to
@@ -302,3 +302,83 @@ Validation or hosted/device evidence. The independent path/contract review found
 no runtime issue; its stale O2-status finding was corrected here. Future work
 should begin with the O3 inventory refresh and preserve the separate AI
 acceptance checklist.
+
+## O3 implementation and verification
+
+O3 starts from `5a4da4b2b`, after fast-forwarding the pushed organization
+branch. Its tree is identical to the O1–O2 checkpoint `f34814e70`; the
+additional commits merge the existing AI work and main history.
+
+| Original path under `_shared/` | O3 path                    |
+| ------------------------------ | -------------------------- |
+| `fieldChatDailyUsage.ts`       | `fieldChat/dailyUsage.ts`  |
+| `fieldChatReservation.ts`      | `fieldChat/reservation.ts` |
+| `fieldChatResponse.ts`         | `fieldChat/response.ts`    |
+
+Their three colocated unit tests move with them. Each runtime helper reaches
+only Insight, Explore-post, and Species Dictionary chat. The path audit also
+covers route database modules, handlers and handler tests, migration/source
+contract tests, the documentation contract test, and the two explicit
+helper-test paths in `.github/workflows/deploy.yml`. Current ownership and test
+commands follow the new paths; O1/O2 measurements and evidence above remain
+historical.
+
+The move changes only relative imports in runtime helpers and consumers.
+PostgreSQL retains atomic admission and daily caps; RPC timeouts, fail-closed
+result validation, stable errors, quota recovery, request pairing, deterministic
+assistant IDs, replay delays, and route persistence order remain unchanged.
+`response.ts` retains its existing `insight-chat/types.ts` dependency. Generated
+deployment identity remains at the shared root and is regenerated with the
+existing tool. No AI adapter, model setting, schema, dependency pin, endpoint
+name, or public payload changes.
+
+Production delta: **three runtime files / 506 lines relocated**, zero net
+runtime files or lines added, and no new declarations or wrappers. All three
+helpers and their colocated tests match the prior source after only the required
+relative-import substitutions. Functions still contain **368 non-test TypeScript
+files / 71,556 lines**; root shared modules decrease from 58 to 55.
+
+Local verification passed:
+
+- Focused helper, actual-SDK, route, source-guard, and migration-contract tests:
+  **98 tests / 6 steps**, with networking denied.
+- Complete Edge suite against a fresh disposable database: **2,048 tests / 190
+  steps**, zero failures and no database skips.
+- Complete catalog gate: **52 files / 388 assertions**. Database lint found no
+  schema errors. Advisor error-level gates passed, retaining the same **105
+  security / 80 performance warnings** recorded in O2; no SQL changed.
+- `make test-supabase-tooling`: **312 tooling tests**, plus the **19 DTO tooling
+  tests / 20 executable wire-contract tests** and shell checks.
+  `make validate-edge-dto-contract` also passed.
+- Recursive type checks of all **101 entrypoints**, lint (**746 files**), and
+  Functions/scripts formatting (**938 files**).
+- Generated bundle identities and all **101 endpoint configurations** verify;
+  **101 isolated graphs / 364 runtime files** validate. Each moved helper has
+  exactly the same three endpoint consumers.
+- The complete diff selects **all 101 Functions** in the deployment planner: the
+  changed workflow is a fleet-wide control path; deleted shared paths also
+  independently select the full fleet. This result does not authorize
+  deployment.
+- All **29 AI source fingerprints and two benchmark artifact digests** remain
+  unchanged. Historical AI evidence was neither rerun nor rewritten.
+- The directory guide covers **101 endpoints and 55 shared-root runtime
+  modules** exactly once; **182 local links** across the directory guide, Field
+  Chat README, and this RFC resolve. Old source paths remain only in historical
+  RFC records and the old-to-new map. Changed Markdown and `git diff --check`
+  pass.
+
+The database gate used a new isolated temporary project reconstructed from
+current source, with database/shadow ports **56332/56330**. The existing local
+stack was preserved; the Edge run explicitly denied default port 54322. The
+repository config remained unchanged. The gate replayed migrations, ran catalog
+and Edge tests, linted the database, and ran advisors using pinned CLI 2.109.1.
+Its temporary database container and volume were removed and their absence
+verified. Deno was 2.9.4. The user skill-link check still points to the original
+checkout; both reviewed package trees are byte-identical to this worktree.
+
+The independent concurrency and contract review found two stale workflow test
+paths; both were corrected before the gates, and the final review found no
+remaining issue. These are local working-tree checks, not exact-SHA Candidate
+Validation, hosted/device verification, or deployment evidence. Checkpoint O3
+separately and preserve the original AI acceptance checklist before selecting
+further organization work.

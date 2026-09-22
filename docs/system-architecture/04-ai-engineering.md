@@ -1319,7 +1319,7 @@ provider dispatch:
   undercounted for that partial UTC day. Explicit bundle-verified activation is
   still required. Token usage and bounded telemetry retain route-specific events
   without prompt/chat text or dictionary identity. All routes use
-  `_shared/fieldChatResponse.ts` so every empty/populated thread and action
+  `_shared/fieldChat/response.ts` so every empty/populated thread and action
   success echoes the exact requested scan/post/species as `subject_id`; iOS
   treats `200` as candidate evidence and validates that echo plus populated
   message/conversation identity before applying it. Every send requires a UUID
@@ -1327,7 +1327,7 @@ provider dispatch:
   metadata and projects it as `client_message_id`, allowing duplicate,
   transport, and quota replays to coalesce into one saved user/assistant pair. A
   new send reserves its two rows within the 30-row cap; UUID reuse with
-  different text fails explicitly. `_shared/fieldChatReservation.ts` calls the
+  different text fails explicitly. `_shared/fieldChat/reservation.ts` calls the
   service-only atomic admission RPC, which locks per user before a deterministic
   subject resource, secures the shared 20/day slot, creates or reuses the exact
   conversation, inserts the user row, and applies 30-row/unanswered-request

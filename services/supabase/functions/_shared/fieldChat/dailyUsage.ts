@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { publicHttpError } from "./http.ts";
+import { publicHttpError } from "../http.ts";
 
 function usageUnavailable() {
   return publicHttpError(
