@@ -2188,6 +2188,24 @@ resolution ends the exception.
 
 ### Scan response replay
 
+The `identify-multimodal`, `identify-describe`, `identify`, and `audio-spec`
+routes dispatch through the internal
+[`_shared/ai/` boundary](../../services/supabase/functions/_shared/ai/README.md).
+Their fixed Gemini bindings preserve admitted models, modality-specific settings
+and schemas, confidence, and public responses. Main description mode retains its
+own schema separately from legacy description. Ordered snapshots, accepted
+partial frame sets, and included audio remain inference evidence; playback video
+remains a storage/finalization input. Adapter outcomes do not become durable
+results until existing owner persistence/finalization succeeds. Legacy image
+safety and model/tier settings and legacy audio prompt/token budgets remain
+separate profiles. `audio-spec` retains the `scan_audio_identification` quota
+operation; the other identification routes retain `scan_identification`.
+Compatibility replay intents still target the primary endpoint under its
+existing admission and recovery rules. Execution/version facts are internal
+optional telemetry; no provider-selection request field or new Identify
+response/DTO field is introduced. The admission and replay rules below remain
+authoritative.
+
 `/identify-multimodal`, `/identify`, `/identify-describe`, and `/audio-spec` use
 the canonical scan UUID as both the response identity and paid-provider request
 identity. Before resolving staged media or reserving quota, each route loads
@@ -6468,6 +6486,17 @@ should be generated or returned. Similar-species generation is gated by taxonomy
 quality and cache state, not confidence, and the iOS gallery renders validated
 entries with the stable "Similar species" label.
 
+**Provider boundary**: Cache misses reserve the existing
+`scan_overview_enrichment` or `scan_lookalike_enrichment` quota, prepare the
+matching `_shared/ai/` task with that user permission/model/reservation, then
+commit immediately before invocation. Gemini remains the only live provider.
+Same-scope waiters await the cache write; if the leader fails, the original
+rejection reaches waiters and a new attempt requires fresh admission. An
+observer also handles failures when no waiter exists. Existing usage writes add
+bounded task/provider/version/duration/outcome metadata. Internal execution
+metadata is excluded by the public response formatters; no request or response
+field changes.
+
 **Scoped Cache Hits**: Each request checks its own cache requirements and
 returns only that scope's fields without AI work when satisfied. A metadata
 cache hit does not imply a lookalike cache hit. Missing alternative names can
@@ -9979,6 +10008,15 @@ species-level biology primitives behind `enrich-scan`, persists results to
 job succeeded or failed. It does not attach media to species and does not change
 scan identity; scan-to-species attachment remains owner publish through
 `confirmed_species_id`.
+
+The worker prepares these calls through `_shared/ai/` after the authenticated
+claim. Its `service_job` authority contains public-fact purpose, matching task,
+claimed job ID and current/max attempts, and fixed `gemini-2.5-flash`; it cannot
+authorize identification. Preview returns before preparation. Existing usage
+events retain a null user owner and add bounded execution metadata with null
+user policy version. Public jobs create no user quota or scan-credit
+reservation. The shared boundary does not change the service authentication,
+claim RPC, batch/concurrency limits, retry/completion rules, or public payloads.
 
 Lookalike generation is capped at three model candidates per job. Every
 candidate must resolve through GBIF as an exact accepted species (or an exact

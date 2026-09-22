@@ -13,7 +13,6 @@ struct ExplorePostCard: View {
     let onOpenHashtag: ((String) -> Void)?
     let onOpenInsight: (() -> Void)?
     let onEditPost: () -> Void
-    let onUnshare: () -> Void
     let onBlock: () -> Void
     let onReport: () -> Void
     var onReaction: (String, Bool) -> Void = { _, _ in }
@@ -23,7 +22,6 @@ struct ExplorePostCard: View {
     @State private var doubleTapHeartScale: CGFloat = 0.7
     @State private var doubleTapHeartOpacity = 0.0
     @State private var doubleTapHeartTask: Task<Void, Never>?
-    @State private var showUnpublishConfirmation = false
     @State private var isAudioBoostEnabled = false
     @State private var audioBoostActionToken: UUID?
 
@@ -68,12 +66,6 @@ struct ExplorePostCard: View {
         .onDisappear {
             doubleTapHeartTask?.cancel()
             doubleTapHeartTask = nil
-        }
-        .alert("Unpublish Post?", isPresented: $showUnpublishConfirmation) {
-            Button("Cancel", role: .cancel) { }
-            Button("Unpublish", role: .destructive, action: onUnshare)
-        } message: {
-            Text("This will remove the post from Explore. Your original scan will remain safely in your library.")
         }
     }
 
@@ -256,11 +248,6 @@ struct ExplorePostCard: View {
                 Button(action: onEditPost) {
                     Label("Edit post", systemImage: "square.and.pencil")
                 }
-
-                Button(role: .destructive, action: { showUnpublishConfirmation = true }) {
-                    Label("Unpublish post", systemImage: "minus.circle")
-                }
-                .tint(.red)
             } else {
                 Button(role: .destructive, action: onBlock) {
                     Label("Block user", systemImage: "person.crop.circle.badge.xmark")

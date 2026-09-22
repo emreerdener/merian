@@ -129,13 +129,13 @@ struct SpeciesDictionaryPageContentView: View {
             )
         }
 
-        if let species = viewModel.loadedSpecies,
-           let shareURL = SpeciesDictionaryShareContent.url(
-            speciesId: species.id,
-            commonName: species.commonName,
-            scientificName: species.scientificName
-           ) {
-            ToolbarItem(placement: .topBarTrailing) {
+        ToolbarItemGroup(placement: .bottomBar) {
+            if let species = viewModel.loadedSpecies,
+               let shareURL = SpeciesDictionaryShareContent.url(
+                speciesId: species.id,
+                commonName: species.commonName,
+                scientificName: species.scientificName
+               ) {
                 ShareLink(
                     item: shareURL,
                     subject: Text(species.commonName),
@@ -143,26 +143,22 @@ struct SpeciesDictionaryPageContentView: View {
                         commonName: species.commonName
                     ))
                 ) {
-                    Image(systemName: "square.and.arrow.up")
-                        .font(.system(size: 14, weight: .bold))
-                        .frame(width: 32, height: 32)
-                        .imageOverlayToolbarIconChrome(
-                            isFallbackActive: ImageOverlayToolbarChrome
-                                .shouldUseContainedBackground
-                        )
+                    HStack(spacing: 6) {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 14, weight: .semibold))
+                        Text("Share")
+                    }
+                    .padding(.horizontal, 8)
+                    .fixedSize()
                 }
-                .buttonStyle(.plain)
-                .imageOverlayToolbarButtonChrome(
-                    isFallbackActive: ImageOverlayToolbarChrome
-                        .shouldUseContainedBackground
-                )
+                .buttonStyle(.borderedProminent)
+                .tint(.accentColor)
                 .accessibilityLabel("Share species page")
             }
-        }
 
-        if fieldChatSpeciesID != nil {
-            ToolbarItemGroup(placement: .bottomBar) {
-                Spacer()
+            Spacer()
+
+            if fieldChatSpeciesID != nil {
                 FieldChatToolbarButton {
                     openDictionaryFieldChat()
                 }

@@ -24,9 +24,7 @@ final class SpeciesSearchViewModel {
         "Frogs with striped backs", "Trees with peeling bark", "Insects that look like leaves"
     ]
     var draft = ""
-    var selectedTab: SpeciesSearchResultKind = .species
-    var speciesScrollID: String?
-    var sightingsScrollID: String?
+    var resultsScrollID: String?
     private(set) var context: SpeciesSearchContext?
     private(set) var interpretation = ""
     private(set) var notice: String?
@@ -36,7 +34,7 @@ final class SpeciesSearchViewModel {
     private(set) var request: SpeciesSearchRequest?
     private(set) var isLoading = false
     private(set) var generation = UUID()
-    private var loadedTabs: Set<SpeciesSearchResultKind> = []
+    private var loadedSections: Set<SpeciesSearchResultKind> = []
     private var cursors: [SpeciesSearchResultKind: SpeciesSearchCursor] = [:]
     private var isReplacement = false
     private var clarificationContext: SpeciesSearchContext?
@@ -50,7 +48,10 @@ final class SpeciesSearchViewModel {
     convenience init() { self.init(dependencies: .live) }
     var hasResults: Bool { context != nil }
     var needsClarification: Bool { clarificationContext != nil }
-    var hasMore: Bool { cursors[selectedTab] != nil && !isLoading && errorMessage == nil }
+    func hasMore(_ kind: SpeciesSearchResultKind) -> Bool {
+        cursors[kind] != nil && !isLoading && errorMessage == nil
+    }
+    func hasLoaded(_ kind: SpeciesSearchResultKind) -> Bool { loadedSections.contains(kind) }
 
     func submit(_ question: String? = nil) {
         let text = (question ?? draft).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -80,11 +81,9 @@ final class SpeciesSearchViewModel {
         errorMessage = nil
         species = []
         sightings = []
-        loadedTabs = []
+        loadedSections = []
         cursors = [:]
-        selectedTab = .species
-        speciesScrollID = nil
-        sightingsScrollID = nil
+        resultsScrollID = nil
     }
     func setGroup(_ group: SpeciesSearchGroup?) {
         guard var context = filterContext else { return }
@@ -97,74 +96,83 @@ final class SpeciesSearchViewModel {
         context.media = media
         begin(question: nil, context: context, cursor: nil, replacement: true)
     }
-    func loadSelectedTab() {
-        guard !isLoading, errorMessage == nil, !loadedTabs.contains(selectedTab), let context else { return }
-        begin(question: nil, context: context, cursor: nil, replacement: false)
-    }
-    func loadMore() {
-        guard hasMore, let context, let cursor = cursors[selectedTab] else { return }
-        begin(question: nil, context: context, cursor: cursor, replacement: false)
+    func loadMore(_ kind: SpeciesSearchResultKind) {
+        guard hasMore(kind), let context, let cursor = cursors[kind] else { return }
+        begin(question: nil, context: context, cursor: cursor, replacement: false, resultKind: kind)
     }
     private var filterContext: SpeciesSearchContext? {
         if isLoading, isReplacement, request?.question == nil { return request?.context ?? context }
         return context
     }
     private func begin(question: String?, context: SpeciesSearchContext?, cursor: SpeciesSearchCursor?, replacement: Bool,
-                       resultKind: SpeciesSearchResultKind? = nil) {
+                       resultKind: SpeciesSearchResultKind = .species) {
         generation = UUID()
         isReplacement = replacement
         errorMessage = nil
         if replacement { notice = nil }
         isLoading = true
         request = SpeciesSearchRequest(requestId: UUID().uuidString.lowercased(), question: question,
-                                       context: context, resultKind: resultKind ?? selectedTab, cursor: cursor)
+                                       context: context, resultKind: resultKind, cursor: cursor)
     }
     func execute() async {
-        guard isLoading, let request else { return }
+        guard isLoading else { return }
         let token = generation
-        let replaces = isReplacement
-        do {
-            let response = try await dependencies.search(request)
-            guard generation == token else { return }
-            try Task.checkCancellation()
-            isLoading = false
-            if response.status != .results {
-                notice = response.message
-                clarificationContext = response.status == .clarification ? response.context : nil
-                if response.status == .clarification && draft == request.question { draft = "" }
+        // Both sections share one interpreted context and one cancellable task.
+        while let request {
+            let replaces = isReplacement
+            do {
+                try Task.checkCancellation()
+                let response = try await dependencies.search(request)
+                guard generation == token else { return }
+                try Task.checkCancellation()
+                if response.status != .results {
+                    isLoading = false
+                    notice = response.message
+                    clarificationContext = response.status == .clarification ? response.context : nil
+                    if response.status == .clarification && draft == request.question { draft = "" }
+                    return
+                }
+                if replaces {
+                    clarificationContext = nil
+                    species = []
+                    sightings = []
+                    loadedSections = []
+                    cursors = [:]
+                    resultsScrollID = nil
+                    context = response.context
+                    interpretation = response.message
+                }
+                if request.cursor == nil {
+                    if response.resultKind == .species {
+                        species = response.species
+                    } else {
+                        sightings = response.sightings
+                    }
+                } else {
+                    let speciesIDs = Set(species.map(\.id))
+                    species += response.species.filter { !speciesIDs.contains($0.id) }
+                    let postIDs = Set(sightings.map(\.id))
+                    sightings += response.sightings.filter { !postIDs.contains($0.id) }
+                }
+                loadedSections.insert(response.resultKind)
+                cursors[response.resultKind] = response.nextCursor
+                if request.question != nil && draft == request.question { draft = "" }
+                if let next = SpeciesSearchResultKind.allCases.first(where: { !loadedSections.contains($0) }),
+                   let context {
+                    // Context-only retrieval does not invoke interpretation again.
+                    isReplacement = false
+                    self.request = SpeciesSearchRequest(requestId: UUID().uuidString.lowercased(), question: nil,
+                                                       context: context, resultKind: next, cursor: nil)
+                } else {
+                    self.request = nil
+                    isLoading = false
+                }
+            } catch {
+                guard generation == token else { return }
+                isLoading = false
+                errorMessage = Task.isCancelled ? "Search was interrupted. Please retry." : dependencies.errorMessage(error)
                 return
             }
-            if replaces {
-                clarificationContext = nil
-                species = []
-                sightings = []
-                loadedTabs = []
-                cursors = [:]
-                speciesScrollID = nil
-                sightingsScrollID = nil
-                context = response.context
-                interpretation = response.message
-            }
-            if request.cursor == nil {
-                if response.resultKind == .species {
-                    species = response.species
-                } else {
-                    sightings = response.sightings
-                }
-            } else {
-                let speciesIDs = Set(species.map(\.id))
-                species += response.species.filter { !speciesIDs.contains($0.id) }
-                let postIDs = Set(sightings.map(\.id))
-                sightings += response.sightings.filter { !postIDs.contains($0.id) }
-            }
-            loadedTabs.insert(response.resultKind)
-            cursors[response.resultKind] = response.nextCursor
-            if request.question != nil && draft == request.question { draft = "" }
-            self.request = nil
-        } catch {
-            guard generation == token else { return }
-            isLoading = false
-            errorMessage = Task.isCancelled ? "Search was interrupted. Please retry." : dependencies.errorMessage(error)
         }
     }
 }

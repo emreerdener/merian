@@ -25,6 +25,14 @@ its iOS caller. The public dictionary read stays read-only.
 
 ## Structure
 
+The identification provider boundary is documented in
+[`functions/_shared/ai/`](functions/_shared/ai/README.md). Gemini remains the
+only enabled provider. The
+[local verification record](../../docs/rfcs/identification-foundation-verification.md)
+and [future-provider procedure](functions/_shared/ai/ADDING_PROVIDERS.md)
+distinguish completed source/local checks from candidate and production
+activation.
+
 ```text
 services/supabase/
   config.toml      # Supabase CLI and Edge Function configuration

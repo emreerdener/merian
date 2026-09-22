@@ -39,7 +39,7 @@ Deno.test("every Identify route validates provider and final wire values before 
       `${route.providerParser}(`,
     );
     const syntaxExtraction = source.indexOf(
-      "extractJson<unknown>(responseText)",
+      "result.draft",
       providerParse,
     );
     const payloadAssembly = source.indexOf(
@@ -194,8 +194,18 @@ Deno.test("provider policy rejection uses one stable terminal response across ev
   for (const path of scanProducerRoutes) {
     const source = (await Deno.readTextFile(new URL(path, import.meta.url)))
       .replaceAll(/\s+/g, " ");
-    assertStringIncludes(source, 'finishReason === "SAFETY"');
-    assertStringIncludes(source, 'finishReason === "PROHIBITED_CONTENT"');
+    const adapter = await Deno.readTextFile(
+      new URL("../_shared/ai/gemini.ts", import.meta.url),
+    );
+    assertStringIncludes(adapter, 'finishReason === "SAFETY"');
+    assertStringIncludes(adapter, 'finishReason === "PROHIBITED_CONTENT"');
+    assertStringIncludes(
+      source,
+      path === "../identify-describe/index.ts" ||
+        path === "../identify/index.ts"
+        ? 'const isPermanentContentFailure = result.kind === "refusal"'
+        : 'const isPermanent = result.kind === "refusal"',
+    );
     assert(
       /if \(isPermanent(?:ContentFailure)?\) \{ return publicErrorResponse\( req, 400, "observation_rejected", "We couldn’t process this observation[.] Please try a different photo or recording[.]", \); \}/
         .test(

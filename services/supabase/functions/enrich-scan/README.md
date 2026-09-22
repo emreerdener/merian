@@ -26,11 +26,15 @@ The module is broken down by domain responsibility to keep the critical HTTP
 router readable:
 
 - **`index.ts`** The HTTP orchestrator validates the scoped request, evaluates
-  its cache path, and reserves quota before provider work on a miss. Separate
+  its cache path, and reserves quota before provider work on a miss. It prepares
+  the matching task through `../_shared/ai/production.ts` with the admitted
+  model, permission, and reservation before committing and invoking. Separate
   in-flight maps deduplicate same-species work within each scope on a warm
   isolate. `formatEnrichmentOnlyPayload` and `formatLookalikesOnlyPayload`
   return only the selected scope's fields; there is no combined generation
-  branch.
+  branch. Cache writes finish before waiters are released. Rejected in-flight
+  promises have an observer even without waiters; waiters still receive the
+  rejection and need fresh quota admission before another attempt.
 - **`types.ts`** Strict interfaces mapping the `CachedSpeciesData` from
   Postgres, removing dangerous `as any` type-casting from the orchestrator.
 - **`db.ts`** Encapsulated database procedures. Safely manages the
@@ -43,15 +47,19 @@ If you need to adjust what data is generated during an enrichment check, do not
 edit `enrich-scan` directly. Merian heavily re-uses atomic AI agents located
 globally across the API:
 
-- `../_shared/encyclopedic.ts`: The generative AI prompt that extracts habitat,
-  taxonomy, hazard, and color context.
-- `../_shared/similar-species.ts`: The AI agent that calculates visual and
-  biological lookalikes.
+- `../_shared/biology.ts`: `fetchStaticEncyclopedicData` generates habitat,
+  taxonomy, hazard, and color context; `fetchSimilarSpecies` generates visual
+  lookalikes. Both receive a prepared task execution carrying the caller's
+  admitted Gemini model. `../_shared/ai/geminiContent.ts` owns their native
+  prompts and schemas; `../_shared/ai/contentRegistry.ts` owns task settings.
 - `../_shared/external.ts`: Wikipedia/GBIF enrichment. Its reference images must
   pass `../_shared/externalImagePolicy.ts` before the response or species cache
   write is built. The current exact rule suppresses iNaturalist media
   `605615444` only; it does not suppress the species or provider.
 
-Provider calls use the model selected by the existing quota reservation. Cache,
-provider admission, persistence, and authorization behavior are unchanged by the
-native endpoint organization.
+Provider calls use the model selected by the existing quota reservation. The
+existing usage write includes bounded provider/task/version/duration metadata;
+the public response formatters exclude internal execution metadata. Request and
+response shapes, consent, cache scopes, persistence, and quota settlement remain
+unchanged. `../_shared/ai/content_test.ts` exercises these lifecycles with
+deterministic provider and database dependencies, without live calls.

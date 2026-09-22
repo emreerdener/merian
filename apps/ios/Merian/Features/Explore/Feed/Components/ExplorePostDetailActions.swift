@@ -5,7 +5,8 @@ struct ExplorePostDetailMenuButton: View {
     let allowsInsightPresentation: Bool
     let onOpenInsight: () -> Void
     let onEditPost: () -> Void
-    let onUnpublish: () -> Void
+    let showsShareAction: Bool
+    let onShare: () -> Void
     let showsFieldChatAction: Bool
     let onFieldChat: () -> Void
     let onBlockAuthor: () -> Void
@@ -39,11 +40,20 @@ struct ExplorePostDetailMenuButton: View {
                 }
             }
 
+            if showsShareAction {
+                Button(action: onShare) {
+                    Label("Share", systemImage: "square.and.arrow.up")
+                }
+                .accessibilityLabel("Share post")
+            }
+
             if showsFieldChatAction {
                 Button(action: onFieldChat) {
-                    Label("Field chat", systemImage: "sparkles")
+                    Label("Field chat", systemImage: "sparkles.2")
                 }
+            }
 
+            if showsShareAction || showsFieldChatAction {
                 Divider()
             }
 
@@ -69,11 +79,6 @@ struct ExplorePostDetailMenuButton: View {
         Button(action: onEditPost) {
             Label("Edit post", systemImage: "square.and.pencil")
         }
-
-        Button(role: .destructive, action: onUnpublish) {
-            Label("Unpublish post", systemImage: "minus.circle")
-        }
-        .tint(.red)
     }
 
     @ViewBuilder

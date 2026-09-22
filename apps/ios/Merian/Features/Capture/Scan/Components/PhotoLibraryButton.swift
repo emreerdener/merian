@@ -20,7 +20,7 @@ struct PhotoLibraryButton: View {
         ZStack {
             if isCheckingAdmission {
                 ProgressView()
-                    .tint(.white)
+                    .tint(.primary)
                     .accessibilityHidden(true)
             } else if let thumbnail = latestThumbnail {
                 Image(uiImage: thumbnail)
@@ -31,10 +31,10 @@ struct PhotoLibraryButton: View {
             } else {
                 Image(systemName: "photo.on.rectangle")
                     .font(.system(size: 20, weight: .medium))
-                    .foregroundColor(.white)
+                    .foregroundColor(.primary)
             }
         }
-        .circularMaterialControl(colorScheme: .dark)
+        .captureAuxiliaryControl()
         .accessibilityIdentifier("PhotoLibraryButton")
     }
     

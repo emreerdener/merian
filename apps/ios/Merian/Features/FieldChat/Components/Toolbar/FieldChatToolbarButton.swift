@@ -6,7 +6,7 @@ struct FieldChatToolbarButton: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 6) {
-                Image(systemName: "sparkles")
+                Image(systemName: "sparkles.2")
                     .font(.system(size: 14, weight: .semibold))
                 Text("Field chat")
             }

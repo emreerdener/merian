@@ -114,8 +114,9 @@ a conversation.
 
 Every loaded detail whose returned `SpeciesDictionaryEntry.id` is a valid UUID
 shows `FieldChatToolbarButton` at the bottom right. Loading, error, not-found,
-and noncanonical-ID states hide the bottom bar; the native Share action remains
-in the top bar. Because direct, deep-linked, and similar-species routes all use
+and noncanonical-ID states hide the bottom bar. A blue Share button sits at the
+bottom left, opposite Field chat, and opens the native share sheet. Because
+direct, deep-linked, and similar-species routes all use
 `SpeciesDictionaryPageContentView`, they share this behavior.
 
 A Free viewer opens the existing `PaywallView`. A Pro viewer preflights

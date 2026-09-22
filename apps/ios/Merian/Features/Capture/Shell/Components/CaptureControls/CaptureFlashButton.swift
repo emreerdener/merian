@@ -16,8 +16,8 @@ struct CaptureFlashButton: View {
                     : "bolt.slash.fill"
             )
             .font(.system(size: 20, weight: .medium))
-            .foregroundColor(isFlashEnabled ? .yellow : .white)
-            .circularMaterialControl(colorScheme: .dark)
+            .foregroundColor(isFlashEnabled ? .yellow : .primary)
+            .captureAuxiliaryControl()
         }
         .buttonStyle(.plain)
         .padding(.trailing, 32)

@@ -269,6 +269,15 @@ Deno.test("active and compatibility audio producers share normalization before e
   const compatibilitySource = await Deno.readTextFile(
     new URL("../../audio-spec/index.ts", import.meta.url),
   );
+  const instructions = await Deno.readTextFile(
+    new URL("../../identify-multimodal/instructions.ts", import.meta.url),
+  );
+  const compatibilityInstructions = await Deno.readTextFile(
+    new URL("../../audio-spec/instructions.ts", import.meta.url),
+  );
+  const adapter = await Deno.readTextFile(
+    new URL("../ai/gemini.ts", import.meta.url),
+  );
 
   for (const source of [activeSource, compatibilitySource]) {
     const normalization = source.indexOf(
@@ -280,16 +289,16 @@ Deno.test("active and compatibility audio producers share normalization before e
   }
 
   assertStringIncludes(
-    activeSource,
+    instructions,
     "BLENDED_AUDIO_SUBJECT_PRECEDENCE_INSTRUCTION",
   );
   assertStringIncludes(
-    compatibilitySource,
+    compatibilityInstructions,
     "AUDIO_ONLY_SUBJECT_SELECTION_INSTRUCTION",
   );
   for (const source of [activeSource, compatibilitySource]) {
     assertStringIncludes(source, "parseMerianAudioIdentification");
-    assertStringIncludes(source, "getMerianAudioResponseSchema");
   }
+  assertStringIncludes(adapter, "getMerianAudioResponseSchema");
   assertEquals(compatibilitySource.includes("const audioSchema"), false);
 });

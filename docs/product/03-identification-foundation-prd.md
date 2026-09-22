@@ -1,11 +1,17 @@
 # Naturebook AI Provider Flexibility — PRD
 
 Document ID: NB-PRD-IDENTIFICATION-001\
-Version: 0.4\
-Date: 10 September 2026\
-Status: Active infrastructure plan; Gemini remains the only enabled provider\
+Version: 0.5\
+Date: 21 September 2026\
+Status: Implemented locally; release acceptance remains open; Gemini only\
 Suggested owners: Backend and Product, with iOS contract review\
 Companion: [Provider Flexibility SRD](../rfcs/identification-foundation-srd.md)
+
+All six implementation slices have local source and verification evidence in the
+[completion record](../rfcs/identification-foundation-verification.md).
+Exact-SHA candidate validation, hosted/device acceptance, and an explicitly
+authorized production rollout remain separate requirements. This status does not
+claim that another provider is integrated or that production has changed.
 
 ## 1. Goal and benefit
 

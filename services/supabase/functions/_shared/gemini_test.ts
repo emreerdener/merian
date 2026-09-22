@@ -1,10 +1,6 @@
 import { assert, assertEquals, assertRejects, assertThrows } from "@std/assert";
 import { ApiError, MediaModality } from "@google/genai";
-import {
-  _genAI,
-  createFlashModel,
-  GEMINI_REQUEST_TIMEOUT_MS,
-} from "./gemini.ts";
+import { _genAI, GEMINI_REQUEST_TIMEOUT_MS } from "./gemini.ts";
 import {
   buildFieldChatReplyRequest,
   extractFieldChatReplyJson,
@@ -191,25 +187,6 @@ Deno.test("Gemini SDK preserves Merian's provider boundary", async (t) => {
           modality: MediaModality.IMAGE,
           tokenCount: 10,
         }]);
-      },
-    );
-
-    await step(
-      "Flash wrapper retains zero thinking and caller configuration",
-      async () => {
-        inspect = (body) => {
-          const config = body.generationConfig as Record<string, unknown>;
-          assertEquals(config.thinkingConfig, { thinkingBudget: 0 });
-          assertEquals(config.maxOutputTokens, 256);
-          assertEquals(config.temperature, 0.3);
-        };
-        await createFlashModel("Synthetic system", 256).generateContent({
-          contents: request.contents as {
-            role: string;
-            parts: { text: string }[];
-          }[],
-          config: { temperature: 0.3 },
-        });
       },
     );
 

@@ -129,8 +129,9 @@ envelopes without that optional metadata remain valid. The normative contract is
 
 ## Model And Generation Invariants
 
-Each accepted scan makes exactly one primary identification
-`_genAI.models.generateContent` call. The model comes from the atomic
+Each provider-owning attempt makes one primary identification call through
+[`_shared/ai/`](../_shared/ai/README.md). Completed replays make none. The fixed
+Gemini adapter owns the native SDK dispatch. The model comes from the atomic
 `scan_identification` database policy; the current policy is:
 
 - Free: `gemini-2.5-flash`
@@ -141,11 +142,24 @@ the plan's UTC-day scan ceiling, and consumes the shared per-user/IP minute
 limits. Missing user rows, entitlement/database errors, disabled or missing
 policy, and exhausted counters fail closed before provider dispatch.
 
+`provider.ts` builds the canonical request from already validated and prepared
+evidence. The registry captures the admitted model, tier, prompt/schema, and
+generation settings before commitment. `instructions.ts` owns the unchanged
+audio, main-text, and blended instructions; the shared Identify schema module
+retains the vision instruction. The handler still owns media validation,
+consent/quota admission, one commit followed by one invocation, domain and wire
+validation, and durable finalization. Service replay still uses the owner's
+admission and separately metered replay request ID. No client or environment
+provider selector is introduced.
+
 The route retains the existing modality-specific system instructions,
 temperature `0.1`, seed `42`, `maxOutputTokens: 8192`, Pro thinking budget
-`5000`, structured response schema, image/media resolution, and safety behavior.
-Latency optimization must happen around this call, not by changing its economics
-or identification semantics.
+`5000`, unspecified Flash thinking budget, structured response schema,
+image/media resolution, and safety behavior. Neither tier adds `topK` or a
+safety-settings override. Main description-only mode retains the main schema and
+remains distinct from legacy `identify-describe`. Latency optimization must
+happen around this call, not by changing its economics or identification
+semantics.
 
 ## Audio Subject Selection
 
@@ -187,12 +201,13 @@ provider schema and the checked-in Swift DTO block, while its runtime parser
 enforces nested types, requiredness, nullability, enum values, cardinality and
 string limits, safe integers, and numeric bounds.
 
-The route validates the provider object immediately after JSON extraction. It
-validates the full `{ success, data }` envelope again after sanitization,
-dictionary hydration, candidate enrichment, and server-added fields, before
-durable video finalization, persistence, or HTTP success. A final mismatch marks
-the ingestion job retryable and returns HTTP `502` with
-`identify_response_invalid`; internal contract detail is logged but not exposed.
+The adapter extracts the JSON draft; the route immediately validates that object
+against the existing modality contract. It validates the full
+`{ success, data }` envelope again after sanitization, dictionary hydration,
+candidate enrichment, and server-added fields, before durable video
+finalization, persistence, or HTTP success. A final mismatch marks the ingestion
+job retryable and returns HTTP `502` with `identify_response_invalid`; internal
+contract detail is logged but not exposed.
 
 Provider failure semantics stay aligned with every scan producer. A Gemini
 `SAFETY` or `PROHIBITED_CONTENT` finish returns stable HTTP
@@ -247,7 +262,12 @@ removal, and final scan deletion erase the stored envelope.
   `captured_media`, and normalized as a ready audio asset for optional Explore
   sharing.
 - Video inference is represented by sampled image frames plus optional extracted
-  audio. The playback `.mp4` is not sent to Gemini.
+  audio. The playback `.mp4` is not sent to Gemini. The canonical request
+  preserves positional source/clip/frame descriptors, included companion audio,
+  and accepted partial frame sets. Evidence remains ordered as observation text,
+  visual-context text, images, processed WAVs, and capture-context text.
+  Playback keys and storage URLs remain with the orchestration and persistence
+  owners.
 - New video scans require durable playback video promotion. If
   `videoR2ObjectKeys` is non-empty, every requested video must be promoted and
   persisted in `scans.video_storage_urls` and `scans.captured_media` before the
@@ -349,8 +369,9 @@ singular `SUPABASE_SECRET_KEY` local/manual fallback, or the migration-only
 Named non-JWT secrets use `apikey` only; database access uses the server
 environment key rather than the request value.
 
-The Gemini timer stops immediately after `generateContent` returns, before
-finish-reason processing, JSON parsing, dictionary work, or persistence. After
+The adapter captures native invocation duration and completion time immediately
+after `generateContent` returns, before finish-reason processing or JSON
+parsing. The route uses these facts for its existing Gemini timers. After
 parsing, `hydrate_identification_dictionary` returns cached primary-species data
 and candidate common names in one service-role-only RPC. Moderation, required
 media promotion, and the scan insert complete before the route returns success
@@ -454,8 +475,10 @@ remain in the existing broader spans. Failure responses and idempotent replay
 responses do not emit this successful-request event.
 
 The structured `multimodal/latency` event is tagged by tier, model, image count,
-payload bytes, Edge region, and constrained-network state. It must not include
-user ID, scan ID, species, coordinates, media keys, or request contents.
+payload bytes, Edge region, and constrained-network state. It also records
+bounded provider, binding, prompt, schema, policy-version, execution-context,
+and returned-model references. It must not include user ID, scan ID, species,
+coordinates, media keys, or request contents.
 
 Late shutter context is sent separately to `/update-scan-context`, keyed by the
 same `scan_id`; it never changes this request or creates another model call.
@@ -544,6 +567,18 @@ deployment: `audio-spec`, `identify`, `identify-describe`, and
 `identify-multimodal`. Validation does not authorize deployment.
 
 ## Local Verification
+
+`provider.test.ts` exercises this handler with a deterministic test-only adapter
+and database doubles, including actual evidence preprocessing, admission,
+failure settlement, saved replay, uncertain persistence, and durable completion
+after foreground cancellation. `_shared/ai/ai_test.ts` intercepts actual Gemini
+SDK HTTP to check every primary input profile on both tiers, media order,
+partial snapshots, companion audio, native timing, and safety projection. These
+tests run without network permission:
+
+```sh
+deno test --frozen --config services/supabase/functions/deno.json --allow-env --allow-read=. services/supabase/functions/identify-multimodal/provider.test.ts services/supabase/functions/_shared/ai/ai_test.ts
+```
 
 ```sh
 deno check --config services/supabase/functions/deno.json services/supabase/functions/identify-multimodal/index.ts services/supabase/functions/update-scan-context/index.ts services/supabase/functions/_shared/identify/latencyDb.ts

@@ -39,6 +39,9 @@ TestFlight, App Store, support, and QA.
 
 ### Interface
 
+- Capture's auxiliary buttons now share circular Liquid Glass styling, with
+  colored dictation and audio-confirmation states and adaptive neutral icons.
+
 - Keep dismissed unavailable-media notices hidden when reloading Profile; show
   them again when the unavailable-media count increases.
 

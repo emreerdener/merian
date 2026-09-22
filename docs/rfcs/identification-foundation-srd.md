@@ -1,9 +1,9 @@
 # Naturebook AI Provider Flexibility — SRD
 
 Document ID: NB-SRD-IDENTIFICATION-001\
-Version: 0.4\
-Date: 10 September 2026\
-Status: Active infrastructure plan; Gemini remains the only enabled provider\
+Version: 1.0\
+Date: 21 September 2026\
+Status: Implemented locally; release acceptance remains open; Gemini only\
 Suggested owners: Backend and Product, with iOS contract review\
 Product authority:
 [Provider Flexibility PRD](../product/03-identification-foundation-prd.md)
@@ -24,8 +24,22 @@ model cascades, and family plans remain deferred.
 This revision supersedes the earlier plan to add OpenAI during the initial
 milestone. Repository contracts were reviewed on 2 September 2026, with timeout,
 service-job admission, and retry semantics rechecked on 10 September 2026. New
-module/metadata names below are proposed; this document is not production-state,
-benchmark, implementation, or deployment evidence.
+module/metadata names below describe the target boundary. The slice tracker
+distinguishes local implementation evidence from the remaining requirements;
+this document does not establish production deployment or production latency.
+
+The [21 September baseline](./identification-foundation-baseline.md) records
+pre-extraction source ownership, Gemini settings, test coverage, and remaining
+gaps. Slices 1–6 are complete locally: the shared boundary now serves
+`identify-multimodal`, `identify-describe`, `identify`, and `audio-spec`
+requests with their distinct profiles, plus biological overview, lookalike, and
+group-tag tasks for user enrichment and claimed public jobs. Section 9 records
+progress separately from the requirements below. The
+[Slice 6 verification record](./identification-foundation-verification.md) maps
+the final inventory, measured local overhead, complete disposable-database
+evidence, return compatibility, and remaining exact-SHA/hosted/device
+acceptance. Deferred consumers retain their existing Gemini paths; no production
+rollout or second-provider integration is claimed.
 
 | Current boundary                                                                                                                                                                         | Planning consequence                                                                                            |
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
@@ -54,7 +68,7 @@ Sources:
 [sampling policy](../../apps/ios/Merian/Features/Capture/Scan/Models/CaptureScanMediaModels.swift),
 [media preparation](../../apps/ios/Merian/Features/Capture/Scan/Services/CaptureScanVideoMediaPreparer.swift),
 and
-[provider input assembly](../../services/supabase/functions/identify-multimodal/index.ts).
+[provider input assembly](../../services/supabase/functions/identify-multimodal/provider.ts).
 
 ## 2. Shared provider boundary
 
@@ -63,10 +77,10 @@ and lookalike generation, group tags, and related content workers. Record each
 caller's task, actual inference inputs, quota operation, permission, cache, and
 result consumer. Preserve existing quota-operation and usage-ledger names.
 
-Field/Insight, Explore-post, and Dictionary chat migrations and replacement of
-public-audio moderation are outside scope. Preserve these consumers when
-changing shared helpers. Keep an explicit list of deferred Gemini dispatch
-sites.
+Field/Insight, Explore-post, and Dictionary chat migrations, species-discovery
+search, and replacement of public-audio moderation are outside scope. Preserve
+these consumers when changing shared helpers. Keep an explicit list of deferred
+Gemini dispatch sites.
 
 **SRD-PF-02 — Adapter ownership.** Introduce a small `_shared/ai/` boundary for
 canonical task types, the approved registry, execution, and Gemini integration.
@@ -440,11 +454,299 @@ procedure; it does not claim that a second provider can already be activated.
 | P3    | Tests and future-provider procedure                            | Gemini parity, production rejection of test/unknown providers, deterministic interface substitution, and documented later integration gates. |
 | P4    | Existing infrastructure release process                        | Controlled Gemini-backed rollout and verified return to the previous implementation/configuration.                                           |
 
+### Implementation slices
+
+P0–P4 are milestone groups. Deliver the work through the sequential slices
+below, with one or more focused PRs per slice. Each migrated caller includes its
+own behavioral tests; slice 6 verifies the complete flow. Keep the existing
+caller path until its replacement passes the relevant checks, without duplicate
+live provider calls. Gemini remains the only enabled provider in every slice.
+
+| Slice                                              | Scope and primary files                                                                                                                                                                                                                                            | Depends on | Acceptance and evidence                                                                                                                                                                                                                                                                          | Status                              |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------- |
+| S1 — Establish the baseline                        | Inventory scoped and deferred dispatches, input/configuration variants, admission, persistence, usage, and test coverage. Characterize existing biological content helpers before extraction.                                                                      | None       | [Baseline and verification record](./identification-foundation-baseline.md), including remaining test and measurement gaps. No production behavior change.                                                                                                                                       | Complete locally, 21 September 2026 |
+| S2 — First complete path                           | Add the minimal common contracts, Gemini adapter, approved registry, and attempt snapshot under `_shared/ai/`; migrate the provider block in `identify-describe/index.ts`. Include both context variants in the contract, with owner admission used by this route. | S1         | T-ADAPTER, T-ROUTING, T-CONSENT, T-RECOVERY, and T-USAGE for this path. Exercise the actual request builder/executor, admitted model, exact options/schema, commit/failure order, and completed replay. A network-free test adapter proves caller substitution and is unavailable to production. | Complete locally, 21 September 2026 |
+| S3 — Primary identification                        | Migrate `identify-multimodal/index.ts`, including image-only, description-only, audio-only, ordered snapshots, and combined media. Retain shared validation and durable finalization owners.                                                                       | S2         | Relevant T-ADAPTER through T-USAGE cases, including independent timeouts, accepted partial frames, included audio, and one primary invocation. Preserve each existing mode's configuration.                                                                                                      | Complete locally, 21 September 2026 |
+| S4 — Remaining identification routes               | Migrate the provider blocks in `identify/index.ts` and `audio-spec/index.ts`; preserve their compatibility-ledger and replay-intent handoff to the primary endpoint.                                                                                               | S3         | Route-specific request/configuration parity, admission and settlement, public result compatibility, and recovery through the primary endpoint.                                                                                                                                                   | Complete locally, 21 September 2026 |
+| S5 — Supporting content and jobs                   | Migrate `biology.ts` tasks and their `groupTagQuota.ts`, `enrich-scan`, and `refresh-species-model-content` callers. Keep user and service authority distinct.                                                                                                     | S4         | Existing and added content behavior tests; cache hits avoid inference; public jobs retain claims/bounds and service usage without scan-credit charges; owner-scoped jobs retain permission checks.                                                                                               | Complete locally, 21 September 2026 |
+| S6 — Complete verification and release preparation | Remove obsolete scoped direct dispatches, check the deferred-call allowlist, complete the acceptance matrix and future-provider procedure, and prepare controlled rollout evidence.                                                                                | S5         | All T-* groups; complete affected-surface gates; overhead measurements and return-path compatibility. Runtime rollout requires the existing explicit operation/target authorization.                                                                                                             | Complete locally, 21 September 2026 |
+
+The first migration uses the legacy text-only endpoint as a bounded integration
+path. The current app's description requests already use `identify-multimodal`,
+and legacy durable retries also re-enter that primary route. S2 must preserve
+the legacy text-only schema; S3 separately covers the primary route's
+description mode. These modes must not be merged merely because both accept
+text.
+
+Record local checks and outstanding gates with each slice's evidence; add PR or
+commit links when they exist. A local completion does not imply candidate
+validation, hosted rollout, or physical-device acceptance. No new skill is a
+prerequisite; use the existing repository skills and extract a reusable
+provider-onboarding procedure after the adapter workflow is established.
+
+### Slice 2 local evidence — 21 September 2026
+
+Implementation ownership and preserved request settings are documented in
+[`_shared/ai/README.md`](../../services/supabase/functions/_shared/ai/README.md).
+The production composition enables only `gemini_baseline_v1` for legacy
+description requests. The service-job authority type is present; identification
+rejects it, and public content-job bindings wait for S5. Local credential/config
+validation precedes commitment. The current consent, quota, finalization,
+refusal, and durable-replay owners are preserved.
+
+The actual handler now runs with a deterministic adapter in tests. Assertions
+cover replay without provider preparation; consent denial; setup/configuration
+and commit failures; one charged invocation; policy refusal; malformed output;
+successful owner persistence with unchanged token usage; and ambiguous database
+writes retaining recovery ownership. SDK tests exercise both complete Gemini
+profiles, immutable configuration, prepared-input stability, nullable usage,
+finish/error mapping, and the existing 90-second deadline without network
+permission. Independent read-only review found no blocking issues.
+
+Validation completed locally:
+
+- Focused describe/adapter and contract checks: **59 tests, 26 steps passed**.
+  The additional durable-ledger ordering check and handler rerun passed **14
+  tests, 16 steps** after adapting the dispatch-owner assertion.
+- Complete Edge suite: **2,036 reported passes, 43 steps, 6 ignored, zero
+  failures** with local database destinations denied. **114 database integration
+  cases logged skips** within that result; this is not database-validation
+  evidence. `SUPABASE_DB_TEST_URL` was unset.
+- Recursive type check of `identify-describe/index.ts`; recursive formatting
+  (**924 files**) and lint (**735 files**); **101** synchronized function
+  configurations and isolated graphs across **357** runtime files passed.
+- `make test-supabase-tooling` passed, including **312** tooling tests, **19**
+  Identify DTO tests and **20** Captured Media DTO tests, plus executable
+  contract validation. No public/generated DTO change was needed.
+
+The existing optional `ScanCompleted` event now carries bounded execution/model
+references and duration. Scan-row usage fields and ledger operations are
+unchanged. Missing usage remains unknown; optional telemetry and historical
+failed/uncertain-attempt accounting gaps remain. There is no new persisted
+cross-retry configuration record.
+
+Disposable-database/catalog/concurrency candidate validation, hosted smokes,
+live-provider quality, and full-flow overhead measurement remain open. No SDK,
+SQL, iOS implementation, deployment, or live alternate-provider change is part
+of this slice.
+
+### Slice 3 local evidence — 21 September 2026
+
+The primary `identify-multimodal` handler now uses the shared Gemini binding.
+Its request builder preserves ordered observation/visual text, resolved images,
+processed WAVs, capture context, and positional source/frame/clip lineage.
+Five-snapshot, accepted partial-snapshot, and included companion-audio inputs
+retain their behavior; playback video keys remain with storage/finalization. All
+three extracted main-route prompt constants match the pre-extraction source
+exactly. Main text and legacy description retain separate schemas and settings.
+
+The admitted model remains database-selected. Main profiles keep temperature
+0.1, seed 42, 8192 output tokens, the admitted Pro tier's 5000 thinking budget,
+and unspecified Flash thinking. Existing safety probabilities reach the same
+moderation policy. Native invocation timing is captured before decoding and
+keeps the existing provider/commit spans separate. Successful latency telemetry
+adds bounded execution references; public JSON, durable usage, quota operations,
+consent, and retry/finalization ownership are unchanged.
+
+Validation completed locally:
+
+- Focused main handler, adapter, audio policy, quota and wire-contract checks:
+  **96 tests, 51 steps passed**. A follow-up production-composition guard passed
+  **12 tests** after extending it to both migrated routes.
+- SDK interception compares actual native requests for ten primary evidence
+  cases on both tiers. Handler tests exercise real preprocessing and quota,
+  ledger, and persistence helpers with database doubles, including zero-call
+  saved replay, denied admission, setup/commit failure, charged failure,
+  refusal, invalid output, metered service replay, usage/timing, uncertain
+  writes, and foreground cancellation followed by durable completion/replay.
+- Complete Edge suite: **2,038 reported passes, 84 steps, 6 ignored, zero
+  failures**, with local database destinations denied. **114 database
+  integration cases logged skips** within those reported passes;
+  `SUPABASE_DB_TEST_URL` was unset. This does not establish database
+  correctness.
+- Recursive type checks of `identify-multimodal`, `identify-describe`, and
+  `identify` passed. Recursive lint covered **738 files**; **101** function
+  configurations and isolated dependency graphs across **359** runtime files
+  passed.
+- Supabase tooling passed **312 tests**, plus **19** Identify DTO and **20**
+  Captured Media DTO tests. The separate generated-contract gate also passed; no
+  public schema or generated DTO change was needed.
+- Recursive Edge formatting passed for **927 files**; the changed-Markdown gate
+  passed for **23 files**, and `git diff --check` passed. Independent read-only
+  review found no remaining code or documentation findings.
+
+Disposable-database/catalog/concurrency candidate validation, hosted smokes,
+live-model qualification, and full-flow overhead measurement remain open. No
+SQL, iOS implementation, deployment, or live alternate provider was introduced.
+
+### Slice 4 local evidence — 21 September 2026
+
+The `identify` and `audio-spec` compatibility handlers now use the shared Gemini
+binding. Image context, image order, optional description, explicit safety
+settings, model-selected generation/prompt settings, and independently
+tier-selected schema settings are preserved. Legacy audio keeps its distinct
+prompt (verified against pre-extraction source), processed WAV, 2048 output and
+thinking budgets on both models, 0.95 candidate threshold, and
+`scan_audio_identification` operation. The adapter preserves the legacy
+first-part text fallback without adding it to the primary route.
+
+Both handlers prepare before commitment and invoke once. Existing moderation,
+required media promotion, owner persistence, completion fallback, and staged
+replay handoff to `identify-multimodal` remain with their existing owners. Image
+cached-token storage and legacy audio's null cached-token field are unchanged.
+Image parse logs no longer include a provider-response preview. Optional image
+`ScanCompleted` and audio `AudioScanCompleted` events add bounded execution
+facts. Independent review caught and corrected their duration field to use
+native invocation time; the analogous legacy-description field was corrected and
+tested in the same change.
+
+Validation completed locally:
+
+- SDK interception covers sixteen image/audio compatibility request cases across
+  model and tier, including intentionally independent model/tier values. It
+  checks prompts, schemas, options, media order, safety, prepared-input
+  stability, and legacy fallback behavior.
+- Actual-handler tests exercise real preprocessing, moderation, quota, ledger,
+  and persistence helpers with synthetic dependencies: denied admission,
+  setup/commit failures, charged failures, refusals, successful promotion and
+  usage, saved replay, inline redaction, staged replay-request reconstruction,
+  unknown writes retaining media/quota, and compatibility success after proven
+  insertion when finalization fails. Telemetry tests distinguish native
+  invocation duration from executor duration for all compatibility routes.
+- Focused SDK/compatibility tests passed **6 tests, 88 steps**. The complete
+  Edge suite reported **2,040 passes, 142 steps, 6 ignored, zero failures** with
+  local database destinations denied. **114 database integration cases logged
+  skips** within those reported passes; `SUPABASE_DB_TEST_URL` was unset. This
+  does not establish database correctness.
+- Recursive type checks of all four migrated handlers, lint (**742 files**),
+  synchronized configurations (**101 functions**), and isolated dependency
+  graphs (**362 runtime files**) passed.
+- Supabase tooling passed **312 tests**, plus **19** Identify DTO and **20**
+  Captured Media DTO tests. The separate generated-contract gate also passed; no
+  public schema or generated DTO change was needed.
+- Recursive Edge formatting passed for **931 files**; the changed-Markdown gate
+  passed for **28 files**, and `git diff --check` passed.
+
+Disposable-database/catalog/concurrency validation, hosted smokes, live-model
+qualification, and full-flow overhead measurement remain open. No SQL, public
+DTO, iOS implementation, deployment, or alternate provider was introduced. S5 is
+next: supporting biological content helpers and their user/service callers.
+
+### Slice 5 local evidence — 21 September 2026
+
+All three `biology.ts` helpers now receive a prepared task execution. Native
+content prompts, schemas, locale, and taxonomy projection live in
+`_shared/ai/geminiContent.ts`; `contentRegistry.ts` binds their existing
+settings. User callers prepare with the database-admitted model, Gemini
+permission, quota operation, and reservation before commitment.
+`groupTagQuota.ts` retains derived request IDs and parent scan linkage. The
+public worker prepares from its authenticated claim, matching public-fact task,
+attempt/max bounds, and fixed Flash model. Service work has no user permission
+or quota-policy version, creates no scan-credit reservation, and retains null
+usage ownership.
+
+Prompts and requests preserve temperature `0.1`, thinking budget `0`, output
+limits 1500/300/100, and no seed, `topK`, or explicit safety override. Content
+retains its legacy JSON-first handling, including usable JSON on a non-STOP
+finish, without adding identification's first-part fallback. Existing cache,
+candidate validation, provenance, job claim/completion, batch, concurrency, and
+retry owners remain unchanged. The failure tests exposed an unhandled rejected
+in-flight promise when no enrichment waiter existed; both scopes now observe
+that rejection while preserving the original promise and waiter retry admission.
+
+Existing content usage writes and optional helper events add bounded task,
+provider/binding/prompt/schema, nullable user policy version, context kind,
+returned model, native duration, and outcome metadata. No owner/job/attempt IDs
+or species/evidence content enter these new fields. Cached/tool/modality token
+accounting and the single group-tag usage write are preserved. Public response
+formatters exclude internal execution metadata; existing accounting gaps remain.
+
+Validation completed locally:
+
+- Intercepted native requests matched the saved pre-extraction helpers exactly
+  in **10 old/new cases**, covering both models, two locales, populated/absent
+  taxonomy, and all three tasks. No live model call was made.
+- The permanent helper suite covers **22 SDK steps**. Content registry and
+  actual user/public-job caller tests passed **2 tests, 36 lifecycle steps**,
+  including cache coalescing, failures with and without waiters, fresh admission
+  after leader failure, claim bounds, preview, concurrency two, and usage
+  attribution.
+- The complete Edge suite reported **2,042 passes, 190 steps, 6 ignored, zero
+  failures**, with local database destinations denied. **114 database
+  integration cases logged skips** within those reported passes;
+  `SUPABASE_DB_TEST_URL` was unset. This is not passing database evidence.
+- Recursive type checks passed for all six migrated entrypoints. Synchronized
+  configurations cover **101 functions** and isolated graphs **364 runtime
+  files**. The deployment selector now correctly includes the two content
+  callers as transitive consumers of the shared adapter's Identify contract.
+- Supabase tooling passed **312 tests**, plus **19** Identify DTO and **20**
+  Captured Media DTO tests. The generated-contract gate also passed, with no
+  public schema or generated DTO change.
+- Recursive formatting (**934 files**) and lint (**745 files**), the changed
+  Markdown gate (**32 files**), and `git diff --check` passed.
+- Independent read-only review found no authority or metadata-privacy regression
+  and requested a negative concurrency case. Both enrichment scopes now test a
+  failing leader, a waiting caller denied fresh admission, and a later admitted
+  caller.
+
+Disposable-database/catalog/concurrency validation, hosted smokes, live-model
+qualification, and full-flow overhead measurement remain open. No SQL, public
+DTO, iOS implementation, deployment, or alternate provider was introduced. S6 is
+next: complete verification and release preparation.
+
+### Slice 6 local evidence — 21 September 2026
+
+The [final verification record](./identification-foundation-verification.md)
+contains the executed acceptance matrix and remaining release gates. Scoped
+dispatch cleanup removed the unused `createFlashModel` wrapper. The checked
+Functions/tooling inventory includes deferred Field Chat evaluation and the
+network-denied local benchmark, with both tooling safety guards covered. The
+source-derived Field Chat bundle identities were regenerated after the
+shared-helper change and verified by the existing deterministic generator gate.
+
+The primary handler now also has a post-commit identity-retirement test: one
+already admitted invocation completes, but the existing profile fence prevents
+scan insertion and durable completion. Existing
+charged-failure/retry/dead-letter handling is preserved. Account-switch/device
+and hosted end-to-end acceptance remain separate from this bounded local proof.
+
+A fresh, uniquely named temporary local database replayed the complete
+migrations with only project ID and database/shadow ports changed in the copied
+configuration. The existing `merian` stack was preserved. **52 catalog files /
+388 assertions** passed, followed by **2,048 Edge tests / 190 steps**, zero
+failures, ignored tests, or database skips. Database lint and the existing
+advisor error-level gates passed; the unchanged catalog reported 105 security
+and 80 performance warnings. The temporary containers and volumes were removed
+and their absence verified.
+
+The reproducible benchmark measures warm canonical-request preparation and
+shared invocation against a cached native-SDK control on 20 task/profile/model
+combinations, with identical synthetic requests/results and denied networking.
+Its local results do not establish product or hosted latency. The verification
+record retains the measurements, source fingerprints, and final
+static/tooling/contract checks.
+
+The
+[future-provider guide](../../services/supabase/functions/_shared/ai/ADDING_PROVIDERS.md)
+names concrete code, admission, disclosure, confidence, usage, cache, and
+evaluation work. Return preparation preserves existing wire/DTO/database
+contracts and durable results. Exact clean-SHA Candidate Validation,
+hosted/device acceptance, production authorization/deployment, and a deployed
+return exercise remain open. All enabled production bindings still resolve to
+Gemini.
+
+### Acceptance traceability
+
+The table below maps required acceptance scope. The
+[executed evidence matrix](./identification-foundation-verification.md#acceptance-evidence-and-remaining-boundaries)
+distinguishes local coverage from outstanding hosted/device and release proof;
+these group names alone do not imply those remaining gates passed.
+
 The acceptance groups below cover current requirements. Numbers refer to the
 `PRD-PF-` and `SRD-PF-` prefixes. Future-provider qualification is a documented
 condition, not a live integration that must run to close this milestone.
 
-| Group        | PRD        | SRD            | Current acceptance evidence                                                                                                                                                               |
+| Group        | PRD        | SRD            | Required acceptance scope                                                                                                                                                                 |
 | ------------ | ---------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | T-ADAPTER    | 01, 02, 03 | 01, 02, 07, 11 | Gemini parity; scoped endpoint/helper coverage; common task contracts; no new bypasses; deferred callers preserved.                                                                       |
 | T-ROUTING    | 01, 04, 10 | 03, 04, 13     | Every production binding remains Gemini; exact user/service admission agreement; active snapshot stability; current policy on authorized new attempts; invalid-provider rejection.        |
@@ -471,7 +773,7 @@ repository skills for implementation gates:
   under Edge Functions/scripts additionally require
   `deno fmt --check services/supabase/functions services/supabase/scripts`.
 
-These are future implementation requirements, not runtime checks claimed for
-this planning-only revision. The
+The tracker and linked baseline distinguish checks already run from future
+implementation and release requirements. The
 [earlier combined SRD](./family-plans-and-ai-platform-srd.md) remains deferred
 background.

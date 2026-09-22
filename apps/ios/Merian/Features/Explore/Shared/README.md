@@ -106,13 +106,16 @@ Dynamic Type, with post chips moving below fixed controls at `xxxLarge` and
 accessibility sizes. Post red-heart mapping belongs to Feed state, not this
 generic comment-capable strip.
 
-Added reaction chips use a compact 28-point capsule and subheadline emoji, with
-6-point horizontal padding and no outline. Selected chips retain a subtle accent
-fill and accent-colored count. The visible capsule scales with Dynamic Type; its
-separate tap target remains at least 44 by 44 points on posts and comments.
-Comment/reply Add reaction capsules use the same height, padding, internal
-spacing, and Dynamic Type scaling, while retaining a subtle 1-point outline
-drawn inside the capsule.
+Added reactions show bare emoji and counts, with no background or border in any
+selection state. Emoji use 20-point text and counts use 20-point text within the
+default 44-point row. All three measurements scale together with Dynamic Type,
+keeping glyphs inside the available row height. Counts turn blue when the viewer
+has contributed that reaction and otherwise use the default text color.
+VoiceOver retains selection traits; each reaction keeps a minimum 44-point-wide
+tap target. Comment/reply Add reaction buttons also omit their capsule
+background and outline, using a 20-point smiley that scales with Dynamic Type.
+The shared strip applies to posts, hashtag feeds, detail, Map previews,
+comments, and notification replies.
 
 Post action icons use 20-point symbols inside 44-point tap targets. Add reaction
 and the comment/heart labels each use 12-point horizontal hit padding with no
@@ -128,10 +131,10 @@ summary is visible beneath it. Empty hashtag rows reserve no space. The shared
 strip still grows for Dynamic Type and moves beneath controls at the existing
 large-text threshold.
 
-Post detail omits Share from the action row and presents it in the top-right
-toolbar immediately before Options. All feed, hashtag, and Map preview/discovery
-cards use the same action row without Share. Feed and hashtag chips fill the
-remaining width through the right edge with overflow fades.
+Post detail omits Share from the action row and presents it as a blue button at
+the bottom left, opposite Field chat. All feed, hashtag, and Map
+preview/discovery cards use the same action row without Share. Feed and hashtag
+chips fill the remaining width through the right edge with overflow fades.
 
 Feed and hashtag strips include 12 points of trailing scrollable space after the
 final emoji or More control. The viewport still reaches the screen edge; the

@@ -51,7 +51,7 @@ Included in V1:
 - IUCN Red List status
 - hazard status
 - similar species that route to another dictionary page in the same stack
-- a top-right native share action after the canonical UUID and names have loaded
+- a blue bottom-left Share button after the canonical UUID and names have loaded
 - a bottom-right private Pro Field Chat action for every loaded canonical UUID
   in the source candidate (release-held; see
   [Candidate Release Status](#candidate-release-status))
@@ -270,8 +270,9 @@ remain separate release steps.
 `SpeciesDictionaryPageContentView` shows the shared `FieldChatToolbarButton` at
 the bottom right only when its loaded response contains a valid canonical
 species UUID. Loading, not-found, error, and invalid ID states keep the bottom
-bar hidden. Share remains in the top bar. Because the same content view owns
-direct, deep-linked, and pushed dictionary pages, the behavior also follows
+bar hidden. A blue Share button sits at the bottom left, opposite Field chat,
+and opens the native share sheet. Because the same content view owns direct,
+deep-linked, and pushed dictionary pages, the behavior also follows
 similar-species navigation without adding a nested sheet or stack.
 
 The client captures the loaded UUID before asynchronous presentation work. A
@@ -1344,15 +1345,16 @@ before the featured card, including loading and error states. The capsule entry
 has a 50-point minimum height and matching card margins, with native interactive
 Liquid Glass on iOS 26+ and an ultra-thin material fallback on earlier systems.
 A single leading `sparkle.magnifyingglass` symbol combines search and AI; there
-is no trailing icon. Core UI's `rainbowCapsuleAccent` adds the same soft rainbow
-glow and occasional 1.8-second border sweep as the Field Chat sheet button,
-sized to the entry. Reduce Motion keeps the glow static without the shimmer; the
-decoration does not intercept taps or add VoiceOver elements. The existing
-18-point stack spacing to the featured card remains. It pushes Search in
-Explore's shared navigation stack with the keyboard closed. Root controls give
-way to Back, Search, and an icon-only New search button with its VoiceOver label
-retained; the bottom menu is hidden. Composer text is vertically centered beside
-the send control, and example prompts use right-pointing arrows.
+is no trailing icon. Both the label and symbol use the primary foreground color,
+adapting to light and dark appearance. Core UI's `rainbowCapsuleAccent` adds the
+same soft rainbow glow and occasional 1.8-second border sweep as the Field Chat
+sheet button, sized to the entry. Reduce Motion keeps the glow static without
+the shimmer; the decoration does not intercept taps or add VoiceOver elements.
+The existing 18-point stack spacing to the featured card remains. It pushes
+Search in Explore's shared navigation stack with the keyboard closed. Root
+controls give way to Back, Search, and an icon-only New search button with its
+VoiceOver label retained; the bottom menu is hidden. Composer text is vertically
+centered beside the send control, and example prompts use right-pointing arrows.
 
 Before submission, a bundled 3D nature illustration sits above the centered
 **What would you like to discover?** heading. The selection includes the
@@ -1366,48 +1368,67 @@ outside the current set and keeps the keyboard closed. A fresh Explore session
 samples again. The keyboard opens when the user taps the composer or answers a
 clarification.
 
-Below the prompts, **Explore a species** shows up to six recently added, real
-dictionary records in a two-column thumbnail grid, changing to one column at
-accessibility text sizes. Tiles show common/scientific names and open the
-existing species detail route directly. The retained Catalog view model loads
-one six-item `recently_added` page through the existing `/species-dictionary`
-endpoint, independently of AI search and its allowance. Successful rows survive
-New search and detail navigation during the session. Loading and retry are local
-to the grid; missing images use the existing leaf placeholder and an empty page
-omits the grid without blocking questions.
+Below the prompts, the same **Did you know?** card used during pending analysis
+shows rotating fun facts. It shares the persisted shuffled deck, automatically
+advances every 8.5 seconds, and supports taps and horizontal swipes. Its
+rotation task ends when the welcome content leaves the view hierarchy.
+
+Below the fun facts card, **Explore a species** shows up to six recently added,
+real dictionary records in a two-column thumbnail grid, changing to one column
+at accessibility text sizes. Cards align at the top and match the tallest card
+in each row, with uniform 1.25:1 images. Tiles show common/scientific names and
+open the existing species detail route directly. The retained Catalog view model
+loads one six-item `recently_added` page through the existing
+`/species-dictionary` endpoint, independently of AI search and its allowance.
+Successful rows survive New search and detail navigation during the session.
+Loading and retry are local to the grid; missing images use the existing leaf
+placeholder and an empty page omits the grid without blocking questions.
 
 The single bottom input changes from **Ask Naturebook…** to **Refine your
 search…** after successful results. Submissions are explicit; the current source
 does not issue model calls or show name suggestions while typing.
 
-Species opens first. Results show the latest interpretation, editable scope
-chips, Species/Sightings selector, scrollable cards, a group-refinement
-shortcut, and the persistent input. Follow-ups replace the active search instead
-of accumulating chat bubbles. For example, “Orange and black insects” followed
-by “Only butterflies” updates the criteria used by both tabs. Results resolve to
-existing dictionary or Explore detail routes.
+Results use a single vertical scroll view with **Species** first and **Community
+sightings** below it, replacing the Species/Sightings selector. Species appear
+as a horizontal row of 200-point image cards with material
+common/scientific-name overlays, matching the similar-species presentation. A
+single community thumbnail matches that species-card width; two or more share a
+two-column grid across the available width with 2-point gaps. Thumbnails are
+square. Accessibility text sizes use full-width species cards and one sighting
+column. Each section has independent pagination through **More species** or
+**More sightings**. The latest interpretation, scope chips, group-refinement
+shortcut, and persistent input remain available.
 
-Explicit group and Sightings-only media chips show the active scope. Descriptive
-results are “Possible matches”; excerpts are verbatim dictionary text. Sightings
-show public attribution and location labels, with publication dates labeled
-“Shared”. Nearby, date filtering, and private observations are outside v1.
+Follow-ups replace the active search instead of accumulating chat bubbles. For
+example, “Orange and black insects” followed by “Only butterflies” updates the
+criteria used by both sections. Group and Sightings-only media chips show the
+active scope. Dictionary excerpts remain source-attributed in species card
+accessibility values. Sighting accessibility summaries use public attribution
+and location labels, with publication dates labeled “Shared”; these details are
+also available in the existing Explore detail route. Species cards open the
+existing dictionary route. Nearby, date filtering, and private observations
+remain outside v1.
 
-An empty Sightings result says **No matching public sightings** and offers the
-Species tab; it does not imply there are no matching dictionary entries. An
-empty Species result says **No matching species**. Loading retains the last
-successful cards. Failures retain the draft and offer explicit Retry. A
-clarification keeps the unresolved context and refocuses the input; an
-unsupported request explains its limits without replacing successful results.
+An empty section says **No matching species** or **No matching public
+sightings** without hiding the other section. Loading retains previous
+successful cards until the replacement species read succeeds. A clarification
+keeps the unresolved context and refocuses the input; an unsupported request
+explains its limits without replacing successful results.
 
 ### Session, retrieval, and scope
 
-Explore owns the in-memory search session. Detail navigation preserves both tabs
-and their scroll anchors. New search, an account change, or closing Explore
-clears the session. Failed follow-ups retain the previous results and draft;
-generation fences reject obsolete completions and disable pagination after a
-failed replacement. Clarifications preserve the unresolved query for the next
-answer, including while browsing the other result tab. A retry retains the
-failed request's tab and pagination cursor. Local block events also suppress
+Explore owns the in-memory search session. Detail navigation preserves both
+sections, draft, and the shared vertical scroll anchor. New search, an account
+change, or closing Explore clears the session. One view-scoped task retrieves
+species first and then automatically retrieves sightings with the accepted
+context and no second AI interpretation. Generation and cancellation fences
+cover both reads. Failed interpretation/species replacements retain the prior
+results and draft. Once species succeeds, it commits the new context and clears
+old sightings; a sightings failure retains the new species and offers an
+explicit retry of only the failed context-only read. Pagination uses separate
+cursors and cannot supersede loading or failed requests. Clarifications preserve
+the unresolved query while browsing and paginating the existing result sections.
+A retry retains the failed section and cursor. Local block events also suppress
 unseen posts from that author in late search responses; Edge enrichment keeps
 the database projection's filtered media array intact.
 
@@ -1417,11 +1438,11 @@ An initial question without context and within the 240 UTF-16-unit name-query
 bound bypasses AI when scientific/common/alternative name substrings match.
 Exact scientific and canonical English common names rank first; alternative-name
 matches do not receive the exact-match bonus. Follow-up questions use
-interpretation; context-only filter/tab/page requests do not. Descriptions use a
-generated search document and partial GIN index. Sightings join all matching
-species through the viewer-aware Explore projection before pagination and
-exclude coordinate fields. No record identities or post content come from the
-model. Search does not reuse single-species Field Chat conversations.
+interpretation; context-only filter/section/page requests do not. Descriptions
+use a generated search document and partial GIN index. Sightings join all
+matching species through the viewer-aware Explore projection before pagination
+and exclude coordinate fields. No record identities or post content come from
+the model. Search does not reuse single-species Field Chat conversations.
 
 The new source requires the forward search migration and function deployment
 before hosted use; this implementation does not constitute deployment. See the

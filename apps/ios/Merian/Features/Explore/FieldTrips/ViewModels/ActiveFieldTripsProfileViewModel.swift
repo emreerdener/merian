@@ -7,7 +7,6 @@ final class ActiveFieldTripsProfileViewModel {
     struct Dependencies {
         let loadTemplates: @MainActor (_ limit: Int) async throws -> [FieldTripTemplate]
         let earnedPatchesDidChange: @MainActor ([EarnedFieldTripPatch]) -> Void
-        let loadingDidChange: @MainActor (Bool) -> Void
     }
 
     var items: [ActiveFieldTripProfileItem] = []
@@ -26,7 +25,6 @@ final class ActiveFieldTripsProfileViewModel {
         guard isAuthenticated else {
             items = []
             dependencies.earnedPatchesDidChange([])
-            dependencies.loadingDidChange(false)
             hasLoaded = true
             isLoading = false
             return
@@ -35,12 +33,10 @@ final class ActiveFieldTripsProfileViewModel {
 
         isLoadInFlight = true
         isLoading = true
-        dependencies.loadingDidChange(true)
         defer {
             isLoadInFlight = false
             isLoading = false
             hasLoaded = true
-            dependencies.loadingDidChange(false)
         }
 
         do {

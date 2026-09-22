@@ -1,5 +1,6 @@
-import { Part, SafetyRating } from "@google/genai";
-import { geminiUsageModalityBreakdown } from "../_shared/aiUsage.ts";
+import type { AIExecutionOutcome } from "../_shared/ai/contracts.ts";
+import { prepareAIExecution } from "../_shared/ai/production.ts";
+import { buildMultimodalAIRequest } from "./provider.ts";
 import { type SupabaseClient, type User } from "@supabase/supabase-js";
 
 import {
@@ -14,7 +15,6 @@ import { corsHeaders, publicErrorResponse } from "../_shared/http.ts";
 import { authorizeServiceRoleRequestFromEnvironment } from "../_shared/serviceRoleAuth.ts";
 import { createServiceRoleClient } from "../_shared/serviceRoleClient.ts";
 import { scanIngestionRetryAfterIso } from "../_shared/scanIngestionRetry.ts";
-import { _genAI, extractJson } from "../_shared/gemini.ts";
 import {
   entitlementProtocolResponse,
   tierTelemetryProperties,
@@ -70,9 +70,7 @@ import {
 } from "../_shared/identify/completedResponse.ts";
 import { normalizeProcessedMaterialSubject } from "../_shared/identify/subjectClassification.ts";
 import {
-  AUDIO_ONLY_SUBJECT_SELECTION_INSTRUCTION,
   type AudioSubjectKind,
-  BLENDED_AUDIO_SUBJECT_PRECEDENCE_INSTRUCTION,
   canonicalizeStructuredHumanSubject,
   normalizeAudioOnlySubject,
 } from "../_shared/identify/audioSubjectPolicy.ts";
@@ -81,7 +79,6 @@ import {
   audioDescriptorsForDurableIntent,
   type AudioMediaDescriptor,
   buildCapturedMediaManifest,
-  buildVisualMediaPrompt,
   capturedMediaVideoCount,
   descriptorsForProcessedAudioInputs,
   durableAudioInputIndexes,
@@ -117,7 +114,6 @@ import { isScanPersistenceOutcomeUnknown } from "../_shared/scanPersistence.ts";
 import { buildScanIngestionIntent } from "../_shared/scanIngestionIntents.ts";
 import { markStagedScanMediaAssetsFailed } from "../_shared/scanMediaAssets.ts";
 import {
-  buildContextText,
   normalizeCurrentMonth,
   sanitizeLifeStage,
   sanitizeObservationConfidence,
@@ -128,11 +124,6 @@ import {
 
 import { diagnosticTriggerForTier } from "../_shared/identify/thresholds.ts";
 import {
-  getMerianAudioResponseSchema,
-  getMerianResponseSchema,
-  getSystemInstruction as getVisionSystemInstruction,
-} from "../_shared/identify/schema.ts";
-import {
   canonicalizeDomesticPetScientificName,
   sanitizePetIdentification,
   sanitizeScientificName,
@@ -141,49 +132,6 @@ import {
 class ModerationRejectedError extends Error {
   override name = "ModerationRejectedError";
 }
-
-const BIOACOUSTIC_SYSTEM_INSTRUCTION = `# Role
-You are a world-class bioacoustic field biologist with expertise in identifying species from their acoustic signatures across all taxa: birds, insects, frogs, mammals, and other wildlife.
-
-# Task
-Listen to the provided audio recording and identify the primary biological sound source, if any.
-
-${AUDIO_ONLY_SUBJECT_SELECTION_INSTRUCTION}
-
-# Response Detail Rules
-- scientific_name: formal binomial nomenclature (Genus species) for an identified non-human animal or the canonical Homo sapiens value required above. Omit when wildlife is unresolved or the result is non-biological.
-- confidence_score: 0.0–1.0. Use below 0.70 when the recording is ambiguous, noisy, or the call is partially obscured.
-- ai_reasoning: concise acoustic diagnosis citing observable call characteristics (frequency, tempo, pattern, note duration, harmonic structure). Be specific.
-- ecology_type: "wild" for natural habitat, "urban" for urban/suburban, "domesticated" for pets or livestock.
-- sex: use female, male, mixed, hermaphrodite, cannot_determine, or not_applicable. Only report female/male/mixed when the recording contains explicit species-specific acoustic evidence that distinguishes sex; otherwise use cannot_determine. Never infer or report human sex/gender.
-- sex_confidence: 0.0–1.0 confidence in the sex annotation from direct acoustic evidence only. Omit when sex is cannot_determine or not_applicable.
-- sex_evidence: short acoustic cue supporting sex, such as sex-specific song, call type, or duet role. Omit when unsupported.
-- Use authoritative nomenclature (Clements Checklist v2024 for birds, GBIF Backbone Taxonomy for all other taxa).
-- Never fabricate scientific names.`;
-
-const DESCRIBE_SYSTEM_INSTRUCTION = `# Role
-You are a taxonomic analyst interpreting user text descriptions to identify biological subjects.
-
-# Task
-Read the user's description and identify the biological subject they are describing.
-
-# Non-Biological Descriptions
-Manufactured or processed objects are not biological subjects even when made from biological material. Wool rugs/kilims/carpets, leather goods, wooden furniture, paper/cardboard, cotton or linen fabric, prepared food, toys, artwork, ornaments, and printed/painted/sculpted species depictions must return is_biological_subject=false and must not be identified as their source organism or carry a source-organism scientific_name.
-
-# Sex
-Report sex only when the user's description contains diagnostic evidence for the primary subject. Never infer sex from species name, population tendency, or stereotypes. Never infer or report human sex/gender; use not_applicable for human subjects. Use cannot_determine when evidence is absent or non-diagnostic.`;
-
-const MULTIMODAL_BLENDED_SYSTEM_INSTRUCTION = `# Role
-You are an expert encyclopedic field-guide biologist and taxonomist with specialized expertise in cross-modal taxonomy.
-
-# Core Directives
-- **Holistic Evaluation:** Evaluate all visual evidence and audio evidence sequentially before formulating a combined taxonomic confidence score. Visual evidence may include still photos or sampled frames from a short user-recorded video.
-- **Modality Synthesis:** Weigh BOTH visual and acoustic evidence. Prioritize the bio-acoustic trace unless it clearly contradicts the vision context or the vision context is overwhelmingly diagnostic.
-- **Reporting:** Your \`ai_reasoning\` MUST encompass BOTH modalities, explaining how they corroborate or contradict each other.
-- **Video Language:** When the scan includes video, refer to the evidence as video, a video scan, or sampled frames/audio from the video. Do not describe video scans as images, photos, or a set of provided images in user-facing reasoning.
-${BLENDED_AUDIO_SUBJECT_PRECEDENCE_INSTRUCTION}
-- **Processed Materials Are Not Biological Subjects:** Manufactured or processed objects are \`is_biological_subject=false\` even when made from biological material. This includes wool rugs/kilims/carpets, leather goods, wooden furniture, paper/cardboard, cotton or linen fabric, prepared food, toys, artwork, ornaments, and printed/painted/sculpted species depictions. Do NOT classify a rug as sheep, leather as cattle, wood furniture as a tree, paper as a plant, or a species drawing/toy as the depicted organism; do not include a source-organism scientific_name for these results.
-- **Sex:** Report sex only when visual, described, or acoustic evidence is diagnostic for the primary subject. Never infer sex from species name, population tendency, or stereotypes. Never infer or report human sex/gender; use not_applicable for human subjects. Use cannot_determine when evidence is absent or non-diagnostic.`;
 
 const telemetryCount = (value: unknown): number => {
   if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
@@ -407,6 +355,7 @@ export async function handleIdentifyMultimodalRequest(
   supabaseAdmin: SupabaseClient,
   authDurationMs = 0,
   internalReplayAttempt?: number,
+  prepare = prepareAIExecution,
 ): Promise<Response> {
   if (internalReplayAttempt == null) {
     const protocolError = await entitlementProtocolResponse(
@@ -843,48 +792,23 @@ export async function handleIdentifyMultimodalRequest(
   const usesAudioOnlyProviderContract = resolvedImageBase64s.length === 0 &&
     processedAudios.length > 0;
 
-  let instructionToUse = "";
-  if (resolvedImageBase64s.length > 0 && processedAudios.length > 0) {
-    instructionToUse = MULTIMODAL_BLENDED_SYSTEM_INSTRUCTION;
-  } else if (resolvedImageBase64s.length > 0) {
-    instructionToUse = getVisionSystemInstruction(diagnosticTrigger);
-  } else if (processedAudios.length > 0) {
-    instructionToUse = BIOACOUSTIC_SYSTEM_INSTRUCTION;
-  } else {
-    instructionToUse = DESCRIBE_SYSTEM_INSTRUCTION;
-  }
-
-  // 3. Modality Assembly
-  const partsArray: Part[] = [];
   const hasObservationContextText = observationEvidenceTexts.length > 0;
-  if (hasObservationContextText) {
-    partsArray.push({
-      text: `Additional observation context from user:\n${
-        observationEvidenceTexts.join("\n")
-      }`,
-    });
-  }
-
-  const visualMediaPrompt = buildVisualMediaPrompt(
-    normalizedVisualMediaItems,
-    mediaTelemetry.hasVideo,
-    resolvedImageBase64s.length,
+  const aiRequest = buildMultimodalAIRequest({
+    observationEvidenceTexts,
+    visualMediaItems: normalizedVisualMediaItems,
+    imageBase64s: resolvedImageBase64s,
+    imageMimeType: mimeType,
+    processedAudios,
+    audioMediaItems: processedAudioMediaItems,
+    processedAudioInputIndexes,
     hasVideoAudio,
-  );
-  if (visualMediaPrompt) {
-    partsArray.push({ text: visualMediaPrompt });
-  }
-
-  for (const b64 of resolvedImageBase64s) {
-    partsArray.push({ inlineData: { mimeType, data: b64 } });
-  }
-
-  for (const audio of processedAudios) {
-    partsArray.push({ inlineData: { mimeType: "audio/wav", data: audio } });
-  }
-
-  partsArray.push({
-    text: buildContextText({
+    capture: {
+      hasVideo: mediaTelemetry.hasVideo,
+      videoClipCount: mediaTelemetry.videoClipCount,
+      declaredVideoFrameCount: mediaTelemetry.declaredVideoFrameCount,
+      videoInferenceFrameCount: mediaTelemetry.videoInferenceFrameCount,
+    },
+    telemetry: {
       safeGpsLat,
       safeGpsLon,
       gpsElevation,
@@ -899,7 +823,7 @@ export async function handleIdentifyMultimodalRequest(
       deviceRegion,
       currentMonth,
       timeOfDay,
-    }),
+    },
   });
 
   const mediaCounts = {
@@ -1026,9 +950,9 @@ export async function handleIdentifyMultimodalRequest(
 
   // 4. Invocation
   const geminiStart = Date.now();
-  let responseText = "";
+  let result: AIExecutionOutcome;
   let finishReason: string | undefined;
-  let safetyRatings: SafetyRating[] | undefined;
+  let safetyRatings: AIExecutionOutcome["safetyRatings"];
 
   let llmPromptTokens: number | null = null;
   let llmCandidateTokens: number | null = null;
@@ -1046,42 +970,37 @@ export async function handleIdentifyMultimodalRequest(
   let providerAttempted = false;
 
   try {
+    const execution = prepare(aiRequest, {
+      kind: "user_request",
+      userId: user.id,
+      permission: "google_gemini",
+      operation: "scan_identification",
+      reservation: quotaLease.reservation,
+    });
     const quotaCommitStart = performance.now();
     await quotaLease.commit();
     providerAttempted = true;
     const providerStart = performance.now();
-    const result = await _genAI.models.generateContent({
-      model: targetModel,
-      contents: [{ role: "user", parts: partsArray }],
-      config: {
-        systemInstruction: instructionToUse,
-        temperature: 0.1,
-        seed: 42,
-        maxOutputTokens: 8192,
-        thinkingConfig: userTier === "pro"
-          ? { thinkingBudget: 5000 }
-          : undefined,
-        responseMimeType: "application/json",
-        responseSchema: usesAudioOnlyProviderContract
-          ? getMerianAudioResponseSchema()
-          : getMerianResponseSchema(diagnosticTrigger),
-      },
-    });
-    providerMs = performance.now() - providerStart;
+    result = await execution.invoke();
+    providerMs = result.providerDurationMs;
     quotaCommitMs = providerStart - quotaCommitStart;
-    geminiLatencyMs = Date.now() - geminiStart;
+    geminiLatencyMs = result.providerCompletedAt - geminiStart;
+    if (
+      result.kind === "operational_failure" ||
+      result.kind === "unknown_execution"
+    ) {
+      throw new Error(`ai_${result.kind}`);
+    }
 
-    finishReason = result.candidates?.[0]?.finishReason;
-    safetyRatings = result.candidates?.[0]?.safetyRatings;
-    responseText = result.text ?? "";
-
-    const usage = result.usageMetadata;
+    finishReason = result.finishReason ?? undefined;
+    safetyRatings = result.safetyRatings;
+    const usage = result.usage;
     if (usage) {
-      llmUsageMetadata = geminiUsageModalityBreakdown(usage);
-      llmPromptTokens = usage.promptTokenCount ?? null;
-      llmCandidateTokens = usage.candidatesTokenCount ?? null;
-      llmThinkingTokens = usage.thoughtsTokenCount ?? null;
-      llmTotalTokens = usage.totalTokenCount ?? null;
+      llmUsageMetadata = usage.modalityBreakdown;
+      llmPromptTokens = usage.promptTokens;
+      llmCandidateTokens = usage.candidateTokens;
+      llmThinkingTokens = usage.thinkingTokens;
+      llmTotalTokens = usage.totalTokens;
     }
   } catch (genErr) {
     if (providerAttempted) {
@@ -1107,14 +1026,13 @@ export async function handleIdentifyMultimodalRequest(
       503,
     );
   }
-  const geminiCompletedAt = Date.now();
+  const geminiCompletedAt = result.providerCompletedAt;
 
   if (
-    finishReason && finishReason !== "STOP" &&
-    finishReason !== "FINISH_REASON_UNSPECIFIED"
+    result.kind === "refusal" ||
+    (result.kind === "invalid_output" && result.reason === "finish")
   ) {
-    const isPermanent = finishReason === "SAFETY" ||
-      finishReason === "PROHIBITED_CONTENT";
+    const isPermanent = result.kind === "refusal";
     if (!isPermanent) await quotaLease.fail();
     logStructuredError("multimodal/non_stop_finish", {
       user_id: user.id,
@@ -1145,13 +1063,14 @@ export async function handleIdentifyMultimodalRequest(
 
   let parsedData;
   try {
+    if (result.kind !== "draft") throw new Error("ai_response_json_invalid");
     if (usesAudioOnlyProviderContract) {
       parsedData = parseMerianAudioIdentification(
-        extractJson<unknown>(responseText),
+        result.draft,
       );
     } else {
       parsedData = parseMerianIdentification(
-        extractJson<unknown>(responseText),
+        result.draft,
       );
     }
   } catch {
@@ -2226,6 +2145,13 @@ export async function handleIdentifyMultimodalRequest(
     req.headers.get("x-merian-constrained-network") === "true";
   console.log(JSON.stringify({
     event: "multimodal/latency",
+    ai_provider: result.execution.provider,
+    ai_binding: result.execution.binding,
+    ai_prompt: result.execution.prompt,
+    ai_schema: result.execution.schema,
+    ai_policy_version: result.execution.policyVersion,
+    ai_context_kind: result.execution.contextKind,
+    ai_returned_model: result.returnedModel,
     tier: userTier,
     inference_tier: inferenceTier,
     model: targetModel,
@@ -2314,23 +2240,25 @@ async function tryHandleInternalReplayRequest(
   );
 }
 
-serveEdge(async (req: Request) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
+if (import.meta.main) {
+  serveEdge(async (req: Request) => {
+    if (req.method === "OPTIONS") {
+      return new Response("ok", { headers: corsHeaders });
+    }
 
-  const replayResponse = await tryHandleInternalReplayRequest(req);
-  if (replayResponse) return replayResponse;
+    const replayResponse = await tryHandleInternalReplayRequest(req);
+    if (replayResponse) return replayResponse;
 
-  return withEdgeHandler(
-    req,
-    (user, supabaseAdmin, context) =>
-      handleIdentifyMultimodalRequest(
-        req,
-        user,
-        supabaseAdmin,
-        context.authDurationMs,
-      ),
-    { authenticate: requireClaimsAuth },
-  );
-});
+    return withEdgeHandler(
+      req,
+      (user, supabaseAdmin, context) =>
+        handleIdentifyMultimodalRequest(
+          req,
+          user,
+          supabaseAdmin,
+          context.authDurationMs,
+        ),
+      { authenticate: requireClaimsAuth },
+    );
+  });
+}

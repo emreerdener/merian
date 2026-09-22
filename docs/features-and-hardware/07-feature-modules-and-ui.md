@@ -1203,16 +1203,16 @@ an Edge API response or opened offline via the Scans library.
   readiness on subject activation or clearing, and returns canceled current
   sends to same-UUID retry state. The source candidate also uses
   `InsightChatViewModel(source: .speciesDictionary)` from every loaded canonical
-  Dictionary detail: Field Chat stays bottom-right, Share stays in the top bar,
-  and loading/error/invalid-ID states hide the bottom bar. Direct, deep-linked,
-  and similar-species routes all share that presentation owner. Gallery, author,
-  Field Chat, and paywall are mutually exclusive cases of one typed Dictionary
-  presentation value, and async preflight cannot replace an active case. The
-  Explore button hides as soon as the comment composer becomes sticky (and
-  remains hidden while focused), so private chat never competes with the public
-  comment action at the bottom of the post. While hidden, Field chat moves into
-  the post overflow menu. Non-Pro users open the existing paywall. Insight
-  threads preflight ownership through `/check-scan-status` and call
+  Dictionary detail: Field Chat stays bottom-right, and a blue Share button sits
+  bottom-left. Loading/error/invalid-ID states hide the bottom bar. Direct,
+  deep-linked, and similar-species routes all share that presentation owner.
+  Gallery, author, Field Chat, and paywall are mutually exclusive cases of one
+  typed Dictionary presentation value, and async preflight cannot replace an
+  active case. The Explore button hides as soon as the comment composer becomes
+  sticky (and remains hidden while focused), so private chat never competes with
+  the public comment action at the bottom of the post. While hidden, Field chat
+  moves into the post overflow menu. Non-Pro users open the existing paywall.
+  Insight threads preflight ownership through `/check-scan-status` and call
   `/insight-chat`; Explore threads call `/explore-post-chat` and are private to
   the requesting viewer, never another viewer. The Explore empty state says
   `This Field chat is private and visible only to you.` without the former
@@ -1782,7 +1782,12 @@ dependency composition.
   is intentionally presentation-only: callers retain action ownership, haptics,
   accessibility labels, disabled state, icon choice, and foreground color.
   Animated or domain-specific controls such as the shutter, dictation pulse
-  button, avatars, feed pills, and menus stay isolated.
+  ring, avatars, feed pills, and menus stay isolated. Capture's secondary
+  controls use the Capture Shared `captureAuxiliaryControl(tint:)` modifier for
+  interactive Liquid Glass, optional semantic tint, and an older-iOS material
+  fallback; the
+  [components guide](./09-components-guide.md#10-circular-control-chrome-circularmaterialcontrolmodifier)
+  owns that appearance contract.
 - `CaptureWorkspaceView` uses a horizontal paged `ScrollView` (no
   `NavigationStack`) with a `LazyHStack` of the user-ordered `.visual`,
   `.audio`, and `.describe` pages. The initializer samples the first decoded

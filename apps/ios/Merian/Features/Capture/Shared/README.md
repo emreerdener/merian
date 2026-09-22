@@ -28,6 +28,11 @@ canonical image preparation, focus, and handoff behavior is documented in the
 - `Components/RecordingCountdownBadge.swift` owns the passive countdown
   treatment shared by Record audio and Scan video capture. Each caller supplies
   its duration, progress, and accessibility prefix.
+- `Components/CaptureAuxiliaryControlModifier.swift` owns the shared 50 pt
+  circular glass appearance used by Shell's secondary controls and Scan's photo
+  library button. It accepts an optional tint and falls back to circular
+  material before iOS 26; callers retain foregrounds, animations, and action
+  semantics.
 - `Utilities/ComposingCenterEnvironment.swift` owns the cross-modality SwiftUI
   environment contract: Shell supplies the measured composing center and Record
   consumes it for aligned audio presentation.

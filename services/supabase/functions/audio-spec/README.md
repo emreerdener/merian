@@ -6,6 +6,28 @@ The active iOS audio path now routes through `/identify-multimodal`, which
 accepts foreground `audioBase64s` and queued `audioR2ObjectKeys`. This route
 remains deployed for older callers and focused audio budget tests.
 
+## Provider Boundary
+
+`provider.ts` builds a canonical request from capture context followed by one
+already validated and processed WAV. The shared
+[`_shared/ai/`](../_shared/ai/README.md) registry and Gemini adapter capture the
+database-admitted model, prepare before quota commitment, and allow one
+invocation. Gemini remains the only enabled provider. The handler retains
+admission, WAV processing, domain validation, audio promotion, persistence, and
+replay ownership.
+
+`instructions.ts` retains this route's distinct bioacoustic prompt and 0.95
+candidate threshold. Both admitted Gemini models keep temperature 0.1, seed 42,
+2048 output tokens, and a 2048 thinking budget, with no explicit topK or safety
+override. The adapter preserves the first-part text fallback when the SDK text
+getter is empty. Shared audio subject selection does not merge this profile with
+the primary route's audio settings.
+
+Optional `AudioScanCompleted` telemetry includes bounded execution references
+and native provider duration. Scan-row usage meanings are unchanged, including
+null cached tokens for this route even when provider usage includes a cache
+count.
+
 ## Subject Selection Compatibility
 
 This route imports the same `_shared/identify/audioSubjectPolicy.ts`
@@ -124,7 +146,14 @@ but it cannot rename an existing species row.
 ```sh
 deno check --config services/supabase/functions/deno.json services/supabase/functions/audio-spec/index.ts services/supabase/functions/_shared/scanIngestionCompatibility.ts
 deno test --config services/supabase/functions/deno.json services/supabase/functions/audio-spec/index.test.ts services/supabase/functions/_shared/identify/audioSubjectPolicy_test.ts services/supabase/functions/_shared/identify/contract_test.ts services/supabase/functions/_shared/scanIngestionCompatibility_test.ts services/supabase/functions/_shared/identify/db_test.ts
+deno test --frozen --config services/supabase/functions/deno.json --allow-env --allow-read=. services/supabase/functions/_shared/ai/ai_test.ts services/supabase/functions/_shared/ai/compatibility_test.ts
 ```
+
+The adapter tests intercept actual SDK requests; compatibility tests run the
+actual handler and lifecycle helpers with synthetic dependencies. They cover
+admission and failure charging, usage, required promotion and owner persistence,
+stored replay, staged handoff to the primary route, and ambiguous writes. They
+do not establish real database concurrency or hosted behavior.
 
 The normative joined success, replay, recovery, and rollout contract is
 [`docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md`](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md).

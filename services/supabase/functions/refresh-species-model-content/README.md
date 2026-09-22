@@ -49,6 +49,20 @@ Manual service-role calls may include:
 
 ## Behavior
 
+After a real claim, each task is prepared through `../_shared/ai/production.ts`
+with `service_job` authority: public-fact purpose, matching task, claimed job
+ID, current/max attempts, and fixed `gemini-2.5-flash`. The registry checks
+these facts without replacing service authentication or the claim RPC. User
+permission and quota policy version are null for this context; no user quota or
+scan-credit reservation is created. Preview returns before preparation. Prompts,
+schemas, token limits, and JSON decoding are preserved by the shared Gemini
+adapter.
+
+Existing usage writes keep null user attribution and add bounded task,
+provider/version, duration, and outcome metadata. Overview/lookalike writes
+remain in this worker; group tags retain the helper's single write. No job ID,
+scientific name, or provider body is added to that execution metadata.
+
 Exact GBIF verification and bounded candidate preparation live in
 `../_shared/verifiedSpecies.ts`, shared with authenticated on-open Dictionary
 resolution. The scheduled worker retains its taxonomy compatibility checks,
@@ -100,12 +114,15 @@ provenance remain protected.
 
 ## Rollout and Recovery
 
-Apply the database migration before deploying the updated worker. The migration
-installs the service-role claim/persistence routines, the legacy-candidate
-index, and transaction-scoped trigger guards. It does not reopen legacy work by
-itself, so an older worker cannot consume repaired jobs. The new worker requires
-those routines and writes the recovery version atomically when it claims an
-eligible job.
+The lookalike recovery change requires its database migration before the worker.
+That migration installs the service-role claim/persistence routines, the
+legacy-candidate index, and transaction-scoped trigger guards. It does not
+reopen legacy work by itself, so an older worker cannot consume repaired jobs.
+The new worker requires those routines and writes the recovery version
+atomically when it claims an eligible job.
+
+The provider-boundary extraction adds no migration or runtime rollout.
+Deployment still requires explicit authorization for the operation and target.
 
 Use `dry_run: true` with `content_groups: ["lookalikes"]` to preview the same
 bounded eligibility order without locks, attempts, version markers, provider
@@ -135,3 +152,8 @@ for the full validation and before/after commands.
 The last target starts a disposable local Supabase catalog and discovers
 `services/supabase/tests/species_lookalike_recovery.sql` with every other pgTAP
 fixture. A skipped or connection-refused database test is not passing evidence.
+
+`../_shared/ai/content_test.ts` additionally runs the actual worker with
+deterministic provider/DB dependencies for all three tasks, service usage,
+read-only preview, exhausted claims, uncertain provider failure, and concurrency
+of two. These tests do not replace disposable-database claim/concurrency tests.

@@ -7,10 +7,11 @@ struct SpeciesSearchIntroduction: View {
     @Bindable var catalog: SpeciesDictionaryCatalogViewModel
     let isSearching: Bool
     var imageDependencies: SpeciesCatalogImageDependencies = .live
+    var factDependencies: SpeciesSearchFactDependencies = .live
     let onSubmit: (String) -> Void
 
-    private var columns: [GridItem] {
-        Array(repeating: GridItem(.flexible(), spacing: 12), count: dynamicTypeSize.isAccessibilitySize ? 1 : 2)
+    private var columnCount: Int {
+        dynamicTypeSize.isAccessibilitySize ? 1 : 2
     }
 
     var body: some View {
@@ -48,6 +49,11 @@ struct SpeciesSearchIntroduction: View {
                     }
                 }
 
+                DidYouKnowCard(
+                    factManager: factDependencies.factManager(),
+                    onSelectionFeedback: factDependencies.selectionFeedback
+                )
+
                 speciesSuggestions
             }
             .padding(20)
@@ -64,15 +70,26 @@ struct SpeciesSearchIntroduction: View {
                 Text("Explore a species")
                     .font(.headline)
                     .accessibilityAddTraits(.isHeader)
-                LazyVGrid(columns: columns, alignment: .leading, spacing: 12) {
-                    ForEach(catalog.items) { item in
-                        NavigationLink(value: SpeciesDictionaryRoute(
-                            scientificName: item.scientificName, speciesId: item.id, entryPoint: .search
-                        )) {
-                            speciesTile(item)
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(Array(stride(from: 0, to: catalog.items.count, by: columnCount)), id: \.self) { rowStart in
+                        HStack(alignment: .top, spacing: 12) {
+                            ForEach(catalog.items[rowStart..<min(rowStart + columnCount, catalog.items.count)]) { item in
+                                NavigationLink(value: SpeciesDictionaryRoute(
+                                    scientificName: item.scientificName, speciesId: item.id, entryPoint: .search
+                                )) {
+                                    speciesTile(item)
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityElement(children: .combine)
+                            }
+                            if columnCount == 2 && rowStart + 1 == catalog.items.count {
+                                Color.clear
+                                    .frame(maxWidth: .infinity)
+                                    .accessibilityHidden(true)
+                            }
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityElement(children: .combine)
+                        // Use the tallest intrinsic card height for both cards in this row.
+                        .fixedSize(horizontal: false, vertical: true)
                     }
                 }
             }
@@ -111,7 +128,7 @@ struct SpeciesSearchIntroduction: View {
             .fixedSize(horizontal: false, vertical: true)
             .padding(12)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(Color(uiColor: .secondarySystemGroupedBackground))
         .clipShape(RoundedRectangle(cornerRadius: 18))
     }

@@ -58,11 +58,6 @@ private struct ExploreAuthorProfileSkeletonCard: View {
                     .frame(maxWidth: .infinity)
                 }
             }
-
-            if FeatureFlags.isEnabled(.fieldTrips) {
-                Divider()
-                EarnedFieldTripPatchCarouselSkeleton()
-            }
         }
         .padding(12)
         .background(

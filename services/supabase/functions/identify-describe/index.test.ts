@@ -1,5 +1,6 @@
 // services/supabase/functions/identify-describe/index.test.ts
 import { assert, assertEquals, assertThrows } from "@std/assert";
+import { buildObservationPrompt } from "../_shared/identify/context.ts";
 import { resolveAIRequestId } from "../_shared/aiQuota.ts";
 import {
   type TierResolution,
@@ -43,99 +44,6 @@ Deno.test("describe repairs prerequisites and acknowledges only durable scans", 
   assert(!source.includes("runBackground(runBackgroundIngestion())"));
   assert(source.includes('"scan_persistence_failed"'));
   assert(source.includes("const quotaRetryEnabled = await quotaLease.fail();"));
-});
-
-// ---------------------------------------------------------------------------
-// buildObservationPrompt — mirrors the function in index.ts.
-// Extracted here so we can assert its output contract without importing the
-// module (which pulls in heavy Deno runtime dependencies).
-// ---------------------------------------------------------------------------
-
-function buildObservationPrompt(
-  description: string,
-  telemetry: {
-    safeGpsLat: number | null;
-    safeGpsLon: number | null;
-    gpsElevation?: number;
-    semanticLocation?: string;
-    weatherCondition?: string;
-    weatherTemperatureF?: number;
-    deviceLocale?: string;
-    deviceTimeZone?: string;
-    deviceRegion?: string;
-    currentMonth?: number;
-    timeOfDay?: string;
-  },
-): string {
-  const contextItems = [
-    telemetry.safeGpsLat != null && telemetry.safeGpsLon != null
-      ? `GPS:${telemetry.safeGpsLat},${telemetry.safeGpsLon}`
-      : null,
-    telemetry.gpsElevation != null ? `Elev:${telemetry.gpsElevation}m` : null,
-    telemetry.semanticLocation ? `Loc:${telemetry.semanticLocation}` : null,
-    telemetry.weatherCondition ? `Wx:${telemetry.weatherCondition}` : null,
-    telemetry.weatherTemperatureF != null
-      ? `Temp:${telemetry.weatherTemperatureF}F`
-      : null,
-    telemetry.deviceLocale ? `Locale:${telemetry.deviceLocale}` : null,
-    telemetry.deviceTimeZone ? `TZ:${telemetry.deviceTimeZone}` : null,
-    telemetry.deviceRegion ? `Region:${telemetry.deviceRegion}` : null,
-    telemetry.currentMonth ? `Month:${telemetry.currentMonth}` : null,
-    telemetry.timeOfDay ? `Time:${telemetry.timeOfDay}` : null,
-  ].filter(Boolean);
-
-  const contextBlock = contextItems.length > 0
-    ? `Context: ${contextItems.join(", ")}.\n\n`
-    : "";
-
-  return `${contextBlock}Observation Description:\n${description}`;
-}
-
-// ---------------------------------------------------------------------------
-// Describe schema contract — asserts structural invariants that are unique
-// to the describe path vs. the vision path:
-//   • is_live_capture is always false
-//   • image_quality_score is always null / absent
-//   • blur_score is always 0
-//   • image_storage_urls is always an empty array
-//   • description field is required and non-empty
-// ---------------------------------------------------------------------------
-
-Deno.test("Describe schema contract — is_live_capture is always false", () => {
-  const mockScanRow = {
-    is_live_capture: false as const,
-    image_storage_urls: [] as string[],
-    image_quality_score: null as null,
-  };
-  assertEquals(mockScanRow.is_live_capture, false);
-});
-
-Deno.test("Describe schema contract — image_storage_urls is always empty", () => {
-  const mockScanRow = {
-    is_live_capture: false as const,
-    image_storage_urls: [] as string[],
-    image_quality_score: null as null,
-  };
-  assertEquals(mockScanRow.image_storage_urls.length, 0);
-});
-
-Deno.test("Describe schema contract — image_quality_score is always null", () => {
-  const mockScanRow = {
-    is_live_capture: false as const,
-    image_storage_urls: [] as string[],
-    image_quality_score: null as null,
-  };
-  assertEquals(mockScanRow.image_quality_score, null);
-});
-
-Deno.test("Describe response contract — blur_score is always 0 (no image to assess)", () => {
-  // Mirrors the `parsedData.blur_score = 0` override in index.ts.
-  // Any value the LLM returns for blur_score must be overwritten to 0 because
-  // there is no image — a non-zero blur score would incorrectly trigger the
-  // blur advisory UI on iOS.
-  const blur_score = 0;
-  assertEquals(blur_score, 0);
-  assert(blur_score >= 0, "blur_score must never be negative");
 });
 
 Deno.test("Describe ScanCompleted telemetry includes complimentary Pro plan and model", () => {

@@ -6,6 +6,22 @@ import {
   runSpeciesModelContentRefresh,
   type SpeciesModelEnrichmentJobRow,
 } from "./db.ts";
+import { createAIExecution } from "../_shared/ai/execution.ts";
+import { resolveAIClaim } from "../_shared/ai/registry.ts";
+import type { prepareAIExecution } from "../_shared/ai/production.ts";
+const prepareAI: typeof prepareAIExecution = (request, authority) =>
+  createAIExecution(
+    {
+      provider: "test_only",
+      prepare: () => () => {
+        throw new Error(
+          "This suite injects the domain helper; invocation is covered by provider tests.",
+        );
+      },
+    },
+    request,
+    resolveAIClaim(request, authority),
+  );
 import type { VerifiedLookalikeTaxon } from "../_shared/verifiedSpecies.ts";
 
 Deno.test("refresh species model content - parses defaults and filters", () => {
@@ -133,6 +149,7 @@ function completion(calls: ReturnType<typeof workerClient>["calls"]) {
 Deno.test("model lookalike job - genuine empty generation records a settled empty result", async () => {
   const { client, calls } = workerClient();
   const result = await refreshSpeciesModelContentJob(job, client, {
+    prepareAI,
     fetchSimilarSpecies: () => Promise.resolve({ similar_species: [] }),
     fetchLookalikeTaxon: () => {
       throw new Error("No provider lookup expected.");
@@ -155,6 +172,7 @@ Deno.test("model lookalike job - genuine empty generation records a settled empt
 Deno.test("model lookalike job - missing generation is a retryable failure", async () => {
   const { client, calls } = workerClient();
   const result = await refreshSpeciesModelContentJob(job, client, {
+    prepareAI,
     fetchSimilarSpecies: () => Promise.resolve(null),
   });
   assertEquals(result.status, "failed");
@@ -164,6 +182,7 @@ Deno.test("model lookalike job - missing generation is a retryable failure", asy
 Deno.test("model lookalike job - a provider outage can recover on a later attempt", async () => {
   const { client, calls } = workerClient();
   const unavailable = await refreshSpeciesModelContentJob(job, client, {
+    prepareAI,
     fetchSimilarSpecies: () =>
       Promise.resolve({ similar_species: [candidate] }),
     fetchLookalikeTaxon: () => {
@@ -178,6 +197,7 @@ Deno.test("model lookalike job - a provider outage can recover on a later attemp
     { ...job, attempts: 2 },
     client,
     {
+      prepareAI,
       fetchSimilarSpecies: () =>
         Promise.resolve({ similar_species: [candidate] }),
       fetchLookalikeTaxon: () => Promise.resolve(verified),
@@ -190,6 +210,7 @@ Deno.test("model lookalike job - a provider outage can recover on a later attemp
 Deno.test("model lookalike job - confirmed incompatible candidates record a settled empty result", async () => {
   const { client, calls } = workerClient();
   const result = await refreshSpeciesModelContentJob(job, client, {
+    prepareAI,
     fetchSimilarSpecies: () =>
       Promise.resolve({ similar_species: [candidate] }),
     fetchLookalikeTaxon: () =>
@@ -204,6 +225,7 @@ Deno.test("model lookalike job - confirmed incompatible candidates record a sett
 Deno.test("model lookalike job - verified missing species reach atomic persistence", async () => {
   const { client, calls } = workerClient();
   const result = await refreshSpeciesModelContentJob(job, client, {
+    prepareAI,
     fetchSimilarSpecies: () =>
       Promise.resolve({ similar_species: [candidate] }),
     fetchLookalikeTaxon: () => Promise.resolve(verified),
@@ -230,6 +252,7 @@ Deno.test("model lookalike job - verified missing species reach atomic persisten
 Deno.test("model lookalike job - unresolved candidates stay failed instead of terminal no_data", async () => {
   const { client, calls } = workerClient();
   const result = await refreshSpeciesModelContentJob(job, client, {
+    prepareAI,
     fetchSimilarSpecies: () =>
       Promise.resolve({ similar_species: [candidate] }),
     fetchLookalikeTaxon: () => Promise.resolve(null),
@@ -243,6 +266,7 @@ Deno.test("model lookalike job - unresolved candidates stay failed instead of te
 Deno.test("model lookalike job - partial resolution saves usable relations but keeps the job retryable", async () => {
   const { client, calls } = workerClient();
   const result = await refreshSpeciesModelContentJob(job, client, {
+    prepareAI,
     fetchSimilarSpecies: () =>
       Promise.resolve({
         similar_species: [candidate, {
@@ -267,6 +291,7 @@ Deno.test("model lookalike job - database taxonomy race remains retryable", asyn
     outcome: [{ persisted_count: 0, unresolved_count: 1, rejected_count: 0 }],
   });
   const result = await refreshSpeciesModelContentJob(job, client, {
+    prepareAI,
     fetchSimilarSpecies: () =>
       Promise.resolve({ similar_species: [candidate] }),
     fetchLookalikeTaxon: () => Promise.resolve(verified),
@@ -280,6 +305,7 @@ Deno.test("model lookalike job - reviewed rejection completes without overriding
     outcome: [{ persisted_count: 0, unresolved_count: 0, rejected_count: 1 }],
   });
   const result = await refreshSpeciesModelContentJob(job, client, {
+    prepareAI,
     fetchSimilarSpecies: () =>
       Promise.resolve({ similar_species: [candidate] }),
     fetchLookalikeTaxon: () => Promise.resolve(verified),
@@ -304,6 +330,7 @@ Deno.test("model lookalike job - persistence failure and malformed results canno
   ) {
     const { client, calls } = workerClient(options);
     const result = await refreshSpeciesModelContentJob(job, client, {
+      prepareAI,
       fetchSimilarSpecies: () =>
         Promise.resolve({ similar_species: [candidate] }),
       fetchLookalikeTaxon: () => Promise.resolve(verified),
@@ -318,6 +345,7 @@ Deno.test("model lookalike job - stale species identity cannot redirect work to 
     primary: { id: "replacement-species", ...taxonomy },
   });
   const result = await refreshSpeciesModelContentJob(job, client, {
+    prepareAI,
     fetchSimilarSpecies: () => {
       throw new Error("Generation must not start.");
     },
@@ -336,6 +364,7 @@ Deno.test("model refresh preview - uses the same grouped selection and never gen
     contentGroups: ["lookalikes" as const],
   };
   const result = await runSpeciesModelContentRefresh(request, client, {
+    prepareAI,
     fetchSimilarSpecies: () => {
       throw new Error("Dry-run must not generate.");
     },

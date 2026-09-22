@@ -7,6 +7,13 @@ import XCTest
 final class SpeciesSearchViewModelTests: XCTestCase {
     private let context = SpeciesSearchContext(query: "orange black butterfly", group: .insects, media: nil, mode: .description)
     private enum Failure: Error { case expected }
+    func testInitialPresentationRegistersRetainedSightings() {
+        let feed = ExploreFeedViewModel(dependencies: ExploreFeedTestFixtures.dependencies())
+        let post = ExploreFeedTestFixtures.post(id: "retained")
+        SpeciesSearchSightings.register([post], previous: [post], in: feed)
+        XCTAssertNotNil(feed.post(id: post.id))
+    }
+
     func testPaginationAndLateResponsesDoNotRestoreRemovedSightings() {
         let feed = ExploreFeedViewModel(dependencies: ExploreFeedTestFixtures.dependencies())
         let removed = ExploreFeedTestFixtures.post(id: "removed")
@@ -33,10 +40,10 @@ final class SpeciesSearchViewModelTests: XCTestCase {
         var continuation: CheckedContinuation<SpeciesSearchResponse, Error>?
         var pending: SpeciesSearchRequest?
         let model = SpeciesSearchViewModel(dependencies: .init(search: { request in
+            if request.resultKind == .species { return self.response(request) }
             pending = request
             return try await withCheckedThrowingContinuation { continuation = $0 }
         }, errorMessage: { _ in "Failed" }))
-        model.selectedTab = .sightings
         model.submit("Butterflies")
         let work = Task { await model.execute() }
         while continuation == nil { await Task.yield() }
@@ -49,7 +56,7 @@ final class SpeciesSearchViewModelTests: XCTestCase {
         XCTAssertFalse(SpeciesSearchSightings.canSurface(blocked, in: feed))
         XCTAssertNotNil(feed.post(id: allowed.id))
     }
-    func testFollowupPreservesContextAndTabSwitchDoesNotInvokeQuestion() async throws {
+    func testFollowupLoadsBothSectionsWithOneQuestion() async throws {
         var requests: [SpeciesSearchRequest] = []
         let model = SpeciesSearchViewModel(dependencies: .init(search: { request in
             requests.append(request)
@@ -59,15 +66,17 @@ final class SpeciesSearchViewModelTests: XCTestCase {
         await model.execute()
         XCTAssertEqual(model.context, context)
         XCTAssertEqual(model.draft, "")
-        model.selectedTab = .sightings
-        model.loadSelectedTab()
-        await model.execute()
+        XCTAssertEqual(requests.count, 2)
+        XCTAssertEqual(requests.first?.resultKind, .species)
         XCTAssertNil(requests.last?.question)
         XCTAssertEqual(requests.last?.resultKind, .sightings)
         model.submit("Only butterflies")
         await model.execute()
         XCTAssertEqual(requests.last?.context, context)
-        XCTAssertEqual(requests.last?.question, "Only butterflies")
+        XCTAssertEqual(requests[2].question, "Only butterflies")
+        XCTAssertEqual(requests[2].resultKind, .species)
+        XCTAssertNil(requests[3].question)
+        XCTAssertEqual(requests[3].resultKind, .sightings)
     }
     func testNewSearchInvalidatesSuspendedResponseAndResetsSession() async {
         var continuation: CheckedContinuation<SpeciesSearchResponse, Error>?
@@ -86,7 +95,8 @@ final class SpeciesSearchViewModelTests: XCTestCase {
         XCTAssertNil(model.request)
         XCTAssertFalse(model.isLoading)
         XCTAssertTrue(model.draft.isEmpty)
-        XCTAssertEqual(model.selectedTab, .species)
+        XCTAssertFalse(model.hasLoaded(.species))
+        XCTAssertFalse(model.hasLoaded(.sightings))
     }
     func testOlderRequestCannotOverwriteNewerResults() async {
         var continuation: CheckedContinuation<SpeciesSearchResponse, Error>?
@@ -115,15 +125,15 @@ final class SpeciesSearchViewModelTests: XCTestCase {
         }, errorMessage: { _ in "Offline" }))
         model.submit("butterflies")
         await model.execute()
-        model.speciesScrollID = "saved-position"
+        model.resultsScrollID = "saved-position"
         shouldFail = true
         model.submit("Only blue ones")
         await model.execute()
         XCTAssertEqual(model.context, context)
         XCTAssertEqual(model.draft, "Only blue ones")
         XCTAssertEqual(model.errorMessage, "Offline")
-        XCTAssertEqual(model.speciesScrollID, "saved-position")
-        XCTAssertFalse(model.hasMore)
+        XCTAssertEqual(model.resultsScrollID, "saved-position")
+        XCTAssertFalse(model.hasMore(.species))
         let previousID = model.request?.requestId
         shouldFail = false
         model.retry()
@@ -145,7 +155,7 @@ final class SpeciesSearchViewModelTests: XCTestCase {
         model.submit("Yes")
         XCTAssertEqual(model.request?.context, unresolved)
     }
-    func testRetryKeepsFailedPageKindAfterTabChange() async throws {
+    func testRetryKeepsFailedSectionAndCursor() async throws {
         let cursor = SpeciesSearchCursor(id: "00000000-0000-4000-8000-000000000001", rank: 1, sharedAt: nil)
         let model = SpeciesSearchViewModel(dependencies: .init(search: { request in
             if request.cursor != nil { throw Failure.expected }
@@ -158,31 +168,31 @@ final class SpeciesSearchViewModelTests: XCTestCase {
         }, errorMessage: { _ in "Offline" }))
         model.submit("Butterflies")
         await model.execute()
-        model.loadMore()
+        model.loadMore(.species)
         await model.execute()
         let failedRequest = try XCTUnwrap(model.request)
-        model.selectedTab = .sightings
+        model.loadMore(.sightings) // A failed page must not be overwritten.
         model.retry()
         XCTAssertEqual(model.request?.resultKind, .species)
         XCTAssertEqual(model.request?.cursor, cursor)
         XCTAssertEqual(model.request?.context, failedRequest.context)
         XCTAssertNotEqual(model.request?.requestId, failedRequest.requestId)
-        XCTAssertEqual(model.selectedTab, .sightings)
     }
-    func testClarificationSurvivesBrowsingAnotherResultTab() async {
+    func testClarificationSurvivesExistingSectionPagination() async {
         let unresolved = SpeciesSearchContext(query: "small red creature", group: nil, media: nil, mode: .description)
         let model = SpeciesSearchViewModel(dependencies: .init(search: { request in
             if request.question == "small red creature" {
                 return self.response(request, context: unresolved, status: .clarification, message: "Does it have wings?")
             }
-            return self.response(request)
+            return SpeciesSearchResponse(schemaVersion: 1, requestId: request.requestId, resultKind: request.resultKind,
+                status: .results, message: "Butterflies", context: self.context, species: [], sightings: [],
+                nextCursor: .init(id: "00000000-0000-4000-8000-000000000001", rank: nil, sharedAt: "2026-08-01T12:00:00Z"))
         }, errorMessage: { _ in "Failed" }))
         model.submit("Butterflies")
         await model.execute()
         model.submit("small red creature")
         await model.execute()
-        model.selectedTab = .sightings
-        model.loadSelectedTab()
+        model.loadMore(.sightings)
         XCTAssertEqual(model.notice, "Does it have wings?")
         await model.execute()
         XCTAssertTrue(model.needsClarification)
@@ -216,6 +226,92 @@ final class SpeciesSearchViewModelTests: XCTestCase {
         XCTAssertFalse(model.isLoading)
         XCTAssertNotNil(model.errorMessage)
         XCTAssertEqual(model.draft, "birds")
+    }
+
+    func testSightingsFailureKeepsNewSpeciesAndRetriesOnlySightings() async {
+        var failSightings = false
+        var requests: [SpeciesSearchRequest] = []
+        let item = starterFixtures[0]
+        let model = SpeciesSearchViewModel(dependencies: .init(search: { request in
+            requests.append(request)
+            if failSightings && request.resultKind == .sightings { throw Failure.expected }
+            return SpeciesSearchResponse(schemaVersion: 1, requestId: request.requestId, resultKind: request.resultKind,
+                status: .results, message: "Butterflies", context: self.context,
+                species: request.resultKind == .species ? [.init(item: item, excerpt: "")] : [],
+                sightings: request.resultKind == .sightings ? [ExploreFeedTestFixtures.post(id: "old-sighting")] : [], nextCursor: nil)
+        }, errorMessage: { _ in "Offline" }))
+        model.submit("Butterflies")
+        await model.execute()
+        failSightings = true
+        model.submit("Only monarchs")
+        await model.execute()
+        XCTAssertEqual(model.species.map(\.id), [item.id])
+        XCTAssertTrue(model.sightings.isEmpty, "Do not show old sightings under the new criteria")
+        XCTAssertTrue(model.hasLoaded(.species))
+        XCTAssertFalse(model.hasLoaded(.sightings))
+        XCTAssertEqual(model.request?.resultKind, .sightings)
+        XCTAssertNil(model.request?.question)
+        failSightings = false
+        model.retry()
+        await model.execute()
+        XCTAssertEqual(requests.count, 5)
+        XCTAssertEqual(requests.last?.resultKind, .sightings)
+        XCTAssertNil(requests.last?.question)
+        XCTAssertTrue(model.hasLoaded(.sightings))
+        XCTAssertNil(model.errorMessage)
+    }
+
+    func testResetDuringAutomaticSightingsReadRejectsLateResults() async {
+        var continuation: CheckedContinuation<SpeciesSearchResponse, Error>?
+        var pending: SpeciesSearchRequest?
+        let model = SpeciesSearchViewModel(dependencies: .init(search: { request in
+            if request.resultKind == .species { return self.response(request) }
+            pending = request
+            return try await withCheckedThrowingContinuation { continuation = $0 }
+        }, errorMessage: { _ in "Failed" }))
+        model.submit("Butterflies")
+        let work = Task { await model.execute() }
+        while continuation == nil { await Task.yield() }
+        XCTAssertTrue(model.hasLoaded(.species))
+        model.newSearch()
+        continuation?.resume(returning: response(pending!))
+        await work.value
+        XCTAssertFalse(model.hasResults)
+        XCTAssertFalse(model.hasLoaded(.sightings))
+        XCTAssertFalse(model.isLoading)
+        XCTAssertNil(model.request)
+    }
+
+    func testSectionPaginationKeepsSeparateCursorsAndDeduplicatesRows() async {
+        let first = starterFixtures[0]
+        let second = starterFixtures[1]
+        let speciesCursor = SpeciesSearchCursor(id: first.id, rank: 1, sharedAt: nil)
+        let sightingCursor = SpeciesSearchCursor(id: "00000000-0000-4000-8000-000000000009", rank: nil,
+                                                sharedAt: "2026-08-01T12:00:00Z")
+        var requests: [SpeciesSearchRequest] = []
+        let model = SpeciesSearchViewModel(dependencies: .init(search: { request in
+            requests.append(request)
+            let species = request.resultKind == .species
+                ? (request.cursor == nil ? [first] : [first, second]).map { SpeciesSearchMatch(item: $0, excerpt: "") } : []
+            let posts = request.resultKind == .sightings
+                ? (request.cursor == nil ? ["one"] : ["one", "two"]).map { ExploreFeedTestFixtures.post(id: $0) } : []
+            return SpeciesSearchResponse(schemaVersion: 1, requestId: request.requestId, resultKind: request.resultKind,
+                status: .results, message: "Butterflies", context: self.context, species: species, sightings: posts,
+                nextCursor: request.cursor == nil ? (request.resultKind == .species ? speciesCursor : sightingCursor) : nil)
+        }, errorMessage: { _ in "Failed" }))
+        model.submit("Butterflies")
+        await model.execute()
+        model.loadMore(.sightings)
+        await model.execute()
+        XCTAssertEqual(requests.last?.cursor, sightingCursor)
+        XCTAssertEqual(model.sightings.map(\.id), ["one", "two"])
+        XCTAssertTrue(model.hasMore(.species))
+        XCTAssertFalse(model.hasMore(.sightings))
+        model.loadMore(.species)
+        await model.execute()
+        XCTAssertEqual(requests.last?.cursor, speciesCursor)
+        XCTAssertEqual(model.species.map(\.id), [first.id, second.id])
+        XCTAssertTrue(requests.dropFirst().allSatisfy { $0.question == nil })
     }
 
     func testNewSearchRotatesPromptsWithoutRepeatingCurrentSet() async {
@@ -269,22 +365,23 @@ final class SpeciesSearchViewModelTests: XCTestCase {
     }
 
     func testSearchVisualFixtures() async throws {
-        for (name, hasResults, dark, largeText) in [
-            ("intro-light", false, false, false),
-            ("intro-dark", false, true, false),
-            ("intro-large", false, false, true),
-            ("results-light", true, false, false),
-            ("results-large-dark", true, true, true)
+        for (name, hasResults, dark, largeText, sightingCount) in [
+            ("intro-light", false, false, false, 0),
+            ("intro-dark", false, true, false, 0),
+            ("intro-large", false, false, true, 0),
+            ("results-single", true, false, false, 1),
+            ("results-pair", true, false, false, 2),
+            ("results-large-dark", true, true, true, 2)
         ] {
             let model = SpeciesSearchViewModel(dependencies: .init(search: { request in
-                SpeciesSearchResponse(schemaVersion: 1, requestId: request.requestId, resultKind: .species,
+                SpeciesSearchResponse(schemaVersion: 1, requestId: request.requestId, resultKind: request.resultKind,
                     status: .results, message: "Orange and black butterflies", context: self.context,
-                    species: [.init(item: .init(id: "00000000-0000-4000-8000-000000000001",
+                    species: request.resultKind == .species ? [.init(item: .init(id: "00000000-0000-4000-8000-000000000001",
                         scientificName: "Danaus plexippus", commonName: "Monarch",
                         contentQuality: nil, taxonomy: nil, iucnRedListStatus: nil, hazardType: nil,
-                        groupTags: ["insect"], referenceImageUrl: nil),
-                        excerpt: "An orange and black butterfly. Illustrative dictionary excerpt.")],
-                    sightings: [], nextCursor: nil)
+                        groupTags: ["insect"], referenceImageUrl: "https://example.invalid/species-0.jpg"),
+                        excerpt: "An orange and black butterfly. Illustrative dictionary excerpt.")] : [],
+                    sightings: request.resultKind == .sightings ? (0..<sightingCount).map { ExploreFeedTestFixtures.post(id: "sighting-\($0)") } : [], nextCursor: nil)
             }, errorMessage: { _ in "Offline" }, starterCatalog: .init(
                 loadPage: { _ in .init(schemaVersion: 1, data: self.starterFixtures, nextCursor: nil) },
                 errorMessage: { _ in "Unavailable" }
@@ -297,7 +394,7 @@ final class SpeciesSearchViewModelTests: XCTestCase {
                         let assets = ["fieldtrip-park-butterfly", "fieldtrip-park-flowering-plant", "fieldtrip-backyard-mushrooms", "bird-cardinal"]
                         let index = (0..<4).first { source.contains("species-\($0)") } ?? 0
                         return UIImage(named: assets[index])
-                    })
+                    }, sightingImageDependencies: .init(loadImage: { _, _ in UIImage(named: "bird-cardinal") }))
             }
             .environment(\.colorScheme, dark ? .dark : .light)
             .environment(\.dynamicTypeSize, largeText ? .accessibility3 : .large)

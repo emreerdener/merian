@@ -66,22 +66,3 @@ struct FieldTripPatchArtwork: View {
             }
     }
 }
-
-struct EarnedFieldTripPatchCarouselSkeleton: View {
-    var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            LazyHStack(spacing: 12) {
-                ForEach(0..<3, id: \.self) { _ in
-                    GlowPulsingSkeletonView(cornerRadius: 32)
-                        .frame(width: 64, height: 64)
-                        .clipShape(Circle())
-                }
-            }
-            .padding(.horizontal, 12)
-        }
-        .transparentTopToolbar()
-        .padding(.horizontal, -12)
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
-    }
-}

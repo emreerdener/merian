@@ -1,47 +1,43 @@
 import SwiftUI
 
-/// The Dictionary's public-sighting tile with the same Explore media and
-/// privacy-filtered author/location values, plus an explicit publication date.
+/// A square public-sighting thumbnail. Public attribution remains available
+/// to VoiceOver and in the destination's existing Explore detail presentation.
 struct SpeciesSearchSightingCard: View {
     let post: ExplorePost
     let mediaReloadGeneration: UInt64
+    var imageDependencies: ExploreHeroImageDependencies = .live
     let onOpen: () -> Void
 
     var body: some View {
         Button(action: onOpen) {
-            VStack(alignment: .leading, spacing: 10) {
-                ExploreHeroImageView(imageUrl: post.gridThumbnailUrl,
-                                     reloadGeneration: mediaReloadGeneration, maxDimension: 720)
-                    .aspectRatio(1.4, contentMode: .fill)
-                    .frame(maxHeight: 240)
-                    .clipped()
-                    .overlay(alignment: .bottomTrailing) {
-                        if post.hasVideoMedia || post.hasAudioMedia {
-                            ExploreMediaTypeIndicator(kind: post.hasVideoMedia ? .video : .audio)
-                                .padding(10)
-                        }
-                    }
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(post.speciesCommonName).font(.headline)
-                    Text(post.speciesScientificName).font(.subheadline).italic().foregroundStyle(.secondary)
-                    Text(post.authorUsername.map { "@\($0)" } ?? post.authorName)
-                        .font(.caption).foregroundStyle(.secondary)
-                    if let label = post.publicDisplayLocationLabel {
-                        Label(label, systemImage: "mappin").font(.caption).foregroundStyle(.secondary)
-                    }
-                    if let date = post.sharedAtDate {
-                        Text("Shared \(date.formatted(date: .abbreviated, time: .omitted))")
-                            .font(.caption).foregroundStyle(.secondary)
+            Color.clear
+                .aspectRatio(1, contentMode: .fit)
+                .overlay {
+                    ExploreHeroImageView(imageUrl: post.gridThumbnailUrl,
+                                         reloadGeneration: mediaReloadGeneration, maxDimension: 720,
+                                         dependencies: imageDependencies)
+                }
+                .clipped()
+                .overlay(alignment: .bottomTrailing) {
+                    if post.hasVideoMedia || post.hasAudioMedia {
+                        ExploreMediaTypeIndicator(kind: post.hasVideoMedia ? .video : .audio)
+                            .padding(8)
                     }
                 }
-                .padding([.horizontal, .bottom], 12)
-            }
-            .background(Color(uiColor: .secondarySystemGroupedBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 18))
-            .contentShape(RoundedRectangle(cornerRadius: 18))
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilitySummary)
         .accessibilityHint("Open public sighting")
+    }
+
+    private var accessibilitySummary: String {
+        var labels = [post.speciesCommonName, post.speciesScientificName,
+                      post.authorUsername.map { "@\($0)" } ?? post.authorName]
+        if let location = post.publicDisplayLocationLabel { labels.append(location) }
+        if let date = post.sharedAtDate {
+            labels.append("Shared \(date.formatted(date: .abbreviated, time: .omitted))")
+        }
+        return labels.joined(separator: ", ")
     }
 }

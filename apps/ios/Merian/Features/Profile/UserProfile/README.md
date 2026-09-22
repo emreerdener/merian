@@ -5,6 +5,9 @@ stats and achievements, persona and terrarium presentation, and the signed-in
 user's published-scan surfaces. The canonical product and behavior contract is
 [`06-profile-and-gamification.md`](../../../../../../docs/features-and-hardware/06-profile-and-gamification.md).
 
+Earned Field trip patches and their divider appear only when patches are
+available. Loading reserves no patch space and shows no patch skeletons.
+
 ## Ownership
 
 - `Models/` contains Profile-only value types and display policy, including

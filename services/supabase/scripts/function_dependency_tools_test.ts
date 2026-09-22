@@ -43,12 +43,19 @@ Deno.test("route-local changes deploy only that route", () => {
   );
 });
 
-Deno.test("Identify contract changes deploy every and only Identify consumer", () => {
+Deno.test("Identify contract changes deploy every direct and shared-adapter consumer", () => {
   assertEquals(
     planAffectedFunctions([
       "services/supabase/functions/_shared/identify/contract.ts",
     ], graphs),
-    ["audio-spec", "identify", "identify-describe", "identify-multimodal"],
+    [
+      "audio-spec",
+      "enrich-scan",
+      "identify",
+      "identify-describe",
+      "identify-multimodal",
+      "refresh-species-model-content",
+    ],
   );
 });
 

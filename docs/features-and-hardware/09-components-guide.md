@@ -272,17 +272,30 @@ owns only the shared frame, `Circle` material background, optional border, and
 optional enforced `ColorScheme`; callers still own icon choice, color, haptics,
 disabled state, accessibility labels, and action semantics.
 
-- **Current usage**: Shell-owned `CaptureControlBar` audio/describe utility
-  buttons, Shell-owned presentation-only `CaptureFlashButton`,
-  `PhotoLibraryButton`, `ToastBanner` dismiss affordances, `FieldNotesCard`
-  dismiss, and the candidate-verification dismiss chips.
-- **Abstraction boundary**: Do not use this modifier for controls with
-  additional animated backgrounds, semantic fills, or domain-specific geometry.
-  `CaptureDescribeDictationButton`, `CapturePrimaryActionButton`, avatars, feed
-  action pills, and map menus remain isolated because their visual contracts are
-  not identical. Capture row composition and behavior remain in
-  `Capture/Shell/Components/CaptureControls`; sharing this modifier does not
+- **Current usage**: The pre-iOS 26 Capture auxiliary-control fallback,
+  `ToastBanner` dismiss affordances, `FieldNotesCard` dismiss, and the
+  candidate-verification dismiss chips.
+- **Abstraction boundary**: Keep animated backgrounds, semantic fills, and
+  domain-specific geometry with their feature owners. Capture's shared wrapper
+  owns its fallback tint, while the dictation button owns its pulse ring.
+  `CapturePrimaryActionButton`, avatars, feed action pills, and map menus retain
+  their separate visual contracts. Capture row composition and behavior remain
+  in `Capture/Shell/Components/CaptureControls`; sharing this modifier does not
   move semantic control ownership into Core UI.
+
+Capture's secondary controls share
+`Features/Capture/Shared/Components/CaptureAuxiliaryControlModifier.swift`
+through `.captureAuxiliaryControl(tint:)`. It supplies a 50 pt interactive
+regular Liquid Glass circle on iOS 26 and later, or the circular material
+fallback with a subtle border on older systems. Optional tint colors the glass,
+with a semantic fill in the fallback. Describe dictation uses red while active
+and retains its separate audio-level ring; the audio checkmark uses the accent
+color. Both use white symbols. Prompts, idle dictation, photo import, flash,
+audio playback, and audio/video cancel use neutral surfaces and adaptive
+foregrounds, except red destructive icons and yellow enabled flash. Photo import
+retains its 48 pt thumbnail, fallback icon, and loading indicator. No control
+forces dark appearance. Callers continue to own spacing, actions, state, and
+accessibility; the primary capture button keeps its separate visual contract.
 
 ## 11. Habitat Map: `HabitatAndDistributionCard`
 
@@ -813,20 +826,20 @@ in
 The floating Field chat button and sheet are shared by eligible Insight scans
 and every visible Explore post detail, including the viewer's own posts. The
 source candidate also places it at the bottom right of every loaded canonical
-in-app Species Dictionary detail while keeping Share in the top bar; loading,
-error, and invalid-subject states hide the Dictionary bottom bar. Explore and
-Dictionary each create a private conversation owned by the requesting viewer.
-Other viewers cannot see it. On Explore detail, the button is shown while
-browsing post content and is removed when the comment composer becomes sticky or
-receives focus. It returns after scrolling back above the sticky-comment
-threshold. While the floating control is hidden, `ExplorePostDetailMenuButton`
-exposes the same Field chat action. Media type does not participate in Field
-chat eligibility; image, video, audio, and mixed-media posts use the same
-presentation rules. When an Explore thread has no messages, the only explanatory
-copy below the question is `This Field chat is private and visible only to you.`
-Technical model-context limitations are enforced by the source-specific backend
-route and belong in engineering/API documentation rather than additional
-empty-state disclaimers.
+in-app Species Dictionary detail. Both Explore and Dictionary place a blue Share
+button at the bottom left, opposite Field chat. Loading, error, and
+invalid-subject states hide the Dictionary bottom bar. Explore and Dictionary
+each create a private conversation owned by the requesting viewer. Other viewers
+cannot see it. On Explore detail, the button is shown while browsing post
+content and is removed when the comment composer becomes sticky or receives
+focus. It returns after scrolling back above the sticky-comment threshold. While
+the floating control is hidden, `ExplorePostDetailMenuButton` exposes the same
+Field chat action. Media type does not participate in Field chat eligibility;
+image, video, audio, and mixed-media posts use the same presentation rules. When
+an Explore thread has no messages, the only explanatory copy below the question
+is `This Field chat is private and visible only to you.` Technical model-context
+limitations are enforced by the source-specific backend route and belong in
+engineering/API documentation rather than additional empty-state disclaimers.
 
 Copying an assistant response writes it to the pasteboard and shows the
 transient `Copied` badge inside `InsightChatAnswerControls`. It does not emit a

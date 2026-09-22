@@ -78,6 +78,16 @@ files:
   stop only during active recording. Video preparation retains cancel while
   disabling competing capture, library, and flash actions.
 
+All secondary capture controls use the Capture Shared
+`captureAuxiliaryControl(tint:)` modifier for their 50 pt circular surface.
+Interactive Liquid Glass on iOS 26 and later uses red tint during dictation and
+accent tint for the audio checkmark; other controls remain neutral. Earlier
+systems use circular material with the same semantic fills. Neutral symbols
+adapt to appearance, while destructive symbols remain red and enabled flash
+remains yellow. Dictation retains its audio-level ring, and photo import retains
+its thumbnail and admission-loading state. See the
+[component contract](../../../../../../docs/features-and-hardware/09-components-guide.md#10-circular-control-chrome-circularmaterialcontrolmodifier).
+
 Shell is the lifecycle authority for in-flight visual work. Scene inactivity,
 leaving Scan, root or feature presentation takeover, workspace teardown, and
 state reset invalidate Scan's still and pre-recording generations. A video that

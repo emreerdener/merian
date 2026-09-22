@@ -361,16 +361,33 @@ contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-re
   iNaturalist and GBIF media untouched. Keep it aligned with the iOS
   `ExternalReferenceImagePolicy`; use a new cleanup/prevention migration for
   every added outlier.
+- **[`ai/`](ai/README.md)**: Provider-independent request/outcome contracts,
+  fixed Gemini registry, immutable admitted-attempt settings, single-invocation
+  execution, and native Gemini adapter. `identify-multimodal`,
+  `identify-describe`, `identify`, and `audio-spec` use this boundary with their
+  distinct settings. Primary evidence preserves ordered text, images/snapshots,
+  processed WAVs, and source lineage; the adapter projects existing safety and
+  native timing facts. The biological overview, lookalike, and group-tag helpers
+  also use this boundary through user enrichment and claimed public-content
+  jobs. Admission, quota settlement, and durable persistence remain with the
+  caller. Service jobs carry public-fact purpose, claimed attempt bounds, and
+  the fixed Flash model; this context is rejected for identification.
 - **`gemini.ts`**: Lazy paid-key `GoogleGenAI` 2.23.0 client plus
   structured-output and JSON extraction helpers. The 90-second HTTP deadline and
   single-attempt transport preserve durable quota/retry ownership.
   `gemini_test.ts` exercises the actual SDK through intercepted HTTP with
   synthetic data, including schemas, multimodal input, safety, usage, and
   cancellation; it makes no provider calls.
-- **`biology.ts`**: Shared structured biological generation helpers retained for
-  functions that still need text-only ecological generation. Externally
-  reachable callers must pass the model selected by the database quota policy;
-  service-only maintenance callers pass their reviewed system model explicitly.
+- **`biology.ts`**: Shared biological result normalization and existing
+  usage/analytics helpers. Each receives a prepared task execution from `ai/`;
+  `ai/geminiContent.ts` owns native prompts and schemas. User callers prepare
+  with their database-admitted reservation before commitment; public jobs
+  prepare with their server-side claim. `biology_test.ts` exercises all three
+  helpers through intercepted SDK HTTP, including both models, task settings,
+  legacy JSON decoding, normalization, optional usage, and failure propagation
+  without retries. `ai/content_test.ts` verifies actual caller quotas, caches,
+  claims, concurrency, and user/service usage attribution. Internal execution
+  metadata never enters public enrichment responses.
 - **`aiQuota.ts`**: Service-role client for the atomic `reserve_ai_quota(...)`
   and `finalize_ai_quota_reservation(...)` RPCs. It validates UUID idempotency
   keys, carries nullable original-analysis linkage, protocol, route-derived

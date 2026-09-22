@@ -903,7 +903,7 @@ Deno.test("scan profile prerequisite fails before quota or provider work and rec
     "await quotaLease.commit();",
     ingestionClaim,
   );
-  const providerCall = source.indexOf("_genAI.models.generateContent({");
+  const providerCall = source.indexOf("await execution.invoke()");
   const durableIngestion = source.indexOf(
     "const runDurableIngestion = async () =>",
   );
@@ -1024,31 +1024,34 @@ Deno.test("sex falls back to cannot_determine for invalid enum values", () => {
   assertEquals(sanitizeSex(undefined), "cannot_determine");
 });
 
-Deno.test("latency work preserves the scoped Gemini model and generation configuration", async () => {
+Deno.test("main identification uses one admitted shared-provider invocation", async () => {
   const source = await Deno.readTextFile(
     new URL("./index.ts", import.meta.url),
   );
   assertEquals(
-    source.match(/_genAI\.models\.generateContent\(/g)?.length,
+    source.match(/await execution\.invoke\(/g)?.length,
     1,
   );
+  assert(!source.includes("generateContent("));
   for (
     const fragment of [
       "const targetModel = quotaLease.reservation.model;",
+      "prepare = prepareAIExecution",
+      "const execution = prepare(aiRequest, {",
+      'kind: "user_request"',
+      'permission: "google_gemini"',
+      'operation: "scan_identification"',
+      "reservation: quotaLease.reservation",
       "await quotaLease.commit();",
-      "model: targetModel",
-      "temperature: 0.1",
-      "seed: 42",
-      "maxOutputTokens: 8192",
-      "? { thinkingBudget: 5000 }\n          : undefined",
-      'responseMimeType: "application/json"',
-      "responseSchema: usesAudioOnlyProviderContract",
-      "? getMerianAudioResponseSchema()",
-      ": getMerianResponseSchema(diagnosticTrigger)",
     ]
   ) {
-    assert(source.includes(fragment), `missing Gemini invariant: ${fragment}`);
+    assert(
+      source.includes(fragment),
+      `missing provider invariant: ${fragment}`,
+    );
   }
+  // Actual model, prompt, schema, generation settings and HTTP media parts are
+  // exercised for both tiers in _shared/ai/ai_test.ts.
 });
 
 Deno.test("cache-miss external enrichment begins inside durable ingestion", async () => {
@@ -1164,13 +1167,13 @@ Deno.test("latency telemetry is privacy-safe and keeps the Gemini boundary exact
     assert(latencyBlock.includes(fragment), `missing latency tag: ${fragment}`);
   }
 
-  const generationCall = source.indexOf("await _genAI.models.generateContent");
+  const generationCall = source.indexOf("await execution.invoke()");
   const geminiStop = source.indexOf(
-    "geminiLatencyMs = Date.now() - geminiStart;",
+    "geminiLatencyMs = result.providerCompletedAt - geminiStart;",
     generationCall,
   );
   const responseExtraction = source.indexOf(
-    "finishReason = result.candidates",
+    "finishReason = result.finishReason",
     generationCall,
   );
   assert(generationCall >= 0);
@@ -1197,11 +1200,11 @@ Deno.test("latency phase spans isolate quota, provider, promotion, enrichment, a
     "const quotaCommitStart = performance.now();",
     "await quotaLease.commit();",
     "const providerStart = performance.now();",
-    "await _genAI.models.generateContent",
-    "providerMs = performance.now() - providerStart;",
+    "await execution.invoke()",
+    "providerMs = result.providerDurationMs;",
     "quotaCommitMs = providerStart - quotaCommitStart;",
-    "geminiLatencyMs = Date.now() - geminiStart;",
-    "finishReason = result.candidates",
+    "geminiLatencyMs = result.providerCompletedAt - geminiStart;",
+    "finishReason = result.finishReason",
   );
   assertOrdered(
     '"video_promotion_started"',

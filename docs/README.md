@@ -182,7 +182,15 @@ production submission or public release.
 - **[`/rfcs/identification-foundation-srd.md`](./rfcs/identification-foundation-srd.md)**
   — Companion system requirements for the Gemini adapter, actual-input
   capability checks, existing consent/confidence and recovery behavior, and a
-  separate future-provider integration and qualification procedure.
+  separate future-provider integration and qualification procedure. Includes the
+  six-slice implementation tracker and its
+  [21 September source/test baseline](./rfcs/identification-foundation-baseline.md).
+  The
+  [Slice 6 verification record](./rfcs/identification-foundation-verification.md)
+  covers the final dispatch boundary, local overhead, disposable database
+  evidence, and remaining candidate/hosted/device gates; the
+  [provider onboarding guide](../services/supabase/functions/_shared/ai/ADDING_PROVIDERS.md)
+  explains the work needed before assigning another service.
 - **Deferred family and prior combined planning:**
   [PRD](./product/02-family-plans-and-ai-platform-prd.md) and
   [SRD](./rfcs/family-plans-and-ai-platform-srd.md). Family plans are deferred;

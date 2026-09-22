@@ -75,7 +75,7 @@ mutation. The current rollout state is documented in
   - Author row
   - Full-width hero image
   - Comment, Heart, Add reaction, and scrolling emoji chips below the hero
-  - Share in the top-right toolbar immediately before Options
+  - Blue Share button at the bottom left, opposite Field chat
   - Optional centered wrapping hashtag chips
   - Species section
   - Public species insight cards
@@ -418,7 +418,7 @@ It should contain:
 - The same privacy-safe author identity used on the feed
 - A full-width hero image
 - Comment, Heart, Add reaction, and scrolling emoji chips below the hero
-- External Share in the top-right toolbar immediately before Options
+- Blue external Share button at the bottom left, opposite Field chat
 - Optional public hashtag chips that wrap and route to tagged-post collections
 - Common and scientific names
 - Public species insight cards backed by `species_dictionary`
@@ -430,6 +430,10 @@ It should contain:
 
 Interaction model:
 
+- Feed cards and post detail keep Edit post in their overflow menu. Their edit
+  sheet exposes a top-right Post options menu containing destructive red
+  Unpublish post. Confirmation preserves the original scan and removes only the
+  Explore publication; cancelling keeps the editor and its draft open.
 - Feed comment taps intentionally stay in a bottom sheet for quick engagement
   without leaving the feed.
 - Detail-page comment taps should scroll/focus the inline composer rather than
@@ -1851,3 +1855,29 @@ blocked/shadowbanned actors before calculating names, unique counts, and pages.
 This read-only list does not change notification aggregation or
 self-suppression. See the
 [people API](../backend-and-data/05-api-contracts.md#post-reaction-people).
+
+## Detail Share placement update (2026-09-21)
+
+Explore post detail now places its blue Share button at the bottom left,
+opposite Field chat. This supersedes the top-right Share placement in the
+September 18 reaction-layout notes above. Options is the sole trailing action in
+the top toolbar, leaving more room for the centered species title; the loading
+skeleton likewise shows only that top-toolbar control. Share uses the existing
+external sharing flow. When the comment composer is sticky or focused, Options
+also includes Share so it remains accessible when the bottom buttons are
+covered, independently of Field chat availability. Species Dictionary detail
+uses the same bottom-left Share placement after its canonical UUID loads.
+
+## Bare emoji reactions update (2026-09-21)
+
+This supersedes the capsule styling in the September 18 reaction-layout notes.
+Added reactions on posts and comments have no background or border, including
+when selected. The shared strip uses 20-point emoji and 20-point counts within
+the default 44-point row, scaling those dimensions together with Dynamic Type.
+Counts turn blue when the viewer has contributed that reaction and otherwise use
+the default text color. VoiceOver retains the selected trait and add/remove
+hint. Comment/reply Add reaction controls likewise remove their capsule fill and
+border and use a 20-point smiley. Tap targets remain at least 44 points. Feed,
+hashtag, detail, Map previews, comments, and notification reply threads all
+consume this styling. Toggle behavior, pagination, overflow fades, and the
+second post row at large text sizes remain unchanged.

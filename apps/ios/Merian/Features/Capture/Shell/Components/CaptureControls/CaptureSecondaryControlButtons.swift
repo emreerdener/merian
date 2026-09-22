@@ -22,12 +22,8 @@ struct CaptureDescribeDictationButton: View {
 
                 Image(systemName: "mic.fill")
                     .font(.system(size: 20, weight: .medium))
-                    .foregroundColor(.white)
-                    .frame(width: 50, height: 50)
-                    .background(isRecording ? Color.red : Color.clear)
-                    .background(.ultraThinMaterial)
-                    .clipShape(Circle())
-                    .environment(\.colorScheme, .dark)
+                    .foregroundColor(isRecording ? .white : .primary)
+                    .captureAuxiliaryControl(tint: isRecording ? .red : nil)
                     .animation(
                         .easeInOut(duration: 0.2),
                         value: isRecording
@@ -50,7 +46,7 @@ struct CaptureVideoCancelButton: View {
             Image(systemName: "xmark")
                 .font(.system(size: 20, weight: .medium))
                 .foregroundColor(.red)
-                .circularMaterialControl(colorScheme: .dark)
+                .captureAuxiliaryControl()
         }
         .buttonStyle(.plain)
         .padding(.leading, 32)
@@ -64,8 +60,8 @@ struct CapturePromptListButton: View {
         Button(action: onTap) {
             Image(systemName: "list.bullet")
                 .font(.system(size: 20, weight: .semibold))
-                .foregroundColor(.white)
-                .circularMaterialControl(colorScheme: .dark)
+                .foregroundColor(.primary)
+                .captureAuxiliaryControl()
         }
         .buttonStyle(.plain)
         .padding(.leading, 32)
@@ -83,27 +79,11 @@ struct CaptureAudioDeleteButton: View {
             Image(systemName: isRecording ? "xmark" : "trash")
                 .font(.system(size: 20, weight: .medium))
                 .foregroundColor(.red)
-                .modifier(CaptureAudioDeleteGlassModifier())
+                .captureAuxiliaryControl()
                 .contentTransition(.symbolEffect(.replace))
         }
         .buttonStyle(.plain)
         .padding(.leading, 32)
-    }
-}
-
-private struct CaptureAudioDeleteGlassModifier: ViewModifier {
-    @ViewBuilder
-    func body(content: Content) -> some View {
-        if #available(iOS 26.0, *) {
-            content
-                .frame(width: 50, height: 50)
-                .glassEffect(.regular.interactive(), in: Circle())
-        } else {
-            content
-                .circularMaterialControl(
-                    borderColor: .primary.opacity(0.15)
-                )
-        }
     }
 }
 
@@ -115,8 +95,7 @@ struct CaptureAudioDoneButton: View {
             Image(systemName: "checkmark")
                 .font(.system(size: 20, weight: .semibold))
                 .foregroundColor(.white)
-                .frame(width: 50, height: 50)
-                .background(Color.accentColor, in: Circle())
+                .captureAuxiliaryControl(tint: .accentColor)
         }
         .buttonStyle(.plain)
         .padding(.trailing, 32)
@@ -131,8 +110,8 @@ struct CaptureAudioReviewPlayButton: View {
         Button(action: onTap) {
             Image(systemName: isPlaying ? "stop.fill" : "play.fill")
                 .font(.system(size: 20, weight: .medium))
-                .foregroundColor(.white)
-                .circularMaterialControl(colorScheme: .dark)
+                .foregroundColor(.primary)
+                .captureAuxiliaryControl()
                 .contentTransition(.symbolEffect(.replace))
         }
         .buttonStyle(.plain)

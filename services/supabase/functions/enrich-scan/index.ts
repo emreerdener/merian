@@ -1,3 +1,5 @@
+import type { SupabaseClient, User } from "@supabase/supabase-js";
+import { prepareAIExecution } from "../_shared/ai/production.ts";
 import {
   jsonResponse,
   runBackground,
@@ -91,8 +93,12 @@ function formatLookalikesOnlyPayload(
 const _enrichmentInFlight = new Map<string, Promise<void>>();
 const _lookalikesInFlight = new Map<string, Promise<void>>();
 
-Deno.serve((req: Request) =>
-  withEdgeHandler(req, async (_user, supabaseAdmin) => {
+export function createEnrichHandler(prepare = prepareAIExecution) {
+  return async (
+    req: Request,
+    _user: User,
+    supabaseAdmin: SupabaseClient,
+  ): Promise<Response> => {
     const body = await parseJsonBody(req, { limit: "small" });
     if (body instanceof Response) return body;
 
@@ -231,29 +237,42 @@ Deno.serve((req: Request) =>
       });
       let resolveEnrichmentInFlight!: () => void;
       let rejectEnrichmentInFlight!: (e: Error) => void;
-      _enrichmentInFlight.set(
-        scientific_name,
-        new Promise<void>((resolve, reject) => {
-          resolveEnrichmentInFlight = resolve;
-          rejectEnrichmentInFlight = reject;
-        }),
-      );
+      const enrichmentInFlight = new Promise<void>((resolve, reject) => {
+        resolveEnrichmentInFlight = resolve;
+        rejectEnrichmentInFlight = reject;
+      });
+      // The first caller can fail without a waiter. Observe that rejection
+      // while preserving the rejected original promise for any waiting caller.
+      void enrichmentInFlight.catch(() => {});
+      _enrichmentInFlight.set(scientific_name, enrichmentInFlight);
       let providerAttempted = false;
 
       try {
+        const execution = prepare({
+          task: "species_overview",
+          variant: "species_content",
+          scientificName: scientific_name,
+          locale: "en",
+        }, {
+          kind: "user_request",
+          userId: _user.id,
+          permission: "google_gemini",
+          operation: "scan_overview_enrichment",
+          reservation: quotaLease.reservation,
+        });
         await quotaLease.commit();
         providerAttempted = true;
         const enrichmentResult = await fetchStaticEncyclopedicData(
           _user,
           scientific_name,
-          "en",
-          quotaLease.reservation.model,
+          execution,
         );
 
         recordAIUsageBestEffort(supabaseAdmin, {
           operation: "scan_overview_enrichment",
           model: quotaLease.reservation.model,
           usage: enrichmentResult.usage,
+          metadata: enrichmentResult.execution,
           inputModality: "text",
           userId: _user.id,
         });
@@ -471,16 +490,32 @@ Deno.serve((req: Request) =>
     });
     let resolveLookalikesInFlight!: () => void;
     let rejectLookalikesInFlight!: (e: Error) => void;
-    _lookalikesInFlight.set(
-      scientific_name,
-      new Promise<void>((resolve, reject) => {
-        resolveLookalikesInFlight = resolve;
-        rejectLookalikesInFlight = reject;
-      }),
-    );
+    const lookalikesInFlight = new Promise<void>((resolve, reject) => {
+      resolveLookalikesInFlight = resolve;
+      rejectLookalikesInFlight = reject;
+    });
+    void lookalikesInFlight.catch(() => {});
+    _lookalikesInFlight.set(scientific_name, lookalikesInFlight);
     let providerAttempted = false;
 
     try {
+      const execution = prepare({
+        task: "lookalikes",
+        variant: "species_content",
+        scientificName: scientific_name,
+        taxonomy: {
+          kingdom: cachedSpecies?.kingdom,
+          class: cachedSpecies?.class,
+          order: cachedSpecies?.order,
+          family: cachedSpecies?.family,
+        },
+      }, {
+        kind: "user_request",
+        userId: _user.id,
+        permission: "google_gemini",
+        operation: "scan_lookalike_enrichment",
+        reservation: quotaLease.reservation,
+      });
       await quotaLease.commit();
       providerAttempted = true;
       let validatedSimilarResult: {
@@ -488,18 +523,18 @@ Deno.serve((req: Request) =>
           { scientific_name: string; common_name: string | null }
         >;
       } | null = null;
-      const similarResult = await fetchSimilarSpecies(_user, scientific_name, {
-        kingdom: cachedSpecies?.kingdom,
-        class: cachedSpecies?.class,
-        order: cachedSpecies?.order,
-        family: cachedSpecies?.family,
-      }, quotaLease.reservation.model);
+      const similarResult = await fetchSimilarSpecies(
+        _user,
+        scientific_name,
+        execution,
+      );
 
       if (similarResult?.usage) {
         recordAIUsageBestEffort(supabaseAdmin, {
           operation: "scan_lookalike_enrichment",
           model: quotaLease.reservation.model,
           usage: similarResult.usage,
+          metadata: similarResult.execution,
           inputModality: "text",
           userId: _user.id,
         });
@@ -594,5 +629,15 @@ Deno.serve((req: Request) =>
     } finally {
       _lookalikesInFlight.delete(scientific_name);
     }
-  })
-);
+  };
+}
+
+const handleEnrichRequest = createEnrichHandler();
+if (import.meta.main) {
+  Deno.serve((req: Request) =>
+    withEdgeHandler(
+      req,
+      (user, supabaseAdmin) => handleEnrichRequest(req, user, supabaseAdmin),
+    )
+  );
+}
