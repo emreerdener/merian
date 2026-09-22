@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct ExplorePostDetailInsightSection: View {
+struct ExplorePostDetailInsightSection<FieldNotes: View>: View {
     let post: ExplorePost
     let scientificName: String
     let displayCommonName: String
@@ -9,6 +9,7 @@ struct ExplorePostDetailInsightSection: View {
     let isLoading: Bool
     let errorMessage: String?
     let onOpenExploreMap: ((ExploreMapFocusTarget) -> Void)?
+    @ViewBuilder let fieldNotes: () -> FieldNotes
 
     private var shouldShowSection: Bool {
         isLoading
@@ -39,9 +40,26 @@ struct ExplorePostDetailInsightSection: View {
     }
 
     var body: some View {
-        if shouldShowSection {
-            VStack(alignment: .leading, spacing: 24) {
+        VStack(alignment: .leading, spacing: 24) {
+            if shouldShowSection {
                 cards
+            }
+
+            fieldNotes()
+
+            if shouldShowSection {
+                if !isLoading || detail != nil {
+                    ExploreObservationContextCard(
+                        post: post,
+                        detail: detail,
+                        onOpenExploreMap: onOpenExploreMap
+                    )
+
+                    AlternativeCommonNamesLine(
+                        names: alternativeCommonNames,
+                        primaryCommonName: displayCommonName
+                    )
+                }
 
                 if let errorMessage, detail == nil {
                     Text(errorMessage)
@@ -78,17 +96,6 @@ struct ExplorePostDetailInsightSection: View {
                     speciesId: detail?.speciesDictionaryId
                 )
             }
-
-            ExploreObservationContextCard(
-                post: post,
-                detail: detail,
-                onOpenExploreMap: onOpenExploreMap
-            )
-
-            AlternativeCommonNamesLine(
-                names: alternativeCommonNames,
-                primaryCommonName: displayCommonName
-            )
         }
     }
 }

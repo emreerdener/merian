@@ -107,10 +107,10 @@ accessibility sizes. Post red-heart mapping belongs to Feed state, not this
 generic comment-capable strip.
 
 Added reactions show bare emoji and counts, with no background or border in any
-selection state. Emoji use 20-point text and counts use 20-point text within the
-default 44-point row. All three measurements scale together with Dynamic Type,
-keeping glyphs inside the available row height. Counts turn blue when the viewer
-has contributed that reaction and otherwise use the default text color.
+selection state. Emoji use 20-point text within the default 44-point row. Counts
+use body text (17 points by default), matching the comment and heart counts.
+Emoji, counts, and row height support Dynamic Type. Counts turn blue when the
+viewer has contributed that reaction and otherwise use the default text color.
 VoiceOver retains selection traits; each reaction keeps a minimum 44-point-wide
 tap target. Comment/reply Add reaction buttons also omit their capsule
 background and outline, using a 20-point smiley that scales with Dynamic Type.

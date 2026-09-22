@@ -1,27 +1,8 @@
-import {
-  ApiError,
-  type GenerateContentParameters,
-  HarmBlockThreshold,
-  HarmCategory,
-} from "@google/genai";
+import { ApiError, type GenerateContentParameters } from "@google/genai";
 import { _genAI, extractJson, GEMINI_REQUEST_TIMEOUT_MS } from "../gemini.ts";
 import { geminiUsageModalityBreakdown } from "../aiUsage.ts";
 import { buildGeminiContent } from "./geminiContent.ts";
-import {
-  getDescribeResponseSchema,
-  getDescribeSystemInstruction,
-} from "../../identify-describe/schema.ts";
-import {
-  BIOACOUSTIC_SYSTEM_INSTRUCTION,
-  DESCRIBE_SYSTEM_INSTRUCTION,
-  MULTIMODAL_BLENDED_SYSTEM_INSTRUCTION,
-} from "../../identify-multimodal/instructions.ts";
-import { BIOACOUSTIC_SYSTEM_INSTRUCTION as AUDIO_COMPAT_INSTRUCTION } from "../../audio-spec/instructions.ts";
-import {
-  getMerianAudioResponseSchema,
-  getMerianResponseSchema,
-  getSystemInstruction,
-} from "../identify/schema.ts";
+import { buildGeminiRequestParameters } from "./geminiRequest.ts";
 import type {
   AIAdapter,
   AIAttemptSnapshot,
@@ -30,85 +11,17 @@ import type {
   AIResponseFacts,
 } from "./contracts.ts";
 
-// Preserve the legacy vision route's explicit biological-photography policy.
-// Primary multimodal and audio/description routes keep SDK safety defaults.
-const BIOLOGICAL_SAFETY_SETTINGS = [
-  {
-    category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-    threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
-  },
-  {
-    category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-    threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
-  },
-];
-
-function diagnosticTrigger(snapshot: AIAttemptSnapshot): number {
-  if (
-    typeof snapshot.diagnosticTrigger !== "number" ||
-    !Number.isFinite(snapshot.diagnosticTrigger)
-  ) {
-    throw new Error("ai_diagnostic_binding_missing");
-  }
-  return snapshot.diagnosticTrigger;
-}
-
+/** Preserve the complete request projection while keeping pure identification
+ * preparation independent from the SDK's Node environment initialization. */
 export function buildGeminiRequest(
   request: AIRequest,
   snapshot: AIAttemptSnapshot,
 ): GenerateContentParameters {
-  const options = snapshot.generation;
-  const content = request.task === "identify"
-    ? null
-    : buildGeminiContent(request);
-  const systemInstruction = content?.systemInstruction ??
-    (snapshot.prompt === "identify_describe_v1"
-      ? getDescribeSystemInstruction()
-      : snapshot.prompt === "identify_blended_v1"
-      ? MULTIMODAL_BLENDED_SYSTEM_INSTRUCTION
-      : snapshot.prompt === "identify_vision_v1"
-      ? getSystemInstruction(
-        snapshot.promptDiagnosticTrigger ?? diagnosticTrigger(snapshot),
-      )
-      : snapshot.prompt === "identify_audio_v1"
-      ? BIOACOUSTIC_SYSTEM_INSTRUCTION
-      : snapshot.prompt === "identify_audio_compat_v1"
-      ? AUDIO_COMPAT_INSTRUCTION
-      : DESCRIBE_SYSTEM_INSTRUCTION);
-  const schema = content?.responseSchema ??
-    (snapshot.schema === "merian_describe_v1"
-      ? getDescribeResponseSchema()
-      : snapshot.schema === "merian_audio_v1"
-      ? getMerianAudioResponseSchema()
-      : getMerianResponseSchema(diagnosticTrigger(snapshot)));
-  return {
-    model: snapshot.model,
-    contents: request.task === "identify"
-      ? [{
-        role: "user",
-        parts: request.evidence.map((item) =>
-          item.kind === "text"
-            ? { text: item.text }
-            : { inlineData: { mimeType: item.mimeType, data: item.data } }
-        ),
-      }]
-      : content!.contents,
-    config: {
-      systemInstruction,
-      temperature: options.temperature,
-      ...(options.seed === undefined ? {} : { seed: options.seed }),
-      ...(options.topK === undefined ? {} : { topK: options.topK }),
-      maxOutputTokens: options.maxOutputTokens,
-      ...(options.thinkingBudget === undefined
-        ? {}
-        : { thinkingConfig: { thinkingBudget: options.thinkingBudget } }),
-      responseMimeType: "application/json",
-      responseSchema: structuredClone(schema),
-      ...(snapshot.safety === "biological_vision_v1"
-        ? { safetySettings: structuredClone(BIOLOGICAL_SAFETY_SETTINGS) }
-        : {}),
-    },
-  };
+  return buildGeminiRequestParameters(
+    request,
+    snapshot,
+    request.task === "identify" ? undefined : buildGeminiContent(request),
+  );
 }
 
 export const geminiAdapter: AIAdapter = Object.freeze({

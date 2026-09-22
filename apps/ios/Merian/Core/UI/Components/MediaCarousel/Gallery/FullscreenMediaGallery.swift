@@ -204,7 +204,7 @@ struct FullscreenMediaGallery: View {
 
             VStack(spacing: 12) {
                 if let label = selectedItem?.referenceAttributionLabel {
-                    Text(label)
+                    Text(MediaAttributionText.formatted(label))
                         .font(.caption)
                         .fontWeight(.semibold)
                         .foregroundStyle(.white)

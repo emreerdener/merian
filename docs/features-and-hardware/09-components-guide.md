@@ -499,7 +499,9 @@ Displays public species reference images from `/species-dictionary`.
   existing bottom overlay. Naturebook uses `@username · Naturebook` and never
   falls back to the stored display name or “Used with permission” text; if
   username data is unavailable, it shows only `Naturebook`. External images can
-  include photographer, license, and source.
+  include photographer, license, and source. Embedded URLs use tappable website
+  or license titles through `MediaAttributionText`, also used beneath the Field
+  Chat image stack; raw addresses are never visible attribution text.
 - **Fallback behavior**: Images without attribution metadata still render in iOS
   with source labeling. Future web renderers must run the shared public
   projection attribution audit before publishing reference media.

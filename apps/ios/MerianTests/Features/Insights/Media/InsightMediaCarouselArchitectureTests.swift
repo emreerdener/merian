@@ -126,7 +126,7 @@ final class InsightMediaCarouselArchitectureTests: XCTestCase {
                 "AudioPlayback/AudioPlaybackCarouselPage.swift"
             )
         )
-        XCTAssertTrue(audio.contains("@State private var player: AVAudioPlayer?"))
+        XCTAssertTrue(audio.contains("@State private var player: AudioPlaybackFilePlayer?"))
         XCTAssertTrue(audio.contains("@State private var pendingPlayer:"))
 
         for file in [

@@ -5,6 +5,12 @@ Status: Slice 6 local record; no deployment or alternate provider enabled\
 Baseline commit: `bb3d4ce1484b159312276fb60d95d3acd0a53f49`\
 Source state: uncommitted working tree; not immutable candidate-CI evidence
 
+**Later status — 21 September 2026:** The
+[deployment and verification record](../release-evidence/provider-flexibility-deployment-2026-09-21.md)
+adds the merged candidate, successful production deployment, and owner-reported
+manual verification. The local evidence and remaining boundaries below describe
+the earlier Slice 6 checkpoint and are preserved as historical facts.
+
 The [SRD tracker](./identification-foundation-srd.md#implementation-slices) owns
 implementation status. Current behavior is described by the
 [provider guide](../../services/supabase/functions/_shared/ai/README.md),

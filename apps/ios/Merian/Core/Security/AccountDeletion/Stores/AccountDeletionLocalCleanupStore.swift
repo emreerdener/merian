@@ -166,7 +166,8 @@ enum AccountDeletionLocalCleanupStore {
     @MainActor
     static func resolve(
         userDefaults: UserDefaults = .standard,
-        eventSender: (any AppEventSending)? = nil
+        eventSender: (any AppEventSending)? = nil,
+        emitEvent: Bool = true
     ) -> Bool {
         userDefaults.removeObject(
             forKey: UserDefaultsKeys.pendingLocalAccountDeletionCleanup
@@ -175,8 +176,10 @@ enum AccountDeletionLocalCleanupStore {
               state(userDefaults: userDefaults) == nil else {
             return false
         }
-        let sender = eventSender ?? AppDIContainer.shared.appEventPublisher
-        sender.send(.accountDeletionRecoveryStateChanged)
+        if emitEvent {
+            let sender = eventSender ?? AppDIContainer.shared.appEventPublisher
+            sender.send(.accountDeletionRecoveryStateChanged)
+        }
         return true
     }
 }

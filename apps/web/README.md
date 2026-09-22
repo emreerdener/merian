@@ -58,6 +58,10 @@ by browser or page-rendering fetches; see
 existing-data refresh requirements. Uncredited images remain excluded from media
 and metadata.
 
+Embedded URLs in photographer credits render as labeled website or Creative
+Commons license links, preserving names and destinations. Social-image captions
+use the same readable labels; attribution never displays naked URLs.
+
 ## Public design direction
 
 The homepage uses a forest-green hero, confident display typography, warm

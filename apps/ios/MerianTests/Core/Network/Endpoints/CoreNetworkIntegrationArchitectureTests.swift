@@ -4007,6 +4007,9 @@ struct CoreNetworkIntegrationArchitectureTests {
             admission.contains("performPinnedScanAdmissionPreviewRequest(")
         )
         #expect(admission.contains("retryEnabled: false"))
+        let preparation = try #require(admission.range(of: "ScanAdmissionSessionReadiness.prepare("))
+        let lease = try #require(admission.range(of: ".beginUnownedAccountBoundWork()"))
+        #expect(preparation.lowerBound < lease.lowerBound)
         #expect(
             client.contains(
                 ".appendingPathComponent(\"get_my_scan_admission_preview\")"
@@ -4463,6 +4466,7 @@ struct CoreNetworkIntegrationArchitectureTests {
         "AuthenticatedTransportDispatcher.swift",
         "EdgeFunctionErrorPolicy.swift",
         "EdgeFunctionRoutePolicy.swift",
+        "IdentificationBenchmarkRecord.swift",
         "PinnedNetworkTransport.swift"
     ]
 

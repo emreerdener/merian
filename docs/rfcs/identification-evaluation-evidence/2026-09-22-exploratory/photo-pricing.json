@@ -1,0 +1,37 @@
+{
+  "version": "evaluation_pricing_v1",
+  "currency": "USD",
+  "service": "paid_standard_synchronous",
+  "retrievedAt": "2026-09-22T16:20:15.212Z",
+  "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+  "reviewRef": "pricing-public-20260922",
+  "includesReasoning": true,
+  "models": [
+    {
+      "model": "gemini-2.5-flash",
+      "inputPerMillion": {
+        "text": 0.3,
+        "image": 0.3,
+        "audio": 1,
+        "cached": 0.1
+      },
+      "outputPerMillion": 2.5,
+      "maxInputTokens": 1048576,
+      "maxBillableOutputTokens": 65536,
+      "limitsEvidenceRef": "limits-flash-20260922"
+    },
+    {
+      "model": "gemini-2.5-pro",
+      "inputPerMillion": {
+        "text": 2.5,
+        "image": 2.5,
+        "audio": 2.5,
+        "cached": 0.25
+      },
+      "outputPerMillion": 15,
+      "maxInputTokens": 1048576,
+      "maxBillableOutputTokens": 65536,
+      "limitsEvidenceRef": "limits-pro-20260922"
+    }
+  ]
+}

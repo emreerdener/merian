@@ -17,6 +17,11 @@ backend remains the authorization boundary for every challenge read and
 mutation. The current rollout state is documented in
 [`25-field-trips.md`](../features-and-hardware/25-field-trips.md#rollout-state).
 
+As of 2026-09-22, Explore post detail displays only published Field notes,
+including when the viewer owns the post. Private local notes do not appear as
+post content. The owner can still manage them through Insight or the post
+editor.
+
 ## Locked Product Decisions
 
 - Sharing is manual per eligible scan. A scan does not become public just
@@ -79,6 +84,7 @@ mutation. The current rollout state is documented in
   - Optional centered wrapping hashtag chips
   - Species section
   - Public species insight cards
+  - Field notes directly below Overview (or its Species Dictionary fallback)
   - Privacy-safe telemetry cards
   - Inline comments with an inline composer
 - Broad time context and weather data remain available as optional feed
@@ -1863,20 +1869,22 @@ opposite Field chat. This supersedes the top-right Share placement in the
 September 18 reaction-layout notes above. Options is the sole trailing action in
 the top toolbar, leaving more room for the centered species title; the loading
 skeleton likewise shows only that top-toolbar control. Share uses the existing
-external sharing flow. When the comment composer is sticky or focused, Options
-also includes Share so it remains accessible when the bottom buttons are
-covered, independently of Field chat availability. Species Dictionary detail
-uses the same bottom-left Share placement after its canonical UUID loads.
+external sharing flow. When the comment composer is sticky or focused, both
+bottom actions hide and Options includes Share, independently of Field chat
+availability. The bottom actions return above the sticky-comment threshold once
+the composer is unfocused. Species Dictionary detail uses the same bottom-left
+Share placement after its canonical UUID loads.
 
 ## Bare emoji reactions update (2026-09-21)
 
 This supersedes the capsule styling in the September 18 reaction-layout notes.
 Added reactions on posts and comments have no background or border, including
-when selected. The shared strip uses 20-point emoji and 20-point counts within
-the default 44-point row, scaling those dimensions together with Dynamic Type.
-Counts turn blue when the viewer has contributed that reaction and otherwise use
-the default text color. VoiceOver retains the selected trait and add/remove
-hint. Comment/reply Add reaction controls likewise remove their capsule fill and
+when selected. The shared strip uses 20-point emoji and body-text counts (17
+points by default) within the default 44-point row. Counts match the comment and
+heart counts; emoji, counts, and row height support Dynamic Type. Counts turn
+blue when the viewer has contributed that reaction and otherwise use the default
+text color. VoiceOver retains the selected trait and add/remove hint.
+Comment/reply Add reaction controls likewise remove their capsule fill and
 border and use a 20-point smiley. Tap targets remain at least 44 points. Feed,
 hashtag, detail, Map previews, comments, and notification reply threads all
 consume this styling. Toggle behavior, pagination, overflow fades, and the

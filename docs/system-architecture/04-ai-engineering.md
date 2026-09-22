@@ -26,6 +26,13 @@ bounds and use Flash without a user quota reservation. See the
 This introduces no alternate live provider, new confidence interpretation,
 automatic failover, or native-video inference.
 
+Fresh primary success also exposes bounded provider/model, token counts and a
+generated Function runtime-bundle fingerprint for passive app measurement. The
+[recording guide](../development-guides/21-identification-app-measurement.md)
+defines the app/build identity, provider versus other Edge timing,
+unknown/replay handling and optional offline primary-attempt cost estimates.
+This adds no provider calls or pricing policy to the request path.
+
 ## Inference Layer Structure
 
 The iOS inference layer is split across focused owners under
@@ -529,6 +536,12 @@ into `services/supabase/functions/_shared/identify/` so the live path,
 `/identify`, and the legacy describe flow reuse the same executable contract,
 schema, thresholds, DB helpers, media validation, and moderation logic:
 
+Native request parameters are assembled by the pure
+`_shared/ai/geminiRequest.ts` helper shared with local evaluation. The
+production adapter retains SDK initialization, invocation and response decoding.
+This lets offline reports and prepared-request checks run without environment or
+network access; it does not change the live provider or its request settings.
+
 - **`identify-multimodal/index.ts`**: The main active orchestrator. Executes the
   critical path (media resolution, Gemini invocation, durable moderation and
   promotion, primary species resolution, scan creation, and owner read-back) and
@@ -537,6 +550,14 @@ schema, thresholds, DB helpers, media validation, and moderation logic:
   complete final wire contract. It generates provider schemas, infers deployed
   TypeScript payload types, runtime-validates provider and server-enriched
   values, and supplies deterministic Swift DTO generation metadata.
+- **`_shared/identify/normalizeIdentification.ts`**: The active multimodal
+  route's pure post-provider boundary, reused by offline evaluation. Parses and
+  clones the draft, applies existing name/pet, processed-material,
+  audio-subject, invasive-context, and blur rules, then returns domain data with
+  separate client candidate suppression and life-stage defaults.
+  Evidence-presence, inference-tier, and location-availability facts are its
+  only context. The caller owns diagnostics, dictionary hydration, and final
+  wire validation; this helper performs no I/O or quota operation.
 - **`_shared/identify/googleSchema.ts`**: The typed, exhaustive seam between the
   provider-neutral schema projection and the pinned Google SDK. SDK schema-field
   changes fail Deno checking without loading SDK runtime code into contract

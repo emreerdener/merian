@@ -1,0 +1,1312 @@
+{
+  "version": "identification_exploratory_report_v1",
+  "runId": "offline-exploratory-v1",
+  "runDigest": "9fda24cd884ab92823b8b692c14254e4f58ad4895af640eb7b786d41e3b50960",
+  "corpusDigest": "ed8fda7d32f8dc834514a7e2c184ce8926275c0400d103965090e87ef6178ebc",
+  "mode": "offline",
+  "evidenceStatus": "synthetic_mechanics_only",
+  "reviewerKind": "synthetic",
+  "verdict": "measurement_only",
+  "baselineQualification": "not_independently_verified",
+  "completeness": "incomplete",
+  "boundary": "prepared_evidence_to_normalized_decision_v1",
+  "referenceCounts": {
+    "independentlyReviewed": 0,
+    "provisional": 6,
+    "unverified": 6
+  },
+  "scheduled": 24,
+  "attempted": 24,
+  "preflightMaximumUsd": null,
+  "approvedBudgetUsd": 0,
+  "slices": [
+    {
+      "profile": "gemini_flash_free",
+      "inputGroup": "photos",
+      "coverage": "covered",
+      "agreement": {
+        "evidenceStatus": "synthetic_mechanics_only",
+        "referenceCounts": {
+          "independentlyReviewed": 0,
+          "provisional": 2,
+          "unverified": 0
+        },
+        "scheduled": 2,
+        "outcomes": {
+          "normalized": 1,
+          "refusal": 0,
+          "invalid_output": 0,
+          "operational_failure": 1,
+          "unknown_execution": 0,
+          "local_validation_failure": 0,
+          "unattempted": 0
+        },
+        "namedOutputs": 1,
+        "provisionalAgreement": {
+          "subject": {
+            "numerator": 1,
+            "denominator": 2,
+            "value": 0.5,
+            "status": "measured"
+          },
+          "exactSpecies": {
+            "numerator": 1,
+            "denominator": 2,
+            "value": 0.5,
+            "status": "measured"
+          },
+          "offeredIdentity": {
+            "numerator": 1,
+            "denominator": 1,
+            "value": 1,
+            "status": "measured"
+          },
+          "unresolved": {
+            "numerator": 0,
+            "denominator": 0,
+            "value": null,
+            "status": "not_estimable"
+          },
+          "strongDisagreement": {
+            "numerator": 0,
+            "denominator": 1,
+            "value": 0,
+            "status": "measured"
+          }
+        }
+      },
+      "performance": {
+        "timing": {
+          "unit": "ms",
+          "completedProvider": {
+            "count": 1,
+            "p50": 0,
+            "p95": 0
+          },
+          "successfulIdentification": {
+            "count": 1,
+            "p50": 0,
+            "p95": 0
+          },
+          "normalization": {
+            "count": 1,
+            "p50": 0.22029199999997218,
+            "p95": 0.22029199999997218
+          },
+          "failures": {
+            "count": 1,
+            "p50": 0,
+            "p95": 0
+          },
+          "unknownExecutions": 0,
+          "missingProviderDurations": 0
+        },
+        "cost": {
+          "currency": "USD",
+          "method": "not_measured_offline",
+          "knownComponentUpperUsd": null,
+          "unknownCalls": 0,
+          "totalUpperUsd": null,
+          "perAttemptUpperUsd": null,
+          "missingModalityDetails": 2
+        }
+      }
+    },
+    {
+      "profile": "gemini_flash_free",
+      "inputGroup": "description",
+      "coverage": "covered",
+      "agreement": {
+        "evidenceStatus": "synthetic_mechanics_only",
+        "referenceCounts": {
+          "independentlyReviewed": 0,
+          "provisional": 0,
+          "unverified": 2
+        },
+        "scheduled": 2,
+        "outcomes": {
+          "normalized": 2,
+          "refusal": 0,
+          "invalid_output": 0,
+          "operational_failure": 0,
+          "unknown_execution": 0,
+          "local_validation_failure": 0,
+          "unattempted": 0
+        },
+        "namedOutputs": 2,
+        "provisionalAgreement": {
+          "subject": {
+            "numerator": 0,
+            "denominator": 0,
+            "value": null,
+            "status": "not_estimable"
+          },
+          "exactSpecies": {
+            "numerator": 0,
+            "denominator": 0,
+            "value": null,
+            "status": "not_estimable"
+          },
+          "offeredIdentity": {
+            "numerator": 0,
+            "denominator": 0,
+            "value": null,
+            "status": "not_estimable"
+          },
+          "unresolved": {
+            "numerator": 0,
+            "denominator": 0,
+            "value": null,
+            "status": "not_estimable"
+          },
+          "strongDisagreement": {
+            "numerator": 0,
+            "denominator": 0,
+            "value": null,
+            "status": "not_estimable"
+          }
+        }
+      },
+      "performance": {
+        "timing": {
+          "unit": "ms",
+          "completedProvider": {
+            "count": 2,
+            "p50": 0,
+            "p95": 0
+          },
+          "successfulIdentification": {
+            "count": 2,
+            "p50": 0,
+            "p95": 0
+          },
+          "normalization": {
+            "count": 2,
+            "p50": 0.19341700000006767,
+            "p95": 0.8205410000000484
+          },
+          "failures": {
+            "count": 0,
+            "p50": null,
+            "p95": null
+          },
+          "unknownExecutions": 0,
+          "missingProviderDurations": 0
+        },
+        "cost": {
+          "currency": "USD",
+          "method": "not_measured_offline",
+          "knownComponentUpperUsd": null,
+          "unknownCalls": 0,
+          "totalUpperUsd": null,
+          "perAttemptUpperUsd": null,
+          "missingModalityDetails": 2
+        }
+      }
+    },
+    {
+      "profile": "gemini_flash_free",
+      "inputGroup": "audio",
+      "coverage": "covered",
+      "agreement": {
+        "evidenceStatus": "synthetic_mechanics_only",
+        "referenceCounts": {
+          "independentlyReviewed": 0,
+          "provisional": 2,
+          "unverified": 0
+        },
+        "scheduled": 2,
+        "outcomes": {
+          "normalized": 1,
+          "refusal": 1,
+          "invalid_output": 0,
+          "operational_failure": 0,
+          "unknown_execution": 0,
+          "local_validation_failure": 0,
+          "unattempted": 0
+        },
+        "namedOutputs": 0,
+        "provisionalAgreement": {
+          "subject": {
+            "numerator": 1,
+            "denominator": 2,
+            "value": 0.5,
+            "status": "measured"
+          },
+          "exactSpecies": {
+            "numerator": 0,
+            "denominator": 1,
+            "value": 0,
+            "status": "measured"
+          },
+          "offeredIdentity": {
+            "numerator": 0,
+            "denominator": 0,
+            "value": null,
+            "status": "not_estimable"
+          },
+          "unresolved": {
+            "numerator": 1,
+            "denominator": 1,
+            "value": 1,
+            "status": "measured"
+          },
+          "strongDisagreement": {
+            "numerator": 0,
+            "denominator": 0,
+            "value": null,
+            "status": "not_estimable"
+          }
+        }
+      },
+      "performance": {
+        "timing": {
+          "unit": "ms",
+          "completedProvider": {
+            "count": 2,
+            "p50": 0,
+            "p95": 0
+          },
+          "successfulIdentification": {
+            "count": 1,
+            "p50": 0,
+            "p95": 0
+          },
+          "normalization": {
+            "count": 1,
+            "p50": 0.22004200000003493,
+            "p95": 0.22004200000003493
+          },
+          "failures": {
+            "count": 1,
+            "p50": 0,
+            "p95": 0
+          },
+          "unknownExecutions": 0,
+          "missingProviderDurations": 0
+        },
+        "cost": {
+          "currency": "USD",
+          "method": "not_measured_offline",
+          "knownComponentUpperUsd": null,
+          "unknownCalls": 0,
+          "totalUpperUsd": null,
+          "perAttemptUpperUsd": null,
+          "missingModalityDetails": 2
+        }
+      }
+    },
+    {
+      "profile": "gemini_flash_free",
+      "inputGroup": "frames",
+      "coverage": "covered",
+      "agreement": {
+        "evidenceStatus": "synthetic_mechanics_only",
+        "referenceCounts": {
+          "independentlyReviewed": 0,
+          "provisional": 0,
+          "unverified": 2
+        },
+        "scheduled": 2,
+        "outcomes": {
+          "normalized": 2,
+          "refusal": 0,
+          "invalid_output": 0,
+          "operational_failure": 0,
+          "unknown_execution": 0,
+          "local_validation_failure": 0,
+          "unattempted": 0
+        },
+        "namedOutputs": 1,
+        "provisionalAgreement": {
+          "subject": {
+            "numerator": 0,
+            "denominator": 0,
+            "value": null,
+            "status": "not_estimable"
+          },
+          "exactSpecies": {
+            "numerator": 0,
+            "denominator": 0,
+            "value": null,
+            "status": "not_estimable"
+          },
+          "offeredIdentity": {
+            "numerator": 0,
+            "denominator": 0,
+            "value": null,
+            "status": "not_estimable"
+          },
+          "unresolved": {
+            "numerator": 0,
+            "denominator": 0,
+            "value": null,
+            "status": "not_estimable"
+          },
+          "strongDisagreement": {
+            "numerator": 0,
+            "denominator": 0,
+            "value": null,
+            "status": "not_estimable"
+          }
+        }
+      },
+      "performance": {
+        "timing": {
+          "unit": "ms",
+          "completedProvider": {
+            "count": 2,
+            "p50": 0,
+            "p95": 0
+          },
+          "successfulIdentification": {
+            "count": 2,
+            "p50": 0,
+            "p95": 0
+          },
+          "normalization": {
+            "count": 2,
+            "p50": 0.22116699999992306,
+            "p95": 0.30862500000000637
+          },
+          "failures": {
+            "count": 0,
+            "p50": null,
+            "p95": null
+          },
+          "unknownExecutions": 0,
+          "missingProviderDurations": 0
+        },
+        "cost": {
+          "currency": "USD",
+          "method": "not_measured_offline",
+          "knownComponentUpperUsd": null,
+          "unknownCalls": 0,
+          "totalUpperUsd": null,
+          "perAttemptUpperUsd": null,
+          "missingModalityDetails": 2
+        }
+      }
+    },
+    {
+      "profile": "gemini_flash_free",
+      "inputGroup": "frames_audio",
+      "coverage": "covered",
+      "agreement": {
+        "evidenceStatus": "synthetic_mechanics_only",
+        "referenceCounts": {
+          "independentlyReviewed": 0,
+          "provisional": 2,
+          "unverified": 0
+        },
+        "scheduled": 2,
+        "outcomes": {
+          "normalized": 0,
+          "refusal": 0,
+          "invalid_output": 1,
+          "operational_failure": 0,
+          "unknown_execution": 1,
+          "local_validation_failure": 0,
+          "unattempted": 0
+        },
+        "namedOutputs": 0,
+        "provisionalAgreement": {
+          "subject": {
+            "numerator": 0,
+            "denominator": 2,
+            "value": 0,
+            "status": "measured"
+          },
+          "exactSpecies": {
+            "numerator": 0,
+            "denominator": 2,
+            "value": 0,
+            "status": "measured"
+          },
+          "offeredIdentity": {
+            "numerator": 0,
+            "denominator": 0,
+            "value": null,
+            "status": "not_estimable"
+          },
+          "unresolved": {
+            "numerator": 0,
+            "denominator": 0,
+            "value": null,
+            "status": "not_estimable"
+          },
+          "strongDisagreement": {
+            "numerator": 0,
+            "denominator": 0,
+            "value": null,
+            "status": "not_estimable"
+          }
+        }
+      },
+      "performance": {
+        "timing": {
+          "unit": "ms",
+          "completedProvider": {
+            "count": 1,
+            "p50": 0,
+            "p95": 0
+          },
+          "successfulIdentification": {
+            "count": 0,
+            "p50": null,
+            "p95": null
+          },
+          "normalization": {
+            "count": 0,
+            "p50": null,
+            "p95": null
+          },
+          "failures": {
+            "count": 2,
+            "p50": 0,
+            "p95": 0
+          },
+          "unknownExecutions": 1,
+          "missingProviderDurations": 0
+        },
+        "cost": {
+          "currency": "USD",
+          "method": "not_measured_offline",
+          "knownComponentUpperUsd": null,
+          "unknownCalls": 0,
+          "totalUpperUsd": null,
+          "perAttemptUpperUsd": null,
+          "missingModalityDetails": 2
+        }
+      }
+    },
+    {
+      "profile": "gemini_flash_free",
+      "inputGroup": "photos_audio",
+      "coverage": "covered",
+      "agreement": {
+        "evidenceStatus": "synthetic_mechanics_only",
+        "referenceCounts": {
+          "independentlyReviewed": 0,
+          "provisional": 0,
+          "unverified": 2
+        },
+        "scheduled": 2,
+        "outcomes": {
+          "normalized": 2,
+          "refusal": 0,
+          "invalid_output": 0,
+          "operational_failure": 0,
+          "unknown_execution": 0,
+          "local_validation_failure": 0,
+          "unattempted": 0
+        },
+        "namedOutputs": 2,
+        "provisionalAgreement": {
+          "subject": {
+            "numerator": 0,
+            "denominator": 0,
+            "value": null,
+            "status": "not_estimable"
+          },
+          "exactSpecies": {
+            "numerator": 0,
+            "denominator": 0,
+            "value": null,
+            "status": "not_estimable"
+          },
+          "offeredIdentity": {
+            "numerator": 0,
+            "denominator": 0,
+            "value": null,
+            "status": "not_estimable"
+          },
+          "unresolved": {
+            "numerator": 0,
+            "denominator": 0,
+            "value": null,
+            "status": "not_estimable"
+          },
+          "strongDisagreement": {
+            "numerator": 0,
+            "denominator": 0,
+            "value": null,
+            "status": "not_estimable"
+          }
+        }
+      },
+      "performance": {
+        "timing": {
+          "unit": "ms",
+          "completedProvider": {
+            "count": 2,
+            "p50": 0,
+            "p95": 0
+          },
+          "successfulIdentification": {
+            "count": 2,
+            "p50": 0,
+            "p95": 0
+          },
+          "normalization": {
+            "count": 2,
+            "p50": 0.19375000000013642,
+            "p95": 0.25758300000006784
+          },
+          "failures": {
+            "count": 0,
+            "p50": null,
+            "p95": null
+          },
+          "unknownExecutions": 0,
+          "missingProviderDurations": 0
+        },
+        "cost": {
+          "currency": "USD",
+          "method": "not_measured_offline",
+          "knownComponentUpperUsd": null,
+          "unknownCalls": 0,
+          "totalUpperUsd": null,
+          "perAttemptUpperUsd": null,
+          "missingModalityDetails": 2
+        }
+      }
+    },
+    {
+      "profile": "gemini_flash_free",
+      "inputGroup": "all_cases",
+      "coverage": "covered",
+      "agreement": {
+        "evidenceStatus": "synthetic_mechanics_only",
+        "referenceCounts": {
+          "independentlyReviewed": 0,
+          "provisional": 6,
+          "unverified": 6
+        },
+        "scheduled": 12,
+        "outcomes": {
+          "normalized": 8,
+          "refusal": 1,
+          "invalid_output": 1,
+          "operational_failure": 1,
+          "unknown_execution": 1,
+          "local_validation_failure": 0,
+          "unattempted": 0
+        },
+        "namedOutputs": 6,
+        "provisionalAgreement": {
+          "subject": {
+            "numerator": 2,
+            "denominator": 6,
+            "value": 0.3333333333333333,
+            "status": "measured"
+          },
+          "exactSpecies": {
+            "numerator": 1,
+            "denominator": 5,
+            "value": 0.2,
+            "status": "measured"
+          },
+          "offeredIdentity": {
+            "numerator": 1,
+            "denominator": 1,
+            "value": 1,
+            "status": "measured"
+          },
+          "unresolved": {
+            "numerator": 1,
+            "denominator": 1,
+            "value": 1,
+            "status": "measured"
+          },
+          "strongDisagreement": {
+            "numerator": 0,
+            "denominator": 1,
+            "value": 0,
+            "status": "measured"
+          }
+        }
+      },
+      "performance": {
+        "timing": {
+          "unit": "ms",
+          "completedProvider": {
+            "count": 10,
+            "p50": 0,
+            "p95": 0
+          },
+          "successfulIdentification": {
+            "count": 8,
+            "p50": 0,
+            "p95": 0
+          },
+          "normalization": {
+            "count": 8,
+            "p50": 0.22029199999997218,
+            "p95": 0.8205410000000484
+          },
+          "failures": {
+            "count": 4,
+            "p50": 0,
+            "p95": 0
+          },
+          "unknownExecutions": 1,
+          "missingProviderDurations": 0
+        },
+        "cost": {
+          "currency": "USD",
+          "method": "not_measured_offline",
+          "knownComponentUpperUsd": null,
+          "unknownCalls": 0,
+          "totalUpperUsd": null,
+          "perAttemptUpperUsd": null,
+          "missingModalityDetails": 12
+        }
+      }
+    },
+    {
+      "profile": "gemini_pro",
+      "inputGroup": "photos",
+      "coverage": "covered",
+      "agreement": {
+        "evidenceStatus": "synthetic_mechanics_only",
+        "referenceCounts": {
+          "independentlyReviewed": 0,
+          "provisional": 2,
+          "unverified": 0
+        },
+        "scheduled": 2,
+        "outcomes": {
+          "normalized": 1,
+          "refusal": 0,
+          "invalid_output": 0,
+          "operational_failure": 1,
+          "unknown_execution": 0,
+          "local_validation_failure": 0,
+          "unattempted": 0
+        },
+        "namedOutputs": 1,
+        "provisionalAgreement": {
+          "subject": {
+            "numerator": 1,
+            "denominator": 2,
+            "value": 0.5,
+            "status": "measured"
+          },
+          "exactSpecies": {
+            "numerator": 1,
+            "denominator": 2,
+            "value": 0.5,
+            "status": "measured"
+          },
+          "offeredIdentity": {
+            "numerator": 1,
+            "denominator": 1,
+            "value": 1,
+            "status": "measured"
+          },
+          "unresolved": {
+            "numerator": 0,
+            "denominator": 0,
+            "value": null,
+            "status": "not_estimable"
+          },
+          "strongDisagreement": {
+            "numerator": 0,
+            "denominator": 1,
+            "value": 0,
+            "status": "measured"
+          }
+        }
+      },
+      "performance": {
+        "timing": {
+          "unit": "ms",
+          "completedProvider": {
+            "count": 1,
+            "p50": 0,
+            "p95": 0
+          },
+          "successfulIdentification": {
+            "count": 1,
+            "p50": 0,
+            "p95": 0
+          },
+          "normalization": {
+            "count": 1,
+            "p50": 0.20633300000008603,
+            "p95": 0.20633300000008603
+          },
+          "failures": {
+            "count": 1,
+            "p50": 0,
+            "p95": 0
+          },
+          "unknownExecutions": 0,
+          "missingProviderDurations": 0
+        },
+        "cost": {
+          "currency": "USD",
+          "method": "not_measured_offline",
+          "knownComponentUpperUsd": null,
+          "unknownCalls": 0,
+          "totalUpperUsd": null,
+          "perAttemptUpperUsd": null,
+          "missingModalityDetails": 2
+        }
+      }
+    },
+    {
+      "profile": "gemini_pro",
+      "inputGroup": "description",
+      "coverage": "covered",
+      "agreement": {
+        "evidenceStatus": "synthetic_mechanics_only",
+        "referenceCounts": {
+          "independentlyReviewed": 0,
+          "provisional": 0,
+          "unverified": 2
+        },
+        "scheduled": 2,
+        "outcomes": {
+          "normalized": 2,
+          "refusal": 0,
+          "invalid_output": 0,
+          "operational_failure": 0,
+          "unknown_execution": 0,
+          "local_validation_failure": 0,
+          "unattempted": 0
+        },
+        "namedOutputs": 2,
+        "provisionalAgreement": {
+          "subject": {
+            "numerator": 0,
+            "denominator": 0,
+            "value": null,
+            "status": "not_estimable"
+          },
+          "exactSpecies": {
+            "numerator": 0,
+            "denominator": 0,
+            "value": null,
+            "status": "not_estimable"
+          },
+          "offeredIdentity": {
+            "numerator": 0,
+            "denominator": 0,
+            "value": null,
+            "status": "not_estimable"
+          },
+          "unresolved": {
+            "numerator": 0,
+            "denominator": 0,
+            "value": null,
+            "status": "not_estimable"
+          },
+          "strongDisagreement": {
+            "numerator": 0,
+            "denominator": 0,
+            "value": null,
+            "status": "not_estimable"
+          }
+        }
+      },
+      "performance": {
+        "timing": {
+          "unit": "ms",
+          "completedProvider": {
+            "count": 2,
+            "p50": 0,
+            "p95": 0
+          },
+          "successfulIdentification": {
+            "count": 2,
+            "p50": 0,
+            "p95": 0
+          },
+          "normalization": {
+            "count": 2,
+            "p50": 0.22908400000005713,
+            "p95": 2.3923340000000053
+          },
+          "failures": {
+            "count": 0,
+            "p50": null,
+            "p95": null
+          },
+          "unknownExecutions": 0,
+          "missingProviderDurations": 0
+        },
+        "cost": {
+          "currency": "USD",
+          "method": "not_measured_offline",
+          "knownComponentUpperUsd": null,
+          "unknownCalls": 0,
+          "totalUpperUsd": null,
+          "perAttemptUpperUsd": null,
+          "missingModalityDetails": 2
+        }
+      }
+    },
+    {
+      "profile": "gemini_pro",
+      "inputGroup": "audio",
+      "coverage": "covered",
+      "agreement": {
+        "evidenceStatus": "synthetic_mechanics_only",
+        "referenceCounts": {
+          "independentlyReviewed": 0,
+          "provisional": 2,
+          "unverified": 0
+        },
+        "scheduled": 2,
+        "outcomes": {
+          "normalized": 1,
+          "refusal": 1,
+          "invalid_output": 0,
+          "operational_failure": 0,
+          "unknown_execution": 0,
+          "local_validation_failure": 0,
+          "unattempted": 0
+        },
+        "namedOutputs": 0,
+        "provisionalAgreement": {
+          "subject": {
+            "numerator": 1,
+            "denominator": 2,
+            "value": 0.5,
+            "status": "measured"
+          },
+          "exactSpecies": {
+            "numerator": 0,
+            "denominator": 1,
+            "value": 0,
+            "status": "measured"
+          },
+          "offeredIdentity": {
+            "numerator": 0,
+            "denominator": 0,
+            "value": null,
+            "status": "not_estimable"
+          },
+          "unresolved": {
+            "numerator": 1,
+            "denominator": 1,
+            "value": 1,
+            "status": "measured"
+          },
+          "strongDisagreement": {
+            "numerator": 0,
+            "denominator": 0,
+            "value": null,
+            "status": "not_estimable"
+          }
+        }
+      },
+      "performance": {
+        "timing": {
+          "unit": "ms",
+          "completedProvider": {
+            "count": 2,
+            "p50": 0,
+            "p95": 0
+          },
+          "successfulIdentification": {
+            "count": 1,
+            "p50": 0,
+            "p95": 0
+          },
+          "normalization": {
+            "count": 1,
+            "p50": 0.35704100000009475,
+            "p95": 0.35704100000009475
+          },
+          "failures": {
+            "count": 1,
+            "p50": 0,
+            "p95": 0
+          },
+          "unknownExecutions": 0,
+          "missingProviderDurations": 0
+        },
+        "cost": {
+          "currency": "USD",
+          "method": "not_measured_offline",
+          "knownComponentUpperUsd": null,
+          "unknownCalls": 0,
+          "totalUpperUsd": null,
+          "perAttemptUpperUsd": null,
+          "missingModalityDetails": 2
+        }
+      }
+    },
+    {
+      "profile": "gemini_pro",
+      "inputGroup": "frames",
+      "coverage": "covered",
+      "agreement": {
+        "evidenceStatus": "synthetic_mechanics_only",
+        "referenceCounts": {
+          "independentlyReviewed": 0,
+          "provisional": 0,
+          "unverified": 2
+        },
+        "scheduled": 2,
+        "outcomes": {
+          "normalized": 2,
+          "refusal": 0,
+          "invalid_output": 0,
+          "operational_failure": 0,
+          "unknown_execution": 0,
+          "local_validation_failure": 0,
+          "unattempted": 0
+        },
+        "namedOutputs": 1,
+        "provisionalAgreement": {
+          "subject": {
+            "numerator": 0,
+            "denominator": 0,
+            "value": null,
+            "status": "not_estimable"
+          },
+          "exactSpecies": {
+            "numerator": 0,
+            "denominator": 0,
+            "value": null,
+            "status": "not_estimable"
+          },
+          "offeredIdentity": {
+            "numerator": 0,
+            "denominator": 0,
+            "value": null,
+            "status": "not_estimable"
+          },
+          "unresolved": {
+            "numerator": 0,
+            "denominator": 0,
+            "value": null,
+            "status": "not_estimable"
+          },
+          "strongDisagreement": {
+            "numerator": 0,
+            "denominator": 0,
+            "value": null,
+            "status": "not_estimable"
+          }
+        }
+      },
+      "performance": {
+        "timing": {
+          "unit": "ms",
+          "completedProvider": {
+            "count": 2,
+            "p50": 0,
+            "p95": 0
+          },
+          "successfulIdentification": {
+            "count": 2,
+            "p50": 0,
+            "p95": 0
+          },
+          "normalization": {
+            "count": 2,
+            "p50": 0.19583299999999326,
+            "p95": 0.22912499999995362
+          },
+          "failures": {
+            "count": 0,
+            "p50": null,
+            "p95": null
+          },
+          "unknownExecutions": 0,
+          "missingProviderDurations": 0
+        },
+        "cost": {
+          "currency": "USD",
+          "method": "not_measured_offline",
+          "knownComponentUpperUsd": null,
+          "unknownCalls": 0,
+          "totalUpperUsd": null,
+          "perAttemptUpperUsd": null,
+          "missingModalityDetails": 2
+        }
+      }
+    },
+    {
+      "profile": "gemini_pro",
+      "inputGroup": "frames_audio",
+      "coverage": "covered",
+      "agreement": {
+        "evidenceStatus": "synthetic_mechanics_only",
+        "referenceCounts": {
+          "independentlyReviewed": 0,
+          "provisional": 2,
+          "unverified": 0
+        },
+        "scheduled": 2,
+        "outcomes": {
+          "normalized": 0,
+          "refusal": 0,
+          "invalid_output": 1,
+          "operational_failure": 0,
+          "unknown_execution": 1,
+          "local_validation_failure": 0,
+          "unattempted": 0
+        },
+        "namedOutputs": 0,
+        "provisionalAgreement": {
+          "subject": {
+            "numerator": 0,
+            "denominator": 2,
+            "value": 0,
+            "status": "measured"
+          },
+          "exactSpecies": {
+            "numerator": 0,
+            "denominator": 2,
+            "value": 0,
+            "status": "measured"
+          },
+          "offeredIdentity": {
+            "numerator": 0,
+            "denominator": 0,
+            "value": null,
+            "status": "not_estimable"
+          },
+          "unresolved": {
+            "numerator": 0,
+            "denominator": 0,
+            "value": null,
+            "status": "not_estimable"
+          },
+          "strongDisagreement": {
+            "numerator": 0,
+            "denominator": 0,
+            "value": null,
+            "status": "not_estimable"
+          }
+        }
+      },
+      "performance": {
+        "timing": {
+          "unit": "ms",
+          "completedProvider": {
+            "count": 1,
+            "p50": 0,
+            "p95": 0
+          },
+          "successfulIdentification": {
+            "count": 0,
+            "p50": null,
+            "p95": null
+          },
+          "normalization": {
+            "count": 0,
+            "p50": null,
+            "p95": null
+          },
+          "failures": {
+            "count": 2,
+            "p50": 0,
+            "p95": 0
+          },
+          "unknownExecutions": 1,
+          "missingProviderDurations": 0
+        },
+        "cost": {
+          "currency": "USD",
+          "method": "not_measured_offline",
+          "knownComponentUpperUsd": null,
+          "unknownCalls": 0,
+          "totalUpperUsd": null,
+          "perAttemptUpperUsd": null,
+          "missingModalityDetails": 2
+        }
+      }
+    },
+    {
+      "profile": "gemini_pro",
+      "inputGroup": "photos_audio",
+      "coverage": "covered",
+      "agreement": {
+        "evidenceStatus": "synthetic_mechanics_only",
+        "referenceCounts": {
+          "independentlyReviewed": 0,
+          "provisional": 0,
+          "unverified": 2
+        },
+        "scheduled": 2,
+        "outcomes": {
+          "normalized": 2,
+          "refusal": 0,
+          "invalid_output": 0,
+          "operational_failure": 0,
+          "unknown_execution": 0,
+          "local_validation_failure": 0,
+          "unattempted": 0
+        },
+        "namedOutputs": 2,
+        "provisionalAgreement": {
+          "subject": {
+            "numerator": 0,
+            "denominator": 0,
+            "value": null,
+            "status": "not_estimable"
+          },
+          "exactSpecies": {
+            "numerator": 0,
+            "denominator": 0,
+            "value": null,
+            "status": "not_estimable"
+          },
+          "offeredIdentity": {
+            "numerator": 0,
+            "denominator": 0,
+            "value": null,
+            "status": "not_estimable"
+          },
+          "unresolved": {
+            "numerator": 0,
+            "denominator": 0,
+            "value": null,
+            "status": "not_estimable"
+          },
+          "strongDisagreement": {
+            "numerator": 0,
+            "denominator": 0,
+            "value": null,
+            "status": "not_estimable"
+          }
+        }
+      },
+      "performance": {
+        "timing": {
+          "unit": "ms",
+          "completedProvider": {
+            "count": 2,
+            "p50": 0,
+            "p95": 0
+          },
+          "successfulIdentification": {
+            "count": 2,
+            "p50": 0,
+            "p95": 0
+          },
+          "normalization": {
+            "count": 2,
+            "p50": 0.202541999999994,
+            "p95": 0.3532920000000104
+          },
+          "failures": {
+            "count": 0,
+            "p50": null,
+            "p95": null
+          },
+          "unknownExecutions": 0,
+          "missingProviderDurations": 0
+        },
+        "cost": {
+          "currency": "USD",
+          "method": "not_measured_offline",
+          "knownComponentUpperUsd": null,
+          "unknownCalls": 0,
+          "totalUpperUsd": null,
+          "perAttemptUpperUsd": null,
+          "missingModalityDetails": 2
+        }
+      }
+    },
+    {
+      "profile": "gemini_pro",
+      "inputGroup": "all_cases",
+      "coverage": "covered",
+      "agreement": {
+        "evidenceStatus": "synthetic_mechanics_only",
+        "referenceCounts": {
+          "independentlyReviewed": 0,
+          "provisional": 6,
+          "unverified": 6
+        },
+        "scheduled": 12,
+        "outcomes": {
+          "normalized": 8,
+          "refusal": 1,
+          "invalid_output": 1,
+          "operational_failure": 1,
+          "unknown_execution": 1,
+          "local_validation_failure": 0,
+          "unattempted": 0
+        },
+        "namedOutputs": 6,
+        "provisionalAgreement": {
+          "subject": {
+            "numerator": 2,
+            "denominator": 6,
+            "value": 0.3333333333333333,
+            "status": "measured"
+          },
+          "exactSpecies": {
+            "numerator": 1,
+            "denominator": 5,
+            "value": 0.2,
+            "status": "measured"
+          },
+          "offeredIdentity": {
+            "numerator": 1,
+            "denominator": 1,
+            "value": 1,
+            "status": "measured"
+          },
+          "unresolved": {
+            "numerator": 1,
+            "denominator": 1,
+            "value": 1,
+            "status": "measured"
+          },
+          "strongDisagreement": {
+            "numerator": 0,
+            "denominator": 1,
+            "value": 0,
+            "status": "measured"
+          }
+        }
+      },
+      "performance": {
+        "timing": {
+          "unit": "ms",
+          "completedProvider": {
+            "count": 10,
+            "p50": 0,
+            "p95": 0
+          },
+          "successfulIdentification": {
+            "count": 8,
+            "p50": 0,
+            "p95": 0
+          },
+          "normalization": {
+            "count": 8,
+            "p50": 0.22908400000005713,
+            "p95": 2.3923340000000053
+          },
+          "failures": {
+            "count": 4,
+            "p50": 0,
+            "p95": 0
+          },
+          "unknownExecutions": 1,
+          "missingProviderDurations": 0
+        },
+        "cost": {
+          "currency": "USD",
+          "method": "not_measured_offline",
+          "knownComponentUpperUsd": null,
+          "unknownCalls": 0,
+          "totalUpperUsd": null,
+          "perAttemptUpperUsd": null,
+          "missingModalityDetails": 12
+        }
+      }
+    }
+  ]
+}

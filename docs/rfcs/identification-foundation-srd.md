@@ -1,9 +1,9 @@
 # Naturebook AI Provider Flexibility — SRD
 
 Document ID: NB-SRD-IDENTIFICATION-001\
-Version: 1.0\
+Version: 1.1\
 Date: 21 September 2026\
-Status: Implemented locally; release acceptance remains open; Gemini only\
+Status: Gemini-only backend deployed; owner verification confirmed\
 Suggested owners: Backend and Product, with iOS contract review\
 Product authority:
 [Provider Flexibility PRD](../product/03-identification-foundation-prd.md)
@@ -26,7 +26,8 @@ milestone. Repository contracts were reviewed on 2 September 2026, with timeout,
 service-job admission, and retry semantics rechecked on 10 September 2026. New
 module/metadata names below describe the target boundary. The slice tracker
 distinguishes local implementation evidence from the remaining requirements;
-this document does not establish production deployment or production latency.
+dated deployment evidence is recorded separately from local tests and production
+latency measurements.
 
 The [21 September baseline](./identification-foundation-baseline.md) records
 pre-extraction source ownership, Gemini settings, test coverage, and remaining
@@ -37,9 +38,11 @@ group-tag tasks for user enrichment and claimed public jobs. Section 9 records
 progress separately from the requirements below. The
 [Slice 6 verification record](./identification-foundation-verification.md) maps
 the final inventory, measured local overhead, complete disposable-database
-evidence, return compatibility, and remaining exact-SHA/hosted/device
-acceptance. Deferred consumers retain their existing Gemini paths; no production
-rollout or second-provider integration is claimed.
+evidence, return compatibility, and the acceptance boundaries at that stage. The
+[21 September deployment record](../release-evidence/provider-flexibility-deployment-2026-09-21.md)
+adds exact-SHA candidate/deployment evidence and owner-reported manual
+verification, with post-merge iOS CI still pending when observed. Deferred
+consumers retain their existing Gemini paths; no second provider is enabled.
 
 | Current boundary                                                                                                                                                                         | Planning consequence                                                                                            |
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
@@ -734,6 +737,16 @@ contracts and durable results. Exact clean-SHA Candidate Validation,
 hosted/device acceptance, production authorization/deployment, and a deployed
 return exercise remain open. All enabled production bindings still resolve to
 Gemini.
+
+### Deployment follow-up — 21 September 2026
+
+After the local evidence above, PR #68 merged as
+`37bd9ce40fc40b54964abc7090844d61db196d65`; the production workflow's complete
+candidate gate and deployment passed. The owner subsequently confirmed manual
+verification. The
+[deployment and verification record](../release-evidence/provider-flexibility-deployment-2026-09-21.md)
+owns these later facts and the remaining CI/evidence distinctions. The earlier
+slice records retain their original local-only scope.
 
 ### Acceptance traceability
 

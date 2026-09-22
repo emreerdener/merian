@@ -1,6 +1,5 @@
 import { assert, assertEquals, assertThrows } from "@std/assert";
 
-import { sanitizeScientificName } from "../identify/sanitize.ts";
 import { resolveAIRequestId } from "../_shared/aiQuota.ts";
 import {
   MEDIA_BUDGETS,
@@ -11,43 +10,6 @@ import {
 import { buildVisualMediaPrompt } from "./capturedMedia.ts";
 
 type R2KeyError = "path_traversal" | "wrong_user" | null;
-
-const VALID_LIFE_STAGES = new Set([
-  "egg",
-  "larva",
-  "pupa",
-  "nymph",
-  "juvenile",
-  "subadult",
-  "adult",
-  "seedling",
-  "sapling",
-  "unknown",
-]);
-
-const VALID_REPRODUCTIVE_CONDITIONS = new Set([
-  "flowering",
-  "fruiting",
-  "budding",
-  "vegetative",
-  "sporing",
-  "pregnant",
-  "gravid",
-  "mating",
-  "spawning",
-  "nesting",
-  "dormant",
-  "not_applicable",
-]);
-
-const VALID_SEX_VALUES = new Set([
-  "female",
-  "male",
-  "hermaphrodite",
-  "mixed",
-  "cannot_determine",
-  "not_applicable",
-]);
 
 // ---------------------------------------------------------------------------
 // Pure helpers mirroring identify-multimodal/index.ts without loading Deno serve().
@@ -160,13 +122,6 @@ function mergeObservationContexts(
       return freeText || snakeCase || null;
     })
     .filter((text): text is string => text != null && text.length > 0);
-}
-
-function sanitizeCount(v: unknown): number | undefined {
-  if (v == null || typeof v !== "number" || !Number.isFinite(v) || v <= 0) {
-    return undefined;
-  }
-  return Math.min(Math.round(v), 99999);
 }
 
 function telemetryCount(value: unknown): number {
@@ -353,46 +308,6 @@ function resolveVisualMediaTelemetry(
     declaredVideoFrameCount,
     videoInferenceFrameCount,
   };
-}
-
-function sanitizeReasoning(text: string): string {
-  return text.length > 2000 ? text.slice(0, 2000) : text;
-}
-
-function sanitizeLifeStage(value: string | undefined): string {
-  if (value == null) return "unknown";
-  return VALID_LIFE_STAGES.has(value) ? value : "unknown";
-}
-
-function sanitizeReproductiveCondition(value: string | undefined): string {
-  if (value == null) return "not_applicable";
-  return VALID_REPRODUCTIVE_CONDITIONS.has(value) ? value : "not_applicable";
-}
-
-function sanitizeSex(value: string | undefined): string {
-  if (value == null) return "cannot_determine";
-  return VALID_SEX_VALUES.has(value) ? value : "cannot_determine";
-}
-
-function sanitizeCandidates(
-  candidates: Array<{ scientific_name: string; confidence_score?: number }>,
-) {
-  return candidates
-    .map((candidate) => ({
-      ...candidate,
-      scientific_name: sanitizeScientificName(candidate.scientific_name),
-    }))
-    .slice(0, 5);
-}
-
-function resolveReturnedCandidates<T>(
-  candidates: T[] | null | undefined,
-  confidenceScore: number | null | undefined,
-  diagnosticTrigger: number,
-): T[] | null {
-  if (!Array.isArray(candidates) || candidates.length === 0) return null;
-  if ((confidenceScore ?? 0) >= diagnosticTrigger) return null;
-  return candidates;
 }
 
 // ---------------------------------------------------------------------------
@@ -948,80 +863,6 @@ Deno.test("concurrent AI retries wait for the exact owner completion instead of 
     new URL("../_shared/identify/completedResponse.ts", import.meta.url),
   );
   assert(replaySource.includes("COMPLETED_RESPONSE_POLL_TIMEOUT_MS = 70_000"));
-});
-
-// ---------------------------------------------------------------------------
-// Candidate and LLM output hardening
-// ---------------------------------------------------------------------------
-
-Deno.test("candidates are sanitized and capped at five", () => {
-  const candidates = sanitizeCandidates([
-    { scientific_name: "cf. Danaus plexippus", confidence_score: 0.8 },
-    { scientific_name: "Rosa canina L." },
-    { scientific_name: "Pinus ponderosa" },
-    { scientific_name: "Acer Palmatum" },
-    { scientific_name: "Boletus edulis var. Edulis" },
-    { scientific_name: "Should be dropped" },
-  ]);
-
-  assertEquals(candidates.length, 5);
-  assertEquals(candidates[0].scientific_name, "Danaus plexippus");
-  assertEquals(candidates[1].scientific_name, "Rosa canina");
-  assertEquals(candidates[3].scientific_name, "Acer palmatum");
-  assertEquals(candidates[4].scientific_name, "Boletus edulis var. edulis");
-});
-
-Deno.test("candidates are stripped when confidence is at or above the diagnostic threshold", () => {
-  const candidates = [{ scientific_name: "Danaus plexippus" }];
-  assertEquals(resolveReturnedCandidates(candidates, 0.99, 0.99), null);
-  assertEquals(resolveReturnedCandidates(candidates, 0.995, 0.99), null);
-});
-
-Deno.test("candidates remain when confidence is below the diagnostic threshold", () => {
-  const candidates = [{ scientific_name: "Danaus plexippus" }];
-  assertEquals(
-    resolveReturnedCandidates(candidates, 0.88, 0.99),
-    candidates,
-  );
-});
-
-Deno.test("ai_reasoning is clamped to 2000 characters", () => {
-  assertEquals(sanitizeReasoning("x".repeat(2500)).length, 2000);
-  assertEquals(sanitizeReasoning("ok"), "ok");
-});
-
-Deno.test("individual_count is bounded to positive finite integers", () => {
-  assertEquals(sanitizeCount(12), 12);
-  assertEquals(sanitizeCount(12.7), 13);
-  assertEquals(sanitizeCount(100000), 99999);
-  assertEquals(sanitizeCount(0), undefined);
-  assertEquals(sanitizeCount(-4), undefined);
-  assertEquals(sanitizeCount(NaN), undefined);
-});
-
-Deno.test("life_stage falls back to unknown for invalid enum values", () => {
-  assertEquals(sanitizeLifeStage("adult"), "adult");
-  assertEquals(sanitizeLifeStage("fledgling"), "unknown");
-  assertEquals(sanitizeLifeStage(undefined), "unknown");
-});
-
-Deno.test("reproductive_condition falls back to not_applicable for invalid enum values", () => {
-  assertEquals(sanitizeReproductiveCondition("flowering"), "flowering");
-  assertEquals(
-    sanitizeReproductiveCondition("brooding"),
-    "not_applicable",
-  );
-  assertEquals(
-    sanitizeReproductiveCondition(undefined),
-    "not_applicable",
-  );
-});
-
-Deno.test("sex falls back to cannot_determine for invalid enum values", () => {
-  assertEquals(sanitizeSex("female"), "female");
-  assertEquals(sanitizeSex("male"), "male");
-  assertEquals(sanitizeSex("worker"), "cannot_determine");
-  assertEquals(sanitizeSex(undefined), "cannot_determine");
 });
 
 Deno.test("main identification uses one admitted shared-provider invocation", async () => {

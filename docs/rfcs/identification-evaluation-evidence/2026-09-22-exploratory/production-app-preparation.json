@@ -1,0 +1,60 @@
+{
+  "schemaVersion": "identification_production_app_preparation_v1",
+  "date": "2026-09-22",
+  "status": "prepared_awaiting_capture_access",
+  "executionBoundary": "existing_production_app_workflow",
+  "authorization": {
+    "ordinaryProductionIdentificationChargesApproved": true,
+    "maximumExperimentCalls": 4,
+    "approvedBudgetUsd": 10,
+    "plannedAppSubmissions": 2,
+    "profileSelection": "normal_server_selection"
+  },
+  "installedApp": {
+    "version": "1.0.3",
+    "build": "275",
+    "platform": "iphonesimulator",
+    "simulatorModel": "iPhone 18 Pro",
+    "simulatorOS": "iOS 27.0",
+    "xcodeBuild": "27A266a",
+    "sourceRevision": "7cb12cce16bd736ea1dc725663cacd10471cac46",
+    "sourceState": "dirty",
+    "sourceFingerprint": "6c5709a5021d27fbd8e884878108bd4ce56f3627e5427f17a0c309ba348951b9",
+    "matchesCurrentWorktree": null,
+    "hostedBackendRevision": null
+  },
+  "cases": [
+    {
+      "caseId": "c0001",
+      "assetSha256": "ad490fa904570639a22aaea8ebbac6b85c2fc87766e389c0d2386e605ccf4902",
+      "referenceStatus": "unverified",
+      "importedToSimulatorPhotos": true,
+      "submissionStatus": "unattempted",
+      "outcome": null
+    },
+    {
+      "caseId": "c0002",
+      "assetSha256": "9f08b3493a4bf68641f5fb1b177e94f01d7dfcfada22b83127dd23caa51589af",
+      "referenceStatus": "provisional",
+      "importedToSimulatorPhotos": true,
+      "submissionStatus": "unattempted",
+      "outcome": null
+    }
+  ],
+  "observer": {
+    "scriptSha256": "bda0af0e340ae743ea8a8ea7d30b18ff850a05846fb1f93e9bb85eb761af4917",
+    "projectionChecks": "passed",
+    "windowStartedAt": "2026-09-22T17:00:05.743590+00:00",
+    "windowFinishedAt": "2026-09-22T17:03:18.247491+00:00",
+    "status": "no_identification_metrics_observed",
+    "events": [],
+    "submitsRequests": false,
+    "retainsRawLogs": false
+  },
+  "experimentSubmissions": 0,
+  "measuredResults": 0,
+  "model": null,
+  "latencySeconds": null,
+  "usageCostUsd": null,
+  "formalQualityScore": null
+}

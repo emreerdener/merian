@@ -152,6 +152,14 @@ or crop work. Crop confirmation/submission rechecks admission because the
 preview is non-reserving; a concurrent account/quota change can still deny that
 later boundary.
 
+Before acquiring an account-work lease, iOS waits for eligible first-launch
+session setup through the existing single-flight Auth bootstrap coordinator.
+This joins background warmup or retries a failed anonymous setup. Prior OAuth
+recovery, purchase handoff, deletion, and other Auth transitions remain blocked;
+cancelled or identity-changed attempts cannot dispatch. The caller waits at most
+five seconds and returns promptly on cancellation without cancelling shared
+bootstrap work. This bound is separate from the RPC deadline below.
+
 The iOS preflight uses an exact-route bridge over the shared certificate-pinned
 Supabase session. It admits only the configured
 `POST /rest/v1/rpc/get_my_scan_admission_preview` request with a nonempty bearer
@@ -6238,6 +6246,25 @@ adds only diagnostic response headers:
   durations in milliseconds.
 - `X-Merian-Edge-Region`: the runtime region reported by the Edge environment,
   when available.
+- `X-Merian-Identification`: bounded JSON diagnostics on fresh durable success
+  only. Version `1` contains `provider`, `requestedModel`, nullable
+  `returnedModel`, `backendBundleSha256`, and nullable `usage`. Usage contains
+  nullable nonnegative integer `promptTokens`, `candidateTokens`,
+  `thinkingTokens`, `totalTokens`, `cachedTokens` and `toolTokens` (maximum
+  10,000,000 each). Current provider/model values come from the admitted Gemini
+  attempt; returned model is a bounded Gemini version token. No provider text,
+  modality dictionary, owner or request identifiers enter this header.
+
+The identification header is exposed to browser clients on fresh success and is
+absent on errors and stored/reconstructed replays. It changes no Identify JSON
+envelope, ledger persistence or billing contract. Its generated bundle
+fingerprint covers the Function's local runtime graph/configuration/lock, not a
+Git SHA, database or environment revision. The native diagnostic parser rejects
+unknown header versions and projects only bounded fields, keeping absent usage
+and source values unknown. The
+[app measurement guide](../development-guides/21-identification-app-measurement.md)
+owns passive recording, app source identity, separate timing boundaries and
+offline primary-attempt cost estimates.
 
 The successful `multimodal/latency` event also includes `quota_commit_ms`,
 `provider_ms`, `video_promotion_ms`, `primary_enrichment_ms`, and

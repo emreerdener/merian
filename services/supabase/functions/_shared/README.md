@@ -476,6 +476,12 @@ identical:
   endpoints.
 - **`context.ts`**: Telemetry context normalization, month/time handling, and
   ecological field clamping.
+- **`normalizeIdentification.ts`**: Pure post-provider parsing and normalization
+  shared by the active multimodal route and offline identification evaluation.
+  Takes evidence-presence/tier facts and a location-availability Boolean;
+  returns normalized domain data, audio disposition, separate client
+  candidates/life stage, and in-memory diagnostics. The handler retains logging,
+  dictionary hydration, final wire validation, quota, and persistence.
 - **`audioSubjectPolicy.ts`**: Shared audio-only subject precedence, prompt
   fragments, private-provider discriminator normalization, and public-field
   canonicalization for `identify-multimodal` and `audio-spec`. Non-human animals

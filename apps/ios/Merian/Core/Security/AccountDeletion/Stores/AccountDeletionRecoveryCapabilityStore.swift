@@ -161,9 +161,11 @@ struct AccountDeletionRecoveryCapabilityStore {
             KeychainManager.shared,
         userDefaults: UserDefaults = .standard
     ) -> Bool {
-        guard AccountDeletionLocalCleanupStore.state(
+        let existingState = AccountDeletionLocalCleanupStore.state(
             userDefaults: userDefaults
-        ) == nil else {
+        )
+        guard existingState == nil
+            || existingState == .capabilityLookupPending else {
             return true
         }
 
@@ -171,7 +173,25 @@ struct AccountDeletionRecoveryCapabilityStore {
             guard try secureStore.dataOrThrow(
                 forKey: KeychainKeys.accountDeletionRecoveryCapability
             ) != nil else {
-                return true
+                guard existingState == .capabilityLookupPending else {
+                    return true
+                }
+                // This marker records only an unresolved Keychain lookup.
+                // Resolve verified absence before Auth starts, even when no
+                // cached session exists. Other deletion phases never enter
+                // this path, and no data or Keychain proof is removed.
+                if AccountDeletionLocalCleanupStore.resolve(
+                    userDefaults: userDefaults,
+                    emitEvent: false
+                ) {
+                    return true
+                }
+                // Reinstall the barrier if its durable removal failed.
+                return AccountDeletionLocalCleanupStore
+                    .recordCapabilityLookupPending(
+                        userDefaults: userDefaults,
+                        emitEvent: false
+                    )
             }
         } catch {
             // Secure storage uncertainty must be resolved before Auth/session

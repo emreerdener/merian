@@ -5,6 +5,30 @@ import Testing
 
 @Suite("Authenticated Request Executor")
 struct AuthenticatedRequestExecutorTests {
+    @Test func failedIdentificationResponsesAreMeasuredBeforeErrorHandling() async throws {
+        for status in [400, 503] {
+            let probe = AuthenticatedRequestExecutorProbe(
+                authUserIDs: [UUID()],
+                outcomes: [.response(statusCode: status, data: Data("synthetic-private-response".utf8))]
+            )
+            var records: [String] = []
+            let executor = makeExecutor(probe: probe, recordIdentificationMeasurement: { records.append($0) })
+            do {
+                _ = try await executor.execute(try makeRequest(function: "identify-multimodal"))
+                Issue.record("Expected failed identification")
+            } catch {
+                // The HTTP response must be recorded even if retry/error handling throws.
+            }
+            #expect(records.count == 1)
+            let text = try #require(records.first)
+            #expect(!text.contains("synthetic-private-response"))
+            let value = try #require(JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any])
+            #expect(value["status"] as? Int == status)
+            #expect(value["delivery"] as? String == "unavailable")
+            #expect(value["diagnostics"] is NSNull)
+        }
+    }
+
     @Test func retryKeepsExactBodyAndInitiatingAccountBinding() async throws {
         let initiatingUserID = UUID()
         let replacementUserID = UUID()
@@ -384,7 +408,8 @@ struct AuthenticatedRequestExecutorTests {
     }
 
     private func makeExecutor(
-        probe: AuthenticatedRequestExecutorProbe
+        probe: AuthenticatedRequestExecutorProbe,
+        recordIdentificationMeasurement: @escaping (String) -> Void = { _ in }
     ) -> AuthenticatedRequestExecutor {
         AuthenticatedRequestExecutor(dependencies: .init(
             requestPayloadAuthUserID: {
@@ -417,7 +442,7 @@ struct AuthenticatedRequestExecutorTests {
             sleep: { delay in
                 probe.recordSleep(delay)
             }
-        ))
+        ), recordIdentificationMeasurement: recordIdentificationMeasurement)
     }
 }
 

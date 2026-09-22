@@ -22,7 +22,6 @@ struct ExplorePostDetailContentView: View {
     let onOpenExploreMap: ((ExploreMapFocusTarget) -> Void)?
     let authorPresentation: ExplorePostCardAuthorPresentation
     let isOwnedByCurrentUser: Bool
-    let localFieldNotes: String?
     let isRefreshingAfterInsightDismiss: Bool
     let isFieldChatAvailable: Bool
     let onLoadDetail: @MainActor () async -> Void
@@ -59,6 +58,10 @@ struct ExplorePostDetailContentView: View {
 
     private var presentedComposerIsSticky: Bool {
         focusedComposerIsSticky ?? isComposerSticky
+    }
+
+    private var hidesBottomActions: Bool {
+        presentedComposerIsSticky || isComposerFocused
     }
 
     var body: some View {
@@ -223,7 +226,6 @@ struct ExplorePostDetailContentView: View {
 
             hashtagRow
             toxicityBanner
-            fieldNotesSection
 
             ExplorePostDetailInsightSection(
                 post: post,
@@ -234,7 +236,9 @@ struct ExplorePostDetailContentView: View {
                 isLoading: detailViewModel.isLoadingDetail,
                 errorMessage: detailViewModel.detailErrorMessage,
                 onOpenExploreMap: onOpenExploreMap
-            )
+            ) {
+                fieldNotesSection
+            }
         }
         .padding(.horizontal, 16)
         .padding(.top, 16)
@@ -276,15 +280,11 @@ struct ExplorePostDetailContentView: View {
 
     @ViewBuilder
     private var fieldNotesSection: some View {
-        let fieldNotes = detailViewModel.detail?.trimmedFieldNotes
-            ?? (isOwnedByCurrentUser ? FieldNotesRepository.trimmedNonEmptyText(localFieldNotes) : nil)
-
-        if !isRefreshingAfterInsightDismiss, let fieldNotes {
+        if !isRefreshingAfterInsightDismiss,
+           let fieldNotes = detailViewModel.detail?.trimmedFieldNotes {
             ExploreFieldNotesCard(
                 fieldNotes: fieldNotes,
-                visibility: isOwnedByCurrentUser
-                    ? (detailViewModel.detail?.trimmedFieldNotes != nil ? .published : .privateNotes)
-                    : nil,
+                visibility: isOwnedByCurrentUser ? .published : nil,
                 canEdit: isOwnedByCurrentUser,
                 onEdit: onEditFieldNotes
             )
@@ -347,7 +347,7 @@ struct ExplorePostDetailContentView: View {
                 allowsInsightPresentation: canOpenOwnedPostInsight,
                 onOpenInsight: onOpenInsight,
                 onEditPost: onEditPost,
-                showsShareAction: presentedComposerIsSticky || isComposerFocused,
+                showsShareAction: hidesBottomActions,
                 onShare: {
                     viewModel.share(post, playbackCoordinator: playbackCoordinator)
                 },
@@ -372,30 +372,32 @@ struct ExplorePostDetailContentView: View {
             )
         }
 
-        ToolbarItemGroup(placement: .bottomBar) {
-            Button {
-                viewModel.share(post, playbackCoordinator: playbackCoordinator)
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "square.and.arrow.up")
-                        .font(.system(size: 14, weight: .semibold))
-                    Text("Share")
+        if !hidesBottomActions {
+            ToolbarItemGroup(placement: .bottomBar) {
+                Button {
+                    viewModel.share(post, playbackCoordinator: playbackCoordinator)
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 14, weight: .semibold))
+                        Text("Share")
+                    }
+                    .padding(.horizontal, 8)
+                    .fixedSize()
                 }
-                .padding(.horizontal, 8)
-                .fixedSize()
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(.accentColor)
-            .accessibilityLabel("Share post")
+                .buttonStyle(.borderedProminent)
+                .tint(.accentColor)
+                .accessibilityLabel("Share post")
 
-            Spacer()
+                Spacer()
 
-            if ExplorePostFieldChatPresentationPolicy.showsFloatingButton(
-                isFieldChatAvailable: isFieldChatAvailable,
-                isCommentComposerSticky: presentedComposerIsSticky,
-                isCommentComposerFocused: isComposerFocused
-            ) {
-                FieldChatToolbarButton(action: onOpenFieldChat)
+                if ExplorePostFieldChatPresentationPolicy.showsFloatingButton(
+                    isFieldChatAvailable: isFieldChatAvailable,
+                    isCommentComposerSticky: presentedComposerIsSticky,
+                    isCommentComposerFocused: isComposerFocused
+                ) {
+                    FieldChatToolbarButton(action: onOpenFieldChat)
+                }
             }
         }
     }

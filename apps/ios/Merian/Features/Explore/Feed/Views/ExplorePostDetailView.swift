@@ -106,7 +106,6 @@ struct ExplorePostDetailView: View {
                     onOpenExploreMap: onOpenExploreMap,
                     authorPresentation: presentationServices.authorPresentation(for: post),
                     isOwnedByCurrentUser: presentationServices.isOwnedByCurrentUser(post),
-                    localFieldNotes: localFieldNotes,
                     isRefreshingAfterInsightDismiss: isRefreshingAfterInsightDismiss,
                     isFieldChatAvailable: !exploreChatViewModel.isUnavailable(for: post.id),
                     onLoadDetail: {

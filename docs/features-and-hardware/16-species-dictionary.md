@@ -1005,6 +1005,11 @@ Reference image attribution:
   the species gallery. The fullscreen image viewer shows fuller credit in its
   bottom overlay: `@username · Naturebook` without display-name or permission
   fallback for Naturebook, or attribution/license/source for external images.
+- iOS fullscreen and Field Chat credits and public web captions display embedded
+  URLs as labeled links (`Website`, or a Creative Commons license title
+  including its version and jurisdiction). Photographer names and link
+  destinations remain intact. Public web social-image captions use the same
+  readable text labels. Stored rights metadata is unchanged.
 - Legacy fallback images may not have attribution metadata. iOS can still render
   those images with source labeling, but the public web frontend runs
   `publicWebReferenceImageAttributionIssues(...)` and omits every image missing

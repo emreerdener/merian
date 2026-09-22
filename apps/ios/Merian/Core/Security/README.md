@@ -89,23 +89,28 @@ pin lifecycle. See the
   inference actor boundaries without widening those wire declarations.
 - `ScanAdmissionManager` reads the authenticated account's prospective scan plan
   and UTC-day allowance immediately before Capture starts hardware or submission
-  work. Preview responses are never cached, because even a short cache could
-  outlive a concurrent scan's final daily allowance. Its exact-route PostgREST
-  request uses Core Network's shared certificate-pinned session with a nonempty
-  bearer credential, nonempty anon API key, and two-second request and
-  wall-clock deadlines. It never waits for connectivity or retries, and returns
-  a typed distinction between a valid preview, classified transport
-  unavailability, and every other failure. Only the transport-unavailable result
-  may use current local eligibility to select a queue-only Capture route;
-  cancellation, malformed data, authentication/TLS, and server failures remain
-  fail-closed. `Core/Data/OfflineSync/Policies/ScanConnectivityFailurePolicy`
-  centralizes that reviewed URL-code set, recognizes bounded underlying-error
-  wrappers, gives certificate/authentication/ATS policy codes veto precedence
-  over broader outer transport errors, and separately defines the broader
-  post-durability recovery set so the two ownership boundaries cannot drift. The
-  manager never reserves quota; the provider-side `reserve_ai_quota(...)`
-  transaction remains the authorization boundary and can still reject a
-  concurrent race.
+  work. `ScanAdmissionSessionReadiness` first joins or retries first-launch
+  anonymous setup, before acquiring the account-work lease that bootstrap must
+  drain. Prior OAuth recovery, purchase handoff, deletion, and other Auth
+  transitions remain blocked; cancellation and changed identities cannot admit
+  the pending import. Each caller waits at most five seconds and cancellation
+  returns promptly without cancelling shared bootstrap work. Preview responses
+  are never cached, because even a short cache could outlive a concurrent scan's
+  final daily allowance. Its exact-route PostgREST request uses Core Network's
+  shared certificate-pinned session with a nonempty bearer credential, nonempty
+  anon API key, and two-second request and wall-clock deadlines. It never waits
+  for connectivity or retries, and returns a typed distinction between a valid
+  preview, classified transport unavailability, and every other failure. Only
+  the transport-unavailable result may use current local eligibility to select a
+  queue-only Capture route; cancellation, malformed data, authentication/TLS,
+  and server failures remain fail-closed.
+  `Core/Data/OfflineSync/Policies/ScanConnectivityFailurePolicy` centralizes
+  that reviewed URL-code set, recognizes bounded underlying-error wrappers,
+  gives certificate/authentication/ATS policy codes veto precedence over broader
+  outer transport errors, and separately defines the broader post-durability
+  recovery set so the two ownership boundaries cannot drift. The manager never
+  reserves quota; the provider-side `reserve_ai_quota(...)` transaction remains
+  the authorization boundary and can still reject a concurrent race.
 - `Consent/Models` owns the exact policy versions and evidence copy, storage and
   handoff errors, plus the source-compatible `ConsentManager.*` receipt, event,
   ledger, journal, restoration, and remote-state values. `Consent/Policies` owns

@@ -1,9 +1,6 @@
 import { join } from "node:path";
-import {
-  buildAllFunctionGraphs,
-  functionsRoot,
-  repoRelative,
-} from "./function_dependency_tools.ts";
+import { functionsRoot } from "./function_dependency_tools.ts";
+import { computeFunctionBundleDigests } from "./function_bundle_identity.ts";
 
 export const FIELD_CHAT_FUNCTION_NAMES = Object.freeze(
   [
@@ -20,64 +17,15 @@ const GENERATED_IDENTITY_PATH = join(
   "_shared",
   "fieldChatDeploymentIdentity.ts",
 );
-const SHARED_DEPLOYMENT_INPUTS = Object.freeze([
-  join(functionsRoot, "deno.json"),
-  join(functionsRoot, "dependencies.lock"),
-]);
 const HEX_DIGEST_PATTERN = /^[0-9a-f]{64}$/;
-
-async function sha256Bytes(bytes: Uint8Array): Promise<string> {
-  const ownedBytes = new Uint8Array(bytes.byteLength);
-  ownedBytes.set(bytes);
-  const digest = await crypto.subtle.digest("SHA-256", ownedBytes);
-  return [...new Uint8Array(digest)]
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-async function existingFunctionConfig(
-  functionName: FieldChatFunctionName,
-): Promise<string[]> {
-  const path = join(functionsRoot, functionName, "deno.json");
-  try {
-    return (await Deno.stat(path)).isFile ? [path] : [];
-  } catch (error) {
-    if (error instanceof Deno.errors.NotFound) return [];
-    throw error;
-  }
-}
-
-async function digestFiles(paths: readonly string[]): Promise<string> {
-  const canonicalEntries: string[] = [];
-  for (const path of [...new Set(paths)].sort()) {
-    const fileDigest = await sha256Bytes(await Deno.readFile(path));
-    canonicalEntries.push(`${repoRelative(path)}\0${fileDigest}\n`);
-  }
-  return await sha256Bytes(
-    new TextEncoder().encode(canonicalEntries.join("")),
-  );
-}
 
 export async function computeFieldChatBundleDigests(): Promise<
   Readonly<Record<FieldChatFunctionName, string>>
 > {
-  const graphs = await buildAllFunctionGraphs();
-  const result = {} as Record<FieldChatFunctionName, string>;
-  for (const functionName of FIELD_CHAT_FUNCTION_NAMES) {
-    const graph = graphs.find((candidate) => candidate.name === functionName);
-    if (!graph) {
-      throw new Error(`Field Chat function graph is missing ${functionName}`);
-    }
-    const runtimeFiles = [...graph.files].filter((path) =>
-      path !== GENERATED_IDENTITY_PATH
-    );
-    result[functionName] = await digestFiles([
-      ...runtimeFiles,
-      ...SHARED_DEPLOYMENT_INPUTS,
-      ...await existingFunctionConfig(functionName),
-    ]);
-  }
-  return Object.freeze(result);
+  return await computeFunctionBundleDigests(
+    FIELD_CHAT_FUNCTION_NAMES,
+    GENERATED_IDENTITY_PATH,
+  );
 }
 
 export function renderFieldChatDeploymentIdentity(

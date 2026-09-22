@@ -1,0 +1,134 @@
+{
+  "version": "identification_preflight_v1",
+  "dispatchAuthorized": false,
+  "corpusDigest": "7f5d46e6a74f8ad91c9ed169924aa061e080db5ae9c0c0da45b66ccd8b33fbb6",
+  "taxonomyDigest": "ceb686ad9b4ccf1d6f95d60107f5d2b5ab534cb6c8abb31599a62ae4e470928f",
+  "evidenceKind": "exploratory",
+  "source": {
+    "commit": "7cb12cce16bd736ea1dc725663cacd10471cac46",
+    "dirty": true,
+    "digest": "1932bf751d767bd36542776a4ae1565a0cff622be1bad9ba2a0424f31632374d",
+    "sdk": "npm:@google/genai@2.23.0"
+  },
+  "groups": 2,
+  "referenceLabels": 1,
+  "coverage": {
+    "photos": 2,
+    "description": 0,
+    "audio": 0,
+    "frames": 0,
+    "frames_audio": 0,
+    "photos_audio": 0
+  },
+  "profiles": [
+    "gemini_flash_free",
+    "gemini_pro"
+  ],
+  "plannedCalls": 4,
+  "pricingDigest": "cffd045896f63a392e9c2d5406accbe31becfb3fb5af3d49be7bff46749f659a",
+  "fullScheduleReservationUsd": 9.633792,
+  "requiredBeforeLive": [
+    "review_exact_corpus_and_source",
+    "current_pricing_and_token_ceilings",
+    "reviewed_dedicated_project_and_credential",
+    "explicit_run_spec_and_usd_budget_authorization"
+  ],
+  "order": [
+    {
+      "key": "c0002-gemini_flash_free-1",
+      "caseId": "c0002",
+      "profile": "gemini_flash_free",
+      "attempt": 1,
+      "inputDigest": "217ec31154ca002630588d4ef0237dd74fe82367a8dfaf2adec2415c35464f02",
+      "requestDigest": "c3fa5be9172633375cdd21a5def2e5a28aefd087d1c1b98b0d85b7948948dc65",
+      "policyDigest": "a7f717c106f4dda1a523e10aa297cfc04e31105dadcd330cf39a4bc779d3a91a",
+      "promptDigest": "eb20df10d0dbc74018317ca906cc36e6345ad4f48e9e9b2acc1bf32d0a8dfc4e",
+      "schemaDigest": "1fabcf3590f21e7432e1031e71b44348236503debb8a001ec3de7eacb3ab30bd",
+      "confidenceDigest": "c97b222734059f40b7138a4aff3cc6472caaab8c871c4216f237b9dd1443a109",
+      "model": "gemini-2.5-flash",
+      "prompt": "identify_vision_v1",
+      "schema": "merian_identify_v1",
+      "confidence": "gemini_identify_v1",
+      "timeoutMs": 90000,
+      "generation": {
+        "temperature": 0.1,
+        "maxOutputTokens": 8192,
+        "seed": 42,
+        "thinkingBudget": null
+      },
+      "reservedUsd": 1.212416
+    },
+    {
+      "key": "c0002-gemini_pro-1",
+      "caseId": "c0002",
+      "profile": "gemini_pro",
+      "attempt": 1,
+      "inputDigest": "217ec31154ca002630588d4ef0237dd74fe82367a8dfaf2adec2415c35464f02",
+      "requestDigest": "57e4818e158ad1ea941a91f58afe39922e272c8537a8bfcc030b2f1183c50eaf",
+      "policyDigest": "e257697faa13bfdfb80902b833b5faec91db522e45d91fbceb63351bc6af220b",
+      "promptDigest": "eb20df10d0dbc74018317ca906cc36e6345ad4f48e9e9b2acc1bf32d0a8dfc4e",
+      "schemaDigest": "1fabcf3590f21e7432e1031e71b44348236503debb8a001ec3de7eacb3ab30bd",
+      "confidenceDigest": "7994954960f1355f6f0fe520ad2f5a6552fb3785f6bd900661ff48abae85fdcf",
+      "model": "gemini-2.5-pro",
+      "prompt": "identify_vision_v1",
+      "schema": "merian_identify_v1",
+      "confidence": "gemini_identify_v1",
+      "timeoutMs": 90000,
+      "generation": {
+        "temperature": 0.1,
+        "maxOutputTokens": 8192,
+        "seed": 42,
+        "thinkingBudget": 5000
+      },
+      "reservedUsd": 3.60448
+    },
+    {
+      "key": "c0001-gemini_pro-1",
+      "caseId": "c0001",
+      "profile": "gemini_pro",
+      "attempt": 1,
+      "inputDigest": "37258b7d2a5ac5e331ca05f572cf78ac7fa957c349d982771fb6128fca63c520",
+      "requestDigest": "a52363e6037a194f55d1e5f2a565ec13e6a6dbb9db411250405f8431efea34c1",
+      "policyDigest": "e257697faa13bfdfb80902b833b5faec91db522e45d91fbceb63351bc6af220b",
+      "promptDigest": "eb20df10d0dbc74018317ca906cc36e6345ad4f48e9e9b2acc1bf32d0a8dfc4e",
+      "schemaDigest": "1fabcf3590f21e7432e1031e71b44348236503debb8a001ec3de7eacb3ab30bd",
+      "confidenceDigest": "7994954960f1355f6f0fe520ad2f5a6552fb3785f6bd900661ff48abae85fdcf",
+      "model": "gemini-2.5-pro",
+      "prompt": "identify_vision_v1",
+      "schema": "merian_identify_v1",
+      "confidence": "gemini_identify_v1",
+      "timeoutMs": 90000,
+      "generation": {
+        "temperature": 0.1,
+        "maxOutputTokens": 8192,
+        "seed": 42,
+        "thinkingBudget": 5000
+      },
+      "reservedUsd": 3.60448
+    },
+    {
+      "key": "c0001-gemini_flash_free-1",
+      "caseId": "c0001",
+      "profile": "gemini_flash_free",
+      "attempt": 1,
+      "inputDigest": "37258b7d2a5ac5e331ca05f572cf78ac7fa957c349d982771fb6128fca63c520",
+      "requestDigest": "d5f9fd13831255c1ace84cbb7189f3e620e40463ce58b3fa0412e1ca15fa6cc8",
+      "policyDigest": "a7f717c106f4dda1a523e10aa297cfc04e31105dadcd330cf39a4bc779d3a91a",
+      "promptDigest": "eb20df10d0dbc74018317ca906cc36e6345ad4f48e9e9b2acc1bf32d0a8dfc4e",
+      "schemaDigest": "1fabcf3590f21e7432e1031e71b44348236503debb8a001ec3de7eacb3ab30bd",
+      "confidenceDigest": "c97b222734059f40b7138a4aff3cc6472caaab8c871c4216f237b9dd1443a109",
+      "model": "gemini-2.5-flash",
+      "prompt": "identify_vision_v1",
+      "schema": "merian_identify_v1",
+      "confidence": "gemini_identify_v1",
+      "timeoutMs": 90000,
+      "generation": {
+        "temperature": 0.1,
+        "maxOutputTokens": 8192,
+        "seed": 42,
+        "thinkingBudget": null
+      },
+      "reservedUsd": 1.212416
+    }
+  ]
+}

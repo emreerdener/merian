@@ -92,6 +92,7 @@ Deno.test("provider dispatch and SDK imports stay within the adapter and deferre
   assertEquals(sdkFiles.sort(), [
     "functions/_shared/ai/gemini.ts",
     "functions/_shared/ai/geminiContent.ts",
+    "functions/_shared/ai/geminiRequest.ts",
     "functions/_shared/fieldChatReply.ts",
     "functions/_shared/gemini.ts",
     "functions/_shared/identify/googleSchema.ts",
@@ -127,6 +128,43 @@ Deno.test("provider dispatch and SDK imports stay within the adapter and deferre
     benchmark.indexOf('name: "net"') <
       benchmark.indexOf("_genAI.models.generateContent"),
   );
+});
+
+Deno.test("identification evaluation dispatch is explicit, input-validated and durably claimed", async () => {
+  const root = new URL("../../scripts/", import.meta.url);
+  const cli = await Deno.readTextFile(
+    new URL("evaluate_identification.ts", root),
+  );
+  const runner = await Deno.readTextFile(
+    new URL("identification_evaluation/runner.ts", root),
+  );
+  const admission = await Deno.readTextFile(
+    new URL("identification_evaluation/admission.ts", root),
+  );
+  const files = await Deno.readTextFile(
+    new URL("identification_evaluation/files.ts", root),
+  );
+  assertStringIncludes(cli, "if (import.meta.main)");
+  assertStringIncludes(cli, 'mode === "--live"');
+  assertStringIncludes(runner, "await prepareEvidence(root, item.input)");
+  assertStringIncludes(runner, "await approve()");
+  assertStringIncludes(
+    runner,
+    'await import("../../functions/_shared/ai/production.ts")',
+  );
+  assert(
+    runner.indexOf("await claimJson(") <
+      runner.indexOf("await execution.invoke()"),
+  );
+  assertStringIncludes(files, "await file.sync()");
+  assertStringIncludes(files, "await syncDirectory(dirname(path))");
+  assertStringIncludes(files, "await file.tryLock(true)");
+  assertStringIncludes(admission, "readiness.credentialSha256");
+  assertStringIncludes(
+    admission,
+    'host: "generativelanguage.googleapis.com:443"',
+  );
+  assert(!runner.includes("console.") && !runner.includes("fetch("));
 });
 
 Deno.test("every public paid-model route declares a server quota operation", async () => {

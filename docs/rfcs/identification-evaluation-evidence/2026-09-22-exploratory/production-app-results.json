@@ -1,0 +1,245 @@
+{
+  "schemaVersion": "identification_production_app_benchmark_v1",
+  "runId": "production-app-two-photos-2026-09-22",
+  "status": "completed_exploratory_checkpoint",
+  "date": "2026-09-22",
+  "recordedAt": "2026-09-22T18:24:14.171726+00:00",
+  "executionBoundary": "existing_production_app_workflow",
+  "authorization": {
+    "ordinaryProductionIdentificationChargesApproved": true,
+    "maximumExperimentCalls": 4,
+    "approvedBudgetUsd": 10,
+    "plannedAppSubmissions": 2,
+    "profileSelection": "normal_server_selection"
+  },
+  "observedAppSubmissions": 2,
+  "visibleResults": 2,
+  "manualRetries": 0,
+  "providerInvocationCount": null,
+  "providerInternalRetryCount": null,
+  "configuredProvider": "gemini",
+  "telemetryAttestedProvider": null,
+  "exactModel": null,
+  "usageTokens": null,
+  "billedCostUsd": null,
+  "cacheState": null,
+  "installedApp": {
+    "version": "1.0.3",
+    "build": "275",
+    "platform": "iphonesimulator",
+    "simulatorModel": "iPhone 18 Pro",
+    "simulatorOS": "iOS 27.0",
+    "embeddedSourceRevision": "unavailable",
+    "embeddedSourceState": "unavailable",
+    "embeddedSourceFingerprint": "unavailable",
+    "installedFileSha256": {
+      "Info.plist": "073a6762aa0585bab0817ab61e5d707a3affda22cc85dbf5837b7bf0eee351eb",
+      "Merian": "a650281486678e82e6455134f688e8f55338cb7b8d397c77483be1ed34ecc104",
+      "Merian.debug.dylib": "2475a3b1b6a22a5e064ad7b2bbb48c1fc5adf7faf43bd73b2c0cab5d5c26ae0b"
+    },
+    "sourceAttribution": "unavailable_in_installed_metadata",
+    "hostedBackendRevision": null
+  },
+  "cases": [
+    {
+      "caseId": "c0001",
+      "sourceAssetSha256": "ad490fa904570639a22aaea8ebbac6b85c2fc87766e389c0d2386e605ccf4902",
+      "sourceDimensionsPixels": [
+        1024,
+        768
+      ],
+      "sourceMetadataStripped": true,
+      "inputMode": "photo",
+      "crop": "normal_default_crop_confirmed",
+      "providerPayloadSha256": null,
+      "appSubmissions": 1,
+      "submissionTrigger": "crop_confirmation_auto_submit",
+      "firstOutcomeRecordedAt": "2026-09-22T18:13:36.866389+00:00",
+      "outcome": {
+        "displayName": "Rough Hawkbit",
+        "scientificName": "Leontodon hispidus",
+        "matchLabel": "Possible match",
+        "confidenceNumeric": null,
+        "referenceStatus": "unverified",
+        "referenceScientificName": null,
+        "matchesProvisionalSpeciesReference": null,
+        "formalQualityScore": null,
+        "identityConfirmationActionTaken": false
+      },
+      "observerWindow": "timings-20260922T181114Z.json",
+      "observerEventIndices": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "numericEvents": [
+        {
+          "event": "preflight_seconds",
+          "value": 0.0,
+          "unit": "seconds",
+          "observedAfterSeconds": 81.046
+        },
+        {
+          "event": "http_identification",
+          "authSeconds": 0.004,
+          "transferAndServerSeconds": 27.249,
+          "status": 200,
+          "observedAfterSeconds": 108.496
+        },
+        {
+          "event": "identification_request_seconds",
+          "value": 27.45,
+          "unit": "seconds",
+          "observedAfterSeconds": 108.497
+        },
+        {
+          "event": "response_to_first_result_state_seconds",
+          "value": 0.035,
+          "unit": "seconds",
+          "observedAfterSeconds": 108.531
+        },
+        {
+          "event": "tap_to_first_rendered_frame_seconds",
+          "value": 28.446,
+          "unit": "seconds",
+          "observedAfterSeconds": 109.134
+        },
+        {
+          "event": "postflight_seconds",
+          "value": 0.97,
+          "unit": "seconds",
+          "observedAfterSeconds": 109.466
+        },
+        {
+          "event": "total_pipeline_seconds",
+          "value": 28.421,
+          "unit": "seconds",
+          "observedAfterSeconds": 109.467
+        }
+      ],
+      "serverTiming": null
+    },
+    {
+      "caseId": "c0002",
+      "sourceAssetSha256": "9f08b3493a4bf68641f5fb1b177e94f01d7dfcfada22b83127dd23caa51589af",
+      "sourceDimensionsPixels": [
+        1024,
+        768
+      ],
+      "sourceMetadataStripped": true,
+      "inputMode": "photo",
+      "crop": "normal_default_crop_confirmed",
+      "providerPayloadSha256": null,
+      "appSubmissions": 1,
+      "submissionTrigger": "crop_confirmation_auto_submit",
+      "firstOutcomeRecordedAt": "2026-09-22T18:18:00.093210+00:00",
+      "outcome": {
+        "displayName": "Tuxedo Longhair",
+        "scientificName": "Felis catus",
+        "matchLabel": "Strong match",
+        "confidenceNumeric": null,
+        "referenceStatus": "provisional",
+        "referenceScientificName": "Felis catus",
+        "matchesProvisionalSpeciesReference": true,
+        "formalQualityScore": null,
+        "identityConfirmationActionTaken": false
+      },
+      "observerWindow": "timings-20260922T181552Z.json",
+      "observerEventIndices": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "numericEvents": [
+        {
+          "event": "preflight_seconds",
+          "value": 0.0,
+          "unit": "seconds",
+          "observedAfterSeconds": 10.298
+        },
+        {
+          "event": "http_identification",
+          "authSeconds": 0.004,
+          "transferAndServerSeconds": 21.746,
+          "status": 200,
+          "observedAfterSeconds": 32.381
+        },
+        {
+          "event": "identification_request_seconds",
+          "value": 22.083,
+          "unit": "seconds",
+          "observedAfterSeconds": 32.382
+        },
+        {
+          "event": "response_to_first_result_state_seconds",
+          "value": 0.019,
+          "unit": "seconds",
+          "observedAfterSeconds": 32.4
+        },
+        {
+          "event": "tap_to_first_rendered_frame_seconds",
+          "value": 22.471,
+          "unit": "seconds",
+          "observedAfterSeconds": 32.59
+        },
+        {
+          "event": "postflight_seconds",
+          "value": 0.304,
+          "unit": "seconds",
+          "observedAfterSeconds": 32.685
+        },
+        {
+          "event": "total_pipeline_seconds",
+          "value": 22.387,
+          "unit": "seconds",
+          "observedAfterSeconds": 32.686
+        }
+      ],
+      "serverTiming": null
+    }
+  ],
+  "observation": {
+    "scriptSha256": "bda0af0e340ae743ea8a8ea7d30b18ff850a05846fb1f93e9bb85eb761af4917",
+    "submitsRequests": false,
+    "retainsRawLogs": false,
+    "caseAssociation": "observed_sequential_ui_submissions",
+    "windows": {
+      "timings-20260922T181114Z.json": {
+        "startedAt": "2026-09-22T18:11:14.730553+00:00",
+        "finishedAt": "2026-09-22T18:16:25.200716+00:00",
+        "status": "observed_numeric_events",
+        "totalCapturedEventCount": 8,
+        "selectedEventCount": 7,
+        "fileSha256": "9dee4cf2551a59962b304a409926109a71d3b6e9da3a526de3887ec5cbc35cd6"
+      },
+      "timings-20260922T181552Z.json": {
+        "startedAt": "2026-09-22T18:15:52.811333+00:00",
+        "finishedAt": "2026-09-22T18:21:13.309674+00:00",
+        "status": "observed_numeric_events",
+        "totalCapturedEventCount": 7,
+        "selectedEventCount": 7,
+        "fileSha256": "fd7621d8729c7e109f5c3271651f1d38eca07b5e7cd1ed4e5caed9e9350b327d"
+      }
+    },
+    "excludedObservation": "The first window also captured the second case preflight at index 7; this overlapping observation is excluded from all case and aggregate counts.",
+    "associatedNumericEventCount": 14
+  },
+  "quality": {
+    "formalAccuracy": null,
+    "confidenceCalibration": null,
+    "p95LatencySeconds": null,
+    "providerComparison": null,
+    "verifiedReferenceCount": 0,
+    "provisionalReferenceCount": 1,
+    "unverifiedReferenceCount": 1
+  },
+  "privateEvidenceRetentionUntil": "2026-10-22"
+}

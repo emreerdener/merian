@@ -4,6 +4,13 @@ This directory owns main-app build resources and process-wide configuration.
 `project.yml` remains authoritative for including the sources, entitlements,
 Info.plist, privacy manifest, and bridging header in the `Merian` target.
 
+The **Embed Build Provenance** phase explicitly consumes the processed product
+Info.plist before stamping `MERIAN_SOURCE_REVISION`, `MERIAN_SOURCE_FINGERPRINT`
+and `MERIAN_SOURCE_STATE`. This prevents later plist processing from restoring
+the checked-in `unavailable` fallbacks. The benchmark parser reads only those
+bounded fields plus app version/build; unknown values stay null. A native test
+asserts that the final built test host retains its source identity.
+
 ## Runtime configuration
 
 - `MerianEnvironment.swift` validates and projects the client-safe values

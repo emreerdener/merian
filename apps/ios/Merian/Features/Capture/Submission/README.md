@@ -214,6 +214,15 @@ audio clip, or description; video, mixed/multiple evidence, and refinement
 preflight as Pro-only. The RPC is a short-lived, read-only UX preview, not a
 reservation.
 
+Before taking the preview's account-work lease, iOS joins or retries eligible
+first-launch session setup through the existing Auth bootstrap coordinator. A
+tap during background warmup therefore waits for session publication. Failed
+setup remains retryable on the next tap; prior OAuth recovery, purchase handoff,
+deletion, and unrelated Auth transitions are not bypassed. The caller waits at
+most five seconds and returns promptly on cancellation, without cancelling the
+shared bootstrap. The two-second deadline below applies separately to the
+subsequent RPC.
+
 The preview uses an exact-route bridge over Core Network's shared certificate-
 pinned Supabase session. The bridge rejects missing or blank bearer and anon-key
 credentials. It applies a two-second request and wall-clock deadline, no

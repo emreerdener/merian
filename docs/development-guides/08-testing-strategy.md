@@ -317,9 +317,24 @@ the shared lock coordinates wrapper operations only.
 
 Before starting Xcode, the wrapper reports free disk space, warns below 50 GiB,
 and refuses a build below 20 GiB. These are local operating thresholds, not
-guarantees that a particular build will fit. It owns output paths, disables code
-signing, and refuses archive/export/provisioning actions. Use Xcode Organizer
-for releases under the existing release procedure.
+guarantees that a particular build will fit. It owns output paths and signing
+settings: simulator actions use local ad-hoc signing so Xcode packages the
+runtime entitlements required for Keychain access, while device compilation
+remains unsigned. Caller overrides of those settings, including SDK- or
+configuration-qualified forms, are rejected. The wrapper refuses
+archive/export/provisioning actions. Use Xcode Organizer for releases under the
+existing release procedure.
+
+Do not install a simulator build made with `CODE_SIGNING_ALLOWED=NO` for normal
+app testing. An unreadable Keychain correctly triggers the startup recovery
+barrier and can leave the app showing **Finishing Account Deletion** even when
+deletion was never requested. Rebuild through this wrapper and install the
+corrected app over the existing installation. A verified absence of a recovery
+proof lets the existing startup logic clear only its lookup barrier. Do not
+delete recovery markers, Keychain entries, or app data to bypass that check. See
+the
+[simulator signing incident](../incidents/2026-09-simulator-signing-recovery-loop.md)
+for the reproduction and runtime evidence.
 
 For a fresh DerivedData check, use `run --isolated simulator -- test ...` or
 `make ios-local-build ARGS='--isolated simulator -- test ...'` with a concrete
@@ -342,7 +357,8 @@ creates new evidence for that run, not a replacement for the old result.
 
 Run `make test-ios-local-build` for disposable-fixture tests of cache reuse,
 isolation cleanup, evidence retention, low-space refusal, process inspection,
-exclusive locking, and symlink boundaries. The complete
+exclusive locking, symlink boundaries, ad-hoc simulator signing, unsigned device
+compilation, and qualified build-setting override rejection. The complete
 `make test-ios-ci-tooling` gate includes this suite; Python iOS tooling changes
 also trigger the iOS scope detector.
 
@@ -6666,8 +6682,78 @@ comparison, and one intercepted call. Run it with `--deny-net` using the command
 in the
 [Slice 6 evidence record](../rfcs/identification-foundation-verification.md),
 which also records full disposable catalog/concurrency validation and the
-remaining exact-SHA, hosted/device, and product-timing gates. The benchmark is
-tooling-only and is discovered by the existing recursive tooling type/lint gate.
+exact-SHA, hosted/device, and product-timing gates remaining at that checkpoint.
+The later
+[deployment record](../release-evidence/provider-flexibility-deployment-2026-09-21.md)
+records the successful candidate/deployment and owner-reported manual
+acceptance, with the remaining CI observation stated separately. The benchmark
+is tooling-only and is discovered by the existing recursive tooling type/lint
+gate.
+
+The [app measurement slice](./21-identification-app-measurement.md) adds
+`IdentificationBenchmarkRecordTests` and executor failure-path coverage for
+bounded headers, old/missing metadata, replays, null usage, content exclusion
+and the final test host's embedded source provenance. The project-resource gate
+requires the processed Info.plist input that orders provenance stamping after
+plist generation. Root-discovered `identification_app_observation_test.ts`
+checks the backend-to-observer projection, unknown/replay costs, reviewed-price
+requirements, overlapping timing semantics and bounded log-line decoding.
+`generate_identification_deployment_identity_test.ts` enforces the generated
+runtime dependency fingerprint. These local checks make no live provider calls;
+the first two-photo benchmark retains its original unmeasured metadata.
+
+Identification evaluation Slice 1 is tooling-only. The root-discovered
+`identification_evaluation_contract_test.ts` and
+`identification_evaluation_scoring_test.ts` import the complete
+`scripts/identification_evaluation/` module graph. They execute with network and
+environment access denied in the focused command from the
+[evaluation tooling guide](../../services/supabase/scripts/identification_evaluation/README.md).
+Coverage includes six input groups, ordered frames and included WAV audio,
+reference/permission assertions, split and duplicate rejection, ground-truth
+isolation, corpus/evidence fingerprints, unsupported specificity, confident
+false biological answers, failure-inclusive denominators, and zero-denominator
+handling. The tests use twelve synthetic records with hand-worked scores; they
+do not verify real asset bytes, biological labels, live Gemini quality, cost, or
+app latency.
+
+Evaluation Slice 2 adds `_shared/identify/normalizeIdentification_test.ts` and
+the root-discovered `identification_evaluation_normalization_test.ts`. They
+exercise the actual shared normalizer with all runtime permissions denied, cover
+both tiers and all six input forms, and preserve strict draft rejection,
+pet/name normalization, processed-material demotion, acoustic precedence,
+location availability, and the diagnostic candidate boundary. Domain candidates
+and absent life stage remain distinct from the client projection. The actual
+multimodal handler suite also checks cached dictionary hydration, both tiers at
+0.98/0.99, and invalid hydrated output failing before persistence. Existing
+admission, retry, refusal, and replay tests remain in that suite. These
+synthetic checks prove code behavior; the live baseline remains a later slice in
+the [evaluation SRD](../rfcs/identification-evaluation-srd.md).
+
+Evaluation Slice 3 adds `identification_evaluation_run_contract_test.ts` and the
+isolated `identification_evaluation_runner_test.ts`. The tooling gate explicitly
+denies network/environment for standard tests and gives the filesystem suite
+writes only in a disposable private directory. Repository reads and a `git`
+child support the actual CLI's source fingerprint; `deno`/`ln` children exercise
+locking and link rejection. Coverage includes all-input preflight,
+metadata/hash/symlink rejection, complete frame/WAV lineage,
+credential/readiness/pricing binding, conservative call/spend guards, missing
+usage, durable-claim crash boundaries, cross-process locking, immutable resume,
+bounded artifacts, report regeneration and comparison compatibility. Paired
+bootstrap and Wilson intervals have synthetic hand-checked examples; repeats are
+not pooled. The shared pure native-parameter extraction retains the existing SDK
+interception, single-invocation and handler suites. Import and request
+preparation run with every permission denied. The tooling README owns CLI
+permissions and the external corpus/run directory contract.
+
+Exploratory automation adds `identification_evaluation_exploratory_test.ts` for
+separate real/synthetic schema admission, single-reviewer eligibility,
+provisional and null reference isolation, strict stage/call limits and existing
+live key/pricing/readiness/retention binding. The isolated filesystem suite
+exercises the actual `demo-exploratory`, `preflight`, `report` and rejected
+`compare` CLI paths, then proves no-cost preparation creates no claims, replay
+adds no calls, and saved reports regenerate without media. Both suites deny
+network and environment; their evidence establishes mechanics, not biological
+accuracy.
 
 Authoritative AI quota and entitlement security has four complementary base
 checks:
@@ -6980,6 +7066,20 @@ closure gate, not merely a compiled test; see the
 [live scan connectivity handoff incident](../incidents/2026-08-live-scan-connectivity-handoff-gap.md).
 
 The preceding pre-queue boundary has separate deterministic coverage.
+`ScanAdmissionSessionReadinessTests` suspends first-launch bootstrap while an
+import is waiting, then publishes the session and verifies admission readiness.
+It also covers retry after setup failure, existing-session fast paths, prior
+identity recovery fences, all non-bootstrap Auth transitions, SDK publication
+ordering, cancellation, and account replacement. These tests also exercise
+`requestImageImportEntryAdmission` to prove the picker is admitted only after
+readiness and cancellation clears the busy state without an error toast. A
+non-cooperative bootstrap cannot prevent caller cancellation or the five-second
+readiness deadline from returning. The network integration architecture guard
+requires readiness before lease acquisition so bootstrap cannot wait on its
+caller's own account-work lease. These tests use synthetic identities and
+injected effects; they do not contact hosted Auth or reproduce the
+physical-device Photos permission dialog.
+
 `testScanAdmissionPreviewUsesBoundedFailFastTransportPolicy` locks the exact
 two-second policy and shared transport's disabled connectivity wait/absent
 cache. `boundedDispatchUsesThePinnedSessionWithoutCaching` exercises the
@@ -7354,7 +7454,11 @@ mutation. Run the Core Media-owned `AudioPlaybackSessionControllerTests` for
 idle-mount isolation, lazy activation coalescing and retry, stale-token
 reacquisition, immediate teardown, cancellation before coordinator mutation,
 cancellation-ignoring late acquisition, teardown during lease validation, and
-replacement-safe cleanup, and `AudioSpectrogramRendererTests` for reusable
+replacement-safe cleanup, and session release after player stop.
+`AudioPlaybackFilePlayerTests` covers off-main construction/control/disposal,
+silent loading, stop during an uncancellable play, stale time sampling after
+seek, ordered pause/seek/resume, and completion after a stopped sample while
+ignoring teardown callbacks. Run `AudioSpectrogramRendererTests` for reusable
 palette, raster orientation, live-horizon, and fit-to-data behavior. The
 playback-session architecture check also requires reusable Core UI and Explore
 audio to await exact-token validation before every audible start and keeps
