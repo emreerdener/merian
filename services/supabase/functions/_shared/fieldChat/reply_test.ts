@@ -2,7 +2,7 @@ import { assertEquals } from "@std/assert";
 import {
   buildFieldChatReplyRequest,
   extractFieldChatReplyJson,
-} from "./fieldChatReply.ts";
+} from "./reply.ts";
 
 Deno.test("Field Chat replies share the deployed Gemini request configuration", () => {
   const request = buildFieldChatReplyRequest(

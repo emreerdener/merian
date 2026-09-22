@@ -1,4 +1,4 @@
-import { FIELD_CHAT_SPECIES_KNOWLEDGE_RULES } from "../_shared/fieldChatSpeciesKnowledge.ts";
+import { FIELD_CHAT_SPECIES_KNOWLEDGE_RULES } from "../_shared/fieldChat/speciesKnowledge.ts";
 import type {
   ExplorePostChatContext,
   ExplorePostChatMessageRow,

@@ -1,5 +1,11 @@
 # Domain-Driven Edge Architecture
 
+The [Function directory guide](../../services/supabase/functions/README.md)
+provides the current endpoint/shared-owner index. The
+[organization audit](../rfcs/supabase-functions-organization.md) records a
+dependency baseline and the status of each organization slice under these
+existing architecture rules.
+
 Naturebook's proxy backend executes exclusively via Deno Edge Functions managed
 locally by Supabase CLI. Hosted isolates have fixed memory plus bounded
 wall-clock, CPU, and request-idle budgets, so functions must use explicit
@@ -122,11 +128,11 @@ Gemini's provider schema.
   and AI quick-prompt generation, and `guards.ts` for action, limit,
   entitlement, prompt-suggestion, and deterministic safety checks. Insight,
   Explore-post, and Species Dictionary prompts share
-  `_shared/fieldChatSpeciesKnowledge.ts` to distinguish general species
+  `_shared/fieldChat/speciesKnowledge.ts` to distinguish general species
   knowledge from recorded observation evidence without adding source access.
-  `_shared/fieldChatReply.ts` owns their common Gemini reply request and parser;
-  `scripts/evaluate_field_chat_answers.ts` reuses that contract for bounded,
-  synthetic provider checks without user content.
+  `_shared/fieldChat/reply.ts` owns their common Gemini reply request and
+  parser; `scripts/evaluate_field_chat_answers.ts` reuses that contract for
+  bounded, synthetic provider checks without user content.
 - `field-trips/`: follows the same `index.ts` / `db.ts` split. `index.ts`
   validates the action payload, user identity, UUIDs, cursor pairs, pin arrays,
   habitat tags, comment lengths, and optional preferred-goal pair; `db.ts` is

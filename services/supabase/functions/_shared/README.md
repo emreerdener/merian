@@ -3,6 +3,12 @@
 The `_shared` repository contains the core abstraction domains that power
 Merian's globally isolated Deno Edge Functions.
 
+Use the [Function directory guide](../README.md#shared-owners) for a grouped
+index of current shared owners. The
+[organization audit](../../../../docs/rfcs/supabase-functions-organization.md)
+records completed and proposed file moves separately from the ownership
+reference below.
+
 Rather than fragmenting logic recursively through every function directory, the
 shared dependencies are grouped by domain. Keep new shared code here only when
 multiple functions need the same behavior and the ownership boundary is clear.
@@ -167,14 +173,14 @@ contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-re
   `mapWithConcurrencyLimit` for fanout work such as APNs delivery or remote
   object operations where unbounded `Promise.all(...)` could spike sockets,
   heap, provider throttles, or Postgres writes.
-- **`fieldChatSpeciesKnowledge.ts`**: Shared Insight/Explore/Species Dictionary
+- **`fieldChat/speciesKnowledge.ts`**: Shared Insight/Explore/Species Dictionary
   prompt rules for stable species knowledge. Missing reference prose must not
   block a general species answer, but typical traits must remain distinct from
   recorded observations. The answer rules follow each route's context block so
   repeated `Unavailable` record fields cannot become the final instruction. The
   rules preserve identification uncertainty, source privacy, and the absence of
   live search; they do not authorize current/local claims or invented citations.
-- **`fieldChatReply.ts`**: Shared Gemini request and JSON-extraction contract
+- **`fieldChat/reply.ts`**: Shared Gemini request and JSON-extraction contract
   for Insight/Explore/Species Dictionary replies. Keep all three routes on this
   helper so the synthetic live-answer check exercises the deployed model,
   temperature, output budget, thinking setting, and response schema.

@@ -25,6 +25,11 @@ its iOS caller. The public dictionary read stays read-only.
 
 ## Structure
 
+The [Function directory guide](functions/README.md) groups endpoint entrypoints
+and shared owners by product area. The
+[organization audit](../../docs/rfcs/supabase-functions-organization.md) records
+the current dependency map and proposed follow-up slices.
+
 The identification provider boundary is documented in
 [`functions/_shared/ai/`](functions/_shared/ai/README.md). Gemini remains the
 only enabled provider. The

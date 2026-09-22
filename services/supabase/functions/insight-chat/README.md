@@ -172,7 +172,7 @@ public post metadata, or Darwin Core export payloads to the prompt.
 ## Safety
 
 The system prompt states the assistant has no raw image access. Shared
-`_shared/fieldChatSpeciesKnowledge.ts` rules allow well-established species
+`_shared/fieldChat/speciesKnowledge.ts` rules allow well-established species
 knowledge to answer general questions, such as typical flower fragrance, even
 when the saved scan or dictionary does not contain that detail. Answers preserve
 identification uncertainty and relevant individual or cultivar variation; claims
@@ -227,7 +227,7 @@ scan—or an incomplete replay—from becoming a false local success.
 deno test --frozen --config services/supabase/functions/deno.json \
   services/supabase/functions/_shared/fieldChatReservation_test.ts \
   services/supabase/functions/_shared/fieldChatResponse_test.ts \
-  services/supabase/functions/_shared/fieldChatReply_test.ts \
+  services/supabase/functions/_shared/fieldChat/reply_test.ts \
   services/supabase/functions/insight-chat/eligibility_test.ts \
   services/supabase/functions/insight-chat/guards_test.ts \
   services/supabase/functions/insight-chat/prompt_test.ts \
