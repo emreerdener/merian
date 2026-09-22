@@ -1448,7 +1448,7 @@ The focused regression inventory includes:
 
 - `_shared/scanPersistence_test.ts`;
 - `_shared/scanMediaAssets_test.ts`;
-- `_shared/fieldChatReservation_test.ts`;
+- `_shared/fieldChat/reservation_test.ts`;
 - `generate-upload-urls/assetRegistration_test.ts`;
 - `_tests/atomicExplorePublicationMigrationContract.test.ts`;
 - `_tests/atomicCommunityIdentificationRequestMigrationContract.test.ts`;

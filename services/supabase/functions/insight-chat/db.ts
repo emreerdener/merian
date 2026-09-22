@@ -1,15 +1,15 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { geminiUsageModalityBreakdown } from "../_shared/aiUsage.ts";
-import { countAllFieldChatSendsToday } from "../_shared/fieldChatDailyUsage.ts";
+import { countAllFieldChatSendsToday } from "../_shared/fieldChat/dailyUsage.ts";
 import {
   deriveFieldChatAssistantMessageId,
   fieldChatAssistantMetadata,
   fieldChatMessageRequestId,
-} from "../_shared/fieldChatResponse.ts";
+} from "../_shared/fieldChat/response.ts";
 import {
   FieldChatAdmission,
   reserveFieldChatSend,
-} from "../_shared/fieldChatReservation.ts";
+} from "../_shared/fieldChat/reservation.ts";
 import { publicHttpError } from "../_shared/http.ts";
 import {
   ChatScanContext,

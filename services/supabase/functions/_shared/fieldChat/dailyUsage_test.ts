@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { assertEquals, assertRejects } from "@std/assert";
-import { countAllFieldChatSendsToday } from "./fieldChatDailyUsage.ts";
-import { PublicHttpError } from "./http.ts";
+import { countAllFieldChatSendsToday } from "./dailyUsage.ts";
+import { PublicHttpError } from "../http.ts";
 
 const USER_ID = "019fb780-46ec-77f8-aede-a0ca604072b6";
 

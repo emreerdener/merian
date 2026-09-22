@@ -4266,7 +4266,7 @@ Deno.test("Field Chat documentation preserves atomic admission and stale recover
   );
   assertStringIncludes(
     compact(aiSource),
-    "`_shared/fieldChatReservation.ts`",
+    "`_shared/fieldChat/reservation.ts`",
   );
   for (const source of [networkSource, clientSource]) {
     assertStringIncludes(

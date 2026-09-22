@@ -4,11 +4,11 @@ import {
   deriveFieldChatAssistantMessageId,
   fieldChatAssistantMetadata,
   fieldChatMessageRequestId,
-} from "../_shared/fieldChatResponse.ts";
+} from "../_shared/fieldChat/response.ts";
 import {
   type FieldChatAdmission,
   reserveFieldChatSend,
-} from "../_shared/fieldChatReservation.ts";
+} from "../_shared/fieldChat/reservation.ts";
 import {
   isPublicBiologicalSpeciesRow,
   type PublicSpeciesDictionaryRow,

@@ -11,7 +11,7 @@ import {
   fieldChatUserMessageForRequest,
   isFieldChatRequestComplete,
   waitForFieldChatRequestCompletion,
-} from "./fieldChatResponse.ts";
+} from "./response.ts";
 
 const SUBJECT_ID = "019fabf7-b988-7a5f-bc42-b2123a37a5ed";
 const CONVERSATION_ID = "019fabf7-bcf7-768c-a9e7-5cb30cfa6439";

@@ -2,8 +2,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   FIELD_CHAT_BUNDLE_SHA256,
   type FieldChatDeploymentFunction,
-} from "./fieldChatDeploymentIdentity.ts";
-import { publicHttpError } from "./http.ts";
+} from "../fieldChatDeploymentIdentity.ts";
+import { publicHttpError } from "../http.ts";
 
 const FIELD_CHAT_UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

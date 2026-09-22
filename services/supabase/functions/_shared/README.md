@@ -184,7 +184,7 @@ contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-re
   for Insight/Explore/Species Dictionary replies. Keep all three routes on this
   helper so the synthetic live-answer check exercises the deployed model,
   temperature, output budget, thinking setting, and response schema.
-- **`fieldChatResponse.ts`**: Shared Insight/Explore/Species Dictionary Field
+- **`fieldChat/response.ts`**: Shared Insight/Explore/Species Dictionary Field
   Chat success-envelope builders. Every thread and action payload echoes the
   exact requested scan, post, or species as `subject_id`; thread builders also
   own the v1 limits and clamp the remaining daily sends. The helper also binds
@@ -195,7 +195,7 @@ contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-re
   empty thread, feedback, note summary, prompt response, concurrent local
   refusal, or ambiguous send retry cannot silently lose subject/request identity
   in one route.
-- **`fieldChatReservation.ts`**: Fail-closed adapter to the service-only atomic
+- **`fieldChat/reservation.ts`**: Fail-closed adapter to the service-only atomic
   Field Chat admission and stale-quota recovery RPCs. It validates the exact
   subject/conversation/user/request-bound persisted user row returned by
   admission, exposes authoritative cross-table daily counts, maps only stable
@@ -206,7 +206,7 @@ contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-re
   Migration `20260821030027_add_species_dictionary_field_chat.sql` extends both
   RPCs with the Species Dictionary subject and quota operation while preserving
   those transaction boundaries.
-- **`fieldChatDailyUsage.ts`**: Read-side counter for user messages admitted
+- **`fieldChat/dailyUsage.ts`**: Read-side counter for user messages admitted
   across Insight, Explore, and Species Dictionary chat. PostgreSQL admission is
   authoritative; this helper only shapes current limit responses through the
   service-only `get_field_chat_daily_usage(...)` RPC. Migration

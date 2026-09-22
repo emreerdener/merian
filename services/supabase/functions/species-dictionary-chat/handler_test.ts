@@ -11,7 +11,7 @@ import type { TierResolution } from "../_shared/entitlement.ts";
 import {
   FIELD_CHAT_DEPLOYMENT_CONTRACT_HEADER,
   FIELD_CHAT_DEPLOYMENT_CONTRACT_VERSION,
-} from "../_shared/fieldChatReservation.ts";
+} from "../_shared/fieldChat/reservation.ts";
 import { PublicHttpError } from "../_shared/http.ts";
 import {
   createSpeciesDictionaryChatHttpHandler,

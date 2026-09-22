@@ -115,8 +115,8 @@ retained.
 
 ```bash
 deno test --frozen --config services/supabase/functions/deno.json \
-  services/supabase/functions/_shared/fieldChatReservation_test.ts \
-  services/supabase/functions/_shared/fieldChatResponse_test.ts \
+  services/supabase/functions/_shared/fieldChat/reservation_test.ts \
+  services/supabase/functions/_shared/fieldChat/response_test.ts \
   services/supabase/functions/explore-post-chat/eligibility_test.ts \
   services/supabase/functions/explore-post-chat/prompt_test.ts \
   services/supabase/functions/explore-post-chat/promptSuggestions_test.ts

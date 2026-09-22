@@ -225,8 +225,8 @@ scan—or an incomplete replay—from becoming a false local success.
 
 ```bash
 deno test --frozen --config services/supabase/functions/deno.json \
-  services/supabase/functions/_shared/fieldChatReservation_test.ts \
-  services/supabase/functions/_shared/fieldChatResponse_test.ts \
+  services/supabase/functions/_shared/fieldChat/reservation_test.ts \
+  services/supabase/functions/_shared/fieldChat/response_test.ts \
   services/supabase/functions/_shared/fieldChat/reply_test.ts \
   services/supabase/functions/insight-chat/eligibility_test.ts \
   services/supabase/functions/insight-chat/guards_test.ts \

@@ -1,7 +1,8 @@
-# Field Chat prompt and reply helpers
+# Field Chat shared helpers
 
-This directory owns the shared prompt/request contract for `explore-post-chat`,
-`insight-chat`, and `species-dictionary-chat`:
+This directory owns the shared prompt/request, admission, and response/replay
+contracts for `explore-post-chat`, `insight-chat`, and
+`species-dictionary-chat`:
 
 - `speciesKnowledge.ts`: `FIELD_CHAT_SPECIES_KNOWLEDGE_RULES` distinguishes
   general species knowledge from recorded observation evidence. Prompt builders
@@ -9,11 +10,20 @@ This directory owns the shared prompt/request contract for `explore-post-chat`,
 - `reply.ts`: `buildFieldChatReplyRequest` constructs the existing native Gemini
   reply request; `extractFieldChatReplyJson` preserves structured-output
   decoding. The SDK dependency is type-only; the helpers perform no I/O.
-- `reply_test.ts`: exact request configuration and JSON-extraction assertions.
+- `dailyUsage.ts`: fail-closed read of the durable daily admission aggregate.
+- `reservation.ts`: validated atomic admission and stale-quota recovery RPC
+  adapters, plus deployment contract headers using the generated bundle
+  identity.
+- `response.ts`: subject-bound envelopes, canonical request pairing,
+  deterministic assistant IDs, and bounded waits for completed replays.
+- Colocated `*_test.ts` files preserve helper, payload, and RPC assertions.
 
-Routes retain dispatch, admission, persistence, and their separate summary or
-prompt-suggestion paths. Quota, daily usage, response/replay helpers, and the
-generated `fieldChatDeploymentIdentity.ts` remain at the parent shared root. The
+Routes retain dispatch, admission orchestration, persistence, and their separate
+summary or prompt-suggestion paths. PostgreSQL owns atomic reservation, shared
+caps, and concurrency; `dailyUsage.ts` is read-side accounting, not admission.
+`response.ts` still imports the existing limits and types from
+`insight-chat/types.ts`. Shared AI quota and the generated
+`fieldChatDeploymentIdentity.ts` remain at the parent shared root. The
 [shared-owner reference](../README.md) and
 [API contract](../../../../../docs/backend-and-data/05-api-contracts.md) own
 those boundaries. This directory does not move Field Chat into the

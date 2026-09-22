@@ -130,7 +130,7 @@ Deno.test("Field Chat quota rescue is stale, exact-row-bound, and service-only",
 
 Deno.test("all Field Chat routes use atomic admission and stale quota rescue", async () => {
   const shared = await Deno.readTextFile(
-    new URL("../_shared/fieldChatReservation.ts", import.meta.url),
+    new URL("../_shared/fieldChat/reservation.ts", import.meta.url),
   );
   assertStringIncludes(shared, 'rpc("reserve_field_chat_send"');
   assertStringIncludes(shared, 'rpc("recover_stale_field_chat_quota"');

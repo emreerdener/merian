@@ -233,7 +233,7 @@ Deno.test("provider attempts consume quota while pre-provider no-ops can refund"
   }
 
   const fieldChatResponse = await Deno.readTextFile(
-    new URL("../_shared/fieldChatResponse.ts", import.meta.url),
+    new URL("../_shared/fieldChat/response.ts", import.meta.url),
   );
   assertStringIncludes(
     fieldChatResponse,
@@ -258,7 +258,7 @@ Deno.test("provider attempts consume quota while pre-provider no-ops can refund"
   }
 
   const fieldChatReservation = await Deno.readTextFile(
-    new URL("../_shared/fieldChatReservation.ts", import.meta.url),
+    new URL("../_shared/fieldChat/reservation.ts", import.meta.url),
   );
   assertStringIncludes(fieldChatReservation, '"reserve_field_chat_send"');
   assertStringIncludes(

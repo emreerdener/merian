@@ -132,7 +132,12 @@ Gemini's provider schema.
   knowledge from recorded observation evidence without adding source access.
   `_shared/fieldChat/reply.ts` owns their common Gemini reply request and
   parser; `scripts/evaluate_field_chat_answers.ts` reuses that contract for
-  bounded, synthetic provider checks without user content.
+  bounded, synthetic provider checks without user content. Shared
+  `fieldChat/dailyUsage.ts`, `fieldChat/reservation.ts`, and
+  `fieldChat/response.ts` own the existing durable-usage read, validated
+  admission/recovery adapters, and response/replay helpers. Database
+  transactions retain atomic admission authority; each route retains its
+  orchestration and persistence order.
 - `field-trips/`: follows the same `index.ts` / `db.ts` split. `index.ts`
   validates the action payload, user identity, UUIDs, cursor pairs, pin arrays,
   habitat tags, comment lengths, and optional preferred-goal pair; `db.ts` is
