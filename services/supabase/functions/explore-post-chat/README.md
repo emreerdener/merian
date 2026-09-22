@@ -4,7 +4,7 @@ Private Pro Field Chat for any active Explore post visible to the viewer,
 including their own. Conversations are per viewer and post. Observation evidence
 comes from the same privacy-filtered public post projections returned by
 `get_explore_post` and `get_explore_post_detail`, plus explicit observations
-reported by the viewer in chat. Shared `_shared/fieldChatSpeciesKnowledge.ts`
+reported by the viewer in chat. Shared `_shared/fieldChat/speciesKnowledge.ts`
 rules also allow well-established general species knowledge when a detail is
 absent from the projection. Typical species traits must not be presented as
 observed in this individual, and the assistant cannot claim live retrieval or

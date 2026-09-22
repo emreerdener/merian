@@ -1657,6 +1657,15 @@ production Shell file remains below 600 lines.
 
 ## Supabase Edge Function Inventory
 
+The [Function directory guide](../services/supabase/functions/README.md) is the
+complete endpoint index grouped by product area, with links to local owners. The
+[organization audit](./rfcs/supabase-functions-organization.md) records the
+dated dependency baseline and the status of each organization slice. Shared
+Field Chat prompt/request helpers now live under
+[`_shared/fieldChat/`](../services/supabase/functions/_shared/fieldChat/README.md);
+admission, usage, response helpers, and generated bundle identity retain their
+existing shared-root owners.
+
 Identification and supporting biological content use
 [`_shared/ai/`](../services/supabase/functions/_shared/ai/README.md):
 SDK-independent task/authority/outcome contracts, admitted Gemini bindings,

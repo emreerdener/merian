@@ -48,7 +48,7 @@ nonrejected lookalikes with their names, rationale, and visual traits. Source
 values are fenced as untrusted reference data and cannot supply instructions to
 the model.
 
-Shared `_shared/fieldChatSpeciesKnowledge.ts` rules also allow well-established
+Shared `_shared/fieldChat/speciesKnowledge.ts` rules also allow well-established
 general species knowledge, such as typical fragrance or diet, when reference
 prose does not cover the question. Answers distinguish typical traits and
 individual variation, acknowledge uncertain knowledge, and never imply that

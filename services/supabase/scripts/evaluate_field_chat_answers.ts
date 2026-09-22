@@ -1,4 +1,4 @@
-import { extractFieldChatReplyJson } from "../functions/_shared/fieldChatReply.ts";
+import { extractFieldChatReplyJson } from "../functions/_shared/fieldChat/reply.ts";
 import {
   buildFieldChatAnswerCases,
   type FieldChatAnswerCase,

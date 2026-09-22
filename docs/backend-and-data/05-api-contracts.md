@@ -7107,7 +7107,7 @@ load of that thread fail.
 ### Safety and Errors
 
 The system prompt states the assistant has no raw image access. All three Field
-Chat routes use `_shared/fieldChatSpeciesKnowledge.ts` to permit
+Chat routes use `_shared/fieldChat/speciesKnowledge.ts` to permit
 well-established general species knowledge when the supplied text lacks a
 detail, such as typical fragrance. The supplied scientific name and
 identification uncertainty bound the subject; answers qualify relevant
@@ -7121,10 +7121,10 @@ Each route appends those rules after its bounded context block. The rule defines
 resolves casual pronouns in typical-trait questions to the identified species,
 and requires a direct one-to-three-sentence answer before relevant variation.
 Few-shot examples distinguish a general fragrance question from a claim about
-the current individual. `_shared/fieldChatReply.ts` owns the common Gemini model
-request and JSON extraction so all three routes and the synthetic provider check
-exercise one configuration. Insight summary and prompt-generation actions use
-the context and safety instruction without chat-answer examples or schema.
+the current individual. `_shared/fieldChat/reply.ts` owns the common Gemini
+model request and JSON extraction so all three routes and the synthetic provider
+check exercise one configuration. Insight summary and prompt-generation actions
+use the context and safety instruction without chat-answer examples or schema.
 
 Insight field-note summary prompts admit only recorded scan evidence and
 explicit user observations. General species facts in dictionary text or
