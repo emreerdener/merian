@@ -8,7 +8,8 @@ struct ExploreReactionStrip: View {
     var revealEmoji: String?
     var trailingContentPadding: CGFloat = 0
     @ScaledMetric(relativeTo: .title3) private var rowHeight: CGFloat = 44
-    @ScaledMetric(relativeTo: .subheadline) private var chipHeight: CGFloat = 28
+    @ScaledMetric(relativeTo: .title3) private var emojiSize: CGFloat = 20
+    @ScaledMetric(relativeTo: .title3) private var countSize: CGFloat = 20
     @State private var contentFrame = CGRect.zero
     @State private var viewportWidth: CGFloat = 0
     @Namespace private var scrollSpace
@@ -23,18 +24,14 @@ struct ExploreReactionStrip: View {
                             onToggle(reaction.emoji, !reaction.viewerHasReacted)
                         } label: {
                             HStack(spacing: 4) {
-                                Text(reaction.emoji).font(.subheadline)
-                                Text(reaction.count.formatted(.number.notation(.compactName))).font(.caption)
+                                Text(reaction.emoji).font(.system(size: emojiSize))
+                                Text(reaction.count.formatted(.number.notation(.compactName)))
+                                    .font(.system(size: countSize))
+                                    .foregroundStyle(reaction.viewerHasReacted ? Color.accentColor : Color.primary)
                             }
-                            .foregroundStyle(reaction.viewerHasReacted ? Color.accentColor : Color.primary)
+                            .foregroundStyle(.primary)
                             .padding(.horizontal, 6)
-                            .frame(minHeight: chipHeight)
-                            .background(
-                                reaction.viewerHasReacted
-                                    ? Color.accentColor.opacity(0.15) : Color(uiColor: .tertiarySystemFill),
-                                in: Capsule()
-                            )
-                            .frame(minWidth: 44, minHeight: 44)
+                            .frame(minWidth: 44, minHeight: max(44, rowHeight))
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
@@ -52,7 +49,7 @@ struct ExploreReactionStrip: View {
                             HapticManager.shared.triggerSelectionPulse(source: "explore.reaction.more")
                             onLoadMore()
                         }
-                        .frame(minWidth: 44, minHeight: 44)
+                        .frame(minWidth: 44, minHeight: max(44, rowHeight))
                         .padding(.trailing, trailingContentPadding)
                         .accessibilityLabel("Load more reactions")
                     }
@@ -91,7 +88,7 @@ struct ExploreReactionStrip: View {
                 proxy.scrollTo(revealEmoji, anchor: .trailing)
             }
         }
-        .frame(height: rowHeight)
+        .frame(height: max(44, rowHeight))
     }
 }
 

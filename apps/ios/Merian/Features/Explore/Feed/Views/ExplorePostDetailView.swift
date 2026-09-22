@@ -31,7 +31,6 @@ struct ExplorePostDetailView: View {
     @State private var insightDismissalRoute: ScanInsightRoute?
     @State private var pendingInsightCommunityRequestId: String?
     @State private var isRefreshingAfterInsightDismiss = false
-    @State private var postToUnpublish: ExplorePost?
     @State private var exploreChatViewModel = InsightChatViewModel(source: .explorePost)
     @State private var pendingExploreChatPreparationPostID: String?
     @State private var postComposerPreparationID: UUID?
@@ -81,7 +80,7 @@ struct ExplorePostDetailView: View {
     private var currentPost: ExplorePost? { viewModel.post(id: postId) }
     private var canOpenOwnedPostInsight: Bool { allowsInsightPresentation || onOpenOwnedPostInsight != nil }
     private var hasPresentationConflict: Bool {
-        presentedSheet != nil || postToUnpublish != nil
+        presentedSheet != nil
     }
 
     var body: some View {
@@ -122,7 +121,6 @@ struct ExplorePostDetailView: View {
                     onOpenInsight: { openInsight(for: post) },
                     onEditFieldNotes: { openFieldNotesEditor(for: post) },
                     onEditPost: { openPostComposer(for: post) },
-                    onUnpublish: { openUnpublishConfirmation(for: post) },
                     onOpenFieldChat: { openExploreFieldChat(for: post) },
                     onDisappear: cancelPendingAsyncPresentations,
                     onAddReaction: { _ = beginPresentation(.emojiPicker(postId: post.id)) },
@@ -191,9 +189,6 @@ struct ExplorePostDetailView: View {
                 }
             )
         }
-        .modifier(ExplorePostUnpublishConfirmation(post: $postToUnpublish) { post in
-            Task { await viewModel.unshare(post) }
-        })
     }
 
     private func loadDetail(force: Bool = false) async {
@@ -588,11 +583,4 @@ struct ExplorePostDetailView: View {
         cancelPendingAsyncPresentations()
         pendingExploreChatPreparationPostID = post.id
     }
-
-    private func openUnpublishConfirmation(for post: ExplorePost) {
-        guard !hasPresentationConflict else { return }
-        cancelPendingAsyncPresentations()
-        postToUnpublish = post
-    }
-
 }

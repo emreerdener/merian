@@ -24,6 +24,12 @@ to modify the pipeline, modify the exact module below rather than cluttering
   quota. Stored completion or an exact reconstructible owner row is checked
   before media/quota work; a lost-response retry returns marked idempotent `200`
   without another provider call and may retain a retryable canonical ledger.
+- **`provider.ts`** Builds the canonical legacy image request: capture context,
+  ordered images, and optional trimmed description. The shared
+  [`../_shared/ai/`](../_shared/ai/README.md) registry and Gemini adapter own
+  native request configuration and decoding. Local preparation precedes quota
+  commitment; each prepared attempt allows one invocation. The handler retains
+  admission, moderation, domain validation, storage, and settlement.
 - **`../_shared/identify/contract.ts`** The executable structural contract. It
   owns provider and final response fields, requiredness, nullability, strings,
   arrays, enums, numeric bounds, inferred TypeScript types, and Swift generation
@@ -63,6 +69,14 @@ to modify the pipeline, modify the exact module below rather than cluttering
   and telemetry. Provider authorization never comes from an isolate-local cache.
 
 ## Architecture Guidelines
+
+The compatibility profile retains temperature 0.1, seed 42, topK 40, Flash
+output/thinking budgets of 4096/2048, and Pro budgets of 8192/5000. The admitted
+model controls these settings and the vision prompt threshold; the admitted tier
+independently controls the response schema threshold. The adapter preserves this
+route's explicit `BLOCK_ONLY_HIGH` settings for dangerous content and sexually
+explicit content, plus its legacy first-part text fallback. Gemini remains the
+only enabled provider.
 
 **1. The Required Path** The code executed _before_ successful
 `return jsonResponse(...)` in `index.ts` is the durability promise consumed by
@@ -121,6 +135,17 @@ output returns HTTP `503`, records `failed_retryable` with a bounded
 retry. The compatibility ingestion boundary supplies the shared deterministic
 30-second ordinary retry deadline; explicit server-directed delays remain
 authoritative.
+
+Provider parse-failure diagnostics contain bounded length, finish-reason, and
+structural error metadata; no response body or preview is logged. Existing
+optional `ScanCompleted` telemetry adds bounded execution references and
+duration; cached-token and other scan-row usage fields retain their meanings.
+
+`_shared/ai/ai_test.ts` verifies the native compatibility configuration and
+request order through intercepted SDK HTTP. `_shared/ai/compatibility_test.ts`
+exercises this actual handler through admission, moderation, promotion, owner
+persistence, failures, and replay with synthetic dependencies and no network
+permission. See the shared boundary README for verification scope.
 
 After an intentional shape change:
 

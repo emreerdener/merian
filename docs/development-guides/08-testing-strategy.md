@@ -6589,6 +6589,86 @@ Both are wired into `make validate-supabase-migrations`,
 database file only against the disposable local stack; it writes fixtures inside
 a transaction and rolls them back.
 
+Provider-flexibility characterization uses `_shared/gemini_test.ts` for the
+installed SDK transport and `_shared/biology_test.ts` for the three actual
+species-content helpers. Both intercept HTTP with synthetic fixtures; the
+focused tests run without runtime network permission. The helper suite covers
+task/model/configuration forwarding, lookalike normalization, optional usage,
+null-user service attribution, and failure propagation without retries. It does
+not replace handler lifecycle, service-claim, or disposable-database tests. The
+[Slice 1 baseline](../rfcs/identification-foundation-baseline.md#4-test-coverage-and-extraction-gaps)
+distinguishes executable coverage from source-string assertions and assigns the
+remaining request/lifecycle checks to their extraction slices.
+
+Slice 2 adds `_shared/ai/ai_test.ts`, which exercises the real description
+request builder, fixed registry, and Gemini adapter through intercepted SDK
+HTTP. It verifies exact Flash/Pro settings/schema, unsupported binding
+rejection, attempt snapshots, response/usage decoding, timeout behavior, and no
+second invocation. `identify-describe/provider.test.ts` runs the real handler
+with a test-only adapter and database doubles through quota,
+compatibility-ledger, and owner-persistence helpers. It covers saved replay,
+consent denial, unused-quota refund, charged failure, refusal, invalid output,
+successful saving with usage, and ambiguous persistence. Both run without
+network permission; database concurrency/catalog and hosted qualification remain
+separate gates.
+
+Slice 3 extends the same SDK interception suite with ten primary input cases on
+both tiers: main description, single/multiple stills, audio-only, combined
+media, five snapshots, accepted partial snapshots, companion audio, and
+positional/unknown lineage. Assertions compare actual native prompt, schema,
+generation settings, media parts/order, safety projection, and invocation timing
+facts. `identify-multimodal/provider.test.ts` runs the actual primary handler
+and preprocessing with database doubles. It covers admission and setup/commit
+failure, charged/refused/invalid output, metered service replay, usage and
+timing, uncertain persistence, and foreground cancellation followed by durable
+completion and replay without another provider call. These tests also run
+without network permission; they do not establish database concurrency, hosted
+recovery, real model quality, or full-flow performance.
+
+Slice 4 adds sixteen intercepted SDK request cases for legacy image/audio
+profiles across both models and tiers, including independent model/tier
+selection, explicit image safety settings, and first-part text fallback.
+`_shared/ai/compatibility_test.ts` exercises the real `identify` and
+`audio-spec` handlers with synthetic adapters, database doubles, and intercepted
+storage. It covers consent, setup/commit failures, charged provider failures,
+refusals, media promotion, unsafe-image moderation, owner persistence, usage,
+stored replay, inline redaction, staged replay-payload reconstruction, uncertain
+writes, and the existing success after proven insertion when finalization fails.
+It also verifies that optional compatibility telemetry reports native provider
+duration for image, audio, and description routes. No live provider or database
+is involved; candidate database/catalog/concurrency and hosted checks remain
+separate.
+
+Slice 5 extends `_shared/biology_test.ts` to all content tasks on Flash and Pro,
+including the exact generation options, locale/taxonomy grounding, legacy
+non-STOP JSON behavior, absence of first-part fallback, normalization, and
+optional usage. `_shared/ai/content_test.ts` exercises actual `enrich-scan`,
+group-tag quota, and public-worker lifecycles with deterministic adapter and DB
+dependencies. It verifies cache exits, task/permission/model agreement,
+setup/commit refunds, charged failures, user/service usage and bounded metadata,
+public response exclusion, preview and claim bounds, and worker concurrency of
+two. Coalescing tests cover both a waiter blocked on a cache write and failed
+leaders whose waiters must pass fresh admission before a retry. Single-caller
+failures also prove rejected in-flight promises remain handled without waiters.
+The deployment-graph assertion now includes both content callers as transitive
+consumers of the shared adapter's Identify contract. These checks make no live
+provider calls and do not establish database claim/catalog/concurrency behavior.
+
+Slice 6 removes the unused direct content wrapper and expands the SDK/dispatch
+allowlist to Functions and tooling, including the evaluator's live-call guard
+and the local benchmark's denied-network guard. A held primary-handler test
+retires the identity after commitment, then checks that the existing
+post-provider profile fence prevents scan insertion/completion while retaining
+charged failure handling. `services/supabase/scripts/benchmark_ai_boundary.ts`
+compares cached native SDK requests with shared preparation/invocation using
+synthetic inputs, warm-up, alternating paired order, exact body/draft
+comparison, and one intercepted call. Run it with `--deny-net` using the command
+in the
+[Slice 6 evidence record](../rfcs/identification-foundation-verification.md),
+which also records full disposable catalog/concurrency validation and the
+remaining exact-SHA, hosted/device, and product-timing gates. The benchmark is
+tooling-only and is discovered by the existing recursive tooling type/lint gate.
+
 Authoritative AI quota and entitlement security has four complementary base
 checks:
 
@@ -8902,16 +8982,16 @@ owns the user experience and session rules. The
 owns wire bounds, AI accounting, public eligibility, and pagination. This search
 is separate from single-species Field Chat and category-list name filtering.
 
-| Boundary                              | Executable coverage                                                                                                                                                                                                                                                                                                                      |
-| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Session and concurrency               | `SpeciesSearchViewModelTests`: follow-up context, lazy tab reads, reset during a suspended request, obsolete-result rejection, failed replacement preserving draft/results, cancellation recovery, clarification across tabs, retries retaining the failed tab/cursor, and rapid filter edits composing against the pending context.     |
-| Local visibility                      | The same suite covers removed-post revisions and a blocked author's previously unseen post arriving after the block, while preserving another author's result. `SpeciesSearchSightings` gates both shared-store registration and rendered cards.                                                                                         |
-| Wire validation                       | `SpeciesSearchResponseTests`: version, request identity, result kind, context, clarification message/context, cursor key decoding, and cursor-to-page binding. `SpeciesDiscoverySearchEndpointTests` locks the typed authenticated POST, absence of caller-supplied viewer identity, and rejection of another request's response.        |
-| Layout artifacts                      | `testSearchVisualFixtures` attaches introduction and result renderings in light/dark appearance, including welcome and results at `accessibility3`, and checks that no text field becomes first responder on entry. These are synthetic UI fixtures, not real database records or live-provider evidence, and require visual inspection. |
-| Edge interpretation and orchestration | `species-discovery-search/contract_test.ts` validates bounded requests, enums, cursors, nonempty model messages, and prompt boundaries. `handler_test.ts` covers consent/quota commit before provider dispatch, direct name lookup without AI, context-only reads, unsupported requests, and provider-failure accounting.                |
-| Visibility-safe enrichment            | `species-discovery-search/db_test.ts` preserves the RPC's health-filtered media array and rejects an unexpected raw-media table read.                                                                                                                                                                                                    |
-| Database security and retrieval       | `_tests/speciesDiscoverySearchMigrationContract.test.ts` and `tests/species_discovery_search.sql` cover service-only invoker privileges, caller denial, public biological eligibility, names and descriptive matching, cursor continuation, and viewer-aware public-sighting removal/block/quarantine rules on a fresh migration replay. |
-| Operational inventory                 | `_tests/aiQuotaCoverage.test.ts` includes the dedicated provider operation. `tooling_gate_test.ts` requires the route in deployment's critical user-route denial smoke; `documentation_contract_test.ts` keeps the current runbook and historical incident scope aligned.                                                                |
+| Boundary                              | Executable coverage                                                                                                                                                                                                                                                                                                                                                                                         |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Session and concurrency               | `SpeciesSearchViewModelTests`: follow-up context, automatic species-then-sightings reads with one question, per-section cursors/deduplication, reset during either read, obsolete-result rejection, failed species replacement preserving draft/results, partial sightings failure/retry, cancellation recovery, clarification across pagination, and rapid filter edits composing against pending context. |
+| Local visibility                      | The same suite covers removed-post revisions and a blocked author's previously unseen post arriving after the block, while preserving another author's result. `SpeciesSearchSightings` gates both shared-store registration and rendered cards.                                                                                                                                                            |
+| Wire validation                       | `SpeciesSearchResponseTests`: version, request identity, result kind, context, clarification message/context, cursor key decoding, and cursor-to-page binding. `SpeciesDiscoverySearchEndpointTests` locks the typed authenticated POST, absence of caller-supplied viewer identity, and rejection of another request's response.                                                                           |
+| Layout artifacts                      | `testSearchVisualFixtures` attaches introduction and result renderings in light/dark appearance, including single/paired sightings and welcome/results at `accessibility3`, and checks that no text field becomes first responder on entry. These are synthetic UI fixtures, not real database records or live-provider evidence, and require visual inspection.                                            |
+| Edge interpretation and orchestration | `species-discovery-search/contract_test.ts` validates bounded requests, enums, cursors, nonempty model messages, and prompt boundaries. `handler_test.ts` covers consent/quota commit before provider dispatch, direct name lookup without AI, context-only reads, unsupported requests, and provider-failure accounting.                                                                                   |
+| Visibility-safe enrichment            | `species-discovery-search/db_test.ts` preserves the RPC's health-filtered media array and rejects an unexpected raw-media table read.                                                                                                                                                                                                                                                                       |
+| Database security and retrieval       | `_tests/speciesDiscoverySearchMigrationContract.test.ts` and `tests/species_discovery_search.sql` cover service-only invoker privileges, caller denial, public biological eligibility, names and descriptive matching, cursor continuation, and viewer-aware public-sighting removal/block/quarantine rules on a fresh migration replay.                                                                    |
+| Operational inventory                 | `_tests/aiQuotaCoverage.test.ts` includes the dedicated provider operation. `tooling_gate_test.ts` requires the route in deployment's critical user-route denial smoke; `documentation_contract_test.ts` keeps the current runbook and historical incident scope aligned.                                                                                                                                   |
 
 `SpeciesSearchViewModelTests` also verifies nonrepeating prompt/illustration
 rotation and that loading/reusing the starter catalog never invokes AI search.
@@ -8938,22 +9018,26 @@ Manual acceptance remains separate from automated passes:
   failed-image, and retry states without blocking the composer.
 - Retrieve a known common/scientific name, then a descriptive query with
   dictionary-supported excerpts. Refine “Orange and black insects” with “Only
-  butterflies”; check both tabs use the updated criteria and media scope is
+  butterflies”; check both sections use the updated criteria and media scope is
   visibly Sightings-only. Exercise clarification and unsupported geography/date
   requests against the live provider in an authorized test environment.
 - Distinguish no species from no public sightings. Exercise pagination, offline
   submission, recovery, retry, rapid filters, and account changes while requests
-  are suspended; the draft and last successful results must survive failures.
-- Open each detail type and return: selected tab, results, draft, and scroll
+  are suspended. A failed species replacement keeps the draft and last results;
+  a failed automatic sightings read keeps the newly loaded species and retries
+  only sightings without another AI interpretation.
+- Open each detail type and return: both sections, results, draft, and scroll
   anchor must remain. Closing Explore and reopening must start a fresh session.
 - Block an author or remove a visible post while a result request is pending.
   Check cards do not reappear, quarantined media stays absent, and publication
   dates say **Shared**. Hidden/private records must not enter model
   explanations.
-- Inspect VoiceOver labels, selected tabs, focus order and keyboard interaction;
+- Inspect VoiceOver labels, section order, focus order and keyboard interaction;
   large Dynamic Type, narrow screens, and light/dark appearance. At all text
   sizes New search is icon-only visually but retains its spoken label. Confirm
   the composer text is vertically centered and prompt arrows point right.
+  Confirm one sighting matches the species card width and two sightings share
+  the full row, with Species above Community sightings.
 
 Local test passes and inspected fixture attachments establish only local source
 validation. Live-provider behavior, manual VoiceOver/device navigation, and

@@ -5,6 +5,8 @@ import {
   fetchStaticEncyclopedicData,
 } from "../_shared/biology.ts";
 import { recordAIUsageBestEffort } from "../_shared/aiUsage.ts";
+import { prepareAIExecution } from "../_shared/ai/production.ts";
+import type { SpeciesContentAIRequest } from "../_shared/ai/contracts.ts";
 import { updateGroupTags } from "../_shared/identify/db.ts";
 import { hasUsableLookalikeTaxonomy } from "../_shared/taxonomy.ts";
 import {
@@ -17,6 +19,7 @@ import {
 } from "../_shared/verifiedSpecies.ts";
 
 export interface SpeciesModelContentDependencies {
+  prepareAI?: typeof prepareAIExecution;
   fetchSimilarSpecies?: typeof fetchSimilarSpecies;
   fetchLookalikeTaxon?: LookalikeTaxonFetcher;
 }
@@ -201,28 +204,52 @@ async function refreshSpeciesModelContentJobUnchecked(
 ): Promise<SpeciesModelContentRefreshResult> {
   switch (job.content_group) {
     case "habitat":
-      return await refreshHabitat(job, supabaseAdmin);
+      return await refreshHabitat(job, supabaseAdmin, dependencies);
     case "lookalikes":
       return await refreshLookalikes(job, supabaseAdmin, dependencies);
     case "group_tags":
-      return await refreshGroupTags(job, supabaseAdmin);
+      return await refreshGroupTags(job, supabaseAdmin, dependencies);
   }
+}
+
+function prepareClaimedContent(
+  job: SpeciesModelEnrichmentJobRow,
+  request: SpeciesContentAIRequest,
+  dependencies: SpeciesModelContentDependencies,
+) {
+  return (dependencies.prepareAI ?? prepareAIExecution)(request, {
+    kind: "service_job",
+    task: job.content_group === "habitat"
+      ? "species_overview"
+      : job.content_group,
+    purpose: "public_species_facts",
+    jobId: job.job_id,
+    attemptCount: job.attempts,
+    maxAttempts: job.max_attempts,
+    model: "gemini-2.5-flash",
+  });
 }
 
 async function refreshHabitat(
   job: SpeciesModelEnrichmentJobRow,
   supabaseAdmin: SupabaseClient,
+  dependencies: SpeciesModelContentDependencies,
 ): Promise<SpeciesModelContentRefreshResult> {
   const enrichment = await fetchStaticEncyclopedicData(
     "system:refresh-species-model-content",
     job.scientific_name,
-    "en",
-    "gemini-2.5-flash",
+    prepareClaimedContent(job, {
+      task: "species_overview",
+      variant: "species_content",
+      scientificName: job.scientific_name,
+      locale: "en",
+    }, dependencies),
   );
   recordAIUsageBestEffort(supabaseAdmin, {
     operation: "scan_overview_enrichment",
     model: "gemini-2.5-flash",
     usage: enrichment.usage,
+    metadata: enrichment.execution,
     inputModality: "text",
   });
   await updateSpeciesEnrichment(
@@ -262,13 +289,17 @@ async function refreshLookalikes(
     await (dependencies.fetchSimilarSpecies ?? fetchSimilarSpecies)(
       "system:refresh-species-model-content",
       job.scientific_name,
-      {
-        kingdom: cachedSpecies.kingdom,
-        class: cachedSpecies.class,
-        order: cachedSpecies.order,
-        family: cachedSpecies.family,
-      },
-      "gemini-2.5-flash",
+      prepareClaimedContent(job, {
+        task: "lookalikes",
+        variant: "species_content",
+        scientificName: job.scientific_name,
+        taxonomy: {
+          kingdom: cachedSpecies.kingdom,
+          class: cachedSpecies.class,
+          order: cachedSpecies.order,
+          family: cachedSpecies.family,
+        },
+      }, dependencies),
     );
 
   if (similarResult?.usage) {
@@ -276,6 +307,7 @@ async function refreshLookalikes(
       operation: "scan_lookalike_enrichment",
       model: "gemini-2.5-flash",
       usage: similarResult.usage,
+      metadata: similarResult.execution,
       inputModality: "text",
     });
   }
@@ -342,11 +374,16 @@ async function refreshLookalikes(
 async function refreshGroupTags(
   job: SpeciesModelEnrichmentJobRow,
   supabaseAdmin: SupabaseClient,
+  dependencies: SpeciesModelContentDependencies,
 ): Promise<SpeciesModelContentRefreshResult> {
   const result = await fetchGroupTags(
     "system:refresh-species-model-content",
     job.scientific_name,
-    "gemini-2.5-flash",
+    prepareClaimedContent(job, {
+      task: "group_tags",
+      variant: "species_content",
+      scientificName: job.scientific_name,
+    }, dependencies),
     supabaseAdmin,
   );
   const groupTags = sanitizeGroupTags(result?.group_tags);

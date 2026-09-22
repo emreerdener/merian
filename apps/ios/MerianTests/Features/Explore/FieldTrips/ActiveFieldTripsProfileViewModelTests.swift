@@ -12,7 +12,6 @@ struct ActiveFieldTripsProfileViewModelTests {
         )
         var requestedLimit: Int?
         var patchUpdates: [[EarnedFieldTripPatch]] = []
-        var loadingUpdates: [Bool] = []
 
         let viewModel = ActiveFieldTripsProfileViewModel(
             dependencies: ActiveFieldTripsProfileViewModel.Dependencies(
@@ -20,8 +19,7 @@ struct ActiveFieldTripsProfileViewModelTests {
                     requestedLimit = limit
                     return [template]
                 },
-                earnedPatchesDidChange: { patchUpdates.append($0) },
-                loadingDidChange: { loadingUpdates.append($0) }
+                earnedPatchesDidChange: { patchUpdates.append($0) }
             )
         )
 
@@ -32,7 +30,6 @@ struct ActiveFieldTripsProfileViewModelTests {
         #expect(patchUpdates.last?.map(\.imageName) == [
             "fieldtrip-backyard-level-1-patch"
         ])
-        #expect(loadingUpdates == [true, false])
         #expect(viewModel.hasLoaded)
         #expect(!viewModel.isLoading)
 
@@ -40,6 +37,7 @@ struct ActiveFieldTripsProfileViewModelTests {
 
         #expect(viewModel.items.isEmpty)
         #expect(patchUpdates.last?.isEmpty == true)
-        #expect(loadingUpdates == [true, false, false])
+        #expect(viewModel.hasLoaded)
+        #expect(!viewModel.isLoading)
     }
 }

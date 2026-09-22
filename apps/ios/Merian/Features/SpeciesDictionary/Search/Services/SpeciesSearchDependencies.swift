@@ -7,13 +7,26 @@ extension SpeciesSearchViewModel.Dependencies {
 }
 
 @MainActor
+struct SpeciesSearchFactDependencies {
+    let factManager: () -> FactManager
+    var selectionFeedback: () -> Void = {}
+
+    static var live: Self {
+        Self(
+            factManager: { FactManager.shared },
+            selectionFeedback: { HapticManager.shared.triggerSelectionPulse() }
+        )
+    }
+}
+
+@MainActor
 enum SpeciesSearchSightings {
     static func canSurface(_ post: ExplorePost, in feed: ExploreFeedViewModel) -> Bool {
         feed.postRemovalRevisions[post.id, default: 0] == 0 && !feed.blockedAuthorUserIDs.contains(post.authorUserId)
     }
     static func register(_ posts: [ExplorePost], previous: [ExplorePost], in feed: ExploreFeedViewModel) {
         let previousByID = Dictionary(uniqueKeysWithValues: previous.map { ($0.id, $0) })
-        for post in posts where previousByID[post.id] != post {
+        for post in posts where previousByID[post.id] != post || feed.post(id: post.id) == nil {
             // Pagination must not revive a post removed during this Explore session.
             guard canSurface(post, in: feed) else { continue }
             feed.upsertPost(post)

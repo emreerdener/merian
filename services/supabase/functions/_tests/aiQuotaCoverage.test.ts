@@ -52,39 +52,81 @@ async function runtimeTypeScriptFiles(directory: URL): Promise<URL[]> {
   return files;
 }
 
-Deno.test("every direct paid-provider dispatch file is explicitly inventoried", async () => {
-  const functionsRoot = new URL("../", import.meta.url);
+Deno.test("provider dispatch and SDK imports stay within the adapter and deferred allowlist", async () => {
+  const supabaseRoot = new URL("../../", import.meta.url);
   const dispatchFiles: string[] = [];
+  const sdkFiles: string[] = [];
 
-  for (const file of await runtimeTypeScriptFiles(functionsRoot)) {
+  const sources = (await Promise.all(
+    ["functions/", "scripts/"].map((directory) =>
+      runtimeTypeScriptFiles(new URL(directory, supabaseRoot))
+    ),
+  )).flat();
+  for (const file of sources) {
     const relativePath = decodeURIComponent(
-      file.pathname.slice(functionsRoot.pathname.length),
+      file.pathname.slice(supabaseRoot.pathname.length),
     );
     if (
-      relativePath.startsWith("_tests/") ||
+      relativePath.startsWith("functions/_tests/") ||
       /(?:^|\/)[^/]*(?:_test|[.]test)[.]ts$/.test(relativePath)
     ) {
       continue;
     }
     const source = await Deno.readTextFile(file);
-    if (source.includes(".generateContent({")) {
+    if (/\.generateContent\s*\(/.test(source)) {
       dispatchFiles.push(relativePath);
     }
+    if (source.includes('from "@google/genai"')) sdkFiles.push(relativePath);
   }
 
   assertEquals(dispatchFiles.sort(), [
-    "_shared/audioModeration.ts",
-    "_shared/biology.ts",
-    "_shared/gemini.ts",
-    "audio-spec/index.ts",
-    "explore-post-chat/index.ts",
-    "identify-describe/index.ts",
-    "identify-multimodal/index.ts",
-    "identify/index.ts",
-    "insight-chat/index.ts",
-    "species-dictionary-chat/index.ts",
-    "species-discovery-search/provider.ts",
+    "functions/_shared/ai/gemini.ts",
+    "functions/_shared/audioModeration.ts",
+    "functions/explore-post-chat/index.ts",
+    "functions/insight-chat/index.ts",
+    "functions/species-dictionary-chat/index.ts",
+    "functions/species-discovery-search/provider.ts",
+    "scripts/benchmark_ai_boundary.ts",
+    "scripts/evaluate_field_chat_answers.ts",
   ]);
+  assertEquals(sdkFiles.sort(), [
+    "functions/_shared/ai/gemini.ts",
+    "functions/_shared/ai/geminiContent.ts",
+    "functions/_shared/fieldChatReply.ts",
+    "functions/_shared/gemini.ts",
+    "functions/_shared/identify/googleSchema.ts",
+    "functions/_shared/identify/schema.ts",
+    "functions/identify-describe/schema.ts",
+    "functions/insight-chat/index.ts",
+  ]);
+  const evaluator = await Deno.readTextFile(
+    new URL("scripts/evaluate_field_chat_answers.ts", supabaseRoot),
+  );
+  assertStringIncludes(evaluator, "if (import.meta.main)");
+  assert(
+    /if \(Deno.args.length !== 1 \|\| Deno.args\[0\] !== "--live"\) \{[\s\S]*?Deno.exit\(2\);/
+      .test(evaluator),
+  );
+  assert(
+    /if \(!Deno.env.get\("GEMINI_PAID_API_KEY"\)\?\.trim\(\)\) \{[\s\S]*?Deno.exit\(2\);/
+      .test(evaluator),
+  );
+  assert(
+    evaluator.indexOf('Deno.args[0] !== "--live"') <
+      evaluator.indexOf("_genAI.models.generateContent"),
+  );
+  const benchmark = await Deno.readTextFile(
+    new URL("scripts/benchmark_ai_boundary.ts", supabaseRoot),
+  );
+  assertStringIncludes(benchmark, "if (import.meta.main) await main();");
+  assert(
+    /if \(\(await Deno.permissions.query\(\{ name: "net" \}\)\)\.state !== "denied"\) \{\s*throw new Error\(/
+      .test(benchmark),
+  );
+  assert(
+    benchmark.indexOf('name: "net"') <
+      benchmark.indexOf("_genAI.models.generateContent"),
+  );
 });
 
 Deno.test("every public paid-model route declares a server quota operation", async () => {
@@ -121,7 +163,7 @@ Deno.test("database-selected models reach every paid provider family", async () 
   ) {
     const source = await Deno.readTextFile(new URL(path, import.meta.url));
     assert(
-      /reservation[.]model/.test(source),
+      /reservation[.]model|reservation: quotaLease[.]reservation/.test(source),
       `${path} does not use the model selected by the quota policy`,
     );
   }
@@ -145,9 +187,10 @@ Deno.test("provider attempts consume quota while pre-provider no-ops can refund"
     ]
   ) {
     const source = await Deno.readTextFile(new URL(path, import.meta.url));
+    const invocation =
+      /await quotaLease[.]commit[(][)];\s*providerAttempted = true;\s*(?:const providerStart = performance[.]now[(][)];\s*)?result = await execution[.]invoke[(][)]/;
     assert(
-      /await quotaLease[.]commit[(][)];[\s\S]{0,120}const result = await _genAI[.]models[.]generateContent/
-        .test(source),
+      invocation.test(source),
       `${path} must commit immediately before dispatching paid provider work`,
     );
     assertStringIncludes(
@@ -257,6 +300,53 @@ Deno.test("provider attempts consume quota while pre-provider no-ops can refund"
   assert(!exploreEdit.includes("requestId: crypto.randomUUID()"));
 });
 
+Deno.test("migrated provider composition is fixed to Gemini and excludes test providers", async () => {
+  const source = await Deno.readTextFile(
+    new URL("../identify-describe/index.ts", import.meta.url),
+  );
+  const production = await Deno.readTextFile(
+    new URL("../_shared/ai/production.ts", import.meta.url),
+  );
+  const multimodal = await Deno.readTextFile(
+    new URL("../identify-multimodal/index.ts", import.meta.url),
+  );
+  const remaining = await Promise.all(
+    ["identify", "audio-spec", "enrich-scan"].map((name) =>
+      Deno.readTextFile(new URL(`../${name}/index.ts`, import.meta.url))
+    ),
+  );
+  for (const route of [source, multimodal, ...remaining]) {
+    assertStringIncludes(route, 'from "../_shared/ai/production.ts"');
+    assertStringIncludes(route, "prepare = prepareAIExecution");
+    assert(!route.includes("_genAI"));
+    assert(!route.includes("test_only"));
+  }
+  assertStringIncludes(
+    source,
+    "handleIdentifyDescribeRequest(req, user, supabaseAdmin)",
+  );
+  assertStringIncludes(production, "resolveAIClaim(request, authority)");
+  assertStringIncludes(
+    production,
+    "createAIExecution(geminiAdapter, request, snapshot)",
+  );
+  assert(!production.includes("Deno.env"));
+  assert(!production.includes("test_only"));
+  for (
+    const name of [
+      "contracts.ts",
+      "registry.ts",
+      "contentRegistry.ts",
+      "execution.ts",
+    ]
+  ) {
+    const common = await Deno.readTextFile(
+      new URL(`../_shared/ai/${name}`, import.meta.url),
+    );
+    assert(!common.includes('from "@google/genai"'));
+  }
+});
+
 Deno.test("Field Chat stale quota recovery cannot fall through to the original quota error", async () => {
   for (
     const path of [
@@ -349,7 +439,7 @@ Deno.test("group-tag cache misses cannot dispatch an unmetered provider call", a
       'operation: "scan_group_tag_enrichment"',
       "deriveAIRequestId(",
       "await quotaLease.commit();",
-      "quotaLease.reservation.model",
+      "reservation: quotaLease.reservation",
       "await quotaLease.fail();",
     ]
   ) {
@@ -361,9 +451,24 @@ Deno.test("group-tag cache misses cannot dispatch an unmetered provider call", a
   );
   assertStringIncludes(
     biology,
-    "scientificName: string,\n  modelName: string,",
+    "execution: PreparedAIExecution",
   );
-  assertStringIncludes(biology, "100,\n    modelName,");
+  assertStringIncludes(biology, "await execution.invoke()");
+  assert(!biology.includes("createFlashModel"));
+  const worker = await Deno.readTextFile(
+    new URL("../refresh-species-model-content/db.ts", import.meta.url),
+  );
+  for (
+    const field of [
+      'kind: "service_job"',
+      'purpose: "public_species_facts"',
+      "jobId: job.job_id",
+      "attemptCount: job.attempts",
+      "maxAttempts: job.max_attempts",
+      "dependencies.prepareAI ?? prepareAIExecution",
+    ]
+  ) assertStringIncludes(worker, field);
+  assert(!worker.includes("reserveAIProviderCall"));
 });
 
 Deno.test("server recovery retries use a separately metered idempotency key per claim attempt", async () => {

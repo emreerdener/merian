@@ -1,0 +1,453 @@
+{
+  "format": "ai-boundary-local-v1",
+  "deno": "2.9.4",
+  "os": "darwin",
+  "arch": "aarch64",
+  "warmup_pairs": 25,
+  "network": "denied",
+  "cold_start": "excluded",
+  "control": "cached native request + real SDK + JSON extraction",
+  "scope": "canonical request through adapter; excludes HTTP admission, media preparation, DB, provider latency and client rendering",
+  "results": [
+    {
+      "profile": "description_compat",
+      "model": "gemini-2.5-flash",
+      "samples": 250,
+      "request_bytes": 12732,
+      "direct_cached_native_ms": {
+        "p50": 0.0625,
+        "p95": 0.1141
+      },
+      "shared_prepare_invoke_ms": {
+        "p50": 0.0955,
+        "p95": 0.1925
+      },
+      "paired_difference_ms": {
+        "p50": 0.0307,
+        "p95": 0.0828
+      },
+      "prepare_only_ms": {
+        "p50": 0.0297,
+        "p95": 0.0513
+      }
+    },
+    {
+      "profile": "description_compat",
+      "model": "gemini-2.5-pro",
+      "samples": 250,
+      "request_bytes": 12732,
+      "direct_cached_native_ms": {
+        "p50": 0.0489,
+        "p95": 0.0725
+      },
+      "shared_prepare_invoke_ms": {
+        "p50": 0.0776,
+        "p95": 0.1009
+      },
+      "paired_difference_ms": {
+        "p50": 0.0279,
+        "p95": 0.0434
+      },
+      "prepare_only_ms": {
+        "p50": 0.0268,
+        "p95": 0.0354
+      }
+    },
+    {
+      "profile": "main_text",
+      "model": "gemini-2.5-flash",
+      "samples": 250,
+      "request_bytes": 9877,
+      "direct_cached_native_ms": {
+        "p50": 0.0463,
+        "p95": 0.0666
+      },
+      "shared_prepare_invoke_ms": {
+        "p50": 0.0756,
+        "p95": 0.0954
+      },
+      "paired_difference_ms": {
+        "p50": 0.0288,
+        "p95": 0.0491
+      },
+      "prepare_only_ms": {
+        "p50": 0.028,
+        "p95": 0.0404
+      }
+    },
+    {
+      "profile": "main_text",
+      "model": "gemini-2.5-pro",
+      "samples": 250,
+      "request_bytes": 9918,
+      "direct_cached_native_ms": {
+        "p50": 0.0448,
+        "p95": 0.0563
+      },
+      "shared_prepare_invoke_ms": {
+        "p50": 0.0739,
+        "p95": 0.0948
+      },
+      "paired_difference_ms": {
+        "p50": 0.0286,
+        "p95": 0.0481
+      },
+      "prepare_only_ms": {
+        "p50": 0.0276,
+        "p95": 0.0394
+      }
+    },
+    {
+      "profile": "main_still",
+      "model": "gemini-2.5-flash",
+      "samples": 250,
+      "request_bytes": 281990,
+      "direct_cached_native_ms": {
+        "p50": 0.2987,
+        "p95": 0.3967
+      },
+      "shared_prepare_invoke_ms": {
+        "p50": 0.3291,
+        "p95": 0.4153
+      },
+      "paired_difference_ms": {
+        "p50": 0.0292,
+        "p95": 0.095
+      },
+      "prepare_only_ms": {
+        "p50": 0.0281,
+        "p95": 0.0544
+      }
+    },
+    {
+      "profile": "main_still",
+      "model": "gemini-2.5-pro",
+      "samples": 250,
+      "request_bytes": 282031,
+      "direct_cached_native_ms": {
+        "p50": 0.2985,
+        "p95": 0.4072
+      },
+      "shared_prepare_invoke_ms": {
+        "p50": 0.3292,
+        "p95": 0.4342
+      },
+      "paired_difference_ms": {
+        "p50": 0.0288,
+        "p95": 0.1282
+      },
+      "prepare_only_ms": {
+        "p50": 0.0284,
+        "p95": 0.0608
+      }
+    },
+    {
+      "profile": "main_audio",
+      "model": "gemini-2.5-flash",
+      "samples": 250,
+      "request_bytes": 99204,
+      "direct_cached_native_ms": {
+        "p50": 0.126,
+        "p95": 0.1686
+      },
+      "shared_prepare_invoke_ms": {
+        "p50": 0.1552,
+        "p95": 0.233
+      },
+      "paired_difference_ms": {
+        "p50": 0.0285,
+        "p95": 0.101
+      },
+      "prepare_only_ms": {
+        "p50": 0.0286,
+        "p95": 0.0477
+      }
+    },
+    {
+      "profile": "main_audio",
+      "model": "gemini-2.5-pro",
+      "samples": 250,
+      "request_bytes": 99245,
+      "direct_cached_native_ms": {
+        "p50": 0.1285,
+        "p95": 0.3808
+      },
+      "shared_prepare_invoke_ms": {
+        "p50": 0.16,
+        "p95": 0.5038
+      },
+      "paired_difference_ms": {
+        "p50": 0.0294,
+        "p95": 0.184
+      },
+      "prepare_only_ms": {
+        "p50": 0.0292,
+        "p95": 0.1057
+      }
+    },
+    {
+      "profile": "main_five_frames_and_audio",
+      "model": "gemini-2.5-flash",
+      "samples": 250,
+      "request_bytes": 1409703,
+      "direct_cached_native_ms": {
+        "p50": 1.3883,
+        "p95": 1.5626
+      },
+      "shared_prepare_invoke_ms": {
+        "p50": 1.4403,
+        "p95": 1.6218
+      },
+      "paired_difference_ms": {
+        "p50": 0.0388,
+        "p95": 0.2147
+      },
+      "prepare_only_ms": {
+        "p50": 0.0349,
+        "p95": 0.0728
+      }
+    },
+    {
+      "profile": "main_five_frames_and_audio",
+      "model": "gemini-2.5-pro",
+      "samples": 250,
+      "request_bytes": 1409744,
+      "direct_cached_native_ms": {
+        "p50": 1.379,
+        "p95": 1.566
+      },
+      "shared_prepare_invoke_ms": {
+        "p50": 1.4232,
+        "p95": 1.6253
+      },
+      "paired_difference_ms": {
+        "p50": 0.0376,
+        "p95": 0.233
+      },
+      "prepare_only_ms": {
+        "p50": 0.034,
+        "p95": 0.0713
+      }
+    },
+    {
+      "profile": "vision_compat",
+      "model": "gemini-2.5-flash",
+      "samples": 250,
+      "request_bytes": 282214,
+      "direct_cached_native_ms": {
+        "p50": 0.2978,
+        "p95": 0.3935
+      },
+      "shared_prepare_invoke_ms": {
+        "p50": 0.3313,
+        "p95": 0.4223
+      },
+      "paired_difference_ms": {
+        "p50": 0.0318,
+        "p95": 0.0914
+      },
+      "prepare_only_ms": {
+        "p50": 0.0315,
+        "p95": 0.0484
+      }
+    },
+    {
+      "profile": "vision_compat",
+      "model": "gemini-2.5-pro",
+      "samples": 250,
+      "request_bytes": 282214,
+      "direct_cached_native_ms": {
+        "p50": 0.2981,
+        "p95": 0.3771
+      },
+      "shared_prepare_invoke_ms": {
+        "p50": 0.3312,
+        "p95": 0.4509
+      },
+      "paired_difference_ms": {
+        "p50": 0.0313,
+        "p95": 0.1285
+      },
+      "prepare_only_ms": {
+        "p50": 0.0317,
+        "p95": 0.0509
+      }
+    },
+    {
+      "profile": "audio_compat",
+      "model": "gemini-2.5-flash",
+      "samples": 250,
+      "request_bytes": 99880,
+      "direct_cached_native_ms": {
+        "p50": 0.1298,
+        "p95": 0.2002
+      },
+      "shared_prepare_invoke_ms": {
+        "p50": 0.1587,
+        "p95": 0.2169
+      },
+      "paired_difference_ms": {
+        "p50": 0.0283,
+        "p95": 0.0555
+      },
+      "prepare_only_ms": {
+        "p50": 0.0282,
+        "p95": 0.0475
+      }
+    },
+    {
+      "profile": "audio_compat",
+      "model": "gemini-2.5-pro",
+      "samples": 250,
+      "request_bytes": 99880,
+      "direct_cached_native_ms": {
+        "p50": 0.1335,
+        "p95": 0.1762
+      },
+      "shared_prepare_invoke_ms": {
+        "p50": 0.1636,
+        "p95": 0.2353
+      },
+      "paired_difference_ms": {
+        "p50": 0.0286,
+        "p95": 0.0659
+      },
+      "prepare_only_ms": {
+        "p50": 0.028,
+        "p95": 0.0467
+      }
+    },
+    {
+      "profile": "species_overview",
+      "model": "gemini-2.5-flash",
+      "samples": 250,
+      "request_bytes": 1838,
+      "direct_cached_native_ms": {
+        "p50": 0.0252,
+        "p95": 0.0438
+      },
+      "shared_prepare_invoke_ms": {
+        "p50": 0.0387,
+        "p95": 0.0625
+      },
+      "paired_difference_ms": {
+        "p50": 0.0123,
+        "p95": 0.0324
+      },
+      "prepare_only_ms": {
+        "p50": 0.0109,
+        "p95": 0.0205
+      }
+    },
+    {
+      "profile": "species_overview",
+      "model": "gemini-2.5-pro",
+      "samples": 250,
+      "request_bytes": 1838,
+      "direct_cached_native_ms": {
+        "p50": 0.0219,
+        "p95": 0.0336
+      },
+      "shared_prepare_invoke_ms": {
+        "p50": 0.0331,
+        "p95": 0.057
+      },
+      "paired_difference_ms": {
+        "p50": 0.0113,
+        "p95": 0.0191
+      },
+      "prepare_only_ms": {
+        "p50": 0.0105,
+        "p95": 0.0141
+      }
+    },
+    {
+      "profile": "lookalikes",
+      "model": "gemini-2.5-flash",
+      "samples": 250,
+      "request_bytes": 3261,
+      "direct_cached_native_ms": {
+        "p50": 0.0214,
+        "p95": 0.0265
+      },
+      "shared_prepare_invoke_ms": {
+        "p50": 0.0315,
+        "p95": 0.0398
+      },
+      "paired_difference_ms": {
+        "p50": 0.01,
+        "p95": 0.0146
+      },
+      "prepare_only_ms": {
+        "p50": 0.009,
+        "p95": 0.0105
+      }
+    },
+    {
+      "profile": "lookalikes",
+      "model": "gemini-2.5-pro",
+      "samples": 250,
+      "request_bytes": 3261,
+      "direct_cached_native_ms": {
+        "p50": 0.0221,
+        "p95": 0.0266
+      },
+      "shared_prepare_invoke_ms": {
+        "p50": 0.0313,
+        "p95": 0.0385
+      },
+      "paired_difference_ms": {
+        "p50": 0.0093,
+        "p95": 0.013
+      },
+      "prepare_only_ms": {
+        "p50": 0.0085,
+        "p95": 0.0095
+      }
+    },
+    {
+      "profile": "group_tags",
+      "model": "gemini-2.5-flash",
+      "samples": 250,
+      "request_bytes": 761,
+      "direct_cached_native_ms": {
+        "p50": 0.0172,
+        "p95": 0.0202
+      },
+      "shared_prepare_invoke_ms": {
+        "p50": 0.0237,
+        "p95": 0.0291
+      },
+      "paired_difference_ms": {
+        "p50": 0.0064,
+        "p95": 0.0082
+      },
+      "prepare_only_ms": {
+        "p50": 0.0055,
+        "p95": 0.0068
+      }
+    },
+    {
+      "profile": "group_tags",
+      "model": "gemini-2.5-pro",
+      "samples": 250,
+      "request_bytes": 761,
+      "direct_cached_native_ms": {
+        "p50": 0.0172,
+        "p95": 0.0278
+      },
+      "shared_prepare_invoke_ms": {
+        "p50": 0.0234,
+        "p95": 0.037
+      },
+      "paired_difference_ms": {
+        "p50": 0.0061,
+        "p95": 0.0176
+      },
+      "prepare_only_ms": {
+        "p50": 0.0051,
+        "p95": 0.0064
+      }
+    }
+  ]
+}

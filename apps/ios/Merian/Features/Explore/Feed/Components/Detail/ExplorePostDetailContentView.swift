@@ -31,7 +31,6 @@ struct ExplorePostDetailContentView: View {
     let onOpenInsight: @MainActor () -> Void
     let onEditFieldNotes: @MainActor () -> Void
     let onEditPost: @MainActor () -> Void
-    let onUnpublish: @MainActor () -> Void
     let onOpenFieldChat: @MainActor () -> Void
     let onDisappear: @MainActor () -> Void
     var onAddReaction: () -> Void = {}
@@ -342,21 +341,16 @@ struct ExplorePostDetailContentView: View {
             )
         }
 
-        ToolbarItemGroup(placement: .topBarTrailing) {
-            Button {
-                viewModel.share(post, playbackCoordinator: playbackCoordinator)
-            } label: {
-                Image(systemName: "square.and.arrow.up")
-            }
-            .tint(.primary)
-            .accessibilityLabel("Share post")
-
+        ToolbarItem(placement: .topBarTrailing) {
             ExplorePostDetailMenuButton(
                 isOwnedByCurrentUser: isOwnedByCurrentUser,
                 allowsInsightPresentation: canOpenOwnedPostInsight,
                 onOpenInsight: onOpenInsight,
                 onEditPost: onEditPost,
-                onUnpublish: onUnpublish,
+                showsShareAction: presentedComposerIsSticky || isComposerFocused,
+                onShare: {
+                    viewModel.share(post, playbackCoordinator: playbackCoordinator)
+                },
                 showsFieldChatAction: ExplorePostFieldChatPresentationPolicy.showsMenuAction(
                     isFieldChatAvailable: isFieldChatAvailable,
                     isCommentComposerSticky: presentedComposerIsSticky,
@@ -378,13 +372,29 @@ struct ExplorePostDetailContentView: View {
             )
         }
 
-        if ExplorePostFieldChatPresentationPolicy.showsFloatingButton(
-            isFieldChatAvailable: isFieldChatAvailable,
-            isCommentComposerSticky: presentedComposerIsSticky,
-            isCommentComposerFocused: isComposerFocused
-        ) {
-            ToolbarItemGroup(placement: .bottomBar) {
-                Spacer()
+        ToolbarItemGroup(placement: .bottomBar) {
+            Button {
+                viewModel.share(post, playbackCoordinator: playbackCoordinator)
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 14, weight: .semibold))
+                    Text("Share")
+                }
+                .padding(.horizontal, 8)
+                .fixedSize()
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.accentColor)
+            .accessibilityLabel("Share post")
+
+            Spacer()
+
+            if ExplorePostFieldChatPresentationPolicy.showsFloatingButton(
+                isFieldChatAvailable: isFieldChatAvailable,
+                isCommentComposerSticky: presentedComposerIsSticky,
+                isCommentComposerFocused: isComposerFocused
+            ) {
                 FieldChatToolbarButton(action: onOpenFieldChat)
             }
         }

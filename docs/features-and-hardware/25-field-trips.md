@@ -106,7 +106,10 @@ only a camera/performance setting.
 - The authenticated user's profile summary card lists earned standard-outing
   patches beneath the stats and a divider. Tapping any patch opens the same
   zoomable full-screen viewer at that selection; when more patches are earned,
-  the viewer supports horizontal paging and shows page dots.
+  the viewer supports horizontal paging and shows page dots. Both the
+  authenticated and public profile summary cards omit the patch row, its
+  divider, and reserved space until earned patches are available; they do not
+  show patch loading skeletons.
 - The authenticated user's active Field trip Profile card shows a leading title
   matching the profile stat-value style, a subheadline-sized current-level
   label, and a larger trailing collectible patch in one top-aligned row above

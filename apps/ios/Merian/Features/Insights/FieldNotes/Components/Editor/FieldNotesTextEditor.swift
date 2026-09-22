@@ -31,15 +31,14 @@ struct FieldNotesTextEditor: View {
                     .allowsHitTesting(false)
             }
         }
-        // Collapse before the keyboard arrives so its avoidance pass does not
-        // translate the editor beneath the navigation bar on first focus.
+        // Let the sheet's keyboard-safe area size the editor. A fixed minimum
+        // can overflow the available height and push its top under the toolbar.
         .frame(
             maxWidth: .infinity,
-            minHeight: 320,
-            maxHeight: isFocused.wrappedValue ? 320 : .infinity,
+            minHeight: 0,
+            maxHeight: .infinity,
             alignment: .topLeading
         )
-        .layoutPriority(1)
         .contentShape(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
         )

@@ -4,10 +4,12 @@ import {
   runBackground,
   withEdgeHandler,
 } from "../_shared/edgeHandler.ts";
-import { geminiUsageModalityBreakdown } from "../_shared/aiUsage.ts";
+import type { SupabaseClient, User } from "@supabase/supabase-js";
+import type { AIExecutionOutcome } from "../_shared/ai/contracts.ts";
+import { prepareAIExecution } from "../_shared/ai/production.ts";
+import { buildDescribeAIRequest } from "./provider.ts";
 import { fetchQuotaGuardedGroupTags } from "../_shared/groupTagQuota.ts";
 import { fetchExternalEnrichment } from "../_shared/external.ts";
-import { _genAI, extractJson } from "../_shared/gemini.ts";
 import {
   entitlementProtocolResponse,
   tierTelemetryProperties,
@@ -26,7 +28,6 @@ import {
   requireParams,
 } from "../_shared/http.ts";
 import {
-  buildObservationPrompt,
   normalizeCurrentMonth,
   sanitizeLifeStage,
   sanitizeObservationConfidence,
@@ -59,10 +60,6 @@ import { createCompatibilityScanIngestionLedger } from "../_shared/scanIngestion
 import { recoverStrandedScanIngestionAttempt } from "../_shared/scanIngestionJobs.ts";
 import { isScanPersistenceOutcomeUnknown } from "../_shared/scanPersistence.ts";
 import {
-  getDescribeResponseSchema,
-  getDescribeSystemInstruction,
-} from "./schema.ts";
-import {
   fetchCachedSpecies,
   fetchCandidateCommonNames,
   insertDescribeScan,
@@ -76,34 +73,6 @@ import {
   normalizeWireHazardType,
 } from "../_shared/identify/clientPayload.ts";
 import { normalizeProcessedMaterialSubject } from "../_shared/identify/subjectClassification.ts";
-
-// Text-only model configs — no image parts, so thinking budgets are smaller.
-// Flash text calls for describes are less ambiguous than vision (the user already
-// filtered by organism class) so 1,024 tokens is sufficient headroom.
-const modelConfigs = {
-  flash: {
-    model: "gemini-2.5-flash" as const,
-    config: {
-      systemInstruction: getDescribeSystemInstruction(),
-      temperature: 0.15,
-      seed: 42,
-      topK: 40,
-      maxOutputTokens: 2048,
-      thinkingConfig: { thinkingBudget: 1024 },
-    },
-  },
-  pro: {
-    model: "gemini-2.5-pro" as const,
-    config: {
-      systemInstruction: getDescribeSystemInstruction(),
-      temperature: 0.15,
-      seed: 42,
-      topK: 40,
-      maxOutputTokens: 4096,
-      thinkingConfig: { thinkingBudget: 3000 },
-    },
-  },
-};
 
 interface DescribeRequestBody extends Record<string, unknown> {
   user_id?: string;
@@ -128,8 +97,14 @@ interface DescribeRequestBody extends Record<string, unknown> {
   observation_context?: unknown;
 }
 
-Deno.serve((req: Request) =>
-  withEdgeHandler(req, async (user, supabaseAdmin) => {
+// The HTTP entrypoint always uses production composition. The internal seam
+// allows network-free behavioral tests without a test provider in the registry.
+export function createDescribeHandler(prepare = prepareAIExecution) {
+  return async (
+    req: Request,
+    user: User,
+    supabaseAdmin: SupabaseClient,
+  ): Promise<Response> => {
     const protocolError = await entitlementProtocolResponse(
       req,
       supabaseAdmin,
@@ -335,11 +310,7 @@ Deno.serve((req: Request) =>
       }
       throw error;
     }
-    const modelCfg = targetModel === "gemini-2.5-pro"
-      ? modelConfigs.pro
-      : modelConfigs.flash;
-
-    const promptText = buildObservationPrompt(description, {
+    const aiRequest = buildDescribeAIRequest(description, {
       safeGpsLat,
       safeGpsLon,
       gpsElevation,
@@ -357,7 +328,7 @@ Deno.serve((req: Request) =>
     const geminiStart = Date.now();
 
     let finishReason: string | undefined;
-    let responseText = "";
+    let result: AIExecutionOutcome;
     let llmPromptTokens: number | null = null;
     let llmCandidateTokens: number | null = null;
     let llmTotalTokens: number | null = null;
@@ -367,41 +338,33 @@ Deno.serve((req: Request) =>
     let providerAttempted = false;
 
     try {
+      const execution = prepare(aiRequest, {
+        kind: "user_request",
+        userId: user.id,
+        permission: "google_gemini",
+        operation: "scan_identification",
+        reservation: quotaLease.reservation,
+      });
       await quotaLease.commit();
       providerAttempted = true;
-      const result = await _genAI.models.generateContent({
-        model: targetModel,
-        contents: [{ role: "user", parts: [{ text: promptText }] }],
-        config: {
-          ...modelCfg.config,
-          responseMimeType: "application/json",
-          responseSchema: getDescribeResponseSchema(),
-        },
-      });
-
-      const candidate = result.candidates?.[0];
-      finishReason = candidate?.finishReason;
-      responseText = result.text ?? "";
-
-      if (!responseText) {
-        const firstPart = result.candidates?.[0]?.content?.parts?.[0];
-        if (
-          firstPart && "text" in firstPart && typeof firstPart.text === "string"
-        ) {
-          responseText = firstPart.text;
-        }
+      result = await execution.invoke();
+      if (
+        result.kind === "operational_failure" ||
+        result.kind === "unknown_execution"
+      ) {
+        throw new Error(`ai_${result.kind}`);
       }
-
-      const usage = result.usageMetadata;
+      finishReason = result.finishReason ?? undefined;
+      const usage = result.usage;
       if (usage) {
-        llmUsageMetadata = geminiUsageModalityBreakdown(usage);
-        llmPromptTokens = usage.promptTokenCount ?? null;
-        llmCandidateTokens = usage.candidatesTokenCount ?? null;
-        llmTotalTokens = usage.totalTokenCount ?? null;
-        llmThinkingTokens = usage.thoughtsTokenCount ?? null;
-        llmCachedTokens = usage.cachedContentTokenCount ?? null;
+        llmUsageMetadata = usage.modalityBreakdown;
+        llmPromptTokens = usage.promptTokens;
+        llmCandidateTokens = usage.candidateTokens;
+        llmTotalTokens = usage.totalTokens;
+        llmThinkingTokens = usage.thinkingTokens;
+        llmCachedTokens = usage.cachedTokens;
         console.log(
-          `Token Usage [${user.id}]: Prompt: ${llmPromptTokens} | Candidates: ${llmCandidateTokens} | Thinking: ${llmThinkingTokens} | Cached: ${llmCachedTokens} | Total: ${llmTotalTokens}`,
+          `Token Usage [identify-describe]: Prompt: ${llmPromptTokens} | Candidates: ${llmCandidateTokens} | Thinking: ${llmThinkingTokens} | Cached: ${llmCachedTokens} | Total: ${llmTotalTokens}`,
         );
       }
       console.log(
@@ -435,11 +398,10 @@ Deno.serve((req: Request) =>
     }
 
     if (
-      finishReason && finishReason !== "STOP" &&
-      finishReason !== "FINISH_REASON_UNSPECIFIED"
+      result.kind === "refusal" ||
+      (result.kind === "invalid_output" && result.reason === "finish")
     ) {
-      const isPermanentContentFailure = finishReason === "SAFETY" ||
-        finishReason === "PROHIBITED_CONTENT";
+      const isPermanentContentFailure = result.kind === "refusal";
       if (!isPermanentContentFailure) await quotaLease.fail();
       if (isPermanentContentFailure) {
         await compatibilityLedger.markTerminalFailure(
@@ -474,9 +436,8 @@ Deno.serve((req: Request) =>
 
     let parsedData;
     try {
-      parsedData = parseDescribeIdentification(
-        extractJson<unknown>(responseText),
-      );
+      if (result.kind !== "draft") throw new Error("ai_response_json_invalid");
+      parsedData = parseDescribeIdentification(result.draft);
     } catch (parseError) {
       await quotaLease.fail();
       await compatibilityLedger.markRetryableFailure(
@@ -486,8 +447,7 @@ Deno.serve((req: Request) =>
       logStructuredError("identify-describe/parse_failed", {
         user_id: user.id,
         finish_reason: finishReason ?? "unknown",
-        response_length: responseText.length,
-        response_preview: responseText.slice(0, 500),
+        response_length: result.responseCharacters,
         error: parseError instanceof Error
           ? parseError.message
           : String(parseError),
@@ -569,7 +529,8 @@ Deno.serve((req: Request) =>
         user_id: user.id,
         reason: processedMaterialNormalization.reason,
         previous_common_name:
-          processedMaterialNormalization.previousCommonName ?? null,
+          processedMaterialNormalization.previousCommonName ??
+            null,
         previous_scientific_name:
           processedMaterialNormalization.previousScientificName ?? null,
       });
@@ -668,7 +629,10 @@ Deno.serve((req: Request) =>
     if (isIdentifiedBio) {
       cachedSpecies = fetchedCachedSpecies;
       payloadReadyForClient.is_new_to_merian_dictionary =
-        isNewToMerianDictionary(isIdentifiedBio, cachedSpecies);
+        isNewToMerianDictionary(
+          isIdentifiedBio,
+          cachedSpecies,
+        );
       let staticData: StaticSpeciesData = { hazard_type: "none" };
 
       if (cachedSpecies?.kingdom) {
@@ -1039,6 +1003,14 @@ Deno.serve((req: Request) =>
         const totalTokens = (llmTotalTokens ?? 0) +
           (resolvedGroupTags?.usage?.totalTokenCount ?? 0);
         await trackPostHogEvent(user, "ScanCompleted", {
+          ai_provider: result.execution.provider,
+          ai_binding: result.execution.binding,
+          ai_prompt: result.execution.prompt,
+          ai_schema: result.execution.schema,
+          ai_policy_version: result.execution.policyVersion,
+          ai_context_kind: result.execution.contextKind,
+          ai_returned_model: result.returnedModel,
+          ai_provider_duration_ms: result.providerDurationMs,
           is_biological_subject: parsedData.is_biological_subject,
           tier: userTier,
           ...tierTelemetryProperties(tierResolution),
@@ -1068,5 +1040,17 @@ Deno.serve((req: Request) =>
 
     console.log(`[⏱ BENCH] total: ${Date.now() - fnStart}ms`);
     return jsonResponse(responseEnvelope, 200);
-  })
-);
+  };
+}
+
+const handleIdentifyDescribeRequest = createDescribeHandler();
+
+if (import.meta.main) {
+  Deno.serve((req: Request) =>
+    withEdgeHandler(
+      req,
+      (user, supabaseAdmin) =>
+        handleIdentifyDescribeRequest(req, user, supabaseAdmin),
+    )
+  );
+}

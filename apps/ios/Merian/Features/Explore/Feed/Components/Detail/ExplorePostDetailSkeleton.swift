@@ -33,12 +33,10 @@ struct ExplorePostDetailSkeleton: View {
         .background(Color(uiColor: .systemBackground))
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItemGroup(placement: .topBarTrailing) {
-                ForEach(0..<2) { _ in
-                    Circle()
-                        .fill(Color(uiColor: .tertiarySystemFill))
-                        .frame(width: 34, height: 34)
-                }
+            ToolbarItem(placement: .topBarTrailing) {
+                Circle()
+                    .fill(Color(uiColor: .tertiarySystemFill))
+                    .frame(width: 34, height: 34)
             }
         }
         .opacity(isGlowing ? 1.0 : 0.6)

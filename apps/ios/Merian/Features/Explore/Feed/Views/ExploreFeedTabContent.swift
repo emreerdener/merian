@@ -62,6 +62,9 @@ struct ExploreFeedTabContent: View {
                 initialLocationSharing: postEditorViewModel?.detail?.locationSharing ?? post.locationSharing ?? .obscured,
                 mediaItems: postEditorViewModel?.postComposerMediaItems ?? [],
                 isSaving: postEditorViewModel?.isSavingPostContent == true,
+                onUnpublish: {
+                    Task { await viewModel.unshare(post) }
+                },
                 onSubmit: { draft in
                     Task { await saveEditedPost(draft, for: post) }
                 }
@@ -116,7 +119,6 @@ struct ExploreFeedTabContent: View {
                             { callback(post) }
                         },
                         onEditPost: { Task { await openPostEditor(for: post) } },
-                        onUnshare: { Task { await viewModel.unshare(post) } },
                         onBlock: { Task { await viewModel.blockAuthor(of: post) } },
                         onReport: { Task { await viewModel.report(post) } },
                         onReaction: { emoji, selected in Task { await viewModel.setPostReaction(for: post, emoji: emoji, selected: selected) } },

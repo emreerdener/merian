@@ -1,10 +1,7 @@
-import {
-  HarmBlockThreshold,
-  HarmCategory,
-  Part,
-  SafetyRating,
-} from "@google/genai";
-import { geminiUsageModalityBreakdown } from "../_shared/aiUsage.ts";
+import type { SupabaseClient, User } from "@supabase/supabase-js";
+import type { AIExecutionOutcome } from "../_shared/ai/contracts.ts";
+import { prepareAIExecution } from "../_shared/ai/production.ts";
+import { buildVisionAIRequest } from "./provider.ts";
 import { evaluateAndProcessPayload } from "../_shared/identify/moderation.ts";
 import { deleteR2ObjectIfPresent, getR2Config } from "../_shared/aws.ts";
 import {
@@ -15,7 +12,6 @@ import {
 } from "../_shared/edgeHandler.ts";
 import { fetchQuotaGuardedGroupTags } from "../_shared/groupTagQuota.ts";
 import { fetchExternalEnrichment } from "../_shared/external.ts";
-import { _genAI, extractJson } from "../_shared/gemini.ts";
 import {
   entitlementProtocolResponse,
   tierTelemetryProperties,
@@ -37,7 +33,6 @@ import {
   normalizeTaxonomyValue,
 } from "../_shared/taxonomy.ts";
 import {
-  buildContextText,
   normalizeCurrentMonth,
   sanitizeLifeStage,
   sanitizeObservationConfidence,
@@ -60,15 +55,7 @@ import {
   fetchCompletedIdentifyResponse,
   waitForCompletedIdentifyResponse,
 } from "../_shared/identify/completedResponse.ts";
-import {
-  getMerianResponseSchema,
-  getSystemInstruction,
-} from "../_shared/identify/schema.ts";
-import {
-  diagnosticTriggerForTier,
-  FLASH_DIAGNOSTIC_TRIGGER,
-  PRO_DIAGNOSTIC_TRIGGER,
-} from "../_shared/identify/thresholds.ts";
+import { diagnosticTriggerForTier } from "../_shared/identify/thresholds.ts";
 import {
   resolveImagePayloads,
   stagedImageSourceKeys,
@@ -101,79 +88,16 @@ import {
 } from "../_shared/identify/clientPayload.ts";
 import { normalizeProcessedMaterialSubject } from "../_shared/identify/subjectClassification.ts";
 
-// Safety settings shared by all vision model tiers.
-// Biological photography legitimately triggers Gemini's medium-sensitivity defaults:
-//   - DANGEROUS_CONTENT: venomous animals, dead specimens, parasites, wounds
-//   - SEXUALLY_EXPLICIT: mating behaviour, reproductive organs, fruiting bodies
-// BLOCK_ONLY_HIGH passes all genuine field-biology content while still blocking
-// unambiguously harmful material. HARASSMENT and HATE_SPEECH remain at defaults —
-// they are not relevant to biological photography.
-const BIOLOGICAL_SAFETY_SETTINGS = [
-  {
-    category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-    threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
-  },
-  {
-    category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-    threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
-  },
-];
-
 class CompatibilityModerationRejectedError extends Error {
   override name = "CompatibilityModerationRejectedError";
 }
 
-// Vision model config objects — pre-built at module scope for warm isolate re-use.
-// @google/genai has no getGenerativeModel() — config is passed per-call to
-// _genAI.models.generateContent(). Pre-defining them here keeps the call site clean.
-//
-// Thinking budget strategy:
-//   Flash (free tier): 2,048 tokens. Raised from 1,024 after production data showed
-//   invasive/complex species (e.g. Carpobrotus edulis) hitting 1,016/1,024 — effectively
-//   capped. 2,048 provides headroom for the observed worst-case while keeping cost low.
-//
-//   Pro: 5,000 tokens. Covers the hardest observed case (~3,200 tokens for an ambiguous
-//   subject) with headroom for fossils, rare cultivars, and subspecies discrimination —
-//   the exact use cases Pro users pay for.
-//
-//   Text-only Flash calls (encyclopedic, similar species, group tags) use thinkingBudget: 0
-//   via createFlashModel() in _shared/gemini.ts — no visual ambiguity, no benefit.
-const modelConfigs = {
-  flash: {
-    model: "gemini-2.5-flash" as const,
-    config: {
-      systemInstruction: getSystemInstruction(FLASH_DIAGNOSTIC_TRIGGER),
-      temperature: 0.1,
-      // seed pins the random sampler to a fixed starting state. For identical
-      // inputs (same image bytes + same context parts), this produces the same
-      // token sequence, making repeated scans of the same subject converge on
-      // the same identification rather than drifting across runs.
-      seed: 42,
-      // topK=40 explicitly caps the candidate-token pool, complementing the
-      // already-low temperature. The combination narrows the distribution enough
-      // that borderline identifications consistently resolve to the same species.
-      topK: 40,
-      maxOutputTokens: 4096,
-      thinkingConfig: { thinkingBudget: 2048 },
-      safetySettings: BIOLOGICAL_SAFETY_SETTINGS,
-    },
-  },
-  pro: {
-    model: "gemini-2.5-pro" as const,
-    config: {
-      systemInstruction: getSystemInstruction(PRO_DIAGNOSTIC_TRIGGER),
-      temperature: 0.1,
-      seed: 42,
-      topK: 40,
-      maxOutputTokens: 8192,
-      thinkingConfig: { thinkingBudget: 5000 },
-      safetySettings: BIOLOGICAL_SAFETY_SETTINGS,
-    },
-  },
-};
-
-Deno.serve((req: Request) =>
-  withEdgeHandler(req, async (user, supabaseAdmin) => {
+export function createIdentifyHandler(prepare = prepareAIExecution) {
+  return async (
+    req: Request,
+    user: User,
+    supabaseAdmin: SupabaseClient,
+  ): Promise<Response> => {
     const protocolError = await entitlementProtocolResponse(
       req,
       supabaseAdmin,
@@ -453,56 +377,34 @@ Deno.serve((req: Request) =>
       throw error;
     }
 
-    const modelCfg = targetModel === "gemini-2.5-pro"
-      ? modelConfigs.pro
-      : modelConfigs.flash;
-
-    // Build the multipart content array. Image parts always come first so the model
-    // anchors its visual read before seeing the user's text. The description part is
-    // appended only when the user staged a describe note alongside their images —
-    // it provides morphological cues (colour, size, behaviour) that the image alone
-    // may not convey, sharpening subspecies and look-alike disambiguation.
-    const descriptionPart: Part[] = description && description.trim().length > 0
-      ? [{
-        text:
-          `\n\nAdditional observation context from user:\n${description.trim()}`,
-      }]
-      : [];
-
-    const parts: Part[] = [
-      {
-        text: buildContextText(
-          {
-            safeGpsLat,
-            safeGpsLon,
-            gpsElevation,
-            depthScaleText,
-            zoomFactor,
-            estimatedSizeCm: estimated_size_cm,
-            semanticLocation,
-            weatherCondition,
-            weatherTemperatureF,
-            deviceLocale,
-            deviceTimeZone,
-            deviceRegion,
-            currentMonth: normalizedCurrentMonth,
-            timeOfDay,
-          },
-          "Perform biological identification.",
-        ),
+    const aiRequest = buildVisionAIRequest({
+      imageBase64s: base64Payloads,
+      mimeType,
+      description,
+      telemetry: {
+        safeGpsLat,
+        safeGpsLon,
+        gpsElevation,
+        depthScaleText,
+        zoomFactor,
+        estimatedSizeCm: estimated_size_cm,
+        semanticLocation,
+        weatherCondition,
+        weatherTemperatureF,
+        deviceLocale,
+        deviceTimeZone,
+        deviceRegion,
+        currentMonth: normalizedCurrentMonth,
+        timeOfDay,
       },
-      ...base64Payloads.map((payload) => ({
-        inlineData: { mimeType: mimeType || "image/webp", data: payload },
-      })),
-      ...descriptionPart,
-    ];
+    });
 
     console.log(`[⏱ BENCH] pre_gemini: ${Date.now() - fnStart}ms`);
     const geminiStart = Date.now();
 
     let finishReason: string | undefined;
-    let safetyRatings: SafetyRating[] | undefined;
-    let responseText = "";
+    let safetyRatings: AIExecutionOutcome["safetyRatings"];
+    let result: AIExecutionOutcome;
     let llmPromptTokens: number | null = null;
     let llmCandidateTokens: number | null = null;
     let llmTotalTokens: number | null = null;
@@ -512,52 +414,34 @@ Deno.serve((req: Request) =>
     let providerAttempted = false;
 
     try {
+      const execution = prepare(aiRequest, {
+        kind: "user_request",
+        userId: user.id,
+        permission: "google_gemini",
+        operation: "scan_identification",
+        reservation: quotaLease.reservation,
+      });
       await quotaLease.commit();
       providerAttempted = true;
-      const result = await _genAI.models.generateContent({
-        model: targetModel,
-        contents: [{ role: "user", parts }],
-        config: {
-          ...modelCfg.config,
-          responseMimeType: "application/json",
-          responseSchema: getMerianResponseSchema(diagnosticTrigger),
-        },
-      });
-      const candidate = result.candidates?.[0];
-      finishReason = candidate?.finishReason;
-      safetyRatings = candidate?.safetyRatings;
-      responseText = result.text ?? "";
-
-      // Retain the legacy first-part fallback when the SDK text getter is
-      // empty for an unexpected schema-constrained candidate representation.
-      if (!responseText) {
-        const firstPart = result.candidates?.[0]?.content?.parts?.[0];
-        if (
-          firstPart && "text" in firstPart && typeof firstPart.text === "string"
-        ) {
-          responseText = firstPart.text;
-          console.log(
-            `[identify] result.text was empty; recovered ${responseText.length} chars from parts[0].text`,
-          );
-        }
-      }
-
-      const usage = result.usageMetadata;
+      result = await execution.invoke();
+      if (
+        result.kind === "operational_failure" ||
+        result.kind === "unknown_execution"
+      ) throw new Error(`ai_${result.kind}`);
+      finishReason = result.finishReason ?? undefined;
+      safetyRatings = result.safetyRatings;
+      const usage = result.usage;
       if (usage) {
-        llmUsageMetadata = geminiUsageModalityBreakdown(usage);
-        llmPromptTokens = usage.promptTokenCount ?? null;
-        llmCandidateTokens = usage.candidatesTokenCount ?? null;
-        llmTotalTokens = usage.totalTokenCount ?? null;
-        // thoughtsTokenCount is properly typed in @google/genai's UsageMetadata —
-        // this is what previously appeared as the unexplained gap in totalTokenCount.
-        llmThinkingTokens = usage.thoughtsTokenCount ?? null;
-        // cachedContentTokenCount is non-zero when Gemini's implicit caching
-        // triggered on this request (system instruction prefix matched a cached
-        // context). Non-null only after the system instruction exceeds the 1,024
-        // token minimum for gemini-2.5-flash. Used to verify caching is active.
-        llmCachedTokens = usage.cachedContentTokenCount ?? null;
+        llmUsageMetadata = usage.modalityBreakdown;
+        llmPromptTokens = usage.promptTokens;
+        llmCandidateTokens = usage.candidateTokens;
+        llmTotalTokens = usage.totalTokens;
+        // Preserve the provider's separate thinking-token accounting.
+        llmThinkingTokens = usage.thinkingTokens;
+        // Preserve this route's existing cached-token scan-row field.
+        llmCachedTokens = usage.cachedTokens;
         console.log(
-          `Token Usage [${user.id}]: Prompt: ${llmPromptTokens} | Candidates: ${llmCandidateTokens} | Thinking: ${llmThinkingTokens} | Cached: ${llmCachedTokens} | Total: ${llmTotalTokens}`,
+          `Token Usage [identify]: Prompt: ${llmPromptTokens} | Candidates: ${llmCandidateTokens} | Thinking: ${llmThinkingTokens} | Cached: ${llmCachedTokens} | Total: ${llmTotalTokens}`,
         );
       }
       console.log(
@@ -566,8 +450,7 @@ Deno.serve((req: Request) =>
         }ms inference`,
       );
     } catch (genError) {
-      // Extract structured details so Supabase function logs surface the exact
-      // Gemini error without needing to decode a stringified Error object.
+      // The adapter exposes bounded failure kinds without provider diagnostics.
       const errMsg = genError instanceof Error
         ? genError.message
         : String(genError);
@@ -584,7 +467,7 @@ Deno.serve((req: Request) =>
       );
       logStructuredError("identify/gemini_failed", {
         user_id: user.id,
-        model: modelCfg.model,
+        model: targetModel,
         elapsed_ms: Date.now() - geminiStart,
         error_message: errMsg,
         error_status: errStatus,
@@ -599,19 +482,15 @@ Deno.serve((req: Request) =>
       );
     }
 
-    // Guard non-STOP finish reasons before attempting JSON extraction.
-    // When finishReason is SAFETY/RECITATION/OTHER, result.text is "" and
-    // extractJson throws "no JSON object found". SAFETY / PROHIBITED_CONTENT
-    // is a permanent content-policy failure; every other non-STOP reason is a
-    // retryable provider failure.
+    // The adapter distinguishes policy refusals from unusable provider output.
+    // Keep the existing terminal/retryable settlement and public responses.
     // SAFETY / PROHIBITED_CONTENT = stable 400 observation_rejected (tombstone on iOS).
     // All other non-STOP reasons (MAX_TOKENS, RECITATION, OTHER) are transient → 503 (retry).
     if (
-      finishReason && finishReason !== "STOP" &&
-      finishReason !== "FINISH_REASON_UNSPECIFIED"
+      result.kind === "refusal" ||
+      (result.kind === "invalid_output" && result.reason === "finish")
     ) {
-      const isPermanentContentFailure = finishReason === "SAFETY" ||
-        finishReason === "PROHIBITED_CONTENT";
+      const isPermanentContentFailure = result.kind === "refusal";
       if (!isPermanentContentFailure) await quotaLease.fail();
       if (isPermanentContentFailure) {
         await compatibilityLedger.markTerminalFailure(
@@ -628,7 +507,7 @@ Deno.serve((req: Request) =>
       logStructuredError("identify/non_stop_finish", {
         user_id: user.id,
         finish_reason: finishReason,
-        response_length: responseText.length,
+        response_length: result.responseCharacters,
         permanent: isPermanentContentFailure,
       });
       if (isPermanentContentFailure) {
@@ -647,8 +526,9 @@ Deno.serve((req: Request) =>
 
     let parsedData;
     try {
+      if (result.kind !== "draft") throw new Error("ai_response_json_invalid");
       parsedData = parseMerianIdentification(
-        extractJson<unknown>(responseText),
+        result.draft,
       );
     } catch (parseError) {
       await quotaLease.fail();
@@ -656,14 +536,11 @@ Deno.serve((req: Request) =>
         "ai_response_parse_failed",
         parseError,
       );
-      // Log enough context to diagnose the root cause without re-reading the code.
-      // finish_reason, response_length, and the first 500 chars of responseText cover
-      // the two main failure modes: truncated JSON (MAX_TOKENS) and empty response.
+      // Keep diagnostics bounded; never log provider output or a preview.
       logStructuredError("identify/parse_failed", {
         user_id: user.id,
         finish_reason: finishReason ?? "unknown",
-        response_length: responseText.length,
-        response_preview: responseText.slice(0, 500),
+        response_length: result.responseCharacters,
         error: parseError instanceof Error
           ? parseError.message
           : String(parseError),
@@ -1448,6 +1325,14 @@ Deno.serve((req: Request) =>
           tier: userTier,
           ...tierTelemetryProperties(tierResolution),
           llm_model: targetModel,
+          ai_provider: result.execution.provider,
+          ai_binding: result.execution.binding,
+          ai_prompt: result.execution.prompt,
+          ai_schema: result.execution.schema,
+          ai_policy_version: result.execution.policyVersion,
+          ai_context_kind: result.execution.contextKind,
+          ai_returned_model: result.returnedModel,
+          ai_provider_duration_ms: result.providerDurationMs,
           llm_prompt_tokens: llmPromptTokens,
           llm_candidate_tokens: llmCandidateTokens,
           llm_thinking_tokens: llmThinkingTokens,
@@ -1471,5 +1356,16 @@ Deno.serve((req: Request) =>
 
     console.log(`[⏱ BENCH] total_to_response: ${Date.now() - fnStart}ms`);
     return jsonResponse(responseEnvelope, 200);
-  })
-);
+  };
+}
+
+const handleIdentifyRequest = createIdentifyHandler();
+
+if (import.meta.main) {
+  Deno.serve((req: Request) =>
+    withEdgeHandler(
+      req,
+      (user, supabaseAdmin) => handleIdentifyRequest(req, user, supabaseAdmin),
+    )
+  );
+}

@@ -6,7 +6,6 @@ struct ActiveFieldTripsProfilePreview: View {
     let onOpenCompletedScan: (String) -> Void
     let onViewAll: () -> Void
     let onEarnedPatchesChange: ([EarnedFieldTripPatch]) -> Void
-    let onEarnedPatchesLoadingChange: (Bool) -> Void
 
     @Environment(SupabaseManager.self) private var supabase
     @Query(sort: \LocalScanRecord.timestamp, order: .reverse) private var localScans: [LocalScanRecord]
@@ -17,19 +16,16 @@ struct ActiveFieldTripsProfilePreview: View {
         onOpenTemplate: @escaping (String) -> Void,
         onOpenCompletedScan: @escaping (String) -> Void,
         onViewAll: @escaping () -> Void,
-        onEarnedPatchesChange: @escaping ([EarnedFieldTripPatch]) -> Void,
-        onEarnedPatchesLoadingChange: @escaping (Bool) -> Void
+        onEarnedPatchesChange: @escaping ([EarnedFieldTripPatch]) -> Void
     ) {
         self.onOpenTemplate = onOpenTemplate
         self.onOpenCompletedScan = onOpenCompletedScan
         self.onViewAll = onViewAll
         self.onEarnedPatchesChange = onEarnedPatchesChange
-        self.onEarnedPatchesLoadingChange = onEarnedPatchesLoadingChange
         _viewModel = State(
             initialValue: ActiveFieldTripsProfileViewModel(
                 dependencies: .live(
-                    earnedPatchesDidChange: onEarnedPatchesChange,
-                    loadingDidChange: onEarnedPatchesLoadingChange
+                    earnedPatchesDidChange: onEarnedPatchesChange
                 )
             )
         )

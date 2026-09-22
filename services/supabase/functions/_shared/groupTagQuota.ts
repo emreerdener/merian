@@ -6,6 +6,7 @@ import {
 } from "./aiQuota.ts";
 import { fetchGroupTags } from "./biology.ts";
 import { logStructuredError } from "./edgeHandler.ts";
+import { prepareAIExecution } from "./ai/production.ts";
 
 /**
  * Runs optional group-tag inference behind its own quota reservation.
@@ -21,6 +22,7 @@ export async function fetchQuotaGuardedGroupTags(
   scientificName: string,
   supabaseAdmin: SupabaseClient,
   parentRequestId: string,
+  prepare = prepareAIExecution,
 ): Promise<Awaited<ReturnType<typeof fetchGroupTags>>> {
   let quotaLease: AIProviderQuotaLease | null = null;
   let providerAttempted = false;
@@ -36,13 +38,24 @@ export async function fetchQuotaGuardedGroupTags(
       requestId,
       originalAnalysisId: parentRequestId,
     });
+    const execution = prepare({
+      task: "group_tags",
+      variant: "species_content",
+      scientificName,
+    }, {
+      kind: "user_request",
+      userId: user.id,
+      permission: "google_gemini",
+      operation: "scan_group_tag_enrichment",
+      reservation: quotaLease.reservation,
+    });
     await quotaLease.commit();
     providerAttempted = true;
 
     const result = await fetchGroupTags(
       user,
       scientificName,
-      quotaLease.reservation.model,
+      execution,
       supabaseAdmin,
     );
     if (!result) await quotaLease.fail();

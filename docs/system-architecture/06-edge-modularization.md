@@ -38,6 +38,27 @@ exiting the process.
   Do not import `serve` from `https://deno.land/std/.../http/server.ts`; every
   remote runtime import becomes a deploy-time graph fetch for every function.
 
+For `identify-multimodal`, `identify-describe`, `identify`, and `audio-spec`,
+provider request/response handling lives under
+[`_shared/ai/`](../../services/supabase/functions/_shared/ai/README.md). Their
+`provider.ts` modules build canonical requests with distinct main and legacy
+image, audio, and description variants. The primary builder preserves ordered
+prepared text, images/snapshots, WAV audio, and positional lineage. The registry
+and Gemini adapter own the admitted model binding, generation settings, SDK
+dispatch, response decoding, and native timing facts. HTTP handlers still own
+admission, quota commitment/settlement, domain validation, and finalization.
+Internal handler injection supports behavioral tests; production composition is
+fixed to Gemini. Legacy image safety settings, model/tier distinctions, and
+legacy audio prompt/token budgets remain separate profiles. Biological content
+helpers also use this boundary: `ai/contentRegistry.ts` binds overview,
+lookalikes, and group tags, while `ai/geminiContent.ts` owns their native
+prompts and schemas. User enrichment retains reservation/commit ownership; the
+public worker supplies its claimed task and attempt bounds without user quota or
+permission. `biology.ts` retains result normalization and existing usage owners.
+The shared adapter's transitive dependencies now include `enrich-scan` and
+`refresh-species-model-content` in deployment selection for Identify-contract
+changes; the dependency graph test requires both.
+
 ## 2. The PostgreSQL Layer (`db.ts`)
 
 The `db.ts` file acts as the isolated boundary for PostgREST executions. This
@@ -494,14 +515,15 @@ remain curation-owned. Reference-image refreshes must use
 aligned while existing rights metadata is preserved.
 
 **`fetchSimilarSpecies` Returns `SimilarSpeciesEntry[]` — Taxonomy-Grounded Name
-Pairs:** `fetchSimilarSpecies` in `_shared/biology.ts` accepts an optional
-`SpeciesTaxonomy` parameter (`{ kingdom, class, order, family }`). When provided
-(always from the `enrich-scan` path, sourced from `cachedSpecies`), the taxonomy
-is injected into both the system instruction and user message. The instruction
-explicitly forbids cross-kingdom results ("never suggest plants as lookalikes
-for animals"). The Flash model generates `{ scientific_name, common_name }`
-pairs in one call at negligible extra token cost. The common name flows through
-`resolveLookalikesToJoinTable` in three ways:
+Pairs:** `fetchSimilarSpecies` in `_shared/biology.ts` accepts a prepared
+`lookalikes` execution. Its canonical request carries nullable taxonomy
+(`{ kingdom, class, order, family }`), sourced from `cachedSpecies` on the
+`enrich-scan` path. `ai/geminiContent.ts` normalizes and injects that taxonomy
+into both the system instruction and user message. The instruction explicitly
+forbids cross-kingdom results ("never suggest plants as lookalikes for
+animals"). The admitted Gemini model generates
+`{ scientific_name, common_name }` pairs in one call. The common name flows
+through `resolveLookalikesToJoinTable` in three ways:
 
 1. **Dictionary match — runtime**: `LookalikeSummary.common_name` is populated
    as `dictionary_value ?? flash_value ?? null` — so even species that exist in
@@ -713,11 +735,11 @@ a first-class typed field in `@google/genai@2.23.0` (the SDK pinned in
 `deno.json`). No cast is needed and `thinkingBudget` is reliably honoured at
 runtime. Budgets are set strategically per call type:
 
-| Call site                                                 | `thinkingBudget` | Rationale                                                                                                                                            |
-| --------------------------------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `createFlashModel` (encyclopedic, lookalikes, group tags) | `0`              | Deterministic schema-constrained JSON lookups — no visual ambiguity, thinking tokens add latency with no accuracy benefit                            |
-| `identify` Flash vision (`gemini-2.5-flash`)              | `2,048`          | Raised from 1,024 after production data showed complex/invasive species hitting 99% utilisation; 2,048 covers observed worst-case with headroom      |
-| `identify` Pro vision (`gemini-2.5-pro`)                  | `5,000`          | Covers the hardest observed cases (fossil discrimination, rare cultivars, look-alike subspecies) where extended reasoning directly improves accuracy |
+| Call site                                                  | `thinkingBudget` | Rationale                                                                                                                                            |
+| ---------------------------------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ai/contentRegistry.ts` (overview, lookalikes, group tags) | `0`              | Preserves the existing content-generation profile; changing budgets or quality policy requires separate qualification.                               |
+| `identify` Flash vision (`gemini-2.5-flash`)               | `2,048`          | Raised from 1,024 after production data showed complex/invasive species hitting 99% utilisation; 2,048 covers observed worst-case with headroom      |
+| `identify` Pro vision (`gemini-2.5-pro`)                   | `5,000`          | Covers the hardest observed cases (fossil discrimination, rare cultivars, look-alike subspecies) where extended reasoning directly improves accuracy |
 
 The `@google/genai@2.23.0` SDK exposes `thoughtsTokenCount` in `UsageMetadata`,
 making thinking token consumption observable in Edge Function logs. The

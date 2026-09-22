@@ -6,7 +6,7 @@ struct ExploreCommentReactionsView: View {
     let onToggleReaction: (ExploreComment, String, Bool) -> Void
     var onLoadMore: () -> Void = {}
     @State private var revealEmoji: String?
-    @ScaledMetric(relativeTo: .subheadline) private var chipHeight: CGFloat = 28
+    @ScaledMetric(relativeTo: .title3) private var iconSize: CGFloat = 20
 
     var body: some View {
         HStack(spacing: 6) {
@@ -19,11 +19,8 @@ struct ExploreCommentReactionsView: View {
                     Image(systemName: "plus")
                         .font(.caption.weight(.bold))
                 }
-                .font(.subheadline)
+                .font(.system(size: iconSize))
                 .padding(.horizontal, 6)
-                .frame(minHeight: chipHeight)
-                .background(Color(uiColor: .tertiarySystemFill), in: Capsule())
-                .overlay(Capsule().strokeBorder(Color.primary.opacity(0.06), lineWidth: 1))
                 .foregroundStyle(.secondary)
                 .frame(minWidth: 44, minHeight: 44)
                 .contentShape(Rectangle())

@@ -83,15 +83,13 @@ extension FieldTripChallengeDetailViewModel.Dependencies {
 
 extension ActiveFieldTripsProfileViewModel.Dependencies {
     static func live(
-        earnedPatchesDidChange: @escaping ([EarnedFieldTripPatch]) -> Void,
-        loadingDidChange: @escaping (Bool) -> Void
+        earnedPatchesDidChange: @escaping ([EarnedFieldTripPatch]) -> Void
     ) -> Self {
         Self(
             loadTemplates: {
                 try await MerianNetworkClient.shared.getFieldTrips(limit: $0)
             },
-            earnedPatchesDidChange: earnedPatchesDidChange,
-            loadingDidChange: loadingDidChange
+            earnedPatchesDidChange: earnedPatchesDidChange
         )
     }
 }

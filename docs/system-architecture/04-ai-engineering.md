@@ -7,6 +7,25 @@ Deno Edge Functions to protect provider keys and enforce structured output.
 project: production requires only `GEMINI_PAID_API_KEY` from the approved
 billing-enabled project, with no unpaid-key fallback.
 
+The backend provider boundary now begins at
+[`_shared/ai/`](../../services/supabase/functions/_shared/ai/README.md). The
+primary `identify-multimodal` and compatibility `identify-describe`, `identify`,
+and `audio-spec` routes use a fixed Gemini registry to capture the
+database-admitted model and their distinct generation profiles, then a
+single-invocation executor calls the Gemini adapter. Primary evidence preserves
+text, image/snapshot order, included WAV audio, and source lineage; playback
+video stays with persistence. The handlers retain consent, quota, validation,
+and durable-result ownership. Image compatibility retains explicit safety
+settings and its separate model/tier configuration; legacy audio retains its own
+prompt, 2048-token budgets, and `scan_audio_identification` operation.
+Biological overview, lookalike, and group-tag tasks use the same boundary
+through `enrich-scan`, `groupTagQuota.ts`, and `refresh-species-model-content`.
+User calls carry admitted reservations; public jobs carry claimed task/attempt
+bounds and use Flash without a user quota reservation. See the
+[implementation tracker](../rfcs/identification-foundation-srd.md#implementation-slices).
+This introduces no alternate live provider, new confidence interpretation,
+automatic failover, or native-video inference.
+
 ## Inference Layer Structure
 
 The iOS inference layer is split across focused owners under
@@ -612,17 +631,14 @@ instruction, tests, and this documentation together.
   processed objects made from biological material to non-biological results
   before `isIdentifiedBio`, dictionary lookup/upsert, candidate enrichment, or
   novelty evaluation can run.
-- **`../_shared/` Micro-Agents**: Auxiliary generation tools like
-  `fetchExternalEnrichment` (Wikipedia/GBIF REST API polling in `external.ts`),
-  `fetchGroupTags` (Flash AI), and `fetchStaticEncyclopedicData` are aggregated
-  directly inside the generic `biology.ts` taxonomic node, making them globally
-  accessible to both the `identify` and `enrich-scan` edge environments.
-  `fetchSimilarSpecies` in `biology.ts` enforces **same taxonomic order as Rule
-  1** in its system instruction — lookalikes must share the primary species'
-  order, must exhibit genuine field visual similarity, and padding the array
-  with unrelated species is explicitly forbidden. Before prompting, `biology.ts`
-  normalizes placeholder taxonomy strings like `"Unknown"` / blank values to
-  `null` so the model is never grounded on fake taxonomy. `external.ts` now
+- **`../_shared/` content helpers**: `external.ts` owns Wikipedia/GBIF REST
+  enrichment. `biology.ts` owns biological overview, lookalike, and group-tag
+  result normalization and existing usage/analytics. Each generation helper
+  receives a prepared execution from `ai/`; `ai/geminiContent.ts` owns the
+  preserved native prompts and schemas. Its lookalike instruction requires the
+  same taxonomic order or family and genuine field visual similarity, with no
+  unrelated padding. That projection normalizes placeholder taxonomy such as
+  `"Unknown"` or blanks to `null` before prompting. `external.ts` additionally
   additionally fetches GBIF vernacular names
   (`GET /v1/species/{key}/vernacularNames?language=eng&limit=30`) in parallel
   with occurrence imagery, returning `alternativeCommonNames: string[]` — these
@@ -639,11 +655,14 @@ owns required fields, scoped payloads, quota attribution, and legacy fallback
 behavior.
 
 - **`index.ts`**: Validates the requested scope, checks its cache path, and
-  reserves quota before provider work. Separate in-flight maps coalesce
-  same-species requests within each scope. `formatEnrichmentOnlyPayload` and
-  `formatLookalikesOnlyPayload` return only that scope's fields; concurrency
-  between scopes comes from separate native requests, not a combined handler
-  `Promise.all`.
+  reserves quota before provider work. It prepares the matching task with the
+  admitted model and reservation before committing and invoking. Separate
+  in-flight maps coalesce same-species requests within each scope.
+  `formatEnrichmentOnlyPayload` and `formatLookalikesOnlyPayload` return only
+  that scope's fields; concurrency between scopes comes from separate native
+  requests, not a combined handler `Promise.all`. Cache writes complete before
+  releasing waiters. In-flight failures are observed even without waiters;
+  waiting requests retain the existing retry path through fresh admission.
 - **`types.ts`**: Strict TypeScript interfaces tracking the shape of
   `CachedSpeciesData` returned from Postgres. Removing these inline types from
   the orchestrator eliminates dangerous semantic type-casting across
@@ -1076,11 +1095,15 @@ provider dispatch:
     `species_enrichment_jobs`, falls back to `species_content_provenance`, and
     refreshes GBIF/Wikipedia-backed public fields. The paired
     `refresh-species-model-content` worker handles queued habitat, lookalikes,
-    and group tags. Its lookalike path distinguishes retryable provider or
-    identity failures from verified empty outcomes, validates candidates through
-    GBIF, and uses a bounded database transaction that preserves reviewed
-    relations and curated provenance. IUCN status, hazard type, and common-name
-    overrides remain curation-owned.
+    and group tags through the shared Gemini adapter. Its prepared service
+    authority binds the public-fact task, claimed job, positive attempt within
+    the claim's maximum, and fixed Flash model. Preview exits before
+    preparation; the worker retains its batch/concurrency limits and records
+    usage without a user owner or scan-credit charge. Its lookalike path
+    distinguishes retryable provider or identity failures from verified empty
+    outcomes, validates candidates through GBIF, and uses a bounded database
+    transaction that preserves reviewed relations and curated provenance. IUCN
+    status, hazard type, and common-name overrides remain curation-owned.
 - **Flat Object Schema (Non-Biological Bounds)**: `merianModelContract` in
   `services/supabase/functions/_shared/identify/contract.ts` generates a single
   flat `OBJECT` provider schema — not a top-level `anyOf` with discriminated
@@ -1240,6 +1263,28 @@ provider dispatch:
   `llm_cached_tokens` (from `usageMetadata.cachedContentTokenCount`) to track
   implicit cache hit volume — a non-zero value means Google served those prefix
   tokens from cache at the 75% discount rate.
+- **Provider execution metadata**: The `identify-describe` and `identify`
+  `ScanCompleted` events and `audio-spec` `AudioScanCompleted` event add
+  optional `ai_provider`, `ai_binding`, `ai_prompt`, `ai_schema`,
+  `ai_policy_version`, `ai_context_kind`, `ai_returned_model`, and
+  `ai_provider_duration_ms`. Duration measures the native provider invocation,
+  excluding response normalization. The primary route adds the same bounded
+  execution references to its successful `multimodal/latency` event and retains
+  its existing separate commit/provider timing spans. The shared adapter returns
+  these bounded facts; missing returned-model metadata remains null. They
+  contain no observation input or response body. Optional completion events use
+  the existing consent-gated telemetry path; primary latency remains an
+  operational log. Biological content helpers add these references plus
+  `ai_task` and `ai_outcome` to their existing optional helper events and
+  `ai_usage_events.metadata`; public-job `ai_policy_version` is null. Added
+  fields exclude user/job/attempt identifiers and species or evidence content.
+  Existing usage writes and cached/tool/modality token accounting keep their
+  owners; group tags still write once from the helper. Internal execution
+  metadata is excluded from public enrichment responses. Deferred callers and
+  historical events may lack these fields. Scan-row token fields, usage-ledger
+  operation names, and public Identify payloads are unchanged; these optional
+  events do not establish complete billing or durable attempt configuration
+  history.
 - **Field Chat (`insight-chat` + `explore-post-chat` +
   `species-dictionary-chat`)**: Pro follow-up chat uses `gemini-2.5-flash` from
   authenticated Edge Functions and appears as an Insight, private per-viewer
@@ -1623,25 +1668,23 @@ provider dispatch:
   `GEMINI_PAID_API_KEY` fails before dispatch. Identification, audio moderation,
   biological enrichment, and all three Field Chat routes use this owner. Calls
   retain the 90-second HTTP timeout and single-attempt transport; the durable
-  quota/replay layer owns retries. The Interactions API is not used.
-  `createFlashModel(systemInstruction, maxOutputTokens)` is a shared factory for
-  all Flash-only background calls (encyclopedic data, group tags, diagnostic
-  comparison, enrichment); it returns the **native `@google/genai`
-  `GenerateContentResponse`** directly — callers access `result.text` and
-  `result.usageMetadata` without any `.response` wrapper. The old compatibility
-  shim that normalised to `{ response: { text: () => string, usageMetadata } }`
-  has been removed now that all callers (`biology.ts`) are updated to the native
-  SDK shape. Generation config is passed as `config:` (not `generationConfig:`).
-  `extractJson<unknown>(text)` centralises the `indexOf`/`lastIndexOf`
-  syntax-extraction pattern that Gemini occasionally requires even with
-  `responseMimeType: "application/json"`. It does not establish a type.
-  `_shared/identify/contract.ts` performs the model and final wire runtime
-  validation.
-- **Vision Model Safety Settings**: Both `modelConfigs.flash` and
-  `modelConfigs.pro` in `identify/index.ts` include a shared
-  `BIOLOGICAL_SAFETY_SETTINGS` array that relaxes two harm categories to
-  `BLOCK_ONLY_HIGH`: `HARM_CATEGORY_DANGEROUS_CONTENT` (venomous animals, dead
-  specimens, parasites, wounds trigger false positives at the default
+  quota/replay layer owns retries. The Interactions API is not used. Scoped
+  identification and biological content use `_shared/ai/gemini.ts` for native
+  request projection and SDK response decoding. The unused `createFlashModel`
+  factory was removed after the content extraction. Content retains temperature
+  `0.1`, thinking budget `0`, task output limits of 1500/300/100, and no seed,
+  `topK`, or explicit safety override. Its legacy text/JSON parsing accepts
+  usable JSON on a non-STOP finish and adds no first-part fallback. Generation
+  config uses native SDK `config:`. `extractJson<unknown>(text)` centralises the
+  `indexOf`/`lastIndexOf` syntax-extraction pattern that Gemini occasionally
+  requires even with `responseMimeType: "application/json"`. It does not
+  establish a type. `_shared/identify/contract.ts` performs the model and final
+  wire runtime validation.
+- **Vision Model Safety Settings**: The legacy `identify` profile in
+  `_shared/ai/gemini.ts` applies `BIOLOGICAL_SAFETY_SETTINGS` for both admitted
+  models, relaxing two harm categories to `BLOCK_ONLY_HIGH`:
+  `HARM_CATEGORY_DANGEROUS_CONTENT` (venomous animals, dead specimens,
+  parasites, wounds trigger false positives at the default
   `BLOCK_MEDIUM_AND_ABOVE`) and `HARM_CATEGORY_SEXUALLY_EXPLICIT` (mating
   behaviour, reproductive organs, fruiting bodies). `HARM_CATEGORY_HARASSMENT`
   and `HARM_CATEGORY_HATE_SPEECH` remain at defaults — they are not relevant to
@@ -2174,6 +2217,14 @@ remains high while the `gemini` timing dominates, that model duration is the
 documented latency floor.
 
 ### Production Rollout Gate
+
+The Gemini-preserving provider refactor has a separate
+[local verification record](../rfcs/identification-foundation-verification.md)
+and reproducible network-denied adapter benchmark. Its synthetic local timings
+do not replace these product-level measurements, exact candidate validation, or
+hosted/device acceptance. Future task assignments follow the
+[provider onboarding procedure](../../services/supabase/functions/_shared/ai/ADDING_PROVIDERS.md).
+No alternate provider or percentage-routing control is enabled by the refactor.
 
 Deploy timing instrumentation first, then the client critical-path changes, then
 the Edge/RPC migration. Edge changes advance through 10%, 50%, and 100% only

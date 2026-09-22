@@ -14,6 +14,24 @@ retryable canonical ledger. Concurrent same-UUID delivery coalesces with the
 winner and never makes a second Gemini call. Successful completion persists the
 validated response through the user-first entitlement completion orchestrator.
 
+## Provider boundary
+
+`provider.ts` prepares the existing description/context text for
+[`_shared/ai/`](../_shared/ai/README.md). The fixed production registry captures
+the quota-selected Gemini model, prompt/schema references, and existing
+Flash/Pro generation settings once per admitted attempt. Local configuration
+validation happens before quota commitment; the handler commits immediately
+before the one permitted invocation. SDK response/usage decoding belongs to the
+adapter; the handler retains domain validation, quota settlement, and
+persistence.
+
+`createDescribeHandler` supplies the internal test seam. The HTTP entrypoint
+always uses the production composition; no client or environment value can
+select a test or alternate provider. `provider.test.ts` exercises the actual
+handler with a network-free adapter and database doubles, including completion
+replay and ambiguous persistence. The schema, prompts, public payloads, and
+recovery handoff to `identify-multimodal` remain unchanged.
+
 ## Complimentary Entitlement
 
 After cutover, public requests require `X-Merian-Entitlement-Protocol: 3` or

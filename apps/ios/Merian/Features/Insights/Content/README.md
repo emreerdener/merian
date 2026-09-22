@@ -37,6 +37,11 @@ Mirrored tests under `MerianTests/Features/Insights/Content` enforce the
 directory boundary, Services-only live resolution, view networking ban,
 platform-neutral Models, legacy-owner removal, and the line ceiling.
 
+Species Dictionary Search also reuses `DidYouKnowCard` below its welcome
+prompts. Content retains ownership of the card and persisted fact deck; Search
+Services supplies the existing manager and selection feedback through its own
+dependency value.
+
 ## Similar Species
 
 `BiologicalView` renders the shared `SimilarSpeciesGallery` at card entrance

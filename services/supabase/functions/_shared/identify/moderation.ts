@@ -1,5 +1,3 @@
-import { SafetyRating } from "@google/genai";
-
 import {
   copyR2Object,
   deleteR2Object,
@@ -163,29 +161,32 @@ export async function promoteSafeMedia(
   }
 }
 
+export function isProviderSafetyRejected(
+  finishReason: string | undefined,
+  safetyRatings: readonly { readonly probability?: string }[] | undefined,
+): boolean {
+  return finishReason === "SAFETY" ||
+    (Array.isArray(safetyRatings) &&
+      safetyRatings.some((rating) =>
+        rating.probability === "MEDIUM" || rating.probability === "HIGH"
+      ));
+}
+
 export async function evaluateAndProcessPayload(
   userId: string,
   r2ObjectKeys: string[] | undefined,
   imageBase64s: string[] | undefined,
   geminiFinishReason: string | undefined,
-  safetyRatings: SafetyRating[] | undefined,
+  safetyRatings: readonly { readonly probability?: string }[] | undefined,
   userTier: string,
   additionalStagedKeysToDeleteOnUnsafe: string[] = [],
 ): Promise<{ status: string; publicUrls?: string[] }> {
   try {
     // 1. Evaluate Gemini safety ratings
-    let isUnsafe = false;
-
-    if (geminiFinishReason === "SAFETY") {
-      isUnsafe = true;
-    } else if (safetyRatings && Array.isArray(safetyRatings)) {
-      for (const rating of safetyRatings) {
-        if (rating.probability === "MEDIUM" || rating.probability === "HIGH") {
-          isUnsafe = true;
-          break;
-        }
-      }
-    }
+    const isUnsafe = isProviderSafetyRejected(
+      geminiFinishReason,
+      safetyRatings,
+    );
 
     const r2Config = getR2Config();
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;

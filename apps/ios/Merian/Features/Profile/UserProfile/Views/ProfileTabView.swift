@@ -20,7 +20,6 @@ struct ProfileTabView: View {
     @State private var selectedFieldTripPublicationRoute: FieldTripPublicationRoute?
     @State private var activePresentation: ProfileTabPresentation?
     @State private var earnedFieldTripPatches: [EarnedFieldTripPatch] = []
-    @State private var isLoadingEarnedFieldTripPatches = FeatureFlags.isEnabled(.fieldTrips)
 
     init(
         showPaywall: Binding<Bool>,
@@ -55,7 +54,6 @@ struct ProfileTabView: View {
                             fieldTripsEnabled: fieldTripsEnabled
                         ),
                         earnedFieldTripPatches: earnedFieldTripPatches,
-                        isLoadingEarnedFieldTripPatches: isLoadingEarnedFieldTripPatches,
                         onOpenFieldTrip: { templateId in
                             selectedFieldTripTemplateRoute = FieldTripTemplateRoute(
                                 templateId: templateId
@@ -82,9 +80,6 @@ struct ProfileTabView: View {
                         },
                         onEarnedPatchesChange: { patches in
                             earnedFieldTripPatches = patches
-                        },
-                        onEarnedPatchesLoadingChange: { isLoading in
-                            isLoadingEarnedFieldTripPatches = isLoading
                         }
                     )
                 }

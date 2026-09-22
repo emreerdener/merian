@@ -477,8 +477,11 @@ geometry, the pure `CaptureMode` value, and the platform-neutral haptic
 vocabulary shared by Shell, Scan, Record, and Describe live in
 `Capture/Shared/Models`; the composing-center SwiftUI environment contract lives
 in `Capture/Shared/Utilities` because Shell supplies it and Record consumes it.
-The immutable `SendableCGImage` wrapper lives in `Core/Media` because Capture
-and Insights both use it across concurrency boundaries.
+`Capture/Shared/Components/CaptureAuxiliaryControlModifier.swift` supplies the
+shared circular glass and material-fallback appearance for Shell's secondary
+controls and Scan's photo-library button. The immutable `SendableCGImage`
+wrapper lives in `Core/Media` because Capture and Insights both use it across
+concurrency boundaries.
 
 The reanalysis description seam spans those existing owners: Staging owns the
 refinement-only supplementary marker and evidence-capacity policy; Shell owns
@@ -1650,6 +1653,16 @@ direct endpoint, Supabase, app-container, loader, or actor lookup. Every
 production Shell file remains below 600 lines.
 
 ## Supabase Edge Function Inventory
+
+Identification and supporting biological content use
+[`_shared/ai/`](../services/supabase/functions/_shared/ai/README.md):
+SDK-independent task/authority/outcome contracts, admitted Gemini bindings,
+single-invocation execution, and native Gemini projections. HTTP and job owners
+retain admission, quota, validation, caches, and persistence. The
+[verification record](./rfcs/identification-foundation-verification.md) maps the
+scoped/deferred dispatch inventory, tests, local benchmark, and remaining
+release gates. Future assignments follow the
+[provider onboarding procedure](../services/supabase/functions/_shared/ai/ADDING_PROVIDERS.md).
 
 Inference and media staging:
 

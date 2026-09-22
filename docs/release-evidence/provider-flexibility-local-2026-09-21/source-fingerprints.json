@@ -1,0 +1,140 @@
+{
+  "format": "ai-boundary-local-fingerprints-v1",
+  "baseline_commit": "bb3d4ce1484b159312276fb60d95d3acd0a53f49",
+  "source_state": "uncommitted working tree; not immutable candidate-CI evidence",
+  "scope": "benchmark transitive local runtime imports, common contract, dependency config and lockfile, plus the graph discovery helper; not the entire repository",
+  "deno": "2.9.4",
+  "external_specifiers": [
+    "@google/genai",
+    "@std/assert",
+    "@supabase/supabase-js"
+  ],
+  "files": [
+    {
+      "path": "services/supabase/functions/_shared/ai/contentRegistry.ts",
+      "sha256": "a2f94e651336c8cd4e4a5133c848d5378d3d7aafcb240ca62c34353059f4549b"
+    },
+    {
+      "path": "services/supabase/functions/_shared/ai/contracts.ts",
+      "sha256": "0bb4764054b2f1fe339d92214d6254a5420765cc0dc90db8e9e94bed0a6dca95"
+    },
+    {
+      "path": "services/supabase/functions/_shared/ai/execution.ts",
+      "sha256": "5f61e70633b5d0869203911c3df9b79d5b7e623fa0b2b69bd303c2201dc90195"
+    },
+    {
+      "path": "services/supabase/functions/_shared/ai/gemini.ts",
+      "sha256": "6422aa00083cf13d4668e13136448339ed8bf602690bd7495dd45e7fa8799c15"
+    },
+    {
+      "path": "services/supabase/functions/_shared/ai/geminiContent.ts",
+      "sha256": "2a0aeda771e36631618281091f5e5015307117bebd4021807475db0d4fd93246"
+    },
+    {
+      "path": "services/supabase/functions/_shared/ai/production.ts",
+      "sha256": "a6abb3996b546877bf955b56d701cfb67776996b3a57517a158ebe2fba2d846f"
+    },
+    {
+      "path": "services/supabase/functions/_shared/ai/registry.ts",
+      "sha256": "d470af3e7ebea8a23676a8e08773f293a0b270a33a3a0fe7c3e325cfc0b3d045"
+    },
+    {
+      "path": "services/supabase/functions/_shared/aiUsage.ts",
+      "sha256": "f76d2ee7b79277102d1d9e6730826bd6b8a7f00368f478508990c70eb3767d4d"
+    },
+    {
+      "path": "services/supabase/functions/_shared/auth.ts",
+      "sha256": "3ca912abd3a5b1a152e0e0fb1fae0553815cfb38faea948075638b25ebf56524"
+    },
+    {
+      "path": "services/supabase/functions/_shared/edgeHandler.ts",
+      "sha256": "6d3bb449a2d0f7aa77734488b9c71fc35379f721130412cde076906570105a39"
+    },
+    {
+      "path": "services/supabase/functions/_shared/gemini.ts",
+      "sha256": "3ad152eac0ee77758555fbead6b18cc97ac895ae00cfd0a8e3025d26bdc65dbd"
+    },
+    {
+      "path": "services/supabase/functions/_shared/http.ts",
+      "sha256": "033f7c053e7f5af764af5f46df0bbfea1d9003e25285e9d16c579b54455163f5"
+    },
+    {
+      "path": "services/supabase/functions/_shared/identify/audioSubjectPolicy.ts",
+      "sha256": "bdf1cdcddfb7579e63ebdec48649dbb186ccaa312a3e915303cd98dc8fccd556"
+    },
+    {
+      "path": "services/supabase/functions/_shared/identify/contract.ts",
+      "sha256": "13c33719b52637819156d5124e5e920d01ef46e271db72fd93462fae171667f4"
+    },
+    {
+      "path": "services/supabase/functions/_shared/identify/googleSchema.ts",
+      "sha256": "0c3ccb02172cd8a224387fc1eaa1e8386019cb9fdea950a122bf887b4928450b"
+    },
+    {
+      "path": "services/supabase/functions/_shared/identify/schema.ts",
+      "sha256": "9a0f05df0590fa29b78eb099644b732ac8f5bb06863016b2c628d0509d7c237d"
+    },
+    {
+      "path": "services/supabase/functions/_shared/identify/thresholds.ts",
+      "sha256": "658cb9b056e3ad3f3cf618ac18ee6e792d8a2267d35bea7f59167bcc87ad443b"
+    },
+    {
+      "path": "services/supabase/functions/_shared/outbound.ts",
+      "sha256": "1b42cd13285279e09f0e982253a78c730c14325df6b1cb5f0cf811a7f7b6d587"
+    },
+    {
+      "path": "services/supabase/functions/_shared/publishableKey.ts",
+      "sha256": "0bb662ee653aa246dd673a688417668fb2d58009383ee6130e29a2bf7db8bcc4"
+    },
+    {
+      "path": "services/supabase/functions/_shared/serviceRoleAuth.ts",
+      "sha256": "18d3443ec5e09470be7a16c9dd0f761c894be3c548f116acda44cb930eda3dcb"
+    },
+    {
+      "path": "services/supabase/functions/_shared/serviceRoleClient.ts",
+      "sha256": "7c902ab75359ddd04e634c23f88ea8817678a65b4e8417062d5182e636deb5b0"
+    },
+    {
+      "path": "services/supabase/functions/_shared/taxonomy.ts",
+      "sha256": "7306f67cee982fb007a417ddc2c6ef38c30f9d2d3fd288d3ff39ada9423b59f6"
+    },
+    {
+      "path": "services/supabase/functions/audio-spec/instructions.ts",
+      "sha256": "bbb948b19bdbf0aa48c9f938a69b06f842697293551ff30f3d083fbae07cc9fc"
+    },
+    {
+      "path": "services/supabase/functions/deno.json",
+      "sha256": "099341b8424ea3dee7b8fbf3903c3c242d00ae90cdf103dda95504f2da403ed2"
+    },
+    {
+      "path": "services/supabase/functions/dependencies.lock",
+      "sha256": "5b0dffe087068137bc517669e283e01dabf508c7e67054744a126506b1ce1d91"
+    },
+    {
+      "path": "services/supabase/functions/identify-describe/schema.ts",
+      "sha256": "5bcc551eda43586a49654d03fd210a0aeba4ccd6afcc4d452f06054f543017bb"
+    },
+    {
+      "path": "services/supabase/functions/identify-multimodal/instructions.ts",
+      "sha256": "752d0bf97042b57f361d4c34c4e28ba55f66e7765aa4a7db0558285f4090b772"
+    },
+    {
+      "path": "services/supabase/scripts/benchmark_ai_boundary.ts",
+      "sha256": "308d11f2ef25e900134035ff8bd9b39361e6abeeda26497f069092ad88adbe5a"
+    },
+    {
+      "path": "services/supabase/scripts/function_dependency_tools.ts",
+      "sha256": "3593bf529aa7e1668c28fa2370321eb5a16c0c476af5acb54bf367482729f82a"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "docs/release-evidence/provider-flexibility-local-2026-09-21/benchmark-1.json",
+      "sha256": "dcc284a0b860f508ba00c10e003872237b56b21bd9c12ff2041871111b178c8e"
+    },
+    {
+      "path": "docs/release-evidence/provider-flexibility-local-2026-09-21/benchmark-2.json",
+      "sha256": "5ca5696fcc99916f2cd1e119a86086f1c8e0995c225a6cc491a505ccb983a7c7"
+    }
+  ]
+}

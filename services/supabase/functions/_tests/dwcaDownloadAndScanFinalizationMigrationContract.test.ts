@@ -412,11 +412,18 @@ Deno.test("media finalization is one transaction and marks the ledger complete l
     compatibilityIngestion.includes('mark("complete"'),
     false,
   );
-  for (const compatibilityRoute of [identify, identifyDescribe, audioSpec]) {
+  for (
+    const [compatibilityRoute, dispatch] of [
+      [identify, "execution.invoke("],
+      [identifyDescribe, "execution.invoke("],
+      [audioSpec, "execution.invoke("],
+    ] as const
+  ) {
+    const ledger = compatibilityRoute.indexOf(
+      "createCompatibilityScanIngestionLedger(",
+    );
     assertEquals(
-      compatibilityRoute.indexOf(
-        "createCompatibilityScanIngestionLedger(",
-      ) < compatibilityRoute.lastIndexOf("_genAI.models.generateContent("),
+      ledger >= 0 && ledger < compatibilityRoute.lastIndexOf(dispatch),
       true,
       "Compatibility generation ownership must be durable before provider work.",
     );

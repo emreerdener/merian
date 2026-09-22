@@ -26,7 +26,7 @@ struct SpeciesSearchEntry: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .font(.body)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(.primary)
         .padding(.horizontal, 16)
         .frame(minHeight: 50)
         .contentShape(Capsule())

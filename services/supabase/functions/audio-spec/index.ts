@@ -1,4 +1,7 @@
-import { geminiUsageModalityBreakdown } from "../_shared/aiUsage.ts";
+import type { SupabaseClient, User } from "@supabase/supabase-js";
+import type { AIExecutionOutcome } from "../_shared/ai/contracts.ts";
+import { prepareAIExecution } from "../_shared/ai/production.ts";
+import { buildAudioAIRequest } from "./provider.ts";
 
 import {
   jsonResponse,
@@ -6,7 +9,6 @@ import {
   runBackground,
   withEdgeHandler,
 } from "../_shared/edgeHandler.ts";
-import { _genAI, extractJson } from "../_shared/gemini.ts";
 import {
   entitlementProtocolResponse,
   tierTelemetryProperties,
@@ -34,7 +36,6 @@ import { resolveAudioBuffers } from "../_shared/identify/media.ts";
 import { promoteSafeMedia } from "../_shared/identify/moderation.ts";
 import { mergeSpeciesCommonNames } from "../_shared/identify/db.ts";
 import {
-  buildContextText,
   normalizeCurrentMonth,
   sanitizeObservationConfidence,
   sanitizeObservationEvidence,
@@ -50,9 +51,7 @@ import {
   parseIdentifySuccessEnvelope,
   parseMerianAudioIdentification,
 } from "../_shared/identify/contract.ts";
-import { getMerianAudioResponseSchema } from "../_shared/identify/schema.ts";
 import {
-  AUDIO_ONLY_SUBJECT_SELECTION_INSTRUCTION,
   normalizeAudioOnlySubject,
 } from "../_shared/identify/audioSubjectPolicy.ts";
 import {
@@ -78,31 +77,14 @@ import {
   upsertSpeciesDictionary,
 } from "./db.ts";
 // Gemini confidence threshold below which candidates are forwarded to the iOS client.
-const DIAGNOSTIC_TRIGGER = 0.95;
+import { DIAGNOSTIC_TRIGGER } from "./instructions.ts";
 
-const BIOACOUSTIC_SYSTEM_INSTRUCTION = `# Role
-You are a world-class bioacoustic field biologist with expertise in identifying species from their acoustic signatures across all taxa: birds, insects, frogs, mammals, and other wildlife.
-
-# Task
-Listen to the provided audio recording and identify the primary biological sound source, if any.
-
-${AUDIO_ONLY_SUBJECT_SELECTION_INSTRUCTION}
-
-# Response Detail Rules
-- scientific_name: formal binomial nomenclature (Genus species) for an identified non-human animal or the canonical Homo sapiens value required above. Omit when wildlife is unresolved or the result is non-biological.
-- confidence_score: 0.0–1.0. Use below 0.70 when the recording is ambiguous, noisy, or the call is partially obscured.
-- ai_reasoning: concise acoustic diagnosis citing observable call characteristics (frequency, tempo, pattern, note duration, harmonic structure). Be specific.
-- ecology_type: "wild" for natural habitat, "urban" for urban/suburban, "domesticated" for pets or livestock.
-- is_invasive, invasive_status_region, invasive_rationale, invasive_confidence: produce one location-aware invasive assessment from the supplied GPS/coarse location, species identity, and ecological context. invasive_status_region is the region label used, not the status. If location context is missing, return is_invasive=false, invasive_status_region="Unavailable", explain the limitation in invasive_rationale, and use low or null invasive_confidence. Omit these fields for non-biological sounds.
-- sex: use female, male, mixed, hermaphrodite, cannot_determine, or not_applicable. Only report female/male/mixed when the recording contains explicit species-specific acoustic evidence that distinguishes sex; otherwise use cannot_determine. Never infer or report human sex/gender.
-- sex_confidence: 0.0–1.0 confidence in the sex annotation from direct acoustic evidence only. Omit when sex is cannot_determine or not_applicable.
-- sex_evidence: short acoustic cue supporting sex, such as sex-specific song, call type, or duet role. Omit when unsupported.
-- candidates: up to 3 alternative species when confidence is below ${DIAGNOSTIC_TRIGGER}. Only species with genuinely similar acoustic signatures.
-- Use authoritative nomenclature (Clements Checklist v2024 for birds, GBIF Backbone Taxonomy for all other taxa).
-- Never fabricate scientific names.`;
-
-Deno.serve((req: Request) =>
-  withEdgeHandler(req, async (user, supabaseAdmin) => {
+export function createAudioHandler(prepare = prepareAIExecution) {
+  return async (
+    req: Request,
+    user: User,
+    supabaseAdmin: SupabaseClient,
+  ): Promise<Response> => {
     const protocolError = await entitlementProtocolResponse(
       req,
       supabaseAdmin,
@@ -368,11 +350,25 @@ Deno.serve((req: Request) =>
       throw error;
     }
 
-    // 5. Call Gemini with audio inline data
+    const aiRequest = buildAudioAIRequest(base64Audio, {
+      safeGpsLat,
+      safeGpsLon,
+      gpsElevation: gps_elevation,
+      semanticLocation: semantic_location,
+      weatherCondition: weather_condition,
+      weatherTemperatureF: weather_temperature_f,
+      deviceLocale: device_locale,
+      deviceTimeZone: device_time_zone,
+      deviceRegion: device_region,
+      currentMonth: normalizedCurrentMonth,
+      timeOfDay: time_of_day,
+    });
+
+    // 5. Invoke the admitted Gemini audio profile
     console.log(`[⏱ BENCH] pre_gemini: ${Date.now() - fnStart}ms`);
     const geminiStart = Date.now();
 
-    let responseText = "";
+    let result: AIExecutionOutcome;
     let llmPromptTokens: number | null = null;
     let llmCandidateTokens: number | null = null;
     let llmThinkingTokens: number | null = null;
@@ -382,69 +378,30 @@ Deno.serve((req: Request) =>
     let providerAttempted = false;
 
     try {
+      const execution = prepare(aiRequest, {
+        kind: "user_request",
+        userId: user.id,
+        permission: "google_gemini",
+        operation: "scan_audio_identification",
+        reservation: quotaLease.reservation,
+      });
       await quotaLease.commit();
       providerAttempted = true;
-      const result = await _genAI.models.generateContent({
-        model: quotaLease.reservation.model,
-        contents: [
-          {
-            role: "user",
-            parts: [
-              {
-                text: buildContextText(
-                  {
-                    safeGpsLat,
-                    safeGpsLon,
-                    gpsElevation: gps_elevation,
-                    semanticLocation: semantic_location,
-                    weatherCondition: weather_condition,
-                    weatherTemperatureF: weather_temperature_f,
-                    deviceLocale: device_locale,
-                    deviceTimeZone: device_time_zone,
-                    deviceRegion: device_region,
-                    currentMonth: normalizedCurrentMonth,
-                    timeOfDay: time_of_day,
-                  },
-                  "Perform bioacoustic identification.",
-                ),
-              },
-              { inlineData: { mimeType: "audio/wav", data: base64Audio } },
-            ],
-          },
-        ],
-        config: {
-          systemInstruction: BIOACOUSTIC_SYSTEM_INSTRUCTION,
-          temperature: 0.1,
-          seed: 42,
-          maxOutputTokens: 2048,
-          thinkingConfig: { thinkingBudget: 2048 },
-          responseMimeType: "application/json",
-          responseSchema: getMerianAudioResponseSchema(),
-        },
-      });
-
-      finishReason = result.candidates?.[0]?.finishReason;
-      responseText = result.text ?? "";
-
-      // Retain the legacy first-part fallback when the SDK text getter is empty.
-      if (!responseText) {
-        const firstPart = result.candidates?.[0]?.content?.parts?.[0];
-        if (
-          firstPart && "text" in firstPart && typeof firstPart.text === "string"
-        ) {
-          responseText = firstPart.text;
-        }
-      }
-
-      const usage = result.usageMetadata;
+      result = await execution.invoke();
+      if (
+        result.kind === "operational_failure" ||
+        result.kind === "unknown_execution"
+      ) throw new Error(`ai_${result.kind}`);
+      finishReason = result.finishReason ?? undefined;
+      const usage = result.usage;
       if (usage) {
-        llmUsageMetadata = geminiUsageModalityBreakdown(usage);
-        llmPromptTokens = usage.promptTokenCount ?? null;
-        llmCandidateTokens = usage.candidatesTokenCount ?? null;
-        llmThinkingTokens = usage.thoughtsTokenCount ?? null;
-        llmTotalTokens = usage.totalTokenCount ?? null;
+        llmUsageMetadata = usage.modalityBreakdown;
+        llmPromptTokens = usage.promptTokens;
+        llmCandidateTokens = usage.candidateTokens;
+        llmThinkingTokens = usage.thinkingTokens;
+        llmTotalTokens = usage.totalTokens;
         console.log(
-          `Token Usage [audio-spec | ${user.id}]: Prompt: ${llmPromptTokens} | Candidates: ${llmCandidateTokens} | Thinking: ${llmThinkingTokens} | Total: ${llmTotalTokens}`,
+          `Token Usage [audio-spec]: Prompt: ${llmPromptTokens} | Candidates: ${llmCandidateTokens} | Thinking: ${llmThinkingTokens} | Total: ${llmTotalTokens}`,
         );
       }
       console.log(
@@ -475,11 +432,10 @@ Deno.serve((req: Request) =>
     }
 
     if (
-      finishReason && finishReason !== "STOP" &&
-      finishReason !== "FINISH_REASON_UNSPECIFIED"
+      result.kind === "refusal" ||
+      (result.kind === "invalid_output" && result.reason === "finish")
     ) {
-      const isPermanent = finishReason === "SAFETY" ||
-        finishReason === "PROHIBITED_CONTENT";
+      const isPermanent = result.kind === "refusal";
       if (!isPermanent) await quotaLease.fail();
       if (isPermanent) {
         await compatibilityLedger.markTerminalFailure(
@@ -514,8 +470,9 @@ Deno.serve((req: Request) =>
     // 6. Parse Gemini response
     let parsedData: AudioIdentification;
     try {
+      if (result.kind !== "draft") throw new Error("ai_response_json_invalid");
       parsedData = parseMerianAudioIdentification(
-        extractJson<unknown>(responseText),
+        result.draft,
       );
     } catch (parseErr) {
       await quotaLease.fail();
@@ -526,7 +483,7 @@ Deno.serve((req: Request) =>
       logStructuredError("audio_spec/parse_failed", {
         user_id: user.id,
         finish_reason: finishReason ?? "unknown",
-        response_length: responseText.length,
+        response_length: result.responseCharacters,
         error: parseErr instanceof Error ? parseErr.message : String(parseErr),
       });
       return jsonResponse(
@@ -930,6 +887,14 @@ Deno.serve((req: Request) =>
               tier: userTier,
               ...tierTelemetryProperties(tierResolution),
               llm_model: quotaLease.reservation.model,
+              ai_provider: result.execution.provider,
+              ai_binding: result.execution.binding,
+              ai_prompt: result.execution.prompt,
+              ai_schema: result.execution.schema,
+              ai_policy_version: result.execution.policyVersion,
+              ai_context_kind: result.execution.contextKind,
+              ai_returned_model: result.returnedModel,
+              ai_provider_duration_ms: result.providerDurationMs,
               llm_prompt_tokens: llmPromptTokens,
               llm_candidate_tokens: llmCandidateTokens,
               llm_thinking_tokens: llmThinkingTokens,
@@ -1050,5 +1015,16 @@ Deno.serve((req: Request) =>
 
     console.log(`[⏱ BENCH] total_to_response: ${Date.now() - fnStart}ms`);
     return jsonResponse(responseEnvelope, 200);
-  })
-);
+  };
+}
+
+const handleAudioRequest = createAudioHandler();
+
+if (import.meta.main) {
+  Deno.serve((req: Request) =>
+    withEdgeHandler(
+      req,
+      (user, supabaseAdmin) => handleAudioRequest(req, user, supabaseAdmin),
+    )
+  );
+}

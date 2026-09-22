@@ -73,6 +73,11 @@ Focus, keyboard dismissal, confirmation animation, and the final SwiftUI
 `dismiss()` call deliberately stay in `FieldNotesEditorView` so extracting state
 does not alter UI timing.
 
+The text editor flexes within the sheet's available height as the keyboard opens
+and closes, leaving room for visibility, dictation, and inline feedback. It has
+no fixed minimum or focus-dependent height; long notes scroll inside the editor
+without moving its top beneath the navigation toolbar.
+
 ## Verification
 
 Tests mirror the final owners:

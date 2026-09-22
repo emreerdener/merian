@@ -13,6 +13,7 @@ struct ExplorePostComposerView: View {
     let initialLocationSharing: ExplorePostLocationSharing
     let hashtagSuggestionContext: ExploreHashtagSuggestionContext
     let isSaving: Bool
+    let onUnpublish: (() -> Void)?
     let onSubmit: (ExplorePostComposerDraft) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -25,6 +26,7 @@ struct ExplorePostComposerView: View {
     @State private var draggedMediaItemId: String?
     @State private var selectedCommonName: String
     @State private var isNamePickerPresented = false
+    @State private var showUnpublishConfirmation = false
 
     init(
         mode: ExplorePostComposerMode,
@@ -41,6 +43,7 @@ struct ExplorePostComposerView: View {
         mediaItems: [ExplorePostComposerMediaDraft] = [],
         hashtagSuggestionContext: ExploreHashtagSuggestionContext? = nil,
         isSaving: Bool,
+        onUnpublish: (() -> Void)? = nil,
         onSubmit: @escaping (ExplorePostComposerDraft) -> Void
     ) {
         self.mode = mode
@@ -65,6 +68,7 @@ struct ExplorePostComposerView: View {
             fieldNotes: initialFieldNotes
         )
         self.isSaving = isSaving
+        self.onUnpublish = onUnpublish
         self.onSubmit = onSubmit
         _fieldNotesText = State(initialValue: initialFieldNotes ?? "")
         _fieldNotesArePublic = State(initialValue: initialFieldNotesArePublic)
@@ -103,11 +107,36 @@ struct ExplorePostComposerView: View {
                     }
                     .disabled(isSaving)
                 }
-
+                if case .edit = mode, onUnpublish != nil {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Menu {
+                            Button(role: .destructive) {
+                                showUnpublishConfirmation = true
+                            } label: {
+                                Label("Unpublish post", systemImage: "minus.circle")
+                            }
+                            .tint(.red)
+                        } label: {
+                            Image(systemName: "ellipsis")
+                        }
+                        .tint(.primary)
+                        .accessibilityLabel("Post options")
+                        .disabled(isSaving)
+                    }
+                }
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 submitFooter
             }
+        }
+        .alert("Unpublish Post?", isPresented: $showUnpublishConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Unpublish", role: .destructive) {
+                dismiss()
+                onUnpublish?()
+            }
+        } message: {
+            Text("This will remove the post from Explore. Your original scan will remain safely in your library.")
         }
         .presentationDetents([.large])
         .presentationDragIndicator(.hidden)

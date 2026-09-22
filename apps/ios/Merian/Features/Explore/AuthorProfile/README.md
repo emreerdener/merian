@@ -5,6 +5,9 @@ published-scan library, follow interaction, and user-report form. The canonical
 product, privacy, API, navigation, and verification contract is
 [`docs/features-and-hardware/14-explore-author-profiles.md`](../../../../../../docs/features-and-hardware/14-explore-author-profiles.md).
 
+Earned Field trip patches and their divider appear only when patches are
+available. Loading reserves no patch space and shows no patch skeletons.
+
 ## Ownership
 
 ```text

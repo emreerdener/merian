@@ -19,7 +19,6 @@ struct UserProfile: View {
     var totalScans: Int = 0
     var completedAchievements: Int = 0
     var earnedFieldTripPatches: [EarnedFieldTripPatch] = []
-    var isLoadingEarnedFieldTripPatches = false
     let onOpenFieldTrip: (String) -> Void
 
     var body: some View {
@@ -261,9 +260,6 @@ struct UserProfile: View {
                     patches: earnedFieldTripPatches,
                     onOpenFieldTrip: onOpenFieldTrip
                 )
-            } else if isLoadingEarnedFieldTripPatches {
-                Divider()
-                EarnedFieldTripPatchCarouselSkeleton()
             }
         }
         .padding(12)

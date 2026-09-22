@@ -57,11 +57,13 @@ Feed declarations are grouped by responsibility:
   comments sheet and inline post-detail section; each host retains its distinct
   navigation, sticky-composer, focus, and scroll behavior.
 - `Components/Composer/` and `ExplorePostComposerView` own the shared publish
-  form, prepared image rendering, and media selection tiles.
+  form, prepared image rendering, and media selection tiles. Feed and
+  post-detail editors place destructive Unpublish post in the top-right Post
+  options menu, with confirmation before invoking the existing parent unshare
+  callback.
 - `Components/Detail/` owns post-detail structure, loading, and the single typed
-  sheet renderer and unpublish confirmation renderer. The route host retains the
-  selected post and performs the unshare action; `Components/DetailCards/` owns
-  public detail cards.
+  sheet renderer. The composer owns unpublish confirmation; its host performs
+  the unshare action. `Components/DetailCards/` owns public detail cards.
 - `Components/Cards/` owns `ExplorePostCard`, its loading skeleton, and preview
   fixtures. Cards consume `ExplorePostCardAuthorPresentation`, send mutations
   through parent callbacks, and do not resolve identity or entitlement services.
@@ -455,20 +457,27 @@ Dictionary community sightings.
 
 ## Emoji reactions
 
-Comment and reply Add reaction buttons match the reaction chips' 28-point
-capsule, 6-point horizontal padding, 4-point internal spacing, and Dynamic Type
-scaling. Secondary smiley/plus icons use subheadline/caption text sizes, inside
-a minimum 44-point tap target. They open the shared full emoji picker and retain
-its selection feedback. The Add button keeps its subtle 1-point outline, drawn
-inside the capsule so its outer height stays aligned with the reaction chips.
+Post, comment, and reply reactions use the shared bare emoji/count styling:
+20-point emoji and 20-point counts in a 44-point row at the default text size,
+with all three scaling together for Dynamic Type. Neither selected nor
+unselected reactions have a background or border; counts turn blue when the
+viewer has contributed that reaction and otherwise use the default text color.
+VoiceOver retains the selected state. Comment and reply Add reaction buttons
+also omit their capsule background and outline, with a 20-point smiley and a
+minimum 44-point tap target. They retain the shared picker and selection
+feedback.
 
 Feed and hashtag cards omit Share from the action row, letting emoji chips
 extend to the right edge while retaining overflow fades. Share remains available
-in detail's top-right toolbar immediately before Options.
+as a blue button at detail's bottom left, opposite Field chat. Options is the
+only trailing top-toolbar action. When the comment composer is sticky or
+focused, the menu also offers Share through the same external sharing flow,
+keeping it accessible when the bottom buttons are covered. This fallback does
+not depend on Field chat availability.
 
 Feed and detail loading views share `ExplorePostActionSkeleton`: three
-left-aligned 20-point nodes in a single row. Detail also represents both toolbar
-controls while loading. Each node occupies a 44-point frame; the bar uses
+left-aligned 20-point nodes in a single row. Detail represents only Options in
+the top toolbar while loading. Each node occupies a 44-point frame; the bar uses
 8-point gaps and 6-point vertical insets. Feed uses a 12-point leading inset and
 no trailing inset; detail retains 12-point side insets. Loading does not show
 counts or emoji chip placeholders. Headers and detail species spacing mirror the
