@@ -36,6 +36,16 @@ reusable infrastructure remains in `Core`.
 
 ## Startup persistence boundary
 
+Before dependency and Auth bootstrap, ordinary launches inspect the deletion
+recovery proof through `AccountDeletionRecoveryCapabilityStore`. A prior
+lookup-only barrier is cleared only on verified proof absence; a cached session
+is not required at this stage. The store suppresses runtime events until
+bootstrap is complete. App-hosted XCTest and UI-test processes skip that live
+probe because their Keychain implementation is synthetic. Direct store tests
+exercise the recovery logic with isolated defaults and injected secure storage.
+See the
+[account-deletion contract](../../../../docs/backend-and-data/20-sign-in-with-apple-account-deletion.md#client-crash-recovery).
+
 `Core/Data/StoreRecovery/Services/ModelContainerFactory.swift` owns SwiftData
 construction, source-isolated migration-plan routing, and duplicate-checksum
 fallback. Its empty current-schema safe-mode container is plan-free, so a bad

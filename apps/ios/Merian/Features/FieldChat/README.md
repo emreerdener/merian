@@ -81,8 +81,10 @@ Initial loading, image failures, single-image navigation, canceled swipes, and
 automatic selection changes remain silent. Swiping and VoiceOver adjustment wrap
 from the last image to the first and back, without opening a viewer. Page
 position remains available to VoiceOver without a visible numeric label;
-reference-image attribution remains beneath the stack. During a swipe the front
-card follows the finger; a committed change slides and rotates that card
+reference-image attribution remains beneath the stack. The shared
+`MediaAttributionText` formatter preserves credit names and renders URLs as
+tappable website or license titles rather than raw addresses. During a swipe the
+front card follows the finger; a committed change slides and rotates that card
 outward, promotes the next card, then tucks the outgoing card behind the deck. A
 0.12-second eased exit flows directly into a 0.16-second eased return, without
 waiting for a spring to settle. Stable media identities avoid opacity

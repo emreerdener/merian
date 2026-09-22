@@ -136,9 +136,18 @@ struct AuthenticatedRequestExecutor {
     }
 
     private let dependencies: Dependencies
+    private let recordIdentificationMeasurement: (String) -> Void
 
-    init(dependencies: Dependencies) {
+    init(
+        dependencies: Dependencies,
+        recordIdentificationMeasurement: @escaping (String) -> Void = { record in
+            MerianLog.network.debug(
+                "[⏱ BENCH] Identification measurement \(record, privacy: .public)"
+            )
+        }
+    ) {
         self.dependencies = dependencies
+        self.recordIdentificationMeasurement = recordIdentificationMeasurement
     }
 
     func execute(_ request: Request) async throws
@@ -257,6 +266,15 @@ struct AuthenticatedRequestExecutor {
         }
 
         if !(200..<300).contains(httpResponse.statusCode) {
+            if request.url.lastPathComponent == "identify-multimodal" {
+                logTiming(
+                    request: request,
+                    response: httpResponse,
+                    responseData: transport.data,
+                    requestStart: requestStart,
+                    authCompletedAt: transport.authCompletedAt
+                )
+            }
             return try await handleFailure(
                 request,
                 state: state,
@@ -464,7 +482,14 @@ struct AuthenticatedRequestExecutor {
         MerianLog.network.debug(
             "[⏱ BENCH] HTTP \(request.url.lastPathComponent, privacy: .public) auth=\(String(format: "%.3f", authCompletedAt - requestStart), privacy: .public)s transfer+server=\(String(format: "%.3f", responseCompletedAt - authCompletedAt), privacy: .public)s status=\(response.statusCode, privacy: .public) requestBytes=\(request.body?.count ?? 0, privacy: .public) responseBytes=\(responseData.count, privacy: .public)"
         )
-        if let serverTiming = response.value(
+        if request.url.lastPathComponent == "identify-multimodal" {
+            if let record = IdentificationBenchmarkRecord.make(
+                response: response,
+                appInfo: Bundle.main.infoDictionary ?? [:]
+            ) {
+                recordIdentificationMeasurement(record)
+            }
+        } else if let serverTiming = response.value(
             forHTTPHeaderField: "Server-Timing"
         ) {
             MerianLog.network.debug(

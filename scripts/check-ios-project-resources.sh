@@ -279,6 +279,15 @@ validate_main_target_shell_phase \
   "Embed Build Provenance" \
   "scripts/embed-ios-build-provenance.sh"
 
+# PBX phase order does not order the separate ProcessInfoPlistFile task.
+# Consume its product explicitly so processing cannot overwrite the stamp.
+provenance_phase_definition="$(shell_phase_block "$(shell_phase_id "Embed Build Provenance")")"
+provenance_input_paths="$(sed -n '/inputPaths = (/ , /);/p' <<<"$provenance_phase_definition")"
+if ! grep -Fq '"$(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)",' <<<"$provenance_input_paths"; then
+  echo "Embed Build Provenance must declare its processed Info.plist input." >&2
+  exit 1
+fi
+
 preflight_position="$(phase_position "Release Versioning Preflight")"
 provenance_position="$(phase_position "Embed Build Provenance")"
 swiftlint_position="$(phase_position "SwiftLint Validation")"

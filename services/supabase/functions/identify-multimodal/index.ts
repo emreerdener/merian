@@ -1,6 +1,7 @@
 import type { AIExecutionOutcome } from "../_shared/ai/contracts.ts";
 import { prepareAIExecution } from "../_shared/ai/production.ts";
 import { buildMultimodalAIRequest } from "./provider.ts";
+import { identificationDiagnosticHeaders } from "./diagnostics.ts";
 import { type SupabaseClient, type User } from "@supabase/supabase-js";
 
 import {
@@ -46,8 +47,6 @@ import {
 import {
   type IdentifySuccessEnvelope,
   parseIdentifySuccessEnvelope,
-  parseMerianAudioIdentification,
-  parseMerianIdentification,
 } from "../_shared/identify/contract.ts";
 import {
   hydratePayloadFromCachedSpecies,
@@ -68,12 +67,7 @@ import {
   fetchCompletedIdentifyResponse,
   waitForCompletedIdentifyResponse,
 } from "../_shared/identify/completedResponse.ts";
-import { normalizeProcessedMaterialSubject } from "../_shared/identify/subjectClassification.ts";
-import {
-  type AudioSubjectKind,
-  canonicalizeStructuredHumanSubject,
-  normalizeAudioOnlySubject,
-} from "../_shared/identify/audioSubjectPolicy.ts";
+import { normalizeIdentification } from "../_shared/identify/normalizeIdentification.ts";
 import { isWavContainer, processMultimodalWAV } from "./audio.ts";
 import {
   audioDescriptorsForDurableIntent,
@@ -113,21 +107,7 @@ import {
 import { isScanPersistenceOutcomeUnknown } from "../_shared/scanPersistence.ts";
 import { buildScanIngestionIntent } from "../_shared/scanIngestionIntents.ts";
 import { markStagedScanMediaAssetsFailed } from "../_shared/scanMediaAssets.ts";
-import {
-  normalizeCurrentMonth,
-  sanitizeLifeStage,
-  sanitizeObservationConfidence,
-  sanitizeObservationEvidence,
-  sanitizeReproductiveCondition,
-  sanitizeSex,
-} from "../_shared/identify/context.ts";
-
-import { diagnosticTriggerForTier } from "../_shared/identify/thresholds.ts";
-import {
-  canonicalizeDomesticPetScientificName,
-  sanitizePetIdentification,
-  sanitizeScientificName,
-} from "../identify/sanitize.ts";
+import { normalizeCurrentMonth } from "../_shared/identify/context.ts";
 
 class ModerationRejectedError extends Error {
   override name = "ModerationRejectedError";
@@ -788,9 +768,6 @@ export async function handleIdentifyMultimodalRequest(
   const userTier = tierResolution.effective_tier;
   const inferenceTier = userTier === "pro" ? "pro" : "flash";
   const targetModel = quotaLease.reservation.model;
-  const diagnosticTrigger = diagnosticTriggerForTier(inferenceTier);
-  const usesAudioOnlyProviderContract = resolvedImageBase64s.length === 0 &&
-    processedAudios.length > 0;
 
   const hasObservationContextText = observationEvidenceTexts.length > 0;
   const aiRequest = buildMultimodalAIRequest({
@@ -1061,18 +1038,17 @@ export async function handleIdentifyMultimodalRequest(
     );
   }
 
-  let parsedData;
+  let normalized;
   try {
     if (result.kind !== "draft") throw new Error("ai_response_json_invalid");
-    if (usesAudioOnlyProviderContract) {
-      parsedData = parseMerianAudioIdentification(
-        result.draft,
-      );
-    } else {
-      parsedData = parseMerianIdentification(
-        result.draft,
-      );
-    }
+    normalized = normalizeIdentification(result.draft, {
+      hasVisualEvidence: resolvedImageBase64s.length > 0,
+      hasAudioEvidence: processedAudios.length > 0,
+      hasInvasiveLocationContext: (safeGpsLat != null && safeGpsLon != null) ||
+        (typeof semanticLocation === "string" &&
+          semanticLocation.trim().length > 0),
+      inferenceTier,
+    });
   } catch {
     await quotaLease.fail();
     await updateIngestionJobBestEffort(
@@ -1089,158 +1065,13 @@ export async function handleIdentifyMultimodalRequest(
     );
   }
 
-  if (parsedData.scientific_name) {
-    parsedData.scientific_name = sanitizeScientificName(
-      parsedData.scientific_name,
-    );
-    parsedData.scientific_name = canonicalizeDomesticPetScientificName(
-      parsedData.scientific_name,
-      parsedData.pet_identification,
-      parsedData.common_name,
-    );
-  }
-  parsedData.pet_identification = sanitizePetIdentification(
-    parsedData.pet_identification,
-    parsedData.scientific_name,
-  );
-  if (Array.isArray(parsedData.candidates)) {
-    parsedData.candidates = parsedData.candidates
-      .map((candidate) => ({
-        ...candidate,
-        scientific_name: sanitizeScientificName(candidate.scientific_name),
-      }))
-      .slice(0, 5);
-  }
-  if (Array.isArray(parsedData.extracted_visual_traits)) {
-    parsedData.extracted_visual_traits = parsedData.extracted_visual_traits
-      .slice(0, 10);
-  }
-  if (Array.isArray(parsedData.ecological_interactions)) {
-    parsedData.ecological_interactions = parsedData.ecological_interactions
-      .slice(0, 10);
-  }
-  if (
-    typeof parsedData.ai_reasoning === "string" &&
-    parsedData.ai_reasoning.length > 2000
-  ) {
-    parsedData.ai_reasoning = parsedData.ai_reasoning.slice(0, 2000);
-  }
-  if (parsedData.individual_count != null) {
-    parsedData.individual_count =
-      Number.isFinite(parsedData.individual_count) &&
-        parsedData.individual_count > 0
-        ? Math.min(Math.round(parsedData.individual_count), 99999)
-        : undefined;
-  }
-  const sanitizedLifeStage = sanitizeLifeStage(parsedData.life_stage);
-  if (
-    parsedData.life_stage != null &&
-    sanitizedLifeStage != parsedData.life_stage
-  ) {
-    logStructuredError("multimodal/unknown_life_stage", {
+  const { identification: parsedData, audioSubjectKind } = normalized;
+  for (const { event, ...properties } of normalized.diagnostics) {
+    logStructuredError(`multimodal/${event}`, {
       user_id: user.id,
-      value: parsedData.life_stage,
+      ...properties,
     });
   }
-  parsedData.life_stage = sanitizedLifeStage;
-
-  const sanitizedReproductiveCondition = sanitizeReproductiveCondition(
-    parsedData.reproductive_condition,
-  );
-  if (
-    parsedData.reproductive_condition != null &&
-    sanitizedReproductiveCondition != parsedData.reproductive_condition
-  ) {
-    logStructuredError("multimodal/unknown_reproductive_condition", {
-      user_id: user.id,
-      value: parsedData.reproductive_condition,
-    });
-  }
-  parsedData.reproductive_condition = sanitizedReproductiveCondition;
-
-  const sanitizedSex = sanitizeSex(parsedData.sex);
-  if (parsedData.sex != null && sanitizedSex != parsedData.sex) {
-    logStructuredError("multimodal/unknown_sex", {
-      user_id: user.id,
-      value: parsedData.sex,
-    });
-  }
-  parsedData.sex = sanitizedSex;
-  parsedData.sex_confidence = sanitizeObservationConfidence(
-    parsedData.sex_confidence,
-  );
-  parsedData.sex_evidence = sanitizeObservationEvidence(
-    parsedData.sex_evidence,
-  );
-  parsedData.invasive_status_region = sanitizeObservationEvidence(
-    parsedData.invasive_status_region,
-    160,
-  );
-  parsedData.invasive_rationale = sanitizeObservationEvidence(
-    parsedData.invasive_rationale,
-    500,
-  );
-  parsedData.invasive_confidence = sanitizeObservationConfidence(
-    parsedData.invasive_confidence,
-  );
-  const processedMaterialNormalization = normalizeProcessedMaterialSubject(
-    parsedData,
-  );
-  if (processedMaterialNormalization.demoted) {
-    logStructuredError("multimodal/processed_material_demoted", {
-      user_id: user.id,
-      reason: processedMaterialNormalization.reason,
-      previous_common_name: processedMaterialNormalization.previousCommonName ??
-        null,
-      previous_scientific_name:
-        processedMaterialNormalization.previousScientificName ?? null,
-    });
-  }
-  let audioSubjectKind: AudioSubjectKind | null = null;
-  if (processedAudios.length > 0) {
-    if (resolvedImageBase64s.length === 0) {
-      audioSubjectKind = normalizeAudioOnlySubject(parsedData);
-    } else if (canonicalizeStructuredHumanSubject(parsedData)) {
-      audioSubjectKind = "human";
-    }
-  }
-  if (!parsedData.is_biological_subject) {
-    parsedData.is_invasive = undefined;
-    parsedData.invasive_status_region = undefined;
-    parsedData.invasive_rationale = undefined;
-    parsedData.invasive_confidence = undefined;
-    parsedData.sex = undefined;
-    parsedData.sex_confidence = undefined;
-    parsedData.sex_evidence = undefined;
-  } else if (
-    parsedData.sex == null ||
-    parsedData.sex === "cannot_determine" ||
-    parsedData.sex === "not_applicable"
-  ) {
-    parsedData.sex_confidence = undefined;
-    parsedData.sex_evidence = undefined;
-  }
-  const hasInvasiveLocationContext =
-    (safeGpsLat != null && safeGpsLon != null) ||
-    (typeof semanticLocation === "string" &&
-      semanticLocation.trim().length > 0);
-  if (
-    parsedData.is_biological_subject &&
-    audioSubjectKind !== "human" &&
-    audioSubjectKind !== "unidentified_wildlife" &&
-    !hasInvasiveLocationContext
-  ) {
-    parsedData.is_invasive = false;
-    parsedData.invasive_status_region ??= "Unavailable";
-    parsedData.invasive_rationale ??=
-      "Location context was unavailable, so Naturebook could not make a region-specific invasive assessment.";
-    parsedData.invasive_confidence = undefined;
-  }
-
-  parsedData.blur_score = Math.max(
-    0,
-    (10 - (parsedData.image_quality?.sharpness ?? 10)) / 10,
-  );
 
   let referenceImageUrl: string | null = null;
   let wikipediaUrl: string | null = null;
@@ -1268,11 +1099,7 @@ export async function handleIdentifyMultimodalRequest(
     invasive_status_region: parsedData.invasive_status_region,
     invasive_rationale: parsedData.invasive_rationale,
     invasive_confidence: parsedData.invasive_confidence,
-    life_stage: parsedData.is_biological_subject &&
-        audioSubjectKind !== "human" &&
-        audioSubjectKind !== "unidentified_wildlife"
-      ? parsedData.life_stage ?? "unknown"
-      : undefined,
+    life_stage: normalized.clientLifeStage,
     reproductive_condition: parsedData.reproductive_condition,
     sex: parsedData.sex,
     sex_confidence: parsedData.sex_confidence,
@@ -1286,7 +1113,7 @@ export async function handleIdentifyMultimodalRequest(
         ? Math.min(estimatedSizeCm, 50_000)
         : null,
     inference_tier: inferenceTier,
-    candidates: parsedData.candidates,
+    candidates: normalized.clientCandidates,
     image_quality: parsedData.image_quality,
     pet_identification: parsedData.pet_identification ?? null,
     ai_reasoning: parsedData.ai_reasoning,
@@ -1300,10 +1127,6 @@ export async function handleIdentifyMultimodalRequest(
     wikipedia_overview: wikipediaOverview,
     alternative_common_names: alternativeCommonNames,
   };
-
-  if ((parsedData.confidence_score ?? 0.0) >= diagnosticTrigger) {
-    payloadReadyForClient.candidates = null;
-  }
 
   const hasCandidates = Array.isArray(payloadReadyForClient.candidates) &&
     payloadReadyForClient.candidates.length > 0;
@@ -2180,6 +2003,7 @@ export async function handleIdentifyMultimodalRequest(
     responseEnvelope,
     200,
     {
+      ...identificationDiagnosticHeaders(result),
       "Server-Timing": serverTimingValue([
         { name: "body_read", durationMs: bodyReadMs },
         { name: "tier", durationMs: tierMs },

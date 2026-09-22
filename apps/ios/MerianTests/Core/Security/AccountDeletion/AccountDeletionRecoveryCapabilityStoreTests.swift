@@ -285,6 +285,106 @@ struct AccountDeletionCapabilityStoreTests {
     }
 
     @MainActor
+    @Test("A later verified absence clears only the temporary pre-Auth lookup barrier")
+    func recoveredKeychainAbsenceReopensBootstrapWithoutSession() throws {
+        let suiteName = "AccountDeletionCapabilityStoreTests.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let secureStore = SecureStoreStub()
+        secureStore.readError = SecureStoreFailure()
+        defaults.set("preserved", forKey: "unrelated-fixture-preference")
+
+        #expect(AccountDeletionRecoveryCapabilityStore.restoreBarrierBeforeAuthBootstrap(
+            secureStore: secureStore,
+            userDefaults: defaults
+        ))
+        #expect(AccountDeletionLocalCleanupStore.state(userDefaults: defaults)
+            == .capabilityLookupPending)
+
+        secureStore.readError = nil
+        #expect(AccountDeletionRecoveryCapabilityStore.restoreBarrierBeforeAuthBootstrap(
+            secureStore: secureStore,
+            userDefaults: defaults
+        ))
+        #expect(AccountDeletionLocalCleanupStore.state(userDefaults: defaults) == nil)
+        #expect(defaults.string(forKey: "unrelated-fixture-preference") == "preserved")
+        #expect(secureStore.writes.isEmpty)
+        #expect(secureStore.removals.isEmpty)
+
+        #expect(AccountDeletionRecoveryCapabilityStore.restoreBarrierBeforeAuthBootstrap(
+            secureStore: secureStore,
+            userDefaults: defaults
+        ))
+        #expect(AccountDeletionLocalCleanupStore.state(userDefaults: defaults) == nil)
+    }
+
+    @MainActor
+    @Test("A present or still unreadable proof keeps the lookup barrier")
+    func lookupBarrierStaysClosedUntilVerifiedAbsence() throws {
+        let suiteName = "AccountDeletionCapabilityStoreTests.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let secureStore = SecureStoreStub()
+        secureStore.readError = SecureStoreFailure()
+
+        for _ in 0..<2 {
+            #expect(AccountDeletionRecoveryCapabilityStore.restoreBarrierBeforeAuthBootstrap(
+                secureStore: secureStore,
+                userDefaults: defaults
+            ))
+            #expect(AccountDeletionLocalCleanupStore.state(userDefaults: defaults)
+                == .capabilityLookupPending)
+        }
+        secureStore.readError = nil
+        // A malformed proof is still present and cannot authorize reopening.
+        let proof = Data([0x07])
+        secureStore.values[KeychainKeys.accountDeletionRecoveryCapability] = proof
+        #expect(AccountDeletionRecoveryCapabilityStore.restoreBarrierBeforeAuthBootstrap(
+            secureStore: secureStore,
+            userDefaults: defaults
+        ))
+        #expect(AccountDeletionLocalCleanupStore.state(userDefaults: defaults)
+            == .capabilityLookupPending)
+        #expect(secureStore.values[KeychainKeys.accountDeletionRecoveryCapability] == proof)
+        #expect(secureStore.writes.isEmpty)
+        #expect(secureStore.removals.isEmpty)
+    }
+
+    @MainActor
+    @Test("Proof absence never clears an actual, legacy, or unknown deletion phase")
+    func absentProofPreservesDeletionPhases() throws {
+        let states: [Any] = [
+            AccountDeletionLocalRecoveryState.capabilityPreparationPending.rawValue,
+            AccountDeletionLocalRecoveryState.capabilityPreparedPending.rawValue,
+            AccountDeletionLocalRecoveryState.intakePending.rawValue,
+            AccountDeletionLocalRecoveryState.cleanupPending.rawValue,
+            AccountDeletionLocalRecoveryState.capabilityIntakePending.rawValue,
+            AccountDeletionLocalRecoveryState.capabilityCleanupPending.rawValue,
+            AccountDeletionLocalRecoveryState.capabilityRetirementPending.rawValue,
+            AccountDeletionLocalRecoveryState.capabilityRejectionRetirementPending.rawValue,
+            "future-deletion-phase",
+            true
+        ]
+        for value in states {
+            let suiteName = "AccountDeletionCapabilityStoreTests.\(UUID())"
+            let defaults = try #require(UserDefaults(suiteName: suiteName))
+            defer { defaults.removePersistentDomain(forName: suiteName) }
+            defaults.set(value, forKey: UserDefaultsKeys.pendingLocalAccountDeletionCleanup)
+            let originalState = AccountDeletionLocalCleanupStore.state(userDefaults: defaults)
+            let secureStore = SecureStoreStub()
+
+            #expect(AccountDeletionRecoveryCapabilityStore.restoreBarrierBeforeAuthBootstrap(
+                secureStore: secureStore,
+                userDefaults: defaults
+            ))
+            #expect(originalState != nil)
+            #expect(AccountDeletionLocalCleanupStore.state(userDefaults: defaults) == originalState)
+            #expect(secureStore.writes.isEmpty)
+            #expect(secureStore.removals.isEmpty)
+        }
+    }
+
+    @MainActor
     @Test("Verified proof absence does not create a recovery barrier")
     func absentProofKeepsBootstrapOpen() throws {
         let suiteName =

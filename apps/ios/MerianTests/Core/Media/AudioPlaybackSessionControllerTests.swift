@@ -129,6 +129,9 @@ struct AudioPlaybackSessionControllerTests {
             ).count == 2
         )
         #expect(!carouselSource.contains("captureAndSwitchSession"))
+        #expect(!carouselSource.contains("prepareToPlay()"))
+        #expect(!carouselSource.contains("AVAudioPlayer"))
+        #expect(carouselSource.contains("await expectedPlayer.play()"))
         #expect(
             carouselSource.components(separatedBy: ".play()").count == 2
         )
@@ -298,6 +301,24 @@ struct AudioPlaybackSessionControllerTests {
 
         controller.deactivate()
         await waitForCondition { probe.snapshot.deactivationCount == 2 }
+    }
+
+    @Test("Session release waits for player hardware teardown")
+    @MainActor
+    func releaseWaitsForPlayerStop() async {
+        let probe = AudioPlaybackSessionOperationsProbe()
+        let coordinator = makeCoordinator(probe: probe)
+        let controller = makeController(coordinator: coordinator)
+        let gate = AudioPlaybackActivationGate()
+        #expect(await controller.activate())
+        let stopping = Task { await gate.wait() }
+        await waitForCondition { await gate.waiterCount == 1 }
+        controller.deactivate(after: stopping)
+        #expect(!controller.hasActiveLease)
+        for _ in 0..<10 { await Task.yield() }
+        #expect(probe.snapshot.deactivationCount == 0)
+        await gate.releaseAll()
+        await waitForCondition { probe.snapshot.deactivationCount == 1 }
     }
 
     @Test("Idle teardown performs no audio-session mutation")

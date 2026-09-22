@@ -1,4 +1,3 @@
-import AVFoundation
 import SwiftUI
 import UIKit
 
@@ -12,12 +11,12 @@ struct AudioPlaybackCarouselPage: View {
     let onAudioBoostToggleRequested: (() -> Void)?
     let dependencies: MediaPlaybackDependencies
 
-    @State private var player: AVAudioPlayer?
+    @State private var player: AudioPlaybackFilePlayer?
     @State private var activePlayerSource: AudioPlayerSource = .original
-    @State private var pendingPlayer: AVAudioPlayer?
+    @State private var pendingPlayer: AudioPlaybackFilePlayer?
     @State private var pendingPlayerSource: AudioPlayerSource?
-    @State private var playerDelegate = AudioPlayerDelegate()
     @State private var playerGeneration = 0
+    @State private var recoveringPlayerID: ObjectIdentifier?
     @State private var columns: [SpectrogramColumn] = []
     @State private var playbackProgress = 0.0
     @State private var isDecoding = true
@@ -111,25 +110,26 @@ struct AudioPlaybackCarouselPage: View {
         .onDisappear {
             audioBoostRequestState.invalidate()
             playbackControlVisibility.cancelPendingFade()
-            player?.stop()
+            let stopping = player?.stop()
             playerGeneration &+= 1
             clearPendingPlayer()
             isPlaying = false
-            originalAudioLease?.release()
+            let lease = originalAudioLease
             originalAudioLease = nil
-            sessionController.deactivate()
+            sessionController.deactivate(after: stopping)
+            Task { await stopping?.value; lease?.release() }
         }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .background {
                 showPlaybackControlPersistently()
-                player?.stop()
+                let retiringPlayer = player
                 playerGeneration &+= 1
                 isPlaying = false
                 if !commitPendingPlayer(resumeTime: 0) {
                     player?.currentTime = 0
                 }
                 playbackProgress = 0
-                sessionController.deactivate()
+                sessionController.deactivate(after: retiringPlayer?.stop())
             }
         }
         .task {
@@ -147,7 +147,7 @@ struct AudioPlaybackCarouselPage: View {
                 isPlaybackActive: { isPlaying },
                 onProgress: { playbackProgress = $0 },
                 onFailure: {
-                    handlePlaybackFailure(monitoredPlayer, errorDescription: nil)
+                    Task { await handlePlaybackFailure(monitoredPlayer, errorDescription: nil) }
                 }
             )
         }
@@ -172,7 +172,7 @@ struct AudioPlaybackCarouselPage: View {
         }
     }
 
-    private func startPlayback(_ expectedPlayer: AVAudioPlayer, sendsFeedback: Bool) {
+    private func startPlayback(_ expectedPlayer: AudioPlaybackFilePlayer, sendsFeedback: Bool) {
         let expectedPlayerGeneration = playerGeneration
         Task { @MainActor in
             let activated = await sessionController.activate()
@@ -180,7 +180,10 @@ struct AudioPlaybackCarouselPage: View {
                   self.player === expectedPlayer,
                   !presentation.isControlDisabled,
                   !expectedPlayer.isPlaying else { return }
-            guard activated, expectedPlayer.play() else {
+            let started = activated ? await expectedPlayer.play() : false
+            guard expectedPlayerGeneration == playerGeneration,
+                  self.player === expectedPlayer else { return }
+            guard started else {
                 isPlaying = false
                 showPlaybackControlPersistently()
                 if sendsFeedback {
@@ -303,22 +306,27 @@ struct AudioPlaybackCarouselPage: View {
                 lease.release()
                 return
             }
-            originalAudioLease = lease
-            guard let originalPlayer = makePlayer(
+            guard let originalPlayer = await makePlayer(
                 url: lease.url,
                 resumeTime: 0
             ) else {
+                lease.release()
                 throw CocoaError(.fileReadCorruptFile)
             }
+            guard !Task.isCancelled else { lease.release(); return }
+            originalAudioLease = lease
             installPlayer(
                 originalPlayer,
                 source: .original,
                 shouldPlay: false
             )
-            columns = await AudioSpectrogramDecoder.decodeColumns(
+            let decodedColumns = await AudioSpectrogramDecoder.decodeColumns(
                 fromFilePath: lease.url.path
             )
+            guard !Task.isCancelled else { return }
+            columns = decodedColumns
         } catch {
+            guard !Task.isCancelled else { return }
             player?.stop()
             player = nil
             clearPendingPlayer()
@@ -367,12 +375,14 @@ struct AudioPlaybackCarouselPage: View {
                 guard !Task.isCancelled,
                       audioBoostRequestState.owns(requestID),
                       isAudioBoostEnabled else { return }
-                guard let boostedPlayer = makePlayer(
+                guard let boostedPlayer = await makePlayer(
                     url: result.url,
                     resumeTime: 0
                 ) else {
                     throw CocoaError(.fileReadCorruptFile)
                 }
+                guard !Task.isCancelled, audioBoostRequestState.owns(requestID),
+                      isAudioBoostEnabled else { return }
                 stageOrInstallPlayer(boostedPlayer, source: .boosted)
                 isBoostedAudioReady = true
                 dependencies.trackAudioBoost("enabled", result.gainBand)
@@ -406,10 +416,12 @@ struct AudioPlaybackCarouselPage: View {
             }
 
             guard let originalURL = originalAudioLease?.url else { return }
-            guard let originalPlayer = makePlayer(
+            guard let originalPlayer = await makePlayer(
                 url: originalURL,
                 resumeTime: 0
             ) else { return }
+            guard !Task.isCancelled, audioBoostRequestState.owns(requestID),
+                  !isAudioBoostEnabled else { return }
             stageOrInstallPlayer(originalPlayer, source: .original)
             isBoostedAudioReady = false
             hasTrackedBoostedPlaybackStart = false
@@ -421,15 +433,14 @@ struct AudioPlaybackCarouselPage: View {
     private func makePlayer(
         url: URL,
         resumeTime: TimeInterval
-    ) -> AVAudioPlayer? {
-        guard let preparedPlayer = try? AVAudioPlayer(
-            contentsOf: url
-        ) else { return nil }
-        playerDelegate.onFinish = { finishedPlayerID, successfully in
+    ) async -> AudioPlaybackFilePlayer? {
+        let preparedPlayer = AudioPlaybackFilePlayer(driver: AudioPlaybackFileDriver(url: url))
+        do { try await preparedPlayer.load() } catch { return nil }
+        preparedPlayer.onFinish = { finishedPlayerID, successfully in
             guard let player,
                   ObjectIdentifier(player) == finishedPlayerID else { return }
             guard successfully else {
-                handlePlaybackFailure(player, errorDescription: nil)
+                Task { await handlePlaybackFailure(player, errorDescription: nil) }
                 return
             }
             isPlaying = false
@@ -439,29 +450,25 @@ struct AudioPlaybackCarouselPage: View {
             }
             showPlaybackControlPersistently()
         }
-        playerDelegate.onDecodeError = { failedPlayerID, errorDescription in
+        preparedPlayer.onDecodeError = { failedPlayerID, errorDescription in
             guard let player,
                   ObjectIdentifier(player) == failedPlayerID else { return }
-            handlePlaybackFailure(
-                player,
-                errorDescription: errorDescription
-            )
+            Task { await handlePlaybackFailure(player, errorDescription: errorDescription) }
         }
-        preparedPlayer.delegate = playerDelegate
-        preparedPlayer.prepareToPlay()
-        preparedPlayer.currentTime = min(
-            max(0, resumeTime),
-            preparedPlayer.duration
-        )
+        preparedPlayer.currentTime = resumeTime
         return preparedPlayer
     }
 
     @MainActor
     private func handlePlaybackFailure(
-        _ failedPlayer: AVAudioPlayer,
+        _ failedPlayer: AudioPlaybackFilePlayer,
         errorDescription: String?
-    ) {
-        guard failedPlayer === player else { return }
+    ) async {
+        let failureID = ObjectIdentifier(failedPlayer)
+        guard failedPlayer === player, recoveringPlayerID != failureID else { return }
+        recoveringPlayerID = failureID
+        defer { if recoveringPlayerID == failureID { recoveringPlayerID = nil } }
+        let expectedGeneration = playerGeneration
         let shouldResume = isPlaying
         let resumeTime = AudioPlaybackFailurePolicy.recoveryTime(
             currentTime: failedPlayer.currentTime,
@@ -472,20 +479,18 @@ struct AudioPlaybackCarouselPage: View {
             "AudioPlaybackCarouselPage: playback stopped unexpectedly source=\(String(describing: activePlayerSource), privacy: .public) error=\(String(describing: errorDescription), privacy: .private)"
         )
 
-        failedPlayer.stop()
+        let stopping = failedPlayer.stop()
         isPlaying = false
         clearPendingPlayer()
 
         guard activePlayerSource == .boosted,
               let originalURL = originalAudioLease?.url,
-              let originalPlayer = makePlayer(
+              let originalPlayer = await makePlayer(
                   url: originalURL,
                   resumeTime: resumeTime
               ) else {
-            failedPlayer.currentTime = min(
-                max(0, resumeTime),
-                failedPlayer.duration
-            )
+            guard expectedGeneration == playerGeneration else { return }
+            failedPlayer.currentTime = resumeTime
             playbackProgress = AudioSpectrogramSeekingPolicy
                 .normalizedProgress(
                     currentTime: failedPlayer.currentTime,
@@ -496,6 +501,7 @@ struct AudioPlaybackCarouselPage: View {
             return
         }
 
+        guard expectedGeneration == playerGeneration, !Task.isCancelled else { return }
         isBoostedAudioReady = false
         hasTrackedBoostedPlaybackStart = false
         isAudioBoostEnabled = false
@@ -510,14 +516,13 @@ struct AudioPlaybackCarouselPage: View {
             showPlaybackControlPersistently()
         }
         dependencies.trackAudioBoost("playback_failed", nil)
-        Task {
-            await dependencies.invalidateAudioBoost(filePath)
-        }
+        await stopping.value
+        await dependencies.invalidateAudioBoost(filePath)
     }
 
     @MainActor
     private func stageOrInstallPlayer(
-        _ preparedPlayer: AVAudioPlayer,
+        _ preparedPlayer: AudioPlaybackFilePlayer,
         source: AudioPlayerSource
     ) {
         let resumeTime = player?.currentTime ?? 0
@@ -532,10 +537,7 @@ struct AudioPlaybackCarouselPage: View {
         }
 
         clearPendingPlayer()
-        preparedPlayer.currentTime = min(
-            max(0, resumeTime),
-            preparedPlayer.duration
-        )
+        preparedPlayer.currentTime = resumeTime
         installPlayer(
             preparedPlayer,
             source: source,
@@ -549,10 +551,7 @@ struct AudioPlaybackCarouselPage: View {
         guard let pendingPlayer, let pendingPlayerSource else { return false }
         self.pendingPlayer = nil
         self.pendingPlayerSource = nil
-        pendingPlayer.currentTime = min(
-            max(0, resumeTime),
-            pendingPlayer.duration
-        )
+        pendingPlayer.currentTime = resumeTime
         installPlayer(
             pendingPlayer,
             source: pendingPlayerSource,
@@ -570,11 +569,11 @@ struct AudioPlaybackCarouselPage: View {
 
     @MainActor
     private func installPlayer(
-        _ preparedPlayer: AVAudioPlayer,
+        _ preparedPlayer: AudioPlaybackFilePlayer,
         source: AudioPlayerSource,
         shouldPlay: Bool
     ) {
-        player?.stop()
+        preparedPlayer.waitForRetirement(player?.stop())
         player = preparedPlayer
         activePlayerSource = source
         playerGeneration &+= 1

@@ -91,6 +91,8 @@ targets:
     postBuildScripts:
       - name: Embed Build Provenance
         basedOnDependencyAnalysis: false
+        inputFiles:
+          - "$(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)"
         script: |
           bash "${SRCROOT}/scripts/embed-ios-build-provenance.sh"
       - name: SwiftLint Validation

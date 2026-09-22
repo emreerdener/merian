@@ -147,10 +147,21 @@ evidence. The registry captures the admitted model, tier, prompt/schema, and
 generation settings before commitment. `instructions.ts` owns the unchanged
 audio, main-text, and blended instructions; the shared Identify schema module
 retains the vision instruction. The handler still owns media validation,
-consent/quota admission, one commit followed by one invocation, domain and wire
-validation, and durable finalization. Service replay still uses the owner's
-admission and separately metered replay request ID. No client or environment
-provider selector is introduced.
+consent/quota admission, one commit followed by one invocation, error handling,
+final hydrated wire validation, and durable finalization. Service replay still
+uses the owner's admission and separately metered replay request ID. No client
+or environment provider selector is introduced.
+
+`_shared/identify/normalizeIdentification.ts` owns the route's pure
+post-provider parsing and normalization. It preserves name/pet sanitization,
+processed-material demotion, audio subject precedence, location-dependent
+invasive metadata, blur, and client candidate/life-stage projections. Its inputs
+are the unknown draft, actual visual/audio presence, the admitted inference
+tier, and a Boolean for existing invasive-location context; it accepts no
+coordinates or user identity. The route handles returned diagnostics and
+performs dictionary hydration and final envelope validation afterward. Offline
+evaluation uses this same helper through its scripts-only bridge; it does not
+invoke admission or persistence.
 
 The route retains the existing modality-specific system instructions,
 temperature `0.1`, seed `42`, `maxOutputTokens: 8192`, Pro thinking budget
@@ -458,6 +469,15 @@ Successful responses add diagnostic headers without changing the JSON body:
   `quota_commit`, `provider`, `video_promotion`, `primary_enrichment`,
   `database_finalization`, `dictionary`, `post_gemini`, and `edge_total`.
 - `X-Merian-Edge-Region`: the observed Edge region when available.
+- `X-Merian-Identification`: versioned, bounded provider/model, runtime-bundle
+  fingerprint and nullable token counts from the fresh primary attempt.
+  `diagnostics.ts` owns the explicit content-free projection;
+  `deploymentIdentity.ts` is generated from the runtime dependency graph. Errors
+  and completed replays carry no fresh-attempt diagnostics. See the
+  [API contract](../../../../docs/backend-and-data/05-api-contracts.md#latency-and-authentication-contract)
+  and
+  [recording guide](../../../../docs/development-guides/21-identification-app-measurement.md)
+  for the wire format, regeneration command, native parser and cost limits.
 
 The successful `multimodal/latency` event also includes `quota_commit_ms`,
 `provider_ms`, `video_promotion_ms`, `primary_enrichment_ms`, and

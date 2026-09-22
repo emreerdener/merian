@@ -152,6 +152,33 @@ struct AccountDeletionLocalCleanupStoreTests {
         )
     }
 
+    @Test func preBootstrapResolutionDoesNotPublishRuntimeEvents() throws {
+        let suiteName = "AccountDeletionCleanupStore.Bootstrap.\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let events = AppEventPublisher()
+        var invalidations = 0
+        let cancellable = events.publisher.sink { event in
+            if case .accountDeletionRecoveryStateChanged = event {
+                invalidations += 1
+            }
+        }
+        defer { cancellable.cancel() }
+
+        #expect(AccountDeletionLocalCleanupStore.recordCapabilityLookupPending(
+            userDefaults: defaults,
+            eventSender: events,
+            emitEvent: false
+        ))
+        #expect(AccountDeletionLocalCleanupStore.resolve(
+            userDefaults: defaults,
+            eventSender: events,
+            emitEvent: false
+        ))
+        #expect(AccountDeletionLocalCleanupStore.state(userDefaults: defaults) == nil)
+        #expect(invalidations == 0)
+    }
+
     @Test func legacyBooleanMigratesAsAcceptedCleanup() throws {
         let suiteName = "AccountDeletionCleanupStore.Legacy.\(UUID())"
         let defaults = try #require(UserDefaults(suiteName: suiteName))

@@ -8,7 +8,7 @@ const routes = [
   },
   {
     path: "../identify-multimodal/index.ts",
-    providerParser: "parseMerianIdentification",
+    providerParser: "normalizeIdentification",
     finalizationBoundary: "const requireDurableVideo",
   },
   {

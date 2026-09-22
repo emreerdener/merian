@@ -28,7 +28,7 @@ OWNED_SETTINGS = {
     'SYMROOT', 'OBJROOT', 'DSTROOT', 'CONFIGURATION_BUILD_DIR',
     'CONFIGURATION_TEMP_DIR', 'BUILD_DIR', 'BUILD_ROOT', 'PROJECT_TEMP_DIR',
     'SHARED_PRECOMPS_DIR', 'CLANG_MODULE_CACHE_PATH', 'SWIFT_MODULE_CACHE_PATH',
-    'CODE_SIGNING_ALLOWED',
+    'CODE_SIGNING_ALLOWED', 'CODE_SIGN_IDENTITY',
 }
 ACTIONS = {'build', 'build-for-testing', 'test', 'test-without-building'}
 
@@ -47,7 +47,8 @@ def validate_args(args):
         raise RuntimeError('Start with build, build-for-testing, test, or test-without-building.')
     for arg in args:
         key = arg.split('=', 1)[0]
-        if key in OWNED_FLAGS or key in OWNED_SETTINGS or arg == 'archive':
+        setting = key.split('[', 1)[0]
+        if key in OWNED_FLAGS or setting in OWNED_SETTINGS or arg == 'archive':
             raise RuntimeError(f'The local validation wrapper does not accept {key}.')
 
 
@@ -133,6 +134,10 @@ class Workspace:
         derived = scratch or self.checked(self.cache / platform)
         report = self.reports / f'{uuid.uuid4().hex}.xcresult'
         self.last_report = report
+        # Simulator processes need signed entitlements for Keychain access.
+        # Ad-hoc signing uses no distribution identity or provisioning update.
+        signing = (['CODE_SIGNING_ALLOWED=YES', 'CODE_SIGN_IDENTITY=-']
+                   if platform == 'simulator' else ['CODE_SIGNING_ALLOWED=NO'])
         command = [
             'xcodebuild', '-project', str(self.root / 'Merian.xcodeproj'),
             '-scheme', 'Merian', '-sdk', 'iphonesimulator' if platform == 'simulator' else 'iphoneos',
@@ -142,7 +147,7 @@ class Workspace:
             '-disablePackageRepositoryCache',
             '-onlyUsePackageVersionsFromResolvedFile', '-disableAutomaticPackageResolution',
             '-resultBundlePath', str(report),
-            *args, 'CODE_SIGNING_ALLOWED=NO',
+            *args, *signing,
         ]
         print(f'Build cache: {derived}\nResult bundle: {report}', flush=True)
         try:
@@ -350,7 +355,7 @@ class Workspace:
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
-    run = commands.add_parser('run', help='Run an unsigned local Xcode validation action')
+    run = commands.add_parser('run', help='Run local Xcode validation with ad-hoc simulator signing or unsigned device compilation')
     run.add_argument('platform', choices=['simulator', 'device'])
     run.add_argument('--isolated', action='store_true')
     run.add_argument('xcode_args', nargs=argparse.REMAINDER)

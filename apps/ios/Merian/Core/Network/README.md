@@ -2620,8 +2620,14 @@ mutation or deployment is authorized by this refactor.
   Auth-deletion evidence.
 - Adds `X-Merian-Constrained-Network` for aggregate diagnostics without exposing
   the active interface or user identity.
-- Reads privacy-safe `Server-Timing` and `X-Merian-Edge-Region` response
-  headers.
+- For identification responses, `IdentificationBenchmarkRecord` projects bounded
+  `Server-Timing` and `X-Merian-Identification` fields plus built-app
+  version/source identity into one content-free Debug measurement record.
+  Replays, missing values and malformed/older headers cannot claim fresh
+  provider usage. It excludes raw header text, region, response bodies and
+  request/owner identifiers. Other routes retain their existing timing logs. The
+  [recording guide](../../../../../docs/development-guides/21-identification-app-measurement.md)
+  owns measurement boundaries and the passive observer command.
 - Records URLSession request-upload, time-to-first-byte-after-upload, and
   response-transfer intervals.
 - Treats current `/identify-multimodal` `200` as a server durability fence:

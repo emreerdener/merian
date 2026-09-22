@@ -128,10 +128,18 @@ treatment, applied directly to scroll views, lists, and forms across features.
 Feature owners remain responsible for media ordering, source and attribution
 policy, availability state, navigation, and their reuse-key projection.
 
-Audio playback keeps player, pending replacement, boost request, seek, and
-observer state private to its mounted page. `AudioBoostRequestState` gives each
-toggle generation ownership so an older completion cannot clear or publish over
-a newer on/off/on request. Shared side effects arrive through
+`Models/MediaAttributionText` formats the shared fullscreen gallery and Field
+Chat credits as attributed text. Embedded URLs become tappable `Website` links;
+Creative Commons URLs use readable license titles, including version and
+jurisdiction. Photographer names and link destinations are preserved, and raw
+URLs never appear as the visible attribution label.
+
+Audio playback keeps player handles, pending replacement, boost request, seek,
+and observer state private to its mounted page. Core Media owns the background
+AVAudioPlayer executor; the page reads scalar time/status projections and never
+prepares or operates audio hardware on the main actor. `AudioBoostRequestState`
+gives each toggle generation ownership so an older completion cannot clear or
+publish over a newer on/off/on request. Shared side effects arrive through
 `Core/Media/MediaPlaybackDependencies`; Core UI contains no feature telemetry
 owner or live-service lookup.
 

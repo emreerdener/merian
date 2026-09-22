@@ -81,9 +81,18 @@ final class ScanAdmissionManager {
 #endif
 
         let supabaseManager = SupabaseManager.shared
+        guard await ScanAdmissionSessionReadiness.prepare(
+            using: ScanAdmissionSessionReadiness.liveDependencies(manager: supabaseManager)
+        ), !Task.isCancelled else {
+            MerianLog.auth.debug("Scan admission preview unavailable; reason=session_not_ready.")
+            return .unavailable
+        }
         guard let accountWorkLease = try? supabaseManager
-                .beginUnownedAccountBoundWork(),
-              let userID = supabaseManager.currentUser?.id,
+                .beginUnownedAccountBoundWork() else {
+            return .unavailable
+        }
+        defer { supabaseManager.finishAccountBoundWork(accountWorkLease) }
+        guard let userID = supabaseManager.currentUser?.id,
               let session = supabaseManager.client.auth.currentSession,
               session.user.id == userID,
               let supabaseURL = SecureTransportPolicy.httpsURL(
@@ -91,8 +100,6 @@ final class ScanAdmissionManager {
               ) else {
             return .unavailable
         }
-        defer { supabaseManager.finishAccountBoundWork(accountWorkLease) }
-
         let networkClient = MerianNetworkClient.shared
         let postgrest = PostgrestClient(
             url: supabaseURL

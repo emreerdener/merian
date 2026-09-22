@@ -266,6 +266,9 @@ Deno.test("active and compatibility audio producers share normalization before e
   const activeSource = await Deno.readTextFile(
     new URL("../../identify-multimodal/index.ts", import.meta.url),
   );
+  const normalizerSource = await Deno.readTextFile(
+    new URL("./normalizeIdentification.ts", import.meta.url),
+  );
   const compatibilitySource = await Deno.readTextFile(
     new URL("../../audio-spec/index.ts", import.meta.url),
   );
@@ -278,11 +281,17 @@ Deno.test("active and compatibility audio producers share normalization before e
   const adapter = await Deno.readTextFile(
     new URL("../ai/gemini.ts", import.meta.url),
   );
+  const requestProjection = await Deno.readTextFile(
+    new URL("../ai/geminiRequest.ts", import.meta.url),
+  );
 
-  for (const source of [activeSource, compatibilitySource]) {
-    const normalization = source.indexOf(
-      "normalizeAudioOnlySubject(parsedData)",
-    );
+  for (
+    const [source, call] of [
+      [activeSource, "normalizeIdentification(result.draft,"],
+      [compatibilitySource, "normalizeAudioOnlySubject(parsedData)"],
+    ]
+  ) {
+    const normalization = source.indexOf(call);
     const enrichment = source.indexOf("const isIdentifiedBio", normalization);
     assertEquals(normalization >= 0, true);
     assertEquals(enrichment > normalization, true);
@@ -296,9 +305,14 @@ Deno.test("active and compatibility audio producers share normalization before e
     compatibilityInstructions,
     "AUDIO_ONLY_SUBJECT_SELECTION_INSTRUCTION",
   );
-  for (const source of [activeSource, compatibilitySource]) {
+  assertStringIncludes(
+    normalizerSource,
+    "normalizeAudioOnlySubject(parsedData)",
+  );
+  for (const source of [normalizerSource, compatibilitySource]) {
     assertStringIncludes(source, "parseMerianAudioIdentification");
   }
-  assertStringIncludes(adapter, "getMerianAudioResponseSchema");
+  assertStringIncludes(adapter, "buildGeminiRequestParameters");
+  assertStringIncludes(requestProjection, "getMerianAudioResponseSchema");
   assertEquals(compatibilitySource.includes("const audioSchema"), false);
 });

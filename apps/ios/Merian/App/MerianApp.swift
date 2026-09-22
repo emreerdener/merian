@@ -104,8 +104,12 @@ struct MerianApp: App {
     // MARK: - Lifecycle Bootstrapping
     @MainActor
     init() {
-        _ = AccountDeletionRecoveryCapabilityStore
-            .restoreBarrierBeforeAuthBootstrap()
+        // Test-mode Keychain reads use synthetic storage and cannot establish
+        // whether a production recovery proof is absent.
+        if !TestExecutionCoordinator.isRunningTests {
+            _ = AccountDeletionRecoveryCapabilityStore
+                .restoreBarrierBeforeAuthBootstrap()
+        }
         _isAccountDeletionRecoveryPending = State(
             initialValue: AccountDeletionLocalCleanupStore.isPending()
         )

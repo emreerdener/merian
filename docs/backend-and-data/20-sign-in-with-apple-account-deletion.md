@@ -163,6 +163,19 @@ settings.
 
 ### Client crash recovery
 
+Before Auth bootstrap, a normal app launch rechecks a previously recorded
+`capability_lookup_pending` marker. A successful Keychain read proving no
+recovery capability exists may durably clear that lookup-only marker without
+requiring a cached session. A present or unreadable proof retains the barrier;
+every other current, legacy, or unknown deletion phase continues through its
+existing recovery workflow. Removal failure reasserts the lookup barrier. This
+pre-bootstrap operation emits no runtime event, initializes no Auth dependency,
+removes no Keychain item and performs no account-data cleanup. App-hosted test
+processes skip the live probe because synthetic test Keychain storage cannot
+establish absence of a real recovery proof. See the
+[local simulator incident](../incidents/2026-09-simulator-signing-recovery-loop.md)
+for the missing-session deadlock that motivated this correction.
+
 Migration `20260813053000_add_account_deletion_recovery_capabilities.sql` keeps
 the legacy one-proof contract. Migration
 `20260813142638_prepare_account_deletion_recovery_v2.sql` adds the supporting

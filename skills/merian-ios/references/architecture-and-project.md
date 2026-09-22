@@ -39,10 +39,16 @@ dependency injection, persistence ownership, or shared iOS/watchOS code.
   preview. Cleanup preserves downloaded dependencies, evidence, release
   archives, and all legacy `.build` directories. It refuses removal if process
   inspection fails or any `xcodebuild` is running.
-- This wrapper is local unsigned validation only. CI retains its runner-local
-  paths, and Xcode Organizer remains the release/archive owner. Keep only
-  reports needed for current diagnosis or explicit release evidence; review
-  historical `.artifacts/local-ios` reports separately from cache cleanup.
+- Simulator actions use local ad-hoc signing so Xcode packages the Keychain and
+  other simulator runtime entitlements. Device compilation remains unsigned. The
+  wrapper owns signing settings and rejects qualified overrides as well as
+  archive/export/provisioning actions. Do not install unsigned simulator
+  products for normal app testing or bypass a recovery barrier by clearing
+  Keychain/defaults state.
+- CI retains its runner-local paths, and Xcode Organizer remains the
+  release/archive owner. Keep only reports needed for current diagnosis or
+  explicit release evidence; review historical `.artifacts/local-ios` reports
+  separately from cache cleanup.
 
 See the canonical
 [testing strategy](../../../docs/development-guides/08-testing-strategy.md) for

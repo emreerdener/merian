@@ -145,6 +145,23 @@ struct AppRootArchitectureTests {
         }
     }
 
+    @Test func liveRecoveryProbePrecedesDependenciesAndSkipsTestProcesses() throws {
+        let source = try readSource(at: "MerianApp.swift")
+        let initializer = try #require(source.range(of: "init() {"))
+        let dependencies = try #require(source.range(
+            of: "let dependencies = AppDIContainer.shared",
+            range: initializer.upperBound..<source.endIndex
+        ))
+        let bootstrap = String(source[initializer.upperBound..<dependencies.lowerBound])
+            .replacingOccurrences(of: #"\s+"#, with: "", options: .regularExpression)
+        #expect(bootstrap.contains(
+            "if!TestExecutionCoordinator.isRunningTests{" +
+                "_=AccountDeletionRecoveryCapabilityStore" +
+                ".restoreBarrierBeforeAuthBootstrap()}"
+        ))
+        #expect(source.components(separatedBy: "restoreBarrierBeforeAuthBootstrap()").count == 2)
+    }
+
     private func appSourceRoot() throws -> URL {
         try DatabaseActorTestSupport.repositoryRoot()
             .appendingPathComponent(Self.appDirectory)

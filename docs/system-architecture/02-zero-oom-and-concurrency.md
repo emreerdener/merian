@@ -24,6 +24,14 @@ Long-lived workflows are pushed into actors (`SearchFilterActor`, `FileIOActor`,
 `InferenceProcessingActor`, `MediaExportProcessor`, `AudioSessionCoordinator`)
 so cancellation, serialization, and ownership stay explicit.
 
+Carousel audio confines AVAudioPlayer construction, control, sampling, and
+release to `AudioPlaybackFileDriver` on a dedicated serial executor. Its
+main-actor `AudioPlaybackFilePlayer` exposes scalar projections and serializes
+commands, rejecting stale play/time results after pause, seek, or stop. Loading
+must not call `prepareToPlay`: that call implicitly activates AVAudioSession.
+Only admitted playback starts audio hardware; background/disappearance joins
+pending playback and stop before releasing the exact session lease.
+
 ### ImageIO, CoreVideo, & UIImage Autoreleasepool Memory Leaks
 
 When performing bulk downsampling with CoreGraphics

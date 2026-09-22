@@ -114,10 +114,27 @@ class LocalBuildTests(unittest.TestCase):
         reports = [Path(command[command.index('-resultBundlePath') + 1]) for command in commands]
         self.assertNotEqual(*reports)
         self.assertTrue(all(path.parent == self.workspace.reports for path in reports))
-        self.assertEqual(commands[0][-1], 'CODE_SIGNING_ALLOWED=NO')
         self.assertIn('-onlyUsePackageVersionsFromResolvedFile', commands[0])
         self.assertIn('-disableAutomaticPackageResolution', commands[0])
         self.assertIn('-disablePackageRepositoryCache', commands[0])
+
+    def test_simulator_actions_keep_ad_hoc_signing_for_runtime_entitlements(self):
+        for action in sorted(build.ACTIONS):
+            with self.subTest(action=action), patch.object(build, 'check_space'), \
+                 patch.object(build, 'run_child', return_value=0) as child:
+                self.workspace.run('simulator', False, [action])
+                command = child.call_args.args[0]
+                self.assertIn('CODE_SIGNING_ALLOWED=YES', command)
+                self.assertIn('CODE_SIGN_IDENTITY=-', command)
+                self.assertNotIn('CODE_SIGNING_ALLOWED=NO', command)
+
+    def test_device_validation_remains_unsigned(self):
+        with patch.object(build, 'check_space'), \
+             patch.object(build, 'run_child', return_value=0) as child:
+            self.workspace.run('device', False, ['build'])
+        command = child.call_args.args[0]
+        self.assertIn('CODE_SIGNING_ALLOWED=NO', command)
+        self.assertFalse(any(arg.startswith('CODE_SIGN_IDENTITY=') for arg in command))
 
     def test_isolated_output_removed_after_success_failure_and_exception(self):
         for outcome in (0, 65, OSError('fixture launch failed')):
@@ -146,7 +163,13 @@ class LocalBuildTests(unittest.TestCase):
     def test_output_overrides_and_release_actions_are_rejected(self):
         for args in (['archive'], ['build', '-derivedDataPath', '/tmp/other'],
                      ['build', '-resultBundlePath=/tmp/report'], ['build', 'SYMROOT=/tmp/other'],
-                     ['build', 'CODE_SIGNING_ALLOWED=YES'], ['build', '-allowProvisioningUpdates']):
+                     ['build', 'CODE_SIGNING_ALLOWED=YES'], ['build', 'CODE_SIGNING_ALLOWED=NO'],
+                     ['build', 'CODE_SIGN_IDENTITY=Apple Development'],
+                     ['build', 'CODE_SIGN_IDENTITY[sdk=iphonesimulator*]=Apple Development'],
+                     ['build', 'CODE_SIGNING_ALLOWED[sdk=iphonesimulator*]=NO'],
+                     ['build', 'CODE_SIGNING_ALLOWED[config=Debug]=NO'],
+                     ['build', 'SYMROOT[sdk=iphonesimulator*]=/tmp/other'],
+                     ['build', '-allowProvisioningUpdates']):
             with self.subTest(args=args), self.assertRaises(RuntimeError):
                 build.validate_args(args)
 

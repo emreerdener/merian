@@ -33,18 +33,21 @@ Gemini; see the
 - `execution.ts` permits one invocation per prepared attempt and records its
   duration. It owns no quota, persistence, retry, failover, or cancellation
   based on a disconnected foreground request.
-- `gemini.ts` builds the native SDK request and decodes text, JSON, finish
-  reasons, model version, usage, and the safety probabilities consumed by the
-  existing moderation policy. It reuses `../gemini.ts` for credentials and the
-  existing 90-second HTTP deadline. SDK setup is checked before commitment;
-  schema/instructions are captured during preparation. Existing schema
-  projections remain in `identify-describe/schema.ts` and
-  `../identify/schema.ts`. Primary audio, text, and blended instructions live in
-  `identify-multimodal/instructions.ts`; the existing vision instruction remains
-  in `../identify/schema.ts`. The distinct legacy audio instruction lives in
-  `audio-spec/instructions.ts`. `geminiContent.ts` owns the unchanged content
-  prompts, schemas, locale, and normalized taxonomy projection. `../biology.ts`
-  retains domain-result normalization and existing usage/analytics ownership.
+- `geminiRequest.ts` assembles native parameters without SDK runtime imports or
+  environment access, allowing offline evaluation to share exact prompts,
+  schemas and settings. `gemini.ts` wraps that projection with existing content
+  parameters and decodes text, JSON, finish reasons, model version, usage, and
+  the safety probabilities consumed by the existing moderation policy. It reuses
+  `../gemini.ts` for credentials and the existing 90-second HTTP deadline. SDK
+  setup is checked before commitment; schema/instructions are captured during
+  preparation. Existing schema projections remain in
+  `identify-describe/schema.ts` and `../identify/schema.ts`. Primary audio,
+  text, and blended instructions live in `identify-multimodal/instructions.ts`;
+  the existing vision instruction remains in `../identify/schema.ts`. The
+  distinct legacy audio instruction lives in `audio-spec/instructions.ts`.
+  `geminiContent.ts` owns the unchanged content prompts, schemas, locale, and
+  normalized taxonomy projection. `../biology.ts` retains domain-result
+  normalization and existing usage/analytics ownership.
 
 The handler owns current consent/entitlement admission, the lease and durable
 ledger, commitment immediately before invocation, domain and wire validation,
@@ -221,9 +224,12 @@ existing paths.
 
 The
 [Slice 6 verification record](../../../../../docs/rfcs/identification-foundation-verification.md)
-adds full disposable-database evidence and distinguishes remaining hosted/device
-gates. `_tests/aiQuotaCoverage.test.ts` locks the scoped/deferred Functions and
-tooling dispatch/SDK inventory, including the live evaluator and network-denied
+adds full disposable-database evidence and distinguishes the hosted/device gates
+remaining at that checkpoint. The
+[deployment record](../../../../../docs/release-evidence/provider-flexibility-deployment-2026-09-21.md)
+adds the Gemini-only rollout and owner-reported manual verification.
+`_tests/aiQuotaCoverage.test.ts` locks the scoped/deferred Functions and tooling
+dispatch/SDK inventory, including the live evaluator and network-denied
 benchmark guards. The obsolete `createFlashModel` wrapper is removed.
 
 For local timing, run `scripts/benchmark_ai_boundary.ts` from the Supabase tree

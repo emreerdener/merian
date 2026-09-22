@@ -109,7 +109,7 @@ struct FieldChatImageStack: View {
                     .accessibilityIdentifier("FieldChatImageStack")
 
                 if let attribution = selected.attribution {
-                    Text(attribution)
+                    Text(MediaAttributionText.formatted(attribution))
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)

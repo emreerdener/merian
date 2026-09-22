@@ -127,11 +127,11 @@ final class AudioPlaybackSessionController {
         return true
     }
 
-    func deactivate() {
+    func deactivate(after stopping: Task<Void, Never>? = nil) {
         cancelPendingActivation()
         guard let heldLease else { return }
         self.heldLease = nil
-        release(heldLease.lease)
+        release(heldLease.lease, after: stopping)
     }
 
     func cancelPendingActivation() {
@@ -164,9 +164,13 @@ final class AudioPlaybackSessionController {
         }
     }
 
-    private func release(_ lease: AudioSessionCoordinator.Lease) {
+    private func release(
+        _ lease: AudioSessionCoordinator.Lease,
+        after stopping: Task<Void, Never>? = nil
+    ) {
         let deactivate = dependencies.deactivate
         Task {
+            await stopping?.value
             await deactivate(lease)
         }
     }

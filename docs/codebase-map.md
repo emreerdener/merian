@@ -1237,34 +1237,37 @@ stateless Edge URL construction, unavailable-route and stable-error
 classification, retry allowlists/account binding, and value-only Auth-recovery
 decisions. Its request-scoped `AuthenticatedRequestExecutor` owns the logical
 attempt state machine and applies those policies plus injected Auth,
-entitlement, and consent effects. `PinnedNetworkTransport` owns the single
-configured session, lock-backed first-use initialization, exact Supabase
-host/subdomain policy, required platform trust plus pin validation, fail-closed
-unreadable/unmatched-chain handling, TLS delegate, raw and caller-deadline
-dispatch, and DEBUG override; `AuthenticatedTransportDispatcher` owns each
-attempt's Auth/session fence and upload delegate. `MerianNetworkClient.swift`
-retains configuration diagnostics and injects both owners behind typed-response,
-body-ignoring, encoded-body, and raw-response JSON POST bridges. Its only
-non-Edge PostgREST bridge admits the exact authenticated scan-admission RPC and
-applies the caller's two-second, no-cache/no-retry policy through that same
-pinned transport. Fixed-result Dictionary/stats bridges exclusively access the
-client's private cache instance, validating each loaded response before
-insertion; their typed GET helper remains private. The internal configuration
-guard preserves Dictionary validation/cache ordering without exposing URLs. The
-typed POST bridge forwards optional idempotency keys and selectively replaces
-decoding errors without catching transport failures. Wire DTOs remain in
-`Models/FieldTrips/`, `Models/Explore/`, `InsightChatAPIModels.swift`,
-`SpeciesDictionaryAPIModels.swift`, `SpeciesObservationStatsAPIModels.swift`,
-`ScanLifecycleAPIModels.swift`, and `MediaStorageAPIModels.swift`, plus
-`AccountDeletionAPIModels.swift`. The encoded-body bridge preserves typed
-request encoding and returns bytes for Field Chat's strict decoder. The
-raw-response bridge keeps scan recovery bound to its expected Auth owner through
-the private transport. The prepared-JSON bridge forwards enrichment's serialized
-body and stable key after its configuration/serialization/UUID validation
-sequence. The account-bound encoded bridge keeps signing's lowercase body owner
-bound to the same private transport UUID without bypassing current-session
-resolution. Two raw PUT bridges expose only request/file inputs and response
-values, adding no Auth/retry policy.
+entitlement, and consent effects. `IdentificationBenchmarkRecord` owns its
+content-free response/build measurement projection; the
+[app measurement guide](./development-guides/21-identification-app-measurement.md)
+owns the passive observer, token/cost and timing limits.
+`PinnedNetworkTransport` owns the single configured session, lock-backed
+first-use initialization, exact Supabase host/subdomain policy, required
+platform trust plus pin validation, fail-closed unreadable/unmatched-chain
+handling, TLS delegate, raw and caller-deadline dispatch, and DEBUG override;
+`AuthenticatedTransportDispatcher` owns each attempt's Auth/session fence and
+upload delegate. `MerianNetworkClient.swift` retains configuration diagnostics
+and injects both owners behind typed-response, body-ignoring, encoded-body, and
+raw-response JSON POST bridges. Its only non-Edge PostgREST bridge admits the
+exact authenticated scan-admission RPC and applies the caller's two-second,
+no-cache/no-retry policy through that same pinned transport. Fixed-result
+Dictionary/stats bridges exclusively access the client's private cache instance,
+validating each loaded response before insertion; their typed GET helper remains
+private. The internal configuration guard preserves Dictionary validation/cache
+ordering without exposing URLs. The typed POST bridge forwards optional
+idempotency keys and selectively replaces decoding errors without catching
+transport failures. Wire DTOs remain in `Models/FieldTrips/`, `Models/Explore/`,
+`InsightChatAPIModels.swift`, `SpeciesDictionaryAPIModels.swift`,
+`SpeciesObservationStatsAPIModels.swift`, `ScanLifecycleAPIModels.swift`, and
+`MediaStorageAPIModels.swift`, plus `AccountDeletionAPIModels.swift`. The
+encoded-body bridge preserves typed request encoding and returns bytes for Field
+Chat's strict decoder. The raw-response bridge keeps scan recovery bound to its
+expected Auth owner through the private transport. The prepared-JSON bridge
+forwards enrichment's serialized body and stable key after its
+configuration/serialization/UUID validation sequence. The account-bound encoded
+bridge keeps signing's lowercase body owner bound to the same private transport
+UUID without bypassing current-session resolution. Two raw PUT bridges expose
+only request/file inputs and response values, adding no Auth/retry policy.
 `CoreNetworkIntegrationArchitectureTests.swift` freezes the exact 18
 endpoint-owner inventory, prevents duplicate aggregate endpoint methods, applies
 the 600-line ceiling across the extracted Auth, Endpoint, Inference, Media,
@@ -1700,12 +1703,26 @@ projection into the pinned Google SDK schema.
 `_shared/identify/audioSubjectPolicy.ts` owns the shared audio-only
 non-human-over-Human precedence and consumes its provider-private discriminator
 before either audio route assembles the unchanged public Identify payload.
-`services/supabase/scripts/validate_edge_dtos.ts` imports that same executable
-descriptor and deterministically generates the marked Identify DTO block in iOS
-`InferenceEdgeDTOs.swift`, including nested types, arrays, numeric
-representations, coding keys, and explicit decoders. The gate compares the
-checked-in block exactly and checks exclusive generated DTO ownership across the
-complete `apps/ios` source graph. Its focused tests, third-party-free Deno
+`_shared/identify/normalizeIdentification.ts` composes the active multimodal
+post-provider parsing and subject rules without I/O. The route and
+`scripts/identification_evaluation/normalization.ts` use it for the same domain
+result and client candidate/life-stage projections; dictionary hydration and
+final wire validation remain in the route. The
+[evaluation tooling guide](../services/supabase/scripts/identification_evaluation/README.md)
+owns corpus/media validation, guarded local execution, durable attempt records
+and reproducible scoring/comparison. Its native parameter projection reuses
+`_shared/ai/geminiRequest.ts` without initializing the SDK in offline mode.
+`scripts/identification_evaluation/exploratory.ts` and `exploratoryReport.ts`
+own the separately versioned provisional corpus and agreement report for solo
+development. `preflight.ts` verifies assets and fingerprints requests without
+network, credentials or dispatch. Formal scoring and comparison reject this
+exploratory evidence; the same live execution controls apply to eligible real
+exploratory runs. `services/supabase/scripts/validate_edge_dtos.ts` imports that
+same executable descriptor and deterministically generates the marked Identify
+DTO block in iOS `InferenceEdgeDTOs.swift`, including nested types, arrays,
+numeric representations, coding keys, and explicit decoders. The gate compares
+the checked-in block exactly and checks exclusive generated DTO ownership across
+the complete `apps/ios` source graph. Its focused tests, third-party-free Deno
 config, and frozen lock exercise stale generation, aliased decoder extensions,
 missing source roots, and runtime numeric bounds.
 `_shared/capturedMediaContract.ts` independently owns the durable

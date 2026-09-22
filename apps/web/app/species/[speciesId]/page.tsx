@@ -38,6 +38,7 @@ import {
 } from "@/lib/species";
 import type { PublicSpeciesReferenceImage } from "../../../../../services/supabase/functions/_shared/publicSpeciesProjection.ts";
 import {
+  attributionParts,
   referenceImageCaption,
   speciesReferenceCredit,
 } from "@/lib/speciesReferenceCredit";
@@ -286,11 +287,11 @@ function ReferenceImage({
         fit="cover"
       />
       <Text size="xs" c="dimmed" p="sm">
-        {image.attribution} — {credit.licenseURL ? (
+        <AttributionLinks value={image.attribution} /> — {credit.licenseURL ? (
           <Anchor href={credit.licenseURL} target="_blank" rel="noopener noreferrer" inherit>
             {credit.licenseLabel}
           </Anchor>
-        ) : credit.licenseLabel} · {credit.sourceURL ? (
+        ) : <AttributionLinks value={image.license} />} · {credit.sourceURL ? (
           <Anchor href={credit.sourceURL} target="_blank" rel="noopener noreferrer" inherit>
             {credit.sourceLabel}
           </Anchor>
@@ -298,6 +299,14 @@ function ReferenceImage({
       </Text>
     </Stack>
   );
+}
+
+function AttributionLinks({ value }: { value?: string }) {
+  return attributionParts(value).map((part, index) => part.url ? (
+    <Anchor key={index} href={part.url} target="_blank" rel="noopener noreferrer" inherit>
+      {part.label}
+    </Anchor>
+  ) : part.label);
 }
 
 function SimilarSpeciesCard({ species }: { species: WebSimilarSpecies }) {

@@ -9,7 +9,6 @@ struct ExploreReactionStrip: View {
     var trailingContentPadding: CGFloat = 0
     @ScaledMetric(relativeTo: .title3) private var rowHeight: CGFloat = 44
     @ScaledMetric(relativeTo: .title3) private var emojiSize: CGFloat = 20
-    @ScaledMetric(relativeTo: .title3) private var countSize: CGFloat = 20
     @State private var contentFrame = CGRect.zero
     @State private var viewportWidth: CGFloat = 0
     @Namespace private var scrollSpace
@@ -26,7 +25,7 @@ struct ExploreReactionStrip: View {
                             HStack(spacing: 4) {
                                 Text(reaction.emoji).font(.system(size: emojiSize))
                                 Text(reaction.count.formatted(.number.notation(.compactName)))
-                                    .font(.system(size: countSize))
+                                    .font(.body)
                                     .foregroundStyle(reaction.viewerHasReacted ? Color.accentColor : Color.primary)
                             }
                             .foregroundStyle(.primary)

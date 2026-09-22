@@ -55,7 +55,7 @@ final class FieldChatEmptyStateRenderingTests: XCTestCase {
             let media = (0..<count).compactMap {
                 FieldChatMedia.image(
                     path: "fixture-\($0).jpg", label: "Species reference image",
-                    attribution: "Example photographer · CC BY 4.0 · Reference"
+                    attribution: "Example photographer · https://example.org/credit · https://creativecommons.org/licenses/by/4.0/ · Reference"
                 )
             }
             let height: CGFloat = name == "stack-tall" ? 1000 : compact ? 280 : 620

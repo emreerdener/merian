@@ -53,7 +53,14 @@ retire a proof.
 - Capability material never enters `UserDefaults`, logs, analytics, URLs, crash
   metadata, app groups, backups, or server plaintext storage.
 - A present or unreadable Keychain proof restores a conservative barrier before
-  Auth bootstrap. Verified absence may remove only that lookup barrier.
+  Auth bootstrap. Normal startup rechecks an existing lookup barrier and clears
+  it only after verified proof absence, without requiring a cached session.
+  Every actual, legacy, or unknown deletion phase remains reserved for its
+  normal recovery workflow. Failed durable removal reasserts the lookup barrier.
+  Pre-bootstrap writes and removal suppress runtime events so they cannot
+  initialize `AppDIContainer` prematurely; ordinary resolution retains its
+  event. App-hosted tests skip the live bootstrap probe because their synthetic
+  Keychain cannot prove absence of a real recovery proof.
 - When the Auth listener observes an accepted-cleanup barrier, it immediately
   clears the published Auth session, purchase-principal binding/readiness, and
   local server-verified entitlement projection. This is a local fail-closed
@@ -72,10 +79,13 @@ Mirrored tests live in `MerianTests/Core/Security/AccountDeletion/`:
 - `AccountDeletionRecoveryCapabilityStoreTests.swift` covers generation,
   protocol compatibility, legacy-intake raw-proof creation and v2-envelope
   rejection, secure-storage uncertainty, exact accessibility, write
-  verification, pre-Auth barrier restoration, and verified removal.
+  verification, pre-Auth barrier restoration, later verified absence without a
+  session, preservation of present/unreadable proofs and all other deletion
+  phases, and verified removal.
 - `AccountDeletionLocalCleanupStoreTests.swift` covers every installed phase,
   legacy Boolean migration, unknown-state admission, persistence/event order,
-  verified resolution, and the exact security-owned defaults keys.
+  verified resolution, pre-bootstrap event suppression, and the exact
+  security-owned defaults keys.
 - `ManualAppleRevocationNoticeStoreTests.swift` covers persistence before event
   delivery and explicit resolution.
 - `AccountDeletionSecurityArchitectureTests.swift` freezes declaration and test

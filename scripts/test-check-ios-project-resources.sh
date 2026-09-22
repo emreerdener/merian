@@ -159,6 +159,12 @@ assert_fails_with \
   "Embed Build Provenance must remain always-out-of-date and invoke only scripts/embed-ios-build-provenance.sh." \
   "$wrong_provenance_command_fixture"
 
+missing_provenance_input_fixture="$(fixture_project missing-provenance-input)"
+perl -0pi -e 's{^[ \t]*"\$\(TARGET_BUILD_DIR\)/\$\(INFOPLIST_PATH\)",\n}{}m or die "expected provenance input\n";' "$missing_provenance_input_fixture"
+assert_fails_with \
+  "Embed Build Provenance must declare its processed Info.plist input." \
+  "$missing_provenance_input_fixture"
+
 provenance_after_lint_fixture="$(fixture_project provenance-after-lint)"
 perl -0pi -e '
   my $count = s{

@@ -98,6 +98,13 @@ production submission or public release.
 
 ### Incidents
 
+- **[Simulator signing and startup recovery loop](./incidents/2026-09-simulator-signing-recovery-loop.md)**
+  — Unsigned local simulator builds, missing runtime Keychain entitlements, and
+  verification of recovery through a corrected build.
+- **[First photo import session readiness](./incidents/2026-09-first-import-session-readiness.md)**
+  — First-launch admission before account setup, source mitigation, simulator
+  regressions, and remaining device verification; the reported cause is
+  unconfirmed.
 - **[Beta reconciliation and system analytics log errors](./incidents/2026-09-beta-reconciliation-and-system-analytics.md)**
   — Repeated free-account reconciliation and non-UUID system telemetry,
   repository repairs, and pending production verification.
@@ -193,9 +200,28 @@ production submission or public release.
   The
   [Slice 6 verification record](./rfcs/identification-foundation-verification.md)
   covers the final dispatch boundary, local overhead, disposable database
-  evidence, and remaining candidate/hosted/device gates; the
+  evidence, and the gates remaining at that checkpoint. The
+  [deployment record](./release-evidence/provider-flexibility-deployment-2026-09-21.md)
+  adds the successful Gemini-only rollout, owner verification, and remaining CI
+  observation. The
   [provider onboarding guide](../services/supabase/functions/_shared/ai/ADDING_PROVIDERS.md)
   explains the work needed before assigning another service.
+- **Identification evaluation readiness:**
+  [PRD](./product/04-identification-evaluation-prd.md) and
+  [SRD](./rfcs/identification-evaluation-srd.md) plan the next milestone: an
+  independently reviewed corpus, shared result normalization, and a repeatable
+  Gemini quality/time/cost baseline. Includes five implementation slices; Slices
+  1–3 now supply offline contracts, shared production request/normalization
+  rules, a guarded runner, durable attempts and reproducible reports; the
+  [Slice 4 collection packet](./development-guides/20-identification-evaluation-pilot.md)
+  supplies a solo phone/computer workflow, automated exploratory preflight and
+  provisional reporting, proposed formal coverage and blank intake/reviewer
+  forms. The formal corpus and direct evaluator's live run remain pending; the
+  [exploratory experiment record](./rfcs/identification-exploratory-benchmark-2026-09-22.md)
+  distinguishes offline mechanics from the completed
+  [two-photo production-app benchmark](./rfcs/identification-production-app-benchmark-2026-09-22.md),
+  which records visible outcomes and app timings without claiming verified
+  accuracy, exact model identity or provider cost.
 - **Deferred family and prior combined planning:**
   [PRD](./product/02-family-plans-and-ai-platform-prd.md) and
   [SRD](./rfcs/family-plans-and-ai-platform-srd.md). Family plans are deferred;
@@ -570,6 +596,16 @@ production submission or public release.
 - **[`/development-guides/19-code-ownership-and-refactoring.md`](./development-guides/19-code-ownership-and-refactoring.md)**
   — Durable ownership, extraction, parity, affected-delta, integration-audit,
   and stop-condition rules for future hygiene work.
+- **[`/development-guides/20-identification-evaluation-pilot.md`](./development-guides/20-identification-evaluation-pilot.md)**
+  — Solo phone/computer checks and automated exploratory testing, proposed
+  60-example formal pilot coverage and blank intake/reference-review forms; paid
+  evaluator measurement remains pending. The first two normal production-app
+  submissions are recorded in the
+  [live benchmark](./rfcs/identification-production-app-benchmark-2026-09-22.md).
+- **[`/development-guides/21-identification-app-measurement.md`](./development-guides/21-identification-app-measurement.md)**
+  — Passive app measurement of provider/model, app and Function source identity,
+  provider/Edge timing, token usage and optional conservative primary-call cost.
+  Records unknowns explicitly and submits no identifications.
 
 ## About Naturebook
 

@@ -1,0 +1,188 @@
+# Naturebook Identification Evaluation Readiness — PRD
+
+Document ID: NB-PRD-IDENTIFICATION-EVAL-001\
+Version: 0.7\
+Date: 22 September 2026\
+Status: Slices 1–3 implemented locally; two app checks recorded; reviewed
+baseline pending\
+Suggested owners: Product and Backend, with a biological reference reviewer\
+Companion: [Evaluation Readiness SRD](../rfcs/identification-evaluation-srd.md)
+
+Slices 1–3 now have offline contracts, validation, prepared synthetic media,
+shared request/normalization rules, a guarded runner and reproducible reports,
+described in the
+[tooling guide](../../services/supabase/scripts/identification_evaluation/README.md).
+The production handler and evaluation tooling use the same identification rules.
+The
+[Slice 4 collection packet](../development-guides/20-identification-evaluation-pilot.md)
+now supplies a proposed 60-slot coverage plan and blank
+intake/independent-review forms. The real corpus remains at 0/60 development and
+0/240 held-out groups; source material and reference reviewers are still needed.
+No paid direct-evaluator run has occurred; this local implementation has not
+been deployed.
+
+Owner clarification on 22 September: this is a solo project without two
+reference reviewers. The collection guide now supports both
+[solo phone/computer checks](../development-guides/20-identification-evaluation-pilot.md#start-here-when-you-are-working-alone)
+and an automated exploratory run with one to twelve observation groups. This
+separately versioned mode preserves provisional or unknown references, measures
+both existing Gemini profiles once per group, and reports reference agreement,
+failures, timing and estimated cost. It can supply development feedback before
+an independently reviewed accuracy baseline is available. Live execution retains
+project/key readiness, eligible media, current pricing and explicit spend
+controls. The direct evaluator has not run live. A later
+[production-app checkpoint](../rfcs/identification-production-app-benchmark-2026-09-22.md)
+used the owner's approved ordinary production charges for two photo submissions.
+Both returned visible outcomes and app timings; one reference is provisional and
+the other unverified. Exact model, provider-only timing and billed cost were not
+observed. This operational evidence does not complete the reviewed baseline or
+change the direct evaluator's controls.
+
+## 1. Outcome
+
+Establish a trustworthy baseline for how well Gemini identifies Naturebook
+observations, how often it is uncertain or confidently wrong, and what each
+identification costs and takes to complete. Make the same measurement reusable
+when we consider a different model, provider, or identification approach.
+
+The [provider-flexibility foundation](./03-identification-foundation-prd.md)
+created the interface for future changes. This milestone supplies the evidence
+for deciding whether a change is worthwhile. **Gemini remains the only live
+provider, with the existing prompts, models, and confidence rules.**
+
+The existing local adapter benchmark measures infrastructure overhead. Simulator
+and contract tests establish working flows. Neither establishes biological
+identification accuracy. This plan adds that missing measurement without
+claiming to replace release verification.
+
+## 2. Recommended scope
+
+| Decision             | Recommendation                                                                                                                                                                               |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| First models         | Evaluate the current Gemini Flash/free and Pro/Pro identification profiles separately. Preserve the complete settings of each profile.                                                       |
+| First path           | The primary `identify-multimodal` path across its real input combinations. Compatibility endpoints retain regression coverage; their different prompts are not represented by this baseline. |
+| Starting dataset     | One to twelve eligible exploratory groups for the solo owner; the formal pilot remains 60 independently reviewed groups, ten per input group.                                                |
+| Reference baseline   | Add 240 held-out observation groups, forty per input group: 300 total, including the pilot.                                                                                                  |
+| Scored result        | The model answer after the same contract validation and identification rules used by the backend, before dictionary hydration and persistence.                                               |
+| Evaluation operation | A developer tool with an offline default and an explicitly requested, bounded Gemini run. No deployed evaluation endpoint or production observation export.                                  |
+| Next action          | Prepare reviewed examples across the remaining inputs and resolve measurement gaps before another authorized run; direct-evaluator readiness and formal reference review remain outstanding. |
+
+The numbers are a practical starting scope, not a guarantee that a small quality
+difference can be established statistically. Report sample counts and
+uncertainty; expand with fresh independently reviewed examples when evidence is
+inconclusive. Balanced input groups provide diagnostic coverage, not an estimate
+of the app's actual traffic mix.
+
+## 3. What the examples cover
+
+| Input group               | Development pilot | Held-out baseline | Evidence supplied                                                                                    |
+| ------------------------- | ----------------: | ----------------: | ---------------------------------------------------------------------------------------------------- |
+| Still photos              |                10 |                40 | One or more prepared images and permitted observation context.                                       |
+| Descriptions              |                10 |                40 | Observable description plus the existing permitted capture context, including its no-telemetry form. |
+| Audio                     |                10 |                40 | Prepared animal/environment WAV audio and permitted context.                                         |
+| Sampled video frames      |                10 |                40 | Ordered snapshots, normally five from a five-second capture.                                         |
+| Sampled frames with audio |                10 |                40 | The ordered snapshots and their included companion WAV audio together.                               |
+| Still photos with audio   |                10 |                40 | The actual combined visual and acoustic evidence.                                                    |
+
+Playback video is never an inference input. One observation remains one primary
+call; five snapshots are not five independent examples or requests. All views,
+crops, audio, and derived descriptions from one observation belong to the same
+development or held-out group.
+
+Include clear examples, difficult lookalikes, poor evidence, non-biological
+subjects, and cases where a less specific answer or no identification is
+appropriate. Include plants, fungi, invertebrates, and vertebrates where the
+input is meaningful. Mixed-media examples must include disagreement or an
+incidental organism, not just easy agreement between sound and image.
+
+The reference answer must describe what the supplied evidence can support.
+Knowing which species was photographed does not mean a blurry photo or generic
+description can identify it. Reviewers may approve several answers, a broader
+taxonomic rank, or an unresolved outcome.
+
+## 4. Product requirements
+
+| ID        | Requirement                                                                                                                                                                                                                                                                                                   |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| PRD-IE-01 | Use independently verified reference labels and record provenance, permitted evaluation use, and reviewer agreement. Gemini answers and user confirmations alone are not ground truth.                                                                                                                        |
+| PRD-IE-02 | Keep the development examples separate from the held-out baseline; freeze the evidence, labels, and scoring rules before the baseline run.                                                                                                                                                                    |
+| PRD-IE-03 | Preserve complete input evidence and existing Gemini behavior, including ordered frames, included audio, subject policy, confidence bands, and candidate suppression.                                                                                                                                         |
+| PRD-IE-04 | Measure correctness, willingness to offer an answer, appropriate uncertainty, confidently wrong answers, and false biological identifications. Count failures explicitly.                                                                                                                                     |
+| PRD-IE-05 | Measure provider/execution time and estimated usage cost separately from full app latency. Include missing usage and potentially charged failures in the report.                                                                                                                                              |
+| PRD-IE-06 | Produce comparable, versioned results by model profile and input group, with counts and uncertainty. Never substitute an overall average for a failing input group.                                                                                                                                           |
+| PRD-IE-07 | Keep live runs bounded, resumable without silently repeating uncertain calls, and separate from user allowances, production data, and deployed task assignment.                                                                                                                                               |
+| PRD-IE-08 | Make a future comparison possible using the same evidence and report contract. Passing an evaluation does not activate a provider or satisfy its consent and release requirements.                                                                                                                            |
+| PRD-IE-09 | Support a separate exploratory dataset with one eligibility reviewer and provisional or absent reference labels. Unknown references contribute to operational counts, never quality denominators. Cap a run at twelve development groups and twenty-four calls, with one call per existing profile per group. |
+
+No personal data, raw coordinates, credentials, production response bodies, or
+identifiable human media enter evaluation fixtures, prompts, logs, or reports.
+Use purpose-collected or appropriately licensed material whose permission covers
+sending it to the selected evaluation service. Keep approved real assets and
+curation records outside Git in controlled storage. Repository examples are
+synthetic. Evaluation permission does not grant future model-training rights.
+
+## 5. What we will learn
+
+The baseline report should answer:
+
+1. Which input groups and biological groups does each current Gemini profile
+   handle well, and where does it fail?
+2. How often does it offer a useful correct answer, withhold an answer, or
+   present a wrong answer with high confidence?
+3. Are uncertain and non-biological observations handled appropriately?
+4. What are the successful-call median and p95 times, failure rates, and
+   estimated costs per attempt and correct offered answer?
+5. Which follow-up has the clearest evidence: better evidence preparation,
+   prompt or confidence work, a model/provider comparison, or more data?
+
+These are measurements of the specified corpus and execution boundary. They do
+not certify medical, edibility, handling, or other safety advice. Dictionary
+content, full enrichment quality, hosted finalization, and device experience
+keep their separate verification requirements.
+
+## 6. Delivery in five slices
+
+| Slice                             | Deliverable                                                                                                                                   | Completion condition                                                                                                                                         |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1. Define examples and scores     | Versioned case/report schemas, curation rubric, split rules, and a small synthetic fixture set. Begin collecting the 60 development examples. | Hand-worked expected scores are agreed; unapproved evidence, leaked labels, invalid media combinations, and duplicate split membership are rejected offline. |
+| 2. Share the identification rules | Extract the existing post-provider normalization into a pure function used by the production route and evaluator.                             | Existing inputs produce the same normalized results and responses; Gemini, prompts, confidence, quotas, and persistence behavior remain unchanged.           |
+| 3. Build the evaluator            | Offline fixture runner, deterministic scorer, reports, and guarded live runner.                                                               | Offline runs need no credentials or network; live limits, accounting, and resume behavior are proven with intercepted transport.                             |
+| 4. Establish the Gemini baseline  | Run the approved pilot, resolve measurement defects, freeze the method, then run the held-out set and a small repeatability check.            | Report both profiles and every input group, including errors, uncertainty, cost gaps, and sample limitations.                                                |
+| 5. Prepare the next decision      | Compare report versions using synthetic better/worse candidates, document the baseline, and prioritize one evidence-backed improvement.       | The comparison detects known regressions and rejects incompatible runs; no real second provider is required.                                                 |
+
+Backend owns extraction, tooling, execution, and verification. Product owns the
+coverage priorities and later trade-offs. A biological reference reviewer owns
+label quality; Backend should not silently substitute a model-generated label
+when reference expertise is unavailable. Curation can progress alongside the
+first three slices and is likely the main scheduling dependency.
+
+The exploratory runner is an implemented addition to Slice 3. Its separate
+corpus, run-specification and report versions prevent provisional observations
+from entering formal scores or paired qualification comparisons. Eligibility
+review can be performed by the owner or an explicitly identified automated
+reviewer; it establishes permitted, prepared evidence, not independent
+biological truth. Missing references remain unverified. Reports state
+measurement-only status, sample counts and untested input groups. They cannot
+complete the formal baseline or qualify a provider switch. The two-reviewer rule
+remains specific to the independently reviewed baseline.
+
+## 7. Definition of done and later work
+
+This milestone is complete when the reviewed corpus, repeatable tooling, frozen
+Gemini baseline, and comparison procedure exist, with reproducible sanitized
+reports and an explicit list of measurement limits. Gemini need not achieve an
+invented accuracy target for us to complete honest measurement.
+
+Before evaluating a real replacement, Product and Backend must freeze the exact
+task/input assignment, tolerable quality and coverage changes, confidence and
+failure limits, and desired cost or latency benefit. Choose those numerical
+limits from the baseline and product priorities **before seeing candidate
+results**. An inconclusive comparison means more evidence is needed, not
+permission to switch.
+
+OpenAI, BioCLIP, model training, automatic routing/failover, prompt
+optimization, confidence recalibration, species-content evaluation, family
+plans, and broad function-folder reorganization remain separate milestones.
+Evaluation findings can justify one of them; this plan does not preselect the
+answer. A real provider still follows the
+[onboarding procedure](../../services/supabase/functions/_shared/ai/ADDING_PROVIDERS.md).

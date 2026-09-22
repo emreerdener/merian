@@ -180,6 +180,13 @@ out independently.
 
 ## Post-detail presentation ownership
 
+The detail stack places Field notes directly below Overview (or its Species
+Dictionary fallback) and above Observation, only when the public post detail
+contains nonempty published notes. Private local notes never appear in the
+Explore post, including for its owner or while detail content loads. Owners can
+edit published notes from the card; private notes remain in the owner editing
+and Insight flows.
+
 `ExplorePostDetailRefreshPolicy`, colocated with the detail presentation
 services, selects matching post and author-identity invalidations. The detail
 host retains the refresh task and its ordered post/detail reloads, and reuses
@@ -458,22 +465,23 @@ Dictionary community sightings.
 ## Emoji reactions
 
 Post, comment, and reply reactions use the shared bare emoji/count styling:
-20-point emoji and 20-point counts in a 44-point row at the default text size,
-with all three scaling together for Dynamic Type. Neither selected nor
-unselected reactions have a background or border; counts turn blue when the
-viewer has contributed that reaction and otherwise use the default text color.
-VoiceOver retains the selected state. Comment and reply Add reaction buttons
-also omit their capsule background and outline, with a 20-point smiley and a
-minimum 44-point tap target. They retain the shared picker and selection
-feedback.
+20-point emoji and body-text counts (17 points) in a 44-point row at the default
+text size. Reaction counts match the comment and heart counts, and all support
+Dynamic Type. Neither selected nor unselected reactions have a background or
+border; counts turn blue when the viewer has contributed that reaction and
+otherwise use the default text color. VoiceOver retains the selected state.
+Comment and reply Add reaction buttons also omit their capsule background and
+outline, with a 20-point smiley and a minimum 44-point tap target. They retain
+the shared picker and selection feedback.
 
 Feed and hashtag cards omit Share from the action row, letting emoji chips
 extend to the right edge while retaining overflow fades. Share remains available
 as a blue button at detail's bottom left, opposite Field chat. Options is the
 only trailing top-toolbar action. When the comment composer is sticky or
-focused, the menu also offers Share through the same external sharing flow,
-keeping it accessible when the bottom buttons are covered. This fallback does
-not depend on Field chat availability.
+focused, both bottom actions are hidden and the menu offers Share through the
+same external sharing flow. The bottom actions return when browsing resumes
+above the sticky-comment threshold with the composer unfocused. Share's menu
+fallback does not depend on Field chat availability.
 
 Feed and detail loading views share `ExplorePostActionSkeleton`: three
 left-aligned 20-point nodes in a single row. Detail represents only Options in

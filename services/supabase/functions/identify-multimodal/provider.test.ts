@@ -12,6 +12,7 @@ import { encodeBase64 } from "../_shared/encoding.ts";
 import { encodeWav16 } from "../audio-spec/wav.ts";
 import { deriveAIRequestId } from "../_shared/aiQuota.ts";
 import { parseIdentifySuccessEnvelope } from "../_shared/identify/contract.ts";
+import type { CachedSpeciesRow } from "../_shared/identify/types.ts";
 
 const scanId = "00000000-0000-4000-8000-000000000101";
 const user: User = {
@@ -56,6 +57,25 @@ const facts = {
   finishReason: "STOP",
   responseCharacters: 0,
 };
+const cachedSpecies: CachedSpeciesRow = {
+  id: "00000000-0000-4000-8000-000000000501",
+  common_names: { en: "Synthetic Cached Name" },
+  alternative_common_names: null,
+  kingdom: "Animalia",
+  phylum: "Arthropoda",
+  class: "Insecta",
+  order: "Lepidoptera",
+  family: "Nymphalidae",
+  genus: "Danaus",
+  wikipedia_overview: null,
+  hazard_type: "none",
+  reference_image_url: null,
+  wikipedia_url: null,
+  iucn_red_list_status: "not_evaluated",
+  habitat_description: null,
+  gbif_taxon_key: null,
+  group_tags: ["insect"],
+};
 
 function database(
   options: {
@@ -67,6 +87,7 @@ function database(
     setupFailed?: boolean;
     unknownInsert?: boolean;
     retired?: boolean;
+    cachedSpecies?: CachedSpeciesRow;
   } = {},
 ) {
   const events: string[] = [];
@@ -156,7 +177,12 @@ function database(
             response_envelope: args.p_response_envelope,
           });
         case "hydrate_identification_dictionary":
-          return response({ primary: null, candidate_common_names: {} });
+          return response({
+            primary: options.cachedSpecies ?? null,
+            candidate_common_names: {
+              "Danaus gilippus": "Synthetic Candidate",
+            },
+          });
         default:
           throw new Error(`Unexpected RPC: ${name}`);
       }
@@ -308,6 +334,7 @@ Deno.test("multimodal handler preserves admission, evidence and recovery through
           result.headers.get("X-Merian-Idempotent-Replay"),
           "stored",
         );
+        assertEquals(result.headers.get("X-Merian-Identification"), null);
         assertEquals(await result.json(), envelope);
         assertEquals(db.events, []);
       },
@@ -389,7 +416,9 @@ Deno.test("multimodal handler preserves admission, evidence and recovery through
         } preserves retry ownership`,
         async () => {
           const db = database();
-          assertEquals((await run(db, outcome)).status, 503);
+          const response = await run(db, outcome);
+          assertEquals(response.status, 503);
+          assertEquals(response.headers.get("X-Merian-Identification"), null);
           assertEquals(db.events, [
             "reserve",
             "ledger",
@@ -569,6 +598,19 @@ Deno.test("multimodal handler preserves admission, evidence and recovery through
         assert(
           result.headers.get("Server-Timing")?.includes("provider;dur=1.0"),
         );
+        const diagnostics = JSON.parse(
+          result.headers.get("X-Merian-Identification")!,
+        );
+        assertEquals(diagnostics.requestedModel, "gemini-2.5-flash");
+        assertEquals(diagnostics.returnedModel, null);
+        assertEquals(diagnostics.usage, {
+          promptTokens: 100,
+          candidateTokens: 20,
+          totalTokens: 127,
+          thinkingTokens: 7,
+          cachedTokens: 5,
+          toolTokens: null,
+        });
         const row = db.inserted()!;
         assertEquals([
           row.llm_prompt_tokens,
@@ -580,6 +622,92 @@ Deno.test("multimodal handler preserves admission, evidence and recovery through
         assertEquals(row.llm_usage_metadata, { prompt: { text: 100 } });
         assert(db.events.indexOf("complete") > db.events.indexOf("insert"));
         assertEquals(db.events.filter((event) => event === "invoke").length, 1);
+      },
+    );
+    for (const pro of [false, true]) {
+      for (const confidence_score of [0.98, 0.99]) {
+        await t.step(
+          `normalized ${
+            pro ? "Pro" : "Flash"
+          } result survives hydration at ${confidence_score}`,
+          async () => {
+            const db = database({ pro, cachedSpecies });
+            const value = {
+              ...draft,
+              is_biological_subject: true,
+              is_live_capture: true,
+              scientific_name: "cf. danaus Plexippus L.",
+              common_name: "Monarch",
+              ai_reasoning: "Synthetic wing pattern.",
+              confidence_score,
+              candidates: [{
+                scientific_name: "cf. Danaus gilippus",
+                confidence_score: 0.6,
+                distinguishing_feature: "Synthetic alternative pattern.",
+              }],
+            };
+            const result = await run(db, {
+              ...facts,
+              kind: "draft",
+              draft: value,
+            });
+            assertEquals(result.status, 200);
+            const response = parseIdentifySuccessEnvelope(await result.json());
+            assertEquals(response.data.scientific_name, "Danaus plexippus");
+            assertEquals(response.data.common_name, "Synthetic Cached Name");
+            assertEquals(response.data.inference_tier, pro ? "pro" : "flash");
+            assertEquals(response.data.life_stage, "unknown");
+            assertEquals(response.data.is_invasive, false);
+            assertEquals(response.data.invasive_status_region, "Unavailable");
+            assertEquals(response.data.taxonomy?.genus, "Danaus");
+            assertEquals(
+              response.data.candidates,
+              confidence_score >= 0.99 ? null : [{
+                scientific_name: "Danaus gilippus",
+                confidence_score: 0.6,
+                distinguishing_feature: "Synthetic alternative pattern.",
+                common_name: "Synthetic Candidate",
+              }],
+            );
+            assertEquals(db.inserted()?.ai_confidence_score, confidence_score);
+            assertEquals(db.inserted()?.species_id, cachedSpecies.id);
+            assertEquals(
+              db.events.filter((event) => event === "invoke").length,
+              1,
+            );
+            assert(db.events.indexOf("complete") > db.events.indexOf("insert"));
+            assert(
+              !db.events.includes("failed") && !db.events.includes("refunded"),
+            );
+          },
+        );
+      }
+    }
+    await t.step(
+      "hydrated wire validation still fails before persistence",
+      async () => {
+        const db = database({
+          cachedSpecies: {
+            ...cachedSpecies,
+            reference_image_url: "",
+          },
+        });
+        const result = await run(db, {
+          ...facts,
+          kind: "draft",
+          draft: {
+            ...draft,
+            is_biological_subject: true,
+            scientific_name: "Danaus plexippus",
+            common_name: "Monarch",
+            ai_reasoning: "Synthetic wing pattern.",
+          },
+        });
+        assertEquals(result.status, 502);
+        assertEquals((await result.json()).code, "identify_response_invalid");
+        assertEquals(db.inserted(), null);
+        assert(db.events.includes("failed"));
+        assert(!db.events.includes("complete"));
       },
     );
     await t.step(
