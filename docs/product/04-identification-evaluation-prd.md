@@ -1,10 +1,10 @@
 # Naturebook Identification Evaluation Readiness — PRD
 
 Document ID: NB-PRD-IDENTIFICATION-EVAL-001\
-Version: 0.14\
+Version: 0.15\
 Date: 22 September 2026\
-Status: Slices 1–3 implemented; photo, description, first video and first audio
-app checks completed; reviewed baseline pending\
+Status: Slices 1–3 implemented; photo, description, first video and expanded
+audio app checks completed; reviewed baseline pending\
 Suggested owners: Product and Backend, with a biological reference reviewer\
 Companion: [Evaluation Readiness SRD](../rfcs/identification-evaluation-srd.md)
 
@@ -97,6 +97,18 @@ the case for development review without promoting any model answer to ground
 truth. This added no app submissions, paid provider calls or formal reviewed
 groups. Gemini remains unchanged.
 
+The
+[six-audio preparation](../rfcs/identification-audio-six-preparation-2026-09-22.md)
+was followed by owner listening review, admission and canonical offline
+preflight. The
+[six-audio app benchmark](../rfcs/identification-audio-six-app-benchmark-2026-09-22.md)
+retains one first result per clip: raven → American Crow, elk → Red Fox, and
+tree frog → Snow Goose, all displayed as Strong matches. Stream, thunder and car
+alarm each returned No wildlife detected. Animal references remain provisional;
+these disagreements do not establish independently verified error rates. The
+controls had source and owner confirmation of no audible animals. No retries,
+provider changes or direct-evaluator dispatch occurred.
+
 ## 1. Outcome
 
 Establish a trustworthy baseline for how well Gemini identifies Naturebook
@@ -124,7 +136,7 @@ claiming to replace release verification.
 | Reference baseline   | Add 240 held-out observation groups, forty per input group: 300 total, including the pilot.                                                                                                                                                                                     |
 | Scored result        | The model answer after the same contract validation and identification rules used by the backend, before dictionary hydration and persistence.                                                                                                                                  |
 | Evaluation operation | A developer tool with an offline default and an explicitly requested, bounded Gemini run. No deployed evaluation endpoint or production observation export.                                                                                                                     |
-| Next action          | Preserve the unresolved audio disagreement and ambiguous description; expand eligible, source-documented audio, non-biological controls and paired inputs with meaningful audio. Freeze the next bounded plan before app submissions; formal reference review remains separate. |
+| Next action          | Trace audio from the frozen replay file through app preparation and backend request construction before changing a model or confidence policy. Preserve the three Strong source disagreements; independent species review and meaningful paired audio/visual tests remain open. |
 
 The numbers are a practical starting scope, not a guarantee that a small quality
 difference can be established statistically. Report sample counts and

@@ -251,7 +251,14 @@ production submission or public release.
   [audio reference review](./rfcs/identification-audio-reference-review-2026-09-22.md)
   verified source/preparation and retained a local BirdNET diagnostic that
   favored another species. Species identity remains unresolved; original
-  benchmarks, formal counts and Gemini production routing are unchanged.
+  benchmarks, formal counts and Gemini production routing are unchanged. The
+  [six-audio preparation](./rfcs/identification-audio-six-preparation-2026-09-22.md)
+  preserves the frozen listening-review checkpoint. The subsequent
+  [six-audio app benchmark](./rfcs/identification-audio-six-app-benchmark-2026-09-22.md)
+  records three Strong source-species disagreements and three non-biological
+  controls returning No wildlife detected, with no manual retries. Trace audio
+  preparation and request construction before tuning model selection or
+  confidence.
 - **Deferred family and prior combined planning:**
   [PRD](./product/02-family-plans-and-ai-platform-prd.md) and
   [SRD](./rfcs/family-plans-and-ai-platform-srd.md). Family plans are deferred;

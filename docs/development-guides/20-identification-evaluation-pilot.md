@@ -192,6 +192,18 @@ expanding source-documented audio and non-biological controls. Another model's
 answer does not supply an independent biological reviewer or a new observation
 group; freeze the next eligible inputs and bounded plan before new submissions.
 
+The
+[six-audio preparation](../rfcs/identification-audio-six-preparation-2026-09-22.md)
+supplied raven, elk, tree frog, stream, thunder and car alarm. After the owner
+reviewed the exact-sample listening reel, a new admitted packet passed canonical
+offline preflight. The
+[six-audio app benchmark](../rfcs/identification-audio-six-app-benchmark-2026-09-22.md)
+records all six first submissions without retries. Three Strong animal matches
+disagreed with their provisional source labels; all three controls returned No
+wildlife detected. Preserve both outcomes. Trace the actual audio preparation
+and request path before tuning models; species truth, app payload/context
+attestation and meaningful paired audio/visual coverage remain open.
+
 ## Formal pilot: start here when reference review is available
 
 1. Identify a controlled folder outside Git for purpose-collected or

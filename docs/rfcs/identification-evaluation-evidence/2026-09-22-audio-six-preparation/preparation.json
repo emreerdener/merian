@@ -1,0 +1,287 @@
+{
+  "version": "audio_six_preparation_v1",
+  "createdAt": "2026-09-23T04:03:01.478677+00:00",
+  "status": "prepared_pending_owner_listening_review",
+  "candidateCount": 6,
+  "sourceLabelledAnimalCandidates": 3,
+  "proposedNonBiologicalControls": 3,
+  "eligibleCaseCount": 0,
+  "biologicalReferenceReviewerCount": 0,
+  "newAppSubmissions": 0,
+  "newModelCalls": 0,
+  "formalDevelopmentGroups": 0,
+  "formalHeldOutGroups": 0,
+  "sourceRightsReviewed": true,
+  "technicalAssetAndRequestChecksPassed": true,
+  "fullCorpusPreflightRun": false,
+  "candidateInputFileSha256": "c8c8505d4d66d197ac50fff5d7d658e7ac47dbf6948934362da5f3164b4fafc0",
+  "taxonomyFileSha256": "c4c586b75972ccb8e13f0a19c11bfbc0ac44599684e5d630ffe427b8798e5297",
+  "technicalCheckSha256": "5f8b1d81525afd9189d3783207423e0242d916b4851679763d458e7a1c678537",
+  "selectionPlanSha256": "983152af449b043c26e36585122f3cf3c42defa075c2ce06eb41acb3362c4f3b",
+  "appPlanSha256": "04b7784343969d652438f689d2562f1ac62c79b7221ec6afbf51327f95aef79c",
+  "toolingSource": {
+    "commit": "bb6df5401ea855be33aa101623e9afdf1b76c1b0",
+    "dirty": true,
+    "digest": "423b50d77257f287e853a8a90b141dc7e1d14cac4d33dce0c37e0b2e116f2598",
+    "sdk": "npm:@google/genai@2.23.0"
+  },
+  "preparationEnvironment": {
+    "macOS": "26.6.2",
+    "python": "3.9.6",
+    "tools": [
+      "Apple afconvert",
+      "Python wave"
+    ]
+  },
+  "listeningReview": {
+    "purpose": "Owner listening eligibility review only; never a model input.",
+    "path": "review/listening-reel.wav",
+    "sha256": "c7f4ffce85abdc3020cbd648d6e627d4573da62e66be52a8f4bf4cd5aa250731",
+    "sampleRateHz": 44100,
+    "channels": 1,
+    "bitsPerSample": 16,
+    "durationSeconds": 55.77224489795918,
+    "addedSilenceBetweenClipsSeconds": 1,
+    "speechOrTonesAdded": false,
+    "sourceSamplesPreservedExactly": true,
+    "segments": [
+      {
+        "caseId": "c0013",
+        "startSample": 0,
+        "endSample": 253440,
+        "startSeconds": 0.0,
+        "endSeconds": 5.746938775510204,
+        "pcmSha256": "16aca214b9d11baf93f82e1165fbbea8e6e5ec75f354c57f7b11941de13091f1",
+        "sourceLabelForOwnerOnly": "Common Raven"
+      },
+      {
+        "caseId": "c0014",
+        "startSample": 297540,
+        "endSample": 738540,
+        "startSeconds": 6.746938775510204,
+        "endSeconds": 16.746938775510205,
+        "pcmSha256": "c56b686adeb10bb9f317d4b0b1ad252a6784f7ca2eadfcb54fcdd7ffa788170a",
+        "sourceLabelForOwnerOnly": "Elk"
+      },
+      {
+        "caseId": "c0015",
+        "startSample": 782640,
+        "endSample": 1222704,
+        "startSeconds": 17.746938775510205,
+        "endSeconds": 27.725714285714286,
+        "pcmSha256": "464b4bcc884dfa37c7936288cb58731914c0d6680727d56039ecbee5b30fe85f",
+        "sourceLabelForOwnerOnly": "American Green Tree Frog"
+      },
+      {
+        "caseId": "c0016",
+        "startSample": 1266804,
+        "endSample": 1490292,
+        "startSeconds": 28.725714285714286,
+        "endSeconds": 33.7934693877551,
+        "pcmSha256": "74902aa499b615d4824572ce67331f031fc5fbd5e23a7105ea1b47c5da592f44",
+        "sourceLabelForOwnerOnly": "Stream"
+      },
+      {
+        "caseId": "c0017",
+        "startSample": 1534392,
+        "endSample": 1975392,
+        "startSeconds": 34.7934693877551,
+        "endSeconds": 44.7934693877551,
+        "pcmSha256": "7af972a16504b2a38bad995276db77beca04c411850355fbb27cfac7eaf40590",
+        "sourceLabelForOwnerOnly": "Thunder"
+      },
+      {
+        "caseId": "c0018",
+        "startSample": 2019492,
+        "endSample": 2459556,
+        "startSeconds": 45.7934693877551,
+        "endSeconds": 55.77224489795918,
+        "pcmSha256": "c20309fb6cc153826c2da0ef1113779fdadc111850045369dded48b11a7ffec6",
+        "sourceLabelForOwnerOnly": "Car Alarm"
+      }
+    ]
+  },
+  "retentionThrough": "2026-10-22",
+  "caseSummaries": [
+    {
+      "caseId": "c0013",
+      "groupId": "g0013",
+      "sourceLabel": "Common Raven",
+      "sourcePage": "https://www.nps.gov/subjects/sound/sounds-common-raven.htm",
+      "sourceMediaUrl": "https://www.nps.gov/nps-audiovideo/legacy/mp3/nri/avElement/nri-CommonRavenGRTE.mp3",
+      "sourceSha256": "50ac94bd9cb8ad26e8857cf75545416e2a43ebc5888e451657a2c8aaf18d4a32",
+      "preparedSha256": "214e0f3f8e9c35f966503033ae159edb524498e0532700daa3802359ff7f8303",
+      "preparedPcmSha256": "16aca214b9d11baf93f82e1165fbbea8e6e5ec75f354c57f7b11941de13091f1",
+      "preparedDurationSeconds": 5.746938775510204,
+      "sourceDecodedDurationSeconds": 5.746938775510204,
+      "segmentStartSeconds": 0,
+      "fullScaleSampleCount": 0,
+      "referenceAuthorityUrl": "https://www.nps.gov/zion/learn/nature/raven.htm",
+      "referenceNames": [
+        "Corvus corax",
+        "Common Raven"
+      ],
+      "provisionalReferenceCandidate": {
+        "subject": "biological",
+        "resolution": "named",
+        "supportedRank": "species",
+        "acceptableTaxa": [
+          {
+            "id": "species-corvus-corax",
+            "rank": "species"
+          }
+        ]
+      },
+      "listeningReviewCompleted": false,
+      "eligibilityComplete": false
+    },
+    {
+      "caseId": "c0014",
+      "groupId": "g0014",
+      "sourceLabel": "Elk",
+      "sourcePage": "https://www.nps.gov/subjects/sound/sounds-elk.htm",
+      "sourceMediaUrl": "https://www.nps.gov/nps-audiovideo/legacy/mp3/nri/avElement/nri-ElkBuglingGRSA.mp3",
+      "sourceSha256": "dc5c367965161eb9c9e25eb08a762ef2ec27a5f6fd3ca8d6e0f2e0ea32959675",
+      "preparedSha256": "4696164a9407ecf5242425fd4f803ad3c62e4d9d765c28e1dc7b1cbf330abab8",
+      "preparedPcmSha256": "c56b686adeb10bb9f317d4b0b1ad252a6784f7ca2eadfcb54fcdd7ffa788170a",
+      "preparedDurationSeconds": 10.0,
+      "sourceDecodedDurationSeconds": 20.58448979591837,
+      "segmentStartSeconds": 0,
+      "fullScaleSampleCount": 43,
+      "referenceAuthorityUrl": "https://www.nps.gov/grca/learn/nature/elk.htm",
+      "referenceNames": [
+        "Cervus canadensis",
+        "Elk"
+      ],
+      "provisionalReferenceCandidate": {
+        "subject": "biological",
+        "resolution": "named",
+        "supportedRank": "species",
+        "acceptableTaxa": [
+          {
+            "id": "species-cervus-canadensis",
+            "rank": "species"
+          }
+        ]
+      },
+      "listeningReviewCompleted": false,
+      "eligibilityComplete": false
+    },
+    {
+      "caseId": "c0015",
+      "groupId": "g0015",
+      "sourceLabel": "American Green Tree Frog",
+      "sourcePage": "https://www.nps.gov/subjects/sound/sounds-green-treefrog.htm",
+      "sourceMediaUrl": "https://www.nps.gov/nps-audiovideo/legacy/mp3/nri/avElement/nri-GreenTreeFrogEvergladesNP.mp3",
+      "sourceSha256": "3004b02bd1793db81f5e6ddfe2f805dbd587af3c0d03edbedec2ad23e92660dd",
+      "preparedSha256": "5d327fae2cea263c348572557ab1a2774ab0d7a8c0a612970ade1b550640154c",
+      "preparedPcmSha256": "464b4bcc884dfa37c7936288cb58731914c0d6680727d56039ecbee5b30fe85f",
+      "preparedDurationSeconds": 9.978775510204082,
+      "sourceDecodedDurationSeconds": 9.978775510204082,
+      "segmentStartSeconds": 0,
+      "fullScaleSampleCount": 0,
+      "referenceAuthorityUrl": "https://amphibiansoftheworld.amnh.org/Amphibia/Anura/Hylidae/Dryophytes/Dryophytes-cinereus",
+      "referenceNames": [
+        "Dryophytes cinereus",
+        "Hyla cinerea",
+        "American Green Tree Frog",
+        "American Green Treefrog"
+      ],
+      "provisionalReferenceCandidate": {
+        "subject": "biological",
+        "resolution": "named",
+        "supportedRank": "species",
+        "acceptableTaxa": [
+          {
+            "id": "species-dryophytes-cinereus",
+            "rank": "species"
+          }
+        ]
+      },
+      "listeningReviewCompleted": false,
+      "eligibilityComplete": false
+    },
+    {
+      "caseId": "c0016",
+      "groupId": "g0016",
+      "sourceLabel": "Stream",
+      "sourcePage": "https://www.nps.gov/subjects/sound/sounds-stream.htm",
+      "sourceMediaUrl": "https://www.nps.gov/nps-audiovideo/legacy/mp3/nri/avElement/nri-StreamMUWO.mp3",
+      "sourceSha256": "4d55ce7e299b7d2d9ab50aee2d28233f05662886cbb57e792aa210d39dd73744",
+      "preparedSha256": "f67b22b951b922cd222441e39acbfe67a7f6253d8c7e2c07631308726d274b0f",
+      "preparedPcmSha256": "74902aa499b615d4824572ce67331f031fc5fbd5e23a7105ea1b47c5da592f44",
+      "preparedDurationSeconds": 5.067755102040817,
+      "sourceDecodedDurationSeconds": 5.067755102040817,
+      "segmentStartSeconds": 0,
+      "fullScaleSampleCount": 1,
+      "referenceAuthorityUrl": null,
+      "referenceNames": [],
+      "provisionalReferenceCandidate": {
+        "subject": "non_biological",
+        "resolution": "unresolved",
+        "supportedRank": null,
+        "acceptableTaxa": []
+      },
+      "listeningReviewCompleted": false,
+      "eligibilityComplete": false
+    },
+    {
+      "caseId": "c0017",
+      "groupId": "g0017",
+      "sourceLabel": "Thunder",
+      "sourcePage": "https://www.nps.gov/subjects/sound/sounds-thunder.htm",
+      "sourceMediaUrl": "https://www.nps.gov/nps-audiovideo/legacy/mp3/nri/avElement/nri-Thunder.mp3",
+      "sourceSha256": "54d6a7fc85b5c7b0c65dd36ff3c5f398d698c37e733bfc98a234a6724c2d0a49",
+      "preparedSha256": "dfabd74210a85b46a80a42656c79586c144145108a692e32d03a17a836a4ac8a",
+      "preparedPcmSha256": "7af972a16504b2a38bad995276db77beca04c411850355fbb27cfac7eaf40590",
+      "preparedDurationSeconds": 10.0,
+      "sourceDecodedDurationSeconds": 46.027755102040814,
+      "segmentStartSeconds": 0,
+      "fullScaleSampleCount": 0,
+      "referenceAuthorityUrl": null,
+      "referenceNames": [],
+      "provisionalReferenceCandidate": {
+        "subject": "non_biological",
+        "resolution": "unresolved",
+        "supportedRank": null,
+        "acceptableTaxa": []
+      },
+      "listeningReviewCompleted": false,
+      "eligibilityComplete": false
+    },
+    {
+      "caseId": "c0018",
+      "groupId": "g0018",
+      "sourceLabel": "Car Alarm",
+      "sourcePage": "https://www.nps.gov/subjects/sound/sounds-car-alarm.htm",
+      "sourceMediaUrl": "https://www.nps.gov/nps-audiovideo/legacy/mp3/nri/avElement/nri-CarAlarmKEFJ.mp3",
+      "sourceSha256": "5253f4a3c284f03761a8bedde934c3b6e4419a702e8aa79ed40b6fc8356a053d",
+      "preparedSha256": "1803ceef8ae9ad9e71e7fcfa322208a8970485ffdf84a466770e73fb15b1c711",
+      "preparedPcmSha256": "c20309fb6cc153826c2da0ef1113779fdadc111850045369dded48b11a7ffec6",
+      "preparedDurationSeconds": 9.978775510204082,
+      "sourceDecodedDurationSeconds": 9.978775510204082,
+      "segmentStartSeconds": 0,
+      "fullScaleSampleCount": 0,
+      "referenceAuthorityUrl": null,
+      "referenceNames": [],
+      "provisionalReferenceCandidate": {
+        "subject": "non_biological",
+        "resolution": "unresolved",
+        "supportedRank": null,
+        "acceptableTaxa": []
+      },
+      "listeningReviewCompleted": false,
+      "eligibilityComplete": false
+    }
+  ],
+  "limitations": [
+    "Source labels and transcripts do not establish absence of human speech or incidental animals.",
+    "Non-biological control status remains provisional pending listening review.",
+    "Twelve dry profile requests do not authorize or represent twelve paid calls.",
+    "The pending app plan allows at most six first submissions after eligibility, admission and a new freeze.",
+    "Source/input hashes do not attest later app request bytes or contextual fields.",
+    "Public-source training exposure is unknown; no provider qualification or independent accuracy claim."
+  ],
+  "privatePacketFreezeSha256": "a9f33d2c482036c2b8d73a69269e0528d4f038697a7a497624626fa406602daf",
+  "privatePacketFileCount": 24
+}

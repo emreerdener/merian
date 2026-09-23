@@ -1,0 +1,808 @@
+{
+  "schemaVersion": "identification_audio_six_app_pilot_v1",
+  "runId": "source-audio-six-app-v1",
+  "recordedAt": "2026-09-23T04:34:08.777019+00:00",
+  "dateTimezone": "America/Chicago",
+  "status": "six_first_results_recorded_exploratory_only",
+  "executionBoundary": "existing_production_app_workflow",
+  "authorizedMaximumAppSubmissions": 6,
+  "observedAppSubmissions": 6,
+  "visibleFinishedResults": 6,
+  "manualRetries": 0,
+  "providerOverride": false,
+  "providerInvocationCount": null,
+  "providerInternalRetryCount": null,
+  "totalBilledCostUsd": null,
+  "directEvaluatorLiveCalls": 0,
+  "deploymentPerformed": false,
+  "runtimeCodeChangedDuringRun": false,
+  "preparationFreezeSha256": "a9f33d2c482036c2b8d73a69269e0528d4f038697a7a497624626fa406602daf",
+  "inputFreezeSha256": "e6e3f7d9371fc0912150143710c3b766a942338e479915e9a019ce8d1e3b0e09",
+  "corpusDigest": "db824e7c705da492ed946722fa62c2fe4e11475875cf7a51becf30ab428e9157",
+  "taxonomyDigest": "22b58b3603f3193c77e8146fbebaaf0c65edc7e67eb8b3216bfdc815df11f7d1",
+  "offlinePreflight": {
+    "groups": 6,
+    "referenceLabels": 6,
+    "coverage": {
+      "photos": 0,
+      "description": 0,
+      "audio": 6,
+      "frames": 0,
+      "frames_audio": 0,
+      "photos_audio": 0
+    },
+    "plannedCalls": 12,
+    "dispatchAuthorized": false,
+    "source": {
+      "commit": "bb6df5401ea855be33aa101623e9afdf1b76c1b0",
+      "dirty": true,
+      "digest": "423b50d77257f287e853a8a90b141dc7e1d14cac4d33dce0c37e0b2e116f2598",
+      "sdk": "npm:@google/genai@2.23.0"
+    }
+  },
+  "ownerListeningReview": {
+    "completed": true,
+    "reelSha256": "c7f4ffce85abdc3020cbd648d6e627d4573da62e66be52a8f4bf4cd5aa250731",
+    "scope": "absence_of_speech_spoken_species_labels_personal_information_and_animals_in_the_three_controls",
+    "independentBiologicalReferenceReview": false
+  },
+  "app": {
+    "build": "275",
+    "sourceFingerprint": "82da4dc3da24a4de9ace2c2be1f2746144c7191cc9c26309fddfe9655db03cd5",
+    "sourceRevision": "807b9af9964e3eba0b9d4212d7dc91d8945d4118",
+    "sourceState": "dirty",
+    "version": "1.0.3"
+  },
+  "simulator": {
+    "model": "iPhone 18 Pro",
+    "os": "iOS 27.0"
+  },
+  "backendBundleSha256": "05aedfe76acc8d8bcee71f5ebf0f9de22590e79715e6cc80f1f4ab6032576558",
+  "pricingSnapshot": {
+    "version": "evaluation_pricing_v1",
+    "currency": "USD",
+    "service": "paid_standard_synchronous",
+    "retrievedAt": "2026-09-22T16:20:15.212Z",
+    "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+    "reviewRef": "pricing-public-20260922",
+    "includesReasoning": true,
+    "models": [
+      {
+        "model": "gemini-2.5-flash",
+        "inputPerMillion": {
+          "text": 0.3,
+          "image": 0.3,
+          "audio": 1,
+          "cached": 0.1
+        },
+        "outputPerMillion": 2.5,
+        "maxInputTokens": 1048576,
+        "maxBillableOutputTokens": 65536,
+        "limitsEvidenceRef": "limits-flash-20260922"
+      },
+      {
+        "model": "gemini-2.5-pro",
+        "inputPerMillion": {
+          "text": 2.5,
+          "image": 2.5,
+          "audio": 2.5,
+          "cached": 0.25
+        },
+        "outputPerMillion": 15,
+        "maxInputTokens": 1048576,
+        "maxBillableOutputTokens": 65536,
+        "limitsEvidenceRef": "limits-pro-20260922"
+      }
+    ]
+  },
+  "pricingSnapshotSha256": "d816105ce773e6341980ce1b40a89798de81e27cb0d7abf0756b297ed8c2046d",
+  "observationPolicy": {
+    "requestedSeconds": 120,
+    "shutdownGraceSeconds": 30,
+    "maximumEventsPerWindow": 100,
+    "readyBeforeIdentify": true,
+    "overlappingWindows": false,
+    "automaticObserverSubmissions": 0,
+    "caseAssociation": "observed_sequential_ui_actions",
+    "rawLogsRetained": false
+  },
+  "summary": {
+    "completedObserverWindows": 6,
+    "freshHttp200Measurements": 6,
+    "eventCounts": [
+      6,
+      6,
+      6,
+      6,
+      6,
+      6
+    ],
+    "knownPrimaryAttemptEstimateSumUsd": 0.1480925,
+    "estimateScope": "observed_primary_attempts_only_not_total_bill",
+    "tapToFirstFrameSeconds": {
+      "count": 6,
+      "min": 13.507,
+      "median": 16.224,
+      "max": 21.476,
+      "scope": "these_six_different_clips_not_a_production_latency_distribution"
+    }
+  },
+  "quality": {
+    "provisionalSpeciesAgreements": 0,
+    "provisionalSpeciesDisagreements": 3,
+    "sourceLabelledBiologicalCases": 3,
+    "reviewedNonBiologicalControls": 3,
+    "controlsWithBiologicalAssertion": 0,
+    "controlsWithoutBiologicalAssertion": 3,
+    "independentlyVerifiedSpeciesErrorCount": null,
+    "independentlyVerifiedSpeciesReferenceCount": 0,
+    "formalAccuracy": null,
+    "confidenceCalibration": null,
+    "providerComparison": null,
+    "repeatabilityAssessed": false,
+    "formalDevelopmentGroups": 0,
+    "formalHeldOutGroups": 0
+  },
+  "cases": [
+    {
+      "caseId": "c0013",
+      "groupId": "g0013",
+      "inputGroup": "audio",
+      "sourceLabel": "Common Raven",
+      "sourcePage": "https://www.nps.gov/subjects/sound/sounds-common-raven.htm",
+      "referenceStatus": "provisional_source_label",
+      "provisionalReference": {
+        "subject": "biological",
+        "resolution": "named",
+        "supportedRank": "species",
+        "acceptableTaxa": [
+          {
+            "id": "species-corvus-corax",
+            "rank": "species"
+          }
+        ]
+      },
+      "provisionalSpeciesAgreement": false,
+      "preparedAudioSha256": "214e0f3f8e9c35f966503033ae159edb524498e0532700daa3802359ff7f8303",
+      "durationSeconds": 5.746938775510204,
+      "imagesSubmitted": false,
+      "descriptionSubmitted": false,
+      "appSubmissions": 1,
+      "manualRetries": 0,
+      "submissionIntentAt": "2026-09-23T04:15:35.198581+00:00",
+      "uiResultObservedAt": "2026-09-23T04:16:27.414624+00:00",
+      "uiResult": {
+        "commonName": "American Crow",
+        "scientificName": "Corvus brachyrhynchos",
+        "matchLabel": "Strong match",
+        "biologicalAssertion": true,
+        "provisionalReferenceAssessment": "disagrees_with_provisional_common_raven_source_label",
+        "independentlyVerifiedModelError": null,
+        "manuallyConfirmedOrCorrected": false,
+        "preSubmissionInteractionNote": "Closing the prior completed result left Debug replay disabled; reopened the same app through the app switcher before staging. No identification had been submitted."
+      },
+      "observer": {
+        "finishedAt": "2026-09-23T04:17:36.426Z",
+        "status": "window_completed",
+        "events": 6,
+        "ready": true,
+        "stopReason": "collector_exit",
+        "collectorExitCode": 0,
+        "collectorSignal": null,
+        "unprojectedRows": 25,
+        "oversizedRows": 0,
+        "startedAt": "2026-09-23T04:15:27.839Z",
+        "readyAt": "2026-09-23T04:15:28.414Z",
+        "durationSeconds": 128.587
+      },
+      "nativeMeasurement": {
+        "app": {
+          "build": "275",
+          "sourceFingerprint": "82da4dc3da24a4de9ace2c2be1f2746144c7191cc9c26309fddfe9655db03cd5",
+          "sourceRevision": "807b9af9964e3eba0b9d4212d7dc91d8945d4118",
+          "sourceState": "dirty",
+          "version": "1.0.3"
+        },
+        "delivery": "fresh",
+        "diagnostics": {
+          "backendBundleSha256": "05aedfe76acc8d8bcee71f5ebf0f9de22590e79715e6cc80f1f4ab6032576558",
+          "provider": "gemini",
+          "requestedModel": "gemini-2.5-pro",
+          "returnedModel": "gemini-2.5-pro",
+          "usage": {
+            "cachedTokens": null,
+            "candidateTokens": 375,
+            "promptTokens": 988,
+            "thinkingTokens": 1110,
+            "toolTokens": null,
+            "totalTokens": 2473
+          },
+          "version": 1
+        },
+        "otherEdgeMs": 1667,
+        "serverTimingMs": {
+          "edge_total": 14603.7,
+          "provider": 12936.7
+        },
+        "status": 200,
+        "timingStatus": "valid",
+        "version": "identification_app_measurement_v1"
+      },
+      "httpMeasurement": {
+        "event": "http_identification",
+        "authSeconds": 0.006,
+        "transferAndServerSeconds": 15.111,
+        "status": 200
+      },
+      "pipelineMeasurements": {
+        "preflight_seconds": null,
+        "response_to_first_result_state_seconds": 0.028,
+        "postflight_seconds": 0.028,
+        "total_pipeline_seconds": 16.336,
+        "tap_to_first_rendered_frame_seconds": 17.41
+      },
+      "primaryAttemptEstimate": {
+        "estimatedPrimaryUpperUsd": 0.024745,
+        "reason": "estimated_primary_only",
+        "scope": "observed_primary_attempt_only",
+        "invoiceExact": false
+      }
+    },
+    {
+      "caseId": "c0014",
+      "groupId": "g0014",
+      "inputGroup": "audio",
+      "sourceLabel": "Elk",
+      "sourcePage": "https://www.nps.gov/subjects/sound/sounds-elk.htm",
+      "referenceStatus": "provisional_source_label",
+      "provisionalReference": {
+        "subject": "biological",
+        "resolution": "named",
+        "supportedRank": "species",
+        "acceptableTaxa": [
+          {
+            "id": "species-cervus-canadensis",
+            "rank": "species"
+          }
+        ]
+      },
+      "provisionalSpeciesAgreement": false,
+      "preparedAudioSha256": "4696164a9407ecf5242425fd4f803ad3c62e4d9d765c28e1dc7b1cbf330abab8",
+      "durationSeconds": 10.0,
+      "imagesSubmitted": false,
+      "descriptionSubmitted": false,
+      "appSubmissions": 1,
+      "manualRetries": 0,
+      "submissionIntentAt": "2026-09-23T04:19:10.540187+00:00",
+      "uiResultObservedAt": "2026-09-23T04:21:09.475686+00:00",
+      "uiResult": {
+        "commonName": "Red Fox",
+        "scientificName": "Vulpes vulpes",
+        "matchLabel": "Strong match",
+        "biologicalAssertion": true,
+        "provisionalReferenceAssessment": "disagrees_with_provisional_elk_source_label",
+        "independentlyVerifiedModelError": null,
+        "manuallyConfirmedOrCorrected": false
+      },
+      "observer": {
+        "finishedAt": "2026-09-23T04:21:10.458Z",
+        "status": "window_completed",
+        "events": 6,
+        "ready": true,
+        "stopReason": "collector_exit",
+        "collectorExitCode": 0,
+        "collectorSignal": null,
+        "unprojectedRows": 25,
+        "oversizedRows": 0,
+        "startedAt": "2026-09-23T04:19:01.908Z",
+        "readyAt": "2026-09-23T04:19:02.454Z",
+        "durationSeconds": 128.55
+      },
+      "nativeMeasurement": {
+        "app": {
+          "build": "275",
+          "sourceFingerprint": "82da4dc3da24a4de9ace2c2be1f2746144c7191cc9c26309fddfe9655db03cd5",
+          "sourceRevision": "807b9af9964e3eba0b9d4212d7dc91d8945d4118",
+          "sourceState": "dirty",
+          "version": "1.0.3"
+        },
+        "delivery": "fresh",
+        "diagnostics": {
+          "backendBundleSha256": "05aedfe76acc8d8bcee71f5ebf0f9de22590e79715e6cc80f1f4ab6032576558",
+          "provider": "gemini",
+          "requestedModel": "gemini-2.5-pro",
+          "returnedModel": "gemini-2.5-pro",
+          "usage": {
+            "cachedTokens": null,
+            "candidateTokens": 335,
+            "promptTokens": 1094,
+            "thinkingTokens": 1035,
+            "toolTokens": null,
+            "totalTokens": 2464
+          },
+          "version": 1
+        },
+        "otherEdgeMs": 1232.1000000000004,
+        "serverTimingMs": {
+          "edge_total": 14310.2,
+          "provider": 13078.1
+        },
+        "status": 200,
+        "timingStatus": "valid",
+        "version": "identification_app_measurement_v1"
+      },
+      "httpMeasurement": {
+        "event": "http_identification",
+        "authSeconds": 0.01,
+        "transferAndServerSeconds": 14.853,
+        "status": 200
+      },
+      "pipelineMeasurements": {
+        "preflight_seconds": null,
+        "response_to_first_result_state_seconds": 0.024,
+        "postflight_seconds": 0.024,
+        "total_pipeline_seconds": 15.777,
+        "tap_to_first_rendered_frame_seconds": 16.552
+      },
+      "primaryAttemptEstimate": {
+        "estimatedPrimaryUpperUsd": 0.023285,
+        "reason": "estimated_primary_only",
+        "scope": "observed_primary_attempt_only",
+        "invoiceExact": false
+      }
+    },
+    {
+      "caseId": "c0015",
+      "groupId": "g0015",
+      "inputGroup": "audio",
+      "sourceLabel": "American Green Tree Frog",
+      "sourcePage": "https://www.nps.gov/subjects/sound/sounds-green-treefrog.htm",
+      "referenceStatus": "provisional_source_label",
+      "provisionalReference": {
+        "subject": "biological",
+        "resolution": "named",
+        "supportedRank": "species",
+        "acceptableTaxa": [
+          {
+            "id": "species-dryophytes-cinereus",
+            "rank": "species"
+          }
+        ]
+      },
+      "provisionalSpeciesAgreement": false,
+      "preparedAudioSha256": "5d327fae2cea263c348572557ab1a2774ab0d7a8c0a612970ade1b550640154c",
+      "durationSeconds": 9.978775510204082,
+      "imagesSubmitted": false,
+      "descriptionSubmitted": false,
+      "appSubmissions": 1,
+      "manualRetries": 0,
+      "submissionIntentAt": "2026-09-23T04:22:20.800091+00:00",
+      "uiResultObservedAt": "2026-09-23T04:23:07.977083+00:00",
+      "uiResult": {
+        "commonName": "Snow Goose",
+        "scientificName": "Anser caerulescens",
+        "matchLabel": "Strong match",
+        "biologicalAssertion": true,
+        "provisionalReferenceAssessment": "disagrees_with_provisional_american_green_tree_frog_source_label",
+        "independentlyVerifiedModelError": null,
+        "manuallyConfirmedOrCorrected": false
+      },
+      "observer": {
+        "finishedAt": "2026-09-23T04:24:19.331Z",
+        "status": "window_completed",
+        "events": 6,
+        "ready": true,
+        "stopReason": "collector_exit",
+        "collectorExitCode": 0,
+        "collectorSignal": null,
+        "unprojectedRows": 27,
+        "oversizedRows": 0,
+        "startedAt": "2026-09-23T04:22:10.806Z",
+        "readyAt": "2026-09-23T04:22:11.312Z",
+        "durationSeconds": 128.525
+      },
+      "nativeMeasurement": {
+        "app": {
+          "build": "275",
+          "sourceFingerprint": "82da4dc3da24a4de9ace2c2be1f2746144c7191cc9c26309fddfe9655db03cd5",
+          "sourceRevision": "807b9af9964e3eba0b9d4212d7dc91d8945d4118",
+          "sourceState": "dirty",
+          "version": "1.0.3"
+        },
+        "delivery": "fresh",
+        "diagnostics": {
+          "backendBundleSha256": "05aedfe76acc8d8bcee71f5ebf0f9de22590e79715e6cc80f1f4ab6032576558",
+          "provider": "gemini",
+          "requestedModel": "gemini-2.5-pro",
+          "returnedModel": "gemini-2.5-pro",
+          "usage": {
+            "cachedTokens": null,
+            "candidateTokens": 346,
+            "promptTokens": 1123,
+            "thinkingTokens": 1353,
+            "toolTokens": null,
+            "totalTokens": 2822
+          },
+          "version": 1
+        },
+        "otherEdgeMs": 2542.899999999998,
+        "serverTimingMs": {
+          "edge_total": 19400.8,
+          "provider": 16857.9
+        },
+        "status": 200,
+        "timingStatus": "valid",
+        "version": "identification_app_measurement_v1"
+      },
+      "httpMeasurement": {
+        "event": "http_identification",
+        "authSeconds": 0.007,
+        "transferAndServerSeconds": 19.864,
+        "status": 200
+      },
+      "pipelineMeasurements": {
+        "preflight_seconds": null,
+        "response_to_first_result_state_seconds": 0.025,
+        "postflight_seconds": 0.025,
+        "total_pipeline_seconds": 20.69,
+        "tap_to_first_rendered_frame_seconds": 21.476
+      },
+      "primaryAttemptEstimate": {
+        "estimatedPrimaryUpperUsd": 0.0282925,
+        "reason": "estimated_primary_only",
+        "scope": "observed_primary_attempt_only",
+        "invoiceExact": false
+      }
+    },
+    {
+      "caseId": "c0016",
+      "groupId": "g0016",
+      "inputGroup": "audio",
+      "sourceLabel": "Stream",
+      "sourcePage": "https://www.nps.gov/subjects/sound/sounds-stream.htm",
+      "referenceStatus": "source_and_owner_reviewed_non_biological",
+      "provisionalReference": {
+        "subject": "non_biological",
+        "resolution": "unresolved",
+        "supportedRank": null,
+        "acceptableTaxa": []
+      },
+      "provisionalSpeciesAgreement": null,
+      "preparedAudioSha256": "f67b22b951b922cd222441e39acbfe67a7f6253d8c7e2c07631308726d274b0f",
+      "durationSeconds": 5.067755102040817,
+      "imagesSubmitted": false,
+      "descriptionSubmitted": false,
+      "appSubmissions": 1,
+      "manualRetries": 0,
+      "submissionIntentAt": "2026-09-23T04:25:31.888693+00:00",
+      "uiResultObservedAt": "2026-09-23T04:26:21.027017+00:00",
+      "uiResult": {
+        "commonName": null,
+        "scientificName": null,
+        "matchLabel": null,
+        "resultTitle": "No wildlife detected",
+        "classificationLabel": "NON-BIOLOGICAL",
+        "biologicalAssertion": false,
+        "provisionalReferenceAssessment": "agrees_with_source_and_owner_reviewed_non_biological_control",
+        "independentlyVerifiedModelError": null,
+        "manuallyConfirmedOrCorrected": false
+      },
+      "observer": {
+        "finishedAt": "2026-09-23T04:27:32.378Z",
+        "status": "window_completed",
+        "events": 6,
+        "ready": true,
+        "stopReason": "collector_exit",
+        "collectorExitCode": 0,
+        "collectorSignal": null,
+        "unprojectedRows": 17,
+        "oversizedRows": 0,
+        "startedAt": "2026-09-23T04:25:23.857Z",
+        "readyAt": "2026-09-23T04:25:24.360Z",
+        "durationSeconds": 128.521
+      },
+      "nativeMeasurement": {
+        "app": {
+          "build": "275",
+          "sourceFingerprint": "82da4dc3da24a4de9ace2c2be1f2746144c7191cc9c26309fddfe9655db03cd5",
+          "sourceRevision": "807b9af9964e3eba0b9d4212d7dc91d8945d4118",
+          "sourceState": "dirty",
+          "version": "1.0.3"
+        },
+        "delivery": "fresh",
+        "diagnostics": {
+          "backendBundleSha256": "05aedfe76acc8d8bcee71f5ebf0f9de22590e79715e6cc80f1f4ab6032576558",
+          "provider": "gemini",
+          "requestedModel": "gemini-2.5-pro",
+          "returnedModel": "gemini-2.5-pro",
+          "usage": {
+            "cachedTokens": null,
+            "candidateTokens": 271,
+            "promptTokens": 961,
+            "thinkingTokens": 1183,
+            "toolTokens": null,
+            "totalTokens": 2415
+          },
+          "version": 1
+        },
+        "otherEdgeMs": 1101.7999999999993,
+        "serverTimingMs": {
+          "edge_total": 12881.3,
+          "provider": 11779.5
+        },
+        "status": 200,
+        "timingStatus": "valid",
+        "version": "identification_app_measurement_v1"
+      },
+      "httpMeasurement": {
+        "event": "http_identification",
+        "authSeconds": 0.011,
+        "transferAndServerSeconds": 13.423,
+        "status": 200
+      },
+      "pipelineMeasurements": {
+        "preflight_seconds": null,
+        "response_to_first_result_state_seconds": 0.02,
+        "postflight_seconds": 0.02,
+        "total_pipeline_seconds": 14.244,
+        "tap_to_first_rendered_frame_seconds": 14.81
+      },
+      "primaryAttemptEstimate": {
+        "estimatedPrimaryUpperUsd": 0.0242125,
+        "reason": "estimated_primary_only",
+        "scope": "observed_primary_attempt_only",
+        "invoiceExact": false
+      }
+    },
+    {
+      "caseId": "c0017",
+      "groupId": "g0017",
+      "inputGroup": "audio",
+      "sourceLabel": "Thunder",
+      "sourcePage": "https://www.nps.gov/subjects/sound/sounds-thunder.htm",
+      "referenceStatus": "source_and_owner_reviewed_non_biological",
+      "provisionalReference": {
+        "subject": "non_biological",
+        "resolution": "unresolved",
+        "supportedRank": null,
+        "acceptableTaxa": []
+      },
+      "provisionalSpeciesAgreement": null,
+      "preparedAudioSha256": "dfabd74210a85b46a80a42656c79586c144145108a692e32d03a17a836a4ac8a",
+      "durationSeconds": 10.0,
+      "imagesSubmitted": false,
+      "descriptionSubmitted": false,
+      "appSubmissions": 1,
+      "manualRetries": 0,
+      "submissionIntentAt": "2026-09-23T04:28:41.626038+00:00",
+      "uiResultObservedAt": "2026-09-23T04:29:24.694029+00:00",
+      "uiResult": {
+        "commonName": null,
+        "scientificName": null,
+        "matchLabel": null,
+        "resultTitle": "No wildlife detected",
+        "classificationLabel": "NON-BIOLOGICAL",
+        "biologicalAssertion": false,
+        "provisionalReferenceAssessment": "agrees_with_source_and_owner_reviewed_non_biological_control",
+        "independentlyVerifiedModelError": null,
+        "manuallyConfirmedOrCorrected": false
+      },
+      "observer": {
+        "finishedAt": "2026-09-23T04:30:42.617Z",
+        "status": "window_completed",
+        "events": 6,
+        "ready": true,
+        "stopReason": "collector_exit",
+        "collectorExitCode": 0,
+        "collectorSignal": null,
+        "unprojectedRows": 17,
+        "oversizedRows": 0,
+        "startedAt": "2026-09-23T04:28:34.041Z",
+        "readyAt": "2026-09-23T04:28:34.598Z",
+        "durationSeconds": 128.576
+      },
+      "nativeMeasurement": {
+        "app": {
+          "build": "275",
+          "sourceFingerprint": "82da4dc3da24a4de9ace2c2be1f2746144c7191cc9c26309fddfe9655db03cd5",
+          "sourceRevision": "807b9af9964e3eba0b9d4212d7dc91d8945d4118",
+          "sourceState": "dirty",
+          "version": "1.0.3"
+        },
+        "delivery": "fresh",
+        "diagnostics": {
+          "backendBundleSha256": "05aedfe76acc8d8bcee71f5ebf0f9de22590e79715e6cc80f1f4ab6032576558",
+          "provider": "gemini",
+          "requestedModel": "gemini-2.5-pro",
+          "returnedModel": "gemini-2.5-pro",
+          "usage": {
+            "cachedTokens": null,
+            "candidateTokens": 257,
+            "promptTokens": 1124,
+            "thinkingTokens": 1288,
+            "toolTokens": null,
+            "totalTokens": 2669
+          },
+          "version": 1
+        },
+        "otherEdgeMs": 1267.7999999999993,
+        "serverTimingMs": {
+          "edge_total": 13905.3,
+          "provider": 12637.5
+        },
+        "status": 200,
+        "timingStatus": "valid",
+        "version": "identification_app_measurement_v1"
+      },
+      "httpMeasurement": {
+        "event": "http_identification",
+        "authSeconds": 0.007,
+        "transferAndServerSeconds": 14.405,
+        "status": 200
+      },
+      "pipelineMeasurements": {
+        "preflight_seconds": null,
+        "response_to_first_result_state_seconds": 0.021,
+        "postflight_seconds": 0.021,
+        "total_pipeline_seconds": 14.71,
+        "tap_to_first_rendered_frame_seconds": 15.896
+      },
+      "primaryAttemptEstimate": {
+        "estimatedPrimaryUpperUsd": 0.025985,
+        "reason": "estimated_primary_only",
+        "scope": "observed_primary_attempt_only",
+        "invoiceExact": false
+      }
+    },
+    {
+      "caseId": "c0018",
+      "groupId": "g0018",
+      "inputGroup": "audio",
+      "sourceLabel": "Car Alarm",
+      "sourcePage": "https://www.nps.gov/subjects/sound/sounds-car-alarm.htm",
+      "referenceStatus": "source_and_owner_reviewed_non_biological",
+      "provisionalReference": {
+        "subject": "non_biological",
+        "resolution": "unresolved",
+        "supportedRank": null,
+        "acceptableTaxa": []
+      },
+      "provisionalSpeciesAgreement": null,
+      "preparedAudioSha256": "1803ceef8ae9ad9e71e7fcfa322208a8970485ffdf84a466770e73fb15b1c711",
+      "durationSeconds": 9.978775510204082,
+      "imagesSubmitted": false,
+      "descriptionSubmitted": false,
+      "appSubmissions": 1,
+      "manualRetries": 0,
+      "submissionIntentAt": "2026-09-23T04:31:54.143679+00:00",
+      "uiResultObservedAt": "2026-09-23T04:32:29.924674+00:00",
+      "uiResult": {
+        "commonName": null,
+        "scientificName": null,
+        "matchLabel": null,
+        "resultTitle": "No wildlife detected",
+        "classificationLabel": "NON-BIOLOGICAL",
+        "biologicalAssertion": false,
+        "provisionalReferenceAssessment": "agrees_with_source_and_owner_reviewed_non_biological_control",
+        "independentlyVerifiedModelError": null,
+        "manuallyConfirmedOrCorrected": false
+      },
+      "observer": {
+        "finishedAt": "2026-09-23T04:33:54.063Z",
+        "status": "window_completed",
+        "events": 6,
+        "ready": true,
+        "stopReason": "collector_exit",
+        "collectorExitCode": 0,
+        "collectorSignal": null,
+        "unprojectedRows": 17,
+        "oversizedRows": 0,
+        "startedAt": "2026-09-23T04:31:45.505Z",
+        "readyAt": "2026-09-23T04:31:46.055Z",
+        "durationSeconds": 128.558
+      },
+      "nativeMeasurement": {
+        "app": {
+          "build": "275",
+          "sourceFingerprint": "82da4dc3da24a4de9ace2c2be1f2746144c7191cc9c26309fddfe9655db03cd5",
+          "sourceRevision": "807b9af9964e3eba0b9d4212d7dc91d8945d4118",
+          "sourceState": "dirty",
+          "version": "1.0.3"
+        },
+        "delivery": "fresh",
+        "diagnostics": {
+          "backendBundleSha256": "05aedfe76acc8d8bcee71f5ebf0f9de22590e79715e6cc80f1f4ab6032576558",
+          "provider": "gemini",
+          "requestedModel": "gemini-2.5-pro",
+          "returnedModel": "gemini-2.5-pro",
+          "usage": {
+            "cachedTokens": null,
+            "candidateTokens": 230,
+            "promptTokens": 1123,
+            "thinkingTokens": 1021,
+            "toolTokens": null,
+            "totalTokens": 2374
+          },
+          "version": 1
+        },
+        "otherEdgeMs": 1184,
+        "serverTimingMs": {
+          "edge_total": 11593.2,
+          "provider": 10409.2
+        },
+        "status": 200,
+        "timingStatus": "valid",
+        "version": "identification_app_measurement_v1"
+      },
+      "httpMeasurement": {
+        "event": "http_identification",
+        "authSeconds": 0.008,
+        "transferAndServerSeconds": 12.076,
+        "status": 200
+      },
+      "pipelineMeasurements": {
+        "preflight_seconds": null,
+        "response_to_first_result_state_seconds": 0.03,
+        "postflight_seconds": 0.03,
+        "total_pipeline_seconds": 12.873,
+        "tap_to_first_rendered_frame_seconds": 13.507
+      },
+      "primaryAttemptEstimate": {
+        "estimatedPrimaryUpperUsd": 0.0215725,
+        "reason": "estimated_primary_only",
+        "scope": "observed_primary_attempt_only",
+        "invoiceExact": false
+      }
+    }
+  ],
+  "limits": {
+    "preparedRequestBytesAttested": false,
+    "appContextAttested": false,
+    "sourceHashesAttestProviderPayload": false,
+    "importAndPhysicalCaptureIncludedInLatency": false,
+    "physicalMicrophoneCaptureCases": 0,
+    "modelProseRetained": false,
+    "visualPreflightMarker": "not_emitted_by_nonvisual_path",
+    "publicSourceTrainingExposure": "unknown"
+  },
+  "interactionNote": "After completed species results, Debug replay remained disabled until the same app was closed through the simulator app switcher and reopened. This happened before each affected next submission; no data reset, code change or manual identification retry.",
+  "privateEvidenceRef": "audio-six-app-20260922-v1",
+  "privateEvidenceRetentionUntil": "2026-10-22",
+  "privateRecordSha256": {
+    "run/c0013-intent.json": "18b3253de6b6f3969efb2945e54a719fc934139fae4185702d567be9fc42c44a",
+    "run/c0013-observation.jsonl": "5fe4a8eada05b4b29a5ca1dd3efda5ac1f2bdcded3038621868a3b2ff905a892",
+    "run/c0013-staging.json": "306efef245adf4463238fb2bac44342d0b671856e452a08febbce0f2ae5bd6ff",
+    "run/c0013-ui.json": "c35380568aaef9da7ac980eec6429cef104710db0f171ec0211f57ea6f3b3ace",
+    "run/c0014-intent.json": "6716c9e75c680878a161dedca926742a03f4e82760335e7720957cfd6c0cb3f3",
+    "run/c0014-observation.jsonl": "688fac5b10cdb7f6f341dcdc996d0702aea403721a251393568406fe7fb58da6",
+    "run/c0014-staging.json": "025ee9383af34c6fdf6407f9c4403c8f445d4a7a9cd7b400fb9e7d3c0a263cdd",
+    "run/c0014-ui.json": "818522abf42693403433abeb71a71d257fe7a27cdaa81bd1e6a7721952877db7",
+    "run/c0015-intent.json": "439660a7c20d0a3ae64f69c5115c8ee6e59a1ed94eb27d333855ad4d13494a13",
+    "run/c0015-observation.jsonl": "85e093e2b6ddc51c33eff69677e41c7b34937a84f918750e45f4ff4415c3ace1",
+    "run/c0015-staging.json": "11e5a17aa0edc102990e0562ca247f102dc26ab4bab491fb1f6f4804e32b4c71",
+    "run/c0015-ui.json": "d5bd60b79e81a77fbc1b220b078264f7da569fb137aadc88c1657550f2cb23b9",
+    "run/c0016-intent.json": "b1ea8a3ce2109de9a0bc209b305b942c1c224de80455204683979b7cff31afe2",
+    "run/c0016-observation.jsonl": "0691db9854103b0f7c858b3cbf6ac0d475cb781c2e23e35eea89495971a4bf5a",
+    "run/c0016-staging.json": "405fbfb8f4171d28610baf847d42e2a0bd478ee1147bfa8913c47c519144bb06",
+    "run/c0016-ui.json": "8459eb6157ecbffe020428c88a6486b00707c05bf342349fb6880fcdf9caf1b2",
+    "run/c0017-intent.json": "140557b1cda3cee49744470ca68855d27add74949715cf9d1f5fcfd5e14cb50b",
+    "run/c0017-observation.jsonl": "49e18c486e5e8143611ca291f1b3b283e751f03c76af840728eb01718a150ce2",
+    "run/c0017-staging.json": "80f2de60fedcdb8a102ba36184b1a3339252673c5a20112e85db9d338e6d209a",
+    "run/c0017-ui.json": "cf1f560b54777ea88c0d1d38a8d3ea92b779f2cd6a85d268b0e261c361cd569d",
+    "run/c0018-intent.json": "50f476a9196c846db641fe5f52540e723aa4b4788c436dda8afb26dab639a3b3",
+    "run/c0018-observation.jsonl": "807371d31bbb64dfd03e4bef6759e6f6e33b297516e9ac13e3d3b03fed284f70",
+    "run/c0018-staging.json": "6b2dd4f50939aa4905b1445ce5eb0eab9bf14f79849b4368daa2f06a1daa74c4",
+    "run/c0018-ui.json": "2f74d142bf476f5de8f601b35f632363df6d04ed8d34fca58e07d553649403d3",
+    "run/plan.json": "ba67ceeec9ec094bcdf6aa84b9e83506f3f6f05d680e169a75a31e0057c9a7a3",
+    "run/pricing.json": "d816105ce773e6341980ce1b40a89798de81e27cb0d7abf0756b297ed8c2046d"
+  },
+  "validation": {
+    "offlineCorpusPreflight": "passed",
+    "inputAndPreparationFreezeHashesVerified": true,
+    "observerSequenceAndIdentityAndCostArithmeticVerified": true,
+    "nativeUnitSuiteRerun": false,
+    "backendSuiteRerun": false,
+    "newBuildPerformed": false
+  },
+  "privateEvidenceFreezeSha256": "415a055676d36ae0bf93aa8856a2b86d67188c97ea51f5c42e20400909489c8c"
+}

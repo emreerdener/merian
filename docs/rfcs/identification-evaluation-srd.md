@@ -1,10 +1,10 @@
 # Naturebook Identification Evaluation Readiness — SRD
 
 Document ID: NB-SRD-IDENTIFICATION-EVAL-001\
-Version: 0.14\
+Version: 0.15\
 Date: 22 September 2026\
 Status: Slices 1–3 and exploratory automation implemented; photo, description,
-first video and first audio app checks completed; reviewed baseline pending\
+first video and expanded audio app checks completed; reviewed baseline pending\
 Product authority:
 [Evaluation Readiness PRD](../product/04-identification-evaluation-prd.md)
 
@@ -595,6 +595,25 @@ disagreement leaves species identity unresolved. This is diagnostic evidence
 outside the shared evaluator, with no provider adapter, runtime dependency, paid
 request, biological-reference promotion or change to formal denominators. The
 original app request/context was not retained and remains unattested.
+
+The
+[six-audio preparation](./identification-audio-six-preparation-2026-09-22.md)
+preserves a frozen checkpoint before owner listening review. Following that
+review, a new admitted corpus passed canonical preflight for six audio groups
+and twelve in-memory profile requests, with no dispatch. The
+[six-audio app benchmark](./identification-audio-six-app-benchmark-2026-09-22.md)
+records six sequential first submissions with normal Gemini 2.5 Pro selection
+and no manual retries. All three animal results were Strong matches that
+disagreed with provisional source species; all three source/owner-reviewed
+non-biological controls returned No wildlife detected. Earlier results and
+formal denominators remain unchanged.
+
+Before tuning confidence or assigning another provider, trace the audio
+preparation and request construction against these frozen inputs. Existing
+source hashes and diagnostic identities do not attest the app's final request
+audio or contextual fields. Any future diagnostic should be content-free,
+bounded, privacy-reviewed and covered by the appropriate contract tests; this
+benchmark adds no runtime instrumentation or provider adapter.
 
 | Slice                     | Implementation and verification                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
