@@ -68,6 +68,20 @@ recorded before retry/error handling with null provider diagnostics; a transport
 failure or cancellation with no observed HTTP response has no response record.
 The observer is not a complete request or billing ledger.
 
+### Pipeline markers depend on the input path
+
+The photo path can emit seven projected events. Description-only submissions
+currently emit five: HTTP timing, native diagnostics, response-to-first-result
+state, postflight and total pipeline time. `preflight_seconds` logs visual
+encode/auth work in `InferenceLiveRequestService.dispatchVisual`; the nonvisual
+path has no equivalent marker. Describe's
+`CaptureWorkspaceViewModel.submitDescribeSolo` also omits the optional
+`userPerceivedStart` passed through nonvisual submission to the first-render
+probe. Consequently `tap_to_first_rendered_frame_seconds` is absent for
+Describe. Keep both absent values null; neither can be reconstructed from other
+spans or treated as zero. A complete observer window does not mean every input
+path has the same instrumentation coverage.
+
 ## Observe a simulator session
 
 Use approved examples and the ordinary app UI, with one submission in flight.
@@ -224,3 +238,17 @@ All five biological outcomes agreed with provisional references; the mineral
 control was labeled non-biological. The report preserves per-case timings and
 primary-attempt estimates without claiming verified accuracy, repeatability or
 total billed cost. No runtime code changed during this run.
+
+### Description pilot — 22 September 2026
+
+The
+[two-description benchmark](../rfcs/identification-description-app-benchmark-2026-09-22.md)
+completed both first submissions and non-overlapping observer windows. Each
+retained the five expected Describe events, fresh Gemini 2.5 Pro diagnostics and
+valid provider/Edge spans. One result agreed with a provisional genus reference
+while naming a more specific species; the non-biological-source control received
+a Strong biological answer from ambiguous text. The report preserves that
+mismatch and the missing timing fields. Audio/video files have no normal-app
+import route, and this observer uses simulator logging; physical-device capture
+does not inherit these measurements. No audio/video case or new runtime change
+was included.

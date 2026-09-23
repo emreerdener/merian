@@ -18,6 +18,15 @@ records ordinary-app outcomes and passive measurements separately from the
 direct evaluator's dry schedule. Gemini remains the only live provider; video
 evidence is ordered snapshots and included WAV audio, never a playback video.
 
+The later
+[description app benchmark](../../../../docs/rfcs/identification-description-app-benchmark-2026-09-22.md)
+adds two source-derived descriptions, one provisional genus agreement and one
+biological assertion on an ambiguous non-biological-source description. Offline
+preflight prepared four requests without dispatch; the separate ordinary-app
+pass retained two complete five-event windows. Missing Describe timing markers
+remain null, and audio/video live capture has no normal-app file import route.
+No formal counts or direct-evaluator readiness gates changed.
+
 ## Owners and use
 
 | File                                   | Responsibility                                                                                                                                                     |

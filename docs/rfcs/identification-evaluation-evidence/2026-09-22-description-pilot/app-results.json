@@ -1,0 +1,369 @@
+{
+  "schemaVersion": "identification_description_app_pilot_v1",
+  "runId": "source-description-two-app-v1",
+  "status": "two_first_results_and_two_complete_measurement_windows",
+  "recordedAt": "2026-09-23T02:02:40.087595+00:00",
+  "dateTimezone": "America/Chicago",
+  "executionBoundary": "existing_production_app_workflow",
+  "authorizedAppSubmissions": 2,
+  "observedAppSubmissions": 2,
+  "visibleFinishedResults": 2,
+  "manualRetries": 0,
+  "providerOverride": false,
+  "providerInvocationCount": null,
+  "providerInternalRetryCount": null,
+  "totalBilledCostUsd": null,
+  "directEvaluatorLiveCalls": 0,
+  "deploymentPerformed": false,
+  "corpusDigest": "5c1d1bf18849bc7a5574aaba9a3dcf4c225ac12a391d23da71cc0afb54e24ea5",
+  "taxonomyDigest": "8c4c86027e050c30c65146965dec0ae8c98f2bd91d7b7b4af7c709a8d22ea6be",
+  "sourcePacketFreezeSha256": "067b9cefad5772c79ab65e9da5df3e99d782d5ec6abc102b8a2c4e2a8e056fce",
+  "offlinePreflight": {
+    "groups": 2,
+    "descriptionGroups": 2,
+    "provisionalReferences": 2,
+    "plannedCalls": 4,
+    "dispatchAuthorized": false,
+    "source": {
+      "commit": "a21a3a2d51d6ff5bc847506c1c3efe23e783aa09",
+      "dirty": true,
+      "digest": "423b50d77257f287e853a8a90b141dc7e1d14cac4d33dce0c37e0b2e116f2598",
+      "sdk": "npm:@google/genai@2.23.0"
+    }
+  },
+  "app": {
+    "build": "275",
+    "sourceFingerprint": "3ad8e9f3c0e73234a78e743652cd9ac88fb93414f6e348c85148abddf213d812",
+    "sourceRevision": "6c7ba02ede0fa0884189f55b726bb4babf5966a5",
+    "sourceState": "dirty",
+    "version": "1.0.3"
+  },
+  "simulator": {
+    "model": "iPhone 18 Pro",
+    "os": "iOS 27.0"
+  },
+  "backendBundleSha256": "05aedfe76acc8d8bcee71f5ebf0f9de22590e79715e6cc80f1f4ab6032576558",
+  "observerSourceSha256": {
+    "services/supabase/scripts/observe_identification_app.ts": "13466267d366789c82b9c169cf6fe5a85a50fd99730f6e38d0e863ee58d574fe",
+    "services/supabase/scripts/identification_evaluation/appObserver.ts": "de3831d46878fcebf62a8609f827de0166822ae6c991ebfdf372e604062b9dd1",
+    "services/supabase/scripts/identification_evaluation/appObservation.ts": "bbcf22d9ae4f240e85c53cd79e656818adc205894ef49f7a3452e6955d928292"
+  },
+  "observationPolicy": {
+    "requestedSeconds": 120,
+    "shutdownGraceSeconds": 30,
+    "maximumEventsPerWindow": 100,
+    "overlappingWindows": false,
+    "readyBeforeEachUiConfirmation": true,
+    "automaticObserverSubmissions": 0,
+    "caseAssociation": "observed_sequential_ui_actions",
+    "rawLogsRetained": false
+  },
+  "pricingSnapshot": {
+    "version": "evaluation_pricing_v1",
+    "currency": "USD",
+    "service": "paid_standard_synchronous",
+    "retrievedAt": "2026-09-22T16:20:15.212Z",
+    "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+    "reviewRef": "pricing-public-20260922",
+    "includesReasoning": true,
+    "models": [
+      {
+        "model": "gemini-2.5-flash",
+        "inputPerMillion": {
+          "text": 0.3,
+          "image": 0.3,
+          "audio": 1,
+          "cached": 0.1
+        },
+        "outputPerMillion": 2.5,
+        "maxInputTokens": 1048576,
+        "maxBillableOutputTokens": 65536,
+        "limitsEvidenceRef": "limits-flash-20260922"
+      },
+      {
+        "model": "gemini-2.5-pro",
+        "inputPerMillion": {
+          "text": 2.5,
+          "image": 2.5,
+          "audio": 2.5,
+          "cached": 0.25
+        },
+        "outputPerMillion": 15,
+        "maxInputTokens": 1048576,
+        "maxBillableOutputTokens": 65536,
+        "limitsEvidenceRef": "limits-pro-20260922"
+      }
+    ]
+  },
+  "pricingSnapshotSha256": "d816105ce773e6341980ce1b40a89798de81e27cb0d7abf0756b297ed8c2046d",
+  "privateEvidenceRef": "description-app-run-20260922-v1",
+  "privateEvidenceRetentionUntil": "2026-10-22",
+  "privateRecordSha256": {
+    "c0009-observation.jsonl": "cc3e58e7f56aa2f66ace33b4531ada2e5c3a026a4a0a5fa3b8aa26ebcaa2da37",
+    "c0009-ui.json": "825304bb83dd174cc34f79d80fd7d0f021d6e3bda9af997c7dae87272bbee6b4",
+    "c0010-observation.jsonl": "38230e4536ca62e1d4b8b39203fa6be1ebcba2e678eb8aab13f526e239e18b0a",
+    "c0010-ui.json": "2eb47741b272ddff004a0c074a8c604786c8bd724eaa8ccd684c59a759b658ad",
+    "plan.json": "2f3467a2abae8afe61acc3ec5c886cbbc3c5bf475b888c7e4a72337af33b619e",
+    "pricing.json": "d816105ce773e6341980ce1b40a89798de81e27cb0d7abf0756b297ed8c2046d",
+    "source-record.json": "b1c7c46937c1a4b52983561da3775ec2deff845582562a0bdd54f828f603fb83"
+  },
+  "quality": {
+    "biologicalProvisionalReferences": 1,
+    "genusLevelAgreements": 1,
+    "speciesPredictionsBeyondReferenceRank": 1,
+    "nonBiologicalControls": 1,
+    "nonBiologicalHandlingAgreements": 0,
+    "biologicalAssertionsOnNonBiologicalSourceReference": 1,
+    "independentlyVerifiedErrorCount": null,
+    "independentlyVerifiedReferenceCount": 0,
+    "formalAccuracy": null,
+    "confidenceCalibration": null,
+    "providerComparison": null,
+    "repeatabilityAssessed": false,
+    "formalDevelopmentGroups": 0,
+    "formalHeldOutGroups": 0
+  },
+  "coverage": {
+    "photos": 0,
+    "description": 2,
+    "audio": 0,
+    "frames": 0,
+    "frames_audio": 0,
+    "photos_audio": 0
+  },
+  "summary": {
+    "completedObserverWindows": 2,
+    "completeFiveEventSets": 2,
+    "freshHttp200Measurements": 2,
+    "validProviderAndEdgeTimingCases": 2,
+    "totalPipelineSeconds": {
+      "values": [
+        17.848,
+        22.677
+      ],
+      "p95": null
+    },
+    "primaryAttemptEstimates": {
+      "count": 2,
+      "sumUsd": 0.0637775,
+      "scope": "two_observed_primary_attempts_only",
+      "invoiceExact": false
+    }
+  },
+  "missingMeasurements": {
+    "preflight_seconds": "visual_encode_auth_marker_not_emitted_by_nonvisual_path",
+    "tap_to_first_rendered_frame_seconds": "describe_entry_does_not_supply_userPerceivedStart"
+  },
+  "cases": [
+    {
+      "order": 1,
+      "caseId": "c0009",
+      "groupId": "g0009",
+      "descriptionSHA256": "0d9e473d6d86a1d5d77cbd10e04b4c50908ab8010754e1c1b64a3f8845d65280",
+      "sourceImageSubmitted": false,
+      "appSubmissions": 1,
+      "manualRetries": 0,
+      "categoryChipSelected": false,
+      "fullTextVisuallyVerified": true,
+      "uiResultObservedAt": "2026-09-23T01:56:37.736873+00:00",
+      "uiResult": {
+        "commonName": "Fly Agaric",
+        "scientificName": "Amanita muscaria",
+        "matchLabel": "Strong match",
+        "provisionalReferenceAssessment": "genus_agreement_species_beyond_reference",
+        "speciesAccuracyAssessed": false,
+        "manuallyConfirmedOrCorrected": false
+      },
+      "inputInteractionNote": "Initial text focus hid the submit control. A tap on the empty former-control area did not submit. Switched to camera and back to dismiss focus, verified the full unchanged description, then tapped the visible submit control once.",
+      "provisionalReference": {
+        "subject": "biological",
+        "resolution": "named",
+        "supportedRank": "genus",
+        "acceptableTaxa": [
+          {
+            "id": "genus-amanita",
+            "rank": "genus"
+          }
+        ]
+      },
+      "observer": {
+        "status": "window_completed",
+        "events": 5,
+        "collectorExitCode": 0,
+        "collectorSignal": null,
+        "stopReason": "collector_exit",
+        "unprojectedRows": 22,
+        "oversizedRows": 0,
+        "startedAt": "2026-09-23T01:54:56.028Z",
+        "readyAt": "2026-09-23T01:54:56.543Z",
+        "finishedAt": "2026-09-23T01:57:04.568Z",
+        "durationSeconds": 128.54
+      },
+      "nativeMeasurement": {
+        "app": {
+          "build": "275",
+          "sourceFingerprint": "3ad8e9f3c0e73234a78e743652cd9ac88fb93414f6e348c85148abddf213d812",
+          "sourceRevision": "6c7ba02ede0fa0884189f55b726bb4babf5966a5",
+          "sourceState": "dirty",
+          "version": "1.0.3"
+        },
+        "delivery": "fresh",
+        "diagnostics": {
+          "backendBundleSha256": "05aedfe76acc8d8bcee71f5ebf0f9de22590e79715e6cc80f1f4ab6032576558",
+          "provider": "gemini",
+          "requestedModel": "gemini-2.5-pro",
+          "returnedModel": "gemini-2.5-pro",
+          "usage": {
+            "cachedTokens": null,
+            "candidateTokens": 494,
+            "promptTokens": 283,
+            "thinkingTokens": 1347,
+            "toolTokens": null,
+            "totalTokens": 2124
+          },
+          "version": 1
+        },
+        "otherEdgeMs": 2381.7999999999993,
+        "serverTimingMs": {
+          "edge_total": 16553.1,
+          "provider": 14171.3
+        },
+        "status": 200,
+        "timingStatus": "valid",
+        "version": "identification_app_measurement_v1"
+      },
+      "clientHttp": {
+        "event": "http_identification",
+        "authSeconds": 0.007,
+        "transferAndServerSeconds": 17.225,
+        "status": 200
+      },
+      "appIntervalsSeconds": {
+        "response_to_first_result_state_seconds": 0.019,
+        "postflight_seconds": 0.019,
+        "total_pipeline_seconds": 17.848,
+        "preflight_seconds": null,
+        "tap_to_first_rendered_frame_seconds": null
+      },
+      "primaryAttemptCost": {
+        "estimatedPrimaryUpperUsd": 0.0283225,
+        "reason": "estimated_primary_only",
+        "scope": "observed_primary_attempt_only",
+        "invoiceExact": false
+      }
+    },
+    {
+      "order": 2,
+      "caseId": "c0010",
+      "groupId": "g0010",
+      "descriptionSHA256": "afde54f6c0ddc2cbe8a3fd5634b14925b0bc5d7bf36bc20759e1cf2a3a1c946d",
+      "sourceImageSubmitted": false,
+      "appSubmissions": 1,
+      "manualRetries": 0,
+      "categoryChipSelected": false,
+      "fullTextVisuallyVerified": true,
+      "uiResultObservedAt": "2026-09-23T01:59:57.459166+00:00",
+      "uiResult": {
+        "commonName": "King Alfred's Cakes",
+        "scientificName": "Daldinia concentrica",
+        "matchLabel": "Strong match",
+        "provisionalReferenceAssessment": "biological_assertion_on_non_biological_source_reference",
+        "mineralIdentityAssessed": false,
+        "independentlyVerifiedError": false,
+        "descriptionSufficiency": "ambiguous_text_may_not_distinguish_pitted_rock_from_fungus",
+        "manuallyConfirmedOrCorrected": false
+      },
+      "inputInteractionNote": null,
+      "provisionalReference": {
+        "subject": "non_biological",
+        "resolution": "unresolved",
+        "supportedRank": null,
+        "acceptableTaxa": []
+      },
+      "observer": {
+        "status": "window_completed",
+        "events": 5,
+        "collectorExitCode": 0,
+        "collectorSignal": null,
+        "stopReason": "collector_exit",
+        "unprojectedRows": 18,
+        "oversizedRows": 0,
+        "startedAt": "2026-09-23T01:58:32.926Z",
+        "readyAt": "2026-09-23T01:58:33.442Z",
+        "finishedAt": "2026-09-23T02:00:41.454Z",
+        "durationSeconds": 128.528
+      },
+      "nativeMeasurement": {
+        "app": {
+          "build": "275",
+          "sourceFingerprint": "3ad8e9f3c0e73234a78e743652cd9ac88fb93414f6e348c85148abddf213d812",
+          "sourceRevision": "6c7ba02ede0fa0884189f55b726bb4babf5966a5",
+          "sourceState": "dirty",
+          "version": "1.0.3"
+        },
+        "delivery": "fresh",
+        "diagnostics": {
+          "backendBundleSha256": "05aedfe76acc8d8bcee71f5ebf0f9de22590e79715e6cc80f1f4ab6032576558",
+          "provider": "gemini",
+          "requestedModel": "gemini-2.5-pro",
+          "returnedModel": "gemini-2.5-pro",
+          "usage": {
+            "cachedTokens": null,
+            "candidateTokens": 511,
+            "promptTokens": 280,
+            "thinkingTokens": 1806,
+            "toolTokens": null,
+            "totalTokens": 2597
+          },
+          "version": 1
+        },
+        "otherEdgeMs": 2112,
+        "serverTimingMs": {
+          "edge_total": 21697.7,
+          "provider": 19585.7
+        },
+        "status": 200,
+        "timingStatus": "valid",
+        "version": "identification_app_measurement_v1"
+      },
+      "clientHttp": {
+        "event": "http_identification",
+        "authSeconds": 0.007,
+        "transferAndServerSeconds": 22.214,
+        "status": 200
+      },
+      "appIntervalsSeconds": {
+        "response_to_first_result_state_seconds": 0.018,
+        "postflight_seconds": 0.018,
+        "total_pipeline_seconds": 22.677,
+        "preflight_seconds": null,
+        "tap_to_first_rendered_frame_seconds": null
+      },
+      "primaryAttemptCost": {
+        "estimatedPrimaryUpperUsd": 0.035455,
+        "reason": "estimated_primary_only",
+        "scope": "observed_primary_attempt_only",
+        "invoiceExact": false
+      }
+    }
+  ],
+  "remainingCaptureCoverage": {
+    "audio": "not_run_normal_app_requires_live_microphone_capture",
+    "frames": "not_run_normal_app_requires_live_camera_capture",
+    "frames_audio": "not_run_normal_app_requires_live_camera_capture",
+    "preparedAudioOrVideoAssets": 0,
+    "normalAudioVideoFileImportAvailable": false,
+    "passiveObserverDeviceSupport": "simulator_only"
+  },
+  "limitations": [
+    "Automatically authored descriptions from two public source images are not spontaneous field notes; source images were not submitted.",
+    "Source-backed references are provisional with zero independent biological reviews; public-source training exposure is unknown.",
+    "The mushroom reference supports Amanita genus only. The stronger species answer is not independently assessed.",
+    "The non-biological source description is ambiguous and may not distinguish rock from fungus. Retain the first biological assertion as a source-reference mismatch, not verified accuracy evidence.",
+    "No manual correction or retry was performed. Prepared description hashes do not attest contextual fields or the complete provider payload.",
+    "Two completed windows contain five emitted events each. Missing Describe preflight and tap-to-render spans remain null, not zero or inferred from other intervals.",
+    "Provider time includes SDK transport; other Edge work is edge_total minus provider. Overlapping spans must not be summed.",
+    "Primary estimates use fresh reviewed highest rates including thinking; complete billing and provider invocation counts remain unknown.",
+    "No Flash/free, second-provider, audio, sampled-frame, paired-input or repeatability comparison was run."
+  ]
+}

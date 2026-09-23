@@ -1,7 +1,7 @@
 # Identification evaluation: solo checks and the reviewed pilot
 
 Date: 22 September 2026\
-Status: Six source-backed exploratory photos completed the app pilot; formal
+Status: Six exploratory photos and two descriptions completed app pilots; formal
 corpus at 0/60 reviewed groups; no paid direct-evaluator run
 
 This is the collection workflow for Slice 4 of the
@@ -155,6 +155,16 @@ provisional species agreements and one non-biological agreement, each with a
 complete measurement window. That pass is separate from the direct evaluator's
 twelve-call dry schedule. These automated eligibility reviews do not advance the
 formal reviewed counts below.
+
+The later
+[two-description pass](../rfcs/identification-description-app-benchmark-2026-09-22.md)
+preserves one provisional genus agreement and one Strong biological answer on an
+ambiguous non-biological-source description. Its two windows retained the five
+markers emitted by Describe; visual preflight and tap-to-render were absent. The
+report also records the next capture constraint: controlled audio/video files
+have no normal-app import route. Physical-device live capture can supply a
+manual smoke check; repeatable automated replay needs its own supported path.
+Keep first mismatches and missing measurements in the record.
 
 ## Formal pilot: start here when reference review is available
 

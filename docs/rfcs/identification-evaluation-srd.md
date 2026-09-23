@@ -1,10 +1,10 @@
 # Naturebook Identification Evaluation Readiness — SRD
 
 Document ID: NB-SRD-IDENTIFICATION-EVAL-001\
-Version: 0.9\
+Version: 0.10\
 Date: 22 September 2026\
-Status: Slices 1–3 and exploratory automation implemented; six-photo app pilot
-completed; reviewed live baseline pending\
+Status: Slices 1–3 and exploratory automation implemented; photo and description
+app pilots completed; reviewed live baseline pending\
 Product authority:
 [Evaluation Readiness PRD](../product/04-identification-evaluation-prd.md)
 
@@ -536,6 +536,21 @@ agreements and one non-biological agreement remain separate from formal scores.
 Its selected UI outcomes and bounded numeric records are app-observation
 evidence, not direct-runner output; no new runtime code or deployment was
 needed.
+
+The subsequent
+[two-description benchmark](./identification-description-app-benchmark-2026-09-22.md)
+used a separately frozen two-group exploratory corpus. Offline preflight
+prepared four requests without dispatch; the ordinary app submitted each
+description once. Both windows closed with five events, fresh Gemini 2.5 Pro
+diagnostics and valid provider/Edge spans. The mushroom answer agreed at genus
+level but exceeded the reference's specificity; the ambiguous
+non-biological-source description returned a Strong biological answer. Neither
+is independent accuracy evidence. The nonvisual path emits no visual preflight
+marker, and Describe omits the optional start clock needed for first-render
+timing. Both missing fields remain null. Audio/video capture remains live-only
+in the normal app, and the passive observer is simulator-only; no controlled
+audio/video cases ran. The next proposed slice addresses these measurement and
+replay gaps without changing models or adding live calls to CI.
 
 | Slice                     | Implementation and verification                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
