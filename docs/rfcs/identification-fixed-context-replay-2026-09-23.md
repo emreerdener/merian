@@ -20,7 +20,14 @@ results.
 > [profile provenance slice](./identification-audio-comparison-provenance-2026-09-23.md)
 > adds measurement-v2 profile-only attestation and offline definitions of both
 > processors. The original implementation and validation facts below remain
-> historical. Live case/media/arm and completed-outcome binding remain pending.
+> historical. Live case/media/arm and completed-outcome binding were still
+> pending at that checkpoint.
+
+> **Subsequent follow-up — 23 September 2026:** The
+> [app integration](./identification-audio-comparison-app-integration-2026-09-23.md)
+> adds frozen native assignments, authenticated receipt collection and complete
+> observation admission with finalization/render proof. The server configuration
+> remains unset and no paid comparison has run.
 
 ## Request and lifecycle boundaries
 

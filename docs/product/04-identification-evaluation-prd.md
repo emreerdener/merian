@@ -1,7 +1,7 @@
 # Naturebook Identification Evaluation Readiness — PRD
 
 Document ID: NB-PRD-IDENTIFICATION-EVAL-001\
-Version: 0.19\
+Version: 0.20\
 Date: 23 September 2026\
 Status: Slices 1–3 implemented; photo, description, first video and expanded
 audio app checks completed; reviewed baseline pending\
@@ -136,11 +136,15 @@ live result to an individual WAV or processing arm. The ordinary app currently
 runs the deployed processor only. The subsequent
 [server assignment slice](../rfcs/identification-audio-comparison-assignment-2026-09-23.md)
 implements disabled, owner-bound slots, actual source/processed/request checks,
-one-attempt enforcement and fresh durable proof headers. The bounded same-Gemini
-experiment still needs native assignment/receipt collection and complete outcome
-admission before activation. Background recovery remains outside that controlled
-scope. These findings do not establish the cause of the species disagreements or
-retrospectively attest historical request bytes/context.
+one-attempt enforcement and fresh durable proof headers. The subsequent
+[app integration](../rfcs/identification-audio-comparison-app-integration-2026-09-23.md)
+adds frozen native assignments, receipt collection, persistence and first-render
+proof, and offline admission of complete observation windows. Keep the server
+configuration unset; deployment, activation and the bounded same-Gemini paid
+comparison remain separate release operations. Background recovery remains
+outside that controlled scope. These findings do not establish the cause of the
+species disagreements or retrospectively attest historical request
+bytes/context.
 
 ## 1. Outcome
 

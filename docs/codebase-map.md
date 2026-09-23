@@ -1683,9 +1683,11 @@ The disabled audio experiment has a route-private
 [`identify-multimodal/comparison/`](../services/supabase/functions/identify-multimodal/README.md#bounded-audio-comparison-disabled)
 owner for generated fixed assignments, strict server gates, historical/current
 processing and fresh durable proof headers. Offline preparation imports those
-pure helpers; ordinary scans retain their current processor. Native receipt
-collection and outcome admission remain pending in the
-[assignment record](./rfcs/identification-audio-comparison-assignment-2026-09-23.md).
+pure helpers; ordinary scans retain their current processor. The
+[app integration record](./rfcs/identification-audio-comparison-app-integration-2026-09-23.md)
+maps the generated native assignments, authenticated receipt collection, exact
+foreground finalization/render proof and offline observation admission. Server
+configuration remains unset; no paid comparison has run.
 
 Inference and media staging:
 

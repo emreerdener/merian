@@ -6,6 +6,21 @@ import XCTest
 @testable import Merian
 
 extension CaptureWorkspaceViewModelRefinementTests {
+    func testComparisonSlotRejectsDifferentAudioAndCleansOwnedCopy() async throws {
+        let viewModel = try await makeDebugReplayWorkspace()
+        let url = URL.documentsDirectory.appendingPathComponent("comparison-test-\(UUID().uuidString).wav")
+        try makeInferenceTestPCM16WAVData().write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let task = try XCTUnwrap(viewModel.startDebugReplay(
+            .audio, profile: .audioComparison(slot: .slot1), prepare: { _, _, _ in .audio(url) }
+        ))
+        await task.value
+        XCTAssertTrue(viewModel.stagedCapture.isEmpty)
+        XCTAssertNil(viewModel.pendingAnalyzeScanId)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
+        XCTAssertEqual(viewModel.offlineToastMessage?.title, "This audio sample doesn't match the selected comparison slot.")
+    }
+
     func testDebugReplayStagesAudioForManualIdentifyWithoutSubmitting() async throws {
         let viewModel = try await makeDebugReplayWorkspace()
         let url = URL.documentsDirectory.appendingPathComponent("replay-test-\(UUID().uuidString).wav")

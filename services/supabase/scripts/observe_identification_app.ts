@@ -63,7 +63,7 @@ export async function observeIdentificationApp(args: string[]): Promise<void> {
   let completion: Awaited<ReturnType<typeof collectAppLogs>> | undefined;
   try {
     await write({
-      version: "identification_app_observation_v1",
+      version: "identification_app_observation_v2",
       startedAt: new Date().toISOString(),
       maxSeconds: seconds,
       shutdownGraceSeconds: OBSERVER_SHUTDOWN_GRACE_SECONDS,
@@ -105,13 +105,14 @@ export async function observeIdentificationApp(args: string[]): Promise<void> {
       console.log(
         JSON.stringify({ status: "observer_ready", automaticSubmissions: 0 }),
       );
-    }, async (projected) => {
+    }, async (projected, measurementSha256) => {
       const now = Date.now();
       const cost = projectedMeasurementCost(projected, pricing, now);
       await write({
         observedAt: new Date(now).toISOString(),
         observedAfterSeconds: Math.round(performance.now() - started) / 1000,
         measurement: projected,
+        measurementSha256,
         cost,
       });
       events++;

@@ -393,6 +393,9 @@ struct OfflineQueueAdmissionArchitectureTests {
     ]
 
     private static let expectedImportsByPath: [String: Set<String>] = [
+        "Services/CaptureAdmission/DebugAudioComparisonAdmission.swift": [
+            "import SwiftData"
+        ],
         "Services/Funding/InferenceFundingReconciliationOwner.swift": [
             "import Foundation"
         ],

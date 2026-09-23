@@ -158,9 +158,10 @@ The synthetic test context uses `deviceLocale: en`, `deviceTimeZone: UTC`,
 conditions, not source capture facts or a context-free prompt. It omits region,
 GPS/elevation, location names, weather, timestamp, depth, zoom, size,
 observation text and preferred goals. Authentication, scan identity and the
-owner's geoprivacy preference retain their ordinary owners. No new request field
-or provider/model override is sent. These Debug simulator types and activation
-paths are absent from Release and physical-device builds.
+owner's geoprivacy preference retain their ordinary owners. This plain
+fixed-context option adds no request field or provider/model override. These
+Debug simulator types and activation paths are absent from Release and
+physical-device builds.
 
 Fixed replay cancels and clears stale context prefetch before preparation, skips
 the live location lookup before queue admission, and creates no deferred context
@@ -204,13 +205,46 @@ for request construction.
 
 The
 [server assignment follow-up](../rfcs/identification-audio-comparison-assignment-2026-09-23.md)
-now implements a disabled twelve-slot gate and `X-Merian-Audio-Comparison` proof
-on fresh durable success. This backend header is not collected by the current
-app/observer. Do not append it manually to v2 logs or treat an offline hash as
-live proof. The next native slice must bind the staged clip and stable queue
-identity to a slot, retain only the bounded receipt, join it with one complete
-observation window, and exclude cancellation, recovery and unobserved outcomes.
-Keep the server configuration unset until that path is verified.
+implements a disabled twelve-slot gate and `X-Merian-Audio-Comparison` proof on
+fresh durable success. The subsequent
+[app integration](../rfcs/identification-audio-comparison-app-integration-2026-09-23.md)
+adds **Debug replay → Stage comparison slot**. Each numbered slot selects a
+generated frozen assignment. Staging checks the prepared WAV hash/length;
+request serialization checks the actual inline bytes again. The request uses the
+slot's fixed queue UUID and only the server-owned `{planSha256, slot}` handle.
+Existing queued/saved IDs and non-foreground admission are rejected before
+funding or file copying. The server remains authoritative for source, arm,
+request and settings bindings. No app setting changes a model or processing
+policy.
+
+The native transport compares every receipt field with the generated table and
+rechecks current-attempt ownership on the same main-actor turn that adopts it.
+Separate compact **Audio comparison** records carry the plan, slot and SHA-256
+of the exact logged measurement JSON. They record receipt adoption, exact
+durable queue finalization, and the matching UIKit first-draw callback.
+Finalization carries the result service's actual `saved` or
+`completed_without_record` outcome, a 0–1 confidence score and biological flag.
+No species names, provider prose, media, auth state or scan/user IDs are
+retained. The measurement-v2 record remains unchanged and each additional record
+fits the 1 KiB log limit.
+
+The passive observer now writes observation-v2 envelopes with the exact
+measurement hash and rejected-proof count. The offline admission command
+requires one fresh fixed-context Pro response, matching reviewed app/backend
+identity, all three slot-bound proofs, one first-render timing, and a normally
+closed bounded window. Missing/duplicate proof, extra HTTP responses, rejected
+or oversized proof logs, interruption and old observation-v1 files cannot
+qualify. Native draw and queue finalization may finish in either order.
+Unprojected unrelated timing rows are counted but not retained; this is still
+not a complete billing ledger.
+
+Keep `IDENTIFICATION_AUDIO_COMPARISON_V1` unset pending the separately
+authorized deployment/activation and reviewed run. Local implementation and
+synthetic tests do not constitute a paid experiment. Old artifacts remain
+immutable; never add proof fields by hand. This evidence binds an observed
+native outcome to an authenticated response claim, not a standalone signed
+artifact or a species accuracy judgment. The integration record gives the
+offline admission command.
 
 The
 [offline audio-path verification](../rfcs/identification-audio-path-verification-2026-09-22.md)
@@ -236,8 +270,9 @@ Preserve the historical app results. A new controlled comparison needs explicit
 pipeline versions and the same reviewed context policy in both arms. Ordinary
 replay still obtains live context; the fixed-profile option above now supplies a
 separate foreground request path through the same submission owners. Two fresh
-versioned processing arms and recorded profile provenance remain to be
-implemented before a controlled run. The
+versioned processing arms and recorded profile provenance are now implemented
+behind the disabled assignment gate. Reviewed deployment, activation and live
+observations remain prerequisites for a controlled run. The
 [evaluation SRD](../rfcs/identification-evaluation-srd.md) owns that next slice.
 
 This provides a repeatable input path. Benchmark claims require reviewed cases

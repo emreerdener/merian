@@ -305,7 +305,8 @@ extension MerianNetworkClient {
         durableQueueOwnsRecovery: Bool = false,
         isProFunded: Bool = false,
         onRequestBodySent: (@Sendable () -> Void)? = nil,
-        measurementValidator: IdentificationMeasurementContext.Validator? = nil
+        measurementValidator: IdentificationMeasurementContext.Validator? = nil,
+        comparisonCapture: IdentificationComparisonCapture? = nil
     ) async throws -> Data {
         let authenticatedRequest = try await buildMultiModalRequest(
             r2ObjectKeys: r2ObjectKeys,
@@ -337,7 +338,8 @@ extension MerianNetworkClient {
             onRequestBodySent: onRequestBodySent,
             measurementContext: .fixedAudio(
                 body: authenticatedRequest.request.httpBody,
-                telemetry: telemetry, validateAttempt: measurementValidator
+                telemetry: telemetry, validateAttempt: measurementValidator,
+                comparisonCapture: comparisonCapture
             )
         )
     }

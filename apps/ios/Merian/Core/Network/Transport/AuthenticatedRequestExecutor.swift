@@ -495,6 +495,10 @@ struct AuthenticatedRequestExecutor {
                 fixedAudioContext: current && !Task.isCancelled
             ) {
                 recordIdentificationMeasurement(record)
+                await request.measurementContext?.recordComparisonResponse(
+                    response: response, measurement: record,
+                    isInitialAttempt: isInitialAttempt
+                )
             }
         } else if let serverTiming = response.value(
             forHTTPHeaderField: "Server-Timing"

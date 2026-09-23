@@ -29,19 +29,23 @@ struct AuthenticatedInferenceRequest: Sendable {
 struct IdentificationMeasurementContext: Sendable {
     typealias Validator = @MainActor @Sendable () throws -> Void
     private let validateAttempt: Validator
+    let comparisonCapture: IdentificationComparisonCapture?
 
     static func fixedAudio(
-        body: Data?, telemetry: CaptureTelemetry, validateAttempt: Validator?
+        body: Data?, telemetry: CaptureTelemetry, validateAttempt: Validator?,
+        comparisonCapture: IdentificationComparisonCapture? = nil
     ) -> Self? {
         #if DEBUG && targetEnvironment(simulator)
-        guard telemetry.debugReplayProfile == .audioMinimalV1,
+        let comparison = telemetry.debugReplayProfile?.comparison
+        let expectedKeys: Set<String> = [
+            "user_id", "client_scan_id", "geoprivacy", "mimeType",
+            "deviceLocale", "deviceTimeZone", "currentMonth", "timeOfDay",
+            "audioBase64s", "audioMediaItems", "ownerMediaTimeline"
+        ]
+        guard telemetry.debugReplayProfile != nil,
               let validateAttempt, let body,
               let payload = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
-              Set(payload.keys) == [
-                "user_id", "client_scan_id", "geoprivacy", "mimeType",
-                "deviceLocale", "deviceTimeZone", "currentMonth", "timeOfDay",
-                "audioBase64s", "audioMediaItems", "ownerMediaTimeline"
-              ],
+              Set(payload.keys) == (comparison == nil ? expectedKeys : expectedKeys.union(["audio_comparison"])),
               payload["deviceLocale"] as? String == "en",
               payload["deviceTimeZone"] as? String == "UTC",
               payload["currentMonth"] as? Int == 1,
@@ -53,10 +57,25 @@ struct IdentificationMeasurementContext: Sendable {
               let timeline = payload["ownerMediaTimeline"] as? [[String: Any]],
               NSArray(array: timeline).isEqual(to: [IdentifyOwnerMediaTimelineItem.audio(audioInputIndex: 0, sourceIndex: 0).jsonObject])
         else { return nil }
-        return Self(validateAttempt: validateAttempt)
+        if let comparison {
+            guard payload["client_scan_id"] as? String == comparison.scanId,
+                  let handle = payload["audio_comparison"] as? [String: Any],
+                  NSDictionary(dictionary: handle).isEqual(to: comparison.handle) else { return nil }
+        }
+        return Self(validateAttempt: validateAttempt, comparisonCapture: comparison == nil ? nil : comparisonCapture)
         #else
         return nil
         #endif
+    }
+
+    @MainActor
+    func recordComparisonResponse(response: HTTPURLResponse, measurement: String, isInitialAttempt: Bool) {
+        // Recheck on the same actor turn that adopts the receipt. A foreground
+        // replacement may have occurred since the transport's timing check.
+        comparisonCapture?.receive(
+            response: response, measurement: measurement,
+            isCurrentInitialAttempt: isInitialAttempt && isCurrent()
+        )
     }
 
     @MainActor

@@ -1,6 +1,12 @@
 import { estimateCost } from "./profiles.ts";
 import type { Pricing, StoredUsage } from "./runContracts.ts";
 import { fields, integer, requireCondition as check } from "./validation.ts";
+import {
+  AUDIO_COMPARISON_MARKER,
+  type NumericAppEvent,
+  parseAudioComparisonEvent,
+} from "./audioComparisonObservation.ts";
+import { fingerprintBytes } from "../../functions/identify-multimodal/comparison/fingerprint.ts";
 
 export const APP_MEASUREMENT_MARKER = "[⏱ BENCH] Identification measurement ";
 const SPANS = new Set([
@@ -252,7 +258,7 @@ export function appMeasurementCost(
 
 /** Keep observer costing version-aware while numeric timing events have no cost. */
 export function projectedMeasurementCost(
-  value: AppMeasurement | Record<string, string | number>,
+  value: AppMeasurement | NumericAppEvent,
   pricing: Pricing | null,
   now: number,
 ) {
@@ -274,7 +280,7 @@ const TIMING_MARKERS = {
 /** Consumes one OS log row in memory; never returns the original row or message. */
 export function projectAppLog(
   line: string,
-): AppMeasurement | Record<string, string | number> | null {
+): AppMeasurement | NumericAppEvent | null {
   if (line.length > 65536) return null;
   try {
     const row = JSON.parse(line);
@@ -283,6 +289,11 @@ export function projectAppLog(
       typeof row.eventMessage !== "string" || row.eventMessage.length > 4096
     ) return null;
     const message: string = row.eventMessage;
+    if (message.startsWith(AUDIO_COMPARISON_MARKER)) {
+      return parseAudioComparisonEvent(
+        JSON.parse(message.slice(AUDIO_COMPARISON_MARKER.length)),
+      );
+    }
     if (message.startsWith(APP_MEASUREMENT_MARKER)) {
       return parseAppMeasurement(
         JSON.parse(message.slice(APP_MEASUREMENT_MARKER.length)),
@@ -317,6 +328,33 @@ export function projectAppLog(
     return null;
   } catch {
     return null;
+  }
+}
+
+/** Hash only a successfully projected measurement's exact logged JSON bytes.
+ * Re-encoding parsed floating point timings could break the native SHA join. */
+export async function measurementLogSha256(
+  line: string,
+): Promise<string | null> {
+  const projected = projectAppLog(line);
+  if (!projected || projected.version !== "identification_app_measurement_v2") {
+    return null;
+  }
+  const message: string = JSON.parse(line).eventMessage;
+  return await fingerprintBytes(
+    new TextEncoder().encode(message.slice(APP_MEASUREMENT_MARKER.length)),
+  );
+}
+
+export function isProofLogRow(line: string): boolean {
+  try {
+    const row = JSON.parse(line);
+    return row.subsystem === "com.merian.app" &&
+      typeof row.eventMessage === "string" &&
+      (row.eventMessage.startsWith(APP_MEASUREMENT_MARKER) ||
+        row.eventMessage.startsWith(AUDIO_COMPARISON_MARKER));
+  } catch {
+    return false;
   }
 }
 

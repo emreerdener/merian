@@ -19,8 +19,11 @@ Ordinary requests retain the current processor. Comparison requests fail closed
 unless the strict `IDENTIFICATION_AUDIO_COMPARISON_V1` configuration matches the
 reviewed owner, plan and generated backend fingerprint. The active UTC window is
 at most 24 hours within the fixed source-retention lifetime. Keep this
-configuration unset: Debug app assignment/receipt collection and
-complete-outcome admission are still pending. See the
+configuration unset. The
+[app integration](../../../../docs/rfcs/identification-audio-comparison-app-integration-2026-09-23.md)
+implements Debug assignment/receipt collection and complete-outcome admission;
+deployment, activation and the paid comparison remain separate release
+operations. See the
 [API contract](../../../../docs/backend-and-data/05-api-contracts.md#server-owned-audio-comparison)
 for field names, errors, retry and proof-header semantics. This is neither a
 provider/model selector nor an additional provider dispatch path.

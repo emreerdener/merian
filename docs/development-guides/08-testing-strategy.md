@@ -6747,12 +6747,27 @@ both. They exercise fixed-table/config/owner/expiry/body validation, reserved-ID
 and service-replay rejection before side effects, exact media/settings binding,
 reopened-attempt and non-Pro refunds before ingestion, fresh durable receipts,
 and exclusion of failed/replayed results. Media and provider/database responses
-are synthetic. `generate_audio_comparison_plan_test.ts` keeps the runtime table
-identical to its immutable preparation;
+are synthetic. `generate_audio_comparison_plan_test.ts` keeps the server and
+native tables identical to their immutable preparation and checks all twelve
+reserved native scan identities against the server derivation;
 `identification_audio_comparison_test.ts` continues to test DSP bounds and
 equivalence. See the
 [assignment record](../rfcs/identification-audio-comparison-assignment-2026-09-23.md)
-for the remaining native, hosted and complete-outcome gates.
+for the backend checkpoint.
+
+The subsequent
+[app integration](../rfcs/identification-audio-comparison-app-integration-2026-09-23.md)
+adds `IdentificationComparisonCaptureTests` and
+`InferenceAudioComparisonPipelineTests` for exact receipt adoption, live-owner
+revalidation, duplicate queue/saved IDs, typed persistence outcomes, fenced
+publication, queue finalization, cancellation and first-render proof. The root
+`identification_audio_comparison_observation_test.ts` covers complete-window
+admission, exact logged JSON hashing, malformed/duplicate/missing boundaries and
+privacy projection. The existing isolated evaluator test covers bounded private
+file reads and exclusive output creation with network/environment access denied.
+These checks use synthetic inputs and make no provider calls. Keep the server
+configuration unset; hosted deployment, activation and paid observations remain
+separate release operations.
 
 Identification evaluation Slice 1 is tooling-only. The root-discovered
 `identification_evaluation_contract_test.ts` and

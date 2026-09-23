@@ -15,6 +15,14 @@ struct CaptureDebugReplayMenu: View {
                 viewModel.startDebugReplay(.audio, profile: .audioMinimalV1)
             }
             .accessibilityIdentifier("debugReplayAudioFixedContext")
+            Menu("Stage comparison slot") {
+                ForEach(DebugAudioComparisonSlot.allCases, id: \.rawValue) { slot in
+                    Button("\(slot.rawValue) · \(slot.assignment.caseId)") {
+                        viewModel.startDebugReplay(.audio, profile: .audioComparison(slot: slot))
+                    }
+                    .accessibilityIdentifier("debugReplayAudioComparison\(slot.rawValue)")
+                }
+            }
             Button("Stage video sample") { viewModel.startDebugReplay(.video) }
                 .disabled(!viewModel.dependencies.scan.canStartProScan())
                 .accessibilityIdentifier("debugReplayVideo")

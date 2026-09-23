@@ -39,6 +39,9 @@ import {
   readRecords,
 } from "./identification_evaluation/runner.ts";
 
+import { admitAudioComparisonObservation } from "./admit_audio_comparison_observation.ts";
+import { audioComparisonObservationFixture as fixture } from "./identification_evaluation/testing/audioComparisonFixture.ts";
+
 const scratch = Deno.args[0];
 if (!scratch) throw new Error("evaluation_test_directory_required");
 const source: SourceIdentity = {
@@ -561,5 +564,56 @@ Deno.test("repeatability records are scored as separate attempts, never doubled 
     );
   } finally {
     await Deno.remove(root, { recursive: true });
+  }
+});
+
+Deno.test("offline admission writes private new evidence and refuses upgrades or overwrites", async () => {
+  const dir = await Deno.makeTempDir({ dir: scratch, prefix: "comparison-" });
+  try {
+    const f = fixture();
+    const observation = dir + "/observation.jsonl",
+      expected = dir + "/expected.json",
+      output = dir + "/admitted.json";
+    await Deno.writeTextFile(
+      observation,
+      f.rows.map((r) => JSON.stringify(r)).join("\n") + "\n",
+    );
+    await Deno.writeTextFile(expected, JSON.stringify(f.expected));
+    const args = [
+      "--observation",
+      observation,
+      "--expected",
+      expected,
+      "--output",
+      output,
+    ];
+    await admitAudioComparisonObservation(args);
+    const stored = await Deno.readTextFile(output);
+    assertEquals(JSON.parse(stored).accuracyScored, false);
+    if (Deno.build.os !== "windows") {
+      assertEquals((await Deno.stat(output)).mode! & 0o777, 0o600);
+    }
+    await assertRejects(() => admitAudioComparisonObservation(args));
+    assertEquals(await Deno.readTextFile(output), stored);
+    f.rows[0].version = "identification_app_observation_v1";
+    await Deno.writeTextFile(
+      observation,
+      f.rows.map((r) => JSON.stringify(r)).join("\n"),
+    );
+    await assertRejects(
+      () =>
+        admitAudioComparisonObservation([
+          ...args.slice(0, -1),
+          dir + "/excluded.json",
+        ]),
+      Error,
+      "audio_comparison_observation_excluded",
+    );
+    await assertRejects(
+      () => Deno.stat(dir + "/excluded.json"),
+      Deno.errors.NotFound,
+    );
+  } finally {
+    await Deno.remove(dir, { recursive: true });
   }
 });

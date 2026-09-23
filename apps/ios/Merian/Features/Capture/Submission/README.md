@@ -77,6 +77,15 @@ pre-dispatch queue fallbacks display an exclusion message. The
 [measurement guide](../../../../../../docs/development-guides/21-identification-app-measurement.md#fixed-context-for-foreground-audio-comparisons)
 owns the activation and evidence limits.
 
+The Debug comparison-slot variant additionally verifies the selected frozen
+audio and supplies its generated stable UUID before enqueue. The queue owner
+rejects comparison admission without a foreground generation or when that ID
+already exists in the queue or saved records, before funding/file side effects.
+The slot remains in the admission snapshot and ephemeral telemetry only; durable
+recovery retains the reserved ID but cannot recreate comparison proof. The
+server independently rejects reserved-ID recovery. Ordinary random scan IDs and
+the plain fixed-context replay keep their existing behavior.
+
 `CaptureSubmissionMediaTimelineTests` locks chronological staging conversion,
 legacy fallback order, and snapshot cleanup.
 `Services/CaptureSubmissionTelemetry.swift` owns normalization that omits the

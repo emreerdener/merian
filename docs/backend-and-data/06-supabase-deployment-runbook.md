@@ -4906,16 +4906,18 @@ customer before the Supabase job completes, and never change
 The
 [server-owned audio comparison](../rfcs/identification-audio-comparison-assignment-2026-09-23.md)
 is implemented locally and defaults off. Keep
-`IDENTIFICATION_AUDIO_COMPARISON_V1` unset: native assignment/receipt collection
-and complete-window/outcome admission are not implemented yet. Candidate
-validation or deploying compatible code does not authorize configuration
-activation or paid comparison requests. A later activation must name the target,
-owner and bounded window, pin the exact reviewed plan and generated runtime
-hash, and retain the normal exact-SHA/deployment/approval controls. Do not
-record the private owner configuration in source or benchmark artifacts.
-Disabling the configuration blocks comparison requests, including reserved-ID
-recovery, while ordinary scans retain their existing path. No old processor
-rollback is needed.
+`IDENTIFICATION_AUDIO_COMPARISON_V1` unset. The
+[native assignment and observer integration](../rfcs/identification-audio-comparison-app-integration-2026-09-23.md)
+now implements receipt, exact queue finalization, first-draw and complete-window
+admission locally; synthetic verification is not live experiment evidence.
+Candidate validation or deploying compatible code does not authorize
+configuration activation or paid comparison requests. A later activation must
+name the target, owner and bounded window, pin the exact reviewed plan and
+generated runtime hash, and retain the normal exact-SHA/deployment/approval
+controls. Do not record the private owner configuration in source or benchmark
+artifacts. Disabling the configuration blocks comparison requests, including
+reserved-ID recovery, while ordinary scans retain their existing path. No old
+processor rollback is needed.
 
 ## Identification Latency Rollout
 

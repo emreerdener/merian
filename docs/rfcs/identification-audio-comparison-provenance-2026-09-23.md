@@ -150,6 +150,13 @@ The
 adds disabled server-owned slots and actual source/processed/request
 verification with fresh durable proof headers. It moves the historical
 transforms into a route-private owner shared with offline preparation. The
-evidence and original implementation identity above remain historical; native
-receipt collection and complete-outcome admission are still pending. No paid
-comparison has run.
+evidence and original implementation identity above remain historical. Native
+receipt collection and complete-outcome admission were still pending at that
+backend checkpoint. No paid comparison has run.
+
+**Follow-up — 23 September 2026:** The
+[app integration](./identification-audio-comparison-app-integration-2026-09-23.md)
+implements frozen native assignments, receipt collection and complete-window
+admission with finalization and first-render proof. The server configuration
+remains unset; deployment, activation and the paid run are separate release
+operations. The original evidence above remains unchanged.

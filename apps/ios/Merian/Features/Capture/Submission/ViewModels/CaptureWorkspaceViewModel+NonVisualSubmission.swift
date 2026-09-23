@@ -121,7 +121,11 @@ extension CaptureWorkspaceViewModel {
         let capturedPreFetchTask = preFetchTask
         preFetchTask = nil
 
+        #if DEBUG && targetEnvironment(simulator)
+        let scanId = debugReplayProfile?.comparison?.scanId ?? UUID().uuidString.lowercased()
+        #else
         let scanId = UUID().uuidString.lowercased()
+        #endif
         pendingAnalyzeScanId = scanId
         let cachedLocation = resolvesLiveContext
             ? dependencies.submission.context.lastKnownLocation() : nil

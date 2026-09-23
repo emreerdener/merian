@@ -25,8 +25,14 @@ struct CaptureTelemetry: Sendable {
 #if DEBUG && targetEnvironment(simulator)
 /// Versioned synthetic context for a single foreground audio comparison request.
 /// This is not capture metadata, an account override, or a model assignment.
-enum DebugIdentificationReplayProfile: String, Sendable {
-    case audioMinimalV1 = "audio-minimal-v1"
+enum DebugIdentificationReplayProfile: Equatable, Sendable {
+    case audioMinimalV1
+    case audioComparison(slot: DebugAudioComparisonSlot)
+
+    var comparison: DebugAudioComparisonAssignment? {
+        guard case .audioComparison(let slot) = self else { return nil }
+        return slot.assignment
+    }
 
     func makeTelemetry() -> CaptureTelemetry {
         CaptureTelemetry(

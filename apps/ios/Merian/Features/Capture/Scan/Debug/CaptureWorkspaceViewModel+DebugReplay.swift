@@ -57,6 +57,22 @@ extension CaptureWorkspaceViewModel {
             }
             do {
                 let prepared = try await prepare(kind, composingCenter, isProActive)
+                if let assignment = profile?.comparison {
+                    do {
+                        guard case .audio(let url) = prepared else { throw CaptureDebugReplayError.comparisonMismatch }
+                        let matches = try await DetachedWork.value(category: .inferenceRequestPreparation) {
+                            try Task.checkCancellation()
+                            let values = try url.resourceValues(forKeys: [.fileSizeKey, .isRegularFileKey, .isSymbolicLinkKey])
+                            guard values.isRegularFile == true, values.isSymbolicLink != true,
+                                  values.fileSize == assignment.sourceByteLength else { return false }
+                            return assignment.matchesSource(try Data(contentsOf: url))
+                        }
+                        guard matches else { throw CaptureDebugReplayError.comparisonMismatch }
+                    } catch {
+                        await prepared.discard()
+                        throw error
+                    }
+                }
                 guard !Task.isCancelled,
                       self.debugReplayGeneration == generation,
                       self.diContainer.appRouteCoordinator.accountGeneration == accountGeneration,

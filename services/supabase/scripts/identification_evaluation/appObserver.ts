@@ -1,4 +1,9 @@
-import { boundedLogLines, projectAppLog } from "./appObservation.ts";
+import {
+  boundedLogLines,
+  isProofLogRow,
+  measurementLogSha256,
+  projectAppLog,
+} from "./appObservation.ts";
 
 // Simulator `log stream --timeout` can close on a later polling interval. A
 // two-minute synthetic run closed successfully at 128 seconds; five seconds of
@@ -20,9 +25,13 @@ export async function collectAppLogs(
   child: LogProcess,
   deadline: AbortSignal,
   onReady: () => Promise<void>,
-  onMeasurement: (value: ProjectedAppLog) => Promise<void>,
+  onMeasurement: (
+    value: ProjectedAppLog,
+    measurementSha256: string | null,
+  ) => Promise<void>,
 ) {
   let ready = false, events = 0, unprojectedRows = 0, oversizedRows = 0;
+  let rejectedProofRows = 0;
   let stoppedBy: "watchdog" | "event_limit" | null = null;
   const kill = () => {
     try {
@@ -54,10 +63,11 @@ export async function collectAppLogs(
       const projected = projectAppLog(line);
       if (!projected) {
         unprojectedRows++;
+        if (isProofLogRow(line)) rejectedProofRows++;
         continue;
       }
       await markReady();
-      await onMeasurement(projected);
+      await onMeasurement(projected, await measurementLogSha256(line));
       events++;
       if (events === OBSERVER_MAX_EVENTS) {
         stoppedBy = "event_limit";
@@ -79,6 +89,7 @@ export async function collectAppLogs(
       collectorSignal: result.signal,
       unprojectedRows,
       oversizedRows,
+      rejectedProofRows,
     };
   } finally {
     deadline.removeEventListener("abort", abort);

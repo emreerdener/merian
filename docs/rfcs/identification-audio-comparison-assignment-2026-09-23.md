@@ -1,7 +1,7 @@
 # Server-owned audio comparison assignments
 
 Date: 23 September 2026\
-Status: Implemented locally; disabled; app receipt collection remains next
+Status: Implemented locally; disabled; app integration recorded in the follow-up
 
 This slice binds a successful identification to its source clip, processing arm
 and exact Gemini request through the existing authenticated
@@ -89,7 +89,7 @@ account activity or total enrichment/billing cost. A caller submitting the audio
 with neither the handle nor reserved ID makes an ordinary request, without
 comparison proof. Other legacy endpoints do not gain comparison support.
 
-## Fresh success proof and remaining app work
+## Fresh success proof and app follow-up
 
 Only the final fresh durable-success response includes
 `X-Merian-Audio-Comparison`. Version 1 contains the plan hash, slot, case, arm,
@@ -106,14 +106,15 @@ does not prove active foreground ownership, app persistence/display, a complete
 observation window, all billed work or independent reference correctness. It is
 an authenticated response claim, not a standalone signed artifact.
 
-The Debug app does not yet send the handle/derived scan identity or collect this
-header. Its existing v2 measurement remains profile-only. **Keep the
-configuration unset** until the next slice binds the staged clip and durable
-queue identity, records the receipt within the native log budget, joins it to
-one complete observation window, and excludes interrupted/replayed/failed
-outcomes. Activation, deployment and the twelve-request paid run remain separate
-explicit operations under the existing release controls. No manual request
-workaround or old backend rollback is needed.
+At this backend checkpoint, the Debug app did not send the handle/derived scan
+identity or collect this header. The subsequent
+[app integration](./identification-audio-comparison-app-integration-2026-09-23.md)
+implements staged clip/queue binding, compact receipt collection and complete
+window admission with native finalization and first-draw proof. The v2 HTTP
+measurement remains profile-only unless those separate proofs qualify. **Keep
+the configuration unset.** Activation, deployment and the twelve-request paid
+run remain separate explicit operations under the existing release controls. No
+manual request workaround or old backend rollback is needed.
 
 ## Validation
 
@@ -146,4 +147,5 @@ Independent read-only review confirmed the early reserved-ID/replay fence,
 pre-ingestion refund guard, source/request checks and final receipt placement.
 The final generated identity and explicit Pro-plus-fallback predicate test are
 verified. No remaining finding was identified within this backend scope. Native
-receipt/outcome admission remains open.
+receipt/outcome admission was still open at this backend checkpoint; the linked
+app follow-up records its implementation and verification separately.

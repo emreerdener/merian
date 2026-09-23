@@ -680,9 +680,15 @@ configuration gates an optional handle and stable reserved scan UUID. Normal
 quota admission remains authoritative; reopened attempts refund and stop before
 ingestion, and service replay cannot bypass the gate. Fresh durable success
 alone carries a bounded comparison proof header. The legacy processor now has a
-route-private owner shared with offline tooling. Native assignment/receipt
-collection and complete-window/UI-outcome admission remain next; configuration
-stays unset and no experiment has run.
+route-private owner shared with offline tooling. The subsequent
+[app integration](./identification-audio-comparison-app-integration-2026-09-23.md)
+adds generated native slots, exact source/queue binding, authenticated receipt
+collection, typed persistence outcome and exact UIKit first-draw proof. Its
+offline gate joins those records to one complete observation-v2 window with the
+reviewed app/backend identity; it rejects replay, interruption, missing proof
+and legacy evidence. Configuration stays unset and no paired experiment has run.
+It records confidence/biological status without species prose, so it does not
+score reference agreement or increase the formal qualification counts.
 
 | Slice                     | Implementation and verification                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

@@ -2643,7 +2643,16 @@ mutation or deployment is authorized by this refactor.
   excludes raw header text, region, response bodies and request/owner
   identifiers. Other routes retain their existing timing logs. The
   [recording guide](../../../../../docs/development-guides/21-identification-app-measurement.md)
-  owns measurement boundaries and the passive observer command.
+  owns measurement boundaries and the passive observer command. Debug simulator
+  comparison slots additionally use a generated table to verify inline source
+  bytes and the exact response receipt. The request-local
+  `IdentificationComparisonCapture` retains only the validated assignment and
+  exact measurement hash; it hands ephemeral proof to the foreground completion
+  and presentation owners. Compact receipt/finalized/rendered records remain
+  separate from measurement-v2, within the 1 KiB log budget. They retain no
+  response prose, media or request identity. Device/Release builds cannot create
+  comparison requests or proof records, and background builders never attach the
+  measurement context.
 - Records URLSession request-upload, time-to-first-byte-after-upload, and
   response-transfer intervals.
 - Treats current `/identify-multimodal` `200` as a server durability fence:

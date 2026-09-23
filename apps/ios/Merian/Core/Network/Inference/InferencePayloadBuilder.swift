@@ -9,7 +9,7 @@ enum InferencePayloadBuilder {
         defaultGeoprivacy: String
     ) -> InferencePayloadContext {
         #if DEBUG && targetEnvironment(simulator)
-        if telemetry.debugReplayProfile == .audioMinimalV1 {
+        if telemetry.debugReplayProfile != nil {
             return InferencePayloadContext(
                 userId: userId.lowercased(), deviceLocale: "en", deviceTimeZone: "UTC",
                 deviceRegion: nil, currentMonth: 1, timeOfDay: "12:00 PM",
@@ -142,6 +142,10 @@ enum InferencePayloadBuilder {
                 "item_id": preferredGoal.itemId
             ]
         }
+
+        #if DEBUG && targetEnvironment(simulator)
+        try telemetry.debugReplayProfile?.comparison?.addHandle(to: &payload)
+        #endif
 
         return try jsonData(from: payload)
     }
