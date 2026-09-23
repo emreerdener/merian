@@ -2171,8 +2171,10 @@ The optional `audio_comparison` request field is accepted only by the disabled
 from the fixed server table. It conveys no provider, model or DSP override.
 `MultimodalPayload` declares the optional input; the executable
 shape/authorization validator is `identify-multimodal/comparison/assignment.ts`.
-No current native, web or admin client sends it, and Identify JSON
-response/Swift DTOs are unchanged.
+Debug simulator comparison replay sends this handle only after checking the
+frozen source bytes and assigning the reserved scan identity. Ordinary native
+capture, web and admin clients omit it. Identify JSON response/Swift DTOs are
+unchanged.
 
 Eligibility requires the exact authenticated owner, a stable UUID from
 `audioComparisonScanId(slot)`, the generated backend/plan hashes and a valid
@@ -2220,8 +2222,12 @@ for fixed lifetime, source retention and one-attempt limits. The proof concerns
 this authenticated response, not app display, complete observation admission or
 all account spend. Ordinary requests without both the handle and reserved ID
 remain ordinary, including the same audio submitted separately. Other legacy
-endpoints gain no comparison support. Keep the configuration unset until native
-assignment/receipt collection and complete-outcome admission are implemented.
+endpoints gain no comparison support. The
+[app integration](../rfcs/identification-audio-comparison-app-integration-2026-09-23.md)
+implements native receipt collection and separate finalization/render proof for
+complete-window admission. Keep the configuration unset; deployment, activation
+and the bounded paid run require the separate operations defined in the
+[activation hold](./06-supabase-deployment-runbook.md#audio-comparison-activation-hold).
 
 ### AI authorization and idempotency
 
