@@ -37,6 +37,8 @@ final class InferenceLiveCompletionCoordinator {
         let speciesData: SpeciesData
         let savedImagePaths: [String]
         let fundingSettlement: InferenceResponseSettlement?
+        var comparisonCapture: IdentificationComparisonCapture?
+        var comparisonPersistence: IdentificationComparisonCapture.Persistence?
 
         var mediaPathsToKeep: [String] {
             (speciesData.audioFilePaths ?? []) +

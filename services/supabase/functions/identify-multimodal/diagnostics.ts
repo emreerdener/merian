@@ -2,6 +2,12 @@ import type { AIExecutionOutcome } from "../_shared/ai/contracts.ts";
 import { corsHeaders } from "../_shared/http.ts";
 import { IDENTIFICATION_BUNDLE_SHA256 } from "./deploymentIdentity.ts";
 
+import {
+  AUDIO_COMPARISON_HEADER,
+  type AudioComparison,
+  audioComparisonReceipt,
+} from "./comparison/assignment.ts";
+
 export const IDENTIFICATION_DIAGNOSTICS_HEADER = "X-Merian-Identification";
 
 function tokens(value: number | null | undefined): number | null {
@@ -16,6 +22,7 @@ function tokens(value: number | null | undefined): number | null {
  */
 export function identificationDiagnosticHeaders(
   result: AIExecutionOutcome,
+  comparison: AudioComparison | null = null,
 ): Record<string, string> {
   const usage = result.usage;
   const metadata = {
@@ -41,8 +48,13 @@ export function identificationDiagnosticHeaders(
   };
   return {
     [IDENTIFICATION_DIAGNOSTICS_HEADER]: JSON.stringify(metadata),
+    ...(comparison
+      ? { [AUDIO_COMPARISON_HEADER]: audioComparisonReceipt(comparison) }
+      : {}),
     "Access-Control-Expose-Headers": `${
       corsHeaders["Access-Control-Expose-Headers"]
-    }, ${IDENTIFICATION_DIAGNOSTICS_HEADER}, X-Merian-Idempotent-Replay`,
+    }, ${IDENTIFICATION_DIAGNOSTICS_HEADER}, X-Merian-Idempotent-Replay${
+      comparison ? `, ${AUDIO_COMPARISON_HEADER}` : ""
+    }`,
   };
 }

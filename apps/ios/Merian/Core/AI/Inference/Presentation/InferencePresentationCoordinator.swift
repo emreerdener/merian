@@ -48,6 +48,17 @@ final class InferencePresentationCoordinator {
     private var queuedPresentationCarriesLiveMedia = false
     private var queuedScanningPhrases: [String] = []
     private var firstRenderMetric: FirstRenderMetric?
+    private var comparisonRender: (scanId: String, capture: IdentificationComparisonCapture)?
+
+    func armComparisonRender(_ capture: IdentificationComparisonCapture, scanId: String) {
+        comparisonRender = (scanId, capture)
+    }
+
+    func consumeComparisonRender(scanId: String) -> IdentificationComparisonCapture? {
+        guard comparisonRender?.scanId == scanId else { return nil }
+        defer { comparisonRender = nil }
+        return comparisonRender?.capture
+    }
 
     func prepare(
         scanId: String?,
@@ -165,6 +176,7 @@ final class InferencePresentationCoordinator {
         preparedOwner = nil
         activeOwner = nil
         firstRenderMetric = nil
+        comparisonRender = nil
         return QueueHandoff(
             scanId: normalizedScanId,
             scanningPhrases: phrases,
@@ -239,6 +251,7 @@ final class InferencePresentationCoordinator {
     }
 
     private func clearOwnersAndQueuedVisualContext() {
+        comparisonRender = nil
         preparedOwner = nil
         activeOwner = nil
         clearQueuedVisualContext()

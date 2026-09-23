@@ -289,7 +289,8 @@ final class MerianNetworkClient {
         _ authenticatedRequest: AuthenticatedInferenceRequest,
         timeoutInterval: TimeInterval,
         allowsTransientTransportRetry: Bool,
-        onRequestBodySent: (@Sendable () -> Void)?
+        onRequestBodySent: (@Sendable () -> Void)?,
+        measurementContext: IdentificationMeasurementContext? = nil
     ) async throws -> Data {
         let request = authenticatedRequest.request
         guard let url = request.url, let bodyData = request.httpBody else {
@@ -303,7 +304,8 @@ final class MerianNetworkClient {
             idempotencyKey: request.value(forHTTPHeaderField: "Idempotency-Key"),
             allowsTransientTransportRetry: allowsTransientTransportRetry,
             onRequestBodySent: onRequestBodySent,
-            expectedAuthUserID: authenticatedRequest.expectedAuthUserID
+            expectedAuthUserID: authenticatedRequest.expectedAuthUserID,
+            measurementContext: measurementContext
         )
         return data
     }
@@ -489,7 +491,8 @@ final class MerianNetworkClient {
         allowsUnauthorizedSessionRecovery: Bool = true,
         onRequestBodySent: (@Sendable () -> Void)? = nil,
         authTransitionOwner: AuthTransitionToken? = nil,
-        expectedAuthUserID: UUID? = nil
+        expectedAuthUserID: UUID? = nil,
+        measurementContext: IdentificationMeasurementContext? = nil
     ) async throws -> (Data, HTTPURLResponse) {
         let executor = AuthenticatedRequestExecutor(
             dependencies: .live(
@@ -519,7 +522,8 @@ final class MerianNetworkClient {
                     allowsUnauthorizedSessionRecovery,
                 onRequestBodySent: onRequestBodySent,
                 authTransitionOwner: authTransitionOwner,
-                expectedAuthUserID: expectedAuthUserID
+                expectedAuthUserID: expectedAuthUserID,
+                measurementContext: measurementContext
             )
         )
     }

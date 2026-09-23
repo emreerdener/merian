@@ -139,9 +139,112 @@ media, start the observer below and wait for `observer_ready`, then tap the
 normal **Identify** button once. Record the visible outcome independently.
 Replay preparation happens before that tap, so these measurements do not cover
 file import, microphone/camera recording or physical-device behavior. Imported
-video frames are marked as gallery input and do not fabricate capture context;
-the ordinary audio submission context policy remains unchanged. Source hashes
+video frames are marked as gallery input and do not fabricate capture context.
+**Stage audio sample** retains ordinary audio submission context. Source hashes
 alone do not attest to the prepared inference bytes or complete request context.
+
+### Fixed context for foreground audio comparisons
+
+**Debug replay → Stage audio with fixed context** selects the versioned
+`audio-minimal-v1` profile for one audio sample. The menu displays **Replay:
+fixed context** while that item is staged. The setting belongs to the staged
+item and its foreground request, not the device or account. Clearing/removing
+the item removes it; adding another item or refinement context makes the fixed
+submission invalid. Profile changes during admission invalidate the snapshot.
+Normal Identify still owns admission, durable enqueue and provider dispatch.
+
+The synthetic test context uses `deviceLocale: en`, `deviceTimeZone: UTC`,
+`currentMonth: 1` and `timeOfDay: 12:00 PM`; these are fixed experimental
+conditions, not source capture facts or a context-free prompt. It omits region,
+GPS/elevation, location names, weather, timestamp, depth, zoom, size,
+observation text and preferred goals. Authentication, scan identity and the
+owner's geoprivacy preference retain their ordinary owners. This plain
+fixed-context option adds no request field or provider/model override. These
+Debug simulator types and activation paths are absent from Release and
+physical-device builds.
+
+Fixed replay cancels and clears stale context prefetch before preparation, skips
+the live location lookup before queue admission, and creates no deferred context
+task. Cancellation cannot undo a lookup started by an earlier ordinary capture,
+but its result cannot enrich this fixed request or its queued row.
+
+The queue still owns recovery. The profile is deliberately not persisted, so
+offline submission, foreground failure, interruption and any later background or
+stored/reconstructed result are **excluded from controlled comparisons**.
+Pre-dispatch queue fallbacks display that exclusion. A late pipeline failure
+uses ordinary queued/error presentation; it is still excluded. Recovery may
+produce a new provider result using ordinary date/locale/timezone handling. The
+historical measurement-v1 `delivery: fresh` flag alone does not prove that a
+result used this profile. The current `identification_app_measurement_v2` record
+adds `contextProfile`: `audio-minimal-v1` or null. A non-null value requires the
+final serialized body to match the fixed scalars, exactly one inline audio item,
+and its canonical audio descriptors/timeline, with no extra context or evidence
+fields. A process-local validator must still accept the original foreground
+attempt and queue generation when the HTTP response is measured. Only an initial
+HTTP 200 with fresh diagnostic metadata can carry the profile; transport, Auth,
+route and 5xx retries cannot. Background request builders never attach the
+validator. The field remains null in device/Release builds.
+
+`requireFixedAudioMeasurement` validates v2, the profile, fresh delivery, usable
+provider/Edge timings, complete matching app identity, the reviewed backend
+bundle fingerprint and exact requested/returned model. The observer retains
+strict v1 compatibility and cost estimates for both versions. V1 records cannot
+be promoted by adding a run annotation. The native record remains within its 1
+KiB log budget and retains no request, scan, user or media identifier.
+
+This is **profile-only evidence at the HTTP response boundary**. It does not
+attest the particular WAV/case, processing arm, successful persistence/display,
+complete observation window, or total billed cost. Case association still uses
+one sequential UI submission per complete window; a cancelled, queued, failed or
+unobserved final outcome remains excluded. The offline two-arm preparation below
+does not turn app records into a paired dataset. See the
+[provenance and arm definitions](../rfcs/identification-audio-comparison-provenance-2026-09-23.md)
+for the remaining execution requirements and the earlier
+[replay implementation](../rfcs/identification-fixed-context-replay-2026-09-23.md)
+for request construction.
+
+The
+[server assignment follow-up](../rfcs/identification-audio-comparison-assignment-2026-09-23.md)
+implements a disabled twelve-slot gate and `X-Merian-Audio-Comparison` proof on
+fresh durable success. The subsequent
+[app integration](../rfcs/identification-audio-comparison-app-integration-2026-09-23.md)
+adds **Debug replay → Stage comparison slot**. Each numbered slot selects a
+generated frozen assignment. Staging checks the prepared WAV hash/length;
+request serialization checks the actual inline bytes again. The request uses the
+slot's fixed queue UUID and only the server-owned `{planSha256, slot}` handle.
+Existing queued/saved IDs and non-foreground admission are rejected before
+funding or file copying. The server remains authoritative for source, arm,
+request and settings bindings. No app setting changes a model or processing
+policy.
+
+The native transport compares every receipt field with the generated table and
+rechecks current-attempt ownership on the same main-actor turn that adopts it.
+Separate compact **Audio comparison** records carry the plan, slot and SHA-256
+of the exact logged measurement JSON. They record receipt adoption, exact
+durable queue finalization, and the matching UIKit first-draw callback.
+Finalization carries the result service's actual `saved` or
+`completed_without_record` outcome, a 0–1 confidence score and biological flag.
+No species names, provider prose, media, auth state or scan/user IDs are
+retained. The measurement-v2 record remains unchanged and each additional record
+fits the 1 KiB log limit.
+
+The passive observer now writes observation-v2 envelopes with the exact
+measurement hash and rejected-proof count. The offline admission command
+requires one fresh fixed-context Pro response, matching reviewed app/backend
+identity, all three slot-bound proofs, one first-render timing, and a normally
+closed bounded window. Missing/duplicate proof, extra HTTP responses, rejected
+or oversized proof logs, interruption and old observation-v1 files cannot
+qualify. Native draw and queue finalization may finish in either order.
+Unprojected unrelated timing rows are counted but not retained; this is still
+not a complete billing ledger.
+
+Keep `IDENTIFICATION_AUDIO_COMPARISON_V1` unset pending the separately
+authorized deployment/activation and reviewed run. Local implementation and
+synthetic tests do not constitute a paid experiment. Old artifacts remain
+immutable; never add proof fields by hand. This evidence binds an observed
+native outcome to an authenticated response claim, not a standalone signed
+artifact or a species accuracy judgment. The integration record gives the
+offline admission command.
 
 The
 [offline audio-path verification](../rfcs/identification-audio-path-verification-2026-09-22.md)
@@ -156,10 +259,21 @@ context constant because replay retains the ordinary audio submission policy.
 The subsequent
 [audio preprocessing correction](../rfcs/identification-audio-preprocessing-fix-2026-09-23.md)
 adds anti-alias filtering and partial-window measurement, with frozen offline
-outputs and local processing timings for the same six clips. It is validated
-locally but has not been deployed or evaluated for identification quality.
-Preserve the historical app results; a new comparison needs explicit pipeline
-versions and the same reviewed context policy in both arms.
+outputs and local processing timings for the same six clips. Its
+[production deployment](../release-evidence/identification-audio-preprocessing-deployment-2026-09-23.md)
+passed exact-SHA candidate validation and automated deployment, smoke and health
+checks. No fresh identification with the deployed fingerprint or new quality
+comparison has been recorded. Those smoke probes do not measure paid provider
+execution or hosted audio-processing CPU headroom.
+
+Preserve the historical app results. A new controlled comparison needs explicit
+pipeline versions and the same reviewed context policy in both arms. Ordinary
+replay still obtains live context; the fixed-profile option above now supplies a
+separate foreground request path through the same submission owners. Two fresh
+versioned processing arms and recorded profile provenance are now implemented
+behind the disabled assignment gate. Reviewed deployment, activation and live
+observations remain prerequisites for a controlled run. The
+[evaluation SRD](../rfcs/identification-evaluation-srd.md) owns that next slice.
 
 This provides a repeatable input path. Benchmark claims require reviewed cases
 to be submitted and their observations retained. The

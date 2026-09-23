@@ -1,8 +1,16 @@
 # Audio preprocessing correction
 
 Date: 23 September 2026\
-Status: Implemented and validated locally; deployment and identification
-comparison pending
+Status at implementation: Implemented and validated locally; deployment and
+identification comparison pending
+
+> **Deployment follow-up — 23 September 2026:** The owner's subsequent main push
+> passed exact-SHA candidate validation, production deployment and automated
+> smoke/health checks, completing at 14:45 UTC. See the
+> [deployment record](../release-evidence/identification-audio-preprocessing-deployment-2026-09-23.md)
+> for the exact commit, actual full-fleet plan and remaining measurement work.
+> The local evidence and original next-comparison plan below remain historical;
+> no new identification-quality result is claimed.
 
 The shared audio processor now filters before changing sample rate and measures
 the final partial silence window. This addresses the defects established by the

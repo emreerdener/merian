@@ -58,6 +58,30 @@ extension CaptureWorkspaceViewModel {
         admissionRoute: CaptureScanAdmissionRoute? = nil
     ) async -> Bool {
         guard !mediaTimeline.isEmpty else { return false }
+        #if DEBUG && targetEnvironment(simulator)
+        let debugReplayProfile = stagedCapture.audios.first?.debugReplayProfile
+        if hasFixedContextDebugReplay {
+            guard canSubmitFixedContextDebugReplay,
+                  audioFileNames == stagedCapture.audios.map(\.filePath),
+                  observationContexts.isEmpty, videoFileNames.isEmpty,
+                  mediaTimeline == [.audio(audioFileNames[0])],
+                  targetEradicationScanId == nil else {
+                offlineToastMessage = .error("Fixed-context replay requires one audio sample with no other staged items.")
+                return false
+            }
+        }
+        let resolvesLiveContext = debugReplayProfile == nil
+        #else
+        let resolvesLiveContext = true
+        #endif
+        let queuedMessage: (String) -> String = { message in
+            #if DEBUG && targetEnvironment(simulator)
+            if debugReplayProfile != nil {
+                return "Comparison queued; excluded from controlled results."
+            }
+            #endif
+            return message
+        }
 
         let ownsAdmissionCheck = admissionRoute == nil
         if ownsAdmissionCheck {
@@ -97,17 +121,27 @@ extension CaptureWorkspaceViewModel {
         let capturedPreFetchTask = preFetchTask
         preFetchTask = nil
 
+        #if DEBUG && targetEnvironment(simulator)
+        let scanId = debugReplayProfile?.comparison?.scanId ?? UUID().uuidString.lowercased()
+        #else
         let scanId = UUID().uuidString.lowercased()
+        #endif
         pendingAnalyzeScanId = scanId
-        let cachedLocation = dependencies.submission.context
-            .lastKnownLocation()
-        let immediateTelemetry = CaptureTelemetry.immediateForActiveScan(
-            historicalContext: nil,
-            isGalleryPhoto: false,
-            cachedLocation: cachedLocation,
-            distanceMeters: nil,
-            zoomFactor: nil
-        )
+        let cachedLocation = resolvesLiveContext
+            ? dependencies.submission.context.lastKnownLocation() : nil
+        let immediateTelemetry: CaptureTelemetry = {
+            #if DEBUG && targetEnvironment(simulator)
+            if let debugReplayProfile { return debugReplayProfile.makeTelemetry() }
+            #endif
+            return CaptureTelemetry.immediateForActiveScan(
+                historicalContext: nil,
+                isGalleryPhoto: false,
+                cachedLocation: cachedLocation,
+                distanceMeters: nil,
+                zoomFactor: nil
+            )
+        }()
+        if !resolvesLiveContext { capturedPreFetchTask?.cancel() }
 
         // Commit the capture before crossing any async boundary. Location names,
         // WeatherKit, and authentication are optional enrichment; none may decide
@@ -136,11 +170,11 @@ extension CaptureWorkspaceViewModel {
         guard let foregroundInferenceGeneration else {
             capturedPreFetchTask?.cancel()
             pendingAnalyzeScanId = nil
-            offlineToastMessage = .warning(
+            offlineToastMessage = .warning(queuedMessage(
                 isOnline
                     ? "Capture queued for analysis."
                     : "No network connection. Queued for analysis."
-            )
+            ))
             return true
         }
         guard diContainer.offlineQueueManager.isOnline else {
@@ -152,25 +186,23 @@ extension CaptureWorkspaceViewModel {
                 resumeBackground: true,
                 reason: "live_nonvisual_offline_before_start"
             )
-            offlineToastMessage = .warning("No network connection. Queued for analysis.")
+            offlineToastMessage = .warning(queuedMessage("No network connection. Queued for analysis."))
             return true
         }
 
-        let contextTask = capturedPreFetchTask ?? Task {
-            await dependencies.submission.context.fetchDeferredContext(
-                cachedLocation
-            )
-        }
+        let contextTask: Task<EnvironmentContext, Never>? = resolvesLiveContext
+            ? capturedPreFetchTask ?? Task {
+                await dependencies.submission.context.fetchDeferredContext(cachedLocation)
+            }
+            : nil
         Task { [weak self] in
             guard let self else {
-                contextTask.cancel()
+                contextTask?.cancel()
                 return
             }
             let contextWaitStartedAt = CFAbsoluteTimeGetCurrent()
-            let resolvedContextTask = Task {
-                CaptureSubmissionContextSnapshot(
-                    await contextTask.value
-                )
+            let resolvedContextTask = contextTask.map { contextTask in
+                Task { CaptureSubmissionContextSnapshot(await contextTask.value) }
             }
             let graceResult = await
                 CaptureSubmissionEnvironmentContextGrace.resolve(
@@ -198,7 +230,7 @@ extension CaptureWorkspaceViewModel {
             )
 
             guard self.diContainer.offlineQueueManager.isOnline else {
-                contextTask.cancel()
+                contextTask?.cancel()
                 self.pendingAnalyzeScanId = nil
                 self.diContainer.offlineQueueManager.retireForegroundInference(
                     scanId: scanId,
@@ -206,11 +238,11 @@ extension CaptureWorkspaceViewModel {
                     resumeBackground: true,
                     reason: "live_nonvisual_offline_during_context_grace"
                 )
-                self.offlineToastMessage = .warning("No network connection. Queued for analysis.")
+                self.offlineToastMessage = .warning(queuedMessage("No network connection. Queued for analysis."))
                 return
             }
             guard self.pendingAnalyzeScanId == scanId else {
-                contextTask.cancel()
+                contextTask?.cancel()
                 self.diContainer.offlineQueueManager.retireForegroundInference(
                     scanId: scanId,
                     generation: foregroundInferenceGeneration,
@@ -223,9 +255,9 @@ extension CaptureWorkspaceViewModel {
                 scanId: scanId,
                 generation: foregroundInferenceGeneration
             ) else {
-                contextTask.cancel()
+                contextTask?.cancel()
                 self.pendingAnalyzeScanId = nil
-                self.offlineToastMessage = .information("Capture queued for analysis.")
+                self.offlineToastMessage = .information(queuedMessage("Capture queued for analysis."))
                 return
             }
 
@@ -248,7 +280,7 @@ extension CaptureWorkspaceViewModel {
                 userPerceivedStart: userPerceivedStart
             )
 
-            if graceResult.timedOut {
+            if graceResult.timedOut, let resolvedContextTask {
                 let deferredContextService = self.dependencies.submission
                     .deferredContext
                 Task {

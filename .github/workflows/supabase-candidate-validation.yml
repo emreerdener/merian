@@ -104,6 +104,11 @@ jobs:
       - name: Validate reviewed Supabase CLI
         run: bash supabase/scripts/require_supabase_cli_version.sh
 
+      - name: Restore Supabase image registry fallback
+        # setup-cli forces GHCR, which disables the pinned CLI's ECR/GHCR/Hub
+        # fallback. An empty override restores it for all disposable checks.
+        run: echo 'SUPABASE_INTERNAL_IMAGE_REGISTRY=' >> "$GITHUB_ENV"
+
       - name: Gate whole-tree Supabase formatting
         run: deno fmt --check supabase/functions supabase/scripts
 
@@ -222,6 +227,8 @@ jobs:
             supabase/functions/reconcile-scan-deletions/db_test.ts \
             supabase/functions/identify-multimodal/index.ts \
             supabase/functions/identify-multimodal/index.test.ts \
+            supabase/functions/identify-multimodal/provider.test.ts \
+            supabase/functions/identify-multimodal/comparison/assignment_test.ts \
             supabase/functions/update-scan-context/index.ts \
             supabase/functions/get-explore-media-incidents/index.ts \
             supabase/functions/ingest-r2-media-events/index.ts \
@@ -303,6 +310,8 @@ jobs:
             supabase/functions/_shared/complimentaryScans_test.ts \
             supabase/functions/share-scan-to-explore/audioModeration_test.ts \
             supabase/functions/identify-multimodal/index.test.ts \
+            supabase/functions/identify-multimodal/provider.test.ts \
+            supabase/functions/identify-multimodal/comparison/assignment_test.ts \
             supabase/functions/replay-scan-ingestion/worker_test.ts \
             supabase/functions/send-push-notification/delivery_test.ts \
             supabase/functions/search-community-taxa/gbif.test.ts \

@@ -54,7 +54,8 @@ private final class InferenceRequestProbe: @unchecked Sendable {
 @MainActor
 struct InferenceEndpointTransportTests {
     #if DEBUG && targetEnvironment(simulator)
-    @Test func replayAudioSurvivesPersistenceAndRequestSerialization() async throws {
+    @Test(arguments: [false, true])
+    func replayAudioSurvivesPersistenceAndRequestSerialization(fixedContext: Bool) async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
         let inbox = directory.appendingPathComponent("IdentificationReplay")
@@ -93,6 +94,7 @@ struct InferenceEndpointTransportTests {
         let fixture = inferenceFixture()
         defer { fixture.close() }
         let probe = InferenceCallbackProbe()
+        let measurementProbe = InferenceCallbackProbe()
         fixture.transport.register(path: "/identify-multimodal") { request in
             let body = try #require(MockURLProtocol.bodyData(for: request))
             let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
@@ -108,11 +110,16 @@ struct InferenceEndpointTransportTests {
             return try NetworkEndpointTestSupport.response(to: request, json: #"{"success":true}"#)
         }
         _ = try await fixture.client.identifyMultiModal(
-            audioFilePaths: [persisted.lastPathComponent], telemetry: telemetry(),
+            audioFilePaths: [persisted.lastPathComponent],
+            audioMediaItems: [.audio(sourceIndex: 0)],
+            ownerMediaTimeline: [.audio(audioInputIndex: 0, sourceIndex: 0)],
+            telemetry: fixedContext ? DebugIdentificationReplayProfile.audioMinimalV1.makeTelemetry() : telemetry(),
             clientScanId: "019f6650-34cc-7dc0-a31b-e8ec3d8eadd8",
-            durableQueueOwnsRecovery: true, isProFunded: true
+            durableQueueOwnsRecovery: true, isProFunded: true,
+            measurementValidator: { measurementProbe.mark() }
         )
         #expect(probe.wasMarked)
+        #expect(measurementProbe.wasMarked == fixedContext)
         #expect(try Data(contentsOf: source).elementsEqual(input))
     }
     #endif

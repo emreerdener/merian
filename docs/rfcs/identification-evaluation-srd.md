@@ -1,7 +1,7 @@
 # Naturebook Identification Evaluation Readiness — SRD
 
 Document ID: NB-SRD-IDENTIFICATION-EVAL-001\
-Version: 0.17\
+Version: 0.19\
 Date: 23 September 2026\
 Status: Slices 1–3 and exploratory automation implemented; photo, description,
 first video and expanded audio app checks completed; reviewed baseline pending\
@@ -624,16 +624,71 @@ map processing-budget overflow to `413 payload_too_large` before provider
 admission; the existing sparse-video fallback remains covered. Local signal,
 handler, full-backend and disposable-database checks pass. Six frozen clips have
 new offline measurements; historical evidence remains immutable. Prompts,
-confidence and provider assignment are unchanged. Hosted candidate validation,
-authorized release and a fixed-context same-Gemini comparison remain ahead; no
-species-accuracy benefit is claimed.
+confidence and provider assignment are unchanged. The subsequent
+[production deployment](../release-evidence/identification-audio-preprocessing-deployment-2026-09-23.md)
+passed exact-SHA hosted candidate validation, deployment and automated smoke and
+health checks. No new paid identification was submitted. A fixed-context
+same-Gemini comparison remains ahead; no species-accuracy benefit is claimed.
 
 These tests do not attest historical live request bytes or private contextual
 fields. Replay retains ordinary location/time context when available, a
 potential confound for source recordings made elsewhere. Future comparisons must
-fix the context policy as well as media and model configuration. No runtime
-instrumentation, production change or paid request was added by this
-verification; any future diagnostic remains bounded and privacy-reviewed.
+fix the context policy as well as media and model configuration. The
+[fixed-context replay slice](./identification-fixed-context-replay-2026-09-23.md)
+implements a Debug simulator-only, request-local `audio-minimal-v1` profile for
+one staged audio clip. The profile is part of the admission snapshot and
+foreground telemetry; it omits live capture telemetry before durable enqueue and
+cancels/ignores stale prefetch instead of starting deferred enrichment. The
+normal request builder emits fixed English/UTC/January/noon context through the
+existing fields. Normal capture, device/Release behavior, authentication,
+admission, provider assignment and recovery remain unchanged. The
+[measurement guide](../development-guides/21-identification-app-measurement.md#fixed-context-for-foreground-audio-comparisons)
+owns the exact profile and activation contract.
+
+Queue storage does not persist the Debug profile. Offline, interrupted, failed
+or recovered attempts remain excluded, including a fresh provider result from
+background recovery. Historical measurement-v1 records do not attest to the
+request profile. The
+[provenance preparation slice](./identification-audio-comparison-provenance-2026-09-23.md)
+adds v2 profile-only attestation for a validated final request body, active
+foreground owner and initial fresh HTTP response. The strict observer retains v1
+compatibility and both versions' cost projection. Its new profile check requires
+complete app identity, reviewed backend fingerprint and exact model; it does not
+associate the result with a case/media hash or prove a completed UI outcome.
+
+Tooling-only `audio-linear-full-windows-v1` and `audio-sinc-partial-tail-v1`
+arms prepare the six frozen standalone clips with identical `audio-minimal-v1`
+context, Gemini Pro prompt/schema/generation and confidence settings.
+Preparation freezes source/processed/request hashes and a 12-assignment order
+alternating which arm runs first. The legacy DSP lives only under scripts; the
+current arm invokes the deployed route's shared helper. No production selector
+or live dispatch was added. Existing evaluator RunSpecs cannot execute these
+preparation artifacts. Before the proposed paired run, implement controlled
+server-owned arm assignment and case/media/outcome binding through the ordinary
+authenticated production route, preserving existing admission, accounting and
+release controls. An explicitly selected direct evaluator lane would require its
+own existing readiness/budget contracts and would measure a different execution
+path. No new paid identification, accuracy claim or formal benchmark result is
+added here.
+
+The subsequent
+[server assignment slice](./identification-audio-comparison-assignment-2026-09-23.md)
+implements the backend portion locally and leaves it disabled. A generated fixed
+12-slot table binds the immutable preparation's
+source/processed/request/settings hashes. Private owner/bundle/window
+configuration gates an optional handle and stable reserved scan UUID. Normal
+quota admission remains authoritative; reopened attempts refund and stop before
+ingestion, and service replay cannot bypass the gate. Fresh durable success
+alone carries a bounded comparison proof header. The legacy processor now has a
+route-private owner shared with offline tooling. The subsequent
+[app integration](./identification-audio-comparison-app-integration-2026-09-23.md)
+adds generated native slots, exact source/queue binding, authenticated receipt
+collection, typed persistence outcome and exact UIKit first-draw proof. Its
+offline gate joins those records to one complete observation-v2 window with the
+reviewed app/backend identity; it rejects replay, interruption, missing proof
+and legacy evidence. Configuration stays unset and no paired experiment has run.
+It records confidence/biological status without species prose, so it does not
+score reference agreement or increase the formal qualification counts.
 
 | Slice                     | Implementation and verification                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

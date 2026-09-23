@@ -16,7 +16,42 @@ struct CaptureTelemetry: Sendable {
     /// Omitted from offline-queue retries since zoom is not persisted in the schema.
     var zoomFactor: CGFloat?
     var estimatedSizeCm: Double?
+    #if DEBUG && targetEnvironment(simulator)
+    /// Request-local only. Durable recovery intentionally does not persist this test profile.
+    var debugReplayProfile: DebugIdentificationReplayProfile?
+    #endif
 }
+
+#if DEBUG && targetEnvironment(simulator)
+/// Versioned synthetic context for a single foreground audio comparison request.
+/// This is not capture metadata, an account override, or a model assignment.
+enum DebugIdentificationReplayProfile: Equatable, Sendable {
+    case audioMinimalV1
+    case audioComparison(slot: DebugAudioComparisonSlot)
+
+    var comparison: DebugAudioComparisonAssignment? {
+        guard case .audioComparison(let slot) = self else { return nil }
+        return slot.assignment
+    }
+
+    func makeTelemetry() -> CaptureTelemetry {
+        CaptureTelemetry(
+            subjectDistanceInMeters: nil,
+            gpsLatitude: nil,
+            gpsLongitude: nil,
+            gpsElevation: nil,
+            locationName: nil,
+            weatherCondition: nil,
+            weatherTemperatureF: nil,
+            timeOfDay: nil,
+            timestamp: nil,
+            zoomFactor: nil,
+            estimatedSizeCm: nil,
+            debugReplayProfile: self
+        )
+    }
+}
+#endif
 
 extension CaptureTelemetry {
     @MainActor

@@ -288,6 +288,12 @@ extension OfflineQueueManager {
 
         guard !timeline.isEmpty else { return false }
         let resolvedScanId = scanId ?? UUID().uuidString.lowercased()
+        #if DEBUG && targetEnvironment(simulator)
+        if let comparison = telemetry.debugReplayProfile?.comparison {
+            guard resolvedScanId == comparison.scanId, foregroundInferenceGeneration != nil,
+                  DebugAudioComparisonAdmission.isAvailable(scanId: resolvedScanId, context: modelContext) else { return false }
+        }
+        #endif
         guard let funding = claimFundingAdmission(
             scanId: resolvedScanId,
             timeline: timeline

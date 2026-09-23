@@ -118,6 +118,87 @@ request. See the
 for the offline evidence. Historical run fingerprints remain frozen; a new
 processor requires a new run rather than overwriting a prior baseline.
 
+### Offline audio comparison preparation
+
+`prepare_audio_preprocessing_comparison.ts` verifies the frozen six-audio
+packet's manifest and source hashes, then prepares exactly two arms per case:
+`audio-linear-full-windows-v1` (historical floor-window trimming and linear
+resampling) and `audio-sinc-partial-tail-v1` (the current multimodal audio
+helper). Both transforms now belong to the route-private
+`functions/identify-multimodal/comparison/` owner, with canonical standalone
+mono PCM16 44.1 kHz inputs bounded to 15 seconds before processing. The
+historical transform is used only by offline preparation and the default-off,
+server-owned comparison gate. Ordinary identification and evaluator runs retain
+current DSP.
+
+Both arms use `audio-minimal-v1` synthetic context and the current Gemini Pro
+request builders. A non-audio request hash must match within each pair. The
+preparation records source, processed-WAV, provider-request, policy and
+confidence hashes, output format/length, model/prompt/schema/generation and the
+complete local implementation fingerprint. It retains no raw media or request
+bodies. Twelve prospective first-attempt assignments alternate the first arm by
+case; there are no selective retries. A changed implementation requires a new
+preparation and review, even if its arm name is unchanged.
+
+From the repository root, use a new private destination (replace `SOURCE` and
+`OUTPUT` with absolute paths):
+
+```bash
+deno run --frozen --no-prompt --deny-net --deny-env \
+  --config services/supabase/functions/deno.json \
+  --allow-read=.,SOURCE,OUTPUT --allow-run=git --allow-write=OUTPUT \
+  services/supabase/scripts/prepare_audio_preprocessing_comparison.ts SOURCE OUTPUT
+```
+
+This emits `preparation.json` and a canonical-JSON digest in `freeze.json` using
+exclusive creation and private permissions. It refuses changed source media or
+an existing destination. It reads no provider key and enables no live dispatch.
+The preparation version is intentionally incompatible with evaluator RunSpecs.
+Ordinary app requests run the deployed processing policy. The
+[server assignment slice](../../../../docs/rfcs/identification-audio-comparison-assignment-2026-09-23.md)
+adds disabled request/media binding and a fresh durable proof header. The
+[app integration](../../../../docs/rfcs/identification-audio-comparison-app-integration-2026-09-23.md)
+adds generated Debug simulator slots, verified request bytes, compact native
+receipt/finalization/first-draw proofs and offline complete-window admission.
+The configuration remains unset; no new experiment is recorded by
+implementation. V2 app `contextProfile` attests only fixed context on the
+initial active foreground HTTP response. `requireFixedAudioMeasurement` enforces
+that profile and reviewed execution identities; it is not a per-case or
+formal-qualification gate. See the
+[preparation record](../../../../docs/rfcs/identification-audio-comparison-provenance-2026-09-23.md).
+
+The runtime comparison table is generated only from the previously frozen
+preparation. To verify or regenerate it offline:
+
+```bash
+deno run --frozen --no-prompt --deny-net --deny-env \
+  --config services/supabase/functions/deno.json \
+  --allow-read=docs,services/supabase/functions/identify-multimodal/comparison,apps/ios/Merian/Core/Network/Inference \
+  services/supabase/scripts/generate_audio_comparison_plan.ts --check
+```
+
+For generation, use `--write` and grant write access only to
+`services/supabase/functions/identify-multimodal/comparison/plan.ts` and
+`apps/ios/Merian/Core/Network/Inference/DebugAudioComparisonPlan.generated.swift`.
+The native table derives scan UUIDs with the server's implementation; both
+artifacts are checked by the normal tooling gate. Regenerate the normal
+identification deployment identity after runtime edits. Neither command enables
+configuration or authorizes live dispatch. Existing frozen preparations remain
+immutable; record the new runtime fingerprint separately.
+
+`admit_audio_comparison_observation.ts --observation OBSERVATION --expected EXPECTED
+--output OUTPUT`
+is an offline-only gate for the passive observer's new observation-v2 JSONL.
+EXPECTED contains the slot, all five built-app identity fields and reviewed
+backend bundle hash. OUTPUT must be new; it is created mode 0600 and includes
+the source file hash. The gate requires one fresh fixed-context Pro response and
+all three native proof events joined by the hash of the exact measurement JSON
+bytes. A complete bounded window and exact draw timing are required;
+malformed/duplicate/missing proof, extra HTTP attempts and old files are
+rejected. Confidence and biological status are retained without species names or
+provider prose. Admission does not score accuracy or authorize a run. The
+integration record provides the command and evidence limitations.
+
 `scoreEvaluation(corpus, predictions, { profile, split, inputGroup?, caseIds? })`
 returns the typed `identification_scores_v1` report. Supply predictions for one
 profile and split. Unknown cases, foreign splits, duplicate attempts, malformed

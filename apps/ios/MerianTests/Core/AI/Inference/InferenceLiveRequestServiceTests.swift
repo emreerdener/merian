@@ -356,6 +356,11 @@ struct InferenceLiveRequestServiceTests {
         #expect(providerRequest.isProFunded == isProFunded)
         #expect(!providerRequest.durableQueueOwnsRecovery)
         #expect(!recorder.requestBodyCallbackWasPresent)
+        let validateMeasurement = try #require(providerRequest.measurementValidator)
+        try validateMeasurement()
+        attempt.isCurrent = false
+        #expect(throws: CancellationError.self) { try validateMeasurement() }
+
     }
 
     @Test func nonVisualDispatchRevalidatesAfterProviderReturn() async throws {

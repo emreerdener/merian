@@ -127,6 +127,13 @@ setup action retries the immutable reviewed installer at most three times for
 transient GitHub release-download failures, verifies the installed runtime is
 exactly `2.9.4`, and fails closed after the final attempt.
 
+After validating the pinned Supabase CLI, candidate validation clears the image
+registry override exported by `supabase/setup-cli`. CLI `2.109.1` then uses its
+built-in ECR → GHCR → Docker Hub fallback with the same pinned image tags for
+disposable database and advisor commands. A throttled registry does not force
+the entire run to use that one mirror. If every registry fails, validation still
+fails; migration, catalog and runtime checks are never skipped.
+
 The candidate workflow declares no Production environment, receives no
 production secrets, and contains no database push, Function deployment, or
 production smoke. Its green summary is exact-SHA database/runtime evidence; it

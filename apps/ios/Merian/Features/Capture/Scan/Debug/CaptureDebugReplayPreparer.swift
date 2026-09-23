@@ -20,7 +20,7 @@ enum CaptureDebugReplayKind: CaseIterable, Sendable {
 }
 
 enum CaptureDebugReplayError: LocalizedError {
-    case invalidSource, invalidDuration, incompleteVideo
+    case invalidSource, invalidDuration, incompleteVideo, comparisonMismatch
 
     var errorDescription: String? {
         switch self {
@@ -30,6 +30,8 @@ enum CaptureDebugReplayError: LocalizedError {
             "Replay requires audio up to 15 seconds or video up to 5 seconds."
         case .incompleteVideo:
             "Replay couldn't prepare all five frames and the source audio."
+        case .comparisonMismatch:
+            "This audio sample doesn't match the selected comparison slot."
         }
     }
 }

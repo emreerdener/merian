@@ -280,6 +280,7 @@ final class InferenceLiveSubmissionCoordinator {
         scanId: String,
         now: CFAbsoluteTime = CFAbsoluteTimeGetCurrent()
     ) {
+        presentationCoordinator.consumeComparisonRender(scanId: scanId)?.recordFirstRender(scanId: scanId)
         guard let startedAt = presentationCoordinator
             .consumeFirstRenderStart(scanId: scanId) else {
             return

@@ -12,7 +12,23 @@ This README maps that contract to native source and test ownership.
 ## Responsibilities
 
 - `Models/CaptureTelemetry.swift` owns the inference capture-context value and
-  its deterministic live/environment adapters.
+  its deterministic live/environment adapters. Its Debug simulator-only
+  `DebugIdentificationReplayProfile` carries the versioned fixed-audio context
+  through one foreground request. It has no global state or durable schema
+  field; ordinary queue recovery is outside controlled comparison.
+  `InferenceLiveRequestService` passes an ephemeral attempt validator to the
+  network measurement boundary for nonvisual requests. Only validated fixed
+  replay bodies can use it to attest a profile; it carries no wire fields. The
+  [measurement guide](../../../../../docs/development-guides/21-identification-app-measurement.md#fixed-context-for-foreground-audio-comparisons)
+  owns the exact synthetic context and evidence limits. Its comparison-slot
+  variant retains a generated assignment in that same ephemeral profile.
+  `InferenceLiveRequestService` carries the authenticated comparison capture
+  through the response; result processing attaches the typed persistence outcome
+  only after its normal fence. Publication arms an exact scan render proof in
+  `InferencePresentationCoordinator`, and successful queue finalization records
+  a separate completion proof. The existing UIKit draw callback consumes render
+  proof once; replacement/Auth/queue transitions clear it. These proofs are
+  observation evidence, not durable species metadata.
   `Models/SpeciesData+EdgeResponse.swift` is the sole handwritten
   `EdgeResponse`-to-`SpeciesData` adapter. The platform-neutral species value
   graph and display/identity policies remain under `Merian/Models/Species`,

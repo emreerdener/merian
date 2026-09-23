@@ -1,3 +1,13 @@
+import { AUDIO_COMPARISON_ARMS, comparisonAudio } from "./comparison/audio.ts";
+import {
+  AUDIO_COMPARISON_CONFIG_ENV,
+  AUDIO_COMPARISON_HEADER,
+  audioComparisonScanId,
+  resolveAudioComparison,
+} from "./comparison/assignment.ts";
+import { AUDIO_COMPARISON_PLAN_SHA256 } from "./comparison/plan.ts";
+import { IDENTIFICATION_BUNDLE_SHA256 } from "./deploymentIdentity.ts";
+import { prepareAudioComparisonPair } from "../../scripts/identification_evaluation/audioComparison.ts";
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { handleIdentifyMultimodalRequest } from "./index.ts";
@@ -81,6 +91,9 @@ const cachedSpecies: CachedSpeciesRow = {
 function database(
   options: {
     replay?: boolean;
+    comparisonScanId?: string;
+    attemptCount?: number;
+    flashFallback?: boolean;
     pro?: boolean;
     requestId?: string;
     commitDenied?: boolean;
@@ -91,6 +104,8 @@ function database(
     cachedSpecies?: CachedSpeciesRow;
   } = {},
 ) {
+  const acceptedScanId = options.comparisonScanId ?? scanId;
+  const reads: string[] = [];
   const events: string[] = [];
   const updates: Record<string, unknown>[] = [];
   let inserted: Record<string, unknown> | null = null;
@@ -112,6 +127,7 @@ function database(
             mode_version: 1,
           });
         case "recover_stranded_scan_ingestion_attempt":
+          reads.push("recovery");
           return response({ outcome: "job_not_found" });
         case "ensure_scan_user_profile":
           return response(
@@ -121,19 +137,19 @@ function database(
         case "reserve_ai_quota":
           events.push("reserve");
           assertEquals(args.p_user_id, user.id);
-          assertEquals(args.p_request_id, options.requestId ?? scanId);
+          assertEquals(args.p_request_id, options.requestId ?? acceptedScanId);
           assertEquals(args.p_operation, "scan_identification");
           if (options.consentDenied) {
             return response(null, { message: "ai_consent_required" });
           }
           return response({
             reservation_id: "00000000-0000-4000-8000-000000000301",
-            request_id: options.requestId ?? scanId,
+            request_id: options.requestId ?? acceptedScanId,
             lease_token: "00000000-0000-4000-8000-000000000401",
             lease_expires_at: "2099-01-01T00:00:00Z",
             reservation_state: "reserved",
             is_replay: false,
-            attempt_count: 1,
+            attempt_count: options.attemptCount ?? 1,
             model: options.pro ? "gemini-2.5-pro" : "gemini-2.5-flash",
             effective_plan: options.pro ? "pro_paid" : "free",
             effective_tier: options.pro ? "pro" : "free",
@@ -143,9 +159,9 @@ function database(
             policy_version: 1,
             daily_limit: 100,
             daily_remaining: 99,
-            original_analysis_id: scanId,
+            original_analysis_id: acceptedScanId,
             complimentary_client_scan_id: null,
-            flash_fallback_used: false,
+            flash_fallback_used: options.flashFallback ?? false,
             scans_remaining: 0,
             scans_available_to_start: 0,
             in_flight_count: 0,
@@ -224,19 +240,26 @@ function database(
         },
         maybeSingle: () => {
           if (table === "scan_ingestion_jobs") {
-            assertEquals(filters, { scan_id: scanId, user_id: user.id });
+            assertEquals(filters, {
+              scan_id: acceptedScanId,
+              user_id: user.id,
+            });
             return response(
               options.replay || completed
                 ? {
                   status: "complete",
-                  response_envelope: completed ?? envelope,
+                  response_envelope: completed ??
+                    {
+                      ...envelope,
+                      data: { ...envelope.data, scan_id: acceptedScanId },
+                    },
                 }
                 : null,
             );
           }
           if (table === "scans") {
-            assertEquals(filters, { id: scanId, user_id: user.id });
-            return response(inserted ? { id: scanId } : null);
+            assertEquals(filters, { id: acceptedScanId, user_id: user.id });
+            return response(inserted ? { id: acceptedScanId } : null);
           }
           throw new Error(`Unexpected read: ${table}`);
         },
@@ -248,7 +271,7 @@ function database(
       return query;
     },
   } as unknown as SupabaseClient;
-  return { client, events, updates, inserted: () => inserted };
+  return { client, reads, events, updates, inserted: () => inserted };
 }
 
 function request(
@@ -279,6 +302,355 @@ function audioFixture(sampleRate = 16000, periodScale = 10): string {
   }
   return encodeBase64(encodeWav16(samples, sampleRate));
 }
+
+Deno.test("comparison handler enforces binding, one attempt and fresh durable receipts", async (t) => {
+  const names = [
+    "AI_QUOTA_IP_HASH_SECRET",
+    "POSTHOG_API_KEY",
+    AUDIO_COMPARISON_CONFIG_ENV,
+    "R2_ACCOUNT_ID",
+    "R2_BUCKET_NAME",
+    "R2_ACCESS_KEY_ID",
+    "R2_SECRET_ACCESS_KEY",
+  ];
+  const saved = names.map((name) => Deno.env.get(name));
+  const originalFetch = globalThis.fetch;
+  const log = console.log, error = console.error, warn = console.warn;
+  try {
+    Deno.env.set(names[0], "synthetic-test-only-hash-secret".repeat(2));
+    Deno.env.delete(names[1]);
+    Deno.env.delete(names[2]);
+    names.slice(3).forEach((name) =>
+      Deno.env.set(name, "synthetic-comparison")
+    );
+    globalThis.fetch = async (input, init) => {
+      const req = input instanceof Request ? input : new Request(input, init);
+      assertEquals(
+        new URL(req.url).origin,
+        "https://synthetic-comparison.r2.cloudflarestorage.com",
+      );
+      assert(["PUT", "DELETE"].includes(req.method));
+      await req.arrayBuffer();
+      return new Response("", { status: 200 });
+    };
+    console.log = console.error = console.warn = () => {};
+    const source = audioFixture(44100);
+    const pair = await prepareAudioComparisonPair(decodeBase64(source));
+    const payloadFor = async (slot: number) => ({
+      client_scan_id: await audioComparisonScanId(slot),
+      observation_contexts: undefined,
+      mimeType: "image/webp",
+      deviceLocale: "en",
+      deviceTimeZone: "UTC",
+      currentMonth: 1,
+      timeOfDay: "12:00 PM",
+      audioBase64s: [source],
+      audioMediaItems: [{ kind: "audio", sourceIndex: 0 }],
+      ownerMediaTimeline: [{
+        kind: "audio",
+        sourceIndex: 0,
+        audioInputIndex: 0,
+      }],
+      audio_comparison: { planSha256: AUDIO_COMPARISON_PLAN_SHA256, slot },
+    });
+    const resolver: typeof resolveAudioComparison = async (input) => {
+      const bound = await resolveAudioComparison({
+        ...input,
+        now: Date.parse("2026-09-23T12:30:00.000Z"),
+        configuration: JSON.stringify({
+          version: 1,
+          ownerId: user.id,
+          startsAt: "2026-09-23T12:00:00.000Z",
+          expiresAt: "2026-09-23T13:00:00.000Z",
+          planSha256: AUDIO_COMPARISON_PLAN_SHA256,
+          backendBundleSha256: IDENTIFICATION_BUNDLE_SHA256,
+        }),
+      });
+      if (!bound) return null;
+      // Private test composition replaces only frozen media hashes with synthetic
+      // audio. Real HTTP callers cannot inject either composition function.
+      const arm = pair.arms.find((a) => a.arm === bound.assignment.arm)!;
+      return {
+        ...bound,
+        expiresAt: Date.now() + 60_000,
+        assignment: {
+          ...bound.assignment,
+          sourceWavSha256: pair.sourceWavSha256,
+          sourceByteLength: pair.sourceByteLength,
+          ...arm,
+        },
+      };
+    };
+    const run = (
+      db: ReturnType<typeof database>,
+      payload: Record<string, unknown>,
+      options: {
+        resolve?: typeof resolveAudioComparison;
+        replay?: number;
+        outcome?: AIProviderOutcome | Error;
+        inspect?: (input: AIRequest) => void;
+      } = {},
+    ) =>
+      handleIdentifyMultimodalRequest(
+        request(payload),
+        user,
+        db.client,
+        0,
+        options.replay,
+        (input, authority) =>
+          createAIExecution(
+            {
+              provider: "test_only",
+              prepare() {
+                db.events.push("prepare");
+                options.inspect?.(input);
+                return () => {
+                  db.events.push("invoke");
+                  if (options.outcome instanceof Error) {
+                    return Promise.reject(options.outcome);
+                  }
+                  return Promise.resolve(
+                    options.outcome ??
+                      {
+                        ...facts,
+                        returnedModel: "gemini-2.5-pro",
+                        providerCompletedAt: Date.now(),
+                        kind: "draft",
+                        draft: {
+                          ...draft,
+                          audio_subject_type: "no_confident_biological_source",
+                        },
+                      },
+                  );
+                };
+              },
+            },
+            input,
+            resolveAIClaim(input, authority),
+          ),
+        options.resolve ?? resolver,
+      );
+
+    await t.step(
+      "disabled, lost markers and service recovery stop before recovery or quota",
+      async () => {
+        const payload = await payloadFor(1);
+        for (
+          const [body, replay] of [
+            [payload, undefined],
+            [{ ...payload, audio_comparison: undefined }, undefined],
+            [{ ...payload, audio_comparison: undefined }, 1],
+            [payload, 1],
+          ] as const
+        ) {
+          const db = database();
+          const response = await run(db, body, {
+            resolve: resolveAudioComparison,
+            replay,
+          });
+          assertEquals(response.status, 409);
+          assertEquals(db.reads, []);
+          assertEquals(db.events, []);
+          assertEquals(response.headers.get(AUDIO_COMPARISON_HEADER), null);
+        }
+      },
+    );
+    await t.step(
+      "body and exact source mismatches stop before reservation",
+      async () => {
+        const payload = await payloadFor(1);
+        for (
+          const body of [{ ...payload, currentMonth: 2 }, {
+            ...payload,
+            audioBase64s: [audioFixture(44100, 17)],
+          }]
+        ) {
+          const db = database({
+            comparisonScanId: payload.client_scan_id,
+            pro: true,
+          });
+          assertEquals((await run(db, body)).status, 409);
+          assertEquals(db.events, []);
+        }
+      },
+    );
+    for (
+      const [name, options] of [
+        ["reopened failed/refunded/expired slot", {
+          pro: true,
+          attemptCount: 2,
+        }],
+        ["later retry of an excluded slot", { pro: true, attemptCount: 3 }],
+        ["Flash entitlement", { pro: false }],
+        ["Flash fallback", { pro: false, flashFallback: true }],
+      ] as const
+    ) {
+      await t.step(
+        `${name} refunds before ingestion or provider preparation`,
+        async () => {
+          const payload = await payloadFor(1);
+          const db = database({
+            comparisonScanId: payload.client_scan_id,
+            ...options,
+          });
+          assertEquals((await run(db, payload)).status, 409);
+          assertEquals(db.events, ["reserve", "refunded"]);
+        },
+      );
+    }
+    await t.step(
+      "request drift after preparation refunds before commitment",
+      async () => {
+        const payload = await payloadFor(1),
+          db = database({
+            pro: true,
+            comparisonScanId: payload.client_scan_id,
+          });
+        const response = await run(db, payload, {
+          resolve: async (input) => {
+            const bound = await resolver(input);
+            assert(bound);
+            return {
+              ...bound,
+              assignment: {
+                ...bound.assignment,
+                providerRequestSha256: "0".repeat(64),
+              },
+            };
+          },
+        });
+        assertEquals(response.status, 503);
+        assertEquals(db.events, [
+          "reserve",
+          "ledger",
+          "prepare",
+          "refunded",
+          "failed_retryable",
+        ]);
+        assertEquals(response.headers.get(AUDIO_COMPARISON_HEADER), null);
+      },
+    );
+    for (const slot of [1, 2]) {
+      await t.step(
+        `slot ${slot} binds actual processed bytes and emits only a fresh durable receipt`,
+        async () => {
+          const payload = await payloadFor(slot),
+            db = database({
+              pro: true,
+              comparisonScanId: payload.client_scan_id,
+            });
+          const response = await run(db, payload, {
+            inspect: (input) => {
+              assert(input.task === "identify");
+              const audio = input.evidence.find((part) =>
+                part.kind === "audio"
+              );
+              assert(audio?.kind === "audio");
+              assertEquals(
+                audio.data,
+                encodeBase64(
+                  comparisonAudio(
+                    decodeBase64(source),
+                    AUDIO_COMPARISON_ARMS[slot - 1],
+                  ),
+                ),
+              );
+            },
+          });
+          assertEquals(
+            response.status,
+            200,
+            JSON.stringify(db.events),
+          );
+          assert(db.events.includes("complete"));
+          const receipt = JSON.parse(
+            response.headers.get(AUDIO_COMPARISON_HEADER)!,
+          );
+          assertEquals(receipt.slot, slot);
+          assertEquals(receipt.sourceWavSha256, pair.sourceWavSha256);
+          assertEquals(
+            receipt.processedWavSha256,
+            pair.arms[slot - 1].processedWavSha256,
+          );
+          assertEquals(
+            receipt.providerRequestSha256,
+            pair.arms[slot - 1].providerRequestSha256,
+          );
+          assertEquals(
+            response.headers.get("X-Merian-Idempotent-Replay"),
+            null,
+          );
+          const replay = await run(db, payload);
+          assertEquals(replay.status, 200);
+          assertEquals(
+            replay.headers.get("X-Merian-Idempotent-Replay"),
+            "stored",
+          );
+          assertEquals(replay.headers.get(AUDIO_COMPARISON_HEADER), null);
+          assertEquals(
+            db.events.filter((event) => event === "invoke").length,
+            1,
+          );
+        },
+      );
+    }
+    for (const failure of ["setup", "commit", "provider", "persistence"]) {
+      await t.step(`${failure} failure has no fresh receipt`, async () => {
+        const payload = await payloadFor(1);
+        const db = database({
+          pro: true,
+          comparisonScanId: payload.client_scan_id,
+          setupFailed: failure === "setup",
+          commitDenied: failure === "commit",
+          unknownInsert: failure === "persistence",
+        });
+        const response = await run(db, payload, {
+          outcome: failure === "provider"
+            ? new Error("Synthetic uncertain execution")
+            : undefined,
+        });
+        assertEquals(response.status, 503);
+        assertEquals(response.headers.get(AUDIO_COMPARISON_HEADER), null);
+        assertEquals(response.headers.get("X-Merian-Identification"), null);
+        assertEquals(
+          db.events.includes("invoke"),
+          ["provider", "persistence"].includes(failure),
+        );
+        assertEquals(db.events.includes("insert"), failure === "persistence");
+        assertEquals(db.events.includes("complete"), false);
+      });
+    }
+    await t.step(
+      "same audio without marker and reserved ID follows the ordinary route",
+      async () => {
+        const db = database({ pro: true });
+        const payload = {
+          ...await payloadFor(1),
+          client_scan_id: scanId,
+          audio_comparison: undefined,
+        };
+        const response = await run(db, payload, {
+          resolve: resolveAudioComparison,
+        });
+        assertEquals(
+          response.status,
+          200,
+          JSON.stringify(db.events),
+        );
+        assertEquals(response.headers.get(AUDIO_COMPARISON_HEADER), null);
+        assertEquals(db.events.filter((event) => event === "invoke").length, 1);
+      },
+    );
+  } finally {
+    names.forEach((name, i) =>
+      saved[i] == null ? Deno.env.delete(name) : Deno.env.set(name, saved[i]!)
+    );
+    globalThis.fetch = originalFetch;
+    console.log = log;
+    console.error = error;
+    console.warn = warn;
+  }
+});
 
 Deno.test("multimodal handler preserves admission, evidence and recovery through the adapter", async (t) => {
   const savedHash = Deno.env.get("AI_QUOTA_IP_HASH_SECRET");

@@ -370,6 +370,17 @@ recoverable-conflict allowlist. `InferencePayloadContext` and
 owners acquire no session, Auth manager, consent manager, app container, or task
 lifetime.
 
+For Debug simulator audio replay only, `InferencePayloadBuilder` recognizes the
+request-local `audio-minimal-v1` telemetry profile. It projects fixed synthetic
+English/UTC/January/noon values into the existing context fields and omits
+location/weather/capture measurements. Capture owns activation, staging and
+pre-enqueue suppression; the request builder adds no wire field or provider
+override. The profile is absent from Release/device builds and durable queue
+reconstruction. Existing benchmark records do not attest profile provenance; see
+the
+[measurement guide](../../../../../docs/development-guides/21-identification-app-measurement.md#fixed-context-for-foreground-audio-comparisons)
+before interpreting replay results.
+
 `InferenceIdentificationReviewService` separately owns exact-name
 `species_dictionary` reads and the `update_owned_scan_identification_review`
 RPC. Its immutable injected closures acquire one account-work lease per
@@ -2622,12 +2633,26 @@ mutation or deployment is authorized by this refactor.
   the active interface or user identity.
 - For identification responses, `IdentificationBenchmarkRecord` projects bounded
   `Server-Timing` and `X-Merian-Identification` fields plus built-app
-  version/source identity into one content-free Debug measurement record.
-  Replays, missing values and malformed/older headers cannot claim fresh
-  provider usage. It excludes raw header text, region, response bodies and
-  request/owner identifiers. Other routes retain their existing timing logs. The
+  version/source identity into one content-free Debug measurement-v2 record.
+  `IdentificationMeasurementContext` checks the final fixed-audio request body
+  and its process-local live-attempt validator. Only the initial, active, fresh
+  foreground response can retain `contextProfile: audio-minimal-v1`; retries,
+  recovery and ordinary requests retain null. This attests the context profile,
+  not the audio bytes, case, processing arm or final UI result. Replays, missing
+  values and malformed/older headers cannot claim fresh provider usage. It
+  excludes raw header text, region, response bodies and request/owner
+  identifiers. Other routes retain their existing timing logs. The
   [recording guide](../../../../../docs/development-guides/21-identification-app-measurement.md)
-  owns measurement boundaries and the passive observer command.
+  owns measurement boundaries and the passive observer command. Debug simulator
+  comparison slots additionally use a generated table to verify inline source
+  bytes and the exact response receipt. The request-local
+  `IdentificationComparisonCapture` retains only the validated assignment and
+  exact measurement hash; it hands ephemeral proof to the foreground completion
+  and presentation owners. Compact receipt/finalized/rendered records remain
+  separate from measurement-v2, within the 1 KiB log budget. They retain no
+  response prose, media or request identity. Device/Release builds cannot create
+  comparison requests or proof records, and background builders never attach the
+  measurement context.
 - Records URLSession request-upload, time-to-first-byte-after-upload, and
   response-transfer intervals.
 - Treats current `/identify-multimodal` `200` as a server durability fence:

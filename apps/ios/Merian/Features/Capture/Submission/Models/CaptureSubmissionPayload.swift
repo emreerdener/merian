@@ -9,6 +9,9 @@ struct CaptureSubmissionAdmissionSnapshot: Equatable {
     let videoAddedAt: [Date]
     let observationContexts: [ObservationContext]
     let observationAddedAt: [Date]
+    #if DEBUG && targetEnvironment(simulator)
+    let audioReplayProfiles: [DebugIdentificationReplayProfile?]
+    #endif
 
     init(_ stagedCapture: StagedCapture) {
         imageIDs = stagedCapture.images.map(\.original.id)
@@ -19,6 +22,9 @@ struct CaptureSubmissionAdmissionSnapshot: Equatable {
         videoAddedAt = stagedCapture.videos.map(\.addedAt)
         observationContexts = stagedCapture.observationContexts.map(\.context)
         observationAddedAt = stagedCapture.observationContexts.map(\.addedAt)
+        #if DEBUG && targetEnvironment(simulator)
+        audioReplayProfiles = stagedCapture.audios.map(\.debugReplayProfile)
+        #endif
     }
 }
 

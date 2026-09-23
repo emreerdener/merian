@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "mode": "offline_only",
+  "providerCalls": 0,
+  "plannedAssignments": 12,
+  "legacyFrozenOutputMatches": 6,
+  "currentFrozenOutputMatches": 6,
+  "repeatedDestinationRejectedWithoutChange": true,
+  "changedSourceAudioRejectedBeforeOutput": true,
+  "changedSourceManifestRejectedBeforeOutput": true,
+  "preparationCanonicalSha256": "42350d978486e1a9edb409065be163b45f2d01d1182042b3e48f318e7ed43681"
+}

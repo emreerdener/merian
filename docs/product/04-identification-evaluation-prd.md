@@ -1,7 +1,7 @@
 # Naturebook Identification Evaluation Readiness — PRD
 
 Document ID: NB-PRD-IDENTIFICATION-EVAL-001\
-Version: 0.17\
+Version: 0.20\
 Date: 23 September 2026\
 Status: Slices 1–3 implemented; photo, description, first video and expanded
 audio app checks completed; reviewed baseline pending\
@@ -119,10 +119,31 @@ test demonstrated aliasing in the previous downsampler. The
 now adds bounded anti-alias filtering and measures partial final silence
 windows, with the same 16 kHz output, Gemini profiles, prompts and confidence
 rules. Local signal tests and frozen-clip reprocessing verify the processing
-change; it has not been deployed or evaluated for species accuracy. The next
-step is candidate release validation, followed by a bounded same-Gemini
-comparison with a fixed context policy. These findings do not establish the
-cause of the species disagreements or retrospectively attest historical request
+change. The subsequent
+[production deployment](../release-evidence/identification-audio-preprocessing-deployment-2026-09-23.md)
+passed exact-SHA candidate validation, deployment and automated production
+checks. No new paid identification or species-accuracy evaluation has occurred.
+The subsequent
+[fixed-context replay implementation](../rfcs/identification-fixed-context-replay-2026-09-23.md)
+adds a Debug simulator option for one foreground audio request with fixed
+synthetic context and no live location/weather enrichment. Normal capture
+retains its existing behavior. The subsequent
+[profile provenance and arm preparation](../rfcs/identification-audio-comparison-provenance-2026-09-23.md)
+records fixed-context provenance for an active first foreground response and
+prepares both audio processors offline against the same six frozen inputs and
+Gemini Pro settings. This verifies context and preparation; it does not bind a
+live result to an individual WAV or processing arm. The ordinary app currently
+runs the deployed processor only. The subsequent
+[server assignment slice](../rfcs/identification-audio-comparison-assignment-2026-09-23.md)
+implements disabled, owner-bound slots, actual source/processed/request checks,
+one-attempt enforcement and fresh durable proof headers. The subsequent
+[app integration](../rfcs/identification-audio-comparison-app-integration-2026-09-23.md)
+adds frozen native assignments, receipt collection, persistence and first-render
+proof, and offline admission of complete observation windows. Keep the server
+configuration unset; deployment, activation and the bounded same-Gemini paid
+comparison remain separate release operations. Background recovery remains
+outside that controlled scope. These findings do not establish the cause of the
+species disagreements or retrospectively attest historical request
 bytes/context.
 
 ## 1. Outcome
@@ -144,15 +165,15 @@ claiming to replace release verification.
 
 ## 2. Recommended scope
 
-| Decision             | Recommendation                                                                                                                                                                                                                                                                          |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| First models         | Evaluate the current Gemini Flash/free and Pro/Pro identification profiles separately. Preserve the complete settings of each profile.                                                                                                                                                  |
-| First path           | The primary `identify-multimodal` path across its real input combinations. Compatibility endpoints retain regression coverage; their different prompts are not represented by this baseline.                                                                                            |
-| Starting dataset     | One to twelve eligible exploratory groups for the solo owner; the formal pilot remains 60 independently reviewed groups, ten per input group.                                                                                                                                           |
-| Reference baseline   | Add 240 held-out observation groups, forty per input group: 300 total, including the pilot.                                                                                                                                                                                             |
-| Scored result        | The model answer after the same contract validation and identification rules used by the backend, before dictionary hydration and persistence.                                                                                                                                          |
-| Evaluation operation | A developer tool with an offline default and an explicitly requested, bounded Gemini run. No deployed evaluation endpoint or production observation export.                                                                                                                             |
-| Next action          | Validate and release the audio preprocessing candidate through the existing controls, then run a separately authorized same-Gemini comparison with fixed context. Preserve the three Strong source disagreements; independent species review and paired audio/visual tests remain open. |
+| Decision             | Recommendation                                                                                                                                                                                                                             |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| First models         | Evaluate the current Gemini Flash/free and Pro/Pro identification profiles separately. Preserve the complete settings of each profile.                                                                                                     |
+| First path           | The primary `identify-multimodal` path across its real input combinations. Compatibility endpoints retain regression coverage; their different prompts are not represented by this baseline.                                               |
+| Starting dataset     | One to twelve eligible exploratory groups for the solo owner; the formal pilot remains 60 independently reviewed groups, ten per input group.                                                                                              |
+| Reference baseline   | Add 240 held-out observation groups, forty per input group: 300 total, including the pilot.                                                                                                                                                |
+| Scored result        | The model answer after the same contract validation and identification rules used by the backend, before dictionary hydration and persistence.                                                                                             |
+| Evaluation operation | A developer tool with an offline default and an explicitly requested, bounded Gemini run. No deployed evaluation endpoint or production observation export.                                                                                |
+| Next action          | Connect the Debug app and observer to the disabled server-owned assignments and proof headers, then admit complete outcomes before the bounded same-Gemini run. Preserve the three Strong source disagreements and provisional references. |
 
 The numbers are a practical starting scope, not a guarantee that a small quality
 difference can be established statistically. Report sample counts and

@@ -4,6 +4,30 @@ Primary scan-ingestion Edge Function for mixed media. The iOS client uses this
 endpoint for still images, audio, short video captures, description context, and
 combined submissions.
 
+## Bounded audio comparison (disabled)
+
+The route-private `comparison/` owner implements the server half of the
+[twelve-assignment audio experiment](../../../../docs/rfcs/identification-audio-comparison-assignment-2026-09-23.md).
+`plan.ts` is generated from the immutable six-clip preparation. `assignment.ts`
+validates the optional `audio_comparison` handle, private owner/bundle/window
+configuration, stable reserved scan identity, exact fixed request shape, actual
+media hashes and admitted request/settings. `audio.ts` bounds both processors;
+`legacyAudio.ts` contains the historical transforms. Offline tooling imports
+these helpers, never the other way around.
+
+Ordinary requests retain the current processor. Comparison requests fail closed
+unless the strict `IDENTIFICATION_AUDIO_COMPARISON_V1` configuration matches the
+reviewed owner, plan and generated backend fingerprint. The active UTC window is
+at most 24 hours within the fixed source-retention lifetime. Keep this
+configuration unset. The
+[app integration](../../../../docs/rfcs/identification-audio-comparison-app-integration-2026-09-23.md)
+implements Debug assignment/receipt collection and complete-outcome admission;
+deployment, activation and the paid comparison remain separate release
+operations. See the
+[API contract](../../../../docs/backend-and-data/05-api-contracts.md#server-owned-audio-comparison)
+for field names, errors, retry and proof-header semantics. This is neither a
+provider/model selector nor an additional provider dispatch path.
+
 ## Request Contract
 
 The endpoint accepts authenticated user requests through `withEdgeHandler`.

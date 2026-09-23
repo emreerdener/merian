@@ -342,6 +342,14 @@ final class InferenceLivePipelineCoordinator {
             if let followUpPermit {
                 completionCoordinator.commitFundingSettlement(followUpPermit)
                 completionCoordinator.scheduleMilestones(followUpPermit)
+                if let persistence = completion.comparisonPersistence {
+                    completion.comparisonCapture?.finalize(
+                        scanId: completion.speciesData.scanId,
+                        confidenceScore: completion.speciesData.confidenceScore,
+                        isBiological: completion.speciesData.isBiological,
+                        persistence: persistence
+                    )
+                }
                 completionCoordinator.sendNotificationIfEnabled(
                     followUpPermit
                 )
@@ -381,7 +389,7 @@ final class InferenceLivePipelineCoordinator {
             request,
             validateAttempt: { try self.check(session) }
         )
-        guard let completion = completionCoordinator.prepare(
+        guard var completion = completionCoordinator.prepare(
             outcome: outcome,
             targetEradicationScanId: targetEradicationScanId,
             modelContext: modelContext
@@ -394,6 +402,14 @@ final class InferenceLivePipelineCoordinator {
                 reason: session.modality.persistenceRejectionReason
             )
             return nil
+        }
+        if session.durableQueueOwnsRecovery, modelContext != nil {
+            completion.comparisonCapture = request.response.comparisonCapture
+            switch outcome {
+            case .persisted: completion.comparisonPersistence = .saved
+            case .completedWithoutRecord: completion.comparisonPersistence = .completedWithoutRecord
+            case .persistenceRejected: break
+            }
         }
         return completion
     }

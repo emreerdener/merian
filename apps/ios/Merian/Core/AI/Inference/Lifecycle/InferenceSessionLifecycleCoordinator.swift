@@ -125,6 +125,10 @@ final class InferenceSessionLifecycleCoordinator {
         )
     }
 
+    func armComparisonRender(_ capture: IdentificationComparisonCapture, scanId: String) {
+        presentationCoordinator.armComparisonRender(capture, scanId: scanId)
+    }
+
     @discardableResult
     func commitRecoveredBackgroundResult(
         for scanId: String,

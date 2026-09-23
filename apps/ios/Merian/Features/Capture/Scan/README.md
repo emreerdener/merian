@@ -68,6 +68,15 @@ responsibilities. See the
 [app measurement guide](../../../../../../docs/development-guides/21-identification-app-measurement.md#controlled-audio-and-video-replay-in-the-simulator)
 for sample preparation, activation and measurement limits.
 
+The separate **Stage audio with fixed context** action attaches
+`audio-minimal-v1` to one staged audio item. It clears stale context prefetch,
+requires that item to remain the sole staged input through admission, and keeps
+Identify manual. The profile's lifetime follows the item and foreground
+telemetry; clearing/removing the item cannot change later ordinary captures.
+Submission owns context suppression and Network owns the fixed existing-field
+projection. Background recovery is excluded from controlled comparison because
+the Debug profile is not persisted.
+
 When recording ends, the countdown and stop icon immediately give way to a busy
 shutter while preparation continues. The capture generation remains active, the
 cancel action remains available, and new capture, library, and flash actions are
@@ -143,7 +152,12 @@ queue eligibility, source preservation, no-audio behavior, and lease cleanup.
 linked sources/inboxes, complete video evidence, fallback playback ownership and
 late cancellation cleanup. `CaptureWorkspaceDebugReplayTests`, under the
 `CaptureWorkspaceViewModelRefinementTests` selector, covers manual Identify,
-interruption/replacement fencing and account changes without provider calls.
+interruption/replacement fencing and account changes without provider calls. It
+also verifies fixed-profile admission snapshots, mixed-input rejection, queue
+context omission, reset isolation, and staged foreground audio reaching the
+normal request service and intercepted HTTP serialization without live or
+deferred context calls. `InferencePayloadBuilderTests` freezes the fixed field
+projection and strips accidental enrichment from a profiled request.
 
 The canonical hardware and media contracts remain in
 [`01-camera-and-hardware.md`](../../../../../../docs/features-and-hardware/01-camera-and-hardware.md)

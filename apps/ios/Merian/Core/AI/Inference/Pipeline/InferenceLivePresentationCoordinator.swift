@@ -63,6 +63,7 @@ final class InferenceLivePresentationCoordinator {
                     foregroundInferenceGeneration:
                         session.foregroundGeneration,
                     speciesData: completion.speciesData,
+                    comparisonCapture: completion.comparisonCapture,
                     resolvePersistedMediaItems: {
                         persistedMediaItems(completion.savedImagePaths)
                     }
@@ -138,6 +139,7 @@ final class InferenceLivePresentationCoordinator {
         attemptGeneration: UUID,
         foregroundInferenceGeneration: UUID?,
         speciesData: SpeciesData,
+        comparisonCapture: IdentificationComparisonCapture? = nil,
         resolvePersistedMediaItems: @MainActor () -> [MediaItem]?
     ) -> Bool {
         guard attemptCoordinator.isAttemptCurrent(
@@ -161,6 +163,10 @@ final class InferenceLivePresentationCoordinator {
             speciesData,
             persistedMediaItems: resolvePersistedMediaItems()
         )
+        if let comparisonCapture, comparisonCapture.matches(scanId: speciesData.scanId),
+           let resultScanId = speciesData.scanId {
+            sessionLifecycleCoordinator.armComparisonRender(comparisonCapture, scanId: resultScanId)
+        }
         completionCoordinator.publishForegroundCompletionEventIfNeeded(
             for: speciesData
         )

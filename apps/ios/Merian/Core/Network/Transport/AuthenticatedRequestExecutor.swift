@@ -26,6 +26,7 @@ struct AuthenticatedRequestExecutor {
         let onRequestBodySent: (@Sendable () -> Void)?
         let authTransitionOwner: AuthTransitionToken?
         let expectedAuthUserID: UUID?
+        var measurementContext: IdentificationMeasurementContext?
     }
 
     struct TransportAttempt {
@@ -267,12 +268,13 @@ struct AuthenticatedRequestExecutor {
 
         if !(200..<300).contains(httpResponse.statusCode) {
             if request.url.lastPathComponent == "identify-multimodal" {
-                logTiming(
+                await logTiming(
                     request: request,
                     response: httpResponse,
                     responseData: transport.data,
                     requestStart: requestStart,
-                    authCompletedAt: transport.authCompletedAt
+                    authCompletedAt: transport.authCompletedAt,
+                    isInitialAttempt: !state.isRetry && state.functionRouteRetryAttempt == 0
                 )
             }
             return try await handleFailure(
@@ -284,12 +286,13 @@ struct AuthenticatedRequestExecutor {
             )
         }
 
-        logTiming(
+        await logTiming(
             request: request,
             response: httpResponse,
             responseData: transport.data,
             requestStart: requestStart,
-            authCompletedAt: transport.authCompletedAt
+            authCompletedAt: transport.authCompletedAt,
+            isInitialAttempt: !state.isRetry && state.functionRouteRetryAttempt == 0
         )
         return (transport.data, httpResponse)
     }
@@ -476,18 +479,26 @@ struct AuthenticatedRequestExecutor {
         response: HTTPURLResponse,
         responseData: Data,
         requestStart: CFAbsoluteTime,
-        authCompletedAt: CFAbsoluteTime
-    ) {
+        authCompletedAt: CFAbsoluteTime,
+        isInitialAttempt: Bool
+    ) async {
         let responseCompletedAt = CFAbsoluteTimeGetCurrent()
         MerianLog.network.debug(
             "[⏱ BENCH] HTTP \(request.url.lastPathComponent, privacy: .public) auth=\(String(format: "%.3f", authCompletedAt - requestStart), privacy: .public)s transfer+server=\(String(format: "%.3f", responseCompletedAt - authCompletedAt), privacy: .public)s status=\(response.statusCode, privacy: .public) requestBytes=\(request.body?.count ?? 0, privacy: .public) responseBytes=\(responseData.count, privacy: .public)"
         )
         if request.url.lastPathComponent == "identify-multimodal" {
+            let current = isInitialAttempt
+                ? await request.measurementContext?.isCurrent() == true : false
             if let record = IdentificationBenchmarkRecord.make(
                 response: response,
-                appInfo: Bundle.main.infoDictionary ?? [:]
+                appInfo: Bundle.main.infoDictionary ?? [:],
+                fixedAudioContext: current && !Task.isCancelled
             ) {
                 recordIdentificationMeasurement(record)
+                await request.measurementContext?.recordComparisonResponse(
+                    response: response, measurement: record,
+                    isInitialAttempt: isInitialAttempt
+                )
             }
         } else if let serverTiming = response.value(
             forHTTPHeaderField: "Server-Timing"

@@ -9,6 +9,9 @@ import Foundation
 /// each suspension point that could otherwise dispatch stale work.
 struct InferenceLiveRequestService {
     struct Dependencies {
+        var makeComparisonCapture: @MainActor (CaptureTelemetry, String?) -> IdentificationComparisonCapture? = {
+            IdentificationComparisonCapture.make(telemetry: $0, scanId: $1)
+        }
         let encodeVisualImages: @MainActor ([Data]) async -> [String]
         let uploadStagedVideoFiles:
             @MainActor (_ videoFilePaths: [String], _ scanId: String) async throws
@@ -35,6 +38,8 @@ struct InferenceLiveRequestService {
         let preferredGoal: FieldTripPreferredGoal?
         let durableQueueOwnsRecovery: Bool
         var isProFunded: Bool = false
+        var measurementValidator: IdentificationMeasurementContext.Validator?
+        var comparisonCapture: IdentificationComparisonCapture?
     }
 
     struct VisualRequest: Sendable {
@@ -63,6 +68,7 @@ struct InferenceLiveRequestService {
         let resultData: Data
         let observationContextsJSON: [String]
         let receivedAt: CFAbsoluteTime
+        var comparisonCapture: IdentificationComparisonCapture?
     }
 
     private let dependencies: Dependencies
@@ -102,7 +108,9 @@ struct InferenceLiveRequestService {
                     durableQueueOwnsRecovery:
                         request.durableQueueOwnsRecovery,
                     isProFunded: request.isProFunded,
-                    onRequestBodySent: onRequestBodySent
+                    onRequestBodySent: onRequestBodySent,
+                    measurementValidator: request.measurementValidator,
+                    comparisonCapture: request.comparisonCapture
                 )
             }
         )
@@ -198,8 +206,10 @@ struct InferenceLiveRequestService {
     @MainActor
     func dispatchNonVisual(
         _ request: NonVisualRequest,
-        validateAttempt: @MainActor () throws -> Void
+        validateAttempt: @escaping IdentificationMeasurementContext.Validator
     ) async throws -> Response {
+        let comparisonCapture = request.durableQueueOwnsRecovery
+            ? dependencies.makeComparisonCapture(request.telemetry, request.clientScanId) : nil
         let observationContextsJSON = Self.observationContextJSONStrings(
             from: request.submissionProjection.observationContexts
         )
@@ -222,7 +232,9 @@ struct InferenceLiveRequestService {
                 preferredGoal: nil,
                 durableQueueOwnsRecovery:
                     request.durableQueueOwnsRecovery,
-                isProFunded: request.isProFunded
+                isProFunded: request.isProFunded,
+                measurementValidator: validateAttempt,
+                comparisonCapture: comparisonCapture
             ),
             nil
         )
@@ -230,7 +242,8 @@ struct InferenceLiveRequestService {
         return Response(
             resultData: resultData,
             observationContextsJSON: observationContextsJSON,
-            receivedAt: CFAbsoluteTimeGetCurrent()
+            receivedAt: CFAbsoluteTimeGetCurrent(),
+            comparisonCapture: comparisonCapture
         )
     }
 

@@ -3994,7 +3994,15 @@ import, and permission-denial UI require the physical-device checklist in
   `InferencePayloadBuilderTests`, `InferenceMediaPolicyTests`, and
   `InferenceRequestPolicyTests` cover the exact telemetry/media/timeline JSON,
   geoprivacy, body and WAV limits, request-account binding, staged-object owner,
-  and stable `409` allowlist without a session.
+  and stable `409` allowlist without a session. Debug simulator fixed-context
+  audio also runs under `CaptureWorkspaceViewModelRefinementTests`:
+  stage/admission ownership, cancellation, mixed-input rejection, queue context
+  omission and reset isolation, plus the normal live request service through
+  intercepted HTTP serialization. `InferencePayloadBuilderTests` freezes its
+  synthetic context and ordinary-request isolation. These use local synthetic
+  media and mocked transport; they do not execute Gemini or qualify background
+  recovery as a controlled result. See the
+  [fixed-context replay contract](./21-identification-app-measurement.md#fixed-context-for-foreground-audio-comparisons).
   `InferenceNetworkArchitectureTests` protects the endpoint/stateless owners,
   five narrow main-client bridges, cancellation-propagating detached-work seam,
   non-concatenating overflow-safe byte accumulator, 600-line ceiling, and exact
@@ -6731,6 +6739,35 @@ requirements, overlapping timing semantics and bounded log-line decoding.
 `generate_identification_deployment_identity_test.ts` enforces the generated
 runtime dependency fingerprint. These local checks make no live provider calls;
 the first two-photo benchmark retains its original unmeasured metadata.
+
+The disabled audio-comparison backend adds
+`identify-multimodal/comparison/assignment_test.ts` and comparison cases in the
+existing `provider.test.ts`. Candidate validation explicitly checks and runs
+both. They exercise fixed-table/config/owner/expiry/body validation, reserved-ID
+and service-replay rejection before side effects, exact media/settings binding,
+reopened-attempt and non-Pro refunds before ingestion, fresh durable receipts,
+and exclusion of failed/replayed results. Media and provider/database responses
+are synthetic. `generate_audio_comparison_plan_test.ts` keeps the server and
+native tables identical to their immutable preparation and checks all twelve
+reserved native scan identities against the server derivation;
+`identification_audio_comparison_test.ts` continues to test DSP bounds and
+equivalence. See the
+[assignment record](../rfcs/identification-audio-comparison-assignment-2026-09-23.md)
+for the backend checkpoint.
+
+The subsequent
+[app integration](../rfcs/identification-audio-comparison-app-integration-2026-09-23.md)
+adds `IdentificationComparisonCaptureTests` and
+`InferenceAudioComparisonPipelineTests` for exact receipt adoption, live-owner
+revalidation, duplicate queue/saved IDs, typed persistence outcomes, fenced
+publication, queue finalization, cancellation and first-render proof. The root
+`identification_audio_comparison_observation_test.ts` covers complete-window
+admission, exact logged JSON hashing, malformed/duplicate/missing boundaries and
+privacy projection. The existing isolated evaluator test covers bounded private
+file reads and exclusive output creation with network/environment access denied.
+These checks use synthetic inputs and make no provider calls. Keep the server
+configuration unset; hosted deployment, activation and paid observations remain
+separate release operations.
 
 Identification evaluation Slice 1 is tooling-only. The root-discovered
 `identification_evaluation_contract_test.ts` and

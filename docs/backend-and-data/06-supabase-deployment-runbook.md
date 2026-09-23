@@ -612,6 +612,18 @@ from the audit.
 
 ### Disposable Catalog-Gate Failure Triage
 
+An image-pull `toomanyrequests` failure before database startup is registry
+infrastructure failure, not a migration result. The pinned
+[`supabase/setup-cli` action](https://github.com/supabase/setup-cli/blob/46f7f98c7f948ad727d22c1e67fab04c223a0520/src/main.ts)
+exports a GHCR-only override. Candidate validation clears
+`SUPABASE_INTERNAL_IMAGE_REGISTRY` after the exact CLI version check so
+[`2.109.1`'s built-in registry fallback](https://github.com/supabase/cli/blob/v2.109.1/apps/cli-go/internal/utils/docker.go)
+can try public ECR, GHCR and Docker Hub with the same image tags. This applies
+only to disposable candidate checks, including advisor images. Do not add
+production credentials, change the reviewed CLI/database version, or waive the
+catalog gate to recover from a registry throttle. If all mirrors fail, preserve
+the failure and retry candidate validation after the registry recovers.
+
 A failure while `supabase db start` is applying the disposable catalog occurs
 before the workflow prepares a production connection, runs `db push`,
 synchronizes secrets, deploys Functions, or smoke-tests production. Treat the
@@ -4900,6 +4912,24 @@ directly delete `auth.users` or `public.users`, never delete the RevenueCat
 customer before the Supabase job completes, and never change
 `internal.entitlement_rollout_config.entitlement_mode` as part of cleanup.
 `legacy_trial` and manually granted beta Pro are separate access policies.
+
+## Audio comparison activation hold
+
+The
+[server-owned audio comparison](../rfcs/identification-audio-comparison-assignment-2026-09-23.md)
+is implemented locally and defaults off. Keep
+`IDENTIFICATION_AUDIO_COMPARISON_V1` unset. The
+[native assignment and observer integration](../rfcs/identification-audio-comparison-app-integration-2026-09-23.md)
+now implements receipt, exact queue finalization, first-draw and complete-window
+admission locally; synthetic verification is not live experiment evidence.
+Candidate validation or deploying compatible code does not authorize
+configuration activation or paid comparison requests. A later activation must
+name the target, owner and bounded window, pin the exact reviewed plan and
+generated runtime hash, and retain the normal exact-SHA/deployment/approval
+controls. Do not record the private owner configuration in source or benchmark
+artifacts. Disabling the configuration blocks comparison requests, including
+reserved-ID recovery, while ordinary scans retain their existing path. No old
+processor rollback is needed.
 
 ## Identification Latency Rollout
 

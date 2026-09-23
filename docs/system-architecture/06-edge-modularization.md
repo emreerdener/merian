@@ -65,6 +65,14 @@ The shared adapter's transitive dependencies now include `enrich-scan` and
 `refresh-species-model-content` in deployment selection for Identify-contract
 changes; the dependency graph test requires both.
 
+`identify-multimodal/comparison/` owns the default-off twelve-slot audio
+experiment: generated frozen bindings, strict assignment/configuration checks,
+bounded historical/current DSP and fresh durable proof projection. Evaluation
+tooling imports these pure route helpers; runtime code never imports scripts.
+The handler retains ordinary admission/settlement/finalization ownership. The
+[assignment contract](../rfcs/identification-audio-comparison-assignment-2026-09-23.md)
+does not add a configurable provider/model registry or a new SDK dispatch site.
+
 ## 2. The PostgreSQL Layer (`db.ts`)
 
 The `db.ts` file acts as the isolated boundary for PostgREST executions. This

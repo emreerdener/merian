@@ -304,7 +304,9 @@ extension MerianNetworkClient {
         preferredGoal: FieldTripPreferredGoal? = nil,
         durableQueueOwnsRecovery: Bool = false,
         isProFunded: Bool = false,
-        onRequestBodySent: (@Sendable () -> Void)? = nil
+        onRequestBodySent: (@Sendable () -> Void)? = nil,
+        measurementValidator: IdentificationMeasurementContext.Validator? = nil,
+        comparisonCapture: IdentificationComparisonCapture? = nil
     ) async throws -> Data {
         let authenticatedRequest = try await buildMultiModalRequest(
             r2ObjectKeys: r2ObjectKeys,
@@ -333,7 +335,12 @@ extension MerianNetworkClient {
             // URLError replay. Auth refresh, route propagation, and idempotent 5xx
             // handling remain owned by the common authenticated transport.
             allowsTransientTransportRetry: !durableQueueOwnsRecovery,
-            onRequestBodySent: onRequestBodySent
+            onRequestBodySent: onRequestBodySent,
+            measurementContext: .fixedAudio(
+                body: authenticatedRequest.request.httpBody,
+                telemetry: telemetry, validateAttempt: measurementValidator,
+                comparisonCapture: comparisonCapture
+            )
         )
     }
 

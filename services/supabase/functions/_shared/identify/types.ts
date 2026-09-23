@@ -71,6 +71,9 @@ export interface Payload {
 }
 
 export interface MultimodalPayload {
+  // Optional gated comparison handle; it never selects a model or provider.
+  // Runtime validation belongs to identify-multimodal/comparison/assignment.ts.
+  audio_comparison?: { planSha256: string; slot: number };
   user_id: string;
   imageBase64s?: string[];
   audioBase64s?: string[];
