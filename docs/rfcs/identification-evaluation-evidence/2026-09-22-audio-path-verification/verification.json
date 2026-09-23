@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-09-23T05:06:02.933761+00:00",
+  "repositorySourceRevision": "ca231ee11d8f6b8c49119e6ae2aa92e8571b71ad",
+  "workingTreeHadChanges": true,
+  "productionRuntimeChanged": false,
+  "providerCalls": 0,
+  "nativeFullSuite": {
+    "status": "passed",
+    "testTarget": "merianTests",
+    "passedTests": 4295,
+    "failedTests": 0,
+    "skippedTests": 0,
+    "xctestTests": 1354,
+    "swiftTestingTests": 2941,
+    "resultBundle": ".artifacts/local-ios/b2ea938744b34d2aae99a30ef6a8ebad.xcresult",
+    "scopeNote": "Complete unit target passed before the final test refinement for Documents-relative filenames. The final three affected suites were then rebuilt and rerun below; production code and shared test fixtures were unchanged by that refinement."
+  },
+  "nativeFinalFocusedSuites": {
+    "status": "passed",
+    "suites": [
+      "InferenceAudioPreparerTests",
+      "InferenceEndpointTransportTests",
+      "CaptureDebugReplayPreparerTests"
+    ],
+    "passedTests": 23,
+    "failedTests": 0,
+    "skippedTests": 0,
+    "resultBundle": ".artifacts/local-ios/9daa789e9b354dddbaef090d6b50bec5.xcresult",
+    "simulatorModel": "iPhone 18 Pro",
+    "simulatorOS": "27.0"
+  },
+  "backendFocused": {
+    "status": "passed",
+    "passedTests": 12,
+    "passedSteps": 78,
+    "failedTests": 0,
+    "files": [
+      "_shared/audioProcessing_test.ts",
+      "identify-multimodal/audio_test.ts",
+      "identify-multimodal/provider.test.ts",
+      "_shared/ai/ai_test.ts"
+    ],
+    "networkPermissionGranted": false
+  },
+  "backendFullTask": {
+    "status": "passed_with_database_limitations",
+    "reportedPassedTests": 2048,
+    "reportedPassedSteps": 196,
+    "failedTests": 0,
+    "ignoredTests": 6,
+    "databaseIntegration": "not verified; local database connections were denied, so database tests that self-skip are included in Deno reported pass counts",
+    "configuredExternalDatabaseURLUnset": true
+  },
+  "otherChecks": {
+    "xcodegen": "passed; no generated diff",
+    "validate-ios-project": "passed",
+    "denoRecursiveFormat": "passed; 978 files",
+    "denoRecursiveLint": "passed; 785 files",
+    "test-supabase-tooling": "passed",
+    "validate-edge-dto-contract": "passed",
+    "sync_function_deno_configs": "passed; 101 configs",
+    "validate_function_dependencies": "passed; 101 isolated graphs, 368 runtime files",
+    "identify-multimodalRecursiveTypeCheck": "passed",
+    "analysisScriptTypeCheck": "passed",
+    "markdownFormatAndDiffCheck": "passed"
+  },
+  "finalTestSourceHashes": [
+    {
+      "path": "apps/ios/MerianTests/Core/Media/InferenceAudioPreparerTests.swift",
+      "sha256": "d5bad142b01f04135233a65dd7669dc1b5605d3805849850651e7e5d802ad365"
+    },
+    {
+      "path": "apps/ios/MerianTests/Core/Network/Endpoints/InferenceEndpointTransportTests.swift",
+      "sha256": "d20e43918a95f882c8682b45d7f5999f3b91adbe1845fedc187dcaed1d8a7668"
+    },
+    {
+      "path": "apps/ios/TestSupport/InferenceAudioTestFixtures.swift",
+      "sha256": "93d14efe9673b9b8fcb109d8b92054452c29e8c04e6f8022ad4e8d8d81901035"
+    },
+    {
+      "path": "services/supabase/functions/identify-multimodal/provider.test.ts",
+      "sha256": "1a806c6203ad546123f221bc57f4d783aa29a0e705828d9393a711a8f64e33f4"
+    }
+  ],
+  "limits": [
+    "No hosted database candidate validation, deployment, new provider experiment or physical-microphone test was performed.",
+    "Local tests do not retroactively attest historical live request bytes or personal context."
+  ]
+}

@@ -53,6 +53,70 @@ private final class InferenceRequestProbe: @unchecked Sendable {
 )
 @MainActor
 struct InferenceEndpointTransportTests {
+    #if DEBUG && targetEnvironment(simulator)
+    @Test func replayAudioSurvivesPersistenceAndRequestSerialization() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let inbox = directory.appendingPathComponent("IdentificationReplay")
+        let durable = try #require(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first)
+        try FileManager.default.createDirectory(at: inbox, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: durable, withIntermediateDirectories: true)
+        let source = inbox.appendingPathComponent("audio.wav")
+        let input = makeInferenceTestPCM16WAVData(
+            sampleRate: 44_100, frameCount: 441_000,
+            sampleAt: { Int16(truncatingIfNeeded: $0 * 7_919 + 12_345) }
+        )
+        try input.write(to: source)
+        let prepared = try await CaptureDebugReplayPreparer.prepare(
+            .audio, composingCenter: 0.5, isProActive: true,
+            documentsDirectory: directory
+        )
+        guard case .audio(let preparedURL) = prepared else {
+            Issue.record("Expected a prepared replay WAV"); return
+        }
+        let expected = try Data(contentsOf: preparedURL)
+        #expect(try inferenceTestWAVPCMData(expected).elementsEqual(inferenceTestWAVPCMData(input)))
+        let names = try OfflineCaptureFileStore.persistFiles(
+            [preparedURL.path], documentsDirectory: durable
+        )
+        let persisted = durable.appendingPathComponent(try #require(names[preparedURL.path]))
+        defer { try? FileManager.default.removeItem(at: persisted) }
+        #expect(try Data(contentsOf: persisted).elementsEqual(expected))
+        // Replay stages a Documents-relative name. Re-admission must retain an
+        // already durable file, then the network client must resolve that name.
+        let retained = try OfflineCaptureFileStore.persistFiles(
+            [persisted.lastPathComponent], documentsDirectory: durable
+        )
+        #expect(retained[persisted.lastPathComponent] == persisted.lastPathComponent)
+        #expect(try Data(contentsOf: persisted).elementsEqual(expected))
+
+        let fixture = inferenceFixture()
+        defer { fixture.close() }
+        let probe = InferenceCallbackProbe()
+        fixture.transport.register(path: "/identify-multimodal") { request in
+            let body = try #require(MockURLProtocol.bodyData(for: request))
+            let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+            let encoded = try #require(payload["audioBase64s"] as? [String])
+            #expect(encoded.count == 1)
+            let encodedAudio = try #require(encoded.first)
+            let delivered = try #require(Data(base64Encoded: encodedAudio))
+            #expect(delivered.elementsEqual(expected))
+            #expect(payload["imageBase64s"] == nil)
+            #expect(payload["observation_contexts"] == nil)
+            #expect(payload["audioR2ObjectKeys"] == nil)
+            probe.mark()
+            return try NetworkEndpointTestSupport.response(to: request, json: #"{"success":true}"#)
+        }
+        _ = try await fixture.client.identifyMultiModal(
+            audioFilePaths: [persisted.lastPathComponent], telemetry: telemetry(),
+            clientScanId: "019f6650-34cc-7dc0-a31b-e8ec3d8eadd8",
+            durableQueueOwnsRecovery: true, isProFunded: true
+        )
+        #expect(probe.wasMarked)
+        #expect(try Data(contentsOf: source).elementsEqual(input))
+    }
+    #endif
+
     @Test func testInferencePrewarmUsesPinnedClientSessionAndOptionsRoute() async {
         let fixture = NetworkEndpointFixture()
         defer { fixture.close() }

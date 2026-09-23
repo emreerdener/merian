@@ -1,8 +1,8 @@
 # Naturebook Identification Evaluation Readiness — SRD
 
 Document ID: NB-SRD-IDENTIFICATION-EVAL-001\
-Version: 0.15\
-Date: 22 September 2026\
+Version: 0.16\
+Date: 23 September 2026\
 Status: Slices 1–3 and exploratory automation implemented; photo, description,
 first video and expanded audio app checks completed; reviewed baseline pending\
 Product authority:
@@ -608,12 +608,24 @@ disagreed with provisional source species; all three source/owner-reviewed
 non-biological controls returned No wildlife detected. Earlier results and
 formal denominators remain unchanged.
 
-Before tuning confidence or assigning another provider, trace the audio
-preparation and request construction against these frozen inputs. Existing
-source hashes and diagnostic identities do not attest the app's final request
-audio or contextual fields. Any future diagnostic should be content-free,
-bounded, privacy-reviewed and covered by the appropriate contract tests; this
-benchmark adds no runtime instrumentation or provider adapter.
+The
+[audio-path verification](./identification-audio-path-verification-2026-09-22.md)
+completed that local trace. Native synthetic tests preserve PCM samples through
+Core Audio preparation, simulator replay, file persistence and intercepted live
+request serialization. The handler test verifies the exact processed WAV at the
+adapter boundary; existing SDK interception covers the native request. Offline
+processing of all six frozen inputs records actual trimming and 16 kHz
+conversion. A synthetic 12 kHz tone aliases strongly to 4 kHz in the existing
+linear downsampler. The next slice should correct that processing defect and
+test the chosen representation before a controlled same-Gemini comparison.
+Preserve current prompts, confidence and provider assignment during that work.
+
+These tests do not attest historical live request bytes or private contextual
+fields. Replay retains ordinary location/time context when available, a
+potential confound for source recordings made elsewhere. Future comparisons must
+fix the context policy as well as media and model configuration. No runtime
+instrumentation, production change or paid request was added by this
+verification; any future diagnostic remains bounded and privacy-reviewed.
 
 | Slice                     | Implementation and verification                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

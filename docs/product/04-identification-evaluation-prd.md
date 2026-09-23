@@ -1,8 +1,8 @@
 # Naturebook Identification Evaluation Readiness — PRD
 
 Document ID: NB-PRD-IDENTIFICATION-EVAL-001\
-Version: 0.15\
-Date: 22 September 2026\
+Version: 0.16\
+Date: 23 September 2026\
 Status: Slices 1–3 implemented; photo, description, first video and expanded
 audio app checks completed; reviewed baseline pending\
 Suggested owners: Product and Backend, with a biological reference reviewer\
@@ -108,6 +108,16 @@ alarm each returned No wildlife detected. Animal references remain provisional;
 these disagreements do not establish independently verified error rates. The
 controls had source and owner confirmation of no audible animals. No retries,
 provider changes or direct-evaluator dispatch occurred.
+
+The
+[audio-path verification](../rfcs/identification-audio-path-verification-2026-09-22.md)
+then confirmed sample preservation through the tested native replay path and
+exact processed-audio handoff to the provider boundary. Local reprocessing of
+the six frozen clips documented trimming and conversion to 16 kHz. A synthetic
+test demonstrated aliasing in the existing downsampler. Correct that processing
+defect and validate the audio representation before comparing providers or
+tuning confidence. This finding does not establish the cause of the species
+disagreements or retrospectively attest historical request bytes/context.
 
 ## 1. Outcome
 

@@ -8,8 +8,9 @@ import type {
 } from "../_shared/ai/contracts.ts";
 import { createAIExecution } from "../_shared/ai/execution.ts";
 import { resolveAIClaim } from "../_shared/ai/registry.ts";
-import { encodeBase64 } from "../_shared/encoding.ts";
+import { decodeBase64, encodeBase64 } from "../_shared/encoding.ts";
 import { encodeWav16 } from "../audio-spec/wav.ts";
+import { processMultimodalWAV } from "./audio.ts";
 import { deriveAIRequestId } from "../_shared/aiQuota.ts";
 import { parseIdentifySuccessEnvelope } from "../_shared/identify/contract.ts";
 import type { CachedSpeciesRow } from "../_shared/identify/types.ts";
@@ -271,10 +272,12 @@ function request(
   });
 }
 
-function audioFixture(): string {
-  const samples = new Float32Array(16000);
-  for (let i = 0; i < samples.length; i++) samples[i] = 0.2 * Math.sin(i / 10);
-  return encodeBase64(encodeWav16(samples, 16000));
+function audioFixture(sampleRate = 16000, periodScale = 10): string {
+  const samples = new Float32Array(sampleRate);
+  for (let i = 0; i < samples.length; i++) {
+    samples[i] = 0.2 * Math.sin(i / periodScale);
+  }
+  return encodeBase64(encodeWav16(samples, sampleRate));
 }
 
 Deno.test("multimodal handler preserves admission, evidence and recovery through the adapter", async (t) => {
@@ -452,42 +455,74 @@ Deno.test("multimodal handler preserves admission, evidence and recovery through
         ]);
       });
     }
-    const audio = audioFixture();
+    const audio = audioFixture(44100);
+    const secondAudio = audioFixture(44100, 17);
+    const expectedAudios = new Map(
+      [audio, secondAudio].map((source) => [
+        source,
+        processMultimodalWAV(
+          decodeBase64(source).buffer as ArrayBuffer,
+          undefined,
+          { present: false, error: null, timeline: null },
+        ),
+      ]),
+    );
     const mediaCases = [
-      { label: "still", imageBase64s: ["AQ=="], audioBase64s: [] },
-      { label: "audio", imageBase64s: [], audioBase64s: [audio] },
+      {
+        label: "still",
+        imageBase64s: ["AQ=="],
+        audioBase64s: [],
+        hasVideo: false,
+      },
+      {
+        label: "audio",
+        imageBase64s: [],
+        audioBase64s: [audio],
+        hasVideo: false,
+      },
+      {
+        label: "two distinguishable audio clips",
+        imageBase64s: [],
+        audioBase64s: [audio, secondAudio],
+        hasVideo: false,
+      },
       {
         label: "five video snapshots",
         imageBase64s: ["AQ==", "Ag==", "Aw==", "BA==", "BQ=="],
         audioBase64s: [],
+        hasVideo: true,
       },
       {
         label: "partial snapshots and companion",
         imageBase64s: ["AQ==", "Ag=="],
         audioBase64s: [audio],
+        hasVideo: true,
       },
     ];
-    for (const [caseIndex, media] of mediaCases.entries()) {
+    for (const media of mediaCases) {
       await t.step(
         `${media.label} reaches the adapter once with ordered processed evidence`,
         async () => {
           const db = database({ pro: true });
-          const isVideo = caseIndex >= 2;
+          const isVideo = media.hasVideo;
           const result = await run(
             db,
             { ...facts, kind: "unknown_execution" },
             {
               imageBase64s: media.imageBase64s,
               audioBase64s: media.audioBase64s,
+              ...(media.imageBase64s.length === 0
+                ? { observation_contexts: [] }
+                : {}),
               visualMediaItems: media.imageBase64s.map((_, i) =>
                 isVideo
                   ? { kind: "video_frame", clipIndex: 0, frameIndex: i }
                   : { kind: "image", sourceIndex: i }
               ),
-              audioMediaItems: media.audioBase64s.map(() =>
+              audioMediaItems: media.audioBase64s.map((_, index) =>
                 isVideo
                   ? { kind: "video_audio", clipIndex: 0 }
-                  : { kind: "audio", sourceIndex: 0 }
+                  : { kind: "audio", sourceIndex: index }
               ),
               videoR2ObjectKeys: isVideo
                 ? [`staging/${user.id}/synthetic.mp4`]
@@ -502,8 +537,24 @@ Deno.test("multimodal handler preserves admission, evidence and recovery through
               const sounds = input.evidence.filter((part) =>
                 part.kind === "audio"
               );
+              if (media.imageBase64s.length === 0) {
+                assert(
+                  !input.evidence.some((part) =>
+                    part.kind === "text" &&
+                    part.source === "observation_context"
+                  ),
+                );
+              }
               assertEquals(images.map((part) => part.data), media.imageBase64s);
               assertEquals(sounds.length, media.audioBase64s.length);
+              assertEquals(
+                sounds.map((part) => part.data),
+                media.audioBase64s.map((source) => expectedAudios.get(source)),
+              );
+              assertEquals(
+                sounds.map((part) => part.inputIndex),
+                media.audioBase64s.map((_, index) => index),
+              );
               assert(
                 sounds.every((part) =>
                   part.mimeType === "audio/wav" && part.data.length > 0

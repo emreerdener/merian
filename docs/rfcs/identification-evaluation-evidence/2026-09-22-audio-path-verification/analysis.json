@@ -1,0 +1,329 @@
+{
+  "schemaVersion": 1,
+  "mode": "offline_actual_processor",
+  "createdAt": "2026-09-23T04:53:46.563Z",
+  "sourceFreezeSHA256": "415a055676d36ae0bf93aa8856a2b86d67188c97ea51f5c42e20400909489c8c",
+  "verifiedSourceFileCount": 44,
+  "liveProviderCalls": 0,
+  "sourceHashes": [
+    {
+      "path": "services/supabase/functions/_shared/audioProcessing.ts",
+      "sha256": "e43565847806d24e7d8f4c706fd040f1bbab91e1973627deb811a4bae5267ffd"
+    },
+    {
+      "path": "services/supabase/functions/audio-spec/wav.ts",
+      "sha256": "a47fd2b4fef45212ac47d6c11df84c1603ff6194c266e3b5b12682165b76c63a"
+    },
+    {
+      "path": "services/supabase/functions/identify-multimodal/audio.ts",
+      "sha256": "ff70036c97f6110b20824d7cfbc4f38b5cc92367d9d8acec95f9f5ce3f852706"
+    },
+    {
+      "path": "services/supabase/functions/identify-multimodal/provider.ts",
+      "sha256": "0f88e88c80aef67888d2ff5356974f6f5ccb9cabe9400e76b05bb531eedca49f"
+    },
+    {
+      "path": "services/supabase/functions/_shared/ai/geminiRequest.ts",
+      "sha256": "b993b6630649636922643845673ddc0d2d3a7b1062f84e618a88c0745b9fa61c"
+    }
+  ],
+  "cases": [
+    {
+      "caseId": "c0013",
+      "input": {
+        "file": "assets/a00130.wav",
+        "sha256": "214e0f3f8e9c35f966503033ae159edb524498e0532700daa3802359ff7f8303",
+        "byteLength": 506924,
+        "sampleRate": 44100,
+        "channels": 1,
+        "bitsPerSample": 16,
+        "durationSeconds": 5.746938775510204,
+        "sampleCount": 253440,
+        "peak": 0.990264892578125,
+        "rms": 0.2227931919724398,
+        "nonzeroSampleCount": 251768
+      },
+      "output": {
+        "file": "c0013-processed.wav",
+        "sha256": "039adae1fdd8cfbaa7daa7a39df643f06459dd536b4e8145dc93898e57a988c1",
+        "byteLength": 183084,
+        "sampleRate": 16000,
+        "channels": 1,
+        "bitsPerSample": 16,
+        "durationSeconds": 5.72,
+        "sampleCount": 91520,
+        "peak": 0.989410400390625,
+        "rms": 0.22330005028177752,
+        "nonzeroSampleCount": 91245
+      },
+      "trim": {
+        "startSample": 882,
+        "endSampleExclusive": 253134,
+        "removedLeadingSeconds": 0.02,
+        "removedTrailingSeconds": 0.0069387755102040816,
+        "retainedSampleCount": 252252
+      },
+      "routeMatchesSharedProcessor": true
+    },
+    {
+      "caseId": "c0014",
+      "input": {
+        "file": "assets/a00140.wav",
+        "sha256": "4696164a9407ecf5242425fd4f803ad3c62e4d9d765c28e1dc7b1cbf330abab8",
+        "byteLength": 882044,
+        "sampleRate": 44100,
+        "channels": 1,
+        "bitsPerSample": 16,
+        "durationSeconds": 10,
+        "sampleCount": 441000,
+        "peak": 1,
+        "rms": 0.158500276760885,
+        "nonzeroSampleCount": 434371
+      },
+      "output": {
+        "file": "c0014-processed.wav",
+        "sha256": "b691d815635fed7e48f08adeaa2d9634f8a17852db7a8330d201a98ce6423c60",
+        "byteLength": 289964,
+        "sampleRate": 16000,
+        "channels": 1,
+        "bitsPerSample": 16,
+        "durationSeconds": 9.06,
+        "sampleCount": 144960,
+        "peak": 0.999969482421875,
+        "rms": 0.16544287720570625,
+        "nonzeroSampleCount": 144885
+      },
+      "trim": {
+        "startSample": 41454,
+        "endSampleExclusive": 441000,
+        "removedLeadingSeconds": 0.94,
+        "removedTrailingSeconds": 0,
+        "retainedSampleCount": 399546
+      },
+      "routeMatchesSharedProcessor": true
+    },
+    {
+      "caseId": "c0015",
+      "input": {
+        "file": "assets/a00150.wav",
+        "sha256": "5d327fae2cea263c348572557ab1a2774ab0d7a8c0a612970ade1b550640154c",
+        "byteLength": 880172,
+        "sampleRate": 44100,
+        "channels": 1,
+        "bitsPerSample": 16,
+        "durationSeconds": 9.978775510204082,
+        "sampleCount": 440064,
+        "peak": 0.1585693359375,
+        "rms": 0.022598472409328076,
+        "nonzeroSampleCount": 437735
+      },
+      "output": {
+        "file": "c0015-processed.wav",
+        "sha256": "bf5f801240adbcf67fbea62c9b3356e4f5d28ab06120c173d4895f5c91f57533",
+        "byteLength": 318764,
+        "sampleRate": 16000,
+        "channels": 1,
+        "bitsPerSample": 16,
+        "durationSeconds": 9.96,
+        "sampleCount": 159360,
+        "peak": 0.15435791015625,
+        "rms": 0.022354773299203868,
+        "nonzeroSampleCount": 158807
+      },
+      "trim": {
+        "startSample": 0,
+        "endSampleExclusive": 439236,
+        "removedLeadingSeconds": 0,
+        "removedTrailingSeconds": 0.018775510204081632,
+        "retainedSampleCount": 439236
+      },
+      "routeMatchesSharedProcessor": true
+    },
+    {
+      "caseId": "c0016",
+      "input": {
+        "file": "assets/a00160.wav",
+        "sha256": "f67b22b951b922cd222441e39acbfe67a7f6253d8c7e2c07631308726d274b0f",
+        "byteLength": 447020,
+        "sampleRate": 44100,
+        "channels": 1,
+        "bitsPerSample": 16,
+        "durationSeconds": 5.067755102040817,
+        "sampleCount": 223488,
+        "peak": 0.999969482421875,
+        "rms": 0.10673495411200652,
+        "nonzeroSampleCount": 215519
+      },
+      "output": {
+        "file": "c0016-processed.wav",
+        "sha256": "28563d3c4b6e0628a5bd3b03e334fbfb2e4ea83b338f0c78051da088a4347381",
+        "byteLength": 156844,
+        "sampleRate": 16000,
+        "channels": 1,
+        "bitsPerSample": 16,
+        "durationSeconds": 4.9,
+        "sampleCount": 78400,
+        "peak": 0.99774169921875,
+        "rms": 0.10729671271539098,
+        "nonzeroSampleCount": 78157
+      },
+      "trim": {
+        "startSample": 1764,
+        "endSampleExclusive": 217854,
+        "removedLeadingSeconds": 0.04,
+        "removedTrailingSeconds": 0.12775510204081633,
+        "retainedSampleCount": 216090
+      },
+      "routeMatchesSharedProcessor": true
+    },
+    {
+      "caseId": "c0017",
+      "input": {
+        "file": "assets/a00170.wav",
+        "sha256": "dfabd74210a85b46a80a42656c79586c144145108a692e32d03a17a836a4ac8a",
+        "byteLength": 882044,
+        "sampleRate": 44100,
+        "channels": 1,
+        "bitsPerSample": 16,
+        "durationSeconds": 10,
+        "sampleCount": 441000,
+        "peak": 0.981048583984375,
+        "rms": 0.10783529658720506,
+        "nonzeroSampleCount": 440026
+      },
+      "output": {
+        "file": "c0017-processed.wav",
+        "sha256": "dcfb5d38e22384a49f7b89a7620660df3a90830ec3f8e45fa5de9ad88bc1781f",
+        "byteLength": 320044,
+        "sampleRate": 16000,
+        "channels": 1,
+        "bitsPerSample": 16,
+        "durationSeconds": 10,
+        "sampleCount": 160000,
+        "peak": 0.977996826171875,
+        "rms": 0.10781281188463195,
+        "nonzeroSampleCount": 159629
+      },
+      "trim": {
+        "startSample": 0,
+        "endSampleExclusive": 441000,
+        "removedLeadingSeconds": 0,
+        "removedTrailingSeconds": 0,
+        "retainedSampleCount": 441000
+      },
+      "routeMatchesSharedProcessor": true
+    },
+    {
+      "caseId": "c0018",
+      "input": {
+        "file": "assets/a00180.wav",
+        "sha256": "1803ceef8ae9ad9e71e7fcfa322208a8970485ffdf84a466770e73fb15b1c711",
+        "byteLength": 880172,
+        "sampleRate": 44100,
+        "channels": 1,
+        "bitsPerSample": 16,
+        "durationSeconds": 9.978775510204082,
+        "sampleCount": 440064,
+        "peak": 0.09637451171875,
+        "rms": 0.020554991569596195,
+        "nonzeroSampleCount": 438392
+      },
+      "output": {
+        "file": "c0018-processed.wav",
+        "sha256": "e377172d4eb59e80b41a55c4ce2cd67a5848ffd2b7caf712be855a0698fe4e40",
+        "byteLength": 318764,
+        "sampleRate": 16000,
+        "channels": 1,
+        "bitsPerSample": 16,
+        "durationSeconds": 9.96,
+        "sampleCount": 159360,
+        "peak": 0.095428466796875,
+        "rms": 0.020561138818620924,
+        "nonzeroSampleCount": 159047
+      },
+      "trim": {
+        "startSample": 0,
+        "endSampleExclusive": 439236,
+        "removedLeadingSeconds": 0,
+        "removedTrailingSeconds": 0.018775510204081632,
+        "retainedSampleCount": 439236
+      },
+      "routeMatchesSharedProcessor": true
+    }
+  ],
+  "synthetic": [
+    {
+      "sourceFrequencyHz": 1000,
+      "sourceAmplitude": 0.5,
+      "sourceSampleRate": 44100,
+      "durationSeconds": 2,
+      "outputSampleRate": 16000,
+      "output": {
+        "sampleCount": 32000,
+        "peak": 0.499847412109375,
+        "rms": 0.35293307028322496,
+        "nonzeroSampleCount": 30000
+      },
+      "strongestTestedTone": {
+        "frequencyHz": 1000,
+        "amplitude": 0.4991225913653884
+      },
+      "testedFrequencyGrid": "500..7500 Hz in 500 Hz steps",
+      "sourceSHA256": "24db1ed1f953f3755cf551a51a0071319056db2e3472a2ace9e9534125c30739",
+      "outputSHA256": "dde6834ae67eccaa1fcbcc7334d4f0f687d6abf1baef9672014906b1c23bbc6d"
+    },
+    {
+      "sourceFrequencyHz": 12000,
+      "sourceAmplitude": 0.5,
+      "sourceSampleRate": 44100,
+      "durationSeconds": 2,
+      "outputSampleRate": 16000,
+      "output": {
+        "sampleCount": 32000,
+        "peak": 0.496429443359375,
+        "rms": 0.2784788799950296,
+        "nonzeroSampleCount": 31600
+      },
+      "strongestTestedTone": {
+        "frequencyHz": 4000,
+        "amplitude": 0.3894393920898438
+      },
+      "testedFrequencyGrid": "500..7500 Hz in 500 Hz steps",
+      "sourceSHA256": "9f861376b68047698d688b2a8c9a6745f6efe18920cb834b307be47e5bc559af",
+      "outputSHA256": "674866450f35f1ec0b3b966efddbdd805f817bddcc12582e20ec6d59a4f034f0"
+    }
+  ],
+  "limits": [
+    "Local reprocessing; historical live inference bytes and private context were not retained.",
+    "Synthetic tone test demonstrates aliasing, not a cause of species disagreements.",
+    "No expected species labels or production responses are inputs to this analysis."
+  ],
+  "analysisScriptSHA256": "27868db8ab4fcd68bf5129182e553223792f3130eda908c68fb877aa03f25614",
+  "repositorySourceRevision": "ca231ee11d8f6b8c49119e6ae2aa92e8571b71ad",
+  "nativeSourceHashes": [
+    {
+      "path": "apps/ios/Merian/Core/Media/InferenceAudioPreparer.swift",
+      "sha256": "0b67ea6ed791b8374686ea9d25e47a52c8633c483a4604ed4acee9b1b7c49063"
+    },
+    {
+      "path": "apps/ios/Merian/Features/Capture/Scan/Debug/CaptureDebugReplayPreparer.swift",
+      "sha256": "08c0f260042f472393b6deff4a74af3dc358d60cd9ff9ab71d8fdaa7c4ac2d35"
+    },
+    {
+      "path": "apps/ios/Merian/Core/Data/OfflineSync/Services/CaptureAdmission/OfflineCaptureFileStore.swift",
+      "sha256": "34b8bd23b6c9e864bbf4ed8ab1667b77f9fe52138c10051309637d4237361270"
+    },
+    {
+      "path": "apps/ios/Merian/Core/Network/Endpoints/MerianNetworkClient+Inference.swift",
+      "sha256": "cefdb2f46616ddd3b9dbd75a0a8491dfc89f700d44bdd488e09c0e242a6e9f1b"
+    },
+    {
+      "path": "apps/ios/Merian/Core/Network/Inference/InferencePayloadBuilder.swift",
+      "sha256": "49df301039a213fd79c92444d0f005fe262805b46de624b7ae4cdf14fb3cc712"
+    },
+    {
+      "path": "apps/ios/Merian/Features/Capture/Scan/Debug/CaptureWorkspaceViewModel+DebugReplay.swift",
+      "sha256": "4096ced685b13d6d74ea885088e12cb1fc6494f04b35107532cc9213c328904a"
+    }
+  ]
+}

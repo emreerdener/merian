@@ -143,6 +143,16 @@ video frames are marked as gallery input and do not fabricate capture context;
 the ordinary audio submission context policy remains unchanged. Source hashes
 alone do not attest to the prepared inference bytes or complete request context.
 
+The
+[offline audio-path verification](../rfcs/identification-audio-path-verification-2026-09-22.md)
+adds synthetic sample-preservation tests through preparation, replay,
+persistence and intercepted request serialization, plus exact processed-WAV
+handoff checks at the backend adapter. It also measures trimming and
+downsampling of the six frozen source clips and documents an aliasing defect.
+This verifies the current local implementation; historical live request bytes
+and context remain unattested. Controlled comparisons should hold location/time
+context constant because replay retains the ordinary audio submission policy.
+
 This provides a repeatable input path. Benchmark claims require reviewed cases
 to be submitted and their observations retained. The
 [first controlled video run](../rfcs/identification-replay-app-benchmark-2026-09-22.md)

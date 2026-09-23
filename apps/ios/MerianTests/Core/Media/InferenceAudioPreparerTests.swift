@@ -4,6 +4,30 @@ import Testing
 
 @Suite("Inference audio preparation")
 struct InferenceAudioPreparerTests {
+    @Test(arguments: [128, 253_440, 441_000])
+    func canonicalPreparationPreservesEveryNonSilentSample(frameCount: Int) async throws {
+        let directory = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let source = directory.appendingPathComponent("source.wav")
+        // A full-range asymmetric pattern catches sign/endian/gain mistakes;
+        // non-buffer-aligned lengths catch dropped or padded final samples.
+        let input = makeInferenceTestPCM16WAVData(
+            sampleRate: 44_100, frameCount: frameCount,
+            sampleAt: { Int16(truncatingIfNeeded: $0 * 7_919 + 12_345) }
+        )
+        try input.write(to: source)
+
+        let output = try await InferenceAudioPreparer.prepareLocalFile(
+            at: source, outputDirectory: directory
+        )
+        #expect(InferenceAudioPreparer.isCanonicalPreparedWAV(at: output))
+        let outputPCM = try inferenceTestWAVPCMData(Data(contentsOf: output))
+        let inputPCM = try inferenceTestWAVPCMData(input)
+        #expect(outputPCM.count == frameCount * 2)
+        #expect(outputPCM.elementsEqual(inputPCM))
+        #expect(try Data(contentsOf: source).elementsEqual(input))
+    }
+
     @Test func transcodesNoncanonicalWAVToDocumentsOwnedCanonicalWAV() async throws {
         let directory = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
