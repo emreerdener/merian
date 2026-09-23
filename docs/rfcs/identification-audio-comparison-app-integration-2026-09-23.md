@@ -5,6 +5,14 @@ activation or paid comparison was performed in this slice. Gemini remains the
 only identification provider. The formal development/held-out qualification
 counts remain 0/60 and 0/240.
 
+Follow-up, 23 September 2026: live staging exposed Core Audio WAV padding added
+by the ordinary replay transcoder. The source's PCM was unchanged, but its full
+file hash failed the frozen assignment before admission. The comparison preparer
+now preserves an exact validated canonical WAV copy; the
+[current measurement contract](../development-guides/21-identification-app-measurement.md#fixed-context-for-foreground-audio-comparisons)
+owns that behavior. The original verification below remains historical and did
+not cover this full-file preparation boundary.
+
 This follows the
 [server assignment slice](./identification-audio-comparison-assignment-2026-09-23.md)
 and preserves its frozen twelve assignments, owner/bundle/window restriction,

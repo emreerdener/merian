@@ -87,9 +87,13 @@ enum CaptureDebugReplayPreparer {
         _ kind: CaptureDebugReplayKind,
         composingCenter: CGFloat,
         isProActive: Bool,
+        comparison: DebugAudioComparisonAssignment? = nil,
         documentsDirectory: URL = .documentsDirectory,
         dependencies: Dependencies = .live
     ) async throws -> PreparedCaptureDebugReplay {
+        guard comparison == nil || kind == .audio else {
+            throw CaptureDebugReplayError.comparisonMismatch
+        }
         let source = documentsDirectory.appendingPathComponent("IdentificationReplay")
             .appendingPathComponent(kind.filename)
         let copy = documentsDirectory
@@ -109,6 +113,12 @@ enum CaptureDebugReplayPreparer {
                 try validateFile(source, maximumBytes: kind.maximumBytes)
                 try FileManager.default.copyItem(at: source, to: copy)
                 try validateFile(copy, maximumBytes: kind.maximumBytes)
+                if let comparison {
+                    guard InferenceAudioPreparer.isCanonicalPreparedWAV(at: copy),
+                          comparison.matchesSource(try Data(contentsOf: copy)) else {
+                        throw CaptureDebugReplayError.comparisonMismatch
+                    }
+                }
             }
             let metadata = try await dependencies.metadata(copy)
             let maximumDuration = await kind.maximumDuration
@@ -122,9 +132,15 @@ enum CaptureDebugReplayPreparer {
                 guard metadata.hasAudio, !metadata.hasVideo else {
                     throw CaptureDebugReplayError.invalidSource
                 }
-                prepared = .audio(try await InferenceAudioPreparer.prepareLocalFile(
-                    at: copy, outputDirectory: documentsDirectory
-                ))
+                if comparison != nil {
+                    // Frozen comparisons bind the complete WAV, including its header.
+                    // Core Audio re-encoding adds padding even when PCM is unchanged.
+                    prepared = .audio(copy)
+                } else {
+                    prepared = .audio(try await InferenceAudioPreparer.prepareLocalFile(
+                        at: copy, outputDirectory: documentsDirectory
+                    ))
+                }
             case .video:
                 guard metadata.hasVideo else { throw CaptureDebugReplayError.invalidSource }
                 let video = try await dependencies.video(.init(

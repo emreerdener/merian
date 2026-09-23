@@ -209,13 +209,17 @@ implements a disabled twelve-slot gate and `X-Merian-Audio-Comparison` proof on
 fresh durable success. The subsequent
 [app integration](../rfcs/identification-audio-comparison-app-integration-2026-09-23.md)
 adds **Debug replay → Stage comparison slot**. Each numbered slot selects a
-generated frozen assignment. Staging checks the prepared WAV hash/length;
-request serialization checks the actual inline bytes again. The request uses the
-slot's fixed queue UUID and only the server-owned `{planSha256, slot}` handle.
-Existing queued/saved IDs and non-foreground admission are rejected before
-funding or file copying. The server remains authoritative for source, arm,
-request and settings bindings. No app setting changes a model or processing
-policy.
+generated frozen assignment. Comparison preparation validates the source copy's
+complete WAV hash/length and canonical mono 44.1 kHz Int16 format, then
+preserves its bytes without re-encoding. Core Audio can add container padding
+even when PCM samples are unchanged, which would invalidate a frozen assignment.
+Duration and copy-cleanup checks still apply. Ordinary replay retains its
+transcoder. Staging and request serialization check the actual bytes again. The
+request uses the slot's fixed queue UUID and only the server-owned
+`{planSha256, slot}` handle. Existing queued/saved IDs and non-foreground
+admission are rejected before funding or file copying. The server remains
+authoritative for source, arm, request and settings bindings. No app setting
+changes a model or processing policy.
 
 The native transport compares every receipt field with the generated table and
 rechecks current-attempt ownership on the same main-actor turn that adopts it.

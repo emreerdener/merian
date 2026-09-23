@@ -68,6 +68,14 @@ responsibilities. See the
 [app measurement guide](../../../../../../docs/development-guides/21-identification-app-measurement.md#controlled-audio-and-video-replay-in-the-simulator)
 for sample preparation, activation and measurement limits.
 
+**Stage comparison slot** validates a copy against the frozen assignment's
+complete WAV hash and length, requires canonical mono 44.1 kHz Int16 PCM, and
+retains those exact bytes through staging. Re-encoding an already canonical WAV
+can add Core Audio container padding and invalidate its assignment. Ordinary
+audio replay continues to use the production transcoder. The comparison copy
+retains the same duration, cancellation, source-preservation and staging
+ownership checks; later request serialization independently checks its bytes.
+
 The separate **Stage audio with fixed context** action attaches
 `audio-minimal-v1` to one staged audio item. It clears stale context prefetch,
 requires that item to remain the sole staged input through admission, and keeps
@@ -150,7 +158,9 @@ queue eligibility, source preservation, no-audio behavior, and lease cleanup.
 
 `CaptureDebugReplayPreparerTests` covers canonical audio, duration/size bounds,
 linked sources/inboxes, complete video evidence, fallback playback ownership and
-late cancellation cleanup. `CaptureWorkspaceDebugReplayTests`, under the
+late cancellation cleanup. Comparison cases verify full-file equality through
+request serialization, altered/noncanonical input rejection and cancellation
+cleanup using synthetic WAVs. `CaptureWorkspaceDebugReplayTests`, under the
 `CaptureWorkspaceViewModelRefinementTests` selector, covers manual Identify,
 interruption/replacement fencing and account changes without provider calls. It
 also verifies fixed-profile admission snapshots, mixed-input rejection, queue

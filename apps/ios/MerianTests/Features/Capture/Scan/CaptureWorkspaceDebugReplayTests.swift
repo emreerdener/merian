@@ -12,7 +12,11 @@ extension CaptureWorkspaceViewModelRefinementTests {
         try makeInferenceTestPCM16WAVData().write(to: url)
         defer { try? FileManager.default.removeItem(at: url) }
         let task = try XCTUnwrap(viewModel.startDebugReplay(
-            .audio, profile: .audioComparison(slot: .slot1), prepare: { _, _, _ in .audio(url) }
+            .audio, profile: .audioComparison(slot: .slot1), prepare: { _, _, _, comparison in
+                XCTAssertEqual(comparison?.slot, 1)
+                XCTAssertEqual(comparison?.sourceWavSha256, DebugAudioComparisonSlot.slot1.assignment.sourceWavSha256)
+                return .audio(url)
+            }
         ))
         await task.value
         XCTAssertTrue(viewModel.stagedCapture.isEmpty)
@@ -27,7 +31,10 @@ extension CaptureWorkspaceViewModelRefinementTests {
         try makeInferenceTestPCM16WAVData().write(to: url)
         defer { try? FileManager.default.removeItem(at: url) }
         let task = try XCTUnwrap(viewModel.startDebugReplay(
-            .audio, profile: .audioMinimalV1, prepare: { _, _, _ in .audio(url) }
+            .audio, profile: .audioMinimalV1, prepare: { _, _, _, comparison in
+                XCTAssertNil(comparison)
+                return .audio(url)
+            }
         ))
         await task.value
 
@@ -50,7 +57,7 @@ extension CaptureWorkspaceViewModelRefinementTests {
         try makeInferenceTestPCM16WAVData().write(to: url)
         defer { try? FileManager.default.removeItem(at: url) }
         let gate = ReplayWorkspaceGate()
-        let task = try XCTUnwrap(viewModel.startDebugReplay(.audio, profile: .audioMinimalV1, prepare: { _, _, _ in
+        let task = try XCTUnwrap(viewModel.startDebugReplay(.audio, profile: .audioMinimalV1, prepare: { _, _, _, _ in
             await gate.suspend()
             return .audio(url) // Deliberately ignores cancellation.
         }))
@@ -75,7 +82,7 @@ extension CaptureWorkspaceViewModelRefinementTests {
         try makeInferenceTestPCM16WAVData().write(to: url)
         defer { try? FileManager.default.removeItem(at: url) }
         let gate = ReplayWorkspaceGate()
-        let task = try XCTUnwrap(viewModel.startDebugReplay(.audio, profile: .audioMinimalV1, prepare: { _, _, _ in
+        let task = try XCTUnwrap(viewModel.startDebugReplay(.audio, profile: .audioMinimalV1, prepare: { _, _, _, _ in
             await gate.suspend()
             return .audio(url)
         }))
@@ -111,7 +118,7 @@ extension CaptureWorkspaceViewModelRefinementTests {
             playback: .init(fileURL: URL.documentsDirectory.appendingPathComponent("synthetic-playback.mp4"),
                             isCompressed: true, originalBytes: 2, playbackBytes: 1, preparationDuration: 0)
         )
-        let task = try XCTUnwrap(viewModel.startDebugReplay(.video, prepare: { _, _, _ in .video(video) }))
+        let task = try XCTUnwrap(viewModel.startDebugReplay(.video, prepare: { _, _, _, _ in .video(video) }))
         await task.value
         let staged = try XCTUnwrap(viewModel.stagedCapture.videos.first)
         XCTAssertEqual(staged.sampledImages.count, 5)
@@ -262,7 +269,7 @@ extension CaptureWorkspaceViewModelRefinementTests {
         }
         try await waitUntil(timeoutNanoseconds: 5_000_000_000) { viewModel.canStartDebugReplay }
         let task = try XCTUnwrap(viewModel.startDebugReplay(
-            .audio, profile: .audioMinimalV1, prepare: { _, _, _ in .audio(source) }
+            .audio, profile: .audioMinimalV1, prepare: { _, _, _, _ in .audio(source) }
         ))
         await task.value
         let prefetch = Task { EnvironmentContext(location: nil, locationName: "Synthetic stale context") }

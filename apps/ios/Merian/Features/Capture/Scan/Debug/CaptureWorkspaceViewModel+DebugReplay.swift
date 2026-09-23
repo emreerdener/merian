@@ -27,8 +27,8 @@ extension CaptureWorkspaceViewModel {
     func startDebugReplay(
         _ kind: CaptureDebugReplayKind,
         profile: DebugIdentificationReplayProfile? = nil,
-        prepare: @escaping @Sendable (CaptureDebugReplayKind, CGFloat, Bool) async throws -> PreparedCaptureDebugReplay = {
-            try await CaptureDebugReplayPreparer.prepare($0, composingCenter: $1, isProActive: $2)
+        prepare: @escaping @Sendable (CaptureDebugReplayKind, CGFloat, Bool, DebugAudioComparisonAssignment?) async throws -> PreparedCaptureDebugReplay = {
+            try await CaptureDebugReplayPreparer.prepare($0, composingCenter: $1, isProActive: $2, comparison: $3)
         }
     ) -> Task<Void, Never>? {
         guard canStartDebugReplay, profile == nil || kind == .audio,
@@ -56,7 +56,7 @@ extension CaptureWorkspaceViewModel {
                 }
             }
             do {
-                let prepared = try await prepare(kind, composingCenter, isProActive)
+                let prepared = try await prepare(kind, composingCenter, isProActive, profile?.comparison)
                 if let assignment = profile?.comparison {
                     do {
                         guard case .audio(let url) = prepared else { throw CaptureDebugReplayError.comparisonMismatch }

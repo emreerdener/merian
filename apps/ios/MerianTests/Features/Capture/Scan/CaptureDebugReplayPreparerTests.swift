@@ -7,6 +7,85 @@ import Testing
 
 @Suite("Debug replay preparation")
 struct CaptureDebugReplayPreparerTests {
+    @Test func comparisonPreservesCompleteWAVThroughRequestSerialization() async throws {
+        let fixture = try ReplayFixture()
+        defer { fixture.remove() }
+        let bytes = makeInferenceTestPCM16WAVData(
+            sampleRate: 44_100, frameCount: 4_097,
+            sampleAt: { Int16(($0 % 127) * 97 - 6_000) }
+        )
+        let comparison = fixture.comparison(for: bytes)
+        try bytes.write(to: fixture.source(.audio))
+
+        let result = try await fixture.prepare(.audio, comparison: comparison)
+        guard case .audio(let url) = result else {
+            Issue.record("Expected comparison audio"); return
+        }
+        let prepared = try Data(contentsOf: url)
+        #expect(url != fixture.source(.audio))
+        #expect(prepared == bytes, "The frozen assignment binds the entire WAV, not only PCM samples.")
+        #expect(InferenceAudioPreparer.isCanonicalPreparedWAV(at: url))
+        var request: [String: Any] = [
+            "client_scan_id": comparison.scanId,
+            "audioBase64s": [prepared.base64EncodedString()]
+        ]
+        try comparison.addHandle(to: &request)
+        #expect((request["audio_comparison"] as? [String: Any])?["slot"] as? Int == comparison.slot)
+        #expect(try fixture.workingFiles() == [url.lastPathComponent])
+        await result.discard(documentsDirectory: fixture.root)
+        #expect(try fixture.workingFiles().isEmpty)
+        #expect(try Data(contentsOf: fixture.source(.audio)) == bytes)
+    }
+
+    @Test func comparisonRejectsChangedSourceAndCleansCopy() async throws {
+        let fixture = try ReplayFixture()
+        defer { fixture.remove() }
+        let original = makeInferenceTestPCM16WAVData(sampleRate: 44_100)
+        var changed = original
+        changed[changed.count - 1] ^= 1
+        try changed.write(to: fixture.source(.audio))
+
+        await #expect(throws: CaptureDebugReplayError.self) {
+            try await fixture.prepare(.audio, comparison: fixture.comparison(for: original))
+        }
+        #expect(try fixture.workingFiles().isEmpty)
+        #expect(try Data(contentsOf: fixture.source(.audio)) == changed)
+    }
+
+    @Test func comparisonRejectsMatchingButNonCanonicalAudio() async throws {
+        let fixture = try ReplayFixture()
+        defer { fixture.remove() }
+        let bytes = makeInferenceTestPCM16WAVData(sampleRate: 48_000)
+        try bytes.write(to: fixture.source(.audio))
+
+        await #expect(throws: CaptureDebugReplayError.self) {
+            try await fixture.prepare(.audio, comparison: fixture.comparison(for: bytes))
+        }
+        #expect(try fixture.workingFiles().isEmpty)
+    }
+
+    @Test func comparisonCancellationDiscardsOnlyOwnedCopy() async throws {
+        let fixture = try ReplayFixture()
+        defer { fixture.remove() }
+        let bytes = makeInferenceTestPCM16WAVData(sampleRate: 44_100)
+        try bytes.write(to: fixture.source(.audio))
+        var dependencies = CaptureDebugReplayPreparer.Dependencies.live
+        dependencies.metadata = { _ in
+            withUnsafeCurrentTask { $0?.cancel() }
+            return .init(duration: 1, hasAudio: true, hasVideo: false)
+        }
+        let cancellationDependencies = dependencies
+        let task = Task {
+            try await fixture.prepare(
+                .audio, comparison: fixture.comparison(for: bytes),
+                dependencies: cancellationDependencies
+            )
+        }
+        await #expect(throws: CancellationError.self) { try await task.value }
+        #expect(try fixture.workingFiles().isEmpty)
+        #expect(try Data(contentsOf: fixture.source(.audio)) == bytes)
+    }
+
     @Test func audioUsesCanonicalPreparationAndPreservesInbox() async throws {
         let fixture = try ReplayFixture()
         defer { fixture.remove() }
@@ -157,11 +236,24 @@ private struct ReplayFixture: Sendable {
 
     func prepare(
         _ kind: CaptureDebugReplayKind,
+        comparison: DebugAudioComparisonAssignment? = nil,
         dependencies: CaptureDebugReplayPreparer.Dependencies = .live
     ) async throws -> PreparedCaptureDebugReplay {
         try await CaptureDebugReplayPreparer.prepare(
             kind, composingCenter: 0.5, isProActive: true,
+            comparison: comparison,
             documentsDirectory: root, dependencies: dependencies
+        )
+    }
+
+    func comparison(for bytes: Data) -> DebugAudioComparisonAssignment {
+        let placeholder = String(repeating: "0", count: 64)
+        return DebugAudioComparisonAssignment(
+            slot: 1, caseId: "synthetic", arm: "synthetic",
+            sourceWavSha256: DebugAudioComparisonAssignment.digest(bytes), sourceByteLength: bytes.count,
+            processedWavSha256: placeholder, providerRequestSha256: placeholder,
+            policySha256: placeholder, confidenceSha256: placeholder,
+            scanId: "00000000-0000-4000-8000-000000000001"
         )
     }
 
