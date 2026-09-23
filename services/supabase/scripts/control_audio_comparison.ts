@@ -11,6 +11,28 @@ const UUID =
 const RETENTION_START = Date.parse("2026-09-23T00:00:00.000Z");
 const RETENTION_END = Date.parse("2026-10-22T00:00:00.000Z");
 export type ComparisonOperation = "inspect" | "activate" | "deactivate";
+type ControlStage =
+  | "initial_inventory"
+  | "configuration_validation"
+  | "activation_validation"
+  | "set"
+  | "verify_set"
+  | "verify_window"
+  | "unset"
+  | "verify_unset";
+type CliFailureKind =
+  | "nonzero_exit"
+  | "timeout"
+  | "spawn_failure"
+  | "io_failure"
+  | "output_limit";
+
+/** Only locally defined categories may cross the private subprocess boundary. */
+export class ComparisonCliError extends Error {
+  constructor(readonly kind: CliFailureKind) {
+    super(kind);
+  }
+}
 
 interface Configuration {
   version: 1;
@@ -47,6 +69,7 @@ export interface ComparisonControlEvidence {
   planSha256: string | null;
   backendBundleSha256: string | null;
   automaticIdentificationRequests: 0;
+  failure: { stage: ControlStage; kind: CliFailureKind | "validation" } | null;
 }
 
 export class ComparisonControlError extends Error {
@@ -128,15 +151,18 @@ export async function controlAudioComparison(
     planSha256: null,
     backendBundleSha256: null,
     automaticIdentificationRequests: 0,
+    failure: null,
   };
   let intendedDigest: string | undefined;
   let settingAttempted = false;
+  let stage: ControlStage = "initial_inventory";
   try {
     const before = remoteDigest(await runtime.list());
     evidence.configurationPresent = before !== null;
     if (request.operation !== "activate" && before === null) {
       return { ...evidence, status: "disabled", cleanup: "verified_absent" };
     }
+    stage = "configuration_validation";
     const config = comparisonConfiguration(request.privateConfiguration);
     const canonical = JSON.stringify(config);
     intendedDigest = await sha256Hex(canonical);
@@ -152,7 +178,9 @@ export async function controlAudioComparison(
     }
     if (request.operation === "deactivate") {
       evidence.mutationAttempted = true;
+      stage = "unset";
       await runtime.unset();
+      stage = "verify_unset";
       require(remoteDigest(await runtime.list()) === null);
       return {
         ...evidence,
@@ -173,6 +201,7 @@ export async function controlAudioComparison(
     }
     // The workflow proves candidate readiness and deployed source identity
     // before supplying deployedSha. The control cannot widen the reviewed plan.
+    stage = "activation_validation";
     require(request.deployedSha && reviewed && state === "active");
     require(end - start <= 7_200_000);
     if (before === intendedDigest) {
@@ -180,12 +209,19 @@ export async function controlAudioComparison(
     }
     evidence.mutationAttempted = true;
     settingAttempted = true;
+    stage = "set";
     await runtime.set(`${COMPARISON_SECRET}='${canonical}'\n`);
+    stage = "verify_set";
     require(remoteDigest(await runtime.list()) === intendedDigest);
     // A delayed API call must not produce a false successful activation.
+    stage = "verify_window";
     require(runtime.now() < end);
     return { ...evidence, status: "active", configurationPresent: true };
   } catch (error) {
+    evidence.failure = {
+      stage,
+      kind: error instanceof ComparisonCliError ? error.kind : "validation",
+    };
     if (settingAttempted) {
       evidence.status = "activation_failed";
       evidence.cleanup = "unverified";
@@ -258,19 +294,26 @@ export async function runAudioComparisonControl(): Promise<void> {
     mode: 0o600,
   });
   const cli = async (args: string[], input?: string): Promise<string> => {
-    const child = new Deno.Command("supabase", {
-      args: ["secrets", ...args, "--project-ref", COMPARISON_PROJECT],
-      clearEnv: true,
-      env: {
-        PATH: Deno.env.get("PATH") ?? "",
-        SUPABASE_ACCESS_TOKEN: accessToken,
-        SUPABASE_TELEMETRY_DISABLED: "1",
-      },
-      stdin: input === undefined ? "null" : "piped",
-      stdout: "piped",
-      stderr: "piped",
-      signal: AbortSignal.timeout(60_000),
-    }).spawn();
+    const signal = AbortSignal.timeout(60_000);
+    let child: Deno.ChildProcess;
+    try {
+      child = new Deno.Command("supabase", {
+        args: ["secrets", ...args, "--project-ref", COMPARISON_PROJECT],
+        clearEnv: true,
+        env: {
+          PATH: Deno.env.get("PATH") ?? "",
+          SUPABASE_ACCESS_TOKEN: accessToken,
+          SUPABASE_TELEMETRY_DISABLED: "1",
+        },
+        stdin: input === undefined ? "null" : "piped",
+        stdout: "piped",
+        // Upstream errors can contain the private value; discard them entirely.
+        stderr: "null",
+        signal,
+      }).spawn();
+    } catch {
+      throw new ComparisonCliError("spawn_failure");
+    }
     try {
       if (input !== undefined) {
         const writer = child.stdin.getWriter();
@@ -278,8 +321,16 @@ export async function runAudioComparisonControl(): Promise<void> {
         await writer.close();
       }
       const result = await child.output();
-      require(result.success && result.stdout.length <= 1_048_576);
+      if (signal.aborted) throw new ComparisonCliError("timeout");
+      if (!result.success) throw new ComparisonCliError("nonzero_exit");
+      // Validate the buffered result; this is not a streaming memory bound.
+      if (result.stdout.length > 1_048_576) {
+        throw new ComparisonCliError("output_limit");
+      }
       return new TextDecoder().decode(result.stdout);
+    } catch (error) {
+      if (error instanceof ComparisonCliError) throw error;
+      throw new ComparisonCliError(signal.aborted ? "timeout" : "io_failure");
     } finally {
       try {
         child.kill("SIGKILL");

@@ -115,6 +115,8 @@ for name,status in [('before','disabled'),('enabled','active'),('unchanged','alr
         assert 'synthetic-controller-test-value' not in text
         assert 'ownerId' not in text
 assert json.loads((root/'failed.json').read_text())['cleanup']=='verified_absent'
+assert json.loads((root/'failed.json').read_text())['failure']=={'stage':'set','kind':'nonzero_exit'}
+assert json.loads((root/'enabled.json').read_text())['failure'] is None
 assert not (root/'synthetic-remote-value').exists()
 assert (root/'set-count').read_text().splitlines()==['set','set']
 print('Audio comparison CLI lifecycle and private transport passed with a local fake; zero network requests.')

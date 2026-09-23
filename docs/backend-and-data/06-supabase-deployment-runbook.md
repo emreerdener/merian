@@ -5027,6 +5027,15 @@ identifier is retained. Artifacts have thirty-day GitHub retention. Preserve
 benchmark observations separately under their existing access and retention
 rules.
 
+The diagnostic projection `failure` is null on success. On failure it contains
+only a fixed controller stage and failure category, distinguishing a failed CLI
+write from a subsequent digest or expiry verification failure. CLI categories
+distinguish nonzero exit, timeout, spawn, I/O and an oversized buffered stdout
+result; this last check is not a streaming memory bound. Validation failures
+contain no rejected values. CLI stderr is discarded, and stdout and original
+error messages remain suppressed. Cleanup preserves the original failure stage,
+and its separate `cleanup` field reports whether absence was verified.
+
 ## Identification Latency Rollout
 
 The image-analysis latency change is a staged operational rollout, not a reason

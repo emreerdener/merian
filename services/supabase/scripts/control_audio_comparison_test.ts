@@ -2,6 +2,7 @@ import { assert, assertEquals, assertRejects, assertThrows } from "@std/assert";
 import {
   COMPARISON_PROJECT,
   COMPARISON_SECRET,
+  ComparisonCliError,
   comparisonConfiguration,
   ComparisonControlError,
   type ComparisonControlRuntime,
@@ -95,6 +96,7 @@ Deno.test("comparison activation is bounded, redacted and idempotent; deactivati
   assertEquals(active.status, "active");
   assertEquals(active.target, COMPARISON_PROJECT);
   assertEquals(active.automaticIdentificationRequests, 0);
+  assertEquals(active.failure, null);
   assertEquals(state.sets.length, 1);
   const encoded = JSON.stringify(active);
   assert(!encoded.includes(OWNER));
@@ -208,11 +210,49 @@ Deno.test("ambiguous activation errors remove only the intended configuration an
     ComparisonControlError,
   );
   assertEquals(error.evidence.status, "activation_failed");
+  assertEquals(error.evidence.failure, { stage: "set", kind: "validation" });
   assertEquals(error.evidence.cleanup, "verified_absent");
   assertEquals(state.digest, null);
   assertEquals(state.unsets, 1);
   assert(!JSON.stringify(error.evidence).includes(OWNER));
   assert(!error.message.includes(OWNER));
+});
+
+Deno.test("activation diagnostics distinguish a child failure from a failed post-set verification", async () => {
+  for (
+    const kind of [
+      "nonzero_exit",
+      "timeout",
+      "spawn_failure",
+      "io_failure",
+      "output_limit",
+    ] as const
+  ) {
+    const { runtime } = fake();
+    runtime.set = () => Promise.reject(new ComparisonCliError(kind));
+    const error = await assertRejects(
+      () => controlAudioComparison(request("activate"), runtime),
+      ComparisonControlError,
+    );
+    assertEquals(error.evidence.failure, { stage: "set", kind });
+    assertEquals(error.evidence.cleanup, "verified_absent");
+  }
+  const { state, runtime } = fake();
+  const list = runtime.list;
+  runtime.list = () =>
+    state.lists === 1 ? (state.lists++, Promise.resolve([])) : list();
+  const error = await assertRejects(
+    () => controlAudioComparison(request("activate"), runtime),
+    ComparisonControlError,
+  );
+  assertEquals(error.evidence.failure, {
+    stage: "verify_set",
+    kind: "validation",
+  });
+  assertEquals(error.evidence.cleanup, "verified_absent");
+  assertEquals(state.unsets, 1);
+  assertEquals(state.digest, null);
+  assert(!JSON.stringify(error.evidence).includes(OWNER));
 });
 
 Deno.test("activation cleanup preserves a replacement and reports an unavailable cleanup honestly", async () => {
@@ -247,6 +287,10 @@ Deno.test("late activation and failed deletion cannot report verified success", 
     ComparisonControlError,
   );
   assertEquals(late.evidence.cleanup, "verified_absent");
+  assertEquals(late.evidence.failure, {
+    stage: "verify_window",
+    kind: "validation",
+  });
   state.digest = await sha256Hex(
     JSON.stringify(comparisonConfiguration(config())),
   );
@@ -257,6 +301,10 @@ Deno.test("late activation and failed deletion cannot report verified success", 
   );
   assertEquals(failed.evidence.status, "deactivation_unverified");
   assertEquals(failed.evidence.cleanup, "unverified");
+  assertEquals(failed.evidence.failure, {
+    stage: "verify_unset",
+    kind: "validation",
+  });
 });
 
 Deno.test("malformed remote digest inventory fails closed", async () => {
