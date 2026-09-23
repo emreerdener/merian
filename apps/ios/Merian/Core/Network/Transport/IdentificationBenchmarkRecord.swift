@@ -5,11 +5,8 @@ import Foundation
 enum IdentificationBenchmarkRecord {
     static let marker = "[⏱ BENCH] Identification measurement "
     private static let null = NSNull()
-    private static let spanNames: Set<String> = [
-        "auth", "body_read", "tier", "pre_gemini_db", "gemini", "quota_commit",
-        "provider", "video_promotion", "primary_enrichment", "database_finalization",
-        "dictionary", "post_gemini", "edge_total"
-    ]
+    private static let spanNames: Set<String> = ["provider", "edge_total"]
+    private static let maxTimingMetrics = 32
 
     private struct Header: Decodable {
         let version: Int
@@ -54,7 +51,7 @@ enum IdentificationBenchmarkRecord {
         // Keep the logged record compact. Detailed overlapping spans remain in
         // the HTTP header; these two establish the provider/other-work boundary.
         let timing = timingProjection(response.value(forHTTPHeaderField: "Server-Timing"))
-        let spans = timing.spans.filter { $0.key == "provider" || $0.key == "edge_total" }
+        let spans = timing.spans
         let otherEdgeMs: Any
         if let total = spans["edge_total"], let provider = spans["provider"], total >= provider {
             otherEdgeMs = total - provider
@@ -108,16 +105,40 @@ enum IdentificationBenchmarkRecord {
     private static func timingProjection(_ value: String?) -> (spans: [String: Double], status: String) {
         guard let value else { return ([:], "absent") }
         guard value.utf8.count <= 2_048 else { return ([:], "oversized") }
+        // Intermediaries may append metrics and quoted descriptions. Split only
+        // outside quotes so description text can never masquerade as a metric.
+        var entries: [Substring] = []
+        var start = value.startIndex
+        var quoted = false, escaped = false
+        for index in value.indices {
+            let character = value[index]
+            if escaped {
+                escaped = false
+            } else if quoted && character == "\\" {
+                escaped = true
+            } else if character == "\"" {
+                quoted.toggle()
+            } else if character == "," && !quoted {
+                entries.append(value[start..<index])
+                guard entries.count < maxTimingMetrics else { return ([:], "too_many_metrics") }
+                start = value.index(after: index)
+            }
+        }
+        guard !quoted && !escaped else { return ([:], "invalid_syntax") }
+        entries.append(value[start...])
         var result: [String: Double] = [:]
-        let entries = value.split(separator: ",", omittingEmptySubsequences: false)
-        guard entries.count <= spanNames.count else { return ([:], "too_many_metrics") }
         for entry in entries {
-            let parts = entry.trimmingCharacters(in: .whitespaces).components(separatedBy: ";dur=")
-            guard parts.count == 2 else { return ([:], "invalid_syntax") }
-            guard spanNames.contains(parts[0]) else { return ([:], "unknown_metric") }
+            let text = entry.trimmingCharacters(in: .whitespaces)
+            let name = String(text.prefix { $0 != ";" }).trimmingCharacters(in: .whitespaces)
+            guard !name.isEmpty else { return ([:], "invalid_syntax") }
+            // Only the two retained spans need validation. Unrelated metric
+            // names, parameters and descriptions never enter the projection.
+            guard spanNames.contains(name) else { continue }
+            let parts = text.components(separatedBy: ";dur=")
+            guard parts.count == 2, parts[0] == name else { return ([:], "invalid_syntax") }
             guard result[parts[0]] == nil else { return ([:], "duplicate_metric") }
             guard
-                  parts[1].range(of: "^[0-9]{1,6}(\\.[0-9]{1,6})?$", options: .regularExpression) != nil,
+                  parts[1].range(of: "^[0-9]{1,6}(\\.[0-9]{1,6})?$", options: .regularExpression) == parts[1].startIndex..<parts[1].endIndex,
                   let duration = Double(parts[1]), duration.isFinite,
                   (0...600_000).contains(duration) else { return ([:], "invalid_duration") }
             result[parts[0]] = duration

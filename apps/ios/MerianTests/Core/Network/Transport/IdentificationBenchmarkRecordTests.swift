@@ -82,15 +82,16 @@ struct IdentificationBenchmarkRecordTests {
         #expect(value["timingStatus"] as? String == "valid")
         #expect(value["serverTimingMs"] as? [String: Double] == ["provider": 20, "edge_total": 100])
         #expect(value["otherEdgeMs"] as? Double == 80)
-        let rejected = try record(header: fixture(), timing: timing + ", proxy;dur=1")
-        #expect(rejected["timingStatus"] as? String == "too_many_metrics")
-        #expect((rejected["serverTimingMs"] as? [String: Double])?.isEmpty == true)
+        let extended = try record(header: fixture(), timing: timing + ", proxy;dur=1;desc=synthetic-private")
+        #expect(extended["timingStatus"] as? String == "valid")
+        #expect(extended["serverTimingMs"] as? [String: Double] == ["provider": 20, "edge_total": 100])
     }
 
     @Test func timingFailuresRetainOnlyFixedReasons() throws {
         let cases: [(String?, String)] = [
             (nil, "absent"), (String(repeating: "x", count: 2_049), "oversized"),
-            ("provider", "invalid_syntax"), ("synthetic-private;dur=1", "unknown_metric"),
+            ("provider", "invalid_syntax"),
+            (Array(repeating: "proxy;dur=1", count: 33).joined(separator: ", "), "too_many_metrics"),
             ("provider;dur=1, provider;dur=2", "duplicate_metric"),
             ("provider;dur=NaN", "invalid_duration")
         ]
@@ -100,6 +101,28 @@ struct IdentificationBenchmarkRecordTests {
             #expect((value["serverTimingMs"] as? [String: Double])?.isEmpty == true)
             #expect(value["otherEdgeMs"] is NSNull)
             #expect(!String(decoding: try JSONSerialization.data(withJSONObject: value), as: UTF8.self).contains("synthetic-private"))
+        }
+    }
+
+    @Test func ignoresUnrelatedMetricsWithoutParsingQuotedDescriptionsAsSpans() throws {
+        let description = #"proxy;desc="synthetic-private,provider;dur=999,edge_total;dur=9999,escaped\"quote""#
+        let value = try record(header: fixture(), timing: "provider;dur=20, edge_total;dur=100, " + description)
+        #expect(value["timingStatus"] as? String == "valid")
+        #expect(value["serverTimingMs"] as? [String: Double] == ["provider": 20, "edge_total": 100])
+        #expect(value["otherEdgeMs"] as? Double == 80)
+        #expect(!String(decoding: try JSONSerialization.data(withJSONObject: value), as: UTF8.self).contains("synthetic-private"))
+        let unrelatedOnly = try record(header: fixture(), timing: description)
+        #expect((unrelatedOnly["serverTimingMs"] as? [String: Double])?.isEmpty == true)
+        #expect(unrelatedOnly["otherEdgeMs"] is NSNull)
+    }
+
+    @Test func boundsExtendedHeadersAndRejectsAmbiguousRetainedSpans() throws {
+        let maximum = (["provider;dur=20", "edge_total;dur=100"] + Array(repeating: "proxy;dur=1", count: 30)).joined(separator: ", ")
+        #expect(try record(header: fixture(), timing: maximum)["otherEdgeMs"] as? Double == 80)
+        for timing in [maximum + ", proxy;dur=1", "provider;dur=20, edge_total;dur=100, provider;dur=21", #"provider;dur=20, proxy;desc="unclosed"#, "provider;dur=20\n"] {
+            let value = try record(header: fixture(), timing: timing)
+            #expect((value["serverTimingMs"] as? [String: Double])?.isEmpty == true)
+            #expect(value["otherEdgeMs"] is NSNull)
         }
     }
 

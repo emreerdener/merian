@@ -46,10 +46,17 @@ marker fits within 1,024 UTF-8 bytes.
 New app records also include `timingStatus`: `valid`, `absent`, `oversized`,
 `too_many_metrics`, `invalid_syntax`, `unknown_metric`, `duplicate_metric` or
 `invalid_duration`. Only these fixed reasons are retained, never header text or
-unknown metric names. Rejected headers still yield empty spans and null other
-Edge time. `valid` means the header parsed; it does not guarantee that both
-required spans were present. The recorder accepts older records without this
-optional field and leaves their rejection reason unknown.
+unknown metric names. The parser bounds the entire header to 2,048 UTF-8 bytes
+and 32 entries, recognizes quoted commas and escaped quotes, and validates only
+the retained `provider` and `edge_total` metrics. Unrelated names, parameters
+and descriptions are discarded. Duplicate or malformed retained metrics reject
+the projection; rejected headers still yield empty spans and null other Edge
+time. `valid` means the projection parsed; it does not guarantee that both
+required spans were present. Older app builds rejected any unrecognized metric
+and enforced thirteen comma-separated entries; their `unknown_metric` and
+`too_many_metrics` records remain readable. The recorder also accepts older
+records without the optional status field and leaves their rejection reason
+unknown.
 
 Stored/reconstructed responses report `delivery: replay`, without claiming new
 provider usage. Failures, old/malformed diagnostic headers and unknown versions
@@ -152,7 +159,9 @@ responses. Parser/cost/streaming and subprocess-lifecycle tests run without
 network or environment access. Lifecycle tests cover late records, watchdog
 failure, unavailable collectors, the event cap, rejected rows and write-failure
 cleanup. Full thirteen-span timing fixtures cover both the backend auth wrapper
-and native projection. Use the complete native and backend gates in the
+and native projection. Extended-header fixtures cover unrelated metrics, quoted
+description injection, escaped quotes, the 32-entry bound and duplicate retained
+metrics. Use the complete native and backend gates in the
 [testing strategy](./08-testing-strategy.md) before handoff.
 
 ### Local verification checkpoint — 22 September 2026
@@ -191,3 +200,15 @@ reproduced premature shutdown with a 120-second synthetic window. A longer,
 bounded shutdown grace allowed the repaired window to retain all seven events
 and close normally. This establishes collector lifecycle behavior separately
 from the earlier missing flower events and live timing-header question.
+
+### Live capture verification — 22 September 2026
+
+The subsequent
+[bounded two-photo verification](../rfcs/identification-timing-capture-verification-2026-09-22.md)
+retained all seven expected events per case and closed both recorder windows
+normally. The flower exposed `too_many_metrics` under the old thirteen-entry
+parser. After the bounded, quote-aware parser change, the cat retained valid
+provider and total Edge spans. The flower was not retried, and its missing spans
+remain unknown. The complete updated native target passed 4,281 tests. These
+observations establish successful capture for the exercised paths, not complete
+billing coverage, verified accuracy or a latency distribution.

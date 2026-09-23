@@ -1,0 +1,512 @@
+{
+  "schemaVersion": "identification_production_app_repair_verification_v1",
+  "runId": "production-app-repaired-two-photos-2026-09-22",
+  "status": "two_completed_windows_provider_and_edge_timing_verified_for_cat",
+  "executionBoundary": "existing_production_app_workflow",
+  "authorizedAppSubmissions": 2,
+  "observedAppSubmissions": 2,
+  "visibleFinishedResults": 2,
+  "manualRetries": 0,
+  "providerInvocationCount": null,
+  "providerInternalRetryCount": null,
+  "totalBilledCostUsd": null,
+  "backendDeploymentThisRun": false,
+  "expectedBackendBundleSha256": "05aedfe76acc8d8bcee71f5ebf0f9de22590e79715e6cc80f1f4ab6032576558",
+  "backendDeploymentReference": {
+    "commit": "bcc7ef8de53cefaa04bed81cb32adf7de877bf9a",
+    "runUrl": "https://github.com/emreerdener/merian/actions/runs/35793015142",
+    "deployJobUrl": "https://github.com/emreerdener/merian/actions/runs/35793015142/job/106967866564",
+    "observedStatus": "success",
+    "evidenceScope": "previously_observed_deployment_not_requeried_during_this_repeat"
+  },
+  "observation": {
+    "script": "services/supabase/scripts/observe_identification_app.ts",
+    "scriptSha256": "13466267d366789c82b9c169cf6fe5a85a50fd99730f6e38d0e863ee58d574fe",
+    "collectorSha256": "de3831d46878fcebf62a8609f827de0166822ae6c991ebfdf372e604062b9dd1",
+    "projectionSha256": "bbcf22d9ae4f240e85c53cd79e656818adc205894ef49f7a3452e6955d928292",
+    "requestedSeconds": 120,
+    "shutdownGraceSeconds": 30,
+    "maximumEventsPerWindow": 100,
+    "overlappingLiveWindows": false,
+    "automaticSubmissions": 0,
+    "retainsRawLogs": false,
+    "caseAssociation": "observed_sequential_ui_actions",
+    "pricingSnapshotSha256": "d816105ce773e6341980ce1b40a89798de81e27cb0d7abf0756b297ed8c2046d"
+  },
+  "quality": {
+    "formalAccuracy": null,
+    "confidenceCalibration": null,
+    "p95LatencySeconds": null,
+    "providerComparison": null,
+    "independentlyVerifiedReferenceCount": 0,
+    "provisionalReferenceCount": 1,
+    "unverifiedReferenceCount": 1
+  },
+  "limitations": [
+    "One submission per photo; no repeat distribution or verified accuracy.",
+    "The flower exposed the header parser rejection; the app parser changes before the cat submission.",
+    "App source identities are retained per case; unknown earlier spans are never backfilled.",
+    "Original fixture hashes do not hash the final encoded provider payload.",
+    "Primary-attempt estimates exclude other attempts, optional enrichment, storage and transport.",
+    "The flower timingStatus is too_many_metrics; its provider and Edge timings remain unknown.",
+    "Successful observer completion does not prove exhaustive OS logging, invocation counts or billing coverage.",
+    "The cat build includes separately owned stable CI/documentation edits in its whole-worktree fingerprint; its runtime source matches the passed native test run."
+  ],
+  "privateEvidenceRetentionUntil": "2026-10-22",
+  "recordedAt": "2026-09-23T00:40:05.889570+00:00",
+  "dateTimezone": "America/Chicago",
+  "completeMeasurementEventSets": 2,
+  "validProviderAndEdgeTimingCaseCount": 1,
+  "pricingSnapshot": {
+    "version": "evaluation_pricing_v1",
+    "currency": "USD",
+    "service": "paid_standard_synchronous",
+    "retrievedAt": "2026-09-22T16:20:15.212Z",
+    "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+    "reviewRef": "pricing-public-20260922",
+    "includesReasoning": true,
+    "models": [
+      {
+        "model": "gemini-2.5-flash",
+        "inputPerMillion": {
+          "text": 0.3,
+          "image": 0.3,
+          "audio": 1,
+          "cached": 0.1
+        },
+        "outputPerMillion": 2.5,
+        "maxInputTokens": 1048576,
+        "maxBillableOutputTokens": 65536,
+        "limitsEvidenceRef": "limits-flash-20260922"
+      },
+      {
+        "model": "gemini-2.5-pro",
+        "inputPerMillion": {
+          "text": 2.5,
+          "image": 2.5,
+          "audio": 2.5,
+          "cached": 0.25
+        },
+        "outputPerMillion": 15,
+        "maxInputTokens": 1048576,
+        "maxBillableOutputTokens": 65536,
+        "limitsEvidenceRef": "limits-pro-20260922"
+      }
+    ]
+  },
+  "verification": {
+    "nativeUnitSuite": {
+      "result": "Passed",
+      "passedTests": 4281,
+      "failedTests": 0,
+      "skippedTests": 0,
+      "xcresult": ".artifacts/local-ios/4c43497f93bd413fbe11a90505d72bd2.xcresult",
+      "projectResources": "passed",
+      "markdownFormat": "passed",
+      "diffCheck": "passed",
+      "readOnlyParserReview": "no_blockers"
+    },
+    "normalAppBuild": "passed",
+    "installedSourceAndProductHashes": "verified",
+    "readOnlyParserReview": "no_blockers",
+    "backendRuntimeChanges": false,
+    "backendTestsThisRepeat": "not_rerun_no_backend_runtime_or_recorder_change",
+    "priorRecorderValidation": "recorder-validation-results.json",
+    "privateSourceSnapshotRetained": true,
+    "supersededBuildSubmittedScans": 0
+  },
+  "cases": [
+    {
+      "caseId": "c0001",
+      "observationSha256": "aa6dbe959e08cac2d4b38917192afb0fdba5c6a512d3264fd79860d168855921",
+      "observerReady": {
+        "readyAt": "2026-09-23T00:08:48.355Z",
+        "status": "observer_ready"
+      },
+      "observerCompletion": {
+        "finishedAt": "2026-09-23T00:10:56.364Z",
+        "status": "window_completed",
+        "events": 7,
+        "ready": true,
+        "stopReason": "collector_exit",
+        "collectorExitCode": 0,
+        "collectorSignal": null,
+        "unprojectedRows": 26,
+        "oversizedRows": 0
+      },
+      "uiResult": {
+        "caseId": "c0001",
+        "observedAt": "2026-09-23T00:10:15.992488+00:00",
+        "visibleFinishedResult": true,
+        "commonName": "Rough Hawkbit",
+        "scientificName": "Leontodon hispidus",
+        "matchLabel": "Possible match",
+        "referenceStatus": "unverified",
+        "manuallyConfirmedOrCorrected": false,
+        "submissionCount": 1
+      },
+      "measurements": [
+        {
+          "observedAt": "2026-09-23T00:09:10.313Z",
+          "observedAfterSeconds": 22.429,
+          "measurement": {
+            "event": "preflight_seconds",
+            "value": 0,
+            "unit": "seconds"
+          },
+          "cost": null
+        },
+        {
+          "observedAt": "2026-09-23T00:09:36.884Z",
+          "observedAfterSeconds": 49,
+          "measurement": {
+            "event": "http_identification",
+            "authSeconds": 0.011,
+            "transferAndServerSeconds": 25.635,
+            "status": 200
+          },
+          "cost": null
+        },
+        {
+          "observedAt": "2026-09-23T00:09:36.891Z",
+          "observedAfterSeconds": 49.008,
+          "measurement": {
+            "app": {
+              "build": "275",
+              "sourceFingerprint": "33d8197269dc7105ed6b42c3c52e85c33d8a3540c9b0a79346544ac7f76134b5",
+              "sourceRevision": "bcc7ef8de53cefaa04bed81cb32adf7de877bf9a",
+              "sourceState": "dirty",
+              "version": "1.0.3"
+            },
+            "delivery": "fresh",
+            "diagnostics": {
+              "backendBundleSha256": "05aedfe76acc8d8bcee71f5ebf0f9de22590e79715e6cc80f1f4ab6032576558",
+              "provider": "gemini",
+              "requestedModel": "gemini-2.5-pro",
+              "returnedModel": "gemini-2.5-pro",
+              "usage": {
+                "cachedTokens": null,
+                "candidateTokens": 544,
+                "promptTokens": 2711,
+                "thinkingTokens": 2154,
+                "toolTokens": null,
+                "totalTokens": 5409
+              },
+              "version": 1
+            },
+            "otherEdgeMs": null,
+            "serverTimingMs": {},
+            "status": 200,
+            "timingStatus": "too_many_metrics",
+            "version": "identification_app_measurement_v1"
+          },
+          "cost": {
+            "estimatedPrimaryUpperUsd": 0.0472475,
+            "reason": "estimated_primary_only",
+            "scope": "observed_primary_attempt_only",
+            "invoiceExact": false
+          }
+        },
+        {
+          "observedAt": "2026-09-23T00:09:36.930Z",
+          "observedAfterSeconds": 49.046,
+          "measurement": {
+            "event": "response_to_first_result_state_seconds",
+            "value": 0.039,
+            "unit": "seconds"
+          },
+          "cost": null
+        },
+        {
+          "observedAt": "2026-09-23T00:09:37.558Z",
+          "observedAfterSeconds": 49.674,
+          "measurement": {
+            "event": "tap_to_first_rendered_frame_seconds",
+            "value": 27.554,
+            "unit": "seconds"
+          },
+          "cost": null
+        },
+        {
+          "observedAt": "2026-09-23T00:09:37.922Z",
+          "observedAfterSeconds": 50.038,
+          "measurement": {
+            "event": "postflight_seconds",
+            "value": 1.033,
+            "unit": "seconds"
+          },
+          "cost": null
+        },
+        {
+          "observedAt": "2026-09-23T00:09:37.928Z",
+          "observedAfterSeconds": 50.044,
+          "measurement": {
+            "event": "total_pipeline_seconds",
+            "value": 27.61,
+            "unit": "seconds"
+          },
+          "cost": null
+        }
+      ],
+      "nativeParser": "original_thirteen_comma_entry_limit",
+      "providerMs": null,
+      "edgeTotalMs": null,
+      "observerStartedAt": "2026-09-23T00:08:47.884Z",
+      "observerElapsedSeconds": 128.48,
+      "originalAsset": {
+        "sha256": "ad490fa904570639a22aaea8ebbac6b85c2fc87766e389c0d2386e605ccf4902",
+        "bytes": 1267401,
+        "width": 1024,
+        "height": 768,
+        "format": "png",
+        "encodedProviderPayloadSha256": null
+      },
+      "appInstallation": {
+        "installedAt": "2026-09-23T00:03:05.866048+00:00",
+        "app": {
+          "CFBundleShortVersionString": "1.0.3",
+          "CFBundleVersion": "275",
+          "MERIAN_SOURCE_REVISION": "bcc7ef8de53cefaa04bed81cb32adf7de877bf9a",
+          "MERIAN_SOURCE_FINGERPRINT": "33d8197269dc7105ed6b42c3c52e85c33d8a3540c9b0a79346544ac7f76134b5",
+          "MERIAN_SOURCE_STATE": "dirty"
+        },
+        "installedFileSha256": {
+          "Info.plist": "cb78ba62bdbe6c3c6763d448c21d0398ee9331f361eb759507c670120e79ff30",
+          "Merian": "86ba20c0e5a2dcf7edde591448d1b4d87ff1a177bc7fe758ac6a40ce696874c9"
+        },
+        "xcresult": ".artifacts/local-ios/e4d529a354b545ddbbf94d22bff11ce2.xcresult",
+        "installation": "in_place_preserving_account_and_data",
+        "syntheticTestDevice": "removed"
+      },
+      "sourceEvidence": {
+        "baseRevision": "bcc7ef8de53cefaa04bed81cb32adf7de877bf9a",
+        "patchSha256": "179103ed9fb0dbef7d17636bae8dc4ca9537764ca761fc9f3718f7aca24c826a",
+        "untrackedFiles": [
+          {
+            "path": "docs/rfcs/identification-evaluation-evidence/2026-09-22-exploratory/production-app-measured-results.json",
+            "sha256": "43cb0dc75ad0d8124fab587333d4d34d14bb4e0429c7c8def6b5481bdd0843e0"
+          },
+          {
+            "path": "docs/rfcs/identification-evaluation-evidence/2026-09-22-exploratory/recorder-validation-results.json",
+            "sha256": "8be06bebe23f9068870dd58804e373936d0e9ee90b38eef6321fcbbf2acd6101"
+          },
+          {
+            "path": "docs/rfcs/identification-measured-app-benchmark-2026-09-22.md",
+            "sha256": "1a5c0343bc57676b1e1df86c8b8e0f063a2ea8dde58f5cece3ded826954a7009"
+          },
+          {
+            "path": "docs/rfcs/identification-recorder-repair-2026-09-22.md",
+            "sha256": "ae2f16982102d66d87360a53cc26bb3b156a13264394fa22b0f5e32066f68060"
+          },
+          {
+            "path": "services/supabase/scripts/identification_app_observer_test.ts",
+            "sha256": "05eb1a461a5bb7a3b60a3fddb82bf05eb78b62cf906c09082712e5c3955a7fd7"
+          },
+          {
+            "path": "services/supabase/scripts/identification_evaluation/appObserver.ts",
+            "sha256": "de3831d46878fcebf62a8609f827de0166822ae6c991ebfdf372e604062b9dd1"
+          }
+        ],
+        "snapshotSha256": "06f9f6834197f84fb8aa809742ded2c4e7b280d209c143728b7b7292ead814dc"
+      },
+      "submission": {
+        "count": 1,
+        "crop": "default",
+        "manualRetries": 0,
+        "observerReadyBeforeSubmission": true
+      }
+    },
+    {
+      "caseId": "c0002",
+      "observationSha256": "b7b217048e0941b16598ef3541f5f75c18261e36b1d0075bbed88b50c3948093",
+      "observerReady": {
+        "readyAt": "2026-09-23T00:36:44.026Z",
+        "status": "observer_ready"
+      },
+      "observerCompletion": {
+        "finishedAt": "2026-09-23T00:38:52.045Z",
+        "status": "window_completed",
+        "events": 7,
+        "ready": true,
+        "stopReason": "collector_exit",
+        "collectorExitCode": 0,
+        "collectorSignal": null,
+        "unprojectedRows": 24,
+        "oversizedRows": 0
+      },
+      "uiResult": {
+        "caseId": "c0002",
+        "observedAt": "2026-09-23T00:37:52.502942+00:00",
+        "visibleFinishedResult": true,
+        "commonName": "Long-Haired Tuxedo",
+        "scientificName": "Felis catus",
+        "matchLabel": "Strong match",
+        "referenceStatus": "provisional_species_only",
+        "manuallyConfirmedOrCorrected": false,
+        "submissionCount": 1
+      },
+      "measurements": [
+        {
+          "observedAt": "2026-09-23T00:37:02.176Z",
+          "observedAfterSeconds": 18.581,
+          "measurement": {
+            "event": "preflight_seconds",
+            "value": 0.001,
+            "unit": "seconds"
+          },
+          "cost": null
+        },
+        {
+          "observedAt": "2026-09-23T00:37:24.945Z",
+          "observedAfterSeconds": 41.349,
+          "measurement": {
+            "event": "http_identification",
+            "authSeconds": 0.586,
+            "transferAndServerSeconds": 21.93,
+            "status": 200
+          },
+          "cost": null
+        },
+        {
+          "observedAt": "2026-09-23T00:37:24.957Z",
+          "observedAfterSeconds": 41.362,
+          "measurement": {
+            "app": {
+              "build": "275",
+              "sourceFingerprint": "3ad8e9f3c0e73234a78e743652cd9ac88fb93414f6e348c85148abddf213d812",
+              "sourceRevision": "6c7ba02ede0fa0884189f55b726bb4babf5966a5",
+              "sourceState": "dirty",
+              "version": "1.0.3"
+            },
+            "delivery": "fresh",
+            "diagnostics": {
+              "backendBundleSha256": "05aedfe76acc8d8bcee71f5ebf0f9de22590e79715e6cc80f1f4ab6032576558",
+              "provider": "gemini",
+              "requestedModel": "gemini-2.5-pro",
+              "returnedModel": "gemini-2.5-pro",
+              "usage": {
+                "cachedTokens": null,
+                "candidateTokens": 605,
+                "promptTokens": 2711,
+                "thinkingTokens": 1701,
+                "toolTokens": null,
+                "totalTokens": 5017
+              },
+              "version": 1
+            },
+            "otherEdgeMs": 1365.7999999999993,
+            "serverTimingMs": {
+              "edge_total": 21377.8,
+              "provider": 20012
+            },
+            "status": 200,
+            "timingStatus": "valid",
+            "version": "identification_app_measurement_v1"
+          },
+          "cost": {
+            "estimatedPrimaryUpperUsd": 0.0413675,
+            "reason": "estimated_primary_only",
+            "scope": "observed_primary_attempt_only",
+            "invoiceExact": false
+          }
+        },
+        {
+          "observedAt": "2026-09-23T00:37:24.986Z",
+          "observedAfterSeconds": 41.391,
+          "measurement": {
+            "event": "response_to_first_result_state_seconds",
+            "value": 0.036,
+            "unit": "seconds"
+          },
+          "cost": null
+        },
+        {
+          "observedAt": "2026-09-23T00:37:25.527Z",
+          "observedAfterSeconds": 41.931,
+          "measurement": {
+            "event": "tap_to_first_rendered_frame_seconds",
+            "value": 23.654,
+            "unit": "seconds"
+          },
+          "cost": null
+        },
+        {
+          "observedAt": "2026-09-23T00:37:25.662Z",
+          "observedAfterSeconds": 42.067,
+          "measurement": {
+            "event": "postflight_seconds",
+            "value": 0.712,
+            "unit": "seconds"
+          },
+          "cost": null
+        },
+        {
+          "observedAt": "2026-09-23T00:37:25.668Z",
+          "observedAfterSeconds": 42.073,
+          "measurement": {
+            "event": "total_pipeline_seconds",
+            "value": 23.487,
+            "unit": "seconds"
+          },
+          "cost": null
+        }
+      ],
+      "nativeParser": "two_retained_spans_32_quote_aware_entries",
+      "providerMs": 20012,
+      "edgeTotalMs": 21377.8,
+      "observerStartedAt": "2026-09-23T00:36:43.595Z",
+      "observerElapsedSeconds": 128.45,
+      "originalAsset": {
+        "sha256": "9f08b3493a4bf68641f5fb1b177e94f01d7dfcfada22b83127dd23caa51589af",
+        "bytes": 1215198,
+        "width": 1024,
+        "height": 768,
+        "format": "png",
+        "encodedProviderPayloadSha256": null
+      },
+      "appInstallation": {
+        "installedAt": "2026-09-23T00:35:48.535725+00:00",
+        "app": {
+          "CFBundleShortVersionString": "1.0.3",
+          "CFBundleVersion": "275",
+          "MERIAN_SOURCE_REVISION": "6c7ba02ede0fa0884189f55b726bb4babf5966a5",
+          "MERIAN_SOURCE_FINGERPRINT": "3ad8e9f3c0e73234a78e743652cd9ac88fb93414f6e348c85148abddf213d812",
+          "MERIAN_SOURCE_STATE": "dirty"
+        },
+        "installedFileSha256": {
+          "Info.plist": "661d21cf90aa6732be3aaea8fe67f4fc9d8fb7d254be202d43aa4fe0e6c9cdc5",
+          "Merian": "3c4def8c9ee6bf2a7a941a66be13925487f23563a08ab1adc247d5396cfff8e3"
+        },
+        "xcresult": ".artifacts/local-ios/1d72286bf18747d3a308079358bd52e2.xcresult",
+        "sourceSnapshot": "timing-fix-stable-source.json",
+        "installation": "in_place_preserving_account_and_data",
+        "nativeSourceUnchangedSincePassed4281TestRun": true
+      },
+      "sourceEvidence": {
+        "baseRevision": "6c7ba02ede0fa0884189f55b726bb4babf5966a5",
+        "patchSha256": "ac9bf9cfaa0d1857553d1bbcbfcf88f2896e7e41ffce994f9a319fc2f1ff58ab",
+        "sourceFingerprint": "3ad8e9f3c0e73234a78e743652cd9ac88fb93414f6e348c85148abddf213d812",
+        "files": {
+          ".github/workflows/ios-build-and-test.yml": "3000c385ac04f0f98254e144a11f459ebe3faf689bf4070b7b842f30cce2cf1e",
+          "apps/ios/Merian/Core/Network/Transport/IdentificationBenchmarkRecord.swift": "d7713143b233a8ae83dbb3ad5f3e158411c3064616af1632690506554034d69b",
+          "apps/ios/MerianTests/Core/Network/Transport/IdentificationBenchmarkRecordTests.swift": "b8ae8d0a49a88d6663ed7dd515e0f1593b15b0d66161920a5e099e042a924926",
+          "docs/development-guides/08-testing-strategy.md": "9f3b8cb3e4d9e3f5cb74c241ebe3aa38f1ef4c55306057bb25378b4f607c9f9b",
+          "docs/development-guides/21-identification-app-measurement.md": "e47b46386ce7b38ec623c9564a5150ed7bd1d7ba6ba766343a33bf3721ff8873",
+          "scripts/test-ios-build-and-test-workflow.sh": "0cc67e509a9d63a100e103461d2088343aa845f503d764e625e482d338e506d6"
+        },
+        "unrelatedStableChanges": [
+          ".github/workflows/ios-build-and-test.yml",
+          "scripts/test-ios-build-and-test-workflow.sh",
+          "docs/development-guides/08-testing-strategy.md"
+        ],
+        "snapshotSha256": "e4cc8594e5ce8754aea4fdcc1f9a6023d507ba0347ff678cc24b5fa0b553036a"
+      },
+      "submission": {
+        "count": 1,
+        "crop": "default",
+        "manualRetries": 0,
+        "observerReadyBeforeSubmission": true
+      }
+    }
+  ]
+}

@@ -227,7 +227,10 @@ production submission or public release.
   recorder failures and missing server timings. The
   [recorder repair checkpoint](./rfcs/identification-recorder-repair-2026-09-22.md)
   records the synthetic reproduction, bounded shutdown repair and live-repeat
-  verification status.
+  verification status. The
+  [live capture verification](./rfcs/identification-timing-capture-verification-2026-09-22.md)
+  subsequently completed both recorder windows and verified provider/Edge timing
+  on the cat after a native parser fix, preserving the flower's missing spans.
 - **Deferred family and prior combined planning:**
   [PRD](./product/02-family-plans-and-ai-platform-prd.md) and
   [SRD](./rfcs/family-plans-and-ai-platform-srd.md). Family plans are deferred;

@@ -3,6 +3,12 @@
 Date: 22 September 2026\
 Status: Synthetic recorder validation passed; live repeat awaits an unlocked Mac
 
+Follow-up on 22 September:
+[live capture verification](./identification-timing-capture-verification-2026-09-22.md)
+completed both authorized submissions after unlock and verified provider/Edge
+timing for the cat after a native parser fix. The checkpoint below remains the
+original pre-repeat record.
+
 The passive observer now allows the simulator logger to finish normally and
 records readiness and the reason it stopped. Gemini selection, requests,
 identification results and the production backend are unchanged. Native timing
