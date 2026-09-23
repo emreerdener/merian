@@ -238,12 +238,19 @@ qualify. Native draw and queue finalization may finish in either order.
 Unprojected unrelated timing rows are counted but not retained; this is still
 not a complete billing ledger.
 
-Keep `IDENTIFICATION_AUDIO_COMPARISON_V1` unset pending the separately
-authorized deployment/activation and reviewed run. Local implementation and
-synthetic tests do not constitute a paid experiment. Old artifacts remain
-immutable; never add proof fields by hand. This evidence binds an observed
-native outcome to an authenticated response claim, not a standalone signed
-artifact or a species accuracy judgment. The integration record gives the
+The reusable **Control identification audio comparison** workflow owns
+inspection, bounded activation and deactivation of
+`IDENTIFICATION_AUDIO_COMPARISON_V1`; follow the
+[activation and recovery procedure](../backend-and-data/06-supabase-deployment-runbook.md#audio-comparison-activation-hold).
+The infrastructure stays installed between runs. Each activation requires the
+reviewed account, plan, deployed bundle and a window of at most two hours;
+expiry stops comparison requests even if cleanup is interrupted. A stored
+expired value is inactive, and verified deactivation separately proves removal.
+Deployment and paid observations still require their named authorization. Local
+implementation and synthetic tests do not constitute a paid experiment. Old
+artifacts remain immutable; never add proof fields by hand. This evidence binds
+an observed native outcome to an authenticated response claim, not a standalone
+signed artifact or a species accuracy judgment. The integration record gives the
 offline admission command.
 
 The

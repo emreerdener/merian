@@ -6765,9 +6765,23 @@ publication, queue finalization, cancellation and first-render proof. The root
 admission, exact logged JSON hashing, malformed/duplicate/missing boundaries and
 privacy projection. The existing isolated evaluator test covers bounded private
 file reads and exclusive output creation with network/environment access denied.
-These checks use synthetic inputs and make no provider calls. Keep the server
-configuration unset; hosted deployment, activation and paid observations remain
-separate release operations.
+These checks use synthetic inputs and make no provider calls. Hosted deployment,
+activation and paid observations remain separate release operations.
+
+`control_audio_comparison_test.ts` covers the reusable workflow's bounded
+configuration lifecycle, malformed inventories, owner/runtime compatibility,
+expiry, idempotency, mismatched replacements, ambiguous activation cleanup and
+redacted failure evidence. `control_audio_comparison_cli_test.sh` runs the
+actual controller with a local fake CLI to verify stdin-only private transport,
+child environment isolation, private evidence permissions,
+activation/deactivation and suppression of upstream output. Both are discovered
+by the complete Supabase tooling gate and make no network or provider requests.
+Workflow guards preserve current-main, Production, the shared deployment lock,
+candidate validation and actual deployed-source evidence. These tests cannot
+prove atomic list/delete against an out-of-workflow operator or cleanup after
+runner loss; the
+[operator recovery procedure](../backend-and-data/06-supabase-deployment-runbook.md#audio-comparison-activation-hold)
+and runtime expiry own those boundaries.
 
 Identification evaluation Slice 1 is tooling-only. The root-discovered
 `identification_evaluation_contract_test.ts` and

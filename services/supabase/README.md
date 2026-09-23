@@ -38,6 +38,14 @@ and [future-provider procedure](functions/_shared/ai/ADDING_PROVIDERS.md)
 distinguish completed source/local checks from candidate and production
 activation.
 
+The reusable **Control identification audio comparison** workflow uses
+`scripts/control_audio_comparison.ts` to inspect, activate or deactivate a
+reviewed private run. It preserves Production controls, limits each run to two
+hours and makes no identification requests. Expiry leaves the infrastructure
+installed while making that run inactive; deactivation separately verifies
+removal of its hosted setting. See the
+[canonical activation and recovery procedure](../../docs/backend-and-data/06-supabase-deployment-runbook.md#audio-comparison-activation-hold).
+
 ```text
 services/supabase/
   config.toml      # Supabase CLI and Edge Function configuration

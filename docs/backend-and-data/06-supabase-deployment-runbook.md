@@ -4915,21 +4915,117 @@ customer before the Supabase job completes, and never change
 
 ## Audio comparison activation hold
 
-The
-[server-owned audio comparison](../rfcs/identification-audio-comparison-assignment-2026-09-23.md)
-is implemented locally and defaults off. Keep
-`IDENTIFICATION_AUDIO_COMPARISON_V1` unset. The
-[native assignment and observer integration](../rfcs/identification-audio-comparison-app-integration-2026-09-23.md)
-now implements receipt, exact queue finalization, first-draw and complete-window
-admission locally; synthetic verification is not live experiment evidence.
-Candidate validation or deploying compatible code does not authorize
-configuration activation or paid comparison requests. A later activation must
-name the target, owner and bounded window, pin the exact reviewed plan and
-generated runtime hash, and retain the normal exact-SHA/deployment/approval
-controls. Do not record the private owner configuration in source or benchmark
-artifacts. Disabling the configuration blocks comparison requests, including
-reserved-ID recovery, while ordinary scans retain their existing path. No old
-processor rollback is needed.
+The reusable control is **Control identification audio comparison**
+(`.github/workflows/identification-audio-comparison.yml`). The control and
+[native assignment/observer infrastructure](../rfcs/identification-audio-comparison-app-integration-2026-09-23.md)
+remain available between experiments. Individual runs are bounded and default
+off; installing or deploying the control does not activate a run or make a paid
+request. Gemini and the current audio processor remain the ordinary production
+path.
+
+The workflow has three explicit operations: `inspect` (the default), `activate`,
+and `deactivate`. All use the exact clean current `main` SHA, the protected
+GitHub `Production` environment, pinned Supabase CLI and the same
+`supabase-production-deploy` concurrency group as deployments. The target is
+fixed in the controller to `qlarqavoqhkuwzmevrmf`; it accepts no arbitrary
+project, secret name, provider, model or request body. Do not use local CLI or
+dashboard mutations to replace this control.
+
+Activation additionally requires the complete exact-SHA **Supabase Candidate
+Validation** gate and the live `automatic-release` audit. The existing
+deployment resolver must find a successful production `deploy` job with
+completed migration and smoke steps; a green workflow that skipped production is
+insufficient. The reviewed candidate's generated identification bundle identity
+and comparison plan must match that deployed revision. An unchanged runtime may
+therefore be controlled after a documentation or tooling-only commit. No
+deployment or schema operation is performed by this workflow. `inspect` and
+`deactivate` remain available for recovery without a new database validation or
+deployment, while retaining the exact-main, protected-environment and
+concurrency controls.
+
+### Prepare and activate a run
+
+1. Obtain explicit authorization for the target, account, bounded paid run and
+   time window. Verify the installed app identity, source files, twelve frozen
+   assignments, expectation files, observer and ordinary Pro access. Resolve the
+   owner from the current authenticated simulator session, with fresh
+   session-bound consent synchronization; a cached ledger UUID alone is not
+   proof of the active session. Account changes stop the run.
+2. Through a private, authorized GitHub secret-management channel, place the
+   exact six-field JSON in the **Production environment secret**
+   `IDENTIFICATION_AUDIO_COMPARISON_V1`: `version: 1`, private `ownerId`,
+   reviewed `planSha256`, reviewed `backendBundleSha256`, `startsAt`, and
+   `expiresAt`. Timestamps use UTC milliseconds (`YYYY-MM-DDTHH:mm:ss.sssZ`).
+   The workflow limits a run to **two hours**, within the runtime plan's fixed
+   eligibility and retention window. Do not place this JSON in workflow inputs,
+   source, messages, logs or benchmark artifacts. Do not replace this
+   environment value until the previous hosted configuration has been
+   deactivated and its absence verified.
+3. Dispatch `inspect` from `main`, supplying its exact `candidate_sha`. A
+   missing hosted configuration reports `disabled`. A present configuration is
+   compared in memory with the canonical private JSON and classified as
+   `active`, `scheduled`, `expired` or `incompatible`; a different digest fails
+   closed.
+4. Dispatch `activate` for that same current SHA. Validation may take time, so
+   the approved window must still be open when the control runs. The controller
+   accepts only the checked-in plan and bundle. It refuses a different hosted
+   value, pipes canonical JSON to the CLI through stdin, and verifies its remote
+   digest without retaining either value or digest. Repeating activation of the
+   exact active value reports `already_active`; it cannot extend expiry or reset
+   consumed assignments.
+5. Only after verified activation, submit the reviewed slots through the
+   ordinary app, one attempt and one complete observer window at a time. The
+   existing server gate enforces the authenticated owner, source, settings,
+   reserved IDs, Pro quota and single fresh primary attempt. Configuration
+   inspection is management-plane evidence, not a runtime readiness or quality
+   probe. An unavailable/mismatched initial request stops the run; preserve its
+   failed outcome, deactivate and investigate without selective retries.
+
+The frozen table still contains only twelve assignments. A new experiment needs
+a reviewed new plan and regenerated app/server bindings. Re-enabling a setting
+does not create new slots or authorize a different provider. Synthetic tests and
+control evidence do not qualify the reference corpus or measure accuracy.
+
+### Expiry, deactivation and recovery
+
+The backend rejects comparison requests at `expiresAt`, including reserved-ID
+recovery, even if GitHub or the operator process is unavailable. An expired
+setting may remain stored but is inactive; expiration does **not** prove
+removal. There is no recurring workflow or paid background experiment. The
+reusable control can stay installed permanently.
+
+Use `deactivate` to stop a run early or explicitly close it after completion.
+The controller compares the hosted digest with the same private configuration,
+removes only the named setting and verifies absence. An already absent setting
+is an idempotent success and does not require the private JSON. Cleanup of a
+matching expired or older plan remains possible after the current bundle
+changes. This does not remove the comparison implementation or roll back audio
+processing.
+
+All operators must use this workflow for the setting and serialize changes
+through its shared deployment lock. Supabase's list/delete operations are not an
+atomic conditional delete: the digest comparison can detect a replacement made
+before its read, but cannot preserve a concurrent dashboard/API write made
+between that read and deletion. Do not edit the hosted setting outside the
+workflow during a run. `replacement_preserved` describes a detected mismatch,
+not a general compare-and-swap guarantee.
+
+Failed activation attempts cleanup, but network failure, cancellation or runner
+loss may leave the bounded configuration active until expiry. Any
+`cleanup: unverified`, interrupted workflow, or missing final artifact is an
+unresolved state: submit no requests, run `inspect`, then `deactivate` until
+absence is verified. Do not replace the private environment secret while
+recovery is unresolved. A mismatch requires identifying the owning run through
+the private operator channel before changing anything. Never claim cleanup from
+expiry alone.
+
+Each completed control emits a sanitized `audio_comparison_control_v1` artifact
+with action, target, source/deployed revisions, reviewed hashes, window,
+observed configuration state, mutation-attempt status and cleanup result. No
+owner, credentials, private JSON, secret digest, media, response body or scan
+identifier is retained. Artifacts have thirty-day GitHub retention. Preserve
+benchmark observations separately under their existing access and retention
+rules.
 
 ## Identification Latency Rollout
 
