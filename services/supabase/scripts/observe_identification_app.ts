@@ -1,6 +1,5 @@
 import {
-  appMeasurementCost,
-  parseAppMeasurement,
+  projectedMeasurementCost,
 } from "./identification_evaluation/appObservation.ts";
 import {
   collectAppLogs,
@@ -108,9 +107,7 @@ export async function observeIdentificationApp(args: string[]): Promise<void> {
       );
     }, async (projected) => {
       const now = Date.now();
-      const cost = projected.version === "identification_app_measurement_v1"
-        ? appMeasurementCost(parseAppMeasurement(projected), pricing, now)
-        : null;
+      const cost = projectedMeasurementCost(projected, pricing, now);
       await write({
         observedAt: new Date(now).toISOString(),
         observedAfterSeconds: Math.round(performance.now() - started) / 1000,

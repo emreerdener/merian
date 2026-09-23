@@ -70,7 +70,7 @@ struct IdentificationBenchmarkRecordTests {
         app["CFBundleShortVersionString"] = "12345.12345.12345.12345"
         app["CFBundleVersion"] = "1234567890.12345.12345"
         app["MERIAN_SOURCE_REVISION"] = String(repeating: "a", count: 64)
-        let value = try record(header: header, timing: "provider;dur=123456.123456, edge_total;dur=234567.234567, gemini;dur=123460", app: app)
+        let value = try record(header: header, timing: "provider;dur=123456.123456, edge_total;dur=234567.234567, gemini;dur=123460", app: app, fixedAudioContext: true)
         let encoded = try JSONSerialization.data(withJSONObject: value, options: [.sortedKeys])
         #expect(encoded.count + IdentificationBenchmarkRecord.marker.utf8.count <= 1_024)
         #expect(Set(try #require(value["serverTimingMs"] as? [String: Double]).keys) == ["provider", "edge_total"])
@@ -164,6 +164,58 @@ struct IdentificationBenchmarkRecordTests {
         #expect(app["sourceState"] is String)
     }
 
+    #if DEBUG && targetEnvironment(simulator)
+    @Test func fixedProfileRequiresFreshDiagnostics() throws {
+        let fresh = try record(header: fixture(), fixedAudioContext: true)
+        #expect(fresh["version"] as? String == "identification_app_measurement_v2")
+        #expect(fresh["contextProfile"] as? String == "audio-minimal-v1")
+        for value in [
+            try record(header: fixture()),
+            try record(header: fixture(), replay: true, fixedAudioContext: true),
+            try record(header: fixture(), status: 503, fixedAudioContext: true),
+            try record(header: nil, fixedAudioContext: true)
+        ] { #expect(value["contextProfile"] is NSNull) }
+    }
+
+    @MainActor
+    @Test func fixedProfileBindsFinalBodyAndChecksLiveOwnership() async throws {
+        let body = try fixedAudioMeasurementTestBody()
+        let telemetry = DebugIdentificationReplayProfile.audioMinimalV1.makeTelemetry()
+        var current = true
+        let context = try #require(IdentificationMeasurementContext.fixedAudio(
+            body: body, telemetry: telemetry,
+            validateAttempt: { if !current { throw CancellationError() } }
+        ))
+        #expect(context.isCurrent())
+        current = false
+        #expect(!context.isCurrent())
+        #expect(IdentificationMeasurementContext.fixedAudio(body: body, telemetry: telemetry, validateAttempt: nil) == nil)
+        var ordinary = telemetry
+        ordinary.debugReplayProfile = nil
+        #expect(IdentificationMeasurementContext.fixedAudio(body: body, telemetry: ordinary, validateAttempt: {}) == nil)
+        let object = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        for (key, value): (String, Any) in [
+            ("currentMonth", 2), ("deviceTimeZone", "America/Chicago"),
+            ("deviceRegion", "US"), ("gpsLatitude", 1), ("timestamp", "synthetic"),
+            ("audioBase64s", ["AA==", "AA=="]), ("imageBase64s", ["AA=="]),
+            ("observation_contexts", [["freeText": "synthetic"]]),
+            ("audioMediaItems", [IdentifyAudioMediaItem.videoAudio(clipIndex: 0).jsonObject]),
+            ("ownerMediaTimeline", [IdentifyOwnerMediaTimelineItem.video(clipIndex: 0).jsonObject])
+        ] {
+            var altered = object
+            altered[key] = value
+            #expect(IdentificationMeasurementContext.fixedAudio(
+                body: try JSONSerialization.data(withJSONObject: altered), telemetry: telemetry, validateAttempt: {}
+            ) == nil)
+        }
+        let cancelled = Task { @MainActor in
+            withUnsafeCurrentTask { $0?.cancel() }
+            return context.isCurrent()
+        }
+        #expect(await cancelled.value == false)
+    }
+    #endif
+
     private var appInfo: [String: Any] {
         ["CFBundleShortVersionString": "1.0.3", "CFBundleVersion": "275",
          "MERIAN_SOURCE_REVISION": String(repeating: "a", count: 40),
@@ -182,7 +234,7 @@ struct IdentificationBenchmarkRecordTests {
     private func record(
         header: [String: Any]?, status: Int = 200, replay: Bool = false,
         timing: String? = "auth;dur=1, provider;dur=20, gemini;dur=25, edge_total;dur=100",
-        app: [String: Any]? = nil
+        app: [String: Any]? = nil, fixedAudioContext: Bool = false
     ) throws -> [String: Any] {
         var headers: [String: String] = [:]
         if let timing { headers["Server-Timing"] = timing }
@@ -191,7 +243,21 @@ struct IdentificationBenchmarkRecordTests {
         }
         if replay { headers["X-Merian-Idempotent-Replay"] = "stored" }
         let response = try #require(HTTPURLResponse(url: URL(string: "https://example.invalid/identify-multimodal")!, statusCode: status, httpVersion: nil, headerFields: headers))
-        let text = try #require(IdentificationBenchmarkRecord.make(response: response, appInfo: app ?? appInfo))
+        let text = try #require(IdentificationBenchmarkRecord.make(response: response, appInfo: app ?? appInfo, fixedAudioContext: fixedAudioContext))
         return try #require(JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any])
     }
 }
+
+#if DEBUG && targetEnvironment(simulator)
+func fixedAudioMeasurementTestBody() throws -> Data {
+    let telemetry = DebugIdentificationReplayProfile.audioMinimalV1.makeTelemetry()
+    return try InferencePayloadBuilder.multimodalBody(
+        r2ObjectKeys: [], audioR2ObjectKeys: [], imageBase64s: [], audioBase64s: ["AA=="],
+        audioMediaItems: [.audio(sourceIndex: 0)],
+        ownerMediaTimeline: [.audio(audioInputIndex: 0, sourceIndex: 0)],
+        observationContextsJSON: [], mimeType: "image/webp", telemetry: telemetry,
+        context: InferencePayloadBuilder.makeContext(userId: UUID().uuidString, telemetry: telemetry, defaultGeoprivacy: "private"),
+        clientScanId: UUID().uuidString
+    )
+}
+#endif

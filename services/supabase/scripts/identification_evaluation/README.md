@@ -118,6 +118,47 @@ request. See the
 for the offline evidence. Historical run fingerprints remain frozen; a new
 processor requires a new run rather than overwriting a prior baseline.
 
+### Offline audio comparison preparation
+
+`prepare_audio_preprocessing_comparison.ts` verifies the frozen six-audio
+packet's manifest and source hashes, then prepares exactly two arms per case:
+`audio-linear-full-windows-v1` (historical floor-window trimming and linear
+resampling) and `audio-sinc-partial-tail-v1` (the current multimodal audio
+helper). The historical transforms are isolated in `legacyAudio.ts`, with
+canonical standalone mono PCM16 44.1 kHz inputs bounded to 15 seconds before
+processing. Neither deployed functions nor the ordinary evaluator import the
+legacy processor.
+
+Both arms use `audio-minimal-v1` synthetic context and the current Gemini Pro
+request builders. A non-audio request hash must match within each pair. The
+preparation records source, processed-WAV, provider-request, policy and
+confidence hashes, output format/length, model/prompt/schema/generation and the
+complete local implementation fingerprint. It retains no raw media or request
+bodies. Twelve prospective first-attempt assignments alternate the first arm by
+case; there are no selective retries. A changed implementation requires a new
+preparation and review, even if its arm name is unchanged.
+
+From the repository root, use a new private destination (replace `SOURCE` and
+`OUTPUT` with absolute paths):
+
+```bash
+deno run --frozen --no-prompt --deny-net --deny-env \
+  --config services/supabase/functions/deno.json \
+  --allow-read=.,SOURCE,OUTPUT --allow-run=git --allow-write=OUTPUT \
+  services/supabase/scripts/prepare_audio_preprocessing_comparison.ts SOURCE OUTPUT
+```
+
+This emits `preparation.json` and a canonical-JSON digest in `freeze.json` using
+exclusive creation and private permissions. It refuses changed source media or
+an existing destination. It reads no provider key and enables no live dispatch.
+The preparation version is intentionally incompatible with evaluator RunSpecs.
+The app can run only the currently deployed arm; old/new app-route experiments
+still need server-owned assignment and case/media/outcome binding. V2 app
+`contextProfile` attests only fixed context on the initial active foreground
+HTTP response. `requireFixedAudioMeasurement` enforces that profile and reviewed
+execution identities; it is not a per-case or formal-qualification gate. See the
+[preparation record](../../../../docs/rfcs/identification-audio-comparison-provenance-2026-09-23.md).
+
 `scoreEvaluation(corpus, predictions, { profile, split, inputGroup?, caseIds? })`
 returns the typed `identification_scores_v1` report. Supply predictions for one
 profile and split. Unknown cases, foreign splits, duplicate attempts, malformed

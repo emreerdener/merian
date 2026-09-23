@@ -5,6 +5,8 @@ import {
   boundedLogLines,
   parseAppMeasurement,
   projectAppLog,
+  projectedMeasurementCost,
+  requireFixedAudioMeasurement,
 } from "./identification_evaluation/appObservation.ts";
 import {
   MODELS,
@@ -229,4 +231,94 @@ Deno.test("observer streaming decoder drops oversized lines and resumes after bo
   const lines = [];
   for await (const line of boundedLogLines(stream)) lines.push(line);
   assertEquals(lines, ["hello", "next"]);
+});
+
+Deno.test("fixed-context admission requires v2 active profile and exact reviewed identities", () => {
+  const old = fixture();
+  const current = parseAppMeasurement({
+    ...old,
+    version: "identification_app_measurement_v2",
+    timingStatus: "valid",
+    contextProfile: "audio-minimal-v1",
+    diagnostics: {
+      ...old.diagnostics!,
+      returnedModel: old.diagnostics!.requestedModel,
+    },
+  });
+  const expected = {
+    app: current.app,
+    backendBundleSha256: current.diagnostics!.backendBundleSha256,
+    requestedModel: current.diagnostics!.requestedModel,
+  };
+  assertEquals(requireFixedAudioMeasurement(current, expected), current);
+  assertThrows(() => requireFixedAudioMeasurement(old, expected));
+  for (
+    const change of [
+      { contextProfile: null },
+      { contextProfile: "unknown-profile" },
+      { status: 503 },
+      { delivery: "replay" },
+      { diagnostics: null },
+      { app: { ...current.app, sourceFingerprint: "f".repeat(64) } },
+      { app: { ...current.app, sourceRevision: null } },
+      {
+        diagnostics: {
+          ...current.diagnostics!,
+          backendBundleSha256: "f".repeat(64),
+        },
+      },
+      {
+        diagnostics: {
+          ...current.diagnostics!,
+          returnedModel: "gemini-2.5-pro-002",
+        },
+      },
+      { timingStatus: "absent", serverTimingMs: {}, otherEdgeMs: null },
+    ]
+  ) {
+    assertThrows(() =>
+      requireFixedAudioMeasurement({ ...current, ...change }, expected)
+    );
+  }
+  assertThrows(() =>
+    parseAppMeasurement({ ...old, contextProfile: "audio-minimal-v1" })
+  );
+  const { contextProfile: _profile, ...withoutProfile } = current;
+  assertThrows(() => parseAppMeasurement(withoutProfile));
+  const { timingStatus: _timing, ...withoutTiming } = current;
+  assertThrows(() => parseAppMeasurement(withoutTiming));
+  assertEquals(
+    parseAppMeasurement({ ...current, contextProfile: null }).contextProfile,
+    null,
+  );
+});
+
+Deno.test("observer retains cost projection for v1 and v2, excluding timing-only events", () => {
+  const old = fixture();
+  const current = {
+    ...old,
+    version: "identification_app_measurement_v2",
+    timingStatus: "valid",
+    contextProfile: null,
+  };
+  for (const record of [old, current]) {
+    const projected = projectAppLog(
+      JSON.stringify({
+        subsystem: "com.merian.app",
+        eventMessage: APP_MEASUREMENT_MARKER + JSON.stringify(record),
+      }),
+    );
+    assertEquals(
+      projectedMeasurementCost(projected!, pricing, now),
+      appMeasurementCost(old, pricing, now),
+    );
+  }
+  assertEquals(
+    projectedMeasurementCost(
+      { event: "total_pipeline_seconds", value: 1, unit: "seconds" },
+      pricing,
+      now,
+    ),
+    null,
+  );
 });

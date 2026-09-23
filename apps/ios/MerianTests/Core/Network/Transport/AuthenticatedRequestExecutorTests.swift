@@ -29,6 +29,42 @@ struct AuthenticatedRequestExecutorTests {
         }
     }
 
+    #if DEBUG && targetEnvironment(simulator)
+    @MainActor
+    @Test func onlyInitialLiveFixedContextResponseGetsProfile() async throws {
+        let header = "{\"version\":1,\"provider\":\"gemini\",\"requestedModel\":\"gemini-2.5-pro\",\"returnedModel\":\"gemini-2.5-pro\",\"backendBundleSha256\":\"\(String(repeating: "a", count: 64))\",\"usage\":null}"
+        let success = AuthenticatedRequestExecutorProbe.Outcome.response(
+            statusCode: 200, data: Data("{}".utf8), headers: ["X-Merian-Identification": header]
+        )
+        let attempts: [[AuthenticatedRequestExecutorProbe.Outcome]] = [
+            [success], [.urlError(.networkConnectionLost), success],
+            [.response(statusCode: 503, data: Data("{}".utf8)), success],
+            [.response(statusCode: 404, data: Data(#"{"code":"NOT_FOUND"}"#.utf8), headers: ["SB-Error-Code": "NOT_FOUND"]), success]
+        ]
+        for current in [true, false] {
+            for outcomes in attempts {
+                let probe = AuthenticatedRequestExecutorProbe(authUserIDs: [UUID(), UUID()], outcomes: outcomes)
+                var records: [String] = []
+                let executor = makeExecutor(probe: probe, recordIdentificationMeasurement: { records.append($0) })
+                let body = try fixedAudioMeasurementTestBody()
+                var request = try makeRequest(function: "identify-multimodal", body: body, idempotencyKey: "synthetic-key")
+                request.measurementContext = IdentificationMeasurementContext.fixedAudio(
+                    body: body, telemetry: DebugIdentificationReplayProfile.audioMinimalV1.makeTelemetry(),
+                    validateAttempt: { if !current { throw CancellationError() } }
+                )
+                _ = try await executor.execute(request)
+                let record = try #require(records.last)
+                let value = try #require(JSONSerialization.jsonObject(with: Data(record.utf8)) as? [String: Any])
+                if current && outcomes.count == 1 {
+                    #expect(value["contextProfile"] as? String == "audio-minimal-v1")
+                } else {
+                    #expect(value["contextProfile"] is NSNull)
+                }
+            }
+        }
+    }
+    #endif
+
     @Test func retryKeepsExactBodyAndInitiatingAccountBinding() async throws {
         let initiatingUserID = UUID()
         let replacementUserID = UUID()

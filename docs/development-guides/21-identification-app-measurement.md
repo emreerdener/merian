@@ -173,12 +173,34 @@ stored/reconstructed result are **excluded from controlled comparisons**.
 Pre-dispatch queue fallbacks display that exclusion. A late pipeline failure
 uses ordinary queued/error presentation; it is still excluded. Recovery may
 produce a new provider result using ordinary date/locale/timezone handling. The
-existing measurement-v1 `delivery: fresh` flag alone therefore does not prove
-that a result used this profile. Before a paid paired run, add and verify
-request-profile provenance admission to the recorder/run specification and
-define both processing arms. This slice establishes request construction, not an
-automatically qualified comparison dataset. See the
-[implementation record](../rfcs/identification-fixed-context-replay-2026-09-23.md).
+historical measurement-v1 `delivery: fresh` flag alone does not prove that a
+result used this profile. The current `identification_app_measurement_v2` record
+adds `contextProfile`: `audio-minimal-v1` or null. A non-null value requires the
+final serialized body to match the fixed scalars, exactly one inline audio item,
+and its canonical audio descriptors/timeline, with no extra context or evidence
+fields. A process-local validator must still accept the original foreground
+attempt and queue generation when the HTTP response is measured. Only an initial
+HTTP 200 with fresh diagnostic metadata can carry the profile; transport, Auth,
+route and 5xx retries cannot. Background request builders never attach the
+validator. The field remains null in device/Release builds.
+
+`requireFixedAudioMeasurement` validates v2, the profile, fresh delivery, usable
+provider/Edge timings, complete matching app identity, the reviewed backend
+bundle fingerprint and exact requested/returned model. The observer retains
+strict v1 compatibility and cost estimates for both versions. V1 records cannot
+be promoted by adding a run annotation. The native record remains within its 1
+KiB log budget and retains no request, scan, user or media identifier.
+
+This is **profile-only evidence at the HTTP response boundary**. It does not
+attest the particular WAV/case, processing arm, successful persistence/display,
+complete observation window, or total billed cost. Case association still uses
+one sequential UI submission per complete window; a cancelled, queued, failed or
+unobserved final outcome remains excluded. The offline two-arm preparation below
+does not turn app records into a paired dataset. See the
+[provenance and arm definitions](../rfcs/identification-audio-comparison-provenance-2026-09-23.md)
+for the remaining execution requirements and the earlier
+[replay implementation](../rfcs/identification-fixed-context-replay-2026-09-23.md)
+for request construction.
 
 The
 [offline audio-path verification](../rfcs/identification-audio-path-verification-2026-09-22.md)

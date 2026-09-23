@@ -2633,10 +2633,15 @@ mutation or deployment is authorized by this refactor.
   the active interface or user identity.
 - For identification responses, `IdentificationBenchmarkRecord` projects bounded
   `Server-Timing` and `X-Merian-Identification` fields plus built-app
-  version/source identity into one content-free Debug measurement record.
-  Replays, missing values and malformed/older headers cannot claim fresh
-  provider usage. It excludes raw header text, region, response bodies and
-  request/owner identifiers. Other routes retain their existing timing logs. The
+  version/source identity into one content-free Debug measurement-v2 record.
+  `IdentificationMeasurementContext` checks the final fixed-audio request body
+  and its process-local live-attempt validator. Only the initial, active, fresh
+  foreground response can retain `contextProfile: audio-minimal-v1`; retries,
+  recovery and ordinary requests retain null. This attests the context profile,
+  not the audio bytes, case, processing arm or final UI result. Replays, missing
+  values and malformed/older headers cannot claim fresh provider usage. It
+  excludes raw header text, region, response bodies and request/owner
+  identifiers. Other routes retain their existing timing logs. The
   [recording guide](../../../../../docs/development-guides/21-identification-app-measurement.md)
   owns measurement boundaries and the passive observer command.
 - Records URLSession request-upload, time-to-first-byte-after-upload, and

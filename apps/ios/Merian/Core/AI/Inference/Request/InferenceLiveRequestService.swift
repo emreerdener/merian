@@ -35,6 +35,7 @@ struct InferenceLiveRequestService {
         let preferredGoal: FieldTripPreferredGoal?
         let durableQueueOwnsRecovery: Bool
         var isProFunded: Bool = false
+        var measurementValidator: IdentificationMeasurementContext.Validator?
     }
 
     struct VisualRequest: Sendable {
@@ -102,7 +103,8 @@ struct InferenceLiveRequestService {
                     durableQueueOwnsRecovery:
                         request.durableQueueOwnsRecovery,
                     isProFunded: request.isProFunded,
-                    onRequestBodySent: onRequestBodySent
+                    onRequestBodySent: onRequestBodySent,
+                    measurementValidator: request.measurementValidator
                 )
             }
         )
@@ -198,7 +200,7 @@ struct InferenceLiveRequestService {
     @MainActor
     func dispatchNonVisual(
         _ request: NonVisualRequest,
-        validateAttempt: @MainActor () throws -> Void
+        validateAttempt: @escaping IdentificationMeasurementContext.Validator
     ) async throws -> Response {
         let observationContextsJSON = Self.observationContextJSONStrings(
             from: request.submissionProjection.observationContexts
@@ -222,7 +224,8 @@ struct InferenceLiveRequestService {
                 preferredGoal: nil,
                 durableQueueOwnsRecovery:
                     request.durableQueueOwnsRecovery,
-                isProFunded: request.isProFunded
+                isProFunded: request.isProFunded,
+                measurementValidator: validateAttempt
             ),
             nil
         )

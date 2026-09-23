@@ -42,7 +42,9 @@ enum IdentificationBenchmarkRecord {
         }
     }
 
-    static func make(response: HTTPURLResponse, appInfo: [String: Any]) -> String? {
+    static func make(
+        response: HTTPURLResponse, appInfo: [String: Any], fixedAudioContext: Bool = false
+    ) -> String? {
         let replayHeader = response.value(forHTTPHeaderField: "X-Merian-Idempotent-Replay")
         let replay = ["stored", "reconstructed"].contains(replayHeader ?? "")
         let diagnostics = response.statusCode == 200 && replayHeader == nil
@@ -58,8 +60,13 @@ enum IdentificationBenchmarkRecord {
         } else {
             otherEdgeMs = null
         }
+        var contextProfile: Any = null
+        #if DEBUG && targetEnvironment(simulator)
+        if fixedAudioContext && diagnostics != nil { contextProfile = "audio-minimal-v1" }
+        #endif
         let record: [String: Any] = [
-            "version": "identification_app_measurement_v1",
+            "version": "identification_app_measurement_v2",
+            "contextProfile": contextProfile,
             "status": response.statusCode,
             "delivery": replay ? "replay" : diagnostics == nil ? "unavailable" : "fresh",
             "app": [

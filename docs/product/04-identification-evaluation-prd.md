@@ -127,11 +127,17 @@ The subsequent
 [fixed-context replay implementation](../rfcs/identification-fixed-context-replay-2026-09-23.md)
 adds a Debug simulator option for one foreground audio request with fixed
 synthetic context and no live location/weather enrichment. Normal capture
-retains its existing behavior. The next step is recorded request-profile
-provenance and two fresh, versioned preprocessing arms before a bounded
-same-Gemini experiment. Background recovery is outside that controlled scope.
-These findings do not establish the cause of the species disagreements or
-retrospectively attest historical request bytes/context.
+retains its existing behavior. The subsequent
+[profile provenance and arm preparation](../rfcs/identification-audio-comparison-provenance-2026-09-23.md)
+records fixed-context provenance for an active first foreground response and
+prepares both audio processors offline against the same six frozen inputs and
+Gemini Pro settings. This verifies context and preparation; it does not bind a
+live result to an individual WAV or processing arm. The ordinary app currently
+runs the deployed processor only. A bounded same-Gemini experiment still needs
+controlled arm assignment, case/media binding and complete outcome admission.
+Background recovery remains outside that controlled scope. These findings do not
+establish the cause of the species disagreements or retrospectively attest
+historical request bytes/context.
 
 ## 1. Outcome
 

@@ -28,7 +28,10 @@ const TOKEN_FIELDS = [
 ] as const;
 
 export interface AppMeasurement {
-  version: "identification_app_measurement_v1";
+  version:
+    | "identification_app_measurement_v1"
+    | "identification_app_measurement_v2";
+  contextProfile?: "audio-minimal-v1" | null;
   status: number;
   delivery: "fresh" | "replay" | "unavailable";
   app: {
@@ -77,6 +80,8 @@ function duration(value: unknown): asserts value is number {
 export function parseAppMeasurement(value: unknown): AppMeasurement {
   const hasTimingStatus = value !== null && typeof value === "object" &&
     Object.hasOwn(value, "timingStatus");
+  const v2 = value !== null && typeof value === "object" &&
+    "version" in value && value.version === "identification_app_measurement_v2";
   const v = fields(value, [
     "version",
     "status",
@@ -86,8 +91,16 @@ export function parseAppMeasurement(value: unknown): AppMeasurement {
     "serverTimingMs",
     "otherEdgeMs",
     ...(hasTimingStatus ? ["timingStatus"] : []),
+    ...(v2 ? ["contextProfile"] : []),
   ]);
-  check(v.version === "identification_app_measurement_v1");
+  check(v2 || v.version === "identification_app_measurement_v1");
+  if (v2) {
+    check(hasTimingStatus);
+    check(v.contextProfile === null || v.contextProfile === "audio-minimal-v1");
+    check(
+      v.contextProfile === null || (v.status === 200 && v.delivery === "fresh"),
+    );
+  }
   integer(v.status, 100, 599);
   check(["fresh", "replay", "unavailable"].includes(String(v.delivery)));
   const app = fields(v.app, [
@@ -170,6 +183,34 @@ export function parseAppMeasurement(value: unknown): AppMeasurement {
   return structuredClone(v) as unknown as AppMeasurement;
 }
 
+/** A necessary per-response check, not case association or UI outcome proof.
+ * The operator still needs one complete sequential observation window per case.
+ * No historical v1 or missing identity can be promoted by a run annotation.
+ */
+export function requireFixedAudioMeasurement(value: unknown, expected: {
+  app: AppMeasurement["app"];
+  backendBundleSha256: string;
+  requestedModel: "gemini-2.5-flash" | "gemini-2.5-pro";
+}): AppMeasurement {
+  const record = parseAppMeasurement(value);
+  check(record.version === "identification_app_measurement_v2");
+  check(record.contextProfile === "audio-minimal-v1");
+  check(record.delivery === "fresh" && record.status === 200);
+  check(record.timingStatus === "valid");
+  check(record.otherEdgeMs !== null);
+  for (
+    const key of Object.keys(record.app) as (keyof AppMeasurement["app"])[]
+  ) {
+    check(record.app[key] !== null && record.app[key] === expected.app[key]);
+  }
+  check(
+    record.diagnostics?.backendBundleSha256 === expected.backendBundleSha256,
+  );
+  check(record.diagnostics?.requestedModel === expected.requestedModel);
+  check(record.diagnostics?.returnedModel === expected.requestedModel);
+  return record;
+}
+
 /** Existing conservative price policy, scoped to this observed primary attempt.
  * A missing returned model, stale rates or incomplete usage is never zero cost.
  */
@@ -207,6 +248,18 @@ export function appMeasurementCost(
     scope: "observed_primary_attempt_only" as const,
     invoiceExact: false as const,
   };
+}
+
+/** Keep observer costing version-aware while numeric timing events have no cost. */
+export function projectedMeasurementCost(
+  value: AppMeasurement | Record<string, string | number>,
+  pricing: Pricing | null,
+  now: number,
+) {
+  return value.version === "identification_app_measurement_v1" ||
+      value.version === "identification_app_measurement_v2"
+    ? appMeasurementCost(parseAppMeasurement(value), pricing, now)
+    : null;
 }
 
 const NUMBER = "([0-9]{1,6}(?:\\.[0-9]{1,6})?)";

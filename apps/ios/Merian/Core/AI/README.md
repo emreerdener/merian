@@ -15,7 +15,10 @@ This README maps that contract to native source and test ownership.
   its deterministic live/environment adapters. Its Debug simulator-only
   `DebugIdentificationReplayProfile` carries the versioned fixed-audio context
   through one foreground request. It has no global state or durable schema
-  field; ordinary queue recovery is outside controlled comparison. The
+  field; ordinary queue recovery is outside controlled comparison.
+  `InferenceLiveRequestService` passes an ephemeral attempt validator to the
+  network measurement boundary for nonvisual requests. Only validated fixed
+  replay bodies can use it to attest a profile; it carries no wire fields. The
   [measurement guide](../../../../../docs/development-guides/21-identification-app-measurement.md#fixed-context-for-foreground-audio-comparisons)
   owns the exact synthetic context and evidence limits.
   `Models/SpeciesData+EdgeResponse.swift` is the sole handwritten

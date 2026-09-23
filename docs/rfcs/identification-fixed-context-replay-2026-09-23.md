@@ -16,6 +16,12 @@ owns the exact context and operating limits. This follows the
 without changing its backend, frozen offline measurements or earlier app
 results.
 
+> **Follow-up — 23 September 2026:** The
+> [profile provenance slice](./identification-audio-comparison-provenance-2026-09-23.md)
+> adds measurement-v2 profile-only attestation and offline definitions of both
+> processors. The original implementation and validation facts below remain
+> historical. Live case/media/arm and completed-outcome binding remain pending.
+
 ## Request and lifecycle boundaries
 
 - A staged audio item owns its profile. Admission snapshots include it, and
