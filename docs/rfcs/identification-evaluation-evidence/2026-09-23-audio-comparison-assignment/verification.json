@@ -1,0 +1,14 @@
+{
+  "version": "audio_comparison_binding_verification_v1",
+  "mode": "offline_only",
+  "providerCalls": 0,
+  "verifiedSourceFiles": 6,
+  "verifiedAssignments": 12,
+  "sourceFreezeSha256": "415a055676d36ae0bf93aa8856a2b86d67188c97ea51f5c42e20400909489c8c",
+  "preparationSha256": "42350d978486e1a9edb409065be163b45f2d01d1182042b3e48f318e7ed43681",
+  "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+  "backendBundleSha256": "a5939b36fd43dcf1fbfb7f5ee01875d3888a313e66af8756e79fb04f19694b2c",
+  "sourceProcessedRequestPolicyConfidenceHashesMatch": true,
+  "sourceAccess": "read_only",
+  "sourceRetentionUnchanged": true
+}

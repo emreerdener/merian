@@ -2,6 +2,15 @@ import type { AIExecutionOutcome } from "../_shared/ai/contracts.ts";
 import { prepareAIExecution } from "../_shared/ai/production.ts";
 import { buildMultimodalAIRequest } from "./provider.ts";
 import { identificationDiagnosticHeaders } from "./diagnostics.ts";
+import {
+  AUDIO_COMPARISON_CONFIG_ENV,
+  AudioComparisonError,
+  comparisonRequested,
+  processComparisonAudio,
+  requireComparisonReservation,
+  resolveAudioComparison,
+  verifyComparisonExecution,
+} from "./comparison/assignment.ts";
 import { type SupabaseClient, type User } from "@supabase/supabase-js";
 
 import {
@@ -337,6 +346,7 @@ export async function handleIdentifyMultimodalRequest(
   authDurationMs = 0,
   internalReplayAttempt?: number,
   prepare = prepareAIExecution,
+  resolveComparison = resolveAudioComparison,
 ): Promise<Response> {
   if (internalReplayAttempt == null) {
     const protocolError = await entitlementProtocolResponse(
@@ -422,6 +432,26 @@ export async function handleIdentifyMultimodalRequest(
     payload.estimated_size_cm;
 
   const generatedScanId = resolveAIRequestId(req, client_scan_id);
+  let audioComparison;
+  try {
+    audioComparison = await resolveComparison({
+      body: rawBody,
+      scanId: generatedScanId,
+      userId: user.id,
+      internalReplayAttempt,
+      configuration: comparisonRequested(rawBody, generatedScanId)
+        ? Deno.env.get(AUDIO_COMPARISON_CONFIG_ENV)
+        : undefined,
+    });
+  } catch (error) {
+    if (!(error instanceof AudioComparisonError)) throw error;
+    return publicErrorResponse(
+      req,
+      409,
+      error.code,
+      "This audio comparison request is not eligible. Stop this comparison attempt.",
+    );
+  }
 
   // A Ghost-to-permanent-account merge can move an unfinished job and its
   // committed reservation while an old Edge invocation still carries the
@@ -651,13 +681,25 @@ export async function handleIdentifyMultimodalRequest(
         }, 400);
       }
       try {
-        processedAudios.push(processMultimodalWAV(
-          audioBuffer,
-          normalizedAudioMediaItems[audioInputIndex],
-          ownerTimelineValidation,
-        ));
+        processedAudios.push(
+          audioComparison
+            ? await processComparisonAudio(audioComparison, audioBuffer)
+            : processMultimodalWAV(
+              audioBuffer,
+              normalizedAudioMediaItems[audioInputIndex],
+              ownerTimelineValidation,
+            ),
+        );
         processedAudioInputIndexes.push(audioInputIndex);
       } catch (wavErr) {
+        if (wavErr instanceof AudioComparisonError) {
+          return publicErrorResponse(
+            req,
+            409,
+            wavErr.code,
+            "The audio does not match this comparison assignment.",
+          );
+        }
         if (wavErr instanceof WavProcessingBudgetError) {
           return publicErrorResponse(
             req,
@@ -771,6 +813,20 @@ export async function handleIdentifyMultimodalRequest(
       }
     }
     throw error;
+  }
+  if (audioComparison) {
+    try {
+      requireComparisonReservation(audioComparison, quotaLease.reservation);
+    } catch (error) {
+      await quotaLease.refund();
+      if (!(error instanceof AudioComparisonError)) throw error;
+      return publicErrorResponse(
+        req,
+        409,
+        error.code,
+        "This comparison slot cannot make another identification attempt.",
+      );
+    }
   }
   const tierResolution = quotaLease.reservation.tier;
   const tierMs = performance.now() - tierStart;
@@ -963,6 +1019,14 @@ export async function handleIdentifyMultimodalRequest(
       operation: "scan_identification",
       reservation: quotaLease.reservation,
     });
+    if (audioComparison) {
+      await verifyComparisonExecution(
+        audioComparison,
+        aiRequest,
+        execution.snapshot,
+      );
+      requireComparisonReservation(audioComparison, quotaLease.reservation);
+    }
     const quotaCommitStart = performance.now();
     await quotaLease.commit();
     providerAttempted = true;
@@ -2012,7 +2076,7 @@ export async function handleIdentifyMultimodalRequest(
     responseEnvelope,
     200,
     {
-      ...identificationDiagnosticHeaders(result),
+      ...identificationDiagnosticHeaders(result, audioComparison),
       "Server-Timing": serverTimingValue([
         { name: "body_read", durationMs: bodyReadMs },
         { name: "tier", durationMs: tierMs },

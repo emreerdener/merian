@@ -142,3 +142,14 @@ existing readiness, pricing and budget controls and would measure a different
 execution path. Neither lane is activated by this preparation. No old deployment
 is restored to create the comparison, and no new identification-quality result
 is claimed.
+
+## Subsequent server assignment slice
+
+The
+[server assignment implementation](./identification-audio-comparison-assignment-2026-09-23.md)
+adds disabled server-owned slots and actual source/processed/request
+verification with fresh durable proof headers. It moves the historical
+transforms into a route-private owner shared with offline preparation. The
+evidence and original implementation identity above remain historical; native
+receipt collection and complete-outcome admission are still pending. No paid
+comparison has run.

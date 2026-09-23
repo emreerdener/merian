@@ -4901,6 +4901,22 @@ customer before the Supabase job completes, and never change
 `internal.entitlement_rollout_config.entitlement_mode` as part of cleanup.
 `legacy_trial` and manually granted beta Pro are separate access policies.
 
+## Audio comparison activation hold
+
+The
+[server-owned audio comparison](../rfcs/identification-audio-comparison-assignment-2026-09-23.md)
+is implemented locally and defaults off. Keep
+`IDENTIFICATION_AUDIO_COMPARISON_V1` unset: native assignment/receipt collection
+and complete-window/outcome admission are not implemented yet. Candidate
+validation or deploying compatible code does not authorize configuration
+activation or paid comparison requests. A later activation must name the target,
+owner and bounded window, pin the exact reviewed plan and generated runtime
+hash, and retain the normal exact-SHA/deployment/approval controls. Do not
+record the private owner configuration in source or benchmark artifacts.
+Disabling the configuration blocks comparison requests, including reserved-ID
+recovery, while ordinary scans retain their existing path. No old processor
+rollback is needed.
+
 ## Identification Latency Rollout
 
 The image-analysis latency change is a staged operational rollout, not a reason

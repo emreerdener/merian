@@ -671,6 +671,19 @@ own existing readiness/budget contracts and would measure a different execution
 path. No new paid identification, accuracy claim or formal benchmark result is
 added here.
 
+The subsequent
+[server assignment slice](./identification-audio-comparison-assignment-2026-09-23.md)
+implements the backend portion locally and leaves it disabled. A generated fixed
+12-slot table binds the immutable preparation's
+source/processed/request/settings hashes. Private owner/bundle/window
+configuration gates an optional handle and stable reserved scan UUID. Normal
+quota admission remains authoritative; reopened attempts refund and stop before
+ingestion, and service replay cannot bypass the gate. Fresh durable success
+alone carries a bounded comparison proof header. The legacy processor now has a
+route-private owner shared with offline tooling. Native assignment/receipt
+collection and complete-window/UI-outcome admission remain next; configuration
+stays unset and no experiment has run.
+
 | Slice                     | Implementation and verification                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | 1. Contracts and examples | Add schemas, eligibility/split validation, curation rubric, report contract, and synthetic cases with hand-worked expected metrics. Prove ground-truth isolation, complete ordered frame/audio evidence, unsupported-specificity scoring, strong false biological answers on negatives/unresolved cases, zero denominators, and rejection of cross-split duplicate groups. Start curation outside Git.                                                 |

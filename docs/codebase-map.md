@@ -1679,6 +1679,14 @@ scoped/deferred dispatch inventory, tests, local benchmark, and remaining
 release gates. Future assignments follow the
 [provider onboarding procedure](../services/supabase/functions/_shared/ai/ADDING_PROVIDERS.md).
 
+The disabled audio experiment has a route-private
+[`identify-multimodal/comparison/`](../services/supabase/functions/identify-multimodal/README.md#bounded-audio-comparison-disabled)
+owner for generated fixed assignments, strict server gates, historical/current
+processing and fresh durable proof headers. Offline preparation imports those
+pure helpers; ordinary scans retain their current processor. Native receipt
+collection and outcome admission remain pending in the
+[assignment record](./rfcs/identification-audio-comparison-assignment-2026-09-23.md).
+
 Inference and media staging:
 
 - `generate-upload-urls`

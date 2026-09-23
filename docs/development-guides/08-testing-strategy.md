@@ -6740,6 +6740,20 @@ requirements, overlapping timing semantics and bounded log-line decoding.
 runtime dependency fingerprint. These local checks make no live provider calls;
 the first two-photo benchmark retains its original unmeasured metadata.
 
+The disabled audio-comparison backend adds
+`identify-multimodal/comparison/assignment_test.ts` and comparison cases in the
+existing `provider.test.ts`. Candidate validation explicitly checks and runs
+both. They exercise fixed-table/config/owner/expiry/body validation, reserved-ID
+and service-replay rejection before side effects, exact media/settings binding,
+reopened-attempt and non-Pro refunds before ingestion, fresh durable receipts,
+and exclusion of failed/replayed results. Media and provider/database responses
+are synthetic. `generate_audio_comparison_plan_test.ts` keeps the runtime table
+identical to its immutable preparation;
+`identification_audio_comparison_test.ts` continues to test DSP bounds and
+equivalence. See the
+[assignment record](../rfcs/identification-audio-comparison-assignment-2026-09-23.md)
+for the remaining native, hosted and complete-outcome gates.
+
 Identification evaluation Slice 1 is tooling-only. The root-discovered
 `identification_evaluation_contract_test.ts` and
 `identification_evaluation_scoring_test.ts` import the complete

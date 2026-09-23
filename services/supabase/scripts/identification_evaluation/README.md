@@ -124,10 +124,12 @@ processor requires a new run rather than overwriting a prior baseline.
 packet's manifest and source hashes, then prepares exactly two arms per case:
 `audio-linear-full-windows-v1` (historical floor-window trimming and linear
 resampling) and `audio-sinc-partial-tail-v1` (the current multimodal audio
-helper). The historical transforms are isolated in `legacyAudio.ts`, with
-canonical standalone mono PCM16 44.1 kHz inputs bounded to 15 seconds before
-processing. Neither deployed functions nor the ordinary evaluator import the
-legacy processor.
+helper). Both transforms now belong to the route-private
+`functions/identify-multimodal/comparison/` owner, with canonical standalone
+mono PCM16 44.1 kHz inputs bounded to 15 seconds before processing. The
+historical transform is used only by offline preparation and the default-off,
+server-owned comparison gate. Ordinary identification and evaluator runs retain
+current DSP.
 
 Both arms use `audio-minimal-v1` synthetic context and the current Gemini Pro
 request builders. A non-audio request hash must match within each pair. The
@@ -152,12 +154,30 @@ This emits `preparation.json` and a canonical-JSON digest in `freeze.json` using
 exclusive creation and private permissions. It refuses changed source media or
 an existing destination. It reads no provider key and enables no live dispatch.
 The preparation version is intentionally incompatible with evaluator RunSpecs.
-The app can run only the currently deployed arm; old/new app-route experiments
-still need server-owned assignment and case/media/outcome binding. V2 app
-`contextProfile` attests only fixed context on the initial active foreground
+The app can run only the currently deployed arm. The
+[server assignment slice](../../../../docs/rfcs/identification-audio-comparison-assignment-2026-09-23.md)
+adds disabled request/media binding and a fresh durable proof header; Debug app
+assignment/receipt collection and complete-outcome admission remain pending. V2
+app `contextProfile` attests only fixed context on the initial active foreground
 HTTP response. `requireFixedAudioMeasurement` enforces that profile and reviewed
 execution identities; it is not a per-case or formal-qualification gate. See the
 [preparation record](../../../../docs/rfcs/identification-audio-comparison-provenance-2026-09-23.md).
+
+The runtime comparison table is generated only from the previously frozen
+preparation. To verify or regenerate it offline:
+
+```bash
+deno run --frozen --no-prompt --deny-net --deny-env \
+  --config services/supabase/functions/deno.json \
+  --allow-read=docs,services/supabase/functions/identify-multimodal/comparison \
+  services/supabase/scripts/generate_audio_comparison_plan.ts --check
+```
+
+For generation, use `--write` and grant write access only to
+`services/supabase/functions/identify-multimodal/comparison/plan.ts`. Regenerate
+the normal identification deployment identity after runtime edits. Neither
+command enables configuration or authorizes live dispatch. Existing frozen
+preparations remain immutable; record the new runtime fingerprint separately.
 
 `scoreEvaluation(corpus, predictions, { profile, split, inputGroup?, caseIds? })`
 returns the typed `identification_scores_v1` report. Supply predictions for one

@@ -2163,6 +2163,66 @@ base64 budget; staged `r2ObjectKeys` are validated through
 `_shared/identify/media.ts` and R2 bytes are consumed with capped stream readers
 before any full response buffer is assembled.
 
+### Server-owned audio comparison
+
+The optional `audio_comparison` request field is accepted only by the disabled
+`identify-multimodal` comparison lane. Its exact object is
+`{ "planSha256": "<frozen plan SHA-256>", "slot": 1 }`, with integer slots 1–12
+from the fixed server table. It conveys no provider, model or DSP override.
+`MultimodalPayload` declares the optional input; the executable
+shape/authorization validator is `identify-multimodal/comparison/assignment.ts`.
+No current native, web or admin client sends it, and Identify JSON
+response/Swift DTOs are unchanged.
+
+Eligibility requires the exact authenticated owner, a stable UUID from
+`audioComparisonScanId(slot)`, the generated backend/plan hashes and a valid
+private server configuration window. The reserved `ac0a0001-` scan prefix
+remains guarded when the marker is absent or configuration is disabled. Checks
+precede recovery and completed-result lookup; service replay is rejected. The
+body has exactly `user_id`, `client_scan_id`, `geoprivacy`, `mimeType`,
+`deviceLocale`, `deviceTimeZone`, `currentMonth`, `timeOfDay`, `audioBase64s`,
+`audioMediaItems`, `ownerMediaTimeline` and `audio_comparison`. The first two
+match the authenticated owner and derived scan ID. Geoprivacy is `open`,
+`obscured` or `private`; `mimeType` is the existing `image/webp` envelope value,
+while the sole audio provider part remains `audio/wav`. Context is `en`, `UTC`,
+numeric `1` and `12:00 PM`. Descriptor/timeline are exactly one standalone audio
+at source/input index zero. Extra evidence, telemetry, aliases or fields are
+rejected.
+
+The source must match its frozen bytes/length before bounded WAV processing;
+processed bytes must match before quota reservation. Real consent, account,
+quota, entitlement and durable-ingestion contracts apply. Gemini Pro with
+existing effective Pro entitlement and no Flash fallback is required. A reopened
+reservation with `attemptCount !== 1` is refunded before ingestion or provider
+preparation; uncertainty/failure excludes the slot. The production request,
+snapshot and confidence hashes must match before commitment. The expiry and
+reservation guard are checked again immediately before commitment. Missing,
+malformed, expired or wrong-owner configuration returns
+`409 audio_comparison_unavailable`; identity/body/media mismatch returns
+`409 audio_comparison_mismatch`; internal replay or a reopened attempt returns
+`409 audio_comparison_excluded`. Normal media/auth/quota errors retain their
+existing codes. Execution-setting drift refunds before invocation and follows
+the existing caller-safe AI failure path (503). No failure includes a proof.
+
+Fresh durable success alone adds `X-Merian-Audio-Comparison`, exposed through
+CORS. Its JSON version `1` has `planSha256`, `slot`, `caseId`, `arm`,
+`sourceWavSha256`, `processedWavSha256`, `providerRequestSha256`, `policySha256`
+and `confidenceSha256`. These are bounded server-table values verified against
+the actual execution, with no raw media, provider text or owner/scan IDs. The
+existing `X-Merian-Identification` diagnostics accompany it.
+Completed/concurrent replays retain only their usual replay header and never
+gain a fresh comparison proof. After configuration expiry/removal even completed
+comparison requests stop; normal owner Library reads remain available.
+
+See the
+[assignment record](../rfcs/identification-audio-comparison-assignment-2026-09-23.md)
+for fixed lifetime, source retention and one-attempt limits. The proof concerns
+this authenticated response, not app display, complete observation admission or
+all account spend. Ordinary requests without both the handle and reserved ID
+remain ordinary, including the same audio submitted separately. Other legacy
+endpoints gain no comparison support. Keep the configuration unset until native
+assignment/receipt collection and complete-outcome admission are implemented.
+
 ### AI authorization and idempotency
 
 Every authenticated route that can dispatch paid model work uses the same
@@ -6257,8 +6317,10 @@ structured server logs.
 
 ### Latency and Authentication Contract
 
-The request and JSON response bodies remain backward-compatible. The endpoint
-adds only diagnostic response headers:
+Ordinary request and JSON response bodies remain backward-compatible. The
+optional, separately gated
+[audio comparison handle](#server-owned-audio-comparison) does not change
+ordinary clients. The endpoint emits diagnostic response headers:
 
 - `Server-Timing`: `auth`, `body_read`, `tier`, `pre_gemini_db`, `gemini`,
   `quota_commit`, `provider`, `video_promotion`, `primary_enrichment`,

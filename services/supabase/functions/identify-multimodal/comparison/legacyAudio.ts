@@ -1,6 +1,6 @@
-// Tooling-only historical DSP, copied from add5ce9b6^ (before 23 Sep 2026).
+// Historical DSP, copied from add5ce9b6^ (before 23 Sep 2026).
 // Retains floor-window trimming and linear interpolation intentionally.
-// Never import into a deployed function; callers bound canonical source WAVs.
+// Only comparison/audio.ts may call these transforms, after canonical bounds.
 function rmsOfWindow(
   samples: Float32Array,
   offset: number,

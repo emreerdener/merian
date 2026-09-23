@@ -203,6 +203,16 @@ for the remaining execution requirements and the earlier
 for request construction.
 
 The
+[server assignment follow-up](../rfcs/identification-audio-comparison-assignment-2026-09-23.md)
+now implements a disabled twelve-slot gate and `X-Merian-Audio-Comparison` proof
+on fresh durable success. This backend header is not collected by the current
+app/observer. Do not append it manually to v2 logs or treat an offline hash as
+live proof. The next native slice must bind the staged clip and stable queue
+identity to a slot, retain only the bounded receipt, join it with one complete
+observation window, and exclude cancellation, recovery and unobserved outcomes.
+Keep the server configuration unset until that path is verified.
+
+The
 [offline audio-path verification](../rfcs/identification-audio-path-verification-2026-09-22.md)
 adds synthetic sample-preservation tests through preparation, replay,
 persistence and intercepted request serialization, plus exact processed-WAV
