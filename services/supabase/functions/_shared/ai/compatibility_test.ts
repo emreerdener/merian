@@ -240,7 +240,7 @@ for (let i = 0; i < samples.length; i++) samples[i] = 0.2 * Math.sin(i / 10);
 const wav = encodeWav16(samples, 16000);
 const audioBase64 = encodeBase64(wav);
 
-function request(audio: boolean, staged = false) {
+function request(audio: boolean, staged = false, inlineAudio = audioBase64) {
   return new Request(
     `https://example.invalid/${audio ? "audio-spec" : "identify"}`,
     {
@@ -255,7 +255,7 @@ function request(audio: boolean, staged = false) {
         geoprivacy: "private",
         ...(audio
           ? staged ? { audio_r2_key: `staging/${user.id}/synthetic.wav` } : {
-            audio_base64: audioBase64,
+            audio_base64: inlineAudio,
             audio_r2_key: `staging/${user.id}/ignored.wav`,
           }
           : staged
@@ -430,6 +430,24 @@ Deno.test("compatibility handlers preserve paid work, media durability and repla
         );
         assertEquals(db.events, ["reserve", "ledger", "terminal", "refunded"]);
       });
+      if (audio) {
+        await step(
+          "expanded audio budget returns 413 before provider admission",
+          async () => {
+            const db = newDatabase();
+            const oversized = encodeBase64(
+              encodeWav16(new Float32Array(1_000), 1),
+            );
+            const result = await factory(() => {
+              throw new Error("Must not prepare provider");
+            })(request(true, false, oversized), user, db.client);
+            assertEquals(result.status, 413);
+            assertEquals((await result.json()).code, "payload_too_large");
+            assertEquals(db.events, []);
+            assertEquals(mediaEvents, []);
+          },
+        );
+      }
       await step("binding failure refunds before commitment", async () => {
         const db = newDatabase();
         const result = await factory((input, authority) => {

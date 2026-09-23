@@ -3,10 +3,15 @@ import {
   extractSamplesAsFloat32,
   mixToMono,
   parseWavHeader,
-  resampleLinear,
   trimSilence,
 } from "../audio-spec/wav.ts";
+import {
+  resampleBandlimited,
+  WavProcessingBudgetError,
+} from "../audio-spec/resample.ts";
+export { WavProcessingBudgetError } from "../audio-spec/resample.ts";
 import { encodeBase64 } from "./encoding.ts";
+import { MEDIA_BUDGETS } from "./mediaBudgets.ts";
 
 export const TARGET_AUDIO_SAMPLE_RATE = 16_000;
 
@@ -33,6 +38,11 @@ export function processWavBuffer(
   targetSampleRate = TARGET_AUDIO_SAMPLE_RATE,
   options: { preserveSourceWhenTrimmedTooShort?: boolean } = {},
 ): ProcessedWavResult {
+  if (rawWavBuffer.byteLength > MEDIA_BUDGETS.maxAudioRawBytes) {
+    throw new WavProcessingBudgetError(
+      "WAV: source audio exceeds processing budget",
+    );
+  }
   const header = parseWavHeader(rawWavBuffer);
   const interleaved = extractSamplesAsFloat32(rawWavBuffer, header);
   const mono = mixToMono(interleaved, header.numChannels);
@@ -46,10 +56,11 @@ export function processWavBuffer(
   ) {
     trimmed = mono;
   }
-  const resampled = resampleLinear(
+  const resampled = resampleBandlimited(
     trimmed,
     header.sampleRate,
     targetSampleRate,
+    Math.floor((MEDIA_BUDGETS.maxAudioRawBytes - 44) / 2),
   );
 
   if (resampled.length < 8_000) {

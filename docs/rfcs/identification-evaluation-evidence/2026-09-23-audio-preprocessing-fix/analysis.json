@@ -1,0 +1,710 @@
+{
+  "schemaVersion": 1,
+  "mode": "offline_candidate_actual_processor",
+  "createdAt": "2026-09-23T13:59:34.011Z",
+  "sourceFreezeSHA256": "415a055676d36ae0bf93aa8856a2b86d67188c97ea51f5c42e20400909489c8c",
+  "verifiedSourceFileCount": 44,
+  "previousVerificationFreezeSHA256": "95c4c3e05b80b90f91bcaeba42b148c27107823f5c8f025a61079b6d1abaad94",
+  "verifiedPreviousFileCount": 9,
+  "algorithm": {
+    "targetSampleRate": 16000,
+    "filter": "Blackman-windowed sinc",
+    "radiusAtLowerRate": 32,
+    "cutoffNyquistRatio": 0.9,
+    "fractionalPhases": 128,
+    "boundary": "endpoint replication",
+    "outputLength": "floor(inputFrames * outputRate / inputRate)"
+  },
+  "runtimeEnvironment": {
+    "deno": "2.9.4",
+    "architecture": "aarch64",
+    "os": "darwin",
+    "clock": "performance.now wall time; no network/provider work",
+    "interpretation": "local machine measurements, not hosted CPU usage or end-to-end inference latency"
+  },
+  "runtimeFixtures": [
+    {
+      "name": "native_15_second_pair",
+      "sampleRate": 44100,
+      "sourceFramesPerClip": 661500,
+      "sourceBytesPerClip": 1323044,
+      "consecutiveClips": 2,
+      "repetitions": 5,
+      "milliseconds": [
+        210.24529200000006,
+        211.9099580000002,
+        210.38112499999988,
+        211.93529200000012,
+        210.9762499999997
+      ],
+      "medianMilliseconds": 210.9762499999997,
+      "maxMilliseconds": 211.93529200000012
+    },
+    {
+      "name": "max_source_44100_pair",
+      "sampleRate": 44100,
+      "sourceFramesPerClip": 1349978,
+      "sourceBytesPerClip": 2700000,
+      "consecutiveClips": 2,
+      "repetitions": 5,
+      "milliseconds": [
+        430.8220000000001,
+        427.2397920000003,
+        424.9987919999994,
+        421.1755409999996,
+        420.2275410000002
+      ],
+      "medianMilliseconds": 424.9987919999994,
+      "maxMilliseconds": 430.8220000000001
+    },
+    {
+      "name": "max_source_48000_pair",
+      "sampleRate": 48000,
+      "sourceFramesPerClip": 1349978,
+      "sourceBytesPerClip": 2700000,
+      "consecutiveClips": 2,
+      "repetitions": 5,
+      "milliseconds": [
+        416.32479200000034,
+        416.77279199999975,
+        419.2298340000016,
+        422.1939170000005,
+        417.6069159999988
+      ],
+      "medianMilliseconds": 417.6069159999988,
+      "maxMilliseconds": 422.1939170000005
+    },
+    {
+      "name": "max_source_96000_pair",
+      "sampleRate": 96000,
+      "sourceFramesPerClip": 1349978,
+      "sourceBytesPerClip": 2700000,
+      "consecutiveClips": 2,
+      "repetitions": 5,
+      "milliseconds": [
+        390.58650000000125,
+        390.358209,
+        391.9109589999989,
+        392.96762500000114,
+        390.8725830000003
+      ],
+      "medianMilliseconds": 390.8725830000003,
+      "maxMilliseconds": 392.96762500000114
+    },
+    {
+      "name": "max_output_8000_pair",
+      "sampleRate": 8000,
+      "sourceFramesPerClip": 674989,
+      "sourceBytesPerClip": 1350022,
+      "consecutiveClips": 2,
+      "repetitions": 5,
+      "milliseconds": [
+        517.8108339999999,
+        512.1995000000006,
+        582.3107500000006,
+        509.9693750000006,
+        515.9100829999988
+      ],
+      "medianMilliseconds": 515.9100829999988,
+      "maxMilliseconds": 582.3107500000006
+    }
+  ],
+  "liveProviderCalls": 0,
+  "sourceHashes": [
+    {
+      "path": "services/supabase/functions/_shared/audioProcessing.ts",
+      "sha256": "69601412422152a62095358838a1b7be4a6ab4cca2a27bb601f0287266b6d5b6"
+    },
+    {
+      "path": "services/supabase/functions/audio-spec/wav.ts",
+      "sha256": "b8f3fbf2aed80b4873a82f32d1271476426f2411d4ab17138a810b2041a5dfdc"
+    },
+    {
+      "path": "services/supabase/functions/audio-spec/resample.ts",
+      "sha256": "697a29cd6e937d08d7bbf6a5d9df7d32589227a21034db119feb43a723d45de1"
+    },
+    {
+      "path": "services/supabase/functions/_shared/mediaBudgets.ts",
+      "sha256": "88f7fded8dcc01ea0cefd95840ccbc5cb725e4a2297831dbdaee9f2b3be06f81"
+    },
+    {
+      "path": "services/supabase/functions/identify-multimodal/audio.ts",
+      "sha256": "ff70036c97f6110b20824d7cfbc4f38b5cc92367d9d8acec95f9f5ce3f852706"
+    },
+    {
+      "path": "services/supabase/functions/identify-multimodal/provider.ts",
+      "sha256": "0f88e88c80aef67888d2ff5356974f6f5ccb9cabe9400e76b05bb531eedca49f"
+    },
+    {
+      "path": "services/supabase/functions/_shared/ai/geminiRequest.ts",
+      "sha256": "b993b6630649636922643845673ddc0d2d3a7b1062f84e618a88c0745b9fa61c"
+    }
+  ],
+  "cases": [
+    {
+      "caseId": "c0013",
+      "input": {
+        "file": "assets/a00130.wav",
+        "sha256": "214e0f3f8e9c35f966503033ae159edb524498e0532700daa3802359ff7f8303",
+        "byteLength": 506924,
+        "sampleRate": 44100,
+        "channels": 1,
+        "bitsPerSample": 16,
+        "durationSeconds": 5.746938775510204,
+        "sampleCount": 253440,
+        "peak": 0.990264892578125,
+        "rms": 0.2227931919724398,
+        "nonzeroSampleCount": 251768
+      },
+      "output": {
+        "file": "c0013-processed.wav",
+        "sha256": "3a68bd5965993de8ac0c4c282da98d1bddcc5c11998abd2408d5dac379d5dce2",
+        "byteLength": 183084,
+        "sampleRate": 16000,
+        "channels": 1,
+        "bitsPerSample": 16,
+        "durationSeconds": 5.72,
+        "sampleCount": 91520,
+        "peak": 0.98974609375,
+        "rms": 0.22330603761265722,
+        "nonzeroSampleCount": 91251
+      },
+      "trim": {
+        "startSample": 882,
+        "endSampleExclusive": 253134,
+        "removedLeadingSeconds": 0.02,
+        "removedTrailingSeconds": 0.0069387755102040816,
+        "retainedSampleCount": 252252
+      },
+      "routeMatchesSharedProcessor": true,
+      "runtime": {
+        "firstLocalCallMilliseconds": 48.54808400000002,
+        "repetitions": 5,
+        "milliseconds": [
+          42.22541699999999,
+          48.39799999999997,
+          78.63774999999998,
+          41.875917000000015,
+          41.96758399999999
+        ],
+        "medianMilliseconds": 42.22541699999999,
+        "maxMilliseconds": 78.63774999999998
+      },
+      "previousOutput": {
+        "file": "c0013-processed.wav",
+        "sha256": "039adae1fdd8cfbaa7daa7a39df643f06459dd536b4e8145dc93898e57a988c1",
+        "byteLength": 183084,
+        "sampleRate": 16000,
+        "channels": 1,
+        "bitsPerSample": 16,
+        "durationSeconds": 5.72,
+        "sampleCount": 91520,
+        "peak": 0.989410400390625,
+        "rms": 0.22330005028177752,
+        "nonzeroSampleCount": 91245
+      },
+      "restoredSourceTailSamples": 0
+    },
+    {
+      "caseId": "c0014",
+      "input": {
+        "file": "assets/a00140.wav",
+        "sha256": "4696164a9407ecf5242425fd4f803ad3c62e4d9d765c28e1dc7b1cbf330abab8",
+        "byteLength": 882044,
+        "sampleRate": 44100,
+        "channels": 1,
+        "bitsPerSample": 16,
+        "durationSeconds": 10,
+        "sampleCount": 441000,
+        "peak": 1,
+        "rms": 0.158500276760885,
+        "nonzeroSampleCount": 434371
+      },
+      "output": {
+        "file": "c0014-processed.wav",
+        "sha256": "6560d967771137d8b3598e0a145782a68e4e5f4ca6e6e5059eb91dbeb22ead32",
+        "byteLength": 289964,
+        "sampleRate": 16000,
+        "channels": 1,
+        "bitsPerSample": 16,
+        "durationSeconds": 9.06,
+        "sampleCount": 144960,
+        "peak": 0.999969482421875,
+        "rms": 0.16649822568714423,
+        "nonzeroSampleCount": 144893
+      },
+      "trim": {
+        "startSample": 41454,
+        "endSampleExclusive": 441000,
+        "removedLeadingSeconds": 0.94,
+        "removedTrailingSeconds": 0,
+        "retainedSampleCount": 399546
+      },
+      "routeMatchesSharedProcessor": true,
+      "runtime": {
+        "firstLocalCallMilliseconds": 63.87320799999998,
+        "repetitions": 5,
+        "milliseconds": [
+          63.68783399999995,
+          63.52983300000005,
+          63.27095799999995,
+          63.41937500000006,
+          63.52737500000012
+        ],
+        "medianMilliseconds": 63.52737500000012,
+        "maxMilliseconds": 63.68783399999995
+      },
+      "previousOutput": {
+        "file": "c0014-processed.wav",
+        "sha256": "b691d815635fed7e48f08adeaa2d9634f8a17852db7a8330d201a98ce6423c60",
+        "byteLength": 289964,
+        "sampleRate": 16000,
+        "channels": 1,
+        "bitsPerSample": 16,
+        "durationSeconds": 9.06,
+        "sampleCount": 144960,
+        "peak": 0.999969482421875,
+        "rms": 0.16544287720570625,
+        "nonzeroSampleCount": 144885
+      },
+      "restoredSourceTailSamples": 0
+    },
+    {
+      "caseId": "c0015",
+      "input": {
+        "file": "assets/a00150.wav",
+        "sha256": "5d327fae2cea263c348572557ab1a2774ab0d7a8c0a612970ade1b550640154c",
+        "byteLength": 880172,
+        "sampleRate": 44100,
+        "channels": 1,
+        "bitsPerSample": 16,
+        "durationSeconds": 9.978775510204082,
+        "sampleCount": 440064,
+        "peak": 0.1585693359375,
+        "rms": 0.022598472409328076,
+        "nonzeroSampleCount": 437735
+      },
+      "output": {
+        "file": "c0015-processed.wav",
+        "sha256": "5ee6d5e1732c89e7eeb20b1edf152d627993004cebdb9aefc773dd9f8b8496cd",
+        "byteLength": 319364,
+        "sampleRate": 16000,
+        "channels": 1,
+        "bitsPerSample": 16,
+        "durationSeconds": 9.97875,
+        "sampleCount": 159660,
+        "peak": 0.156402587890625,
+        "rms": 0.022595131245904176,
+        "nonzeroSampleCount": 158810
+      },
+      "trim": {
+        "startSample": 0,
+        "endSampleExclusive": 440064,
+        "removedLeadingSeconds": 0,
+        "removedTrailingSeconds": 0,
+        "retainedSampleCount": 440064
+      },
+      "routeMatchesSharedProcessor": true,
+      "runtime": {
+        "firstLocalCallMilliseconds": 69.35433399999988,
+        "repetitions": 5,
+        "milliseconds": [
+          70.02204200000006,
+          69.18204199999991,
+          71.10525000000007,
+          72.40025000000014,
+          71.65525000000025
+        ],
+        "medianMilliseconds": 71.10525000000007,
+        "maxMilliseconds": 72.40025000000014
+      },
+      "previousOutput": {
+        "file": "c0015-processed.wav",
+        "sha256": "bf5f801240adbcf67fbea62c9b3356e4f5d28ab06120c173d4895f5c91f57533",
+        "byteLength": 318764,
+        "sampleRate": 16000,
+        "channels": 1,
+        "bitsPerSample": 16,
+        "durationSeconds": 9.96,
+        "sampleCount": 159360,
+        "peak": 0.15435791015625,
+        "rms": 0.022354773299203868,
+        "nonzeroSampleCount": 158807
+      },
+      "restoredSourceTailSamples": 828
+    },
+    {
+      "caseId": "c0016",
+      "input": {
+        "file": "assets/a00160.wav",
+        "sha256": "f67b22b951b922cd222441e39acbfe67a7f6253d8c7e2c07631308726d274b0f",
+        "byteLength": 447020,
+        "sampleRate": 44100,
+        "channels": 1,
+        "bitsPerSample": 16,
+        "durationSeconds": 5.067755102040817,
+        "sampleCount": 223488,
+        "peak": 0.999969482421875,
+        "rms": 0.10673495411200652,
+        "nonzeroSampleCount": 215519
+      },
+      "output": {
+        "file": "c0016-processed.wav",
+        "sha256": "29898907d1e59e696deb9e1bd7322268df10291883bacf037320b38b097bde4e",
+        "byteLength": 156844,
+        "sampleRate": 16000,
+        "channels": 1,
+        "bitsPerSample": 16,
+        "durationSeconds": 4.9,
+        "sampleCount": 78400,
+        "peak": 0.939483642578125,
+        "rms": 0.10670766748338693,
+        "nonzeroSampleCount": 78122
+      },
+      "trim": {
+        "startSample": 1764,
+        "endSampleExclusive": 217854,
+        "removedLeadingSeconds": 0.04,
+        "removedTrailingSeconds": 0.12775510204081633,
+        "retainedSampleCount": 216090
+      },
+      "routeMatchesSharedProcessor": true,
+      "runtime": {
+        "firstLocalCallMilliseconds": 34.552666000000045,
+        "repetitions": 5,
+        "milliseconds": [
+          34.334375000000136,
+          35.228250000000116,
+          34.769916000000194,
+          34.309083999999984,
+          34.542417000000114
+        ],
+        "medianMilliseconds": 34.542417000000114,
+        "maxMilliseconds": 35.228250000000116
+      },
+      "previousOutput": {
+        "file": "c0016-processed.wav",
+        "sha256": "28563d3c4b6e0628a5bd3b03e334fbfb2e4ea83b338f0c78051da088a4347381",
+        "byteLength": 156844,
+        "sampleRate": 16000,
+        "channels": 1,
+        "bitsPerSample": 16,
+        "durationSeconds": 4.9,
+        "sampleCount": 78400,
+        "peak": 0.99774169921875,
+        "rms": 0.10729671271539098,
+        "nonzeroSampleCount": 78157
+      },
+      "restoredSourceTailSamples": 0
+    },
+    {
+      "caseId": "c0017",
+      "input": {
+        "file": "assets/a00170.wav",
+        "sha256": "dfabd74210a85b46a80a42656c79586c144145108a692e32d03a17a836a4ac8a",
+        "byteLength": 882044,
+        "sampleRate": 44100,
+        "channels": 1,
+        "bitsPerSample": 16,
+        "durationSeconds": 10,
+        "sampleCount": 441000,
+        "peak": 0.981048583984375,
+        "rms": 0.10783529658720506,
+        "nonzeroSampleCount": 440026
+      },
+      "output": {
+        "file": "c0017-processed.wav",
+        "sha256": "41d4ed55f3cede3cfed9ab4683fbd3d91b116fd7e774c3a0eff8c02bae414e97",
+        "byteLength": 320044,
+        "sampleRate": 16000,
+        "channels": 1,
+        "bitsPerSample": 16,
+        "durationSeconds": 10,
+        "sampleCount": 160000,
+        "peak": 0.978118896484375,
+        "rms": 0.10782862217536181,
+        "nonzeroSampleCount": 159603
+      },
+      "trim": {
+        "startSample": 0,
+        "endSampleExclusive": 441000,
+        "removedLeadingSeconds": 0,
+        "removedTrailingSeconds": 0,
+        "retainedSampleCount": 441000
+      },
+      "routeMatchesSharedProcessor": true,
+      "runtime": {
+        "firstLocalCallMilliseconds": 69.1961669999996,
+        "repetitions": 5,
+        "milliseconds": [
+          69.41666699999996,
+          69.4488339999998,
+          68.99883399999999,
+          69.43845800000008,
+          69.6865829999997
+        ],
+        "medianMilliseconds": 69.43845800000008,
+        "maxMilliseconds": 69.6865829999997
+      },
+      "previousOutput": {
+        "file": "c0017-processed.wav",
+        "sha256": "dcfb5d38e22384a49f7b89a7620660df3a90830ec3f8e45fa5de9ad88bc1781f",
+        "byteLength": 320044,
+        "sampleRate": 16000,
+        "channels": 1,
+        "bitsPerSample": 16,
+        "durationSeconds": 10,
+        "sampleCount": 160000,
+        "peak": 0.977996826171875,
+        "rms": 0.10781281188463195,
+        "nonzeroSampleCount": 159629
+      },
+      "restoredSourceTailSamples": 0
+    },
+    {
+      "caseId": "c0018",
+      "input": {
+        "file": "assets/a00180.wav",
+        "sha256": "1803ceef8ae9ad9e71e7fcfa322208a8970485ffdf84a466770e73fb15b1c711",
+        "byteLength": 880172,
+        "sampleRate": 44100,
+        "channels": 1,
+        "bitsPerSample": 16,
+        "durationSeconds": 9.978775510204082,
+        "sampleCount": 440064,
+        "peak": 0.09637451171875,
+        "rms": 0.020554991569596195,
+        "nonzeroSampleCount": 438392
+      },
+      "output": {
+        "file": "c0018-processed.wav",
+        "sha256": "57274ab66c13e03464f3d0407eeaadc64401012ff7b22afcf48da8e70c560aeb",
+        "byteLength": 319364,
+        "sampleRate": 16000,
+        "channels": 1,
+        "bitsPerSample": 16,
+        "durationSeconds": 9.97875,
+        "sampleCount": 159660,
+        "peak": 0.095703125,
+        "rms": 0.02055406634273883,
+        "nonzeroSampleCount": 159050
+      },
+      "trim": {
+        "startSample": 0,
+        "endSampleExclusive": 440064,
+        "removedLeadingSeconds": 0,
+        "removedTrailingSeconds": 0,
+        "retainedSampleCount": 440064
+      },
+      "routeMatchesSharedProcessor": true,
+      "runtime": {
+        "firstLocalCallMilliseconds": 70.02233299999989,
+        "repetitions": 5,
+        "milliseconds": [
+          70.81654200000048,
+          69.50812500000029,
+          68.67383300000029,
+          69.57558299999982,
+          69.36608299999989
+        ],
+        "medianMilliseconds": 69.50812500000029,
+        "maxMilliseconds": 70.81654200000048
+      },
+      "previousOutput": {
+        "file": "c0018-processed.wav",
+        "sha256": "e377172d4eb59e80b41a55c4ce2cd67a5848ffd2b7caf712be855a0698fe4e40",
+        "byteLength": 318764,
+        "sampleRate": 16000,
+        "channels": 1,
+        "bitsPerSample": 16,
+        "durationSeconds": 9.96,
+        "sampleCount": 159360,
+        "peak": 0.095428466796875,
+        "rms": 0.020561138818620924,
+        "nonzeroSampleCount": 159047
+      },
+      "restoredSourceTailSamples": 828
+    }
+  ],
+  "synthetic": [
+    {
+      "sourceFrequencyHz": 1000,
+      "previousStrongestTestedTone": {
+        "frequencyHz": 1000,
+        "amplitude": 0.4991225913653884
+      },
+      "toneAmplitudes": [
+        {
+          "frequencyHz": 1000,
+          "amplitude": 0.4999698426791073
+        },
+        {
+          "frequencyHz": 1500,
+          "amplitude": 0.000005950660247856732
+        },
+        {
+          "frequencyHz": 2500,
+          "amplitude": 0.000003576529679182734
+        },
+        {
+          "frequencyHz": 3500,
+          "amplitude": 0.0000033463035540651174
+        },
+        {
+          "frequencyHz": 4500,
+          "amplitude": 0.000002862095506870045
+        },
+        {
+          "frequencyHz": 7500,
+          "amplitude": 0.0000027186895400218713
+        },
+        {
+          "frequencyHz": 3000,
+          "amplitude": 0.0000024424526929493336
+        },
+        {
+          "frequencyHz": 5500,
+          "amplitude": 0.0000023882712939151107
+        },
+        {
+          "frequencyHz": 500,
+          "amplitude": 0.00000212922438772511
+        },
+        {
+          "frequencyHz": 5000,
+          "amplitude": 0.00000211935252411082
+        },
+        {
+          "frequencyHz": 4000,
+          "amplitude": 0.0000019423964980185746
+        },
+        {
+          "frequencyHz": 6000,
+          "amplitude": 0.0000019409064438831035
+        },
+        {
+          "frequencyHz": 2000,
+          "amplitude": 0.0000016666544388931693
+        },
+        {
+          "frequencyHz": 6500,
+          "amplitude": 9.611849574468746e-7
+        },
+        {
+          "frequencyHz": 7000,
+          "amplitude": 8.060987341182094e-7
+        }
+      ],
+      "sourceAmplitude": 0.5,
+      "sourceSampleRate": 44100,
+      "durationSeconds": 2,
+      "outputSampleRate": 16000,
+      "output": {
+        "sampleCount": 32000,
+        "peak": 0.501922607421875,
+        "rms": 0.35353209118050555,
+        "nonzeroSampleCount": 28006
+      },
+      "strongestTestedTone": {
+        "frequencyHz": 1000,
+        "amplitude": 0.4999698426791073
+      },
+      "testedFrequencyGrid": "500..7500 Hz in 500 Hz steps",
+      "sourceSHA256": "24db1ed1f953f3755cf551a51a0071319056db2e3472a2ace9e9534125c30739",
+      "outputSHA256": "2eb4345cc0251f74f0be7706580ce39396f8d181b9730b9c6f1f9f327d8cdb95"
+    },
+    {
+      "sourceFrequencyHz": 12000,
+      "previousStrongestTestedTone": {
+        "frequencyHz": 4000,
+        "amplitude": 0.3894393920898438
+      },
+      "toneAmplitudes": [
+        {
+          "frequencyHz": 7500,
+          "amplitude": 0.000007198602569442694
+        },
+        {
+          "frequencyHz": 3000,
+          "amplitude": 0.000006702686761111187
+        },
+        {
+          "frequencyHz": 2000,
+          "amplitude": 0.0000066940336315265135
+        },
+        {
+          "frequencyHz": 1000,
+          "amplitude": 0.000006658429403828046
+        },
+        {
+          "frequencyHz": 500,
+          "amplitude": 0.000006624860428182977
+        },
+        {
+          "frequencyHz": 1500,
+          "amplitude": 0.000006564204556865464
+        },
+        {
+          "frequencyHz": 4000,
+          "amplitude": 0.000006561288168258927
+        },
+        {
+          "frequencyHz": 2500,
+          "amplitude": 0.000006421991025674491
+        },
+        {
+          "frequencyHz": 3500,
+          "amplitude": 0.0000062008867400677075
+        },
+        {
+          "frequencyHz": 5000,
+          "amplitude": 0.000006105879075743478
+        },
+        {
+          "frequencyHz": 4500,
+          "amplitude": 0.000005827939149275983
+        },
+        {
+          "frequencyHz": 5500,
+          "amplitude": 0.0000051009774016101556
+        },
+        {
+          "frequencyHz": 6000,
+          "amplitude": 0.0000048389180245645006
+        },
+        {
+          "frequencyHz": 7000,
+          "amplitude": 0.000004394072546029179
+        },
+        {
+          "frequencyHz": 6500,
+          "amplitude": 0.0000032169430122466672
+        }
+      ],
+      "sourceAmplitude": 0.5,
+      "sourceSampleRate": 44100,
+      "durationSeconds": 2,
+      "outputSampleRate": 16000,
+      "output": {
+        "sampleCount": 32000,
+        "peak": 0.08538818359375,
+        "rms": 0.0005386679426005441,
+        "nonzeroSampleCount": 455
+      },
+      "strongestTestedTone": {
+        "frequencyHz": 7500,
+        "amplitude": 0.000007198602569442694
+      },
+      "testedFrequencyGrid": "500..7500 Hz in 500 Hz steps",
+      "sourceSHA256": "9f861376b68047698d688b2a8c9a6745f6efe18920cb834b307be47e5bc559af",
+      "outputSHA256": "a12e057bceef789e1f9247cd945857c960aa8a23da22a6395ed85f0ee1a33885"
+    }
+  ],
+  "limits": [
+    "Local reprocessing; historical live inference bytes and private context were not retained.",
+    "Synthetic tone comparison measures anti-aliasing, not species accuracy or the cause of historical disagreements.",
+    "The 16 kHz output still cannot preserve source frequencies above 8 kHz; the transition band begins below that.",
+    "No human listening assessment of the newly processed clips or hosted CPU measurement is claimed.",
+    "No expected species labels or production responses are inputs to this analysis."
+  ]
+}

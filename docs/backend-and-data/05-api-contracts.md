@@ -6189,6 +6189,26 @@ optionality, header, timeout, or server contract.
   silence trimming alone would leave less than 0.5 seconds. The source must
   still be a valid WAV of at least 0.5 seconds. Standalone and legacy unproven
   audio keep the strict post-trim duration check.
+- Shared WAV preparation (also used by `/audio-spec`) measures every 20 ms RMS
+  window, including a final partial window using its actual sample count. The
+  0.008 silence threshold and two padding windows remain unchanged. Sample-rate
+  conversion uses a Blackman-windowed sinc low-pass filter with a
+  90%-of-lower-Nyquist cutoff, radius 32 at the lower rate and 128 interpolated
+  fractional phases. Endpoint replication supplies boundary samples; output
+  length remains `floor(trimmedFrames * 16000 / sourceSampleRate)`. Output is
+  mono PCM16 WAV with no added tail, time offset or signal gain normalization.
+  Already-16 kHz audio bypasses resampling. The 16 kHz representation cannot
+  retain frequencies above 8 kHz; it is a Merian policy, not a claimed provider
+  requirement.
+- Each source and encoded output WAV is bounded to 2,700,000 bytes. The output
+  limit allows at most 1,349,978 mono PCM16 frames (84.373625 seconds at 16
+  kHz), so low-rate uploads that previously expanded beyond that size now fail.
+  Resampling is additionally bounded to 2,000,000 stored coefficients and
+  100,000,000 filter taps per clip, checked before allocation/convolution.
+  `WavProcessingBudgetError` returns `413 payload_too_large` from both handlers
+  before provider admission, with a shorter-recording message; malformed or
+  non-finite PCM retains the invalid-audio response. These are processing
+  ceilings, not changes to native recording duration, model or prompt policy.
 - Queued replay audio uses `audioR2ObjectKeys`; queued and live video use
   `videoR2ObjectKeys`; live foreground audio uses size-preflighted inline
   `audioBase64s`. The edge rejects oversized declared media JSON

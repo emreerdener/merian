@@ -633,8 +633,12 @@ instruction, tests, and this documentation together.
   the complete request before the provider call.
 - **`_shared/audioProcessing.ts`**: Owns the cheap `isWavContainer(...)` gate
   and the structural `processWAV(...)` decode/trim/resample/encode authority.
-  Signing metadata and a `.wav` suffix do not substitute for this byte-level
-  validation.
+  `audio-spec/wav.ts` measures partial final silence windows;
+  `audio-spec/resample.ts` owns bounded, anti-aliased conversion to 16 kHz. Both
+  audio handlers map processing-budget failures to `413 payload_too_large`
+  before provider admission; see the
+  [API contract](../backend-and-data/05-api-contracts.md). Signing metadata and
+  a `.wav` suffix do not substitute for this byte-level validation.
 - **`_shared/identify/db.ts`**: Encapsulates PostgreSQL operations as typed,
   error-throwing helpers: `fetchCachedSpecies`, `fetchCandidateCommonNames`,
   `upsertSpeciesDictionary`, `insertScan`, `updateGroupTags`, the

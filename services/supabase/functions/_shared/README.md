@@ -345,10 +345,13 @@ contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-re
   `identify-multimodal`. `isWavContainer(...)` is the cheap RIFF/WAVE gate;
   `processWavBuffer(...)` remains the structural parser and normalization
   authority, so a matching extension or header prefix alone cannot establish
-  valid audio. Strict trimming is the default. The multimodal adapter opts into
-  preserving source context only for a timeline-validated video companion when
-  trimming alone makes it too short; malformed or genuinely short source WAVs
-  still fail.
+  valid audio. Trimming measures the final partial window; the bounded
+  `audio-spec/resample.ts` windowed-sinc filter prevents unfiltered downsampling
+  while retaining mono PCM16 at 16 kHz. Processing-budget failures surface as
+  `413 payload_too_large` before admission in both handlers. Strict trimming is
+  the default. The multimodal adapter opts into preserving source context only
+  for a timeline-validated video companion when trimming alone makes it too
+  short; malformed or genuinely short source WAVs still fail.
 - **`external.ts`**: Wikipedia and GBIF enrichment helpers used by identify,
   enrichment, species refresh, and dictionary paths. All returned reference
   image URLs pass through `externalImagePolicy.ts` before the enrichment object

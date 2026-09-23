@@ -69,6 +69,7 @@ import {
 } from "../_shared/identify/completedResponse.ts";
 import { normalizeIdentification } from "../_shared/identify/normalizeIdentification.ts";
 import { isWavContainer, processMultimodalWAV } from "./audio.ts";
+import { WavProcessingBudgetError } from "../_shared/audioProcessing.ts";
 import {
   audioDescriptorsForDurableIntent,
   type AudioMediaDescriptor,
@@ -657,6 +658,14 @@ export async function handleIdentifyMultimodalRequest(
         ));
         processedAudioInputIndexes.push(audioInputIndex);
       } catch (wavErr) {
+        if (wavErr instanceof WavProcessingBudgetError) {
+          return publicErrorResponse(
+            req,
+            413,
+            "payload_too_large",
+            "Audio exceeds the processing limit. Use a shorter recording.",
+          );
+        }
         logStructuredError("multimodal/wav_parse_failed", {
           user_id: user.id,
           audio_input_index: audioInputIndex,

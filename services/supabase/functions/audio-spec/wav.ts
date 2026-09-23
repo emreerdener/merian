@@ -142,8 +142,10 @@ export function trimSilence(
   windowMs = 20,
   padWindows = 2,
 ): Float32Array {
-  const windowSize = Math.round((sampleRate * windowMs) / 1000);
-  const numWindows = Math.floor(samples.length / windowSize);
+  const windowSize = Math.max(1, Math.round((sampleRate * windowMs) / 1000));
+  // The last partial window can contain the only audible sound. Measure its
+  // actual samples instead of silently dropping it (including on silence).
+  const numWindows = Math.ceil(samples.length / windowSize);
   if (numWindows === 0) return samples;
 
   let startWindow = 0;
@@ -165,31 +167,6 @@ export function trimSilence(
   const start = startWindow * windowSize;
   const end = Math.min((endWindow + 1) * windowSize, samples.length);
   return samples.slice(start, end);
-}
-
-/**
- * Linear-interpolation resampler. Used to downsample from the native hardware
- * rate (typically 48 kHz) to 16 kHz before Gemini ingestion, reducing payload size ~3×.
- */
-export function resampleLinear(
-  input: Float32Array,
-  inputRate: number,
-  outputRate: number,
-): Float32Array {
-  if (inputRate === outputRate) return input;
-  const ratio = inputRate / outputRate;
-  const outLen = Math.floor(input.length / ratio);
-  if (outLen === 0) return new Float32Array(0);
-  const out = new Float32Array(outLen);
-  for (let i = 0; i < outLen; i++) {
-    const src = i * ratio;
-    const idx = Math.floor(src);
-    const frac = src - idx;
-    const s0 = input[idx] ?? 0;
-    const s1 = input[Math.min(idx + 1, input.length - 1)] ?? 0;
-    out[i] = s0 + (s1 - s0) * frac;
-  }
-  return out;
 }
 
 /**

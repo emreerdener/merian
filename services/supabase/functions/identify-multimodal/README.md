@@ -620,3 +620,12 @@ the original source context before mono/16 kHz conversion. Malformed WAVs and
 source recordings shorter than 0.5 seconds still fail the whole request.
 Standalone audio and legacy requests without a proven companion mapping keep the
 strict post-trim duration check. No audio input is silently discarded.
+
+The shared processor measures partial final silence windows and applies bounded,
+anti-aliased conversion to mono PCM16 at 16 kHz. Output expansion or filter-work
+overflow returns `413 payload_too_large` before admission; invalid audio retains
+its existing error. The
+[audio helper guide](../audio-spec/README.md#audio-preparation) and
+[API contract](../../../../docs/backend-and-data/05-api-contracts.md) describe
+the representation and limits. Provider, prompt and confidence selection are
+unchanged.

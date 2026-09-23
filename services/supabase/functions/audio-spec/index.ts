@@ -31,6 +31,7 @@ import { deleteR2ObjectIfPresent, getR2Config } from "../_shared/aws.ts";
 import {
   processWavBuffer,
   TARGET_AUDIO_SAMPLE_RATE,
+  WavProcessingBudgetError,
 } from "../_shared/audioProcessing.ts";
 import { resolveAudioBuffers } from "../_shared/identify/media.ts";
 import { promoteSafeMedia } from "../_shared/identify/moderation.ts";
@@ -236,6 +237,14 @@ export function createAudioHandler(prepare = prepareAIExecution) {
           `encoded ${processedAudio.encodedByteLength} bytes`,
       );
     } catch (wavErr) {
+      if (wavErr instanceof WavProcessingBudgetError) {
+        return publicErrorResponse(
+          req,
+          413,
+          "payload_too_large",
+          "Audio exceeds the processing limit. Use a shorter recording.",
+        );
+      }
       const msg = wavErr instanceof Error ? wavErr.message : String(wavErr);
       logStructuredError("audio_spec/wav_parse_failed", {
         user_id: user.id,

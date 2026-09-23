@@ -1,5 +1,9 @@
 import { assertEquals, assertThrows } from "@std/assert";
-import { encodeWav16, parseWavHeader } from "../audio-spec/wav.ts";
+import {
+  encodeWav16,
+  extractSamplesAsFloat32,
+  parseWavHeader,
+} from "../audio-spec/wav.ts";
 import { decodeBase64 } from "../_shared/encoding.ts";
 import { processMultimodalWAV } from "./audio.ts";
 import {
@@ -37,6 +41,25 @@ const validTimeline = timeline([companion, standalone], [
   { kind: "video", clipIndex: 0 },
   { kind: "audio", sourceIndex: 0, audioInputIndex: 1 },
 ]);
+
+Deno.test("video companion preserves a sound confined to the partial final window", () => {
+  const samples = new Float32Array(44_237);
+  samples.fill(0.25, 44_100);
+  const source = encodeWav16(samples, 44_100).buffer as ArrayBuffer;
+  const output = decodeBase64(
+    processMultimodalWAV(source, companion, validTimeline),
+  );
+  const buffer = output.buffer as ArrayBuffer;
+  const header = parseWavHeader(buffer);
+  const decoded = extractSamplesAsFloat32(buffer, header);
+  assertEquals(decoded.length, 16_049);
+  assertEquals(decoded.slice(-10).every((sample) => sample > 0.2), true);
+  assertThrows(
+    () => processMultimodalWAV(source, standalone, validTimeline),
+    Error,
+    "Audio too short",
+  );
+});
 
 Deno.test("validated video companion retains sparse sound and its source context", () => {
   assertEquals(validTimeline.error, null);

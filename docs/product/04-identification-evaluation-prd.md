@@ -1,7 +1,7 @@
 # Naturebook Identification Evaluation Readiness — PRD
 
 Document ID: NB-PRD-IDENTIFICATION-EVAL-001\
-Version: 0.16\
+Version: 0.17\
 Date: 23 September 2026\
 Status: Slices 1–3 implemented; photo, description, first video and expanded
 audio app checks completed; reviewed baseline pending\
@@ -114,10 +114,16 @@ The
 then confirmed sample preservation through the tested native replay path and
 exact processed-audio handoff to the provider boundary. Local reprocessing of
 the six frozen clips documented trimming and conversion to 16 kHz. A synthetic
-test demonstrated aliasing in the existing downsampler. Correct that processing
-defect and validate the audio representation before comparing providers or
-tuning confidence. This finding does not establish the cause of the species
-disagreements or retrospectively attest historical request bytes/context.
+test demonstrated aliasing in the previous downsampler. The
+[audio preprocessing fix](../rfcs/identification-audio-preprocessing-fix-2026-09-23.md)
+now adds bounded anti-alias filtering and measures partial final silence
+windows, with the same 16 kHz output, Gemini profiles, prompts and confidence
+rules. Local signal tests and frozen-clip reprocessing verify the processing
+change; it has not been deployed or evaluated for species accuracy. The next
+step is candidate release validation, followed by a bounded same-Gemini
+comparison with a fixed context policy. These findings do not establish the
+cause of the species disagreements or retrospectively attest historical request
+bytes/context.
 
 ## 1. Outcome
 
@@ -138,15 +144,15 @@ claiming to replace release verification.
 
 ## 2. Recommended scope
 
-| Decision             | Recommendation                                                                                                                                                                                                                                                                  |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| First models         | Evaluate the current Gemini Flash/free and Pro/Pro identification profiles separately. Preserve the complete settings of each profile.                                                                                                                                          |
-| First path           | The primary `identify-multimodal` path across its real input combinations. Compatibility endpoints retain regression coverage; their different prompts are not represented by this baseline.                                                                                    |
-| Starting dataset     | One to twelve eligible exploratory groups for the solo owner; the formal pilot remains 60 independently reviewed groups, ten per input group.                                                                                                                                   |
-| Reference baseline   | Add 240 held-out observation groups, forty per input group: 300 total, including the pilot.                                                                                                                                                                                     |
-| Scored result        | The model answer after the same contract validation and identification rules used by the backend, before dictionary hydration and persistence.                                                                                                                                  |
-| Evaluation operation | A developer tool with an offline default and an explicitly requested, bounded Gemini run. No deployed evaluation endpoint or production observation export.                                                                                                                     |
-| Next action          | Trace audio from the frozen replay file through app preparation and backend request construction before changing a model or confidence policy. Preserve the three Strong source disagreements; independent species review and meaningful paired audio/visual tests remain open. |
+| Decision             | Recommendation                                                                                                                                                                                                                                                                          |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| First models         | Evaluate the current Gemini Flash/free and Pro/Pro identification profiles separately. Preserve the complete settings of each profile.                                                                                                                                                  |
+| First path           | The primary `identify-multimodal` path across its real input combinations. Compatibility endpoints retain regression coverage; their different prompts are not represented by this baseline.                                                                                            |
+| Starting dataset     | One to twelve eligible exploratory groups for the solo owner; the formal pilot remains 60 independently reviewed groups, ten per input group.                                                                                                                                           |
+| Reference baseline   | Add 240 held-out observation groups, forty per input group: 300 total, including the pilot.                                                                                                                                                                                             |
+| Scored result        | The model answer after the same contract validation and identification rules used by the backend, before dictionary hydration and persistence.                                                                                                                                          |
+| Evaluation operation | A developer tool with an offline default and an explicitly requested, bounded Gemini run. No deployed evaluation endpoint or production observation export.                                                                                                                             |
+| Next action          | Validate and release the audio preprocessing candidate through the existing controls, then run a separately authorized same-Gemini comparison with fixed context. Preserve the three Strong source disagreements; independent species review and paired audio/visual tests remain open. |
 
 The numbers are a practical starting scope, not a guarantee that a small quality
 difference can be established statistically. Report sample counts and

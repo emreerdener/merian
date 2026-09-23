@@ -906,11 +906,14 @@ success. The multimodal handler:
    foreground requests or staged `audioR2ObjectKeys` from queued replay.
    Scalars, blank/non-string elements, or both nonempty arrays return a stable
    `400 invalid_audio_transport` / `ambiguous_audio_transport` response.
-2. Requires a RIFF/WAVE container before `processWAV(...)` normalises the clip
-   to mono 16 kHz WAV for Gemini ingestion. M4A or another container returns
-   `400 unsupported_audio_codec`; malformed WAV returns
-   `400 invalid_audio_content`. Neither case is silently discarded from a mixed
-   request or promoted under an `audio/wav` label.
+2. Requires a RIFF/WAVE container before shared WAV preparation trims measured
+   silence (including the final partial window) and performs anti-aliased
+   conversion to mono PCM16 at 16 kHz for Gemini ingestion. Processing-budget
+   overflow returns `413 payload_too_large` before provider admission; the
+   [API contract](../backend-and-data/05-api-contracts.md) defines those limits.
+   M4A or another container returns `400 unsupported_audio_codec`; malformed WAV
+   returns `400 invalid_audio_content`. Neither case is silently discarded from
+   a mixed request or promoted under an `audio/wav` label.
 3. Chooses `BIOACOUSTIC_SYSTEM_INSTRUCTION` for audio-only requests or
    `MULTIMODAL_BLENDED_SYSTEM_INSTRUCTION` when audio and images are combined.
 4. Reuses the same `_shared/identify` DB, threshold, and moderation primitives

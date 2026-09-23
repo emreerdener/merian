@@ -110,6 +110,14 @@ metadata chunks; the actual production WAV parser, mono/resampling and trimming
 then run. These restrictions are evaluation preparation rules, not changes to
 production upload admission.
 
+The shared processor includes partial-window silence measurement and bounded
+windowed-sinc resampling to 16 kHz. Evaluator preparation inherits the same
+output/work ceilings; a processing-budget failure cannot dispatch a provider
+request. See the
+[audio preprocessing comparison](../../../../docs/rfcs/identification-audio-preprocessing-fix-2026-09-23.md)
+for the offline evidence. Historical run fingerprints remain frozen; a new
+processor requires a new run rather than overwriting a prior baseline.
+
 `scoreEvaluation(corpus, predictions, { profile, split, inputGroup?, caseIds? })`
 returns the typed `identification_scores_v1` report. Supply predictions for one
 profile and split. Unknown cases, foreign splits, duplicate attempts, malformed

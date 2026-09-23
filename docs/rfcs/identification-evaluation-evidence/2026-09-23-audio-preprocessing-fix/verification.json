@@ -1,0 +1,118 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-09-23T14:07:24.479691+00:00",
+  "repositorySourceRevision": "9c64b9d79a3e552d20f2212685e633efa31f446f",
+  "workingTreeHadChanges": true,
+  "localRuntimeChanged": true,
+  "productionRuntimeChanged": false,
+  "identificationBundleSHA256": "3ca39aaf706f52a560795710d470bd479414cfc961ad4b4780de0eed6ed686ec",
+  "providerCalls": 0,
+  "analysisSHA256": "cb86d39c7bd2266a6b0f54cc79b14a892a24d9ab6d2b74035c8ef458b05a2e31",
+  "analysisScriptSHA256": "a73bb0f4709c08eaac35ce6977bc14b96796ec5f8568d477dde06c68315f2715",
+  "backendFocused": {
+    "status": "passed",
+    "passedTests": 25,
+    "passedSteps": 118,
+    "failedTests": 0,
+    "networkPermissionGranted": false
+  },
+  "backendFullTask": {
+    "status": "passed",
+    "passedTests": 2066,
+    "passedSteps": 198,
+    "failedTests": 0,
+    "ignoredTests": 0,
+    "databaseIntegration": "isolated disposable local database, explicit SUPABASE_DB_TEST_URL; no database connection self-skips observed"
+  },
+  "disposableDatabase": {
+    "projectId": "merian-audio-dsp-candidate",
+    "databasePort": 55432,
+    "cliVersion": "2.109.1",
+    "migrationReplay": "passed",
+    "catalogFiles": 52,
+    "catalogAssertions": 388,
+    "catalogStatus": "passed",
+    "lint": "passed; no schema errors",
+    "securityAdvisors": {
+      "status": "passed_error_level_gate",
+      "errors": 0,
+      "warnings": 105,
+      "warningCounts": {
+        "function_search_path_mutable": 103,
+        "extension_in_public": 2
+      }
+    },
+    "performanceAdvisors": {
+      "status": "passed_error_level_gate",
+      "errors": 0,
+      "warnings": 80,
+      "warningCounts": {
+        "auth_rls_initplan": 59,
+        "multiple_permissive_policies": 20,
+        "duplicate_index": 1
+      }
+    },
+    "schemaChangesInThisSlice": false,
+    "cleanup": "stopped with no backup; existing local projects remain running"
+  },
+  "otherChecks": {
+    "test-supabase-tooling": "passed; 369 standard tests/29 steps, 9 isolated tests/4 steps, generated DTO and shell suites",
+    "validate-edge-dto-contract": "passed; generated artifacts unchanged",
+    "validate-supabase-migrations": "passed; 346 tests across 59 discovered files",
+    "sync_function_deno_configs": "passed; 101 configs",
+    "validate_function_dependencies": "passed; 101 isolated graphs, 369 runtime files",
+    "identify-multimodalRecursiveTypeCheck": "passed",
+    "audio-specRecursiveTypeCheck": "passed",
+    "identificationBundleIdentity": "regenerated and checked",
+    "denoRecursiveFormat": "passed; 981 files",
+    "denoRecursiveLint": "passed; 788 files",
+    "analysisScriptTypeCheckAndLint": "passed",
+    "changedMarkdownFormatAndDiffCheck": "passed"
+  },
+  "nativeTests": {
+    "status": "not_run",
+    "reason": "No Swift, generated client DTO, or wire-field shape changes; previous investigation retains native evidence."
+  },
+  "independentReadOnlyReview": {
+    "status": "passed",
+    "scope": [
+      "filter math and resource bounds",
+      "partial-window and sparse-video behavior",
+      "typed 413 mapping and real-handler regression coverage"
+    ],
+    "outstandingMaterialFindings": 0
+  },
+  "finalChangedTestHashes": [
+    {
+      "path": "services/supabase/functions/audio-spec/resample_test.ts",
+      "sha256": "ca9a7eac7471f97ae8da1c256780f00bbdb033655b2ef6c982781d2fd4c3ad29"
+    },
+    {
+      "path": "services/supabase/functions/audio-spec/wav_test.ts",
+      "sha256": "21266bec5619a5c9bd5d70df2133ba03a3b664ca09e0459553e09a6c4ced2fcb"
+    },
+    {
+      "path": "services/supabase/functions/_shared/audioProcessing_test.ts",
+      "sha256": "c8a902d460dbb71ec4201771f1b23a4ae481305e47479e220d77b4e7960da85a"
+    },
+    {
+      "path": "services/supabase/functions/identify-multimodal/audio_test.ts",
+      "sha256": "693859a11210438336421eadaa4b2ad3eda1411e9b55216d7bf82599e8f34aeb"
+    },
+    {
+      "path": "services/supabase/functions/identify-multimodal/provider.test.ts",
+      "sha256": "9cdabccced19eb99e3ad4f5c3c308051325e3d2fc53999b7cbfa5cc43946f3a1"
+    },
+    {
+      "path": "services/supabase/functions/_shared/ai/compatibility_test.ts",
+      "sha256": "d9a3674e7401fe7fc1954d93879211de6c5f62f2cb1dd76a4f73af6e5a0724de"
+    }
+  ],
+  "limits": [
+    "Validation describes a dirty local candidate using its source hashes and bundle digest, not hosted exact-SHA CI or deployment evidence.",
+    "Local wall-clock processing measurements are not hosted CPU measurements or end-to-end identification latency.",
+    "No new species identification, listening assessment of derived outputs, or physical-microphone test occurred.",
+    "Historical private context and live request bytes remain unattested; a causal comparison needs fresh arms with a fixed reviewed context policy.",
+    "Advisor warnings are on the unchanged migration set and are not resolved by this audio-only change."
+  ]
+}

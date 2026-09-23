@@ -1,0 +1,51 @@
+{
+  "createdAt": "2026-09-23T14:07:24.535463+00:00",
+  "retentionThrough": "2026-10-23",
+  "files": [
+    {
+      "path": "analysis.json",
+      "sha256": "cb86d39c7bd2266a6b0f54cc79b14a892a24d9ab6d2b74035c8ef458b05a2e31",
+      "byteLength": 21891
+    },
+    {
+      "path": "analyze.ts",
+      "sha256": "a73bb0f4709c08eaac35ce6977bc14b96796ec5f8568d477dde06c68315f2715",
+      "byteLength": 12318
+    },
+    {
+      "path": "c0013-processed.wav",
+      "sha256": "3a68bd5965993de8ac0c4c282da98d1bddcc5c11998abd2408d5dac379d5dce2",
+      "byteLength": 183084
+    },
+    {
+      "path": "c0014-processed.wav",
+      "sha256": "6560d967771137d8b3598e0a145782a68e4e5f4ca6e6e5059eb91dbeb22ead32",
+      "byteLength": 289964
+    },
+    {
+      "path": "c0015-processed.wav",
+      "sha256": "5ee6d5e1732c89e7eeb20b1edf152d627993004cebdb9aefc773dd9f8b8496cd",
+      "byteLength": 319364
+    },
+    {
+      "path": "c0016-processed.wav",
+      "sha256": "29898907d1e59e696deb9e1bd7322268df10291883bacf037320b38b097bde4e",
+      "byteLength": 156844
+    },
+    {
+      "path": "c0017-processed.wav",
+      "sha256": "41d4ed55f3cede3cfed9ab4683fbd3d91b116fd7e774c3a0eff8c02bae414e97",
+      "byteLength": 320044
+    },
+    {
+      "path": "c0018-processed.wav",
+      "sha256": "57274ab66c13e03464f3d0407eeaadc64401012ff7b22afcf48da8e70c560aeb",
+      "byteLength": 319364
+    },
+    {
+      "path": "verification.json",
+      "sha256": "29125d722aefc75de4913f474509516673cdb95fce4a0eecea6424d6fdca4ade",
+      "byteLength": 4878
+    }
+  ]
+}

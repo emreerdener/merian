@@ -153,6 +153,14 @@ This verifies the current local implementation; historical live request bytes
 and context remain unattested. Controlled comparisons should hold location/time
 context constant because replay retains the ordinary audio submission policy.
 
+The subsequent
+[audio preprocessing correction](../rfcs/identification-audio-preprocessing-fix-2026-09-23.md)
+adds anti-alias filtering and partial-window measurement, with frozen offline
+outputs and local processing timings for the same six clips. It is validated
+locally but has not been deployed or evaluated for identification quality.
+Preserve the historical app results; a new comparison needs explicit pipeline
+versions and the same reviewed context policy in both arms.
+
 This provides a repeatable input path. Benchmark claims require reviewed cases
 to be submitted and their observations retained. The
 [first controlled video run](../rfcs/identification-replay-app-benchmark-2026-09-22.md)

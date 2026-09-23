@@ -591,6 +591,20 @@ Deno.test("multimodal handler preserves admission, evidence and recovery through
       );
     }
     await t.step(
+      "audio expansion budget fails before provider admission with a size error",
+      async () => {
+        const db = database();
+        const oversized = encodeBase64(encodeWav16(new Float32Array(1_000), 1));
+        const result = await run(db, new Error("Must not invoke"), {
+          imageBase64s: ["AQ=="],
+          audioBase64s: [oversized],
+        });
+        assertEquals(result.status, 413);
+        assertEquals((await result.json()).code, "payload_too_large");
+        assertEquals(db.events, []);
+      },
+    );
+    await t.step(
       "malformed audio is rejected without losing it from a mixed request",
       async () => {
         const db = database();

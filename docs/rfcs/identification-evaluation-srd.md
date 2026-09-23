@@ -1,7 +1,7 @@
 # Naturebook Identification Evaluation Readiness — SRD
 
 Document ID: NB-SRD-IDENTIFICATION-EVAL-001\
-Version: 0.16\
+Version: 0.17\
 Date: 23 September 2026\
 Status: Slices 1–3 and exploratory automation implemented; photo, description,
 first video and expanded audio app checks completed; reviewed baseline pending\
@@ -615,10 +615,18 @@ Core Audio preparation, simulator replay, file persistence and intercepted live
 request serialization. The handler test verifies the exact processed WAV at the
 adapter boundary; existing SDK interception covers the native request. Offline
 processing of all six frozen inputs records actual trimming and 16 kHz
-conversion. A synthetic 12 kHz tone aliases strongly to 4 kHz in the existing
-linear downsampler. The next slice should correct that processing defect and
-test the chosen representation before a controlled same-Gemini comparison.
-Preserve current prompts, confidence and provider assignment during that work.
+conversion. A synthetic 12 kHz tone aliases strongly to 4 kHz in the previous
+linear downsampler. The
+[audio preprocessing fix](./identification-audio-preprocessing-fix-2026-09-23.md)
+replaces it with bounded Blackman-windowed sinc resampling and measures the
+final partial silence window. Output remains 16 kHz mono PCM16. Both handlers
+map processing-budget overflow to `413 payload_too_large` before provider
+admission; the existing sparse-video fallback remains covered. Local signal,
+handler, full-backend and disposable-database checks pass. Six frozen clips have
+new offline measurements; historical evidence remains immutable. Prompts,
+confidence and provider assignment are unchanged. Hosted candidate validation,
+authorized release and a fixed-context same-Gemini comparison remain ahead; no
+species-accuracy benefit is claimed.
 
 These tests do not attest historical live request bytes or private contextual
 fields. Replay retains ordinary location/time context when available, a

@@ -6,6 +6,25 @@ The active iOS audio path now routes through `/identify-multimodal`, which
 accepts foreground `audioBase64s` and queued `audioR2ObjectKeys`. This route
 remains deployed for older callers and focused audio budget tests.
 
+## Audio preparation
+
+Both audio handlers use
+[`_shared/audioProcessing.ts`](../_shared/audioProcessing.ts). `wav.ts` decodes
+and mixes to mono, measures every 20 ms silence window (including a partial
+final window), and writes PCM16 WAV. `resample.ts` performs bounded
+Blackman-windowed sinc conversion to 16 kHz, filtering before downsampling. It
+retains the existing output duration rule and adds no signal gain normalization.
+Already-16 kHz audio bypasses resampling.
+
+Source/output size or filter-work overflow returns `413 payload_too_large`
+before provider admission. Malformed audio remains an invalid-audio error. The
+[API contract](../../../../docs/backend-and-data/05-api-contracts.md) owns the
+budgets and sparse-video policy. `resample_test.ts` covers passband accuracy,
+alias rejection, boundaries and work limits; `wav_test.ts` covers partial-window
+trimming. The
+[offline comparison](../../../../docs/rfcs/identification-audio-preprocessing-fix-2026-09-23.md)
+records quality and local runtime without claiming identification improvement.
+
 ## Provider Boundary
 
 `provider.ts` builds a canonical request from capture context followed by one
