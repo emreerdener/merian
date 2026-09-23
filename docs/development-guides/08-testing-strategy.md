@@ -3994,7 +3994,15 @@ import, and permission-denial UI require the physical-device checklist in
   `InferencePayloadBuilderTests`, `InferenceMediaPolicyTests`, and
   `InferenceRequestPolicyTests` cover the exact telemetry/media/timeline JSON,
   geoprivacy, body and WAV limits, request-account binding, staged-object owner,
-  and stable `409` allowlist without a session.
+  and stable `409` allowlist without a session. Debug simulator fixed-context
+  audio also runs under `CaptureWorkspaceViewModelRefinementTests`:
+  stage/admission ownership, cancellation, mixed-input rejection, queue context
+  omission and reset isolation, plus the normal live request service through
+  intercepted HTTP serialization. `InferencePayloadBuilderTests` freezes its
+  synthetic context and ordinary-request isolation. These use local synthetic
+  media and mocked transport; they do not execute Gemini or qualify background
+  recovery as a controlled result. See the
+  [fixed-context replay contract](./21-identification-app-measurement.md#fixed-context-for-foreground-audio-comparisons).
   `InferenceNetworkArchitectureTests` protects the endpoint/stateless owners,
   five narrow main-client bridges, cancellation-propagating detached-work seam,
   non-concatenating overflow-safe byte accumulator, 600-line ceiling, and exact

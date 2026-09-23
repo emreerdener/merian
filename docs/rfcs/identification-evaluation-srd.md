@@ -1,7 +1,7 @@
 # Naturebook Identification Evaluation Readiness — SRD
 
 Document ID: NB-SRD-IDENTIFICATION-EVAL-001\
-Version: 0.18\
+Version: 0.19\
 Date: 23 September 2026\
 Status: Slices 1–3 and exploratory automation implemented; photo, description,
 first video and expanded audio app checks completed; reviewed baseline pending\
@@ -633,17 +633,26 @@ same-Gemini comparison remains ahead; no species-accuracy benefit is claimed.
 These tests do not attest historical live request bytes or private contextual
 fields. Replay retains ordinary location/time context when available, a
 potential confound for source recordings made elsewhere. Future comparisons must
-fix the context policy as well as media and model configuration. The next
-measurement slice is a Debug simulator-only, request-local replay profile with
-fixed permitted context and no live location/weather enrichment. It must use
-ordinary authenticated submission and admission, keep normal capture and Release
-behavior unchanged, and verify serialized context/media through the existing
-request-interception tests. Queue/replay outcomes remain distinct from fresh
-foreground results. Two fresh, explicitly versioned processing arms are also
-required before the proposed 12-attempt comparison; fixed context alone does not
-provide an old/new preprocessing experiment. This support and the run
-specification are still planned. Any future diagnostic remains bounded and
-privacy-reviewed.
+fix the context policy as well as media and model configuration. The
+[fixed-context replay slice](./identification-fixed-context-replay-2026-09-23.md)
+implements a Debug simulator-only, request-local `audio-minimal-v1` profile for
+one staged audio clip. The profile is part of the admission snapshot and
+foreground telemetry; it omits live capture telemetry before durable enqueue and
+cancels/ignores stale prefetch instead of starting deferred enrichment. The
+normal request builder emits fixed English/UTC/January/noon context through the
+existing fields. Normal capture, device/Release behavior, authentication,
+admission, provider assignment and recovery remain unchanged. The
+[measurement guide](../development-guides/21-identification-app-measurement.md#fixed-context-for-foreground-audio-comparisons)
+owns the exact profile and activation contract.
+
+Queue storage does not persist the Debug profile. Offline, interrupted, failed
+or recovered attempts remain excluded, including a fresh provider result from
+background recovery. Existing measurement-v1 records do not attest to the
+request profile. Add tested profile provenance admission to the recorder/run
+specification, plus two fresh explicitly versioned processing arms, before the
+proposed 12-attempt comparison. Fixed foreground context alone does not provide
+an old/new preprocessing experiment. No new paid identification or benchmark
+result is added by this implementation.
 
 | Slice                     | Implementation and verification                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

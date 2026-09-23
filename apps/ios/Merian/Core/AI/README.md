@@ -12,7 +12,12 @@ This README maps that contract to native source and test ownership.
 ## Responsibilities
 
 - `Models/CaptureTelemetry.swift` owns the inference capture-context value and
-  its deterministic live/environment adapters.
+  its deterministic live/environment adapters. Its Debug simulator-only
+  `DebugIdentificationReplayProfile` carries the versioned fixed-audio context
+  through one foreground request. It has no global state or durable schema
+  field; ordinary queue recovery is outside controlled comparison. The
+  [measurement guide](../../../../../docs/development-guides/21-identification-app-measurement.md#fixed-context-for-foreground-audio-comparisons)
+  owns the exact synthetic context and evidence limits.
   `Models/SpeciesData+EdgeResponse.swift` is the sole handwritten
   `EdgeResponse`-to-`SpeciesData` adapter. The platform-neutral species value
   graph and display/identity policies remain under `Merian/Models/Species`,

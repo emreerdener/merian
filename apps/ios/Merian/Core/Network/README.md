@@ -370,6 +370,17 @@ recoverable-conflict allowlist. `InferencePayloadContext` and
 owners acquire no session, Auth manager, consent manager, app container, or task
 lifetime.
 
+For Debug simulator audio replay only, `InferencePayloadBuilder` recognizes the
+request-local `audio-minimal-v1` telemetry profile. It projects fixed synthetic
+English/UTC/January/noon values into the existing context fields and omits
+location/weather/capture measurements. Capture owns activation, staging and
+pre-enqueue suppression; the request builder adds no wire field or provider
+override. The profile is absent from Release/device builds and durable queue
+reconstruction. Existing benchmark records do not attest profile provenance; see
+the
+[measurement guide](../../../../../docs/development-guides/21-identification-app-measurement.md#fixed-context-for-foreground-audio-comparisons)
+before interpreting replay results.
+
 `InferenceIdentificationReviewService` separately owns exact-name
 `species_dictionary` reads and the `update_owned_scan_identification_review`
 RPC. Its immutable injected closures acquire one account-work lease per

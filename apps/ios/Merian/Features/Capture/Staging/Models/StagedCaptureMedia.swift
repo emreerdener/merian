@@ -4,6 +4,9 @@ import Foundation
 struct StagedAudio {
     let filePath: String
     var addedAt: Date = Date()
+    #if DEBUG && targetEnvironment(simulator)
+    var debugReplayProfile: DebugIdentificationReplayProfile?
+    #endif
 }
 
 /// A staged short video clip with sampled frame images used for AI inference.

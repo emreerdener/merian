@@ -2,6 +2,16 @@
 import Foundation
 
 extension CaptureWorkspaceViewModel {
+    var hasFixedContextDebugReplay: Bool {
+        stagedCapture.audios.contains { $0.debugReplayProfile != nil }
+    }
+
+    var canSubmitFixedContextDebugReplay: Bool {
+        stagedCapture.totalItemCount == 1 && stagedCapture.audios.count == 1
+            && stagedCapture.audios.first?.debugReplayProfile != nil
+            && baseRefinementContext == nil
+    }
+
     var canStartDebugReplay: Bool {
         !isCapturing && !isVideoRecording && !isPreparingVideo
             && !isCheckingScanAdmission && !isStagingRefinement
@@ -16,12 +26,17 @@ extension CaptureWorkspaceViewModel {
     @discardableResult
     func startDebugReplay(
         _ kind: CaptureDebugReplayKind,
+        profile: DebugIdentificationReplayProfile? = nil,
         prepare: @escaping @Sendable (CaptureDebugReplayKind, CGFloat, Bool) async throws -> PreparedCaptureDebugReplay = {
             try await CaptureDebugReplayPreparer.prepare($0, composingCenter: $1, isProActive: $2)
         }
     ) -> Task<Void, Never>? {
-        guard canStartDebugReplay,
+        guard canStartDebugReplay, profile == nil || kind == .audio,
               kind != .video || dependencies.scan.canStartProScan() else { return nil }
+        if profile != nil {
+            preFetchTask?.cancel()
+            preFetchTask = nil
+        }
         let generation = UUID()
         let accountGeneration = diContainer.appRouteCoordinator.accountGeneration
         let sessionGeneration = diContainer.appRouteCoordinator.sessionGeneration
@@ -55,7 +70,9 @@ extension CaptureWorkspaceViewModel {
                 }
                 switch prepared {
                 case .audio(let url):
-                    self.stagedCapture.audios.append(StagedAudio(filePath: url.lastPathComponent))
+                    self.stagedCapture.audios.append(StagedAudio(
+                        filePath: url.lastPathComponent, debugReplayProfile: profile
+                    ))
                 case .video(let video):
                     self.stagedCapture.videos.append(Self.makeStagedVideo(video, isFromGallery: true))
                 }

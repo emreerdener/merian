@@ -8,6 +8,15 @@ enum InferencePayloadBuilder {
         telemetry: CaptureTelemetry,
         defaultGeoprivacy: String
     ) -> InferencePayloadContext {
+        #if DEBUG && targetEnvironment(simulator)
+        if telemetry.debugReplayProfile == .audioMinimalV1 {
+            return InferencePayloadContext(
+                userId: userId.lowercased(), deviceLocale: "en", deviceTimeZone: "UTC",
+                deviceRegion: nil, currentMonth: 1, timeOfDay: "12:00 PM",
+                depthScaleText: nil, defaultGeoprivacy: normalizedGeoprivacy(defaultGeoprivacy)
+            )
+        }
+        #endif
         let captureDate: Date = telemetry.timestamp.flatMap {
             DateUtilities.iso8601Formatter.date(from: $0)
         } ?? Date()
@@ -151,6 +160,9 @@ enum InferencePayloadBuilder {
         context: InferencePayloadContext,
         clientScanId: String?
     ) -> [String: Any] {
+        #if DEBUG && targetEnvironment(simulator)
+        let telemetry = telemetry.debugReplayProfile?.makeTelemetry() ?? telemetry
+        #endif
         var payload: [String: Any] = [
             "user_id": context.userId,
             "deviceLocale": context.deviceLocale,

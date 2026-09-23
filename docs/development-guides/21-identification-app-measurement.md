@@ -139,9 +139,46 @@ media, start the observer below and wait for `observer_ready`, then tap the
 normal **Identify** button once. Record the visible outcome independently.
 Replay preparation happens before that tap, so these measurements do not cover
 file import, microphone/camera recording or physical-device behavior. Imported
-video frames are marked as gallery input and do not fabricate capture context;
-the ordinary audio submission context policy remains unchanged. Source hashes
+video frames are marked as gallery input and do not fabricate capture context.
+**Stage audio sample** retains ordinary audio submission context. Source hashes
 alone do not attest to the prepared inference bytes or complete request context.
+
+### Fixed context for foreground audio comparisons
+
+**Debug replay → Stage audio with fixed context** selects the versioned
+`audio-minimal-v1` profile for one audio sample. The menu displays **Replay:
+fixed context** while that item is staged. The setting belongs to the staged
+item and its foreground request, not the device or account. Clearing/removing
+the item removes it; adding another item or refinement context makes the fixed
+submission invalid. Profile changes during admission invalidate the snapshot.
+Normal Identify still owns admission, durable enqueue and provider dispatch.
+
+The synthetic test context uses `deviceLocale: en`, `deviceTimeZone: UTC`,
+`currentMonth: 1` and `timeOfDay: 12:00 PM`; these are fixed experimental
+conditions, not source capture facts or a context-free prompt. It omits region,
+GPS/elevation, location names, weather, timestamp, depth, zoom, size,
+observation text and preferred goals. Authentication, scan identity and the
+owner's geoprivacy preference retain their ordinary owners. No new request field
+or provider/model override is sent. These Debug simulator types and activation
+paths are absent from Release and physical-device builds.
+
+Fixed replay cancels and clears stale context prefetch before preparation, skips
+the live location lookup before queue admission, and creates no deferred context
+task. Cancellation cannot undo a lookup started by an earlier ordinary capture,
+but its result cannot enrich this fixed request or its queued row.
+
+The queue still owns recovery. The profile is deliberately not persisted, so
+offline submission, foreground failure, interruption and any later background or
+stored/reconstructed result are **excluded from controlled comparisons**.
+Pre-dispatch queue fallbacks display that exclusion. A late pipeline failure
+uses ordinary queued/error presentation; it is still excluded. Recovery may
+produce a new provider result using ordinary date/locale/timezone handling. The
+existing measurement-v1 `delivery: fresh` flag alone therefore does not prove
+that a result used this profile. Before a paid paired run, add and verify
+request-profile provenance admission to the recorder/run specification and
+define both processing arms. This slice establishes request construction, not an
+automatically qualified comparison dataset. See the
+[implementation record](../rfcs/identification-fixed-context-replay-2026-09-23.md).
 
 The
 [offline audio-path verification](../rfcs/identification-audio-path-verification-2026-09-22.md)
@@ -164,11 +201,11 @@ comparison has been recorded. Those smoke probes do not measure paid provider
 execution or hosted audio-processing CPU headroom.
 
 Preserve the historical app results. A new controlled comparison needs explicit
-pipeline versions and the same reviewed context policy in both arms. Current
-replay still obtains ordinary location/weather and locale/time context, so a
-six-clip rerun alone is integration evidence. A Debug-only request-local fixed
-context profile and two fresh versioned processing arms are planned; neither is
-implemented by the deployment evidence update. The
+pipeline versions and the same reviewed context policy in both arms. Ordinary
+replay still obtains live context; the fixed-profile option above now supplies a
+separate foreground request path through the same submission owners. Two fresh
+versioned processing arms and recorded profile provenance remain to be
+implemented before a controlled run. The
 [evaluation SRD](../rfcs/identification-evaluation-srd.md) owns that next slice.
 
 This provides a repeatable input path. Benchmark claims require reviewed cases

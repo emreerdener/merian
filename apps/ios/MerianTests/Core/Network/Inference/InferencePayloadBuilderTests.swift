@@ -5,6 +5,45 @@ import Testing
 
 @Suite("Inference Payload Builder")
 struct InferencePayloadBuilderTests {
+    #if DEBUG && targetEnvironment(simulator)
+    @Test func fixedReplayContextIsRequestLocalAndStripsAccidentalEnrichment() throws {
+        let telemetry = CaptureTelemetry(
+            subjectDistanceInMeters: 2, gpsLatitude: nil, gpsLongitude: nil, gpsElevation: nil,
+            locationName: "Synthetic location", weatherCondition: "Synthetic weather",
+            weatherTemperatureF: 72, timeOfDay: "variable time", timestamp: "2026-07-15T12:00:00Z",
+            zoomFactor: 2, estimatedSizeCm: 10, debugReplayProfile: .audioMinimalV1
+        )
+        let context = InferencePayloadBuilder.makeContext(
+            userId: "SYNTHETIC-OWNER", telemetry: telemetry, defaultGeoprivacy: "private"
+        )
+        let body = try InferencePayloadBuilder.multimodalBody(
+            r2ObjectKeys: [], audioR2ObjectKeys: [], imageBase64s: [], audioBase64s: ["AA=="],
+            observationContextsJSON: [], mimeType: "image/webp", telemetry: telemetry, context: context,
+            clientScanId: "synthetic-scan"
+        )
+        let payload = try jsonPayload(body)
+        #expect(payload["user_id"] as? String == "synthetic-owner")
+        #expect(payload["geoprivacy"] as? String == "private")
+        #expect(payload["deviceLocale"] as? String == "en")
+        #expect(payload["deviceTimeZone"] as? String == "UTC")
+        #expect(payload["currentMonth"] as? Int == 1)
+        #expect(payload["timeOfDay"] as? String == "12:00 PM")
+        for key in ["deviceRegion", "semanticLocation", "publicLocationLabel", "weatherCondition",
+                    "weatherTemperatureF", "depthScaleText", "zoomFactor", "estimated_size_cm", "timestamp",
+                    "debugReplayProfile", "observation_contexts"] {
+            #expect(payload[key] == nil)
+        }
+        let ordinary = InferencePayloadBuilder.makeContext(
+            userId: "SYNTHETIC-OWNER", telemetry: emptyTelemetry(timestamp: "2026-07-15T12:00:00Z"),
+            defaultGeoprivacy: "obscured"
+        )
+        #expect(ordinary.currentMonth == 7)
+        #expect(ordinary.deviceTimeZone == TimeZone.current.identifier)
+        #expect(ordinary.deviceLocale == Locale.current.language.languageCode?.identifier ?? "en")
+        #expect(ordinary.defaultGeoprivacy == "obscured")
+    }
+    #endif
+
     @Test func multimodalRequestBodyUsesActiveCamelCaseTelemetryContract() throws {
         let telemetry = CaptureTelemetry(
             subjectDistanceInMeters: 1.3,

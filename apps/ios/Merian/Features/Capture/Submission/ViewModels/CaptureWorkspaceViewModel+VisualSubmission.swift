@@ -38,6 +38,12 @@ extension CaptureWorkspaceViewModel {
         let stagedNodes = stagedCapture.orderedNodes
         let admissionSnapshot = CaptureSubmissionAdmissionSnapshot(stagedCapture)
         guard !stagedNodes.isEmpty, !isCheckingScanAdmission else { return }
+        #if DEBUG && targetEnvironment(simulator)
+        if hasFixedContextDebugReplay && !canSubmitFixedContextDebugReplay {
+            offlineToastMessage = .error("Fixed-context replay requires one audio sample with no other staged items.")
+            return
+        }
+        #endif
         isCheckingScanAdmission = true
         defer { isCheckingScanAdmission = false }
 

@@ -67,6 +67,16 @@ the modality views. Mirrored tests live under
 `MerianTests/Features/Capture/Submission/`; an architecture suite enforces these
 boundaries and the 600-line production-file review guard.
 
+Debug simulator fixed-audio replay retains normal admission and durable enqueue.
+Its staged-item profile participates in the admission snapshot, rejects mixed
+inputs, supplies nil capture telemetry before persistence and skips
+live/deferred environment lookup. Only the foreground telemetry carries the
+Debug profile to Network's fixed-context projection. Queue recovery does not
+persist that profile and cannot qualify as a controlled comparison result;
+pre-dispatch queue fallbacks display an exclusion message. The
+[measurement guide](../../../../../../docs/development-guides/21-identification-app-measurement.md#fixed-context-for-foreground-audio-comparisons)
+owns the activation and evidence limits.
+
 `CaptureSubmissionMediaTimelineTests` locks chronological staging conversion,
 legacy fallback order, and snapshot cleanup.
 `Services/CaptureSubmissionTelemetry.swift` owns normalization that omits the
