@@ -1,7 +1,7 @@
 # Naturebook Identification Evaluation Readiness — SRD
 
 Document ID: NB-SRD-IDENTIFICATION-EVAL-001\
-Version: 0.13\
+Version: 0.14\
 Date: 22 September 2026\
 Status: Slices 1–3 and exploratory automation implemented; photo, description,
 first video and first audio app checks completed; reviewed baseline pending\
@@ -583,6 +583,18 @@ source's provisional Northern Cardinal label. Neither privacy review nor
 successful transport establishes species correctness; independent reference
 review remains open. Earlier JSON packets, formal counts and direct-evaluator
 controls are unchanged.
+
+The
+[audio reference review](./identification-audio-reference-review-2026-09-22.md)
+subsequently verified both prior private freezes and reproduced the staged PCM
+exactly from the original source. A separately frozen BirdNET-Analyzer 2.4.0 /
+model V2.4 diagnostic ran once locally with networking denied, all 6,522 classes
+and four retained windows. Pyrrhuloxia ranked first in the three complete
+windows; the padded tail favored Pacific Antwren. The source/Gemini/BirdNET
+disagreement leaves species identity unresolved. This is diagnostic evidence
+outside the shared evaluator, with no provider adapter, runtime dependency, paid
+request, biological-reference promotion or change to formal denominators. The
+original app request/context was not retained and remains unattested.
 
 | Slice                     | Implementation and verification                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

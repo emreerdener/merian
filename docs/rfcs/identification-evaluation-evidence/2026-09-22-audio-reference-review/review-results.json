@@ -1,0 +1,380 @@
+{
+  "schemaVersion": "identification_audio_reference_review_v1",
+  "createdAt": "2026-09-23T03:47:26.188289+00:00",
+  "reviewDateLocal": "2026-09-22",
+  "caseId": "c0011",
+  "groupId": "g0011",
+  "classification": "unresolved_source_and_model_disagreement",
+  "originalAppResult": {
+    "scientificName": "Hylocichla mustelina",
+    "commonName": "Wood Thrush",
+    "confidenceBand": "Strong match",
+    "returnedModel": "gemini-2.5-pro"
+  },
+  "provisionalReference": {
+    "scientificName": "Cardinalis cardinalis",
+    "commonName": "Northern Cardinal",
+    "status": "provisional_source_label",
+    "speciesReviewStatus": "unresolved"
+  },
+  "inputSha256": "6854410b4ec668ea78a02d728cd06d235088162794f7f6da425dcc6cbc06688f",
+  "sourceAudit": {
+    "sourcePage": "https://www.nps.gov/tont/learn/nature/birds.htm",
+    "individualSourcePage": "https://www.nps.gov/media/video/view.htm?id=7CB8656C-0BCE-4AF6-AAA9-970DECB4B5FB",
+    "sourceUrl": "https://www.nps.gov/nps-audiovideo/audiovideo/5571ddd5-d0cf-4fda-bcf9-b14d1c881e60.mp3",
+    "sourceSha256": "1a05760b463b6491c5159d6f895e2c5e051fc3231201c9b27768e480ac6b1940",
+    "sourceMp3Title": "Northern Cardinal",
+    "priorPacketsVerified": [
+      {
+        "packet": "2026-09-22-media-replay-v1",
+        "freezeSha256": "7cade7f8acc0ba037ef56df6d52c266e7271f30705fc807355fb14036e3c745e",
+        "verifiedFileCount": 81
+      },
+      {
+        "packet": "2026-09-22-audio-replay-v1",
+        "freezeSha256": "6516344a68cbb45c1592b2b05f6c9e1935d28542f53768134b80398a035a9865",
+        "verifiedFileCount": 11
+      }
+    ]
+  },
+  "preparationAudit": {
+    "segmentStartSeconds": 0,
+    "durationSeconds": 10,
+    "channels": 1,
+    "sampleRateHz": 44100,
+    "bitsPerSample": 16,
+    "sampleCount": 441000,
+    "originalPreparedPcmMatchesCanonicalExactly": true,
+    "recreatedPcmMatchesCanonicalExactly": true,
+    "canonicalPcmSha256": "0a46df98441e85c80472840a3c93dcd5a1cb3d984cb75adc12fae679746cb8ca",
+    "recreatedPcmSha256": "0a46df98441e85c80472840a3c93dcd5a1cb3d984cb75adc12fae679746cb8ca",
+    "zeroLagPearsonCorrelation": 1.0,
+    "maxAbsoluteSampleDifference": 0,
+    "rmsSampleDifference": 0.0
+  },
+  "diagnostic": {
+    "tool": "BirdNET-Analyzer",
+    "analyzerVersion": "2.4.0",
+    "modelVersion": "V2.4",
+    "modelFiles": [
+      {
+        "file": "BirdNET_GLOBAL_6K_V2.4_Model_FP32.tflite",
+        "sha256": "55f3e4055b1a13bfa9a2452731d0d34f6a02d6b775a334362665892794165e4c",
+        "byteLength": 51726412
+      },
+      {
+        "file": "BirdNET_GLOBAL_6K_V2.4_Labels.txt",
+        "sha256": "7399780d6743a806d79857f3dea16d8be2ecbd44b745f7e378555bdb7742e685",
+        "byteLength": 266261
+      }
+    ],
+    "protocolSha256": "c60b688d4fd2cb63fcc2b4e42f2f910434b8000916d13d16b9fa15dec74ce335",
+    "rawCsvSha256": "b3a59be96ded023eea934495272654494c66a03e4d55e510a8cfbbcc49bd17a6",
+    "rawRowCount": 26088,
+    "modelLicense": "CC-BY-NC-SA-4.0",
+    "softwareLicense": "MIT",
+    "softwareSource": "https://github.com/birdnet-team/BirdNET-Analyzer",
+    "modelDownloadUrl": "https://tuc.cloud/index.php/s/886x39f5N3sdsAM/download/V2.4.zip",
+    "pythonVersion": "3.12.14",
+    "tensorflowVersion": "2.21.0",
+    "networkDeniedDuringInference": true,
+    "locationPriorEnabled": false,
+    "seasonalPriorEnabled": false,
+    "speciesShortlistEnabled": false,
+    "windowSeconds": 3,
+    "overlapSeconds": 0,
+    "sampleRateHz": 48000,
+    "sensitivity": 1.0,
+    "allClassScoresRetained": true,
+    "scoreDecimalPlaces": 4,
+    "thresholdUsedForFiltering": false,
+    "tailPolicy": "Keep the final one-second signal and zero-pad to a three-second input.",
+    "runCount": 1,
+    "windows": [
+      {
+        "startSeconds": 0,
+        "signalEndSeconds": 3,
+        "modelEndSeconds": 3,
+        "zeroPaddingSeconds": 0,
+        "candidateClassCount": 6522,
+        "topFive": [
+          {
+            "scientificName": "Cardinalis sinuatus",
+            "commonName": "Pyrrhuloxia",
+            "rank": 1,
+            "score": 0.119,
+            "scoreDisplayed": "0.1190"
+          },
+          {
+            "scientificName": "Hylorchilus sumichrasti",
+            "commonName": "Sumichrast's Wren",
+            "rank": 2,
+            "score": 0.061,
+            "scoreDisplayed": "0.0610"
+          },
+          {
+            "scientificName": "Haemorhous mexicanus",
+            "commonName": "House Finch",
+            "rank": 3,
+            "score": 0.0223,
+            "scoreDisplayed": "0.0223"
+          },
+          {
+            "scientificName": "Cyanocorax affinis",
+            "commonName": "Black-chested Jay",
+            "rank": 4,
+            "score": 0.0214,
+            "scoreDisplayed": "0.0214"
+          },
+          {
+            "scientificName": "Pheugopedius coraya",
+            "commonName": "Coraya Wren",
+            "rank": 5,
+            "score": 0.0209,
+            "scoreDisplayed": "0.0209"
+          }
+        ],
+        "disputedSpecies": {
+          "Cardinalis cardinalis": {
+            "scientificName": "Cardinalis cardinalis",
+            "commonName": "Northern Cardinal",
+            "rank": 126,
+            "score": 0.0004,
+            "scoreDisplayed": "0.0004"
+          },
+          "Hylocichla mustelina": {
+            "scientificName": "Hylocichla mustelina",
+            "commonName": "Wood Thrush",
+            "rank": 2697,
+            "score": 0.0,
+            "scoreDisplayed": "0.0000"
+          }
+        }
+      },
+      {
+        "startSeconds": 3,
+        "signalEndSeconds": 6,
+        "modelEndSeconds": 6,
+        "zeroPaddingSeconds": 0,
+        "candidateClassCount": 6522,
+        "topFive": [
+          {
+            "scientificName": "Cardinalis sinuatus",
+            "commonName": "Pyrrhuloxia",
+            "rank": 1,
+            "score": 0.7293,
+            "scoreDisplayed": "0.7293"
+          },
+          {
+            "scientificName": "Passerina versicolor",
+            "commonName": "Varied Bunting",
+            "rank": 2,
+            "score": 0.0186,
+            "scoreDisplayed": "0.0186"
+          },
+          {
+            "scientificName": "Passerina ciris",
+            "commonName": "Painted Bunting",
+            "rank": 3,
+            "score": 0.0116,
+            "scoreDisplayed": "0.0116"
+          },
+          {
+            "scientificName": "Melozone fusca",
+            "commonName": "Canyon Towhee",
+            "rank": 4,
+            "score": 0.0108,
+            "scoreDisplayed": "0.0108"
+          },
+          {
+            "scientificName": "Pheugopedius coraya",
+            "commonName": "Coraya Wren",
+            "rank": 5,
+            "score": 0.0107,
+            "scoreDisplayed": "0.0107"
+          }
+        ],
+        "disputedSpecies": {
+          "Cardinalis cardinalis": {
+            "scientificName": "Cardinalis cardinalis",
+            "commonName": "Northern Cardinal",
+            "rank": 15,
+            "score": 0.0026,
+            "scoreDisplayed": "0.0026"
+          },
+          "Hylocichla mustelina": {
+            "scientificName": "Hylocichla mustelina",
+            "commonName": "Wood Thrush",
+            "rank": 1143,
+            "score": 0.0,
+            "scoreDisplayed": "0.0000"
+          }
+        }
+      },
+      {
+        "startSeconds": 6,
+        "signalEndSeconds": 9,
+        "modelEndSeconds": 9,
+        "zeroPaddingSeconds": 0,
+        "candidateClassCount": 6522,
+        "topFive": [
+          {
+            "scientificName": "Cardinalis sinuatus",
+            "commonName": "Pyrrhuloxia",
+            "rank": 1,
+            "score": 0.5044,
+            "scoreDisplayed": "0.5044"
+          },
+          {
+            "scientificName": "Melozone fusca",
+            "commonName": "Canyon Towhee",
+            "rank": 2,
+            "score": 0.016,
+            "scoreDisplayed": "0.0160"
+          },
+          {
+            "scientificName": "Cardinalis cardinalis",
+            "commonName": "Northern Cardinal",
+            "rank": 3,
+            "score": 0.0152,
+            "scoreDisplayed": "0.0152"
+          },
+          {
+            "scientificName": "Pheugopedius felix",
+            "commonName": "Happy Wren",
+            "rank": 4,
+            "score": 0.0085,
+            "scoreDisplayed": "0.0085"
+          },
+          {
+            "scientificName": "Thryophilus sinaloa",
+            "commonName": "Sinaloa Wren",
+            "rank": 5,
+            "score": 0.006,
+            "scoreDisplayed": "0.0060"
+          }
+        ],
+        "disputedSpecies": {
+          "Cardinalis cardinalis": {
+            "scientificName": "Cardinalis cardinalis",
+            "commonName": "Northern Cardinal",
+            "rank": 3,
+            "score": 0.0152,
+            "scoreDisplayed": "0.0152"
+          },
+          "Hylocichla mustelina": {
+            "scientificName": "Hylocichla mustelina",
+            "commonName": "Wood Thrush",
+            "rank": 979,
+            "score": 0.0,
+            "scoreDisplayed": "0.0000"
+          }
+        }
+      },
+      {
+        "startSeconds": 9,
+        "signalEndSeconds": 10,
+        "modelEndSeconds": 12,
+        "zeroPaddingSeconds": 2,
+        "candidateClassCount": 6522,
+        "topFive": [
+          {
+            "scientificName": "Myrmotherula pacifica",
+            "commonName": "Pacific Antwren",
+            "rank": 1,
+            "score": 0.3606,
+            "scoreDisplayed": "0.3606"
+          },
+          {
+            "scientificName": "Thryophilus sinaloa",
+            "commonName": "Sinaloa Wren",
+            "rank": 2,
+            "score": 0.0551,
+            "scoreDisplayed": "0.0551"
+          },
+          {
+            "scientificName": "Newtonia brunneicauda",
+            "commonName": "Common Newtonia",
+            "rank": 3,
+            "score": 0.0437,
+            "scoreDisplayed": "0.0437"
+          },
+          {
+            "scientificName": "Luscinia megarhynchos",
+            "commonName": "Common Nightingale",
+            "rank": 4,
+            "score": 0.025,
+            "scoreDisplayed": "0.0250"
+          },
+          {
+            "scientificName": "Sporophila frontalis",
+            "commonName": "Buffy-fronted Seedeater",
+            "rank": 5,
+            "score": 0.0208,
+            "scoreDisplayed": "0.0208"
+          }
+        ],
+        "disputedSpecies": {
+          "Cardinalis cardinalis": {
+            "scientificName": "Cardinalis cardinalis",
+            "commonName": "Northern Cardinal",
+            "rank": 165,
+            "score": 0.0004,
+            "scoreDisplayed": "0.0004"
+          },
+          "Hylocichla mustelina": {
+            "scientificName": "Hylocichla mustelina",
+            "commonName": "Wood Thrush",
+            "rank": 726,
+            "score": 0.0001,
+            "scoreDisplayed": "0.0001"
+          }
+        }
+      }
+    ],
+    "northernCardinalTopRankWindowCount": 0,
+    "woodThrushTopRankWindowCount": 0,
+    "windowCount": 4,
+    "observationGroupCount": 1,
+    "topRankSpeciesCounts": [
+      {
+        "scientificName": "Cardinalis sinuatus",
+        "windowCount": 3
+      },
+      {
+        "scientificName": "Myrmotherula pacifica",
+        "windowCount": 1
+      }
+    ]
+  },
+  "boundaries": {
+    "newAppSubmissions": 0,
+    "newGeminiCalls": 0,
+    "newPaidProviderCalls": 0,
+    "audioUploadedToOtherServices": false,
+    "productionProviderChanged": false,
+    "originalBenchmarkMutated": false,
+    "independentlyVerifiedErrorCount": null,
+    "independentBiologicalReviewers": 0,
+    "formalDevelopmentGroups": 0,
+    "formalDevelopmentTarget": 60,
+    "formalHeldOutGroups": 0,
+    "formalHeldOutTarget": 240
+  },
+  "limitations": [
+    "Another model is corroborating evidence, not an independent biological reviewer.",
+    "Training-data overlap with public source recording is unknown.",
+    "Scores are not calibrated accuracy probabilities and cannot be compared directly with Gemini Strong match.",
+    "The app final request audio and contextual fields were not retained.",
+    "Four windows are correlated derivatives of one observation; they are not four independent benchmark cases.",
+    "A displayed score of 0.0000 is rounded to four decimals, not proof of exact zero.",
+    "Source metadata consistency does not independently establish biological identity.",
+    "No local diagnostic runtime is an app-latency or production-provider performance benchmark."
+  ],
+  "interpretation": "The source label and both models disagree. BirdNET favors Pyrrhuloxia in the three complete windows and Pacific Antwren in the padded tail. No species identity is resolved and no reference label is promoted.",
+  "summaryValidationNote": "The first summary validation assumed CSV end time included padding. Inspection confirmed BirdNET reports the real signal end (10 seconds) while feeding a zero-padded three-second final window. The summary check was corrected; inference was not rerun.",
+  "retentionThrough": "2026-10-22",
+  "privateEvidenceFreezeSha256": "b20d6172b537988699a4905fb238996e35702b37cafd0811bd05bba4c7beee35",
+  "privateEvidenceFileCount": 17,
+  "originalAppEvidence": "../2026-09-22-audio-replay/app-results.json"
+}

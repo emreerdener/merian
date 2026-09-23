@@ -1,7 +1,7 @@
 # Naturebook Identification Evaluation Readiness — PRD
 
 Document ID: NB-PRD-IDENTIFICATION-EVAL-001\
-Version: 0.13\
+Version: 0.14\
 Date: 22 September 2026\
 Status: Slices 1–3 implemented; photo, description, first video and first audio
 app checks completed; reviewed baseline pending\
@@ -88,6 +88,15 @@ review; the listening confirmation establishes media eligibility, not species
 accuracy. All three planned Describe/video/audio submissions are now recorded,
 with no manual retries or provider change.
 
+The
+[audio reference review](../rfcs/identification-audio-reference-review-2026-09-22.md)
+then verified the source link and reproduced the prepared clip exactly. One
+local BirdNET diagnostic favored Pyrrhuloxia in the three complete windows,
+leaving a source/model disagreement and unresolved species identity. Preserve
+the case for development review without promoting any model answer to ground
+truth. This added no app submissions, paid provider calls or formal reviewed
+groups. Gemini remains unchanged.
+
 ## 1. Outcome
 
 Establish a trustworthy baseline for how well Gemini identifies Naturebook
@@ -107,15 +116,15 @@ claiming to replace release verification.
 
 ## 2. Recommended scope
 
-| Decision             | Recommendation                                                                                                                                                                                                                            |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| First models         | Evaluate the current Gemini Flash/free and Pro/Pro identification profiles separately. Preserve the complete settings of each profile.                                                                                                    |
-| First path           | The primary `identify-multimodal` path across its real input combinations. Compatibility endpoints retain regression coverage; their different prompts are not represented by this baseline.                                              |
-| Starting dataset     | One to twelve eligible exploratory groups for the solo owner; the formal pilot remains 60 independently reviewed groups, ten per input group.                                                                                             |
-| Reference baseline   | Add 240 held-out observation groups, forty per input group: 300 total, including the pilot.                                                                                                                                               |
-| Scored result        | The model answer after the same contract validation and identification rules used by the backend, before dictionary hydration and persistence.                                                                                            |
-| Evaluation operation | A developer tool with an offline default and an explicitly requested, bounded Gemini run. No deployed evaluation endpoint or production observation export.                                                                               |
-| Next action          | Review the confident audio/source disagreement and ambiguous description, then expand reviewed paired inputs, including video with meaningful audio, with Gemini unchanged. Formal review and direct-evaluator readiness remain separate. |
+| Decision             | Recommendation                                                                                                                                                                                                                                                                  |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| First models         | Evaluate the current Gemini Flash/free and Pro/Pro identification profiles separately. Preserve the complete settings of each profile.                                                                                                                                          |
+| First path           | The primary `identify-multimodal` path across its real input combinations. Compatibility endpoints retain regression coverage; their different prompts are not represented by this baseline.                                                                                    |
+| Starting dataset     | One to twelve eligible exploratory groups for the solo owner; the formal pilot remains 60 independently reviewed groups, ten per input group.                                                                                                                                   |
+| Reference baseline   | Add 240 held-out observation groups, forty per input group: 300 total, including the pilot.                                                                                                                                                                                     |
+| Scored result        | The model answer after the same contract validation and identification rules used by the backend, before dictionary hydration and persistence.                                                                                                                                  |
+| Evaluation operation | A developer tool with an offline default and an explicitly requested, bounded Gemini run. No deployed evaluation endpoint or production observation export.                                                                                                                     |
+| Next action          | Preserve the unresolved audio disagreement and ambiguous description; expand eligible, source-documented audio, non-biological controls and paired inputs with meaningful audio. Freeze the next bounded plan before app submissions; formal reference review remains separate. |
 
 The numbers are a practical starting scope, not a guarantee that a small quality
 difference can be established statistically. Report sample counts and

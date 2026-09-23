@@ -105,3 +105,9 @@ Next, independently review the source/segment identity for this disagreement and
 preserve the earlier ambiguous description mismatch. Expand reviewed paired and
 ambiguous examples, including video with meaningful companion audio, before
 changing prompts or judging another provider against these observations.
+
+Follow-up, 22 September: the
+[source and local model review](./identification-audio-reference-review-2026-09-22.md)
+verified the preparation chain but left species identity unresolved. BirdNET
+favored another species in the complete windows. The original measurements,
+answer, provisional reference and frozen JSON above remain unchanged.

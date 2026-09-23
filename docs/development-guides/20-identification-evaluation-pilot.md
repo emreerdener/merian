@@ -183,6 +183,15 @@ Wood Thrush result disagreed with the source's provisional Northern Cardinal
 label. Preserve it for independent species review; confirming absence of human
 speech and revealing labels does not verify the expected species.
 
+The
+[audio reference review](../rfcs/identification-audio-reference-review-2026-09-22.md)
+verified the preparation chain and retained a local BirdNET diagnostic. The
+models and source disagree, so the species remains unresolved. Keep this group
+as a development challenge case, outside verified-accuracy denominators, while
+expanding source-documented audio and non-biological controls. Another model's
+answer does not supply an independent biological reviewer or a new observation
+group; freeze the next eligible inputs and bounded plan before new submissions.
+
 ## Formal pilot: start here when reference review is available
 
 1. Identify a controlled folder outside Git for purpose-collected or
