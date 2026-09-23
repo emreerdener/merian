@@ -20,6 +20,8 @@ assert os.environ.get('GITHUB_TOKEN') is None
 assert os.environ.get('SUPABASE_TELEMETRY_DISABLED') == '1'
 assert args[-2:] == ['--project-ref', 'qlarqavoqhkuwzmevrmf']
 args = args[:-2]
+assert args[-2:] == ['--output-format', 'json']
+args = args[:-2]
 stored = root / 'synthetic-remote-value'
 name = 'IDENTIFICATION_AUDIO_COMPARISON_V1'
 if args == ['secrets', 'list', '--output', 'json']:
@@ -38,7 +40,7 @@ elif args == ['secrets', 'set', '--env-file', '/dev/stdin']:
         f.write('set\n')
     if (root / 'fail-after-set').exists():
         # Exercise suppression of upstream output containing private data.
-        print(config)
+        print(json.dumps({'_tag':'Error','error':{'code':'LegacySecretsSetUnexpectedStatusError','message':config,'detail':config}}))
         print(config, file=sys.stderr)
         sys.exit(1)
 elif args == ['secrets', 'unset', name, '--yes']:
@@ -115,7 +117,7 @@ for name,status in [('before','disabled'),('enabled','active'),('unchanged','alr
         assert 'synthetic-controller-test-value' not in text
         assert 'ownerId' not in text
 assert json.loads((root/'failed.json').read_text())['cleanup']=='verified_absent'
-assert json.loads((root/'failed.json').read_text())['failure']=={'stage':'set','kind':'nonzero_exit'}
+assert json.loads((root/'failed.json').read_text())['failure']=={'stage':'set','kind':'remote_rejected'}
 assert json.loads((root/'enabled.json').read_text())['failure'] is None
 assert not (root/'synthetic-remote-value').exists()
 assert (root/'set-count').read_text().splitlines()==['set','set']

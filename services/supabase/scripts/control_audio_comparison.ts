@@ -25,7 +25,50 @@ type CliFailureKind =
   | "timeout"
   | "spawn_failure"
   | "io_failure"
-  | "output_limit";
+  | "output_limit"
+  | "env_file_unreadable"
+  | "env_file_invalid"
+  | "project_config_invalid"
+  | "empty_input"
+  | "remote_rejected"
+  | "transport_failure"
+  | "authentication_failure";
+
+/** Match only fixed CLI codes. Never return its message, detail or unknown code. */
+export function comparisonCliFailure(stdout: Uint8Array): CliFailureKind {
+  if (stdout.length > 1_048_576) return "output_limit";
+  try {
+    const result = JSON.parse(new TextDecoder().decode(stdout));
+    if (
+      !result || typeof result !== "object" || Array.isArray(result) ||
+      result._tag !== "Error" || !result.error ||
+      typeof result.error !== "object" || Array.isArray(result.error) ||
+      typeof result.error.code !== "string"
+    ) return "nonzero_exit";
+    switch (result.error?.code) {
+      case "LegacySecretsEnvFileOpenError":
+        return "env_file_unreadable";
+      case "LegacySecretsEnvFileParseError":
+        return "env_file_invalid";
+      case "LegacySecretsConfigParseError":
+        return "project_config_invalid";
+      case "LegacySecretsNoArgumentsError":
+        return "empty_input";
+      case "LegacySecretsSetUnexpectedStatusError":
+      case "LegacySecretsListUnexpectedStatusError":
+      case "LegacySecretsUnsetUnexpectedStatusError":
+        return "remote_rejected";
+      case "LegacySecretsSetNetworkError":
+      case "LegacySecretsListNetworkError":
+      case "LegacySecretsUnsetNetworkError":
+        return "transport_failure";
+      case "LegacyPlatformAuthRequiredError":
+      case "LegacyInvalidAccessTokenError":
+        return "authentication_failure";
+    }
+  } catch { /* Unknown output remains unclassified and is never retained. */ }
+  return "nonzero_exit";
+}
 
 /** Only locally defined categories may cross the private subprocess boundary. */
 export class ComparisonCliError extends Error {
@@ -298,7 +341,14 @@ export async function runAudioComparisonControl(): Promise<void> {
     let child: Deno.ChildProcess;
     try {
       child = new Deno.Command("supabase", {
-        args: ["secrets", ...args, "--project-ref", COMPARISON_PROJECT],
+        args: [
+          "secrets",
+          ...args,
+          "--output-format",
+          "json",
+          "--project-ref",
+          COMPARISON_PROJECT,
+        ],
         clearEnv: true,
         env: {
           PATH: Deno.env.get("PATH") ?? "",
@@ -322,7 +372,9 @@ export async function runAudioComparisonControl(): Promise<void> {
       }
       const result = await child.output();
       if (signal.aborted) throw new ComparisonCliError("timeout");
-      if (!result.success) throw new ComparisonCliError("nonzero_exit");
+      if (!result.success) {
+        throw new ComparisonCliError(comparisonCliFailure(result.stdout));
+      }
       // Validate the buffered result; this is not a streaming memory bound.
       if (result.stdout.length > 1_048_576) {
         throw new ComparisonCliError("output_limit");

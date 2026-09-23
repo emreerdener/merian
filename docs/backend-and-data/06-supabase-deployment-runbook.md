@@ -5036,6 +5036,11 @@ contain no rejected values. CLI stderr is discarded, and stdout and original
 error messages remain suppressed. Cleanup preserves the original failure stage,
 and its separate `cleanup` field reports whether absence was verified.
 
+The CLI uses structured output. On nonzero exit, the controller maps only exact,
+allowlisted error codes to fixed input, configuration, authentication, transport
+or remote-rejection categories. It never retains an upstream code, message,
+detail or response body; unknown or malformed output remains `nonzero_exit`.
+
 ## Identification Latency Rollout
 
 The image-analysis latency change is a staged operational rollout, not a reason

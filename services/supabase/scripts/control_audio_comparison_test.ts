@@ -3,6 +3,7 @@ import {
   COMPARISON_PROJECT,
   COMPARISON_SECRET,
   ComparisonCliError,
+  comparisonCliFailure,
   comparisonConfiguration,
   ComparisonControlError,
   type ComparisonControlRuntime,
@@ -21,6 +22,44 @@ const NOW = Date.parse("2026-09-23T22:00:00.000Z");
 const OWNER = "11111111-1111-4111-8111-111111111111";
 const SOURCE = "a".repeat(40);
 const DEPLOYED = "b".repeat(40);
+
+Deno.test("CLI diagnostics retain only allowlisted categories, never upstream data", () => {
+  const encode = (value: unknown) =>
+    new TextEncoder().encode(JSON.stringify(value));
+  const cases = [
+    ["LegacySecretsEnvFileOpenError", "env_file_unreadable"],
+    ["LegacySecretsEnvFileParseError", "env_file_invalid"],
+    ["LegacySecretsConfigParseError", "project_config_invalid"],
+    ["LegacySecretsNoArgumentsError", "empty_input"],
+    ["LegacySecretsSetUnexpectedStatusError", "remote_rejected"],
+    ["LegacySecretsSetNetworkError", "transport_failure"],
+    ["LegacyInvalidAccessTokenError", "authentication_failure"],
+  ];
+  for (const [code, expected] of cases) {
+    assertEquals(
+      comparisonCliFailure(encode({
+        _tag: "Error",
+        error: { code, message: OWNER, detail: config(), suggestion: OWNER },
+      })),
+      expected,
+    );
+  }
+  for (
+    const value of [
+      null,
+      [],
+      OWNER,
+      { error: { code: "LegacySecretsSetNetworkError" } },
+      { _tag: "Error", error: { code: OWNER, message: config() } },
+      { _tag: "Error", error: { code: { message: OWNER } } },
+    ]
+  ) assertEquals(comparisonCliFailure(encode(value)), "nonzero_exit");
+  assertEquals(
+    comparisonCliFailure(new TextEncoder().encode(config().slice(0, -1))),
+    "nonzero_exit",
+  );
+  assertEquals(comparisonCliFailure(new Uint8Array(1_048_577)), "output_limit");
+});
 function config(overrides: Record<string, unknown> = {}) {
   return JSON.stringify({
     version: 1,
