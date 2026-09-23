@@ -29,6 +29,10 @@ final class CaptureWorkspaceViewModel {
     @ObservationIgnored let dependencies: CaptureWorkspaceDependencies
     @ObservationIgnored let operationState = CaptureWorkspaceOperationState()
     @ObservationIgnored let scanOperationState = CaptureScanOperationState()
+    #if DEBUG && targetEnvironment(simulator)
+    @ObservationIgnored var debugReplayGeneration: UUID?
+    @ObservationIgnored var debugReplayTask: Task<Void, Never>?
+    #endif
     @ObservationIgnored private var cancellables = Set<AnyCancellable>()
 
     // MARK: - UI & Navigation State

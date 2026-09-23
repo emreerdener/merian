@@ -21,6 +21,10 @@ still-photo and video-request lifetime owners, respectively.
   generation-fenced still, pre-recording, recording, and progress task owner.
   Replaced or cancelled work cannot commit stale progress or media, cancel a
   replacement capture, or surface obsolete failure feedback.
+- `Debug/` contains the interactive simulator replay menu, bounded local-file
+  preparer and workspace staging extension. Every declaration is compiled only
+  with `DEBUG && targetEnvironment(simulator)`. It shares production media
+  preparers and staged-video conversion, then retains manual Identify ownership.
 - `Views/`, `Components/`, and `Modifiers/` own viewfinder presentation,
   view-local focus/zoom timing, the system photo picker, and camera gestures.
   They contain no networking or global service resolution. The preview receives
@@ -52,6 +56,17 @@ asynchronous asset writer. If that writer emits WAVE_EXTENSIBLE, the shared
 before staging. Both the intermediate export and canonical sidecar remain leased
 through conversion; only the validated canonical result transfers to staging.
 The existing inference byte limit and strict WAV checks remain in force.
+
+Debug simulator replay accepts fixed `Documents/IdentificationReplay/audio.wav`
+and `video.mp4` inputs into an empty workspace. It preserves the source,
+enforces recorder duration/byte limits, requires all five video frames and
+companion WAV when audio is present, and transfers only prepared copies to
+normal staging. Cancellation, stale account/session ownership and failed
+preparation clean unaccepted copies; no replay action calls admission, queues a
+scan or submits inference. The ordinary Identify action retains those
+responsibilities. See the
+[app measurement guide](../../../../../../docs/development-guides/21-identification-app-measurement.md#controlled-audio-and-video-replay-in-the-simulator)
+for sample preparation, activation and measurement limits.
 
 When recording ends, the countdown and stop icon immediately give way to a busy
 shutter while preparation continues. The capture generation remains active, the
@@ -123,6 +138,12 @@ frameworks.
 `CaptureScanVideoAudioExtractorTests` creates synthetic MP4 clips with mono and
 stereo AAC tracks and checks canonical WAV format, audible samples, duration,
 queue eligibility, source preservation, no-audio behavior, and lease cleanup.
+
+`CaptureDebugReplayPreparerTests` covers canonical audio, duration/size bounds,
+linked sources/inboxes, complete video evidence, fallback playback ownership and
+late cancellation cleanup. `CaptureWorkspaceDebugReplayTests`, under the
+`CaptureWorkspaceViewModelRefinementTests` selector, covers manual Identify,
+interruption/replacement fencing and account changes without provider calls.
 
 The canonical hardware and media contracts remain in
 [`01-camera-and-hardware.md`](../../../../../../docs/features-and-hardware/01-camera-and-hardware.md)

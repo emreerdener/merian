@@ -101,32 +101,12 @@ extension CaptureWorkspaceViewModel {
                 }
 
                 self.preFetchTask = contextTask
-                let stagedFrames = preparedVideo.sampledFrames.map { frame in
-                    let previewImage = UIImage(
-                        cgImage: frame.previewCGImage.image,
-                        scale: 1.0,
-                        orientation: .up
-                    )
-                    return StagedImage(
-                        compressedData: frame.inferenceData,
-                        displayData: frame.displayData,
-                        uiImage: previewImage,
-                        original: IdentifiableImage(
-                            image: previewImage,
-                            environmentContext: nil,
-                            isFromGallery: false
-                        )
-                    )
-                }
-                self.stagedCapture.videos.append(StagedVideo(
-                    filePath: preparedVideo.playback.fileURL.path,
-                    sampledImages: stagedFrames,
-                    audioFilePath: preparedVideo.audioFilePath
-                ))
+                let stagedVideo = Self.makeStagedVideo(preparedVideo)
+                self.stagedCapture.videos.append(stagedVideo)
                 self.beginAutomaticStagedSubmissionIfEligible()
                 MerianLog.hardware.debug(
                     """
-                    Video staged: frames=\(stagedFrames.count, privacy: .public), \
+                    Video staged: frames=\(stagedVideo.sampledImages.count, privacy: .public), \
                     file=\(preparedVideo.playback.fileURL.lastPathComponent, privacy: .public), \
                     source=\(preparedVideo.playback.sourceDescription, privacy: .public), \
                     originalBytes=\(preparedVideo.playback.originalBytes, privacy: .public), \
@@ -194,6 +174,9 @@ extension CaptureWorkspaceViewModel {
     }
 
     func handleVisualCaptureInterruption() {
+        #if DEBUG && targetEnvironment(simulator)
+        cancelDebugReplay()
+        #endif
         cancelStillCapture()
         if isVideoRecording {
             stopVideoCapture()
@@ -203,9 +186,32 @@ extension CaptureWorkspaceViewModel {
     }
 
     func cancelAllVisualCaptureWork() {
+        #if DEBUG && targetEnvironment(simulator)
+        cancelDebugReplay()
+        #endif
         cancelStillCapture()
         guard scanOperationState.hasActiveVideoCapture else { return }
         cancelVideoCapture()
+    }
+
+    static func makeStagedVideo(
+        _ prepared: PreparedCaptureScanVideo,
+        isFromGallery: Bool = false
+    ) -> StagedVideo {
+        let frames = prepared.sampledFrames.map { frame in
+            let image = UIImage(cgImage: frame.previewCGImage.image, scale: 1, orientation: .up)
+            return StagedImage(
+                compressedData: frame.inferenceData,
+                displayData: frame.displayData,
+                uiImage: image,
+                original: IdentifiableImage(image: image, environmentContext: nil, isFromGallery: isFromGallery)
+            )
+        }
+        return StagedVideo(
+            filePath: prepared.playback.fileURL.path,
+            sampledImages: frames,
+            audioFilePath: prepared.audioFilePath
+        )
     }
 
     private func startVideoRecordingProgressTimer(

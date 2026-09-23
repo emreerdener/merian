@@ -1,0 +1,86 @@
+#if DEBUG && targetEnvironment(simulator)
+import Foundation
+
+extension CaptureWorkspaceViewModel {
+    var canStartDebugReplay: Bool {
+        !isCapturing && !isVideoRecording && !isPreparingVideo
+            && !isCheckingScanAdmission && !isStagingRefinement
+            && activeSheet == nil && !isRootPresentationDismissing
+            && imageToCrop == nil && selectedPhotoItems.isEmpty
+            && stagedCapture.isEmpty && baseRefinementContext == nil
+            && !diContainer.supabaseManager.isAuthTransitionInProgress
+            && !diContainer.audioCaptureManager.isRecording
+            && diContainer.audioCaptureManager.pendingPlaybackPath == nil
+    }
+
+    @discardableResult
+    func startDebugReplay(
+        _ kind: CaptureDebugReplayKind,
+        prepare: @escaping @Sendable (CaptureDebugReplayKind, CGFloat, Bool) async throws -> PreparedCaptureDebugReplay = {
+            try await CaptureDebugReplayPreparer.prepare($0, composingCenter: $1, isProActive: $2)
+        }
+    ) -> Task<Void, Never>? {
+        guard canStartDebugReplay,
+              kind != .video || dependencies.scan.canStartProScan() else { return nil }
+        let generation = UUID()
+        let accountGeneration = diContainer.appRouteCoordinator.accountGeneration
+        let sessionGeneration = diContainer.appRouteCoordinator.sessionGeneration
+        let userID = diContainer.supabaseManager.currentUser?.id
+        debugReplayGeneration = generation
+        isCapturing = true
+        finishAutomaticStagedSubmissionAttempt()
+        let composingCenter = composingZoneVerticalCenter
+        let isProActive = dependencies.scan.canStartProScan()
+        let task = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer {
+                if self.debugReplayGeneration == generation {
+                    self.debugReplayGeneration = nil
+                    self.debugReplayTask = nil
+                    self.isCapturing = false
+                }
+            }
+            do {
+                let prepared = try await prepare(kind, composingCenter, isProActive)
+                guard !Task.isCancelled,
+                      self.debugReplayGeneration == generation,
+                      self.diContainer.appRouteCoordinator.accountGeneration == accountGeneration,
+                      self.diContainer.appRouteCoordinator.sessionGeneration == sessionGeneration,
+                      self.diContainer.supabaseManager.currentUser?.id == userID,
+                      !self.diContainer.supabaseManager.isAuthTransitionInProgress,
+                      self.stagedCapture.isEmpty, self.baseRefinementContext == nil,
+                      self.activeSheet == nil, self.imageToCrop == nil else {
+                    await prepared.discard()
+                    return
+                }
+                switch prepared {
+                case .audio(let url):
+                    self.stagedCapture.audios.append(StagedAudio(filePath: url.lastPathComponent))
+                case .video(let video):
+                    self.stagedCapture.videos.append(Self.makeStagedVideo(video, isFromGallery: true))
+                }
+                // Deliberately retain manual Identify ownership even in single-capture mode.
+                self.finishAutomaticStagedSubmissionAttempt()
+            } catch is CancellationError {
+                // Preparation owns cleanup until it returns an accepted result.
+            } catch {
+                guard self.debugReplayGeneration == generation else { return }
+                self.offlineToastMessage = .error(
+                    (error as? CaptureDebugReplayError)?.errorDescription
+                        ?? "Replay couldn't prepare the sample. Check the local file and try again."
+                )
+            }
+        }
+        debugReplayTask = task
+        return task
+    }
+
+    func cancelDebugReplay() {
+        guard debugReplayGeneration != nil else { return }
+        debugReplayGeneration = nil
+        debugReplayTask?.cancel()
+        debugReplayTask = nil
+        isCapturing = false
+    }
+}
+#endif

@@ -70,17 +70,81 @@ The observer is not a complete request or billing ledger.
 
 ### Pipeline markers depend on the input path
 
-The photo path can emit seven projected events. Description-only submissions
-currently emit five: HTTP timing, native diagnostics, response-to-first-result
-state, postflight and total pipeline time. `preflight_seconds` logs visual
-encode/auth work in `InferenceLiveRequestService.dispatchVisual`; the nonvisual
-path has no equivalent marker. Describe's
-`CaptureWorkspaceViewModel.submitDescribeSolo` also omits the optional
-`userPerceivedStart` passed through nonvisual submission to the first-render
-probe. Consequently `tap_to_first_rendered_frame_seconds` is absent for
-Describe. Keep both absent values null; neither can be reconstructed from other
-spans or treated as zero. A complete observer window does not mean every input
-path has the same instrumentation coverage.
+The photo path can emit seven projected events. Description-only submissions can
+now emit six: HTTP timing, native diagnostics, response-to-first-result state,
+postflight, total pipeline time and tap-to-first-rendered-frame time. Immediate
+Describe passes its original submission tap clock through `submitDescribeSolo`
+and nonvisual submission; a staged description uses the later Identify tap. The
+first-render probe remains correlated to the active scan and records at most
+once.
+
+`preflight_seconds` logs visual encode/auth work in
+`InferenceLiveRequestService.dispatchVisual`; the nonvisual path has no
+equivalent marker. The earlier description pilot used a build that omitted the
+immediate Describe clock and emitted five events. Its absent preflight and
+first-render values remain null. No missing value can be reconstructed from
+other spans or treated as zero. A complete observer window does not mean every
+input path has the same instrumentation coverage.
+
+## Controlled audio and video replay in the simulator
+
+Debug simulator builds expose **Debug replay** on the empty **Scan** page. This
+interactive tool stages a local sample; **Identify** still owns submission,
+consent, admission, durable queueing and the normal Gemini selection. Replay
+does not submit automatically, even when scan confirmation is off. It has no
+launch argument, network client, provider override, XCTest seed or Release/
+physical-device implementation. Automated tests use synthetic local media and
+injected preparation results without making identification requests.
+
+Use only reviewed, rights-cleared samples without personal information, speech,
+answer-bearing text or sensitive metadata. Keep source provenance, hashes and
+case records outside Git with the evaluation packet's access and retention
+controls. Install the current Debug app through the normal local build flow,
+then copy the reviewed files into its private simulator inbox:
+
+```bash
+replay_device="SIMULATOR-UUID"
+replay_container="$(xcrun simctl get_app_container "$replay_device" app.merian.Merian data)"
+replay_inbox="$replay_container/Documents/IdentificationReplay"
+mkdir -p "$replay_inbox"
+cp "/absolute/path/to/reviewed-audio.wav" "$replay_inbox/audio.wav"
+cp "/absolute/path/to/reviewed-video.mp4" "$replay_inbox/video.mp4"
+```
+
+Copy only the modality being exercised if the other is unavailable. These are
+regular files, not symlinks; the inbox itself must also be a regular directory.
+The app preserves each inbox source and prepares a uniquely owned copy. Replace
+the source only between completed attempts, and remove the inbox files when
+their retention period ends. Removing a staged item cleans its prepared files,
+not the inbox source.
+
+- Audio must be nonempty, no longer than 15 seconds and at most 2,700,000 bytes.
+  `InferenceAudioPreparer` produces the same canonical mono 44.1 kHz PCM16 WAV
+  accepted by the ordinary inference queue.
+- Video requires ordinary Pro video access, a video track, a positive duration
+  no longer than 5 seconds and at most 12 MiB. The existing video preparer
+  samples five frames, prepares playback and extracts audio. Replay rejects a
+  partial frame set or missing extraction when the source has an audio track.
+  Silent source video is allowed. For a five-second clip the existing sample
+  positions are 0.5, 1.5, 2.5, 3.5 and 4.5 seconds. Identification receives
+  those images and any companion WAV; the movie remains playback media.
+- Preparation requires an empty workspace with no recording, pending audio,
+  description draft, crop, admission check or refinement. Leaving Scan,
+  backgrounding, clearing capture or transferring presentation ownership cancels
+  uncommitted replay work. Generation and account/session fences reject late
+  results and clean their owned files.
+
+Choose **Stage audio sample** or **Stage video sample**, inspect the staged
+media, start the observer below and wait for `observer_ready`, then tap the
+normal **Identify** button once. Record the visible outcome independently.
+Replay preparation happens before that tap, so these measurements do not cover
+file import, microphone/camera recording or physical-device behavior. Imported
+video frames are marked as gallery input and do not fabricate capture context;
+the ordinary audio submission context policy remains unchanged. Source hashes
+alone do not attest to the prepared inference bytes or complete request context.
+
+This provides a repeatable input path. It is not an audio/video benchmark until
+reviewed cases have actually been submitted and their observations retained.
 
 ## Observe a simulator session
 
@@ -252,3 +316,30 @@ mismatch and the missing timing fields. Audio/video files have no normal-app
 import route, and this observer uses simulator logging; physical-device capture
 does not inherit these measurements. No audio/video case or new runtime change
 was included.
+
+### Describe timing and replay infrastructure — 22 September 2026
+
+The native implementation now forwards the immediate Describe start clock and
+provides the controlled simulator replay path above. The focused selection
+passed 94 tests, and the complete native unit target passed 4,293 tests with no
+failures or skips. The full XCResult is retained locally at
+`.artifacts/local-ios/2fd99182d0a0403dbf4560b3fcc1e379.xcresult`. XcodeGen
+regeneration, generated-project validation/resource tests, Markdown formatting
+and diff checks also passed.
+
+The arm64 Release simulator build passed. Its executable contained none of the
+`IdentificationReplay`, `Stage audio sample` or `Stage video sample` markers;
+the Debug app's executable/dylib scan found all three as a positive control.
+This establishes the checked build's compile-time exclusion, not an App Store
+archive, physical-device or hosted release validation.
+
+A staging-only UI smoke check used one second of synthetic tone audio. The Debug
+menu staged the clip, the normal Identify button remained available without
+automatic submission, and cancellation returned to the empty workspace. The
+inbox source hash was unchanged after cancellation; the synthetic input was then
+removed. Identify was never tapped. This check made no identification request
+and is not a biological benchmark or latency sample.
+
+Live verification of Describe's new first-render marker and curated audio/video
+identification measurements remain pending. Earlier benchmark files and their
+unknown values are unchanged.

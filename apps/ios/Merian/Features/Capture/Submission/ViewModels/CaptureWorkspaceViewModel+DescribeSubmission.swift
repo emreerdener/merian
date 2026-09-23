@@ -54,7 +54,7 @@ extension CaptureWorkspaceViewModel {
             } else {
                 if requiresScanConfirmation {
                     // Stage as a solo node so the user confirms via Identify before submitting.
-                    // submitStagedCapture routes description-only back through submitDescribeSolo.
+                    // The staged Identify action supplies its own tap clock.
                     stagedCapture.observationContexts = [StagedObservationContext(context: stagedContext)]
                 } else {
                     let targetEradicationScanId = baseRefinementContext?.scanId
@@ -63,6 +63,7 @@ extension CaptureWorkspaceViewModel {
                     return await submitDescribeSolo(
                         observationContext: stagedContext,
                         modelContext: modelContext,
+                        userPerceivedStart: now,
                         targetEradicationScanId: targetEradicationScanId
                     )
                 }
@@ -152,6 +153,7 @@ extension CaptureWorkspaceViewModel {
     func submitDescribeSolo(
         observationContext: ObservationContext,
         modelContext: ModelContext,
+        userPerceivedStart: CFAbsoluteTime,
         targetEradicationScanId: String? = nil
     ) async -> Bool {
         guard !observationContext.isEmpty else { return false }
@@ -160,7 +162,8 @@ extension CaptureWorkspaceViewModel {
             observationContexts: [observationContext],
             mediaTimeline: [.description(observationContext)],
             modelContext: modelContext,
-            targetEradicationScanId: targetEradicationScanId
+            targetEradicationScanId: targetEradicationScanId,
+            userPerceivedStart: userPerceivedStart
         )
     }
 }

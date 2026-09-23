@@ -1,7 +1,7 @@
 # Naturebook Identification Evaluation Readiness — SRD
 
 Document ID: NB-SRD-IDENTIFICATION-EVAL-001\
-Version: 0.10\
+Version: 0.11\
 Date: 22 September 2026\
 Status: Slices 1–3 and exploratory automation implemented; photo and description
 app pilots completed; reviewed live baseline pending\
@@ -545,12 +545,25 @@ description once. Both windows closed with five events, fresh Gemini 2.5 Pro
 diagnostics and valid provider/Edge spans. The mushroom answer agreed at genus
 level but exceeded the reference's specificity; the ambiguous
 non-biological-source description returned a Strong biological answer. Neither
-is independent accuracy evidence. The nonvisual path emits no visual preflight
-marker, and Describe omits the optional start clock needed for first-render
-timing. Both missing fields remain null. Audio/video capture remains live-only
-in the normal app, and the passive observer is simulator-only; no controlled
-audio/video cases ran. The next proposed slice addresses these measurement and
-replay gaps without changing models or adding live calls to CI.
+is independent accuracy evidence. That build's nonvisual path emitted no visual
+preflight marker and omitted the immediate Describe clock needed for
+first-render timing. Both missing fields remain null in the frozen report.
+Audio/video capture was live-only, and the passive observer was simulator-only;
+no controlled audio/video cases ran.
+
+The subsequent native implementation forwards the immediate Describe clock and
+adds a Debug simulator-only local replay input under `Capture/Scan/Debug`. Fixed
+inbox files are copied and validated against normal recording limits, then
+prepared with the existing WAV and five-frame video services. Replay requires a
+complete frame set and audio when the source contains it; stale, cancelled and
+failed work cleans owned artifacts. Accepted evidence enters ordinary staging
+with automatic submission disabled. The manual Identify action still owns
+consent, entitlement/admission, durable queueing and the unchanged Gemini route.
+The feature adds no DTO, schema, provider adapter, release activation or live CI
+request. The
+[app measurement guide](../development-guides/21-identification-app-measurement.md#controlled-audio-and-video-replay-in-the-simulator)
+owns activation and measurement limits. Live validation of the new Describe
+marker and first controlled audio/video benchmark cases remain pending.
 
 | Slice                     | Implementation and verification                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

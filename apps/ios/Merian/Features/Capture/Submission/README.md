@@ -119,16 +119,20 @@ Edge/runtime validation.
 remain explicit.
 
 `CaptureWorkspaceViewModel.submitStagedCapture(...)` starts the user-perceived
-clock when Analyze is tapped. The caller-scoped admission preview may suspend,
-so staged input remains intact and its captured snapshot is revalidated before
-the visual path clears buffers or initiates the queue. Submission then creates
-one stable `scan_id` and persists the ordered media timeline to
-`OfflineQueuedScan` before live inference is allowed to start. A still-online
-foreground route also creates one foreground inference UUID and persists it on
-the scan-ingestion job in the same queue transaction; a queue-only route does
-not. The live engine receives the same scan/generation pair. A failed queue
-acceptance is a hard failure: source files are cleaned up and the UI must not
-pretend that the scan is analyzing or safely queued.
+clock when Analyze is tapped. Immediate Describe also forwards its original tap
+clock through `submitDescribeSolo` and `submitNonVisualCapture`; staged Describe
+uses the later toolbar tap. The live submission coordinator correlates the
+first-render marker to the active scan and emits it at most once. The
+caller-scoped admission preview may suspend, so staged input remains intact and
+its captured snapshot is revalidated before the visual path clears buffers or
+initiates the queue. Submission then creates one stable `scan_id` and persists
+the ordered media timeline to `OfflineQueuedScan` before live inference is
+allowed to start. A still-online foreground route also creates one foreground
+inference UUID and persists it on the scan-ingestion job in the same queue
+transaction; a queue-only route does not. The live engine receives the same
+scan/generation pair. A failed queue acceptance is a hard failure: source files
+are cleaned up and the UI must not pretend that the scan is analyzing or safely
+queued.
 
 The context lookup captured from the shutter or recorder has one live consumer.
 Submission cancels it whenever queue acceptance fails or a pre-dispatch branch

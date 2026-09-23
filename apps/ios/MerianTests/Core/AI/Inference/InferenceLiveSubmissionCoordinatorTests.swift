@@ -152,12 +152,13 @@ struct InferenceLiveSubmissionCoordinatorTests {
         await harness.cancelTask()
     }
 
-    @Test func descriptionSubmissionPreservesDescribeCopy() async {
+    @Test func descriptionSubmissionPreservesCopyAndRecordsFirstRenderOnce() async {
         let harness = InferenceLiveSubmissionHarness()
+        let scanId = "description-submission"
 
         harness.subject.startNonVisual(.init(
-            scanId: nil,
-            foregroundInferenceGeneration: nil,
+            scanId: scanId,
+            foregroundInferenceGeneration: UUID(),
             audioFilePaths: nil,
             videoFilePaths: nil,
             observationContexts: [
@@ -167,7 +168,7 @@ struct InferenceLiveSubmissionCoordinatorTests {
             telemetry: harness.telemetry(),
             modelContext: nil,
             targetEradicationScanId: nil,
-            userPerceivedStart: nil
+            userPerceivedStart: 42
         ))
 
         #expect(
@@ -175,6 +176,11 @@ struct InferenceLiveSubmissionCoordinatorTests {
                 == "Identifying describe"
         )
         #expect(harness.presentation.attempt.task != nil)
+        harness.subject.recordFirstRenderedFrame(scanId: "displaced", now: 44)
+        #expect(harness.benchmarks.values.isEmpty)
+        harness.subject.recordFirstRenderedFrame(scanId: scanId, now: 45)
+        harness.subject.recordFirstRenderedFrame(scanId: scanId, now: 46)
+        #expect(harness.benchmarks.values == [.tapToFirstRenderedFrame(3)])
 
         await harness.cancelTask()
     }

@@ -80,6 +80,16 @@ struct CaptureControlBar: View {
         VStack {
             Spacer()
 
+            #if DEBUG && targetEnvironment(simulator)
+            if captureMode == .visual {
+                CaptureDebugReplayMenu(
+                    viewModel: viewModel,
+                    isAvailable: !isSuppressed && observationContext.isEmpty
+                        && !coordinator.isDictationRequested
+                )
+            }
+            #endif
+
             HStack(alignment: .center) {
                 leadingControls(presentation)
                 Spacer()
