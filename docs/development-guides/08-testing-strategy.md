@@ -1004,49 +1004,63 @@ HTTP request is dispatched. See the
    focused result must report exactly those four passed cases and zero failed or
    skipped cases. Its structured tree must contain that exact named set under
    `merianUITests`; missing, wrong, duplicated, malformed, empty, or
-   contradictory evidence fails the job. The UI invocation sets
-   `-collect-test-diagnostics never` to disable verbose simulator diagnostics
-   such as sysdiagnose within its 10-minute budget. This is a mitigation for
-   hosted runs that reported all four cases passed and then timed out before
-   Xcode finalized its result bundle; the precise cause of those stalls remains
-   unconfirmed. Console pass lines never substitute for successful Xcode exit
-   and validated structured results. The workflow retains its Xcode log and
-   available result-bundle evidence, but verbose diagnostic collection requires
-   a separate diagnostic rerun with this option removed.
-   `scripts/validate-ios-focused-test-results.sh` enforces the hosted evidence,
-   and `scripts/test-validate-ios-focused-test-results.sh` provides portable
-   positive and adversarial fixtures. The seed writes a valid one-second PCM WAV
-   into Documents. The test must observe its filename-scoped playback control,
-   which appears only after player creation and spectrogram decoding, both
-   before and after completion handoff. The outer carousel-page identifier is
-   insufficient because it also exists while audio is unavailable. The seed must
-   not advance on a fixed sleep or countdown. After every queued-state assertion
-   passes, the smoke taps `ScanningStatusBadge`; only that explicit app-private
-   Debug handshake may replace the queued fixture with its completed record. The
-   fixture transaction must use the exact environment `ModelContext` bound to
-   the open Insight sheet and, after saving, directly invoke the existing
-   production `promoteQueuedScanIfLocalRecordExists` path with that same
-   context. The open destination must complete direct promotion before it sends
-   `.scanLibraryChanged` for parent-library refresh; publishing the synchronous
-   event first can rebuild the child from its retained queued route snapshot. A
-   cross-context event merge must not control the deterministic handoff. This
-   keeps slow hosted accessibility startup or a stale open context from erasing
-   the state the test is required to prove. After the completed result takes
-   over, the same smoke requires `FieldChatToolbarButton` and
-   `InsightShareButton`, proving queue promotion reconnects the observation to
-   Field Chat and sharing. Because queued and completed presentations
-   intentionally reuse the same scan UUID, delayed result-toolbar and Field
-   Notes tasks use `scanBoundActionGeneration` as their `.task(id:)`; an
-   ID-keyed task can be canceled by queued-state invalidation and never restart
-   for the result. Seed implementation is enclosed by the app target's `DEBUG`
-   compilation condition. Release retains only signature-compatible no-ops with
-   `UITestSeedCoordinator.isEnabled == false`; it does not compile fixture
-   arguments, deterministic media, or local data-replacement logic. The portable
-   workflow contract pins both branches and extracts every `-seed…` argument and
-   deterministic `ui_test_…` identifier from the Debug coordinator. That exact
-   source set must match the archive denylist. The current-SHA Release archive
-   then extracts the main binary's strings and fails if any of those Debug-only
-   seed arguments or deterministic fixture identifiers is present.
+   contradictory evidence fails the job. After compilation, a separate
+   five-minute preflight runs `simctl bootstatus <selected-UDID> -b` and
+   requires boot completion before XCTest installs and launches its runner.
+   Selecting a simulator or compiling for it does not establish boot readiness.
+   The preflight preserves device data and propagates boot failures through log
+   capture; its log is retained on success and failure, including when the UI
+   invocation is skipped. This addresses cold boot sharing the test deadline,
+   but does not establish that the Instruments service hub is healthy. The UI
+   invocation enables XCTest timeouts with default and maximum per-test
+   allowances of 180 seconds. Its 20-minute outer deadline leaves eight minutes
+   beyond the four test allowances for runner startup and result finalization;
+   the job has 70 minutes for package resolution, compilation, boot, testing,
+   and evidence handling. These are hang-containment limits, not performance
+   acceptance thresholds. Failed or timed-out tests are not retried
+   automatically. The UI invocation sets `-collect-test-diagnostics never` to
+   disable verbose simulator diagnostics such as sysdiagnose within its
+   execution budget. This is a mitigation for hosted runs that reported all four
+   cases passed and then timed out before Xcode finalized its result bundle; the
+   precise cause of those stalls remains unconfirmed. Console pass lines never
+   substitute for successful Xcode exit and validated structured results. The
+   workflow retains its Xcode log and available result-bundle evidence, but
+   verbose diagnostic collection requires a separate diagnostic rerun with this
+   option removed. `scripts/validate-ios-focused-test-results.sh` enforces the
+   hosted evidence, and `scripts/test-validate-ios-focused-test-results.sh`
+   provides portable positive and adversarial fixtures. The seed writes a valid
+   one-second PCM WAV into Documents. The test must observe its filename-scoped
+   playback control, which appears only after player creation and spectrogram
+   decoding, both before and after completion handoff. The outer carousel-page
+   identifier is insufficient because it also exists while audio is unavailable.
+   The seed must not advance on a fixed sleep or countdown. After every
+   queued-state assertion passes, the smoke taps `ScanningStatusBadge`; only
+   that explicit app-private Debug handshake may replace the queued fixture with
+   its completed record. The fixture transaction must use the exact environment
+   `ModelContext` bound to the open Insight sheet and, after saving, directly
+   invoke the existing production `promoteQueuedScanIfLocalRecordExists` path
+   with that same context. The open destination must complete direct promotion
+   before it sends `.scanLibraryChanged` for parent-library refresh; publishing
+   the synchronous event first can rebuild the child from its retained queued
+   route snapshot. A cross-context event merge must not control the
+   deterministic handoff. This keeps slow hosted accessibility startup or a
+   stale open context from erasing the state the test is required to prove.
+   After the completed result takes over, the same smoke requires
+   `FieldChatToolbarButton` and `InsightShareButton`, proving queue promotion
+   reconnects the observation to Field Chat and sharing. Because queued and
+   completed presentations intentionally reuse the same scan UUID, delayed
+   result-toolbar and Field Notes tasks use `scanBoundActionGeneration` as their
+   `.task(id:)`; an ID-keyed task can be canceled by queued-state invalidation
+   and never restart for the result. Seed implementation is enclosed by the app
+   target's `DEBUG` compilation condition. Release retains only
+   signature-compatible no-ops with `UITestSeedCoordinator.isEnabled == false`;
+   it does not compile fixture arguments, deterministic media, or local
+   data-replacement logic. The portable workflow contract pins both branches and
+   extracts every `-seed…` argument and deterministic `ui_test_…` identifier
+   from the Debug coordinator. That exact source set must match the archive
+   denylist. The current-SHA Release archive then extracts the main binary's
+   strings and fails if any of those Debug-only seed arguments or deterministic
+   fixture identifiers is present.
 
 3. **Current-SHA Release archive** independently checks out `GITHUB_SHA`,
    resolves the same lockfile, and runs a generic-device Release archive with
@@ -7542,11 +7556,11 @@ segment, and suppression when Haptics is disabled or Expedition mode is active.
 Simulator execution cannot accept the tactile or live-camera optical checks.
 
 `testQueuedRetryPresentationUsesSafeActionableCopy` keeps its scheduled fixture
-deadline one hour beyond seeding, longer than the critical UI job's ten-minute
-limit. This smoke verifies scheduled retry copy and action eligibility; it must
-not race launch or accessibility work against a 30-second deadline. The
-explicit-clock `InsightQueuedRetryPresentationTests` suite owns deadline expiry
-and suppression of elapsed retry actions.
+deadline one hour beyond seeding, longer than the critical UI test step's
+20-minute limit. This smoke verifies scheduled retry copy and action
+eligibility; it must not race launch or accessibility work against a 30-second
+deadline. The explicit-clock `InsightQueuedRetryPresentationTests` suite owns
+deadline expiry and suppression of elapsed retry actions.
 
 `testQueuedAudioScanRetainsAudioAcrossCompletionHandoff` launches the seeded
 queued-audio flow, opens Scans, and taps the staged tile. It requires the queued

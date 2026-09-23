@@ -344,7 +344,7 @@ jobs:
     needs: scope
     if: needs.scope.outputs.should_run == 'true'
     runs-on: xcode-27
-    timeout-minutes: 55
+    timeout-minutes: 70
     env:
       DEVELOPER_DIR: /Applications/Xcode_27.0.app/Contents/Developer
 
@@ -369,6 +369,7 @@ jobs:
             echo "XCODE_UI_TEST_SUMMARY=$RUNNER_TEMP/ios-critical-scan-ui-summary.json"
             echo "XCODE_UI_TEST_TREE=$RUNNER_TEMP/ios-critical-scan-ui-tree.json"
             echo "XCODE_UI_EVIDENCE=$RUNNER_TEMP/ios-critical-scan-ui-evidence.json"
+            echo "XCODE_UI_BOOT_LOG=$RUNNER_TEMP/ios-ui-simulator-boot.log"
           } >> "$GITHUB_ENV"
 
       - name: Verify exact source revision
@@ -477,9 +478,25 @@ jobs:
             COMPILER_INDEX_STORE_ENABLE=NO \
             2>&1 | tee "$XCODE_BUILD_LOG"
 
+      - name: Wait for UI simulator boot readiness
+        id: ios-ui-simulator-boot
+        timeout-minutes: 5
+        env:
+          IOS_TEST_DESTINATION: ${{ steps.ios-test-simulator.outputs.destination }}
+        run: |
+          set -euo pipefail
+          simulator_id="${IOS_TEST_DESTINATION#platform=iOS Simulator,id=}"
+          if [ "$simulator_id" == "$IOS_TEST_DESTINATION" ] || [ -z "$simulator_id" ]; then
+            echo "Expected a concrete iOS simulator destination." >&2
+            exit 1
+          fi
+          # Compilation does not boot the simulator. Complete OS startup before
+          # XCTest starts installing and launching its accessibility runner.
+          xcrun simctl bootstatus "$simulator_id" -b 2>&1 | tee "$XCODE_UI_BOOT_LOG"
+
       - name: Run critical scan UI smokes
         id: xcode-critical-scan-ui
-        timeout-minutes: 10
+        timeout-minutes: 20
         run: |
           set -o pipefail
           xcode_project="Merian.xcodeproj"
@@ -499,6 +516,9 @@ jobs:
             -derivedDataPath "$XCODE_DERIVED_DATA" \
             -resultBundlePath "$XCODE_UI_RESULT_BUNDLE" \
             -parallel-testing-enabled NO \
+            -test-timeouts-enabled YES \
+            -default-test-execution-time-allowance 180 \
+            -maximum-test-execution-time-allowance 180 \
             -collect-test-diagnostics never \
             -only-testing:merianUITests/merianUITests/testAnalyzingPillProgressesWithoutEscapingAccessibilityWindow \
             -only-testing:merianUITests/merianUITests/testLiveInsightConnectivityFailureTransitionsToDurableQueue \
@@ -593,10 +613,17 @@ jobs:
         if: failure()
         run: |
           diagnostics="${RUNNER_TEMP}/ios-ui-test-diagnostics.txt"
-          bash scripts/extract-ios-test-failure-diagnostics.sh \
-            "$XCODE_UI_TEST_SUMMARY" \
-            "$XCODE_UI_TEST_TREE" \
-            "$XCODE_UI_BUILD_LOG" > "$diagnostics"
+          {
+            if [ -s "$XCODE_UI_BOOT_LOG" ]; then
+              echo "Simulator boot readiness (final 40 lines):"
+              tail -n 40 "$XCODE_UI_BOOT_LOG"
+              echo ""
+            fi
+            bash scripts/extract-ios-test-failure-diagnostics.sh \
+              "$XCODE_UI_TEST_SUMMARY" \
+              "$XCODE_UI_TEST_TREE" \
+              "$XCODE_UI_BUILD_LOG"
+          } > "$diagnostics"
           {
             echo ""
             echo "#### iOS ui test diagnostics"
@@ -616,6 +643,7 @@ jobs:
             ${{ runner.temp }}/ios-critical-scan-ui-summary.json
             ${{ runner.temp }}/ios-critical-scan-ui-tree.json
             ${{ runner.temp }}/ios-ui-xcode-version.txt
+            ${{ runner.temp }}/ios-ui-simulator-boot.log
           if-no-files-found: warn
           retention-days: 14
 
@@ -632,6 +660,7 @@ jobs:
             ${{ runner.temp }}/ios-ui-build.log
             ${{ runner.temp }}/ios-ui-package-resolution.log
             ${{ runner.temp }}/ios-ui-test-diagnostics.txt
+            ${{ runner.temp }}/ios-ui-simulator-boot.log
           if-no-files-found: ignore
           retention-days: 14
 

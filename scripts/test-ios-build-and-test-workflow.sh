@@ -529,14 +529,51 @@ assert_file_count "$unit_job" 0 '-only-testing:merianUITests'
 assert_file_count "$unit_job" 1 'bash scripts/validate-ios-critical-test-results.sh'
 assert_file_count "$ui_job" 0 '-only-testing:merianTests'
 assert_file_count "$ui_job" 0 '-only-testing:merianPerformanceTests'
-assert_file_count "$ui_job" 1 '    timeout-minutes: 55'
+assert_file_count "$ui_job" 1 '    timeout-minutes: 70'
 assert_file_count "$ui_job" 1 'xcodebuild build-for-testing'
 assert_file_count "$ui_job" 1 'xcodebuild test-without-building'
 assert_file_count "$ui_job" 1 'bash scripts/validate-ios-focused-test-results.sh'
 assert_file_contains "$ui_job" 'name: ios-critical-scan-ui-evidence-'
 assert_file_contains "$ui_job" 'name: ios-critical-scan-ui-failure-'
 assert_file_before "$ui_job" 'xcodebuild build-for-testing' 'xcodebuild test-without-building'
+assert_file_before "$ui_job" 'xcodebuild build-for-testing' 'xcrun simctl bootstatus'
+assert_file_before "$ui_job" 'xcrun simctl bootstatus' 'xcodebuild test-without-building'
+assert_file_count "$ui_job" 2 '${{ runner.temp }}/ios-ui-simulator-boot.log'
 assert_file_contains "$contract_tmp/production-readiness" 'UI_TEST_RESULT: ${{ needs.ios-critical-scan-ui.result }}'
+
+# Execute the real preflight with a fake simctl: a boot failure must survive tee
+# and stop the job, and the exact selected device must be used without resets.
+awk '
+  /^      - name:/ { in_boot = ($0 == "      - name: Wait for UI simulator boot readiness"); in_run = 0 }
+  in_boot && /^        run: \|$/ { in_run = 1; next }
+  in_boot && in_run { sub(/^          /, ""); print }
+' "$ui_job" > "$contract_tmp/boot.sh"
+mkdir "$contract_tmp/bin"
+cat > "$contract_tmp/bin/xcrun" <<'SH'
+#!/usr/bin/env bash
+set -euo pipefail
+[[ "$*" == 'simctl bootstatus 00000000-0000-0000-0000-000000000001 -b' ]] || exit 99
+echo "simulator boot fixture: ${BOOT_EXIT_CODE}"
+exit "$BOOT_EXIT_CODE"
+SH
+chmod +x "$contract_tmp/bin/xcrun"
+for boot_exit in 0 42; do
+  actual=0
+  PATH="$contract_tmp/bin:$PATH" BOOT_EXIT_CODE="$boot_exit" \
+    IOS_TEST_DESTINATION='platform=iOS Simulator,id=00000000-0000-0000-0000-000000000001' \
+    XCODE_UI_BOOT_LOG="$contract_tmp/boot.log" \
+    bash "$contract_tmp/boot.sh" > "$contract_tmp/boot-console.log" 2>&1 || actual=$?
+  [[ "$actual" == "$boot_exit" ]] || fail "Simulator preflight swallowed exit $boot_exit."
+  assert_file_contains "$contract_tmp/boot.log" "simulator boot fixture: $boot_exit"
+done
+for invalid_destination in '' 'generic/platform=iOS Simulator' 'platform=iOS Simulator,id='; do
+  if PATH="$contract_tmp/bin:$PATH" BOOT_EXIT_CODE=0 \
+    IOS_TEST_DESTINATION="$invalid_destination" XCODE_UI_BOOT_LOG="$contract_tmp/boot.log" \
+    bash "$contract_tmp/boot.sh" > "$contract_tmp/boot-console.log" 2>&1; then
+    fail "Simulator preflight accepted an invalid destination."
+  fi
+  assert_file_contains "$contract_tmp/boot-console.log" 'Expected a concrete iOS simulator destination.'
+done
 
 # Execute the actual readiness shell for every completion combination. Failure,
 # cancellation, missing output, or skipped UI may never produce a release pass.
@@ -576,18 +613,27 @@ for scope_result in failure cancelled skipped ""; do
   fi
 done
 
-# Keep verbose simulator diagnostics out of the bounded UI smoke invocation.
+# Boot has its own deadline. Four three-minute test allowances leave eight
+# minutes for runner startup and result finalization before the outer deadline.
 # A passed console suite is insufficient: Xcode must still finalize its result.
 assert_count 1 "-collect-test-diagnostics never"
 awk '
-  /^      - name:/ { in_ui_step = 0 }
+  /^      - name:/ { in_ui_step = 0; in_boot_step = 0 }
+  /^      - name: Wait for UI simulator boot readiness$/ { in_boot_step = 1 }
+  in_boot_step && /^        timeout-minutes:/ { boot_timeout = $2 }
   /^      - name: Run critical scan UI smokes$/ { in_ui_step = 1 }
   in_ui_step && /^        timeout-minutes:/ { ui_timeout = $2 }
+  in_ui_step && $1 == "-test-timeouts-enabled" && $2 == "YES" { timeouts_enabled += 1 }
+  in_ui_step && $1 == "-default-test-execution-time-allowance" { default_allowance = $2 }
+  in_ui_step && $1 == "-maximum-test-execution-time-allowance" { maximum_allowance = $2 }
   in_ui_step && NF == 3 && $1 == "-collect-test-diagnostics" \
     && $2 == "never" && $3 == "\\" { diagnostics_disabled += 1 }
-  END { exit !(ui_timeout == 10 && diagnostics_disabled == 1) }
+  END { exit !(boot_timeout == 5 && ui_timeout == 20 && diagnostics_disabled == 1 \
+    && timeouts_enabled == 1 && default_allowance == 180 && maximum_allowance == 180) }
 ' "$workflow" \
-  || fail "Critical UI smokes must disable verbose diagnostics within the 10-minute step."
+  || fail "Critical UI smokes must bound boot and individual tests, leaving time to finalize results."
+assert_file_count "$ui_job" 0 '-retry-tests-on-failure'
+assert_file_count "$ui_job" 0 'continue-on-error:'
 
 if grep -Eq '^[[:space:]]+paths(-ignore)?:' "$workflow"; then
   fail "The required workflow must use in-workflow scope, not event path filters."
