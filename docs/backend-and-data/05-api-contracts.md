@@ -6261,7 +6261,10 @@ envelope, ledger persistence or billing contract. Its generated bundle
 fingerprint covers the Function's local runtime graph/configuration/lock, not a
 Git SHA, database or environment revision. The native diagnostic parser rejects
 unknown header versions and projects only bounded fields, keeping absent usage
-and source values unknown. The
+and source values unknown. Native measurement logs include an optional fixed
+`timingStatus` reason to distinguish an absent timing header from a rejected
+one, without retaining its text. This local diagnostic does not change the HTTP
+header or Identify JSON schema. The
 [app measurement guide](../development-guides/21-identification-app-measurement.md)
 owns passive recording, app source identity, separate timing boundaries and
 offline primary-attempt cost estimates.

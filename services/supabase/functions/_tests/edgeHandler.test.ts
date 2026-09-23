@@ -335,6 +335,23 @@ Deno.test("withEdgeHandler overwrites the handler marker on success", async () =
   assertEquals(response.headers.get("X-Merian-Handler"), "1");
 });
 
+Deno.test("withEdgeHandler retains the complete identification timing header with one auth span", async () => {
+  const routeMetrics =
+    "body_read;dur=0.1, tier;dur=0.2, pre_gemini_db;dur=2.0, gemini;dur=25.0, quota_commit;dur=5.0, provider;dur=20.0, video_promotion;dur=0.0, primary_enrichment;dur=3.0, database_finalization;dur=4.0, dictionary;dur=5.0, post_gemini;dur=10.0, edge_total;dur=100.0";
+  const response = await invokeTestHandler(() =>
+    jsonResponse({ ok: true }, 200, { "Server-Timing": routeMetrics })
+  );
+  const timing = response.headers.get("Server-Timing")!;
+  assert(/^auth;dur=[0-9]+\.[0-9], /.test(timing));
+  assertEquals(timing.slice(timing.indexOf(", ") + 2), routeMetrics);
+  assertEquals(timing.split(", ").length, 13);
+  assertEquals(
+    timing.split(", ").filter((metric) => metric.startsWith("auth;")).length,
+    1,
+  );
+  await response.body?.cancel();
+});
+
 Deno.test("withEdgeHandler applies fixed route-contract headers without overriding metadata", async () => {
   const response = await withEdgeHandler(
     new Request("https://test-project.supabase.co/functions/v1/test", {

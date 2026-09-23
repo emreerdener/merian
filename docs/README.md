@@ -221,7 +221,13 @@ production submission or public release.
   distinguishes offline mechanics from the completed
   [two-photo production-app benchmark](./rfcs/identification-production-app-benchmark-2026-09-22.md),
   which records visible outcomes and app timings without claiming verified
-  accuracy, exact model identity or provider cost.
+  accuracy, exact model identity or provider cost. A later
+  [measurement checkpoint](./rfcs/identification-measured-app-benchmark-2026-09-22.md)
+  records one live Gemini model/usage/source observation and explicitly retains
+  recorder failures and missing server timings. The
+  [recorder repair checkpoint](./rfcs/identification-recorder-repair-2026-09-22.md)
+  records the synthetic reproduction, bounded shutdown repair and live-repeat
+  verification status.
 - **Deferred family and prior combined planning:**
   [PRD](./product/02-family-plans-and-ai-platform-prd.md) and
   [SRD](./rfcs/family-plans-and-ai-platform-srd.md). Family plans are deferred;

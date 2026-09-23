@@ -50,10 +50,12 @@ Additional owners:
   key or network access.
 - `appObservation.ts` validates content-free native measurements, projects
   bounded numeric logs and reuses `profiles.ts` for optional conservative
-  primary-attempt estimates. `../observe_identification_app.ts` passively
-  records a bounded simulator window into a new private JSONL file. It submits
-  no requests and has no network or provider-key access. Its artifacts are
-  observations, not runner reports or formal quality scores. See the
+  primary-attempt estimates. `appObserver.ts` owns collector readiness, bounded
+  shutdown, event limits and content-free exit diagnostics.
+  `../observe_identification_app.ts` passively records a bounded simulator
+  window into a new private JSONL file. It submits no requests and has no
+  network or provider-key access. Its artifacts are observations, not runner
+  reports or formal quality scores. See the
   [app measurement guide](../../../../docs/development-guides/21-identification-app-measurement.md).
 - `../evaluate_identification.ts` is the thin CLI; importing it performs no I/O.
 

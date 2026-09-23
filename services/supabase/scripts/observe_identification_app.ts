@@ -1,9 +1,12 @@
 import {
-  type AppMeasurement,
   appMeasurementCost,
-  boundedLogLines,
-  projectAppLog,
+  parseAppMeasurement,
 } from "./identification_evaluation/appObservation.ts";
+import {
+  collectAppLogs,
+  OBSERVER_MAX_EVENTS,
+  OBSERVER_SHUTDOWN_GRACE_SECONDS,
+} from "./identification_evaluation/appObserver.ts";
 import {
   parsePricing,
   type Pricing,
@@ -58,12 +61,14 @@ export async function observeIdentificationApp(args: string[]): Promise<void> {
   let child: Deno.ChildProcess | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let status = "observer_unavailable";
+  let completion: Awaited<ReturnType<typeof collectAppLogs>> | undefined;
   try {
     await write({
       version: "identification_app_observation_v1",
       startedAt: new Date().toISOString(),
       maxSeconds: seconds,
-      maxEvents: 100,
+      shutdownGraceSeconds: OBSERVER_SHUTDOWN_GRACE_SECONDS,
+      maxEvents: OBSERVER_MAX_EVENTS,
       automaticSubmissions: 0,
       pricing,
       caseAssociation: "requires_observed_sequential_ui_actions",
@@ -88,18 +93,23 @@ export async function observeIdentificationApp(args: string[]): Promise<void> {
       stdout: "piped",
       stderr: "null",
     }).spawn();
-    const stop = () => {
-      try {
-        child?.kill("SIGKILL");
-      } catch { /* Already stopped. */ }
-    };
-    timer = setTimeout(stop, (seconds + 5) * 1000);
-    for await (const line of boundedLogLines(child.stdout)) {
-      const projected = projectAppLog(line);
-      if (!projected) continue;
+    const deadline = new AbortController();
+    timer = setTimeout(
+      () => deadline.abort(),
+      (seconds + OBSERVER_SHUTDOWN_GRACE_SECONDS) * 1000,
+    );
+    completion = await collectAppLogs(child, deadline.signal, async () => {
+      await write({
+        readyAt: new Date().toISOString(),
+        status: "observer_ready",
+      });
+      console.log(
+        JSON.stringify({ status: "observer_ready", automaticSubmissions: 0 }),
+      );
+    }, async (projected) => {
       const now = Date.now();
       const cost = projected.version === "identification_app_measurement_v1"
-        ? appMeasurementCost(projected as AppMeasurement, pricing, now)
+        ? appMeasurementCost(parseAppMeasurement(projected), pricing, now)
         : null;
       await write({
         observedAt: new Date(now).toISOString(),
@@ -108,17 +118,8 @@ export async function observeIdentificationApp(args: string[]): Promise<void> {
         cost,
       });
       events++;
-      if (events === 100) {
-        stop();
-        break;
-      }
-    }
-    const result = await child.status;
-    status = events === 100
-      ? "event_limit"
-      : result.success
-      ? "window_completed"
-      : "observer_stopped_or_unavailable";
+    });
+    status = completion.status;
   } finally {
     if (timer !== undefined) clearTimeout(timer);
     try {
@@ -126,7 +127,12 @@ export async function observeIdentificationApp(args: string[]): Promise<void> {
     } catch { /* Already stopped. */ }
     if (child) await child.status;
     try {
-      await write({ finishedAt: new Date().toISOString(), status, events });
+      await write({
+        finishedAt: new Date().toISOString(),
+        ...completion,
+        status,
+        events,
+      });
     } finally {
       file.close();
     }

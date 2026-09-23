@@ -53,8 +53,8 @@ enum IdentificationBenchmarkRecord {
             : nil
         // Keep the logged record compact. Detailed overlapping spans remain in
         // the HTTP header; these two establish the provider/other-work boundary.
-        let spans = timingProjection(response.value(forHTTPHeaderField: "Server-Timing"))
-            .filter { $0.key == "provider" || $0.key == "edge_total" }
+        let timing = timingProjection(response.value(forHTTPHeaderField: "Server-Timing"))
+        let spans = timing.spans.filter { $0.key == "provider" || $0.key == "edge_total" }
         let otherEdgeMs: Any
         if let total = spans["edge_total"], let provider = spans["provider"], total >= provider {
             otherEdgeMs = total - provider
@@ -73,6 +73,7 @@ enum IdentificationBenchmarkRecord {
                 "sourceState": bounded(appInfo["MERIAN_SOURCE_STATE"], "^(clean|dirty)$") as Any? ?? null
             ],
             "diagnostics": diagnostics as Any? ?? null,
+            "timingStatus": timing.status,
             "serverTimingMs": spans,
             "otherEdgeMs": otherEdgeMs
         ]
@@ -104,19 +105,23 @@ enum IdentificationBenchmarkRecord {
         ]
     }
 
-    private static func timingProjection(_ value: String?) -> [String: Double] {
-        guard let value, value.utf8.count <= 2_048 else { return [:] }
+    private static func timingProjection(_ value: String?) -> (spans: [String: Double], status: String) {
+        guard let value else { return ([:], "absent") }
+        guard value.utf8.count <= 2_048 else { return ([:], "oversized") }
         var result: [String: Double] = [:]
         let entries = value.split(separator: ",", omittingEmptySubsequences: false)
-        guard entries.count <= spanNames.count else { return [:] }
+        guard entries.count <= spanNames.count else { return ([:], "too_many_metrics") }
         for entry in entries {
             let parts = entry.trimmingCharacters(in: .whitespaces).components(separatedBy: ";dur=")
-            guard parts.count == 2, spanNames.contains(parts[0]), result[parts[0]] == nil,
+            guard parts.count == 2 else { return ([:], "invalid_syntax") }
+            guard spanNames.contains(parts[0]) else { return ([:], "unknown_metric") }
+            guard result[parts[0]] == nil else { return ([:], "duplicate_metric") }
+            guard
                   parts[1].range(of: "^[0-9]{1,6}(\\.[0-9]{1,6})?$", options: .regularExpression) != nil,
                   let duration = Double(parts[1]), duration.isFinite,
-                  (0...600_000).contains(duration) else { return [:] }
+                  (0...600_000).contains(duration) else { return ([:], "invalid_duration") }
             result[parts[0]] = duration
         }
-        return result
+        return (result, "valid")
     }
 }

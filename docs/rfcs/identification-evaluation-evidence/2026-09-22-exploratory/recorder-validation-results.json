@@ -1,0 +1,155 @@
+{
+  "version": "identification_recorder_repair_validation_v1",
+  "status": "synthetic_validation_passed_live_repeat_blocked_locked_mac",
+  "providerPolicy": "unchanged_gemini",
+  "productionChanges": false,
+  "newPaidSubmissions": 0,
+  "observations": [
+    {
+      "name": "unchanged-synthetic-120s",
+      "kind": "synthetic_no_network",
+      "requestedSeconds": 120,
+      "elapsedSeconds": 125.033,
+      "events": 7,
+      "completion": {
+        "finishedAt": "2026-09-22T23:45:00.435Z",
+        "status": "observer_stopped_or_unavailable",
+        "events": 7
+      },
+      "sha256": "3c94aa9cb2b748ec1dff0bd9fe5e44300e59cd62d6af61114c62cec690442f7e",
+      "biologicalEvidence": false,
+      "automaticSubmissions": 0
+    },
+    {
+      "name": "fixed-synthetic-120s",
+      "kind": "synthetic_no_network",
+      "requestedSeconds": 120,
+      "elapsedSeconds": 137.237,
+      "events": 7,
+      "completion": {
+        "finishedAt": "2026-09-22T23:54:21.262Z",
+        "status": "window_completed",
+        "events": 7,
+        "ready": true,
+        "stopReason": "collector_exit",
+        "collectorExitCode": 0,
+        "collectorSignal": null,
+        "unprojectedRows": 1,
+        "oversizedRows": 0
+      },
+      "sha256": "304a71b8c48855fbfc22ea23c343c5a25e5a39a1c61fb3eca6b308c4a12e5bf1",
+      "biologicalEvidence": false,
+      "automaticSubmissions": 0
+    }
+  ],
+  "nativeCollectorLifecycleProbe": {
+    "kind": "no_network_no_identification",
+    "events": [
+      {
+        "event": "spawned",
+        "elapsedSeconds": 0.003
+      },
+      {
+        "event": "first_line",
+        "elapsedSeconds": 0.382,
+        "streamBanner": true
+      },
+      {
+        "event": "finished",
+        "elapsedSeconds": 128.388,
+        "success": true,
+        "code": 0,
+        "signal": null,
+        "watchdog": false,
+        "lines": 2,
+        "events": 0,
+        "stderrBytes": 44
+      }
+    ],
+    "sha256": "75a0bea2e1e6f38b3f62972dbeb8fef0f0aa9820f9a53b065620c891271f1adc"
+  },
+  "verification": {
+    "focusedDenoTests": {
+      "passed": 41,
+      "failed": 0
+    },
+    "edgeSuite": {
+      "passed": 2048,
+      "steps": 195,
+      "failed": 0,
+      "ignoredDatabaseDependent": 6
+    },
+    "supabaseTooling": "passed",
+    "deployableEntryPointsTypechecked": 101,
+    "dtoParity": "passed",
+    "formatAndLint": "passed",
+    "nativeUnitSuite": {
+      "result": "Passed",
+      "totalTests": 4279,
+      "passedTests": 4279,
+      "failedTests": 0,
+      "skippedTests": 0,
+      "xcresult": ".artifacts/local-ios/75719c5ba2184e1abb2e6b3ce04d42d0.xcresult"
+    }
+  },
+  "limits": [
+    "Synthetic logs are excluded from live benchmark values.",
+    "Successful observer closure does not establish complete OS logging or billing coverage.",
+    "Missing live provider and Edge timings remain unresolved pending the diagnostic app repeat."
+  ],
+  "submissionsScope": "this_checkpoint_benchmark",
+  "installedApp": {
+    "installedAt": "2026-09-23T00:03:05.866048+00:00",
+    "app": {
+      "CFBundleShortVersionString": "1.0.3",
+      "CFBundleVersion": "275",
+      "MERIAN_SOURCE_REVISION": "bcc7ef8de53cefaa04bed81cb32adf7de877bf9a",
+      "MERIAN_SOURCE_FINGERPRINT": "33d8197269dc7105ed6b42c3c52e85c33d8a3540c9b0a79346544ac7f76134b5",
+      "MERIAN_SOURCE_STATE": "dirty"
+    },
+    "installedFileSha256": {
+      "Info.plist": "cb78ba62bdbe6c3c6763d448c21d0398ee9331f361eb759507c670120e79ff30",
+      "Merian": "86ba20c0e5a2dcf7edde591448d1b4d87ff1a177bc7fe758ac6a40ce696874c9"
+    },
+    "xcresult": ".artifacts/local-ios/e4d529a354b545ddbbf94d22bff11ce2.xcresult",
+    "installation": "in_place_preserving_account_and_data",
+    "syntheticTestDevice": "removed"
+  },
+  "sourceSnapshot": {
+    "baseRevision": "bcc7ef8de53cefaa04bed81cb32adf7de877bf9a",
+    "patchSha256": "179103ed9fb0dbef7d17636bae8dc4ca9537764ca761fc9f3718f7aca24c826a",
+    "untrackedFiles": [
+      {
+        "path": "docs/rfcs/identification-evaluation-evidence/2026-09-22-exploratory/production-app-measured-results.json",
+        "sha256": "43cb0dc75ad0d8124fab587333d4d34d14bb4e0429c7c8def6b5481bdd0843e0"
+      },
+      {
+        "path": "docs/rfcs/identification-evaluation-evidence/2026-09-22-exploratory/recorder-validation-results.json",
+        "sha256": "8be06bebe23f9068870dd58804e373936d0e9ee90b38eef6321fcbbf2acd6101"
+      },
+      {
+        "path": "docs/rfcs/identification-measured-app-benchmark-2026-09-22.md",
+        "sha256": "1a5c0343bc57676b1e1df86c8b8e0f063a2ea8dde58f5cece3ded826954a7009"
+      },
+      {
+        "path": "docs/rfcs/identification-recorder-repair-2026-09-22.md",
+        "sha256": "ae2f16982102d66d87360a53cc26bb3b156a13264394fa22b0f5e32066f68060"
+      },
+      {
+        "path": "services/supabase/scripts/identification_app_observer_test.ts",
+        "sha256": "05eb1a461a5bb7a3b60a3fddb82bf05eb78b62cf906c09082712e5c3955a7fd7"
+      },
+      {
+        "path": "services/supabase/scripts/identification_evaluation/appObserver.ts",
+        "sha256": "de3831d46878fcebf62a8609f827de0166822ae6c991ebfdf372e604062b9dd1"
+      }
+    ]
+  },
+  "liveRepeat": {
+    "status": "pending_locked_mac",
+    "authorizedSubmissions": 2,
+    "completedSubmissions": 0,
+    "manualRetries": 0,
+    "priorEvidencePreserved": true
+  }
+}

@@ -1,0 +1,369 @@
+{
+  "schemaVersion": "identification_production_app_measurement_checkpoint_v1",
+  "runId": "production-app-measured-two-photos-2026-09-22",
+  "recordedAt": "2026-09-22T23:01:25.089000+00:00",
+  "status": "two_visible_results_partial_telemetry",
+  "executionBoundary": "existing_production_app_workflow",
+  "authorization": {
+    "ordinaryProductionIdentificationChargesApproved": true,
+    "plannedAppSubmissions": 2,
+    "profileSelection": "normal_server_selection"
+  },
+  "observedAppSubmissions": 2,
+  "visibleFinishedResults": 2,
+  "manualRetries": 0,
+  "providerInvocationCount": null,
+  "providerInternalRetryCount": null,
+  "totalBilledCostUsd": null,
+  "installedApp": {
+    "schemaVersion": "identification_app_installation_v1",
+    "verifiedAt": "2026-09-22T22:37:03.650634+00:00",
+    "simulatorModel": "iPhone 18 Pro",
+    "simulatorOS": "iOS 27.0",
+    "metadata": {
+      "CFBundleIdentifier": "app.merian.Merian",
+      "CFBundleShortVersionString": "1.0.3",
+      "CFBundleVersion": "275",
+      "MERIAN_SOURCE_REVISION": "bcc7ef8de53cefaa04bed81cb32adf7de877bf9a",
+      "MERIAN_SOURCE_FINGERPRINT": "b2a209c666d63c9d6411cb6f9f7dbc4fb8253545c41c0b534cf430e157d70c1a",
+      "MERIAN_SOURCE_STATE": "clean"
+    },
+    "installedFileSha256": {
+      "Info.plist": "36d47b97620840ee53e128b02334a18d6597fb9e4ae892ff24d6f888aa3258dd",
+      "Merian": "b9a95f619aa3d1fe9ae8fc9e26864bbfa30bf2a24e1df2e2b06ee0d2bf3674ac",
+      "Merian.debug.dylib": "e19eaa15f2defea8ba5abf6e1b39623aab7a3b5d3668fa0cac298b851061e638"
+    },
+    "buildResultBundle": "75ecce56ca8e4ed9abaf417a684673e1.xcresult",
+    "expectedBackendBundleSha256": "05aedfe76acc8d8bcee71f5ebf0f9de22590e79715e6cc80f1f4ab6032576558"
+  },
+  "deployment": {
+    "commit": "bcc7ef8de53cefaa04bed81cb32adf7de877bf9a",
+    "runUrl": "https://github.com/emreerdener/merian/actions/runs/35793015142",
+    "deployJobUrl": "https://github.com/emreerdener/merian/actions/runs/35793015142/job/106967866564",
+    "observedStatus": "success"
+  },
+  "cases": [
+    {
+      "caseId": "c0001",
+      "sourceAssetSha256": "ad490fa904570639a22aaea8ebbac6b85c2fc87766e389c0d2386e605ccf4902",
+      "sourceDimensionsPixels": [
+        1024,
+        768
+      ],
+      "sourceMetadataStripped": true,
+      "inputMode": "photo",
+      "crop": "normal_default_crop_confirmed",
+      "providerPayloadSha256": null,
+      "appSubmissions": 1,
+      "manualRetries": 0,
+      "submissionTrigger": "crop_confirmation_auto_submit",
+      "visibleFinishedResult": true,
+      "uiObservedAtUtcMinute": "2026-09-22T22:45Z",
+      "outcome": {
+        "displayName": "Blowball",
+        "scientificName": "Taraxacum officinale",
+        "matchLabel": "Possible match",
+        "referenceStatus": "unverified",
+        "referenceScientificName": null,
+        "matchesProvisionalSpeciesReference": null,
+        "formalQualityScore": null,
+        "identityConfirmationActionTaken": false
+      },
+      "observer": {
+        "file": "c0001-observation.jsonl",
+        "fileSha256": "5979ef9bef42270f3eb2692565f887dec7299577eb7e545f8c9b14852a289ebd",
+        "startedAt": "2026-09-22T22:44:21.348Z",
+        "maxSeconds": 120,
+        "finishedAt": "2026-09-22T22:46:26.394Z",
+        "status": "observer_stopped_or_unavailable",
+        "retainedEventCount": 1
+      },
+      "observations": [
+        {
+          "observedAt": "2026-09-22T22:44:36.961Z",
+          "observedAfterSeconds": 15.613,
+          "measurement": {
+            "event": "preflight_seconds",
+            "value": 0,
+            "unit": "seconds"
+          },
+          "cost": null
+        }
+      ],
+      "httpStatus": null,
+      "totalAppPipelineSeconds": null,
+      "modelDiagnostics": null,
+      "primaryCostEstimate": null,
+      "providerDurationMs": null,
+      "edgeTotalMs": null,
+      "otherEdgeMs": null,
+      "billedCostUsd": null,
+      "totalScanCostUsd": null,
+      "comparisonWithOriginal": {
+        "originalScientificName": "Leontodon hispidus",
+        "originalTotalAppPipelineSeconds": 28.421,
+        "pipelineDeltaSeconds": null,
+        "interpretation": "one_observation_per_case_not_a_performance_regression_or_quality_verdict"
+      }
+    },
+    {
+      "caseId": "c0002",
+      "sourceAssetSha256": "9f08b3493a4bf68641f5fb1b177e94f01d7dfcfada22b83127dd23caa51589af",
+      "sourceDimensionsPixels": [
+        1024,
+        768
+      ],
+      "sourceMetadataStripped": true,
+      "inputMode": "photo",
+      "crop": "normal_default_crop_confirmed",
+      "providerPayloadSha256": null,
+      "appSubmissions": 1,
+      "manualRetries": 0,
+      "submissionTrigger": "crop_confirmation_auto_submit",
+      "visibleFinishedResult": true,
+      "uiObservedAtUtcMinute": "2026-09-22T22:55Z",
+      "outcome": {
+        "displayName": "Tuxedo",
+        "scientificName": "Felis catus",
+        "matchLabel": "Strong match",
+        "referenceStatus": "provisional",
+        "referenceScientificName": "Felis catus",
+        "matchesProvisionalSpeciesReference": true,
+        "formalQualityScore": null,
+        "identityConfirmationActionTaken": false
+      },
+      "observer": {
+        "file": "c0002-observation.jsonl",
+        "fileSha256": "34999e7d79593e91f26e97ae8585c311fdefeef1fe3190d16df8f51cfdf77ec6",
+        "startedAt": "2026-09-22T22:54:45.815Z",
+        "maxSeconds": 120,
+        "finishedAt": "2026-09-22T22:56:54.327Z",
+        "status": "observer_stopped_or_unavailable",
+        "retainedEventCount": 7
+      },
+      "observations": [
+        {
+          "observedAt": "2026-09-22T22:54:51.769Z",
+          "observedAfterSeconds": 5.954,
+          "measurement": {
+            "event": "preflight_seconds",
+            "value": 0,
+            "unit": "seconds"
+          },
+          "cost": null
+        },
+        {
+          "observedAt": "2026-09-22T22:55:18.578Z",
+          "observedAfterSeconds": 32.762,
+          "measurement": {
+            "event": "http_identification",
+            "authSeconds": 0.005,
+            "transferAndServerSeconds": 26.497,
+            "status": 200
+          },
+          "cost": null
+        },
+        {
+          "observedAt": "2026-09-22T22:55:18.588Z",
+          "observedAfterSeconds": 32.774,
+          "measurement": {
+            "app": {
+              "build": "275",
+              "sourceFingerprint": "b2a209c666d63c9d6411cb6f9f7dbc4fb8253545c41c0b534cf430e157d70c1a",
+              "sourceRevision": "bcc7ef8de53cefaa04bed81cb32adf7de877bf9a",
+              "sourceState": "clean",
+              "version": "1.0.3"
+            },
+            "delivery": "fresh",
+            "diagnostics": {
+              "backendBundleSha256": "05aedfe76acc8d8bcee71f5ebf0f9de22590e79715e6cc80f1f4ab6032576558",
+              "provider": "gemini",
+              "requestedModel": "gemini-2.5-pro",
+              "returnedModel": "gemini-2.5-pro",
+              "usage": {
+                "cachedTokens": null,
+                "candidateTokens": 609,
+                "promptTokens": 2711,
+                "thinkingTokens": 2326,
+                "toolTokens": null,
+                "totalTokens": 5646
+              },
+              "version": 1
+            },
+            "otherEdgeMs": null,
+            "serverTimingMs": {},
+            "status": 200,
+            "version": "identification_app_measurement_v1"
+          },
+          "cost": {
+            "estimatedPrimaryUpperUsd": 0.0508025,
+            "reason": "estimated_primary_only",
+            "scope": "observed_primary_attempt_only",
+            "invoiceExact": false
+          }
+        },
+        {
+          "observedAt": "2026-09-22T22:55:18.618Z",
+          "observedAfterSeconds": 32.803,
+          "measurement": {
+            "event": "response_to_first_result_state_seconds",
+            "value": 0.029,
+            "unit": "seconds"
+          },
+          "cost": null
+        },
+        {
+          "observedAt": "2026-09-22T22:55:18.773Z",
+          "observedAfterSeconds": 32.957,
+          "measurement": {
+            "event": "tap_to_first_rendered_frame_seconds",
+            "value": 27.205,
+            "unit": "seconds"
+          },
+          "cost": null
+        },
+        {
+          "observedAt": "2026-09-22T22:55:18.884Z",
+          "observedAfterSeconds": 33.068,
+          "measurement": {
+            "event": "postflight_seconds",
+            "value": 0.298,
+            "unit": "seconds"
+          },
+          "cost": null
+        },
+        {
+          "observedAt": "2026-09-22T22:55:18.890Z",
+          "observedAfterSeconds": 33.075,
+          "measurement": {
+            "event": "total_pipeline_seconds",
+            "value": 27.115,
+            "unit": "seconds"
+          },
+          "cost": null
+        }
+      ],
+      "httpStatus": 200,
+      "totalAppPipelineSeconds": 27.115,
+      "modelDiagnostics": {
+        "backendBundleSha256": "05aedfe76acc8d8bcee71f5ebf0f9de22590e79715e6cc80f1f4ab6032576558",
+        "provider": "gemini",
+        "requestedModel": "gemini-2.5-pro",
+        "returnedModel": "gemini-2.5-pro",
+        "usage": {
+          "cachedTokens": null,
+          "candidateTokens": 609,
+          "promptTokens": 2711,
+          "thinkingTokens": 2326,
+          "toolTokens": null,
+          "totalTokens": 5646
+        },
+        "version": 1
+      },
+      "primaryCostEstimate": {
+        "estimatedPrimaryUpperUsd": 0.0508025,
+        "reason": "estimated_primary_only",
+        "scope": "observed_primary_attempt_only",
+        "invoiceExact": false
+      },
+      "providerDurationMs": null,
+      "edgeTotalMs": null,
+      "otherEdgeMs": null,
+      "billedCostUsd": null,
+      "totalScanCostUsd": null,
+      "comparisonWithOriginal": {
+        "originalScientificName": "Felis catus",
+        "originalTotalAppPipelineSeconds": 22.387,
+        "pipelineDeltaSeconds": 4.728,
+        "interpretation": "one_observation_per_case_not_a_performance_regression_or_quality_verdict"
+      }
+    }
+  ],
+  "observation": {
+    "script": "services/supabase/scripts/observe_identification_app.ts",
+    "scriptSha256": "7f424e069327c6f676fe412fffbe2751f7003ddc7bd3cc46cac7768ba584e609",
+    "projectionScriptSha256": "991a31f764a85952f6fed00f5ff96f083a48fd47b38158a54975f3f91df5f151",
+    "caseAssociation": "observed_sequential_ui_actions",
+    "overlappingLiveWindows": false,
+    "liveWindowSuccessCount": 0,
+    "validLiveStructuredRecordCount": 1,
+    "associatedLiveEventCount": 8,
+    "retainsRawLogs": false,
+    "automaticSubmissions": 0,
+    "pricingSnapshot": {
+      "version": "evaluation_pricing_v1",
+      "currency": "USD",
+      "service": "paid_standard_synchronous",
+      "retrievedAt": "2026-09-22T16:20:15.212Z",
+      "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+      "reviewRef": "pricing-public-20260922",
+      "includesReasoning": true,
+      "models": [
+        {
+          "model": "gemini-2.5-flash",
+          "inputPerMillion": {
+            "text": 0.3,
+            "image": 0.3,
+            "audio": 1,
+            "cached": 0.1
+          },
+          "outputPerMillion": 2.5,
+          "maxInputTokens": 1048576,
+          "maxBillableOutputTokens": 65536,
+          "limitsEvidenceRef": "limits-flash-20260922"
+        },
+        {
+          "model": "gemini-2.5-pro",
+          "inputPerMillion": {
+            "text": 2.5,
+            "image": 2.5,
+            "audio": 2.5,
+            "cached": 0.25
+          },
+          "outputPerMillion": 15,
+          "maxInputTokens": 1048576,
+          "maxBillableOutputTokens": 65536,
+          "limitsEvidenceRef": "limits-pro-20260922"
+        }
+      ]
+    },
+    "pricingSnapshotSha256": "d816105ce773e6341980ce1b40a89798de81e27cb0d7abf0756b297ed8c2046d",
+    "flowerRecovery": {
+      "method": "bounded_os_log_show_existing_events",
+      "collectorSuccess": true,
+      "validRecoveredRecordCount": 0,
+      "fileSha256": "025011b48f5938a7f8746561600c6102b772005632739c5a91171d0cdbfa0318"
+    },
+    "syntheticTransportCheck": {
+      "countsTowardLiveBenchmark": false,
+      "submissions": 0,
+      "expectedEventCount": 7,
+      "retainedEventCount": 7,
+      "status": "window_completed",
+      "fileSha256": "1625bad8aeace196adbd26a6b42896f6c657671edb8077636250b9edf7ca272c"
+    },
+    "limitations": [
+      "Both live observers ended with observer_stopped_or_unavailable; neither is a complete observation window.",
+      "Only one preflight event was retained for the flower; exact model, HTTP status, usage, latency and cost remain unknown.",
+      "The cat native record had no accepted provider or edge_total timing spans; missing headers and parser rejection cannot be distinguished from this projection.",
+      "The first observer failure and live-window shutdown failures remain unexplained. No collector repair was made.",
+      "The original image hash does not identify the post-crop encoded provider payload.",
+      "The known primary-attempt cost estimate is not total scan spend, an invoice, or a complete billing ledger."
+    ]
+  },
+  "quality": {
+    "formalAccuracy": null,
+    "confidenceCalibration": null,
+    "p95LatencySeconds": null,
+    "providerComparison": null,
+    "independentlyVerifiedReferenceCount": 0,
+    "provisionalReferenceCount": 1,
+    "unverifiedReferenceCount": 1
+  },
+  "nextWork": [
+    "Diagnose and verify live observer completion and dropped records without spending additional identification calls.",
+    "Diagnose why provider and edge_total timing spans did not survive the native projection.",
+    "Only then schedule a separately reviewed bounded repeat or broader exploratory corpus."
+  ],
+  "privateEvidenceRetentionUntil": "2026-10-22"
+}

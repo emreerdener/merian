@@ -8,6 +8,7 @@ struct IdentificationBenchmarkRecordTests {
     @Test func projectsFreshMetadataAndSeparatesProviderFromOtherEdgeWork() throws {
         let value = try record(header: fixture())
         #expect(value["delivery"] as? String == "fresh")
+        #expect(value["timingStatus"] as? String == "valid")
         #expect(value["otherEdgeMs"] as? Double == 80)
         let diagnostics = try #require(value["diagnostics"] as? [String: Any])
         #expect(diagnostics["requestedModel"] as? String == "gemini-2.5-flash")
@@ -75,6 +76,33 @@ struct IdentificationBenchmarkRecordTests {
         #expect(Set(try #require(value["serverTimingMs"] as? [String: Double]).keys) == ["provider", "edge_total"])
     }
 
+    @Test func acceptsCompleteThirteenSpanProductionTimingHeader() throws {
+        let timing = "auth;dur=1.0, body_read;dur=0.1, tier;dur=0.2, pre_gemini_db;dur=2.0, gemini;dur=25.0, quota_commit;dur=5.0, provider;dur=20.0, video_promotion;dur=0.0, primary_enrichment;dur=3.0, database_finalization;dur=4.0, dictionary;dur=5.0, post_gemini;dur=10.0, edge_total;dur=100.0"
+        let value = try record(header: fixture(), timing: timing)
+        #expect(value["timingStatus"] as? String == "valid")
+        #expect(value["serverTimingMs"] as? [String: Double] == ["provider": 20, "edge_total": 100])
+        #expect(value["otherEdgeMs"] as? Double == 80)
+        let rejected = try record(header: fixture(), timing: timing + ", proxy;dur=1")
+        #expect(rejected["timingStatus"] as? String == "too_many_metrics")
+        #expect((rejected["serverTimingMs"] as? [String: Double])?.isEmpty == true)
+    }
+
+    @Test func timingFailuresRetainOnlyFixedReasons() throws {
+        let cases: [(String?, String)] = [
+            (nil, "absent"), (String(repeating: "x", count: 2_049), "oversized"),
+            ("provider", "invalid_syntax"), ("synthetic-private;dur=1", "unknown_metric"),
+            ("provider;dur=1, provider;dur=2", "duplicate_metric"),
+            ("provider;dur=NaN", "invalid_duration")
+        ]
+        for (timing, reason) in cases {
+            let value = try record(header: fixture(), timing: timing)
+            #expect(value["timingStatus"] as? String == reason)
+            #expect((value["serverTimingMs"] as? [String: Double])?.isEmpty == true)
+            #expect(value["otherEdgeMs"] is NSNull)
+            #expect(!String(decoding: try JSONSerialization.data(withJSONObject: value), as: UTF8.self).contains("synthetic-private"))
+        }
+    }
+
     @Test func invalidMetadataCannotLeakAndBadUsageStaysUnknown() throws {
         for key in ["provider", "requestedModel", "backendBundleSha256"] {
             var header = fixture()
@@ -130,10 +158,11 @@ struct IdentificationBenchmarkRecordTests {
 
     private func record(
         header: [String: Any]?, status: Int = 200, replay: Bool = false,
-        timing: String = "auth;dur=1, provider;dur=20, gemini;dur=25, edge_total;dur=100",
+        timing: String? = "auth;dur=1, provider;dur=20, gemini;dur=25, edge_total;dur=100",
         app: [String: Any]? = nil
     ) throws -> [String: Any] {
-        var headers = ["Server-Timing": timing]
+        var headers: [String: String] = [:]
+        if let timing { headers["Server-Timing"] = timing }
         if let header {
             headers["X-Merian-Identification"] = String(decoding: try JSONSerialization.data(withJSONObject: header), as: UTF8.self)
         }

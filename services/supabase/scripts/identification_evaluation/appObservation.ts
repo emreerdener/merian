@@ -46,6 +46,16 @@ export interface AppMeasurement {
     backendBundleSha256: string;
     usage: Omit<StoredUsage, "modalities"> | null;
   } | null;
+  // Optional for compatibility with measurements from the original app build.
+  timingStatus?:
+    | "valid"
+    | "absent"
+    | "oversized"
+    | "too_many_metrics"
+    | "invalid_syntax"
+    | "unknown_metric"
+    | "duplicate_metric"
+    | "invalid_duration";
   serverTimingMs: Record<string, number>;
   otherEdgeMs: number | null;
 }
@@ -65,6 +75,8 @@ function duration(value: unknown): asserts value is number {
 
 /** Revalidate before retention; no arbitrary app or provider fields survive. */
 export function parseAppMeasurement(value: unknown): AppMeasurement {
+  const hasTimingStatus = value !== null && typeof value === "object" &&
+    Object.hasOwn(value, "timingStatus");
   const v = fields(value, [
     "version",
     "status",
@@ -73,6 +85,7 @@ export function parseAppMeasurement(value: unknown): AppMeasurement {
     "diagnostics",
     "serverTimingMs",
     "otherEdgeMs",
+    ...(hasTimingStatus ? ["timingStatus"] : []),
   ]);
   check(v.version === "identification_app_measurement_v1");
   integer(v.status, 100, 599);
@@ -131,6 +144,19 @@ export function parseAppMeasurement(value: unknown): AppMeasurement {
       !Array.isArray(v.serverTimingMs),
   );
   const spans = v.serverTimingMs as Record<string, unknown>;
+  if (hasTimingStatus) {
+    check([
+      "valid",
+      "absent",
+      "oversized",
+      "too_many_metrics",
+      "invalid_syntax",
+      "unknown_metric",
+      "duplicate_metric",
+      "invalid_duration",
+    ].includes(String(v.timingStatus)));
+    check(v.timingStatus === "valid" || Object.keys(spans).length === 0);
+  }
   for (const [name, value] of Object.entries(spans)) {
     check(SPANS.has(name));
     duration(value);
@@ -245,14 +271,21 @@ export function projectAppLog(
  * the entire row. Only one <=64 KiB row is retained at a time. */
 export async function* boundedLogLines(
   stream: ReadableStream<Uint8Array>,
+  options: { signal?: AbortSignal; onOversize?: () => void } = {},
 ): AsyncGenerator<string> {
   const reader = stream.getReader();
+  const cancel = () => {
+    void reader.cancel().catch(() => {});
+  };
+  options.signal?.addEventListener("abort", cancel, { once: true });
+  if (options.signal?.aborted) cancel();
   let pending: number[] = [], dropping = false;
   try {
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
       for (const byte of value) {
+        if (options.signal?.aborted) return;
         if (byte === 10) {
           if (!dropping) {
             yield new TextDecoder().decode(new Uint8Array(pending));
@@ -261,6 +294,7 @@ export async function* boundedLogLines(
           dropping = false;
         } else if (!dropping) {
           if (pending.length === 65536) {
+            options.onOversize?.();
             pending = [];
             dropping = true;
           } else pending.push(byte);
@@ -268,6 +302,7 @@ export async function* boundedLogLines(
       }
     }
   } finally {
+    options.signal?.removeEventListener("abort", cancel);
     await reader.cancel().catch(() => {});
     reader.releaseLock();
   }

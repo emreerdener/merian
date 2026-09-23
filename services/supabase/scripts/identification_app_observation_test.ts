@@ -56,6 +56,40 @@ const pricing = parsePricing({
 });
 const now = Date.parse("2026-09-22T01:00:00Z");
 
+Deno.test("observer accepts old records and fixed timing reasons without retaining header text", () => {
+  const value = fixture();
+  assertEquals(parseAppMeasurement(value).timingStatus, undefined);
+  assertEquals(
+    parseAppMeasurement({ ...value, timingStatus: "valid" }).serverTimingMs,
+    value.serverTimingMs,
+  );
+  for (
+    const timingStatus of [
+      "absent",
+      "oversized",
+      "too_many_metrics",
+      "invalid_syntax",
+      "unknown_metric",
+      "duplicate_metric",
+      "invalid_duration",
+    ]
+  ) {
+    assertEquals(
+      parseAppMeasurement({
+        ...value,
+        timingStatus,
+        serverTimingMs: {},
+        otherEdgeMs: null,
+      }).timingStatus,
+      timingStatus,
+    );
+    assertThrows(() => parseAppMeasurement({ ...value, timingStatus }));
+  }
+  assertThrows(() =>
+    parseAppMeasurement({ ...value, timingStatus: "synthetic-private-header" })
+  );
+});
+
 Deno.test("observer accepts backend projection plus native measurement contract and computes primary cost", () => {
   const v = fixture();
   const line = JSON.stringify({
