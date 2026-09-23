@@ -234,8 +234,11 @@ production submission or public release.
   The
   [six-photo preparation](./rfcs/identification-source-photo-pilot-2026-09-22.md)
   adds five source-backed provisional species references and one non-biological
-  control, with private frozen media and a passed offline preflight. Its bounded
-  app pass remains unexecuted; it does not establish a formal accuracy baseline.
+  control, with private frozen media and a passed offline preflight. The
+  [six-photo app benchmark](./rfcs/identification-source-photo-app-benchmark-2026-09-22.md)
+  subsequently completed all six first outcomes and measurement windows, with
+  five provisional species agreements and one non-biological agreement. It does
+  not establish a formal accuracy baseline or provider qualification.
 - **Deferred family and prior combined planning:**
   [PRD](./product/02-family-plans-and-ai-platform-prd.md) and
   [SRD](./rfcs/family-plans-and-ai-platform-srd.md). Family plans are deferred;

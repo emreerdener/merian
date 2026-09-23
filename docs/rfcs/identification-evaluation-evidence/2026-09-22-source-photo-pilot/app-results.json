@@ -1,0 +1,672 @@
+{
+  "schemaVersion": "identification_source_photo_app_pilot_v1",
+  "runId": "source-photo-six-app-v1",
+  "status": "six_first_results_and_six_complete_measurement_windows",
+  "recordedAt": "2026-09-23T01:37:25.792784+00:00",
+  "dateTimezone": "America/Chicago",
+  "executionBoundary": "existing_production_app_workflow",
+  "authorizedAppSubmissions": 6,
+  "observedAppSubmissions": 6,
+  "visibleFinishedResults": 6,
+  "manualRetries": 0,
+  "providerOverride": false,
+  "providerInvocationCount": null,
+  "providerInternalRetryCount": null,
+  "totalBilledCostUsd": null,
+  "directEvaluatorLiveCalls": 0,
+  "deploymentPerformed": false,
+  "corpusDigest": "5bdf1624c8dd0461d571cbe1a04d30ec7a648a69465e150da0141c456cd7be2a",
+  "taxonomyDigest": "43ef2e7209c0ffbe008e25b3db05b63134bbd341dbd718714f53592be2cdc8c3",
+  "sourcePacketFreezeSha256": "e369894a26e0f8d3f580d75ca3f99f9304f33f4fa572379ab148655bb3370430",
+  "app": {
+    "version": "1.0.3",
+    "build": "275",
+    "sourceRevision": "6c7ba02ede0fa0884189f55b726bb4babf5966a5",
+    "sourceFingerprint": "3ad8e9f3c0e73234a78e743652cd9ac88fb93414f6e348c85148abddf213d812",
+    "sourceState": "dirty"
+  },
+  "simulator": {
+    "model": "iPhone 18 Pro",
+    "os": "iOS 27.0"
+  },
+  "backendBundleSha256": "05aedfe76acc8d8bcee71f5ebf0f9de22590e79715e6cc80f1f4ab6032576558",
+  "observerSourceSha256": {
+    "services/supabase/scripts/observe_identification_app.ts": "13466267d366789c82b9c169cf6fe5a85a50fd99730f6e38d0e863ee58d574fe",
+    "services/supabase/scripts/identification_evaluation/appObserver.ts": "de3831d46878fcebf62a8609f827de0166822ae6c991ebfdf372e604062b9dd1",
+    "services/supabase/scripts/identification_evaluation/appObservation.ts": "bbcf22d9ae4f240e85c53cd79e656818adc205894ef49f7a3452e6955d928292"
+  },
+  "observationPolicy": {
+    "requestedSeconds": 120,
+    "shutdownGraceSeconds": 30,
+    "maximumEventsPerWindow": 100,
+    "overlappingWindows": false,
+    "readyBeforeEachUiConfirmation": true,
+    "automaticObserverSubmissions": 0,
+    "caseAssociation": "observed_sequential_ui_actions",
+    "rawLogsRetained": false
+  },
+  "pricingSnapshot": {
+    "version": "evaluation_pricing_v1",
+    "currency": "USD",
+    "service": "paid_standard_synchronous",
+    "retrievedAt": "2026-09-22T16:20:15.212Z",
+    "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+    "reviewRef": "pricing-public-20260922",
+    "includesReasoning": true,
+    "models": [
+      {
+        "model": "gemini-2.5-flash",
+        "inputPerMillion": {
+          "text": 0.3,
+          "image": 0.3,
+          "audio": 1,
+          "cached": 0.1
+        },
+        "outputPerMillion": 2.5,
+        "maxInputTokens": 1048576,
+        "maxBillableOutputTokens": 65536,
+        "limitsEvidenceRef": "limits-flash-20260922"
+      },
+      {
+        "model": "gemini-2.5-pro",
+        "inputPerMillion": {
+          "text": 2.5,
+          "image": 2.5,
+          "audio": 2.5,
+          "cached": 0.25
+        },
+        "outputPerMillion": 15,
+        "maxInputTokens": 1048576,
+        "maxBillableOutputTokens": 65536,
+        "limitsEvidenceRef": "limits-pro-20260922"
+      }
+    ]
+  },
+  "pricingSnapshotSha256": "d816105ce773e6341980ce1b40a89798de81e27cb0d7abf0756b297ed8c2046d",
+  "privateEvidenceRef": "source-photo-app-run-20260922-v1",
+  "privateEvidenceRetentionUntil": "2026-10-22",
+  "privateRecordSha256": {
+    "app-run-plan.json": "9172ec7b7e71d9b13b7c8bb725492032cc66d51fb3cf9ad89d1bd9e1f281343c",
+    "c0001-observation.jsonl": "2f2a2ec804dca6662e41b29c5bc47ae105bdb695660f4aa9d86c260871fe0186",
+    "c0001-ui.json": "0936318c52746ee3f7bf2f0503f37cb3e29467da3fb3af5f3a94dd4c5e90e3d8",
+    "c0002-observation.jsonl": "fec1ed613cf35e68962982c9ae07e66b813971cc29958e29881c827431204cd3",
+    "c0002-ui.json": "22fdede49ab4a73467f5d9bec1d36ba6367e2667d361ad15ee76eb48f8f7ef8d",
+    "c0003-observation.jsonl": "7baa1de073b6a79141c97402f81dfce42f801d73e0970c95a0ad6fac30dadf90",
+    "c0003-ui.json": "ea70a41c11223d40d9bcaeb998f860ff54f9007ac6fa6bb465213a59034a1570",
+    "c0004-observation.jsonl": "ff99b6e6ff4efd10b6da3067013d6ee673f6da4c826874db64c1fb7b1dc0d410",
+    "c0004-ui.json": "b059ddba3ce35b821f37c5e82fe8d5f96281c3232df8d7a3214cb3ca28b78ae9",
+    "c0007-observation.jsonl": "75995a7f8d6acee8c3c40a025c32294d622cc0de4d14da777485e2630ea58d27",
+    "c0007-ui.json": "f5386c3b9ac14b420d07bdf236babc276524fe0cdd12154ed72aeb08768ab4a7",
+    "c0008-observation.jsonl": "12563f0055b1334884e2c1d4a9afda8b53b386edfcf228149186a27b62536735",
+    "c0008-ui.json": "9adff37cb4ed8d5411f74682beb954cbfd111d8c46d78c799c825df111db8faa",
+    "preparation.json": "cb7b60fbcd2cc1985cde7c99000037bc329a77fa5f085009fc9ec79c91db9a88",
+    "pricing.json": "d816105ce773e6341980ce1b40a89798de81e27cb0d7abf0756b297ed8c2046d"
+  },
+  "quality": {
+    "biologicalProvisionalReferences": 5,
+    "speciesReferenceAgreements": 5,
+    "nonBiologicalControls": 1,
+    "nonBiologicalHandlingAgreements": 1,
+    "contradictionsObserved": 0,
+    "independentlyVerifiedReferenceCount": 0,
+    "formalAccuracy": null,
+    "confidenceCalibration": null,
+    "providerComparison": null,
+    "repeatabilityAssessed": false,
+    "formalDevelopmentGroups": 0,
+    "formalHeldOutGroups": 0
+  },
+  "coverage": {
+    "photos": 6,
+    "description": 0,
+    "audio": 0,
+    "frames": 0,
+    "frames_audio": 0,
+    "photos_audio": 0
+  },
+  "summary": {
+    "completedObserverWindows": 6,
+    "completeSevenEventSets": 6,
+    "freshHttp200Measurements": 6,
+    "validProviderAndEdgeTimingCases": 6,
+    "totalPipelineSeconds": {
+      "count": 6,
+      "min": 13.882,
+      "median": 17.189999999999998,
+      "max": 20.563,
+      "p95": null
+    },
+    "biologicalPipelineSeconds": {
+      "count": 5,
+      "min": 15.4,
+      "median": 18.249,
+      "max": 20.563
+    },
+    "providerAwaitSeconds": {
+      "count": 6,
+      "min": 11.0616,
+      "median": 14.023050000000001,
+      "max": 16.9205
+    },
+    "primaryAttemptEstimatesUsd": {
+      "count": 6,
+      "sum": 0.192615,
+      "min": 0.02692,
+      "max": 0.036385,
+      "scope": "six_observed_primary_attempts_only",
+      "invoiceExact": false
+    }
+  },
+  "cases": [
+    {
+      "order": 1,
+      "caseId": "c0002",
+      "assetId": "a0002",
+      "preparedAssetSha256": "93491faf75a3aa3551c21689d28c1d3907ca2b22282b16de35dfd9801e964820",
+      "appSubmissions": 1,
+      "manualRetries": 0,
+      "defaultCropReviewed": true,
+      "cropNote": null,
+      "uiResultObservedAt": "2026-09-23T01:22:29.439066+00:00",
+      "uiResult": {
+        "commonName": "Bald Eagle",
+        "scientificName": "Haliaeetus leucocephalus",
+        "matchLabel": "Strong match",
+        "provisionalReferenceAssessment": "matches_species_reference",
+        "manuallyConfirmedOrCorrected": false
+      },
+      "observer": {
+        "startedAt": "2026-09-23T01:21:09.143Z",
+        "readyAt": "2026-09-23T01:21:09.708Z",
+        "finishedAt": "2026-09-23T01:23:17.719Z",
+        "durationSeconds": 128.576,
+        "status": "window_completed",
+        "events": 7,
+        "collectorExitCode": 0,
+        "collectorSignal": null,
+        "stopReason": "collector_exit",
+        "unprojectedRows": 30,
+        "oversizedRows": 0
+      },
+      "nativeMeasurement": {
+        "app": {
+          "build": "275",
+          "sourceFingerprint": "3ad8e9f3c0e73234a78e743652cd9ac88fb93414f6e348c85148abddf213d812",
+          "sourceRevision": "6c7ba02ede0fa0884189f55b726bb4babf5966a5",
+          "sourceState": "dirty",
+          "version": "1.0.3"
+        },
+        "delivery": "fresh",
+        "diagnostics": {
+          "backendBundleSha256": "05aedfe76acc8d8bcee71f5ebf0f9de22590e79715e6cc80f1f4ab6032576558",
+          "provider": "gemini",
+          "requestedModel": "gemini-2.5-pro",
+          "returnedModel": "gemini-2.5-pro",
+          "usage": {
+            "cachedTokens": null,
+            "candidateTokens": 496,
+            "promptTokens": 2710,
+            "thinkingTokens": 1076,
+            "toolTokens": null,
+            "totalTokens": 4282
+          },
+          "version": 1
+        },
+        "otherEdgeMs": 1793.2999999999993,
+        "serverTimingMs": {
+          "edge_total": 14859.3,
+          "provider": 13066
+        },
+        "status": 200,
+        "timingStatus": "valid",
+        "version": "identification_app_measurement_v1"
+      },
+      "clientHttp": {
+        "event": "http_identification",
+        "authSeconds": 0.007,
+        "transferAndServerSeconds": 15.577,
+        "status": 200
+      },
+      "appIntervalsSeconds": {
+        "preflight_seconds": 0,
+        "response_to_first_result_state_seconds": 0.022,
+        "tap_to_first_rendered_frame_seconds": 16.138,
+        "postflight_seconds": 0.378,
+        "total_pipeline_seconds": 16.131
+      },
+      "primaryAttemptCost": {
+        "estimatedPrimaryUpperUsd": 0.030355,
+        "reason": "estimated_primary_only",
+        "scope": "observed_primary_attempt_only",
+        "invoiceExact": false
+      }
+    },
+    {
+      "order": 2,
+      "caseId": "c0004",
+      "assetId": "a0004",
+      "preparedAssetSha256": "9415a656262c70595c50539d92b8c31e2bff8954cf31262a00603a015d45bf82",
+      "appSubmissions": 1,
+      "manualRetries": 0,
+      "defaultCropReviewed": true,
+      "cropNote": null,
+      "uiResultObservedAt": "2026-09-23T01:24:28.480804+00:00",
+      "uiResult": {
+        "commonName": "Common Sunflower",
+        "scientificName": "Helianthus annuus",
+        "matchLabel": "Strong match",
+        "provisionalReferenceAssessment": "matches_species_reference",
+        "manuallyConfirmedOrCorrected": false
+      },
+      "observer": {
+        "startedAt": "2026-09-23T01:23:39.650Z",
+        "readyAt": "2026-09-23T01:23:40.110Z",
+        "finishedAt": "2026-09-23T01:25:48.119Z",
+        "durationSeconds": 128.469,
+        "status": "window_completed",
+        "events": 7,
+        "collectorExitCode": 0,
+        "collectorSignal": null,
+        "stopReason": "collector_exit",
+        "unprojectedRows": 28,
+        "oversizedRows": 0
+      },
+      "nativeMeasurement": {
+        "app": {
+          "build": "275",
+          "sourceFingerprint": "3ad8e9f3c0e73234a78e743652cd9ac88fb93414f6e348c85148abddf213d812",
+          "sourceRevision": "6c7ba02ede0fa0884189f55b726bb4babf5966a5",
+          "sourceState": "dirty",
+          "version": "1.0.3"
+        },
+        "delivery": "fresh",
+        "diagnostics": {
+          "backendBundleSha256": "05aedfe76acc8d8bcee71f5ebf0f9de22590e79715e6cc80f1f4ab6032576558",
+          "provider": "gemini",
+          "requestedModel": "gemini-2.5-pro",
+          "returnedModel": "gemini-2.5-pro",
+          "usage": {
+            "cachedTokens": null,
+            "candidateTokens": 501,
+            "promptTokens": 2710,
+            "thinkingTokens": 1343,
+            "toolTokens": null,
+            "totalTokens": 4554
+          },
+          "version": 1
+        },
+        "otherEdgeMs": 1633.4000000000015,
+        "serverTimingMs": {
+          "edge_total": 17578.4,
+          "provider": 15945
+        },
+        "status": 200,
+        "timingStatus": "valid",
+        "version": "identification_app_measurement_v1"
+      },
+      "clientHttp": {
+        "event": "http_identification",
+        "authSeconds": 0.004,
+        "transferAndServerSeconds": 18.118,
+        "status": 200
+      },
+      "appIntervalsSeconds": {
+        "preflight_seconds": 0,
+        "response_to_first_result_state_seconds": 0.017,
+        "tap_to_first_rendered_frame_seconds": 18.762,
+        "postflight_seconds": 0.35,
+        "total_pipeline_seconds": 18.683
+      },
+      "primaryAttemptCost": {
+        "estimatedPrimaryUpperUsd": 0.034435,
+        "reason": "estimated_primary_only",
+        "scope": "observed_primary_attempt_only",
+        "invoiceExact": false
+      }
+    },
+    {
+      "order": 3,
+      "caseId": "c0007",
+      "assetId": "a0007",
+      "preparedAssetSha256": "7d6279c6a583dcd5d5bbc6f7e528a964ff9263b73f274db11b0e6880b469a297",
+      "appSubmissions": 1,
+      "manualRetries": 0,
+      "defaultCropReviewed": true,
+      "cropNote": null,
+      "uiResultObservedAt": "2026-09-23T01:27:07.194229+00:00",
+      "uiResult": {
+        "commonName": "Saguaro",
+        "scientificName": "Carnegiea gigantea",
+        "matchLabel": "Strong match",
+        "provisionalReferenceAssessment": "matches_species_reference",
+        "manuallyConfirmedOrCorrected": false
+      },
+      "observer": {
+        "startedAt": "2026-09-23T01:26:10.652Z",
+        "readyAt": "2026-09-23T01:26:11.133Z",
+        "finishedAt": "2026-09-23T01:28:19.149Z",
+        "durationSeconds": 128.497,
+        "status": "window_completed",
+        "events": 7,
+        "collectorExitCode": 0,
+        "collectorSignal": null,
+        "stopReason": "collector_exit",
+        "unprojectedRows": 30,
+        "oversizedRows": 0
+      },
+      "nativeMeasurement": {
+        "app": {
+          "build": "275",
+          "sourceFingerprint": "3ad8e9f3c0e73234a78e743652cd9ac88fb93414f6e348c85148abddf213d812",
+          "sourceRevision": "6c7ba02ede0fa0884189f55b726bb4babf5966a5",
+          "sourceState": "dirty",
+          "version": "1.0.3"
+        },
+        "delivery": "fresh",
+        "diagnostics": {
+          "backendBundleSha256": "05aedfe76acc8d8bcee71f5ebf0f9de22590e79715e6cc80f1f4ab6032576558",
+          "provider": "gemini",
+          "requestedModel": "gemini-2.5-pro",
+          "returnedModel": "gemini-2.5-pro",
+          "usage": {
+            "cachedTokens": null,
+            "candidateTokens": 532,
+            "promptTokens": 2710,
+            "thinkingTokens": 1442,
+            "toolTokens": null,
+            "totalTokens": 4684
+          },
+          "version": 1
+        },
+        "otherEdgeMs": 2599.2000000000007,
+        "serverTimingMs": {
+          "edge_total": 19519.7,
+          "provider": 16920.5
+        },
+        "status": 200,
+        "timingStatus": "valid",
+        "version": "identification_app_measurement_v1"
+      },
+      "clientHttp": {
+        "event": "http_identification",
+        "authSeconds": 0.007,
+        "transferAndServerSeconds": 20.061,
+        "status": 200
+      },
+      "appIntervalsSeconds": {
+        "preflight_seconds": 0,
+        "response_to_first_result_state_seconds": 0.017,
+        "tap_to_first_rendered_frame_seconds": 20.7,
+        "postflight_seconds": 0.268,
+        "total_pipeline_seconds": 20.563
+      },
+      "primaryAttemptCost": {
+        "estimatedPrimaryUpperUsd": 0.036385,
+        "reason": "estimated_primary_only",
+        "scope": "observed_primary_attempt_only",
+        "invoiceExact": false
+      }
+    },
+    {
+      "order": 4,
+      "caseId": "c0001",
+      "assetId": "a0001",
+      "preparedAssetSha256": "b2d73dfcd4604a5989e2d2effaf017e6bc55615a13448dd1227902bc2d109590",
+      "appSubmissions": 1,
+      "manualRetries": 0,
+      "defaultCropReviewed": true,
+      "cropNote": "Default square crop retains the animal but trims some of the muzzle and rear. No crop adjustment applied.",
+      "uiResultObservedAt": "2026-09-23T01:29:31.117826+00:00",
+      "uiResult": {
+        "commonName": "American Bison",
+        "scientificName": "Bison bison",
+        "matchLabel": "Strong match",
+        "provisionalReferenceAssessment": "matches_species_reference",
+        "manuallyConfirmedOrCorrected": false
+      },
+      "observer": {
+        "startedAt": "2026-09-23T01:28:37.156Z",
+        "readyAt": "2026-09-23T01:28:37.671Z",
+        "finishedAt": "2026-09-23T01:30:45.684Z",
+        "durationSeconds": 128.528,
+        "status": "window_completed",
+        "events": 7,
+        "collectorExitCode": 0,
+        "collectorSignal": null,
+        "stopReason": "collector_exit",
+        "unprojectedRows": 28,
+        "oversizedRows": 0
+      },
+      "nativeMeasurement": {
+        "app": {
+          "build": "275",
+          "sourceFingerprint": "3ad8e9f3c0e73234a78e743652cd9ac88fb93414f6e348c85148abddf213d812",
+          "sourceRevision": "6c7ba02ede0fa0884189f55b726bb4babf5966a5",
+          "sourceState": "dirty",
+          "version": "1.0.3"
+        },
+        "delivery": "fresh",
+        "diagnostics": {
+          "backendBundleSha256": "05aedfe76acc8d8bcee71f5ebf0f9de22590e79715e6cc80f1f4ab6032576558",
+          "provider": "gemini",
+          "requestedModel": "gemini-2.5-pro",
+          "returnedModel": "gemini-2.5-pro",
+          "usage": {
+            "cachedTokens": 1343,
+            "candidateTokens": 550,
+            "promptTokens": 2710,
+            "thinkingTokens": 1068,
+            "toolTokens": null,
+            "totalTokens": 4328
+          },
+          "version": 1
+        },
+        "otherEdgeMs": 1276.6000000000004,
+        "serverTimingMs": {
+          "edge_total": 14191.7,
+          "provider": 12915.1
+        },
+        "status": 200,
+        "timingStatus": "valid",
+        "version": "identification_app_measurement_v1"
+      },
+      "clientHttp": {
+        "event": "http_identification",
+        "authSeconds": 0.005,
+        "transferAndServerSeconds": 14.884,
+        "status": 200
+      },
+      "appIntervalsSeconds": {
+        "preflight_seconds": 0,
+        "response_to_first_result_state_seconds": 0.018,
+        "tap_to_first_rendered_frame_seconds": 15.462,
+        "postflight_seconds": 0.314,
+        "total_pipeline_seconds": 15.4
+      },
+      "primaryAttemptCost": {
+        "estimatedPrimaryUpperUsd": 0.031045,
+        "reason": "estimated_primary_only",
+        "scope": "observed_primary_attempt_only",
+        "invoiceExact": false
+      }
+    },
+    {
+      "order": 5,
+      "caseId": "c0003",
+      "assetId": "a0003",
+      "preparedAssetSha256": "6fb425cbd689682c1539d9abe1dfee5b38e8755e0ffd0b7c02a77158f94757ed",
+      "appSubmissions": 1,
+      "manualRetries": 0,
+      "defaultCropReviewed": true,
+      "cropNote": null,
+      "uiResultObservedAt": "2026-09-23T01:32:17.466271+00:00",
+      "uiResult": {
+        "commonName": "Monarch Butterfly",
+        "scientificName": "Danaus plexippus",
+        "matchLabel": "Strong match",
+        "provisionalReferenceAssessment": "matches_species_reference",
+        "manuallyConfirmedOrCorrected": false
+      },
+      "observer": {
+        "startedAt": "2026-09-23T01:31:05.585Z",
+        "readyAt": "2026-09-23T01:31:06.123Z",
+        "finishedAt": "2026-09-23T01:33:14.133Z",
+        "durationSeconds": 128.548,
+        "status": "window_completed",
+        "events": 7,
+        "collectorExitCode": 0,
+        "collectorSignal": null,
+        "stopReason": "collector_exit",
+        "unprojectedRows": 28,
+        "oversizedRows": 0
+      },
+      "nativeMeasurement": {
+        "app": {
+          "build": "275",
+          "sourceFingerprint": "3ad8e9f3c0e73234a78e743652cd9ac88fb93414f6e348c85148abddf213d812",
+          "sourceRevision": "6c7ba02ede0fa0884189f55b726bb4babf5966a5",
+          "sourceState": "dirty",
+          "version": "1.0.3"
+        },
+        "delivery": "fresh",
+        "diagnostics": {
+          "backendBundleSha256": "05aedfe76acc8d8bcee71f5ebf0f9de22590e79715e6cc80f1f4ab6032576558",
+          "provider": "gemini",
+          "requestedModel": "gemini-2.5-pro",
+          "returnedModel": "gemini-2.5-pro",
+          "usage": {
+            "cachedTokens": null,
+            "candidateTokens": 575,
+            "promptTokens": 2710,
+            "thinkingTokens": 1205,
+            "toolTokens": null,
+            "totalTokens": 4490
+          },
+          "version": 1
+        },
+        "otherEdgeMs": 2313.1000000000004,
+        "serverTimingMs": {
+          "edge_total": 17293.2,
+          "provider": 14980.1
+        },
+        "status": 200,
+        "timingStatus": "valid",
+        "version": "identification_app_measurement_v1"
+      },
+      "clientHttp": {
+        "event": "http_identification",
+        "authSeconds": 0.005,
+        "transferAndServerSeconds": 17.769,
+        "status": 200
+      },
+      "appIntervalsSeconds": {
+        "preflight_seconds": 0,
+        "response_to_first_result_state_seconds": 0.016,
+        "tap_to_first_rendered_frame_seconds": 18.343,
+        "postflight_seconds": 0.276,
+        "total_pipeline_seconds": 18.249
+      },
+      "primaryAttemptCost": {
+        "estimatedPrimaryUpperUsd": 0.033475,
+        "reason": "estimated_primary_only",
+        "scope": "observed_primary_attempt_only",
+        "invoiceExact": false
+      }
+    },
+    {
+      "order": 6,
+      "caseId": "c0008",
+      "assetId": "a0008",
+      "preparedAssetSha256": "298cef1b4da00f00b95f4b0c290eea6f3e079407aa735e7989ef1cf0160fa906",
+      "appSubmissions": 1,
+      "manualRetries": 0,
+      "defaultCropReviewed": true,
+      "cropNote": null,
+      "uiResultObservedAt": "2026-09-23T01:34:51.137702+00:00",
+      "uiResult": {
+        "commonName": "Amethyst",
+        "scientificName": null,
+        "matchLabel": "NON-BIOLOGICAL",
+        "provisionalReferenceAssessment": "matches_non_biological_reference",
+        "mineralIdentityAssessed": false,
+        "manuallyConfirmedOrCorrected": false
+      },
+      "observer": {
+        "startedAt": "2026-09-23T01:33:34.638Z",
+        "readyAt": "2026-09-23T01:33:35.099Z",
+        "finishedAt": "2026-09-23T01:35:43.110Z",
+        "durationSeconds": 128.472,
+        "status": "window_completed",
+        "events": 7,
+        "collectorExitCode": 0,
+        "collectorSignal": null,
+        "stopReason": "collector_exit",
+        "unprojectedRows": 18,
+        "oversizedRows": 0
+      },
+      "nativeMeasurement": {
+        "app": {
+          "build": "275",
+          "sourceFingerprint": "3ad8e9f3c0e73234a78e743652cd9ac88fb93414f6e348c85148abddf213d812",
+          "sourceRevision": "6c7ba02ede0fa0884189f55b726bb4babf5966a5",
+          "sourceState": "dirty",
+          "version": "1.0.3"
+        },
+        "delivery": "fresh",
+        "diagnostics": {
+          "backendBundleSha256": "05aedfe76acc8d8bcee71f5ebf0f9de22590e79715e6cc80f1f4ab6032576558",
+          "provider": "gemini",
+          "requestedModel": "gemini-2.5-pro",
+          "returnedModel": "gemini-2.5-pro",
+          "usage": {
+            "cachedTokens": null,
+            "candidateTokens": 349,
+            "promptTokens": 2710,
+            "thinkingTokens": 994,
+            "toolTokens": null,
+            "totalTokens": 4053
+          },
+          "version": 1
+        },
+        "otherEdgeMs": 1430.5,
+        "serverTimingMs": {
+          "edge_total": 12492.1,
+          "provider": 11061.6
+        },
+        "status": 200,
+        "timingStatus": "valid",
+        "version": "identification_app_measurement_v1"
+      },
+      "clientHttp": {
+        "event": "http_identification",
+        "authSeconds": 0.007,
+        "transferAndServerSeconds": 13.049,
+        "status": 200
+      },
+      "appIntervalsSeconds": {
+        "preflight_seconds": 0,
+        "response_to_first_result_state_seconds": 0.012,
+        "tap_to_first_rendered_frame_seconds": 13.944,
+        "postflight_seconds": 0.246,
+        "total_pipeline_seconds": 13.882
+      },
+      "primaryAttemptCost": {
+        "estimatedPrimaryUpperUsd": 0.02692,
+        "reason": "estimated_primary_only",
+        "scope": "observed_primary_attempt_only",
+        "invoiceExact": false
+      }
+    }
+  ],
+  "limitations": [
+    "Source-backed provisional references are not independently verified biological ground truth.",
+    "All cases are public still-photo development evidence; prior training exposure is unknown.",
+    "One submission per photo does not establish repeatability, confidence calibration, population accuracy or reliable p95.",
+    "The mineral control scores biological-subject handling only; its displayed mineral name is not independently assessed.",
+    "Prepared-asset hashes do not attest the app crop, contextual fields or final encoded provider payload.",
+    "Provider duration includes SDK transport. Edge spans overlap; other Edge time is only edge_total minus provider.",
+    "Usage estimates apply the reviewed highest rates and exclude other attempts, optional enrichment, storage and transport. Total scan cost and billing remain unknown.",
+    "Complete observer windows do not prove exhaustive OS logging or provider invocation counts.",
+    "No Gemini Flash/free, alternative provider, audio, description or sampled-frame comparison was performed."
+  ]
+}

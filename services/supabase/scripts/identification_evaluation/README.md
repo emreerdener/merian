@@ -12,9 +12,11 @@ has occurred. The first two-photo exploratory corpus passed local preflight; its
 retains scope and limits. A subsequent
 [six-photo source packet](../../../../docs/rfcs/identification-source-photo-pilot-2026-09-22.md)
 also passed offline preflight with provisional references and no model calls.
-Its planned ordinary-app pass is separate from the direct evaluator's dry
-schedule. Gemini remains the only live provider; video evidence is ordered
-snapshots and included WAV audio, never a playback video.
+Its completed
+[six-photo app benchmark](../../../../docs/rfcs/identification-source-photo-app-benchmark-2026-09-22.md)
+records ordinary-app outcomes and passive measurements separately from the
+direct evaluator's dry schedule. Gemini remains the only live provider; video
+evidence is ordered snapshots and included WAV audio, never a playback video.
 
 ## Owners and use
 

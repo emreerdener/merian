@@ -212,3 +212,15 @@ provider and total Edge spans. The flower was not retried, and its missing spans
 remain unknown. The complete updated native target passed 4,281 tests. These
 observations establish successful capture for the exercised paths, not complete
 billing coverage, verified accuracy or a latency distribution.
+
+### Source-backed photo pilot — 22 September 2026
+
+The
+[six-photo app benchmark](../rfcs/identification-source-photo-app-benchmark-2026-09-22.md)
+then completed six sequential first submissions with unchanged app/backend
+identities and normal Gemini selection. Every observer closed normally with
+seven events, fresh Gemini 2.5 Pro diagnostics and valid provider/Edge spans.
+All five biological outcomes agreed with provisional references; the mineral
+control was labeled non-biological. The report preserves per-case timings and
+primary-attempt estimates without claiming verified accuracy, repeatability or
+total billed cost. No runtime code changed during this run.

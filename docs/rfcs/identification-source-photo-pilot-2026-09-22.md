@@ -4,6 +4,11 @@ Date: 22 September 2026\
 Status: Six real photo observations prepared; offline preflight passed; no new
 model calls
 
+Subsequent execution on 22 September:
+[the six-photo app benchmark](./identification-source-photo-app-benchmark-2026-09-22.md)
+completed all six first submissions and measurement windows. The preparation
+status and frozen records below describe the earlier offline checkpoint.
+
 This packet prepares five source-backed provisional species references and one
 non-biological control for a bounded pass through the existing app. It follows
 the

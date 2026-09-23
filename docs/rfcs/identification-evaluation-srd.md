@@ -1,10 +1,10 @@
 # Naturebook Identification Evaluation Readiness — SRD
 
 Document ID: NB-SRD-IDENTIFICATION-EVAL-001\
-Version: 0.8\
+Version: 0.9\
 Date: 22 September 2026\
-Status: Slices 1–3 and exploratory automation implemented; six-photo preflight
-passed; reviewed live baseline pending\
+Status: Slices 1–3 and exploratory automation implemented; six-photo app pilot
+completed; reviewed live baseline pending\
 Product authority:
 [Evaluation Readiness PRD](../product/04-identification-evaluation-prd.md)
 
@@ -526,6 +526,16 @@ environment denied, preparing twelve requests for the two current profiles with
 ordinary-app pass, not the direct evaluator's dry schedule. References and
 source records remain outside input projections and Git. Preparation made no
 model calls, and formal reviewed counts remain 0/60 and 0/240.
+
+The subsequent
+[six-photo app benchmark](./identification-source-photo-app-benchmark-2026-09-22.md)
+completed six sequential first submissions on the installed timing-fix build.
+Each passive window retained seven events, fresh Gemini 2.5 Pro diagnostics and
+valid provider/Edge timing, then closed normally. Five provisional species
+agreements and one non-biological agreement remain separate from formal scores.
+Its selected UI outcomes and bounded numeric records are app-observation
+evidence, not direct-runner output; no new runtime code or deployment was
+needed.
 
 | Slice                     | Implementation and verification                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

@@ -1,8 +1,8 @@
 # Identification evaluation: solo checks and the reviewed pilot
 
 Date: 22 September 2026\
-Status: Six source-backed exploratory photos prepared; formal corpus at 0/60
-reviewed groups; no paid direct-evaluator run
+Status: Six source-backed exploratory photos completed the app pilot; formal
+corpus at 0/60 reviewed groups; no paid direct-evaluator run
 
 This is the collection workflow for Slice 4 of the
 [evaluation PRD](../product/04-identification-evaluation-prd.md) and
@@ -148,10 +148,13 @@ The
 subsequently passed offline preflight with five source-backed provisional
 species references and one non-biological control. Its private media, source
 records, taxonomy and app plan are frozen; preparation made no model calls. The
-next ordinary-app pass is limited to six sequential first submissions with no
-manual retries. That plan is separate from the direct evaluator's twelve-call
-dry schedule. These automated eligibility reviews do not advance the formal
-reviewed counts below.
+subsequent
+[ordinary-app benchmark](../rfcs/identification-source-photo-app-benchmark-2026-09-22.md)
+completed six sequential first submissions with no manual retries: five
+provisional species agreements and one non-biological agreement, each with a
+complete measurement window. That pass is separate from the direct evaluator's
+twelve-call dry schedule. These automated eligibility reviews do not advance the
+formal reviewed counts below.
 
 ## Formal pilot: start here when reference review is available
 
