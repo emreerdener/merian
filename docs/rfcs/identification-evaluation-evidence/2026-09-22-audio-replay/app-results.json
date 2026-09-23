@@ -1,0 +1,264 @@
+{
+  "schemaVersion": "identification_audio_replay_app_pilot_v1",
+  "runId": "source-audio-one-app-v1",
+  "status": "first_audio_result_recorded_provisional_species_disagreement",
+  "recordedAt": "2026-09-23T03:28:40.570099+00:00",
+  "dateTimezone": "America/Chicago",
+  "executionBoundary": "existing_production_app_workflow",
+  "authorizedAppSubmissions": 1,
+  "observedAppSubmissions": 1,
+  "visibleFinishedResults": 1,
+  "manualRetries": 0,
+  "providerOverride": false,
+  "providerInvocationCount": null,
+  "providerInternalRetryCount": null,
+  "totalBilledCostUsd": null,
+  "directEvaluatorLiveCalls": 0,
+  "deploymentPerformed": false,
+  "runtimeCodeChangedDuringRun": false,
+  "parentBenchmarkRef": "describe-repeat-video-first-app-v1",
+  "parentBenchmarkArtifactSha256": "39fabd8755f3984f46f43bbc9b5a28529c8e70facbb25093359e6c19b67b418a",
+  "cumulativeThreeCasePlan": {
+    "authorizedMaximumAppSubmissions": 3,
+    "observedAppSubmissions": 3,
+    "visibleFinishedResults": 3,
+    "completeObserverWindows": 3,
+    "manualRetries": 0,
+    "knownPrimaryAttemptEstimateSumUsd": 0.0933925,
+    "scope": "three_observed_primary_attempts_only",
+    "invoiceExact": false
+  },
+  "corpusDigest": "f6b2e341ae5517d90b4f5b0512ca166ea081819fa1a63529a2818e49275c93cb",
+  "taxonomyDigest": "1caa412f3c20d252310219af253c261632da6f25251bea69d9d8cab02533b1ee",
+  "inputFreezeSha256": "76fcf659ed0e063028c2c353ac1d22f00c05d78e95995b5b660567f6ec732c95",
+  "offlinePreflight": {
+    "groups": 1,
+    "referenceLabels": 1,
+    "coverage": {
+      "photos": 0,
+      "description": 0,
+      "audio": 1,
+      "frames": 0,
+      "frames_audio": 0,
+      "photos_audio": 0
+    },
+    "plannedCalls": 2,
+    "dispatchAuthorized": false,
+    "source": {
+      "commit": "10267f2e27293fc0d30f0d0a6c34b0586b379e9f",
+      "dirty": true,
+      "digest": "423b50d77257f287e853a8a90b141dc7e1d14cac4d33dce0c37e0b2e116f2598",
+      "sdk": "npm:@google/genai@2.23.0"
+    }
+  },
+  "ownerListeningReview": {
+    "completed": true,
+    "reviewScope": "absence_of_human_speech_spoken_labels_and_personal_information",
+    "reviewedAudioSha256": "6854410b4ec668ea78a02d728cd06d235088162794f7f6da425dcc6cbc06688f",
+    "reviewedAuditionCopySha256": "3b9a2e2d2b4382504f871bbe93db211d2fdbb33187ffd525d50b0020b937b6f1",
+    "independentBiologicalReferenceReview": false
+  },
+  "app": {
+    "build": "275",
+    "sourceFingerprint": "82da4dc3da24a4de9ace2c2be1f2746144c7191cc9c26309fddfe9655db03cd5",
+    "sourceRevision": "807b9af9964e3eba0b9d4212d7dc91d8945d4118",
+    "sourceState": "dirty",
+    "version": "1.0.3"
+  },
+  "simulator": {
+    "model": "iPhone 18 Pro",
+    "os": "iOS 27.0"
+  },
+  "backendBundleSha256": "05aedfe76acc8d8bcee71f5ebf0f9de22590e79715e6cc80f1f4ab6032576558",
+  "pricingSnapshot": {
+    "version": "evaluation_pricing_v1",
+    "currency": "USD",
+    "service": "paid_standard_synchronous",
+    "retrievedAt": "2026-09-22T16:20:15.212Z",
+    "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+    "reviewRef": "pricing-public-20260922",
+    "includesReasoning": true,
+    "models": [
+      {
+        "model": "gemini-2.5-flash",
+        "inputPerMillion": {
+          "text": 0.3,
+          "image": 0.3,
+          "audio": 1,
+          "cached": 0.1
+        },
+        "outputPerMillion": 2.5,
+        "maxInputTokens": 1048576,
+        "maxBillableOutputTokens": 65536,
+        "limitsEvidenceRef": "limits-flash-20260922"
+      },
+      {
+        "model": "gemini-2.5-pro",
+        "inputPerMillion": {
+          "text": 2.5,
+          "image": 2.5,
+          "audio": 2.5,
+          "cached": 0.25
+        },
+        "outputPerMillion": 15,
+        "maxInputTokens": 1048576,
+        "maxBillableOutputTokens": 65536,
+        "limitsEvidenceRef": "limits-pro-20260922"
+      }
+    ]
+  },
+  "pricingSnapshotSha256": "d816105ce773e6341980ce1b40a89798de81e27cb0d7abf0756b297ed8c2046d",
+  "observationPolicy": {
+    "requestedSeconds": 120,
+    "shutdownGraceSeconds": 30,
+    "maximumEventsPerWindow": 100,
+    "readyBeforeUiConfirmation": true,
+    "overlappingWindows": false,
+    "automaticObserverSubmissions": 0,
+    "caseAssociation": "observed_sequential_ui_actions",
+    "rawLogsRetained": false
+  },
+  "summary": {
+    "completedObserverWindows": 1,
+    "completeSixEventSets": 1,
+    "freshHttp200Measurements": 1,
+    "validProviderAndEdgeTimingCases": 1,
+    "knownPrimaryAttemptEstimateUsd": 0.0291825,
+    "latencyDistribution": null
+  },
+  "quality": {
+    "sourceReferenceCommonName": "Northern Cardinal",
+    "sourceReferenceScientificName": "Cardinalis cardinalis",
+    "provisionalSpeciesAgreements": 0,
+    "provisionalSpeciesDisagreements": 1,
+    "strongMatchesDisagreeingWithSource": 1,
+    "independentlyVerifiedErrorCount": null,
+    "independentlyVerifiedReferenceCount": 0,
+    "formalAccuracy": null,
+    "confidenceCalibration": null,
+    "providerComparison": null,
+    "repeatabilityAssessed": false,
+    "formalDevelopmentGroups": 0,
+    "formalHeldOutGroups": 0
+  },
+  "coverage": {
+    "audio": 1,
+    "physicalMicrophoneCapture": 0
+  },
+  "case": {
+    "caseId": "c0011",
+    "groupId": "g0011",
+    "inputGroup": "audio",
+    "newIndependentGroup": true,
+    "durationSeconds": 10,
+    "preparedAudioSha256": "6854410b4ec668ea78a02d728cd06d235088162794f7f6da425dcc6cbc06688f",
+    "imagesSubmitted": false,
+    "descriptionSubmitted": false,
+    "appSubmissions": 1,
+    "manualRetries": 0,
+    "uiResultObservedAt": "2026-09-23T03:26:46.748754+00:00",
+    "uiResult": {
+      "commonName": "Wood Thrush",
+      "scientificName": "Hylocichla mustelina",
+      "matchLabel": "Strong match",
+      "provisionalReferenceAssessment": "species_disagreement_with_source_label",
+      "independentlyVerifiedModelError": null,
+      "manuallyConfirmedOrCorrected": false
+    },
+    "observer": {
+      "finishedAt": "2026-09-23T03:27:40.893Z",
+      "status": "window_completed",
+      "events": 6,
+      "ready": true,
+      "stopReason": "collector_exit",
+      "collectorExitCode": 0,
+      "collectorSignal": null,
+      "unprojectedRows": 25,
+      "oversizedRows": 0,
+      "startedAt": "2026-09-23T03:25:32.379Z",
+      "readyAt": "2026-09-23T03:25:32.883Z",
+      "durationSeconds": 128.514
+    },
+    "nativeMeasurement": {
+      "app": {
+        "build": "275",
+        "sourceFingerprint": "82da4dc3da24a4de9ace2c2be1f2746144c7191cc9c26309fddfe9655db03cd5",
+        "sourceRevision": "807b9af9964e3eba0b9d4212d7dc91d8945d4118",
+        "sourceState": "dirty",
+        "version": "1.0.3"
+      },
+      "delivery": "fresh",
+      "diagnostics": {
+        "backendBundleSha256": "05aedfe76acc8d8bcee71f5ebf0f9de22590e79715e6cc80f1f4ab6032576558",
+        "provider": "gemini",
+        "requestedModel": "gemini-2.5-pro",
+        "returnedModel": "gemini-2.5-pro",
+        "usage": {
+          "cachedTokens": null,
+          "candidateTokens": 519,
+          "promptTokens": 1065,
+          "thinkingTokens": 1249,
+          "toolTokens": null,
+          "totalTokens": 2833
+        },
+        "version": 1
+      },
+      "otherEdgeMs": 1209.7000000000007,
+      "serverTimingMs": {
+        "edge_total": 16738.9,
+        "provider": 15529.2
+      },
+      "status": 200,
+      "timingStatus": "valid",
+      "version": "identification_app_measurement_v1"
+    },
+    "httpMeasurement": {
+      "event": "http_identification",
+      "authSeconds": 0.007,
+      "transferAndServerSeconds": 17.31,
+      "status": 200
+    },
+    "pipelineMeasurements": {
+      "preflight_seconds": null,
+      "response_to_first_result_state_seconds": 0.026,
+      "postflight_seconds": 0.026,
+      "total_pipeline_seconds": 18.174,
+      "tap_to_first_rendered_frame_seconds": 19.022
+    },
+    "primaryAttemptEstimate": {
+      "estimatedPrimaryUpperUsd": 0.0291825,
+      "reason": "estimated_primary_only",
+      "scope": "observed_primary_attempt_only",
+      "invoiceExact": false
+    },
+    "preSubmissionInteractionNote": "Debug replay control was unavailable after closing the previous completed video result. Relaunching the same installed app restored the menu; then audio staged normally. No data reset, code change or identification retry occurred."
+  },
+  "limits": {
+    "visualPreflightMarker": "not_emitted_by_nonvisual_path",
+    "importAndPhysicalCaptureIncludedInLatency": false,
+    "preparedRequestBytesAttested": false,
+    "appContextAttested": false,
+    "sourceHashesAttestProviderPayload": false,
+    "modelProseRetained": false,
+    "referenceIdentityIndependentlyVerified": false
+  },
+  "privateEvidenceRef": "audio-replay-app-20260922-v1",
+  "privateEvidenceRetentionUntil": "2026-10-22",
+  "privateRecordSha256": {
+    "c0011-observation.jsonl": "e69e9398e07eed8a1d66d8465eae2ea52fd2b5bc34fde0d806a36943161bc6e2",
+    "c0011-ui.json": "7b666b766fdb4cabcd51f2b9fd73cfd190a7b67d742b54ec734ad22d30f51eb7",
+    "plan.json": "fd2f338ad8b7cf6962bf18f8d1d08d13b4d14d1e1118b4089be4f24dfca305cc",
+    "pricing.json": "d816105ce773e6341980ce1b40a89798de81e27cb0d7abf0756b297ed8c2046d"
+  },
+  "validation": {
+    "offlineAudioPreflight": "passed",
+    "priorNativeUnitTests": 4293,
+    "priorNativeUnitFailures": 0,
+    "nativeUnitSuiteRerun": false,
+    "backendSuiteRerun": false,
+    "newBuildPerformed": false,
+    "inputAndPriorFreezeHashesVerified": true,
+    "observerIntegrityAndCostArithmeticVerified": true
+  },
+  "privateEvidenceFreezeSha256": "6516344a68cbb45c1592b2b05f6c9e1935d28542f53768134b80398a035a9865"
+}

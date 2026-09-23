@@ -147,7 +147,10 @@ This provides a repeatable input path. Benchmark claims require reviewed cases
 to be submitted and their observations retained. The
 [first controlled video run](../rfcs/identification-replay-app-benchmark-2026-09-22.md)
 records that boundary; its included audio was digitally silent, and standalone
-audio remained pending listening review.
+audio remained pending listening review. After the owner's confirmation, the
+[first audio run](../rfcs/identification-audio-app-benchmark-2026-09-22.md)
+completed that remaining case and retained its disagreement with the source
+label.
 
 ## Observe a simulator session
 
@@ -361,7 +364,24 @@ valid provider/Edge spans and genus-level agreement with provisional references.
 The five-second replay retained five ordered snapshots and its actual companion
 audio track, whose 220,500 decoded samples were all zero. This is a video-path
 measurement, not evidence for meaningful acoustic/visual fusion. The prepared
-standalone audio case was not submitted because its listening review remains
-open. Import/preparation and physical capture precede the Identify clock and are
-excluded from these timings. No provider switch, deployment or formal accuracy
-claim follows from these observations.
+standalone audio case was not submitted because its listening review was still
+open at that checkpoint. Import/preparation and physical capture precede the
+Identify clock and are excluded from these timings. No provider switch,
+deployment or formal accuracy claim follows from these observations.
+
+### First controlled audio verification — 22 September 2026
+
+The [audio benchmark](../rfcs/identification-audio-app-benchmark-2026-09-22.md)
+followed the owner's listening confirmation and a fresh frozen packet. Its one
+ordinary-app submission produced six events and a normally completed observer
+window. First render took 19.022 seconds; Gemini 2.5 Pro identity and valid
+provider/Edge spans were retained. The visual preflight marker remains null on
+this nonvisual path. The Strong-match Wood Thrush answer disagreed with the
+provisional Northern Cardinal source label; that is a reference disagreement,
+not an independently verified accuracy result.
+
+Before staging, the Debug replay control was unavailable after the previous
+result was dismissed. Relaunching the unchanged app restored it; no scan was
+retried and the relaunch preceded the observer window. The cause is undiagnosed.
+Physical microphone capture, final request/context attestation and exhaustive
+billing remain outside this measurement.

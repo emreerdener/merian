@@ -1,9 +1,9 @@
 # Identification evaluation: solo checks and the reviewed pilot
 
 Date: 22 September 2026\
-Status: Six exploratory photos, two descriptions and first controlled video
-completed app checks; standalone audio pending listening review; formal corpus
-at 0/60 reviewed groups; no paid direct-evaluator run
+Status: Six exploratory photos, two descriptions, first controlled video and
+first audio completed app checks; formal corpus at 0/60 reviewed groups; no paid
+direct-evaluator run
 
 This is the collection workflow for Slice 4 of the
 [evaluation PRD](../product/04-identification-evaluation-prd.md) and
@@ -172,10 +172,16 @@ The subsequent
 used the new Debug simulator staging path for a reviewed five-second video and
 repeated one frozen description to verify its repaired first-render metric. Both
 windows completed with provisional genus agreement. The video's actual audio
-track was silent, so acoustic/visual fusion remains untested. Standalone audio
-is prepared but has no listening-review completion or app submission. Do not
-count the repeated description as a new independent group or the silent video
-track as evidence for acoustic identification.
+track was silent, so acoustic/visual fusion remains untested. Do not count the
+repeated description as a new independent group or the silent video track as
+evidence for acoustic identification.
+
+Once the owner completed audio listening review, the
+[first standalone audio check](../rfcs/identification-audio-app-benchmark-2026-09-22.md)
+finished the remaining submission and its measurement window. The Strong-match
+Wood Thrush result disagreed with the source's provisional Northern Cardinal
+label. Preserve it for independent species review; confirming absence of human
+speech and revealing labels does not verify the expected species.
 
 ## Formal pilot: start here when reference review is available
 

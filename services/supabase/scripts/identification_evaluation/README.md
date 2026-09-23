@@ -33,9 +33,13 @@ verified Describe's first-render metric on a repeat and measured one first video
 result through Debug simulator staging and normal manual Identify. Both windows
 completed. The video packet passed offline preflight with five ordered snapshots
 and its actual, digitally silent companion WAV. This does not establish useful
-audio fusion. Standalone audio is prepared but unsubmitted pending listening
-review. The direct evaluator still has no paid run, and formal counts remain
-unchanged.
+audio fusion. After the owner's listening review, the
+[first audio app check](../../../../docs/rfcs/identification-audio-app-benchmark-2026-09-22.md)
+completed one first submission and a six-event window. Its Wood Thrush Strong
+match disagreed with the provisional Northern Cardinal source label. The new
+single-group packet passed offline preflight without dispatch; earlier packets
+remain frozen. The direct evaluator still has no paid run, and formal counts
+remain unchanged.
 
 ## Owners and use
 

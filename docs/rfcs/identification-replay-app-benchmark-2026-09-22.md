@@ -4,6 +4,12 @@ Date: 22 September 2026 (America/Chicago; retained timestamps are UTC)\
 Status: Describe repeat and first video result measured; standalone audio awaits
 listening review
 
+Follow-up, 22 September: the owner completed listening review and the separate
+[first audio benchmark](./identification-audio-app-benchmark-2026-09-22.md)
+finished the remaining submission. It preserves a Strong-match disagreement with
+the source label. The pending state and two-case measurements below describe
+this earlier checkpoint; its frozen JSON is unchanged.
+
 The repaired Describe path recorded its first live tap-to-render measurement. A
 five-second public-domain video then completed the normal Gemini workflow
 through the new Debug simulator replay tool. Both first outcomes agreed with

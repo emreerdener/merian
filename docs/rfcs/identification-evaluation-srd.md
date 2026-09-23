@@ -1,11 +1,10 @@
 # Naturebook Identification Evaluation Readiness — SRD
 
 Document ID: NB-SRD-IDENTIFICATION-EVAL-001\
-Version: 0.12\
+Version: 0.13\
 Date: 22 September 2026\
-Status: Slices 1–3 and exploratory automation implemented; photo, description
-and first video app checks completed; standalone audio and reviewed baseline
-pending\
+Status: Slices 1–3 and exploratory automation implemented; photo, description,
+first video and first audio app checks completed; reviewed baseline pending\
 Product authority:
 [Evaluation Readiness PRD](../product/04-identification-evaluation-prd.md)
 
@@ -572,8 +571,18 @@ valid provider/Edge spans. The video retains five snapshots and companion audio,
 but its decoded audio samples are all zero; it does not establish useful audio
 fusion. Offline preflight passed for that single grouped observation with no
 dispatch. Source/review asset hashes do not attest the app's final payload or
-context. Standalone audio remains prepared and unsubmitted pending listening
-review. Formal counts and direct-evaluator controls are unchanged.
+context. At that checkpoint, standalone audio still awaited listening review.
+
+The owner subsequently completed the listening review, and the
+[first audio benchmark](./identification-audio-app-benchmark-2026-09-22.md) used
+a new frozen packet for the final allowed app submission. Offline preflight
+passed one audio group without dispatch. The ordinary-app window completed with
+six events, 19.022 seconds to first rendered frame and unchanged app/backend/
+Gemini 2.5 Pro identity. Wood Thrush with a Strong match disagreed with the
+source's provisional Northern Cardinal label. Neither privacy review nor
+successful transport establishes species correctness; independent reference
+review remains open. Earlier JSON packets, formal counts and direct-evaluator
+controls are unchanged.
 
 | Slice                     | Implementation and verification                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
