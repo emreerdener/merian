@@ -1,10 +1,10 @@
 # Naturebook Identification Evaluation Readiness — PRD
 
 Document ID: NB-PRD-IDENTIFICATION-EVAL-001\
-Version: 0.7\
+Version: 0.8\
 Date: 22 September 2026\
-Status: Slices 1–3 implemented locally; two app checks recorded; reviewed
-baseline pending\
+Status: Slices 1–3 implemented; app measurement verified; six exploratory photos
+prepared; reviewed baseline pending\
 Suggested owners: Product and Backend, with a biological reference reviewer\
 Companion: [Evaluation Readiness SRD](../rfcs/identification-evaluation-srd.md)
 
@@ -16,10 +16,10 @@ The production handler and evaluation tooling use the same identification rules.
 The
 [Slice 4 collection packet](../development-guides/20-identification-evaluation-pilot.md)
 now supplies a proposed 60-slot coverage plan and blank
-intake/independent-review forms. The real corpus remains at 0/60 development and
-0/240 held-out groups; source material and reference reviewers are still needed.
-No paid direct-evaluator run has occurred; this local implementation has not
-been deployed.
+intake/independent-review forms. The formal corpus remains at 0/60 development
+and 0/240 held-out groups; full coverage and independent reference reviewers are
+still needed. No paid direct-evaluator run has occurred; that evaluator remains
+scripts-only.
 
 Owner clarification on 22 September: this is a solo project without two
 reference reviewers. The collection guide now supports both
@@ -37,6 +37,16 @@ Both returned visible outcomes and app timings; one reference is provisional and
 the other unverified. Exact model, provider-only timing and billed cost were not
 observed. This operational evidence does not complete the reviewed baseline or
 change the direct evaluator's controls.
+
+Later
+[live capture verification](../rfcs/identification-timing-capture-verification-2026-09-22.md)
+completed both recorder windows and measured provider/Edge timing on one repeat,
+preserving the other repeat's missing spans. The subsequent
+[six-photo packet](../rfcs/identification-source-photo-pilot-2026-09-22.md)
+passed offline preflight with five source-backed provisional species references
+and one non-biological control. Its frozen app plan allows six sequential first
+submissions through the ordinary workflow. Preparation made no new model calls;
+automated eligibility review does not establish independent biological accuracy.
 
 ## 1. Outcome
 
@@ -65,7 +75,7 @@ claiming to replace release verification.
 | Reference baseline   | Add 240 held-out observation groups, forty per input group: 300 total, including the pilot.                                                                                                  |
 | Scored result        | The model answer after the same contract validation and identification rules used by the backend, before dictionary hydration and persistence.                                               |
 | Evaluation operation | A developer tool with an offline default and an explicitly requested, bounded Gemini run. No deployed evaluation endpoint or production observation export.                                  |
-| Next action          | Prepare reviewed examples across the remaining inputs and resolve measurement gaps before another authorized run; direct-evaluator readiness and formal reference review remain outstanding. |
+| Next action          | Use the prepared six-photo packet for a bounded ordinary-app check, then expand the remaining inputs. Direct-evaluator readiness and formal reference review remain separate dependencies.   |
 
 The numbers are a practical starting scope, not a guarantee that a small quality
 difference can be established statistically. Report sample counts and

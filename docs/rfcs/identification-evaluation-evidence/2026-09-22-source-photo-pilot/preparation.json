@@ -1,0 +1,135 @@
+{
+  "version": "identification_source_photo_pilot_preparation_v1",
+  "recordedAt": "2026-09-23T01:08:04.407208+00:00",
+  "status": "prepared_offline_preflight_passed_not_executed",
+  "evidenceKind": "real_exploratory_development",
+  "corpusId": "public-photo-six-v1",
+  "corpusDigest": "5bdf1624c8dd0461d571cbe1a04d30ec7a648a69465e150da0141c456cd7be2a",
+  "taxonomyDigest": "43ef2e7209c0ffbe008e25b3db05b63134bbd341dbd718714f53592be2cdc8c3",
+  "source": {
+    "commit": "cb66ceb99cc018108944e0cac5654c27d21bfeba",
+    "dirty": true,
+    "digest": "423b50d77257f287e853a8a90b141dc7e1d14cac4d33dce0c37e0b2e116f2598",
+    "sdk": "npm:@google/genai@2.23.0"
+  },
+  "privateStorageRef": "source-photo-pilot-20260922-v1",
+  "privateRetentionThrough": "2026-10-22",
+  "privateDirectoryMode": "0700",
+  "privateFileMode": "0600",
+  "fileSha256": {
+    "corpus.json": "a14013a0d7324e67959826832bb4b1ee58cf3bd69ca47c94a1feae75c53ecf14",
+    "taxonomy.json": "072605c66627525c65bb6b51c82da448264ae4425e6dbda3c9cb3ba9e8794d22",
+    "preflight.json": "2ba76708550f1d8430c557b2b77a52fadc7ce63d6c04fe7ed84a1fe4009f047c",
+    "freeze.json": "e369894a26e0f8d3f580d75ca3f99f9304f33f4fa572379ab148655bb3370430",
+    "source-records.json": "4ccc6d60262a083f4d975c13eec5d88924a599133a026096cd34d6d518da9002",
+    "reference-records.json": "b3b368b84863168a7f950cf5e9e4f968a771c43c8178d97f3d34af2bfec57539",
+    "eligibility-record.json": "9563a350f1f314df5c47151cb40d37a9a3eb4e119820c8d5552a47e2fbf4804f",
+    "intake-history.json": "b1115e895b5d0eca97d8e4e1a5c2c9fcb58e1f88e823f718bb5dbdad020c21e4",
+    "app-run-plan.json": "9172ec7b7e71d9b13b7c8bb725492032cc66d51fb3cf9ad89d1bd9e1f281343c"
+  },
+  "intake": {
+    "candidatesInspected": 8,
+    "admittedIndependentGroups": 6,
+    "excludedBeforeFreeze": 2,
+    "exclusionReasons": [
+      "answer_bearing_text_in_pixels",
+      "human_hand_confound_in_non_biological_control"
+    ],
+    "rejectedIdsReused": false,
+    "excludedMediaRetained": false
+  },
+  "coverage": {
+    "photos": 6,
+    "description": 0,
+    "audio": 0,
+    "frames": 0,
+    "frames_audio": 0,
+    "photos_audio": 0
+  },
+  "references": {
+    "sourceBackedProvisionalSpecies": 5,
+    "sourceBackedProvisionalNonBiological": 1,
+    "unverified": 0,
+    "independentBiologicalReviews": 0,
+    "reviewerKind": "automated",
+    "formalDevelopmentGroups": 0,
+    "formalHeldOutGroups": 0,
+    "formalAccuracyQualified": false,
+    "taxonomyAliases": "exact_five_scientific_names_only",
+    "unmappedNamesRemainUnresolved": true
+  },
+  "assets": {
+    "count": 6,
+    "format": "metadata_free_rgb_png",
+    "rawSourceBytesRetained": false,
+    "realMediaInGit": false,
+    "resizedOrCroppedDuringPreparation": false,
+    "publishedDerivativeDimensionsVary": true,
+    "nonBiologicalControlDimensions": [
+      220,
+      147
+    ],
+    "sourceByteHashesRetainedPrivately": true,
+    "preparedByteHashesRetainedPrivately": true,
+    "finalPixelReviewCompleted": true,
+    "noAnswerBearingPixelText": true,
+    "noPeopleOrPersonalData": true,
+    "exactAndVisualNearDuplicateReviewCompleted": true,
+    "comparedWithPriorTwoPublicPhotos": true
+  },
+  "preflight": {
+    "version": "identification_preflight_v1",
+    "networkPermission": "denied",
+    "environmentPermission": "denied",
+    "passed": true,
+    "groups": 6,
+    "referenceLabels": 6,
+    "preparedNativeRequests": 12,
+    "uniqueInputDigests": 6,
+    "dispatchAuthorized": false,
+    "directEvaluatorProfiles": [
+      "gemini_flash_free",
+      "gemini_pro"
+    ],
+    "directEvaluatorPlannedCalls": 12,
+    "pricingDigest": null,
+    "fullScheduleReservationUsd": null,
+    "requiredBeforeDirectLive": [
+      "review_exact_corpus_and_source",
+      "current_pricing_and_token_ceilings",
+      "reviewed_dedicated_project_and_credential",
+      "explicit_run_spec_and_usd_budget_authorization"
+    ]
+  },
+  "preferredNextAppPass": {
+    "route": "ordinary_production_app",
+    "maximumAppSubmissions": 6,
+    "submissionsPerCase": 1,
+    "manualRetries": 0,
+    "concurrency": 1,
+    "normalGeminiServerSelection": true,
+    "providerOverride": false,
+    "passiveWindowSeconds": 120,
+    "shutdownGraceSeconds": 30,
+    "firstOutcomesAndUnknownsRetained": true,
+    "status": "prepared_not_executed",
+    "directEvaluatorScheduleIsSeparate": true
+  },
+  "execution": {
+    "newAppSubmissions": 0,
+    "providerCalls": 0,
+    "inferenceSpendUsd": 0,
+    "deploymentPerformed": false,
+    "liveRunSpecCreated": false,
+    "productionSessionOrKeysRead": false
+  },
+  "limitations": [
+    "Source-backed provisional references are not independently verified biological ground truth.",
+    "All six cases are development still-photo evidence; no held-out inference or paired provider comparison.",
+    "Fungi, audio, descriptions, sampled frames, paired media, rigorous lookalikes and expected-unknown cases remain uncovered.",
+    "Prior model training exposure to public photographs is unknown.",
+    "Native app crop/context/payload may differ from prepared CLI requests; their request digests are not actual app payload hashes.",
+    "The non-biological control concerns biological-subject handling, not mineral-species identification.",
+    "Successful preflight establishes input preparation and request construction, not measured identification quality, live timing or cost."
+  ]
+}

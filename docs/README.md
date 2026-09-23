@@ -231,6 +231,11 @@ production submission or public release.
   [live capture verification](./rfcs/identification-timing-capture-verification-2026-09-22.md)
   subsequently completed both recorder windows and verified provider/Edge timing
   on the cat after a native parser fix, preserving the flower's missing spans.
+  The
+  [six-photo preparation](./rfcs/identification-source-photo-pilot-2026-09-22.md)
+  adds five source-backed provisional species references and one non-biological
+  control, with private frozen media and a passed offline preflight. Its bounded
+  app pass remains unexecuted; it does not establish a formal accuracy baseline.
 - **Deferred family and prior combined planning:**
   [PRD](./product/02-family-plans-and-ai-platform-prd.md) and
   [SRD](./rfcs/family-plans-and-ai-platform-srd.md). Family plans are deferred;

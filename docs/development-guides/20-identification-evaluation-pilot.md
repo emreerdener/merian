@@ -1,8 +1,8 @@
 # Identification evaluation: solo checks and the reviewed pilot
 
 Date: 22 September 2026\
-Status: Solo workflow and exploratory automation available locally; formal
-corpus at 0/60 reviewed groups; no paid evaluator run
+Status: Six source-backed exploratory photos prepared; formal corpus at 0/60
+reviewed groups; no paid direct-evaluator run
 
 This is the collection workflow for Slice 4 of the
 [evaluation PRD](../product/04-identification-evaluation-prd.md) and
@@ -11,6 +11,9 @@ and measurement rules. The
 [tooling guide](../../services/supabase/scripts/identification_evaluation/README.md)
 owns the executable format and runner controls. This packet supplies blank
 working forms; it does not supply observations or approved reference answers.
+The separate
+[six-photo preparation record](../rfcs/identification-source-photo-pilot-2026-09-22.md)
+documents the first expanded source-backed exploratory packet.
 
 ## Start here when you are working alone
 
@@ -139,6 +142,16 @@ pricing snapshot. The instrumentation requires an updated app/backend before
 live use and does not fill the first checkpoint's missing data. Its observer
 submits no requests and does not replace result-screen observation or reference
 review.
+
+The
+[six-photo source packet](../rfcs/identification-source-photo-pilot-2026-09-22.md)
+subsequently passed offline preflight with five source-backed provisional
+species references and one non-biological control. Its private media, source
+records, taxonomy and app plan are frozen; preparation made no model calls. The
+next ordinary-app pass is limited to six sequential first submissions with no
+manual retries. That plan is separate from the direct evaluator's twelve-call
+dry schedule. These automated eligibility reviews do not advance the formal
+reviewed counts below.
 
 ## Formal pilot: start here when reference review is available
 

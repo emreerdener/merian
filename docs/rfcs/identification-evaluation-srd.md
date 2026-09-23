@@ -1,10 +1,10 @@
 # Naturebook Identification Evaluation Readiness — SRD
 
 Document ID: NB-SRD-IDENTIFICATION-EVAL-001\
-Version: 0.7\
+Version: 0.8\
 Date: 22 September 2026\
-Status: Slices 1–3 and exploratory automation implemented locally; reviewed live
-baseline pending\
+Status: Slices 1–3 and exploratory automation implemented; six-photo preflight
+passed; reviewed live baseline pending\
 Product authority:
 [Evaluation Readiness PRD](../product/04-identification-evaluation-prd.md)
 
@@ -512,6 +512,20 @@ offline cost reuses the evaluator's pricing contract and conservative estimator,
 scoped to the observed primary attempt. Local instrumentation does not complete
 Slice 4, attest a hosted deployment or revise the first app checkpoint's missing
 values.
+
+The subsequent
+[timing verification](./identification-timing-capture-verification-2026-09-22.md)
+records successful bounded observer shutdown and provider/Edge timing on one
+live repeat, while retaining missing spans on the other. The
+[six-photo preparation](./identification-source-photo-pilot-2026-09-22.md) then
+used the existing exploratory contracts without runtime changes: six independent
+development photo groups, five provisional species references and one
+non-biological unresolved control. Offline preflight passed with network and
+environment denied, preparing twelve requests for the two current profiles with
+`dispatchAuthorized: false`. The preferred app plan is a separate six-submission
+ordinary-app pass, not the direct evaluator's dry schedule. References and
+source records remain outside input projections and Git. Preparation made no
+model calls, and formal reviewed counts remain 0/60 and 0/240.
 
 | Slice                     | Implementation and verification                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

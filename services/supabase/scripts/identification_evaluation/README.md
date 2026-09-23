@@ -6,11 +6,15 @@ Slices 1–3 of the
 here as local, offline tooling. The production route and tooling reuse the same
 pure normalization helper. No production function imports these scripts modules.
 The CLI runs offline by default and has a separate, explicitly gated live mode.
-No formal reviewed corpus has been collected and no paid evaluation has run. A
-two-photo exploratory corpus has passed local preflight; its
+No formal reviewed corpus has been collected and no paid direct-evaluator run
+has occurred. The first two-photo exploratory corpus passed local preflight; its
 [experiment record](../../../../docs/rfcs/identification-exploratory-benchmark-2026-09-22.md)
-retains scope and limits. Gemini remains the only live provider; video evidence
-is ordered snapshots and included WAV audio, never a playback video.
+retains scope and limits. A subsequent
+[six-photo source packet](../../../../docs/rfcs/identification-source-photo-pilot-2026-09-22.md)
+also passed offline preflight with provisional references and no model calls.
+Its planned ordinary-app pass is separate from the direct evaluator's dry
+schedule. Gemini remains the only live provider; video evidence is ordered
+snapshots and included WAV audio, never a playback video.
 
 ## Owners and use
 
