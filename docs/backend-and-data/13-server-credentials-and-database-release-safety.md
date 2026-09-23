@@ -81,6 +81,17 @@ custom approval gates. Missing access fails closed. The active source hold
 remains a separate blocker; completing it is not implied by removing manual
 reviews. See the [release-evidence guide](../release-evidence/README.md).
 
+`IDENTIFICATION_AUDIO_COMPARISON_V1` is private experiment configuration, not a
+provider credential. Its account-bound JSON belongs only in the protected
+Production environment secret and the same named hosted Edge secret. The
+reviewed comparison-control workflow canonicalizes it in memory, passes it to
+the pinned CLI through stdin with an isolated child environment, and retains
+only sanitized control evidence. Do not expose its owner UUID or secret digest
+in inputs, arguments, logs or artifacts. The existing runtime expiry remains
+authoritative if the workflow is unavailable; see the
+[activation and recovery procedure](./06-supabase-deployment-runbook.md#audio-comparison-activation-hold)
+for its non-atomic list/delete boundary and verified deactivation.
+
 ### Edge Functions and Deno tooling
 
 `functions/_shared/serviceRoleAuth.ts` is the only server-key resolver. Its

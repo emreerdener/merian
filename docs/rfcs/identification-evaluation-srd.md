@@ -690,6 +690,15 @@ and legacy evidence. Configuration stays unset and no paired experiment has run.
 It records confidence/biological status without species prose, so it does not
 score reference agreement or increase the formal qualification counts.
 
+The subsequent reusable
+[experiment control](../backend-and-data/06-supabase-deployment-runbook.md#audio-comparison-activation-hold)
+adds protected GitHub inspection, activation and deactivation without changing
+the runtime or executing identifications. Infrastructure remains installed;
+individual runs use the exact reviewed account/plan/bundle and a window of at
+most two hours. Expiry makes a stored setting inactive. The control cannot reset
+the twelve assignments, widen the corpus, or establish a paired result; fresh
+plans still require reviewed generated bindings and ordinary benchmark evidence.
+
 | Slice                     | Implementation and verification                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | 1. Contracts and examples | Add schemas, eligibility/split validation, curation rubric, report contract, and synthetic cases with hand-worked expected metrics. Prove ground-truth isolation, complete ordered frame/audio evidence, unsupported-specificity scoring, strong false biological answers on negatives/unresolved cases, zero denominators, and rejection of cross-split duplicate groups. Start curation outside Git.                                                 |
