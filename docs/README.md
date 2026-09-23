@@ -238,7 +238,13 @@ production submission or public release.
   [six-photo app benchmark](./rfcs/identification-source-photo-app-benchmark-2026-09-22.md)
   subsequently completed all six first outcomes and measurement windows, with
   five provisional species agreements and one non-biological agreement. It does
-  not establish a formal accuracy baseline or provider qualification.
+  not establish a formal accuracy baseline or provider qualification. The later
+  [description benchmark](./rfcs/identification-description-app-benchmark-2026-09-22.md)
+  preserves a Strong biological answer on an ambiguous non-biological-source
+  description. The
+  [controlled replay check](./rfcs/identification-replay-app-benchmark-2026-09-22.md)
+  verifies Describe's repaired first-render timing and the first video result;
+  the video audio was silent and standalone audio awaits listening review.
 - **Deferred family and prior combined planning:**
   [PRD](./product/02-family-plans-and-ai-platform-prd.md) and
   [SRD](./rfcs/family-plans-and-ai-platform-srd.md). Family plans are deferred;

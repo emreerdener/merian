@@ -1,10 +1,10 @@
 # Naturebook Identification Evaluation Readiness — PRD
 
 Document ID: NB-PRD-IDENTIFICATION-EVAL-001\
-Version: 0.11\
+Version: 0.12\
 Date: 22 September 2026\
-Status: Slices 1–3 implemented; photo and description app pilots completed;
-reviewed baseline pending\
+Status: Slices 1–3 implemented; photo, description and first video app checks
+completed; standalone audio and reviewed baseline pending\
 Suggested owners: Product and Backend, with a biological reference reviewer\
 Companion: [Evaluation Readiness SRD](../rfcs/identification-evaluation-srd.md)
 
@@ -65,14 +65,19 @@ tap-to-render clock and had no controlled audio/video import path. Those limits
 and the first mismatch remain in the frozen evidence; they do not establish
 verified accuracy or justify a provider switch.
 
-The next implementation forwards Describe's tap clock and adds an interactive
-Debug simulator replay path for reviewed audio and short video files. Replay
-uses existing media preparation and manual Identify, including normal admission,
-queueing and Gemini selection. The
+The subsequent implementation forwards Describe's tap clock and adds an
+interactive Debug simulator replay path for reviewed audio and short video
+files. Replay uses existing media preparation and manual Identify, including
+normal admission, queueing and Gemini selection. The
 [measurement guide](../development-guides/21-identification-app-measurement.md#controlled-audio-and-video-replay-in-the-simulator)
-defines its limits. New live audio/video measurements and verification of the
-Describe metric remain pending; infrastructure tests do not count as benchmark
-cases.
+defines its limits. The
+[controlled replay benchmark](../rfcs/identification-replay-app-benchmark-2026-09-22.md)
+then verified Describe's first-render metric on one repeat and recorded the
+first video result, each with a completed measurement window. Both agreed at
+their provisional genus reference rank. The video's retained audio track is
+digitally silent, so meaningful audio/video fusion remains untested. Standalone
+audio is prepared but awaits listening review before admission. Infrastructure
+tests and repeated inputs do not increase independent benchmark coverage.
 
 ## 1. Outcome
 
@@ -93,15 +98,15 @@ claiming to replace release verification.
 
 ## 2. Recommended scope
 
-| Decision             | Recommendation                                                                                                                                                                                                                        |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| First models         | Evaluate the current Gemini Flash/free and Pro/Pro identification profiles separately. Preserve the complete settings of each profile.                                                                                                |
-| First path           | The primary `identify-multimodal` path across its real input combinations. Compatibility endpoints retain regression coverage; their different prompts are not represented by this baseline.                                          |
-| Starting dataset     | One to twelve eligible exploratory groups for the solo owner; the formal pilot remains 60 independently reviewed groups, ten per input group.                                                                                         |
-| Reference baseline   | Add 240 held-out observation groups, forty per input group: 300 total, including the pilot.                                                                                                                                           |
-| Scored result        | The model answer after the same contract validation and identification rules used by the backend, before dictionary hydration and persistence.                                                                                        |
-| Evaluation operation | A developer tool with an offline default and an explicitly requested, bounded Gemini run. No deployed evaluation endpoint or production observation export.                                                                           |
-| Next action          | Validate the repaired Describe metric in a recorded app run, curate controlled audio/video replay cases, then expand ambiguous and paired inputs with Gemini unchanged. Formal review and direct-evaluator readiness remain separate. |
+| Decision             | Recommendation                                                                                                                                                                                                                                 |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| First models         | Evaluate the current Gemini Flash/free and Pro/Pro identification profiles separately. Preserve the complete settings of each profile.                                                                                                         |
+| First path           | The primary `identify-multimodal` path across its real input combinations. Compatibility endpoints retain regression coverage; their different prompts are not represented by this baseline.                                                   |
+| Starting dataset     | One to twelve eligible exploratory groups for the solo owner; the formal pilot remains 60 independently reviewed groups, ten per input group.                                                                                                  |
+| Reference baseline   | Add 240 held-out observation groups, forty per input group: 300 total, including the pilot.                                                                                                                                                    |
+| Scored result        | The model answer after the same contract validation and identification rules used by the backend, before dictionary hydration and persistence.                                                                                                 |
+| Evaluation operation | A developer tool with an offline default and an explicitly requested, bounded Gemini run. No deployed evaluation endpoint or production observation export.                                                                                    |
+| Next action          | Complete the prepared audio's listening review and first app measurement, then expand ambiguous and paired inputs, including video with meaningful audio, with Gemini unchanged. Formal review and direct-evaluator readiness remain separate. |
 
 The numbers are a practical starting scope, not a guarantee that a small quality
 difference can be established statistically. Report sample counts and

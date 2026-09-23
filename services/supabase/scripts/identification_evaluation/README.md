@@ -24,8 +24,18 @@ adds two source-derived descriptions, one provisional genus agreement and one
 biological assertion on an ambiguous non-biological-source description. Offline
 preflight prepared four requests without dispatch; the separate ordinary-app
 pass retained two complete five-event windows. Missing Describe timing markers
-remain null, and audio/video live capture has no normal-app file import route.
-No formal counts or direct-evaluator readiness gates changed.
+remain null in that run; its app build had no controlled audio/video import
+route. No formal counts or direct-evaluator readiness gates changed.
+
+The subsequent
+[controlled replay app check](../../../../docs/rfcs/identification-replay-app-benchmark-2026-09-22.md)
+verified Describe's first-render metric on a repeat and measured one first video
+result through Debug simulator staging and normal manual Identify. Both windows
+completed. The video packet passed offline preflight with five ordered snapshots
+and its actual, digitally silent companion WAV. This does not establish useful
+audio fusion. Standalone audio is prepared but unsubmitted pending listening
+review. The direct evaluator still has no paid run, and formal counts remain
+unchanged.
 
 ## Owners and use
 

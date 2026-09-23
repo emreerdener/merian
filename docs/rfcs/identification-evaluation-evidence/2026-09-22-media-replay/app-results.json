@@ -1,0 +1,349 @@
+{
+  "schemaVersion": "identification_controlled_replay_app_pilot_v1",
+  "runId": "describe-repeat-video-first-app-v1",
+  "status": "describe_and_video_complete_audio_pending_listening_review",
+  "recordedAt": "2026-09-23T03:16:20.584119+00:00",
+  "dateTimezone": "America/Chicago",
+  "executionBoundary": "existing_production_app_workflow",
+  "authorizedMaximumAppSubmissions": 3,
+  "observedAppSubmissions": 2,
+  "visibleFinishedResults": 2,
+  "manualRetries": 0,
+  "providerOverride": false,
+  "providerInvocationCount": null,
+  "providerInternalRetryCount": null,
+  "totalBilledCostUsd": null,
+  "directEvaluatorLiveCalls": 0,
+  "deploymentPerformed": false,
+  "app": {
+    "build": "275",
+    "sourceFingerprint": "82da4dc3da24a4de9ace2c2be1f2746144c7191cc9c26309fddfe9655db03cd5",
+    "sourceRevision": "807b9af9964e3eba0b9d4212d7dc91d8945d4118",
+    "sourceState": "dirty",
+    "version": "1.0.3"
+  },
+  "simulator": {
+    "model": "iPhone 18 Pro",
+    "os": "iOS 27.0"
+  },
+  "backendBundleSha256": "05aedfe76acc8d8bcee71f5ebf0f9de22590e79715e6cc80f1f4ab6032576558",
+  "inputIdentities": {
+    "descriptionSha256": "0d9e473d6d86a1d5d77cbd10e04b4c50908ab8010754e1c1b64a3f8845d65280",
+    "descriptionOriginalCorpusDigest": "5c1d1bf18849bc7a5574aaba9a3dcf4c225ac12a391d23da71cc0afb54e24ea5",
+    "describePlanFreezeSha256": "47b2c83d85f1025fcf924414fb8fa1ac524b6620ea84add90c3fc2c2ce3a8480",
+    "videoCorpusDigest": "679fefb24f676bd87bb4b2f73ee5fe84a7d63ba90cbe7f51a50d79af8f890f66",
+    "videoTaxonomyDigest": "3c098e93bda55dddee04d76a4241ac4aaf07d45453cb891e965743173237ed8b",
+    "videoInputFreezeSha256": "36bd858f806098d2e34161b1eb0a3451fdde8c52f1433cb190a9c573ea29638d",
+    "videoReplaySha256": "b793e9e4ae04a9828daa0a165b2b545cfe7652e0cb74ab6d7939dface9ec3456"
+  },
+  "videoOfflinePreflight": {
+    "groups": 1,
+    "referenceLabels": 1,
+    "coverage": {
+      "photos": 0,
+      "description": 0,
+      "audio": 0,
+      "frames": 0,
+      "frames_audio": 1,
+      "photos_audio": 0
+    },
+    "plannedCalls": 2,
+    "dispatchAuthorized": false,
+    "source": {
+      "commit": "807b9af9964e3eba0b9d4212d7dc91d8945d4118",
+      "dirty": true,
+      "digest": "423b50d77257f287e853a8a90b141dc7e1d14cac4d33dce0c37e0b2e116f2598",
+      "sdk": "npm:@google/genai@2.23.0"
+    }
+  },
+  "observationPolicy": {
+    "requestedSeconds": 120,
+    "shutdownGraceSeconds": 30,
+    "maximumEventsPerWindow": 100,
+    "overlappingWindows": false,
+    "readyBeforeEachUiConfirmation": true,
+    "automaticObserverSubmissions": 0,
+    "caseAssociation": "observed_sequential_ui_actions",
+    "rawLogsRetained": false
+  },
+  "pricingSnapshot": {
+    "version": "evaluation_pricing_v1",
+    "currency": "USD",
+    "service": "paid_standard_synchronous",
+    "retrievedAt": "2026-09-22T16:20:15.212Z",
+    "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+    "reviewRef": "pricing-public-20260922",
+    "includesReasoning": true,
+    "models": [
+      {
+        "model": "gemini-2.5-flash",
+        "inputPerMillion": {
+          "text": 0.3,
+          "image": 0.3,
+          "audio": 1,
+          "cached": 0.1
+        },
+        "outputPerMillion": 2.5,
+        "maxInputTokens": 1048576,
+        "maxBillableOutputTokens": 65536,
+        "limitsEvidenceRef": "limits-flash-20260922"
+      },
+      {
+        "model": "gemini-2.5-pro",
+        "inputPerMillion": {
+          "text": 2.5,
+          "image": 2.5,
+          "audio": 2.5,
+          "cached": 0.25
+        },
+        "outputPerMillion": 15,
+        "maxInputTokens": 1048576,
+        "maxBillableOutputTokens": 65536,
+        "limitsEvidenceRef": "limits-pro-20260922"
+      }
+    ]
+  },
+  "pricingSnapshotSha256": "d816105ce773e6341980ce1b40a89798de81e27cb0d7abf0756b297ed8c2046d",
+  "summary": {
+    "completedObserverWindows": 2,
+    "describeEvents": 6,
+    "videoEvents": 7,
+    "freshHttp200Measurements": 2,
+    "validProviderAndEdgeTimingCases": 2,
+    "knownPrimaryAttemptEstimateSumUsd": 0.06421,
+    "primaryEstimateScope": "two_observed_primary_attempts_only",
+    "invoiceExact": false,
+    "latencyDistribution": null
+  },
+  "coverage": {
+    "descriptionRepeat": 1,
+    "newDescriptionGroups": 0,
+    "audio": 0,
+    "frames_audio": 1,
+    "audibleVideoAudio": 0,
+    "photos_audio": 0
+  },
+  "quality": {
+    "provisionalGenusAgreements": 2,
+    "speciesPredictionsBeyondReferenceRank": 2,
+    "independentlyVerifiedReferenceCount": 0,
+    "formalAccuracy": null,
+    "confidenceCalibration": null,
+    "providerComparison": null,
+    "repeatabilityAssessed": false,
+    "formalDevelopmentGroups": 0,
+    "formalHeldOutGroups": 0
+  },
+  "limits": {
+    "descriptionVisualPreflightMarker": "not_emitted_by_nonvisual_path",
+    "videoAudioContent": "digital_silence_all_220500_decoded_pcm_samples_zero",
+    "importAndPhysicalCaptureIncludedInLatency": false,
+    "preparedRequestBytesAttested": false,
+    "appContextAttested": false,
+    "sourceHashesAttestProviderPayload": false,
+    "modelProseRetained": false
+  },
+  "pendingAudio": {
+    "caseId": "c0011",
+    "status": "not_admitted_pending_owner_listening_review",
+    "preparedSha256": "6854410b4ec668ea78a02d728cd06d235088162794f7f6da425dcc6cbc06688f",
+    "durationSeconds": 10,
+    "appSubmissions": 0,
+    "listeningReviewComplete": false,
+    "biologicalReferenceIndependentlyVerified": false
+  },
+  "cases": [
+    {
+      "order": 1,
+      "caseId": "c0009",
+      "groupId": "g0009",
+      "inputGroup": "description",
+      "newIndependentGroup": false,
+      "repeatOf": "c0009",
+      "appSubmissions": 1,
+      "manualRetries": 0,
+      "uiResultObservedAt": "2026-09-23T03:09:30.111138+00:00",
+      "uiResult": {
+        "commonName": "Fly Agaric",
+        "scientificName": "Amanita muscaria",
+        "matchLabel": "Strong match",
+        "provisionalReferenceAssessment": "genus_agreement_species_beyond_reference",
+        "speciesAccuracyAssessed": false,
+        "manuallyConfirmedOrCorrected": false
+      },
+      "observer": {
+        "finishedAt": "2026-09-23T03:08:33.244Z",
+        "status": "window_completed",
+        "events": 6,
+        "ready": true,
+        "stopReason": "collector_exit",
+        "collectorExitCode": 0,
+        "collectorSignal": null,
+        "unprojectedRows": 19,
+        "oversizedRows": 0,
+        "startedAt": "2026-09-23T03:06:24.557Z",
+        "readyAt": "2026-09-23T03:06:25.227Z",
+        "durationSeconds": 128.687
+      },
+      "nativeMeasurement": {
+        "app": {
+          "build": "275",
+          "sourceFingerprint": "82da4dc3da24a4de9ace2c2be1f2746144c7191cc9c26309fddfe9655db03cd5",
+          "sourceRevision": "807b9af9964e3eba0b9d4212d7dc91d8945d4118",
+          "sourceState": "dirty",
+          "version": "1.0.3"
+        },
+        "delivery": "fresh",
+        "diagnostics": {
+          "backendBundleSha256": "05aedfe76acc8d8bcee71f5ebf0f9de22590e79715e6cc80f1f4ab6032576558",
+          "provider": "gemini",
+          "requestedModel": "gemini-2.5-pro",
+          "returnedModel": "gemini-2.5-pro",
+          "usage": {
+            "cachedTokens": null,
+            "candidateTokens": 534,
+            "promptTokens": 284,
+            "thinkingTokens": 1573,
+            "toolTokens": null,
+            "totalTokens": 2391
+          },
+          "version": 1
+        },
+        "otherEdgeMs": 1221.6000000000022,
+        "serverTimingMs": {
+          "edge_total": 19508.9,
+          "provider": 18287.3
+        },
+        "status": 200,
+        "timingStatus": "valid",
+        "version": "identification_app_measurement_v1"
+      },
+      "httpMeasurement": {
+        "event": "http_identification",
+        "authSeconds": 0.006,
+        "transferAndServerSeconds": 20.078,
+        "status": 200
+      },
+      "pipelineMeasurements": {
+        "preflight_seconds": null,
+        "response_to_first_result_state_seconds": 0.126,
+        "postflight_seconds": 0.126,
+        "total_pipeline_seconds": 20.573,
+        "tap_to_first_rendered_frame_seconds": 23.136
+      },
+      "primaryAttemptEstimate": {
+        "estimatedPrimaryUpperUsd": 0.032315,
+        "reason": "estimated_primary_only",
+        "scope": "observed_primary_attempt_only",
+        "invoiceExact": false
+      }
+    },
+    {
+      "order": 2,
+      "caseId": "c0012",
+      "groupId": "g0012",
+      "inputGroup": "frames_audio",
+      "newIndependentGroup": true,
+      "repeatOf": null,
+      "appSubmissions": 1,
+      "manualRetries": 0,
+      "uiResultObservedAt": "2026-09-23T03:13:17.254082+00:00",
+      "uiResult": {
+        "commonName": "American Bison",
+        "scientificName": "Bison bison",
+        "matchLabel": "Strong match",
+        "provisionalReferenceAssessment": "genus_agreement_species_beyond_reference",
+        "speciesAccuracyAssessed": false,
+        "manuallyConfirmedOrCorrected": false
+      },
+      "observer": {
+        "finishedAt": "2026-09-23T03:14:26.301Z",
+        "status": "window_completed",
+        "events": 7,
+        "ready": true,
+        "stopReason": "collector_exit",
+        "collectorExitCode": 0,
+        "collectorSignal": null,
+        "unprojectedRows": 28,
+        "oversizedRows": 0,
+        "startedAt": "2026-09-23T03:12:17.717Z",
+        "readyAt": "2026-09-23T03:12:18.287Z",
+        "durationSeconds": 128.584
+      },
+      "nativeMeasurement": {
+        "app": {
+          "build": "275",
+          "sourceFingerprint": "82da4dc3da24a4de9ace2c2be1f2746144c7191cc9c26309fddfe9655db03cd5",
+          "sourceRevision": "807b9af9964e3eba0b9d4212d7dc91d8945d4118",
+          "sourceState": "dirty",
+          "version": "1.0.3"
+        },
+        "delivery": "fresh",
+        "diagnostics": {
+          "backendBundleSha256": "05aedfe76acc8d8bcee71f5ebf0f9de22590e79715e6cc80f1f4ab6032576558",
+          "provider": "gemini",
+          "requestedModel": "gemini-2.5-pro",
+          "returnedModel": "gemini-2.5-pro",
+          "usage": {
+            "cachedTokens": null,
+            "candidateTokens": 497,
+            "promptTokens": 2138,
+            "thinkingTokens": 1273,
+            "toolTokens": null,
+            "totalTokens": 3908
+          },
+          "version": 1
+        },
+        "otherEdgeMs": 4270.9000000000015,
+        "serverTimingMs": {
+          "edge_total": 21021.5,
+          "provider": 16750.6
+        },
+        "status": 200,
+        "timingStatus": "valid",
+        "version": "identification_app_measurement_v1"
+      },
+      "httpMeasurement": {
+        "event": "http_identification",
+        "authSeconds": 0.006,
+        "transferAndServerSeconds": 21.643,
+        "status": 200
+      },
+      "pipelineMeasurements": {
+        "preflight_seconds": 0.012,
+        "response_to_first_result_state_seconds": 0.042,
+        "postflight_seconds": 0.382,
+        "total_pipeline_seconds": 23.565,
+        "tap_to_first_rendered_frame_seconds": 24.108
+      },
+      "primaryAttemptEstimate": {
+        "estimatedPrimaryUpperUsd": 0.031895,
+        "reason": "estimated_primary_only",
+        "scope": "observed_primary_attempt_only",
+        "invoiceExact": false
+      }
+    }
+  ],
+  "privateEvidenceRef": "media-replay-app-20260922-v1",
+  "privateEvidenceRetentionUntil": "2026-10-22",
+  "privateRecordSha256": {
+    "c0009-observation.jsonl": "2ce93f77373bf0b4e51345247a2325cda3e7da483c40fd65a732982c55417b30",
+    "c0009-ui.json": "e49cfe1f2f60cce373e47aea85c29e38deff4f77a4500bdb48a67358534d866b",
+    "c0012-observation.jsonl": "00fb0b46d0d9ae184eadef4627dcda604748fda92e762ddc60d6c75d9a9e9df1",
+    "c0012-ui.json": "f3e23bd7908e011bcf5e668a8e70ceeec2af94bebc10ce7a51b547a69e88cdb4",
+    "plan.json": "741066fdb61c53f501302d25e6e1e00ff8cc1507a40ad89297a58836d64158d5",
+    "pricing.json": "d816105ce773e6341980ce1b40a89798de81e27cb0d7abf0756b297ed8c2046d"
+  },
+  "validation": {
+    "freshDebugSimulatorBuild": "passed",
+    "buildResultBundleRef": "73d47a65473f4cd0b475c7e291c1a815.xcresult",
+    "runtimeCodeChangedDuringRun": false,
+    "priorFullNativeTests": 4293,
+    "priorFullNativeFailures": 0,
+    "nativeUnitSuiteRerun": false,
+    "backendSuiteRerun": false,
+    "inputFreezeHashesVerified": true,
+    "observerIntegrityAndCostArithmeticVerified": true
+  },
+  "privateEvidenceFreezeSha256": "7cade7f8acc0ba037ef56df6d52c266e7271f30705fc807355fb14036e3c745e"
+}

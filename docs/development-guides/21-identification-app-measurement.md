@@ -143,8 +143,11 @@ video frames are marked as gallery input and do not fabricate capture context;
 the ordinary audio submission context policy remains unchanged. Source hashes
 alone do not attest to the prepared inference bytes or complete request context.
 
-This provides a repeatable input path. It is not an audio/video benchmark until
-reviewed cases have actually been submitted and their observations retained.
+This provides a repeatable input path. Benchmark claims require reviewed cases
+to be submitted and their observations retained. The
+[first controlled video run](../rfcs/identification-replay-app-benchmark-2026-09-22.md)
+records that boundary; its included audio was digitally silent, and standalone
+audio remained pending listening review.
 
 ## Observe a simulator session
 
@@ -340,6 +343,25 @@ inbox source hash was unchanged after cancellation; the synthetic input was then
 removed. Identify was never tapped. This check made no identification request
 and is not a biological benchmark or latency sample.
 
-Live verification of Describe's new first-render marker and curated audio/video
-identification measurements remain pending. Earlier benchmark files and their
-unknown values are unchanged.
+At this implementation checkpoint, live verification and curated replay
+measurements were still pending. The follow-up below preserves earlier benchmark
+files and their unknown values.
+
+### Describe and controlled video verification — 22 September 2026
+
+The
+[controlled replay benchmark](../rfcs/identification-replay-app-benchmark-2026-09-22.md)
+completed one exact Describe repeat and one first video submission through the
+ordinary app. Both observer windows closed normally. Describe emitted six
+events, including the repaired first-render metric at 23.136 seconds; its visual
+preflight field remains null. Video emitted seven events and recorded 24.108
+seconds to first rendered frame. Both retained fresh Gemini 2.5 Pro diagnostics,
+valid provider/Edge spans and genus-level agreement with provisional references.
+
+The five-second replay retained five ordered snapshots and its actual companion
+audio track, whose 220,500 decoded samples were all zero. This is a video-path
+measurement, not evidence for meaningful acoustic/visual fusion. The prepared
+standalone audio case was not submitted because its listening review remains
+open. Import/preparation and physical capture precede the Identify clock and are
+excluded from these timings. No provider switch, deployment or formal accuracy
+claim follows from these observations.

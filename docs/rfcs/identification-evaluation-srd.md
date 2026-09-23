@@ -1,10 +1,11 @@
 # Naturebook Identification Evaluation Readiness — SRD
 
 Document ID: NB-SRD-IDENTIFICATION-EVAL-001\
-Version: 0.11\
+Version: 0.12\
 Date: 22 September 2026\
-Status: Slices 1–3 and exploratory automation implemented; photo and description
-app pilots completed; reviewed live baseline pending\
+Status: Slices 1–3 and exploratory automation implemented; photo, description
+and first video app checks completed; standalone audio and reviewed baseline
+pending\
 Product authority:
 [Evaluation Readiness PRD](../product/04-identification-evaluation-prd.md)
 
@@ -562,8 +563,17 @@ consent, entitlement/admission, durable queueing and the unchanged Gemini route.
 The feature adds no DTO, schema, provider adapter, release activation or live CI
 request. The
 [app measurement guide](../development-guides/21-identification-app-measurement.md#controlled-audio-and-video-replay-in-the-simulator)
-owns activation and measurement limits. Live validation of the new Describe
-marker and first controlled audio/video benchmark cases remain pending.
+owns activation and measurement limits. The
+[controlled replay benchmark](./identification-replay-app-benchmark-2026-09-22.md)
+subsequently verified the new Describe first-render marker on one repeat and
+recorded a first video result. Their non-overlapping windows closed normally
+with six and seven events, respectively, fresh Gemini 2.5 Pro diagnostics and
+valid provider/Edge spans. The video retains five snapshots and companion audio,
+but its decoded audio samples are all zero; it does not establish useful audio
+fusion. Offline preflight passed for that single grouped observation with no
+dispatch. Source/review asset hashes do not attest the app's final payload or
+context. Standalone audio remains prepared and unsubmitted pending listening
+review. Formal counts and direct-evaluator controls are unchanged.
 
 | Slice                     | Implementation and verification                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
