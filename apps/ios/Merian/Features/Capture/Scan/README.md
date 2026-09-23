@@ -68,13 +68,15 @@ responsibilities. See the
 [app measurement guide](../../../../../../docs/development-guides/21-identification-app-measurement.md#controlled-audio-and-video-replay-in-the-simulator)
 for sample preparation, activation and measurement limits.
 
-**Stage comparison slot** validates a copy against the frozen assignment's
-complete WAV hash and length, requires canonical mono 44.1 kHz Int16 PCM, and
-retains those exact bytes through staging. Re-encoding an already canonical WAV
-can add Core Audio container padding and invalidate its assignment. Ordinary
-audio replay continues to use the production transcoder. The comparison copy
-retains the same duration, cancellation, source-preservation and staging
-ownership checks; later request serialization independently checks its bytes.
+**Stage comparison slot** groups the twelve assignments into short submenus of
+four, keeping every slot visible in Device Hub. It validates a copy against the
+frozen assignment's complete WAV hash and length, requires canonical mono 44.1
+kHz Int16 PCM, and retains those exact bytes through staging. Re-encoding an
+already canonical WAV can add Core Audio container padding and invalidate its
+assignment. Ordinary audio replay continues to use the production transcoder.
+The comparison copy retains the same duration, cancellation, source-preservation
+and staging ownership checks; later request serialization independently checks
+its bytes.
 
 The separate **Stage audio with fixed context** action attaches
 `audio-minimal-v1` to one staged audio item. It clears stale context prefetch,

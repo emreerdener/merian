@@ -208,7 +208,8 @@ The
 implements a disabled twelve-slot gate and `X-Merian-Audio-Comparison` proof on
 fresh durable success. The subsequent
 [app integration](../rfcs/identification-audio-comparison-app-integration-2026-09-23.md)
-adds **Debug replay → Stage comparison slot**. Each numbered slot selects a
+adds **Debug replay → Stage comparison slot**, with three submenus of four slots
+so every entry remains visible in Device Hub. Each numbered slot selects a
 generated frozen assignment. Comparison preparation validates the source copy's
 complete WAV hash/length and canonical mono 44.1 kHz Int16 format, then
 preserves its bytes without re-encoding. Core Audio can add container padding

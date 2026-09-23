@@ -16,11 +16,17 @@ struct CaptureDebugReplayMenu: View {
             }
             .accessibilityIdentifier("debugReplayAudioFixedContext")
             Menu("Stage comparison slot") {
-                ForEach(DebugAudioComparisonSlot.allCases, id: \.rawValue) { slot in
-                    Button("\(slot.rawValue) · \(slot.assignment.caseId)") {
-                        viewModel.startDebugReplay(.audio, profile: .audioComparison(slot: slot))
+                ForEach(0..<3, id: \.self) { group in
+                    Menu("Slots \(group * 4 + 1)–\(group * 4 + 4)") {
+                        ForEach(DebugAudioComparisonSlot.allCases.filter {
+                            ($0.rawValue - 1) / 4 == group
+                        }, id: \.rawValue) { slot in
+                            Button("\(slot.rawValue) · \(slot.assignment.caseId)") {
+                                viewModel.startDebugReplay(.audio, profile: .audioComparison(slot: slot))
+                            }
+                            .accessibilityIdentifier("debugReplayAudioComparison\(slot.rawValue)")
+                        }
                     }
-                    .accessibilityIdentifier("debugReplayAudioComparison\(slot.rawValue)")
                 }
             }
             Button("Stage video sample") { viewModel.startDebugReplay(.video) }
