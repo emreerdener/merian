@@ -612,6 +612,18 @@ from the audit.
 
 ### Disposable Catalog-Gate Failure Triage
 
+An image-pull `toomanyrequests` failure before database startup is registry
+infrastructure failure, not a migration result. The pinned
+[`supabase/setup-cli` action](https://github.com/supabase/setup-cli/blob/46f7f98c7f948ad727d22c1e67fab04c223a0520/src/main.ts)
+exports a GHCR-only override. Candidate validation clears
+`SUPABASE_INTERNAL_IMAGE_REGISTRY` after the exact CLI version check so
+[`2.109.1`'s built-in registry fallback](https://github.com/supabase/cli/blob/v2.109.1/apps/cli-go/internal/utils/docker.go)
+can try public ECR, GHCR and Docker Hub with the same image tags. This applies
+only to disposable candidate checks, including advisor images. Do not add
+production credentials, change the reviewed CLI/database version, or waive the
+catalog gate to recover from a registry throttle. If all mirrors fail, preserve
+the failure and retry candidate validation after the registry recovers.
+
 A failure while `supabase db start` is applying the disposable catalog occurs
 before the workflow prepares a production connection, runs `db push`,
 synchronizes secrets, deploys Functions, or smoke-tests production. Treat the

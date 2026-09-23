@@ -104,6 +104,11 @@ jobs:
       - name: Validate reviewed Supabase CLI
         run: bash supabase/scripts/require_supabase_cli_version.sh
 
+      - name: Restore Supabase image registry fallback
+        # setup-cli forces GHCR, which disables the pinned CLI's ECR/GHCR/Hub
+        # fallback. An empty override restores it for all disposable checks.
+        run: echo 'SUPABASE_INTERNAL_IMAGE_REGISTRY=' >> "$GITHUB_ENV"
+
       - name: Gate whole-tree Supabase formatting
         run: deno fmt --check supabase/functions supabase/scripts
 

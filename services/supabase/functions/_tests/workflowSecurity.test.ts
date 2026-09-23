@@ -235,6 +235,22 @@ Deno.test("Supabase candidate validation is reusable and production-isolated", a
   assertStringIncludes(candidateWorkflow, "persist-credentials: false");
   assertStringIncludes(candidateWorkflow, "git status --porcelain");
   assertStringIncludes(candidateWorkflow, "supabase db start");
+  const registryFallback =
+    `run: echo 'SUPABASE_INTERNAL_IMAGE_REGISTRY=' >> "$GITHUB_ENV"`;
+  const registryFallbackPosition = candidateWorkflow.indexOf(registryFallback);
+  const cliVersionCheckPosition = candidateWorkflow.indexOf(
+    "run: bash supabase/scripts/require_supabase_cli_version.sh",
+  );
+  assert(
+    cliVersionCheckPosition >= 0 &&
+      registryFallbackPosition > cliVersionCheckPosition &&
+      registryFallbackPosition < candidateWorkflow.indexOf("supabase db start"),
+    "The pinned CLI must regain built-in registry fallback before disposable database startup.",
+  );
+  assert(
+    !deployWorkflow.includes("SUPABASE_INTERNAL_IMAGE_REGISTRY"),
+    "The disposable-check registry override must not alter the production job.",
+  );
   assertStringIncludes(
     candidateWorkflow,
     "bash supabase/scripts/test_database_catalogs.sh",
