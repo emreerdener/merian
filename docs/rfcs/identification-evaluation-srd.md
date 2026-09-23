@@ -1,7 +1,7 @@
 # Naturebook Identification Evaluation Readiness — SRD
 
 Document ID: NB-SRD-IDENTIFICATION-EVAL-001\
-Version: 0.17\
+Version: 0.18\
 Date: 23 September 2026\
 Status: Slices 1–3 and exploratory automation implemented; photo, description,
 first video and expanded audio app checks completed; reviewed baseline pending\
@@ -624,16 +624,26 @@ map processing-budget overflow to `413 payload_too_large` before provider
 admission; the existing sparse-video fallback remains covered. Local signal,
 handler, full-backend and disposable-database checks pass. Six frozen clips have
 new offline measurements; historical evidence remains immutable. Prompts,
-confidence and provider assignment are unchanged. Hosted candidate validation,
-authorized release and a fixed-context same-Gemini comparison remain ahead; no
-species-accuracy benefit is claimed.
+confidence and provider assignment are unchanged. The subsequent
+[production deployment](../release-evidence/identification-audio-preprocessing-deployment-2026-09-23.md)
+passed exact-SHA hosted candidate validation, deployment and automated smoke and
+health checks. No new paid identification was submitted. A fixed-context
+same-Gemini comparison remains ahead; no species-accuracy benefit is claimed.
 
 These tests do not attest historical live request bytes or private contextual
 fields. Replay retains ordinary location/time context when available, a
 potential confound for source recordings made elsewhere. Future comparisons must
-fix the context policy as well as media and model configuration. No runtime
-instrumentation, production change or paid request was added by this
-verification; any future diagnostic remains bounded and privacy-reviewed.
+fix the context policy as well as media and model configuration. The next
+measurement slice is a Debug simulator-only, request-local replay profile with
+fixed permitted context and no live location/weather enrichment. It must use
+ordinary authenticated submission and admission, keep normal capture and Release
+behavior unchanged, and verify serialized context/media through the existing
+request-interception tests. Queue/replay outcomes remain distinct from fresh
+foreground results. Two fresh, explicitly versioned processing arms are also
+required before the proposed 12-attempt comparison; fixed context alone does not
+provide an old/new preprocessing experiment. This support and the run
+specification are still planned. Any future diagnostic remains bounded and
+privacy-reviewed.
 
 | Slice                     | Implementation and verification                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

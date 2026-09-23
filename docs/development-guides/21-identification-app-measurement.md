@@ -156,10 +156,20 @@ context constant because replay retains the ordinary audio submission policy.
 The subsequent
 [audio preprocessing correction](../rfcs/identification-audio-preprocessing-fix-2026-09-23.md)
 adds anti-alias filtering and partial-window measurement, with frozen offline
-outputs and local processing timings for the same six clips. It is validated
-locally but has not been deployed or evaluated for identification quality.
-Preserve the historical app results; a new comparison needs explicit pipeline
-versions and the same reviewed context policy in both arms.
+outputs and local processing timings for the same six clips. Its
+[production deployment](../release-evidence/identification-audio-preprocessing-deployment-2026-09-23.md)
+passed exact-SHA candidate validation and automated deployment, smoke and health
+checks. No fresh identification with the deployed fingerprint or new quality
+comparison has been recorded. Those smoke probes do not measure paid provider
+execution or hosted audio-processing CPU headroom.
+
+Preserve the historical app results. A new controlled comparison needs explicit
+pipeline versions and the same reviewed context policy in both arms. Current
+replay still obtains ordinary location/weather and locale/time context, so a
+six-clip rerun alone is integration evidence. A Debug-only request-local fixed
+context profile and two fresh versioned processing arms are planned; neither is
+implemented by the deployment evidence update. The
+[evaluation SRD](../rfcs/identification-evaluation-srd.md) owns that next slice.
 
 This provides a repeatable input path. Benchmark claims require reviewed cases
 to be submitted and their observations retained. The
