@@ -2617,8 +2617,8 @@ requires an internal `audio_subject_type` discriminator so Human breathing can
 be distinguished from unresolved non-human wildlife without reading model
 reasoning. The discriminator is validated, consumed, and removed before payload
 assembly. The wire shape is unchanged; no audio-only response field, DTO,
-database column, or schema version is introduced, and the image/Describe model
-contract remains generic.
+database column, or public wire version is introduced, and the image/Describe
+model contract remains generic.
 
 | Primary audio evidence                                            | `is_biological_subject` | `common_name`           | `scientific_name` |
 | ----------------------------------------------------------------- | ----------------------- | ----------------------- | ----------------- |
@@ -2626,6 +2626,23 @@ contract remains generic.
 | Confident non-human animal presence with unresolved species       | `true`                  | `Unidentified Wildlife` | Omitted / `null`  |
 | Human-only biological sound                                       | `true`                  | `Human`                 | `Homo sapiens`    |
 | No confident biological source                                    | `false`                 | `No Wildlife Detected`  | Omitted / `null`  |
+
+Audio confidence V2 defines the existing `confidence_score` by result state:
+
+| Audio result                   | Confidence target                                         | Species-match presentation |
+| ------------------------------ | --------------------------------------------------------- | -------------------------- |
+| Identified non-human           | Returned taxon, supported by diagnostic acoustic evidence | Existing tier bands        |
+| Unidentified non-human         | Non-human animal presence only                            | Hidden                     |
+| Human only                     | Returned Human identity                                   | Existing Human badge       |
+| No confident biological source | Source-classification decision                            | Hidden                     |
+
+Clear animal presence cannot inflate confidence in a guessed taxon. When calls
+cannot support taxonomy, return unresolved wildlife; location, season and local
+abundance cannot inflate acoustic confidence. These scores remain model
+estimates, not calibrated probabilities. Parsing checks shape and bounds, not
+acoustic truth. Both audio-only prompts and the private schema share this
+definition; blended image/audio retains its separate contract. No stored or
+replayed score is rewritten.
 
 A confidently detected non-human animal always outranks Human in the same
 recording. Human-only speech, breathing, coughing, snoring, or another
@@ -2656,7 +2673,11 @@ taxonomy, Human taxonomy (including legacy malformed `Homo sapien`), and a Human
 user override. Ask the Community reuses that server validator. `/insight-chat`
 independently requires a resolved, non-Human selected taxonomy rather than
 relying on toolbar visibility. Neither endpoint derives eligibility from stored
-reasoning.
+reasoning. Field Trip progress independently requires resolved non-Human
+taxonomy and the existing tier threshold or explicit confirmation. High presence
+confidence and confirmation cannot override an ineligible subject. Human
+override edits also invalidate the atomic progress receipt and withdraw prior
+credit.
 
 **Processed-material guardrail**: The identify routes demote manufactured or
 processed objects to `is_biological_subject=false` before cache lookup,

@@ -20,6 +20,7 @@ import {
   getMerianResponseSchema,
   getSystemInstruction,
 } from "../identify/schema.ts";
+import { AUDIO_CONFIDENCE_DESCRIPTION } from "../identify/contract.ts";
 import { diagnosticTriggerForTier } from "../identify/thresholds.ts";
 import { isProviderSafetyRejected } from "../identify/moderation.ts";
 import {
@@ -281,6 +282,68 @@ Deno.test("compatibility bindings keep operation and evidence authority distinct
     Error,
     "ai_unsupported_input",
   );
+});
+
+Deno.test("audio confidence v2 is bound to both audio-only routes, never blended evidence", () => {
+  for (const model of ["gemini-2.5-flash", "gemini-2.5-pro"]) {
+    for (const input of multimodalCases()) {
+      const canonical = buildMultimodalAIRequest(input);
+      const snapshot = resolveAIClaim(canonical, authority(model));
+      const audioOnly = input.processedAudios.length > 0 &&
+        input.imageBase64s.length === 0;
+      const native = buildGeminiRequest(canonical, snapshot);
+      assertEquals(snapshot.model, model);
+      assertEquals(
+        snapshot.confidence,
+        audioOnly ? "gemini_audio_v2" : "gemini_identify_v1",
+      );
+      assertEquals(
+        snapshot.schema,
+        audioOnly ? "merian_audio_v2" : "merian_identify_v1",
+      );
+      const instruction = native.config!.systemInstruction;
+      assert(typeof instruction === "string");
+      assertEquals(
+        instruction.includes(AUDIO_CONFIDENCE_DESCRIPTION),
+        audioOnly,
+      );
+      if (audioOnly) {
+        assertEquals(snapshot.prompt, "identify_audio_v2");
+        assertEquals(
+          (native.config!.responseSchema as {
+            properties: { confidence_score: { description: string } };
+          }).properties.confidence_score.description,
+          AUDIO_CONFIDENCE_DESCRIPTION,
+        );
+      } else if (input.processedAudios.length > 0) {
+        assertEquals(snapshot.prompt, "identify_blended_v1");
+      }
+      assertEquals(snapshot.diagnosticTrigger, 0.99);
+    }
+    const audio = buildAudioAIRequest("Ag==", {
+      safeGpsLat: null,
+      safeGpsLon: null,
+    });
+    const snapshot = resolveAIClaim(audio, {
+      ...authority(model),
+      operation: "scan_audio_identification",
+    });
+    const native = buildGeminiRequest(audio, snapshot);
+    assertEquals(snapshot.prompt, "identify_audio_compat_v2");
+    assertEquals(snapshot.schema, "merian_audio_v2");
+    assertEquals(snapshot.confidence, "gemini_audio_compat_v2");
+    assertEquals(snapshot.diagnosticTrigger, undefined);
+    assert(typeof native.config!.systemInstruction === "string");
+    assert(
+      native.config!.systemInstruction.includes(AUDIO_CONFIDENCE_DESCRIPTION),
+    );
+    assertEquals(
+      (native.config!.responseSchema as {
+        properties: { confidence_score: { description: string } };
+      }).properties.confidence_score.description,
+      AUDIO_CONFIDENCE_DESCRIPTION,
+    );
+  }
 });
 
 Deno.test("AI snapshots preserve admitted policy and complete describe request profiles", () => {

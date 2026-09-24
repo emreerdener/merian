@@ -88,9 +88,9 @@ export function resolveAIClaim(
       operation,
       policyVersion,
       permission: "google_gemini",
-      prompt: "identify_audio_compat_v1",
-      schema: "merian_audio_v1",
-      confidence: "gemini_audio_compat_v1",
+      prompt: "identify_audio_compat_v2",
+      schema: "merian_audio_v2",
+      confidence: "gemini_audio_compat_v2",
       timeoutMs: 90000,
       generation: Object.freeze({
         temperature: 0.1,
@@ -153,10 +153,10 @@ export function resolveAIClaim(
       prompt: images
         ? audio ? "identify_blended_v1" : "identify_vision_v1"
         : audio
-        ? "identify_audio_v1"
+        ? "identify_audio_v2"
         : "identify_text_v1",
-      schema: !images && audio ? "merian_audio_v1" : "merian_identify_v1",
-      confidence: "gemini_identify_v1",
+      schema: !images && audio ? "merian_audio_v2" : "merian_identify_v1",
+      confidence: !images && audio ? "gemini_audio_v2" : "gemini_identify_v1",
       diagnosticTrigger: diagnosticTriggerForTier(
         tier === "pro" ? "pro" : "flash",
       ),

@@ -172,7 +172,7 @@ async function insertAtomicFixture(
   const challengeId = crypto.randomUUID();
   const participationId = crypto.randomUUID();
 
-  await insertUser(client, userId, "Atomic Progress Viewer");
+  await insertUser(client, userId, `Atomic Progress ${userId}`);
   await insertSpecies(
     client,
     speciesId,
@@ -248,4 +248,199 @@ async function insertAtomicFixture(
   }
 
   return { userId, speciesId, scanId, tripId, itemId, challengeId };
+}
+
+Deno.test("presence and Human confidence cannot qualify as Field Trip taxon evidence", async () => {
+  await withExploreDbTest("fieldTripAudioSubjectDb", async (client) => {
+    const denied = [
+      ["unresolved presence", "species_id = NULL, confirmed_species_id = NULL"],
+      ["non-biological source", "is_biological_subject = FALSE"],
+      ...[
+        "human",
+        "humans",
+        "human being",
+        "person",
+        "human breathing",
+        "human speech",
+        "human vocalisation",
+        "human vocalization",
+        "homo sapiens",
+        "homo sapien",
+      ].map((name) => [name, `user_identification_override = '${name}'`]),
+    ];
+    for (const [label, mutation] of denied) {
+      const fixture = await insertAtomicFixture(client, true);
+      await client.queryArray(
+        `UPDATE public.scans SET ai_confidence_score = 1, user_confirmed_identification = TRUE, ${mutation} WHERE id = $1`,
+        [fixture.scanId],
+      );
+      await client.queryArray(
+        `SELECT public.apply_field_trip_scan_progress_atomic($1, $2, $3, $4)`,
+        [fixture.userId, fixture.scanId, fixture.tripId, fixture.itemId],
+      );
+      const state = await contributionState(client, fixture);
+      assertEquals(state.standard_count, 0, label);
+      assertEquals(state.challenge_count, 0, label);
+    }
+    // Make the goal itself match Human: failure must come from subject eligibility,
+    // not an incidental mismatch between the scan and checklist species.
+    const human = await insertAtomicFixture(client, true);
+    await client.queryArray(
+      `UPDATE public.species_dictionary SET scientific_name = 'Homo sapiens' WHERE id = $1`,
+      [human.speciesId],
+    );
+    await client.queryArray(
+      `SELECT public.apply_field_trip_scan_progress_atomic($1, $2, $3, $4)`,
+      [human.userId, human.scanId, human.tripId, human.itemId],
+    );
+    assertEquals((await contributionState(client, human)).standard_count, 0);
+    assertEquals((await contributionState(client, human)).challenge_count, 0);
+  });
+});
+
+Deno.test("Human override withdraws completed standard and Event credit and invalidates its receipt", async () => {
+  await withExploreDbTest("fieldTripHumanOverrideDb", async (client) => {
+    const fixture = await insertAtomicFixture(client, true);
+    await client.queryArray(
+      `SELECT public.apply_field_trip_scan_progress_atomic($1, $2, $3, $4)`,
+      [fixture.userId, fixture.scanId, fixture.tripId, fixture.itemId],
+    );
+    const before = await contributionState(client, fixture);
+    assertEquals(before.standard_count, 1);
+    assertEquals(before.challenge_count, 1);
+    assertEquals(before.trip_complete, true);
+    assertEquals(before.challenge_complete, true);
+    await client.queryArray(
+      `UPDATE public.scans SET user_identification_override = $2 WHERE id = $1`,
+      [fixture.scanId, " \tHuman   speech\n"],
+    );
+    await assertWithdrawnSubject(client, fixture);
+    const first = await client.queryObject<{ data: unknown }>(
+      `SELECT public.apply_field_trip_scan_progress_atomic($1, $2) AS data`,
+      [fixture.userId, fixture.scanId],
+    );
+    const retry = await client.queryObject<{ data: unknown }>(
+      `SELECT public.apply_field_trip_scan_progress_atomic($1, $2) AS data`,
+      [fixture.userId, fixture.scanId],
+    );
+    assertEquals(retry.rows, first.rows);
+    await client.queryArray(
+      `UPDATE public.scans SET user_identification_override = NULL WHERE id = $1`,
+      [fixture.scanId],
+    );
+    assertEquals((await contributionState(client, fixture)).standard_count, 1);
+    assertEquals((await contributionState(client, fixture)).challenge_count, 1);
+  });
+});
+
+Deno.test("subject migration repairs historical credit with or without a receipt", async (t) => {
+  for (const receiptExists of [true, false]) {
+    await t.step(
+      receiptExists ? "old receipt" : "only saved preference",
+      async () => {
+        await withExploreDbTest("fieldTripSubjectRepairDb", async (client) => {
+          const fixture = await insertAtomicFixture(client, true);
+          await client.queryArray(
+            `SELECT public.apply_field_trip_scan_progress_atomic($1, $2, $3, $4)`,
+            [fixture.userId, fixture.scanId, fixture.tripId, fixture.itemId],
+          );
+          // Reproduce pre-migration state: the old trigger did not observe override-only edits.
+          await client.queryArray(
+            `ALTER TABLE public.scans DISABLE TRIGGER trg_apply_ingested_scan_field_trip_progress_update`,
+          );
+          await client.queryArray(
+            `UPDATE public.scans SET user_identification_override = 'Human vocalization' WHERE id = $1`,
+            [fixture.scanId],
+          );
+          await client.queryArray(
+            receiptExists
+              ? `UPDATE public.field_trip_scan_progress_receipts SET scan_revision = scan_revision - 'user_identification_override' WHERE scan_id = $1`
+              : `DELETE FROM public.field_trip_scan_progress_receipts WHERE scan_id = $1`,
+            [fixture.scanId],
+          );
+          assertEquals(
+            (await contributionState(client, fixture)).standard_count,
+            1,
+          );
+          const migration = await Deno.readTextFile(
+            new URL(
+              "../../migrations/20260924062640_gate_field_trip_progress_by_subject.sql",
+              import.meta.url,
+            ),
+          );
+          await client.queryArray(migration);
+          await assertWithdrawnSubject(client, fixture);
+          await client.queryArray(
+            `UPDATE public.scans SET user_identification_override = NULL WHERE id = $1`,
+            [fixture.scanId],
+          );
+          const restored = await contributionState(client, fixture);
+          assertEquals(restored.standard_count, 1);
+          assertEquals(restored.challenge_count, 1);
+          const receipt = await client.queryObject<
+            { trip: string; item: string }
+          >(
+            `SELECT preferred_user_field_trip_id::TEXT AS trip, preferred_item_id::TEXT AS item FROM public.field_trip_scan_progress_receipts WHERE scan_id = $1`,
+            [fixture.scanId],
+          );
+          assertEquals(receipt.rows[0], {
+            trip: fixture.tripId,
+            item: fixture.itemId,
+          });
+        });
+      },
+    );
+  }
+});
+
+async function contributionState(client: Client, fixture: AtomicFixture) {
+  const result = await client.queryObject<{
+    standard_count: number;
+    challenge_count: number;
+    trip_complete: boolean;
+    challenge_complete: boolean;
+    badge_count: number;
+    preference_count: number;
+  }>(
+    `SELECT
+      (SELECT COUNT(*)::INTEGER FROM public.user_field_trip_item_completions WHERE scan_id = $1) AS standard_count,
+      (SELECT COUNT(*)::INTEGER FROM public.field_trip_challenge_item_completions WHERE scan_id = $1) AS challenge_count,
+      (SELECT completed_at IS NOT NULL FROM public.user_field_trips WHERE id = $2) AS trip_complete,
+      (SELECT completed_at IS NOT NULL FROM public.field_trip_challenge_participants WHERE challenge_id = $3 AND user_id = $4) AS challenge_complete,
+      (SELECT COUNT(*)::INTEGER FROM public.field_trip_challenge_badges WHERE user_id = $4 AND challenge_id = $3) AS badge_count,
+      (SELECT COUNT(*)::INTEGER FROM public.field_trip_scan_goal_preferences WHERE scan_id = $1) AS preference_count`,
+    [fixture.scanId, fixture.tripId, fixture.challengeId, fixture.userId],
+  );
+  return result.rows[0];
+}
+
+async function assertWithdrawnSubject(client: Client, fixture: AtomicFixture) {
+  assertEquals(await contributionState(client, fixture), {
+    standard_count: 0,
+    challenge_count: 0,
+    trip_complete: false,
+    challenge_complete: false,
+    badge_count: 0,
+    preference_count: 1,
+  });
+  const receipt = await client.queryObject<
+    {
+      revision: string;
+      override: string;
+      unlocked: boolean;
+      trip: string;
+      item: string;
+    }
+  >(
+    `SELECT scan_revision ->> 'user_identification_override' AS revision,
+      (SELECT user_identification_override FROM public.scans WHERE id = $1) AS override,
+      (result ->> 'first_field_trip_achievement_newly_unlocked')::BOOLEAN AS unlocked,
+      preferred_user_field_trip_id::TEXT AS trip, preferred_item_id::TEXT AS item
+     FROM public.field_trip_scan_progress_receipts WHERE scan_id = $1`,
+    [fixture.scanId],
+  );
+  assertEquals(receipt.rows[0].revision, receipt.rows[0].override);
+  assertEquals(receipt.rows[0].unlocked, false);
+  assertEquals(receipt.rows[0].trip, fixture.tripId);
+  assertEquals(receipt.rows[0].item, fixture.itemId);
 }

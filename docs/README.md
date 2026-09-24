@@ -264,8 +264,24 @@ production submission or public release.
   [interrupted segment](./rfcs/identification-audio-processing-comparison-2026-09-23.md).
   All three non-animal controls returned No wildlife detected with both
   processors; animal identification improvement remains unproven. Hosted removal
-  and absence are verified. The next milestone is independent reference review
-  and a broader audio corpus.
+  and absence are verified. The subsequent
+  [source verification and dataset preparation](./rfcs/identification-audio-reference-expansion-2026-09-24.md)
+  reproduces the three disputed source inputs exactly. After owner listening
+  review, the
+  [expanded six-audio benchmark](./rfcs/identification-audio-expansion-app-benchmark-2026-09-24.md)
+  admits six additional exploratory clips and retains every first result. Rain
+  returned a Strong biological match despite its reviewed non-animal reference.
+  Species identity remains unresolved; independently verified references remain
+  necessary before scoring accuracy or tuning model assignment. The
+  [rain-control diagnostic and confidence plan](./rfcs/identification-audio-rain-diagnostic-2026-09-24.md)
+  verifies the disputed inputs and local processing, identifies the mismatch
+  between audio subject confidence and the species-match badge, and proposes a
+  focused correction. No runtime behavior or earlier result changes in that
+  diagnostic. The subsequent
+  [audio confidence V2 implementation](./rfcs/identification-audio-confidence-v2-2026-09-24.md)
+  aligns the existing audio score with the returned identity and adds a resolved
+  non-Human Field Trip eligibility guard. It is a verified implementation
+  candidate, not a production deployment or an acoustic accuracy result.
 - **Deferred family and prior combined planning:**
   [PRD](./product/02-family-plans-and-ai-platform-prd.md) and
   [SRD](./rfcs/family-plans-and-ai-platform-srd.md). Family plans are deferred;

@@ -1143,3 +1143,58 @@ Deno.test("Persistent contribution lookup stays private and evidence-minimal", a
     );
   }
 });
+
+Deno.test("Field Trip subject policy remains private and reconciles override-only corrections", async () => {
+  const sql = normalized(
+    await migrationSql(
+      "20260924062640_gate_field_trip_progress_by_subject.sql",
+    ),
+  );
+  for (
+    const fragment of [
+      "SET lock_timeout = '10s'",
+      "SET statement_timeout = '5min'",
+      "CREATE OR REPLACE FUNCTION public.field_trip_scan_evidence_is_eligible",
+      "STABLE SECURITY INVOKER SET search_path = ''",
+      "COALESCE(candidate.confirmed_species_id, candidate.species_id)",
+      "public.field_trip_scan_identification_is_eligible(",
+      "REVOKE ALL ON FUNCTION public.field_trip_scan_evidence_is_eligible(public.scans) FROM PUBLIC, anon, authenticated, service_role",
+      "'user_identification_override', scan.user_identification_override",
+      "OLD.user_identification_override IS DISTINCT FROM NEW.user_identification_override",
+      "FOR UPDATE OF scan",
+      "COALESCE(receipt.preferred_user_field_trip_id, preference.user_field_trip_id)",
+      "COALESCE(receipt.preferred_item_id, preference.item_id)",
+      "affected.preferred_user_field_trip_id, affected.preferred_item_id",
+      "PERFORM public.apply_field_trip_scan_progress_atomic",
+      "Ineligible subject credit remains after Field Trip repair",
+      "RESET statement_timeout",
+      "RESET lock_timeout",
+    ]
+  ) assertStringIncludes(sql, fragment);
+  assertEquals(
+    sql.match(/SELECT public.field_trip_scan_evidence_is_eligible\(scan\)/g)
+      ?.length,
+    2,
+  );
+  assert(!sql.includes("DELETE FROM public.field_trip_scan_goal_preferences"));
+  for (
+    const name of [
+      "human",
+      "humans",
+      "human being",
+      "person",
+      "human breathing",
+      "human speech",
+      "human vocalisation",
+      "human vocalization",
+      "homo sapiens",
+      "homo sapien",
+    ]
+  ) {
+    assertEquals(
+      sql.split(`'${name}'`).length - 1,
+      2,
+      `Both subject sources must exclude ${name}`,
+    );
+  }
+});

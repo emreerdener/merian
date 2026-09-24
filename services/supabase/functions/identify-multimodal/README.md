@@ -168,7 +168,7 @@ policy, and exhausted counters fail closed before provider dispatch.
 
 `provider.ts` builds the canonical request from already validated and prepared
 evidence. The registry captures the admitted model, tier, prompt/schema, and
-generation settings before commitment. `instructions.ts` owns the unchanged
+generation settings before commitment. `instructions.ts` owns the versioned
 audio, main-text, and blended instructions; the shared Identify schema module
 retains the vision instruction. The handler still owns media validation,
 consent/quota admission, one commit followed by one invocation, error handling,
@@ -187,14 +187,24 @@ performs dictionary hydration and final envelope validation afterward. Offline
 evaluation uses this same helper through its scripts-only bridge; it does not
 invoke admission or persistence.
 
-The route retains the existing modality-specific system instructions,
-temperature `0.1`, seed `42`, `maxOutputTokens: 8192`, Pro thinking budget
-`5000`, unspecified Flash thinking budget, structured response schema,
-image/media resolution, and safety behavior. Neither tier adds `topK` or a
-safety-settings override. Main description-only mode retains the main schema and
-remains distinct from legacy `identify-describe`. Latency optimization must
-happen around this call, not by changing its economics or identification
-semantics.
+The route uses the modality-specific system instructions and retains temperature
+`0.1`, seed `42`, `maxOutputTokens: 8192`, Pro thinking budget `5000`,
+unspecified Flash thinking budget, structured response schema, image/media
+resolution, and safety behavior. Neither tier adds `topK` or a safety-settings
+override. Main description-only mode retains the main schema and remains
+distinct from legacy `identify-describe`. Latency optimization must happen
+around this call, not by changing its economics or identification semantics.
+
+## Audio Confidence V2
+
+Named non-human results score the returned taxon from acoustic evidence.
+Unresolved wildlife scores animal presence without a species-match badge; Human
+scores its returned identity and retains its badge; non-biological audio scores
+the source classification. Both the prompt and private schema use the same
+definition. Thresholds and generation settings are unchanged, and no historic
+score is changed. The consumed processing-comparison plan remains immutable and
+disabled; a future live comparison needs a newly frozen plan bound to the V2
+prompt/schema digests.
 
 ## Audio Subject Selection
 

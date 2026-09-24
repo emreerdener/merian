@@ -2328,6 +2328,13 @@ emit `blur_score`, `colors`, `candidates` (which may be `null`),
 `pet_identification` (which may be `null`), while biological-only enrichment
 remains optional or nullable.
 
+Audio-only prompt/schema/confidence references are versioned V2. The executable
+`AUDIO_CONFIDENCE_DESCRIPTION` defines taxon, unresolved-presence, Human
+identity, and non-biological classification confidence by result state. Both
+audio-only routes share it; models, generation settings, thresholds and public
+DTO shape are unchanged. Stored scores and earlier benchmark artifacts remain
+immutable.
+
 Provider field descriptions and system instructions are classification guidance;
 the executable parser validates structure rather than the truth of visual
 prominence. The processed-material normalizer can deterministically demote a
@@ -2611,6 +2618,13 @@ Confidence, inference tier, confirmation, and the pending preference are carried
 in the atomic receipt revision. A later downgrade to weak unreviewed evidence
 removes standard/Event credit even after completion, reopens progress, clears
 derived Event badges, and soft-deletes invalid completion publications/entries.
+`20260924062640_gate_field_trip_progress_by_subject.sql` also requires resolved
+non-Human taxonomy, excludes Human overrides and unresolved/non-biological
+subjects, and makes override-only edits invalidate the atomic receipt. The
+existing confidence helper and thresholds stay unchanged. Its bounded repair
+reuses atomic reconciliation for affected historical credit/receipts, retaining
+valid receipts and pending goals.
+
 `20260802053044_simplify_backyard_and_pollinator_levels.sql` preserves checklist
 identities while changing both starter outings to 2/4/4 progressions.
 `20260803015025_auto_enroll_backyard_safari_level_one.sql` then backfills an

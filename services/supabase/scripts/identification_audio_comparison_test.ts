@@ -57,6 +57,10 @@ Deno.test("audio pair freezes identical non-audio requests and different process
   );
   assertEquals(old.policySha256, current.policySha256);
   assertEquals(old.model, "gemini-2.5-pro");
+  assertEquals(old.prompt, "identify_audio_v2");
+  assertEquals(current.prompt, "identify_audio_v2");
+  assertEquals(old.schema, "merian_audio_v2");
+  assertEquals(current.schema, "merian_audio_v2");
   assertEquals(old.generation, current.generation);
   assertNotEquals(old.processedWavSha256, current.processedWavSha256);
   assertNotEquals(old.providerRequestSha256, current.providerRequestSha256);

@@ -95,7 +95,8 @@ extension SpeciesData {
         isBiological && !hasResolvedBiologicalIdentification
     }
 
-    /// Species-match confidence is meaningful only when a taxon was resolved.
+    /// Identity confidence is shown only for a resolved taxon (including Human).
+    /// Unresolved audio may retain animal-presence confidence without a match badge.
     /// Confirmed and override state are presented separately.
     var presentationConfidenceScore: Double? {
         hasResolvedBiologicalIdentification ? confidenceScore : nil

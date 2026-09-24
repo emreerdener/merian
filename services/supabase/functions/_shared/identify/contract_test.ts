@@ -1,5 +1,6 @@
 import { assert, assertEquals, assertThrows } from "@std/assert";
 import {
+  AUDIO_CONFIDENCE_DESCRIPTION,
   ContractValueError,
   merianAudioModelContract,
   merianDescribeModelContract,
@@ -125,6 +126,12 @@ Deno.test("audio-only provider schema adds a private required discriminator", ()
   assertEquals(first as unknown, expected);
   assert(first === second);
   assert(expected.required?.includes("audio_subject_type"));
+  assertEquals(expected.properties?.confidence_score, {
+    type: "NUMBER",
+    minimum: 0,
+    maximum: 1,
+    description: AUDIO_CONFIDENCE_DESCRIPTION,
+  });
   assertEquals(expected.properties?.audio_subject_type?.enum, [
     "identified_non_human",
     "unidentified_non_human",

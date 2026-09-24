@@ -3,6 +3,46 @@ import Foundation
 import Testing
 
 struct SpeciesDataEdgeResponseTests {
+    @Test(arguments: ["flash", "pro"])
+    func audioConfidencePresentationUsesResolvedIdentity(tier: String) throws {
+        let strong = InferenceConfidencePolicy.bands(forInferenceTier: tier).strong
+        let cases: [(biological: Bool, common: String, scientific: String?, score: Double, style: ConfidenceBadgePresentation.Style)] = [
+            (true, "American Robin", "Turdus migratorius", strong, .strong),
+            (true, "American Robin", "Turdus migratorius", strong - 0.0001, .possible),
+            (true, "Unidentified Wildlife", nil, 1, .unknown),
+            (true, "Human", "Homo sapiens", 1, .strong),
+            (false, "No Wildlife Detected", nil, 1, .unknown)
+        ]
+        for item in cases {
+            var data: [String: Any] = [
+                "is_biological_subject": item.biological,
+                "common_name": item.common,
+                "confidence_score": item.score,
+                "inference_tier": tier
+            ]
+            if let name = item.scientific { data["scientific_name"] = name }
+            let encoded = try JSONSerialization.data(withJSONObject: ["success": true, "data": data])
+            let wrapper = try JSONDecoder().decode(EdgeResponseWrapper.self, from: encoded)
+            let species = SpeciesData(
+                fromEdgeResponse: wrapper.data,
+                locationName: nil,
+                weatherCondition: nil,
+                weatherTemperatureF: nil
+            )
+            let badge = ConfidenceBadgePresentation.resolve(
+                confidenceScore: species.presentationConfidenceScore,
+                inferenceTier: species.inferenceTier,
+                hasUserOverride: false,
+                isUserConfirmed: false,
+                analyzingPhrase: nil
+            )
+            #expect(species.confidenceScore == item.score)
+            #expect(badge.style == item.style)
+            #expect(badge.isVisible == (item.style != .unknown))
+            #expect(!species.userConfirmedIdentification)
+        }
+    }
+
     @Test func edgeResponseMapsNewToMerianDictionaryFlag() throws {
         let json = Data("""
         {
