@@ -1,0 +1,1246 @@
+{
+  "version": "audio_expansion_app_benchmark_v1",
+  "date": "2026-09-24",
+  "timezone": "America/Chicago",
+  "recordedAt": "2026-09-24T05:42:11.123Z",
+  "status": "six_first_results_six_complete_windows",
+  "eligibility": {
+    "id": "eligibility-audio-expansion-v1",
+    "recordedAt": "2026-09-24T05:18:00.501Z",
+    "reviewerRef": "r0001",
+    "reviewerKind": "owner",
+    "question": "After listening to the 34-second reel, are all six clips audible and distinct, with no speech, spoken labels or personal information, and no audible animals in rain (22.8\u201327.7s) or chainsaw (28.7\u201334.2s)? Flag any uncertainty by timestamp; you do not need to identify the species.",
+    "ownerResponse": "Reviewed: all conditions met",
+    "scope": [
+      "c0019",
+      "c0020",
+      "c0021",
+      "c0022",
+      "c0023",
+      "c0024"
+    ],
+    "reelSha256": "b524918a5e55dc641462854c94c85a8c347d43ef888156852cce269bedf37460",
+    "preparationFreezeSha256": "f22d71d787ea593e6daab38f735311b40084dfa0c8e6b4a0e6a341c85bc65532",
+    "sourceRightsReviewed": true,
+    "personalDataExcluded": true,
+    "speechAndSpokenLabelsExcluded": true,
+    "allTargetsAudible": true,
+    "repeatedContentNotReported": true,
+    "nearDuplicatesReviewed": true,
+    "duplicateReviewBasis": "Owner reviewed all new segments as distinct; exact source/PCM/input checks exclude matches to g0011 and g0013-g0018. This is not proof of acoustic independence.",
+    "reviewedNonBiologicalControls": [
+      "c0023",
+      "c0024"
+    ],
+    "independentBiologicalReviewers": 0,
+    "speciesReferencesVerified": false,
+    "retainUntil": "2026-10-24"
+  },
+  "sourcePreparationFreezeSha256": "f22d71d787ea593e6daab38f735311b40084dfa0c8e6b4a0e6a341c85bc65532",
+  "admittedInputFreezeSha256": "26d64f587217d40714c47891414a843477512746bcb74a17186fec931f0079c2",
+  "corpusFileSha256": "7e9783f06d4eb04adda12e3913d3867b192877c68e45ceaed9679db492cb6f2b",
+  "preflightFileSha256": "b5878caae0f19175d33533a7a487251df083c50b3e194273d7ab8c382eea7fd5",
+  "preflightCorpusDigest": "eb72f8ca8e340470c04f861113a5ec92c66d425d1d198c79ecc55df60ec68eac",
+  "preflightSource": {
+    "commit": "6b961a4e702fc06ec91cad624790cd36b52f2f2c",
+    "dirty": true,
+    "digest": "04580a471394fd0777906c2318c502857499de5ccf4535f524a51cb78f679d01",
+    "sdk": "npm:@google/genai@2.23.0"
+  },
+  "sourceAuditPathBindings": [
+    {
+      "field": "comparisonPreparationFileSha256",
+      "repositoryRelativePath": "docs/rfcs/identification-evaluation-evidence/2026-09-23-audio-comparison-preparation/preparation.json",
+      "fileSha256": "d652ad27f92172762562031c893c85478908a45c2e489d53bdd57fe87de8a7cd"
+    },
+    {
+      "field": "completedRecordFileSha256",
+      "repositoryRelativePath": "docs/rfcs/identification-evaluation-evidence/2026-09-23-audio-processing-comparison/completed-results.json",
+      "fileSha256": "66734a36d41cd9ca842f281e2ddb287e0abcb99f7fab61e101ccfc1f4cadc61d"
+    }
+  ],
+  "offlineValidation": {
+    "version": "audio_expansion_offline_validation_v1",
+    "checkedAt": "2026-09-24T05:42:00.463Z",
+    "cases": [
+      {
+        "caseId": "c0019",
+        "canonicalMeasurementAndCostValidated": true,
+        "corpusAssetSha256": "2356a662632ce43f88c1ae0773f65960c4ffb0ba8744f3aebc51f12c12fb40e1"
+      },
+      {
+        "caseId": "c0020",
+        "canonicalMeasurementAndCostValidated": true,
+        "corpusAssetSha256": "6b5e9e6cc45d16a80980386541649b1ce9fcd94cf3ad54a49d37cf0fd6e3ed67"
+      },
+      {
+        "caseId": "c0021",
+        "canonicalMeasurementAndCostValidated": true,
+        "corpusAssetSha256": "196789a6a6344ebff689c1847b88a29a1babda5d5485c17c1161ca7e949a9739"
+      },
+      {
+        "caseId": "c0022",
+        "canonicalMeasurementAndCostValidated": true,
+        "corpusAssetSha256": "5370a491b7d3fb1af3effe9020ace11305a349e2c979cab7a411dcb73869e409"
+      },
+      {
+        "caseId": "c0023",
+        "canonicalMeasurementAndCostValidated": true,
+        "corpusAssetSha256": "4ee517d08701c5f7cebd4a9b7c2f4029351f72fb079cbbb72106dd2d04f51a0f"
+      },
+      {
+        "caseId": "c0024",
+        "canonicalMeasurementAndCostValidated": true,
+        "corpusAssetSha256": "694d5a5feaafe50c9147b9d2249ab59e710935efb99d16c09001af8787464c60"
+      }
+    ],
+    "validatedCaseCount": 6,
+    "corpusPreflightDigestMatched": true,
+    "priorComparisonCanonicalBindingMatched": true,
+    "networkAccess": "denied",
+    "environmentAccess": "denied",
+    "newAppSubmissions": 0,
+    "newModelCalls": 0
+  },
+  "offlineValidationFileSha256": "58b6b759c337844c2bc054f33ee9fe9f9beb308b448360164a56c6f6d405c798",
+  "plan": {
+    "version": "audio_expansion_app_plan_v1",
+    "createdAt": "2026-09-24T05:21:46.184Z",
+    "status": "authorized_frozen_before_first_submission",
+    "caseOrder": [
+      "c0019",
+      "c0020",
+      "c0021",
+      "c0022",
+      "c0023",
+      "c0024"
+    ],
+    "maxAppSubmissions": 6,
+    "maxSubmissionsPerCase": 1,
+    "manualRetries": 0,
+    "route": "ordinary_simulator_app_gemini",
+    "target": "qlarqavoqhkuwzmevrmf",
+    "providerOverride": null,
+    "authorizationBasis": "Owner requested automated benchmark experiments using existing production app access and ordinary charges; proceed plus confirmation of the exact new reel completes eligibility for this maximum-six first-result pass.",
+    "priorComparisonSlotsReused": false,
+    "observerSeconds": 120,
+    "shutdownGraceSeconds": 30,
+    "stopOnUncertainSubmission": true,
+    "stopOnUnexpectedProviderOrBuildChange": true,
+    "preserveEveryFirstOutcome": true,
+    "overlappingObservationWindows": false,
+    "installedApp": {
+      "version": "1.0.3",
+      "build": "275",
+      "sourceRevision": "fdfb142b6fcb96e6ae8f3c46a561015064c93cd2",
+      "sourceFingerprint": "ebfa958011ec4e61dda121eea6b9d00890b67d23099dedf1612372aa5cbdb3df",
+      "sourceState": "clean"
+    },
+    "codeSignatureVerified": true,
+    "expectedBackendBundleSha256": "a5939b36fd43dcf1fbfb7f5ee01875d3888a313e66af8756e79fb04f19694b2c",
+    "backendIdentityPolicy": "Stop subsequent submissions if the first or later response differs from the previously observed bundle. Current deployment is not independently attested before submission.",
+    "expectedProvider": "gemini",
+    "expectedRequestedModel": "gemini-2.5-pro",
+    "expectedReturnedModel": "gemini-2.5-pro",
+    "expectedContextProfile": null,
+    "appContextPolicy": "Ordinary replay retains live context. Local offline requests do not attest app request bytes or context.",
+    "pricingFile": "run/pricing.json",
+    "pricingSha256": "f7543c9c837a04a35db70c6eebeb403d7e2981167f3d140cc56a0b15aeea7309",
+    "pricingRetrievedAt": "2026-09-23T22:35:58.637Z",
+    "pricingPolicy": "Unchanged reviewed snapshot, within seven days; observed primary-attempt estimates only.",
+    "completeCostCapGuaranteed": false,
+    "directEvaluatorDispatchAuthorized": false,
+    "formalDevelopmentGroups": 0,
+    "formalHeldOutGroups": 0,
+    "retentionThrough": "2026-10-24"
+  },
+  "planFileSha256": "4a9685a091ec860078a39f51d5ad3d6081a9397d09e46b7c9b524848dc5e07ab",
+  "executionIdentity": {
+    "app": {
+      "version": "1.0.3",
+      "build": "275",
+      "sourceRevision": "fdfb142b6fcb96e6ae8f3c46a561015064c93cd2",
+      "sourceFingerprint": "ebfa958011ec4e61dda121eea6b9d00890b67d23099dedf1612372aa5cbdb3df",
+      "sourceState": "clean"
+    },
+    "simulator": "iPhone 18 Pro",
+    "os": "iOS 27.0",
+    "backendBundleSha256": "a5939b36fd43dcf1fbfb7f5ee01875d3888a313e66af8756e79fb04f19694b2c",
+    "provider": "gemini",
+    "model": "gemini-2.5-pro",
+    "contextProfile": null
+  },
+  "summary": {
+    "newAppSubmissions": 6,
+    "manualRetries": 0,
+    "completedObservationWindows": 6,
+    "observedFreshPrimaryResponses": 6,
+    "observedModels": [
+      "gemini-2.5-pro"
+    ],
+    "directEvaluatorCalls": 0,
+    "formalDevelopmentGroups": 0,
+    "formalHeldOutGroups": 0,
+    "tapToFirstFrameSeconds": {
+      "minimum": 14.418,
+      "median": 16.814500000000002,
+      "maximum": 17.194
+    },
+    "observedPrimaryEstimateUsd": 0.142955
+  },
+  "references": [
+    {
+      "id": "reference-audio-c0019-v1",
+      "caseId": "c0019",
+      "reference": {
+        "subject": "biological",
+        "resolution": "named",
+        "supportedRank": "species",
+        "acceptableTaxa": [
+          {
+            "id": "species-turdus-migratorius",
+            "rank": "species"
+          }
+        ]
+      },
+      "referenceNames": [
+        "Turdus migratorius",
+        "American Robin"
+      ],
+      "referenceAuthorityUrl": "https://www.nps.gov/mora/learn/nature/bluebirds-robins-thrushes.htm",
+      "status": "provisional_source_species",
+      "independentBiologicalReviewers": 0,
+      "formalQualificationEligible": false,
+      "eligibilityRecordRef": "eligibility-audio-expansion-v1"
+    },
+    {
+      "id": "reference-audio-c0020-v1",
+      "caseId": "c0020",
+      "reference": {
+        "subject": "biological",
+        "resolution": "named",
+        "supportedRank": "species",
+        "acceptableTaxa": [
+          {
+            "id": "species-branta-canadensis",
+            "rank": "species"
+          }
+        ]
+      },
+      "referenceNames": [
+        "Branta canadensis",
+        "Canada Goose",
+        "Canada Geese"
+      ],
+      "referenceAuthorityUrl": "https://www.nps.gov/hafe/learn/nature/ducks-geese-and-waterfowl.htm",
+      "status": "provisional_source_species",
+      "independentBiologicalReviewers": 0,
+      "formalQualificationEligible": false,
+      "eligibilityRecordRef": "eligibility-audio-expansion-v1"
+    },
+    {
+      "id": "reference-audio-c0021-v1",
+      "caseId": "c0021",
+      "reference": {
+        "subject": "biological",
+        "resolution": "named",
+        "supportedRank": "species",
+        "acceptableTaxa": [
+          {
+            "id": "species-canis-latrans",
+            "rank": "species"
+          }
+        ]
+      },
+      "referenceNames": [
+        "Canis latrans",
+        "Coyote",
+        "Coyotes"
+      ],
+      "referenceAuthorityUrl": "https://www.nps.gov/grca/learn/nature/coyote.htm",
+      "status": "provisional_source_species",
+      "independentBiologicalReviewers": 0,
+      "formalQualificationEligible": false,
+      "eligibilityRecordRef": "eligibility-audio-expansion-v1"
+    },
+    {
+      "id": "reference-audio-c0022-v1",
+      "caseId": "c0022",
+      "reference": {
+        "subject": "biological",
+        "resolution": "named",
+        "supportedRank": "species",
+        "acceptableTaxa": [
+          {
+            "id": "species-lithobates-grylio",
+            "rank": "species"
+          }
+        ]
+      },
+      "referenceNames": [
+        "Lithobates grylio",
+        "Rana grylio",
+        "Pig Frog",
+        "American Pigfrog"
+      ],
+      "referenceAuthorityUrl": "https://amphibiansoftheworld.amnh.org/Amphibia/Anura/Ranidae/Lithobates/Lithobates-grylio",
+      "status": "provisional_source_species",
+      "independentBiologicalReviewers": 0,
+      "formalQualificationEligible": false,
+      "eligibilityRecordRef": "eligibility-audio-expansion-v1"
+    },
+    {
+      "id": "reference-audio-c0023-v1",
+      "caseId": "c0023",
+      "reference": {
+        "subject": "non_biological",
+        "resolution": "unresolved",
+        "supportedRank": null,
+        "acceptableTaxa": []
+      },
+      "referenceNames": [],
+      "referenceAuthorityUrl": null,
+      "status": "source_and_owner_reviewed_non_biological",
+      "independentBiologicalReviewers": 0,
+      "formalQualificationEligible": false,
+      "eligibilityRecordRef": "eligibility-audio-expansion-v1"
+    },
+    {
+      "id": "reference-audio-c0024-v1",
+      "caseId": "c0024",
+      "reference": {
+        "subject": "non_biological",
+        "resolution": "unresolved",
+        "supportedRank": null,
+        "acceptableTaxa": []
+      },
+      "referenceNames": [],
+      "referenceAuthorityUrl": null,
+      "status": "source_and_owner_reviewed_non_biological",
+      "independentBiologicalReviewers": 0,
+      "formalQualificationEligible": false,
+      "eligibilityRecordRef": "eligibility-audio-expansion-v1"
+    }
+  ],
+  "pricing": {
+    "version": "evaluation_pricing_v1",
+    "currency": "USD",
+    "service": "paid_standard_synchronous",
+    "retrievedAt": "2026-09-23T22:35:58.637Z",
+    "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+    "reviewRef": "pricing-audio-comparison-20260923",
+    "includesReasoning": true,
+    "models": [
+      {
+        "model": "gemini-2.5-flash",
+        "inputPerMillion": {
+          "text": 0.3,
+          "image": 0.3,
+          "audio": 1,
+          "cached": 0.1
+        },
+        "outputPerMillion": 2.5,
+        "maxInputTokens": 1048576,
+        "maxBillableOutputTokens": 65536,
+        "limitsEvidenceRef": "limits-gemini-2.5-flash-20260923"
+      },
+      {
+        "model": "gemini-2.5-pro",
+        "inputPerMillion": {
+          "text": 2.5,
+          "image": 2.5,
+          "audio": 2.5,
+          "cached": 0.25
+        },
+        "outputPerMillion": 15,
+        "maxInputTokens": 1048576,
+        "maxBillableOutputTokens": 65536,
+        "limitsEvidenceRef": "limits-gemini-2.5-pro-20260923"
+      }
+    ]
+  },
+  "records": [
+    {
+      "caseId": "c0019",
+      "recordedAt": "2026-09-24T05:26:00.150Z",
+      "status": "complete_first_observation",
+      "visibleOutcome": {
+        "caseId": "c0019",
+        "observedAt": "2026-09-24T05:25:40.317Z",
+        "subject": "biological",
+        "commonName": "Northern House Wren",
+        "scientificName": "Troglodytes aedon",
+        "displayedMatch": "Strong match",
+        "nativeConfidence": null,
+        "source": "observed_first_completed_simulator_result",
+        "identifyTaps": 1,
+        "manualRetries": 0,
+        "resultCorrectionPerformed": false,
+        "speciesLabelCryptographicallyBoundToMeasurement": false
+      },
+      "nativeMeasurement": {
+        "app": {
+          "build": "275",
+          "sourceFingerprint": "ebfa958011ec4e61dda121eea6b9d00890b67d23099dedf1612372aa5cbdb3df",
+          "sourceRevision": "fdfb142b6fcb96e6ae8f3c46a561015064c93cd2",
+          "sourceState": "clean",
+          "version": "1.0.3"
+        },
+        "contextProfile": null,
+        "delivery": "fresh",
+        "diagnostics": {
+          "backendBundleSha256": "a5939b36fd43dcf1fbfb7f5ee01875d3888a313e66af8756e79fb04f19694b2c",
+          "provider": "gemini",
+          "requestedModel": "gemini-2.5-pro",
+          "returnedModel": "gemini-2.5-pro",
+          "usage": {
+            "cachedTokens": null,
+            "candidateTokens": 376,
+            "promptTokens": 878,
+            "thinkingTokens": 1002,
+            "toolTokens": null,
+            "totalTokens": 2256
+          },
+          "version": 1
+        },
+        "otherEdgeMs": 1367.7999999999993,
+        "serverTimingMs": {
+          "edge_total": 14370,
+          "provider": 13002.2
+        },
+        "status": 200,
+        "timingStatus": "valid",
+        "version": "identification_app_measurement_v2"
+      },
+      "cost": {
+        "estimatedPrimaryUpperUsd": 0.022865,
+        "reason": "estimated_primary_only",
+        "scope": "observed_primary_attempt_only",
+        "invoiceExact": false
+      },
+      "timingsSeconds": {
+        "response_to_first_result_state_seconds": 0.026,
+        "postflight_seconds": 0.026,
+        "total_pipeline_seconds": 15.7,
+        "tap_to_first_rendered_frame_seconds": 16.721
+      },
+      "observer": {
+        "startedAt": "2026-09-24T05:23:08.349Z",
+        "readyAt": "2026-09-24T05:23:08.881Z",
+        "finishedAt": "2026-09-24T05:25:16.903Z",
+        "status": "window_completed",
+        "events": 6,
+        "ready": true,
+        "stopReason": "collector_exit",
+        "collectorExitCode": 0,
+        "collectorSignal": null,
+        "unprojectedRows": 25,
+        "oversizedRows": 0,
+        "rejectedProofRows": 0
+      },
+      "inputAssetSha256": "2356a662632ce43f88c1ae0773f65960c4ffb0ba8744f3aebc51f12c12fb40e1",
+      "files": {
+        "c0019-staging.json": "af428a086771b1a8a6eb288f36799561e6fff21fa965ff3c0ef98e7d922642f8",
+        "c0019-intent.json": "180406328a91827298d1fce46fea0ad7c89de6d0f5e21f7a3cf24d110ac5ef6b",
+        "c0019-ui.json": "e23ca0f568457f1c21fe0fa8380e347df8e272fcd1e437d6c148dcd3f26d536b",
+        "c0019-observation.jsonl": "cbbc810a8c80b230405f3a46cfd4f7f11e5f52a4e50d584ac69a4457b2f4db5b"
+      },
+      "ordinaryContextProfileVerified": true,
+      "accuracyScored": false,
+      "fullRequestBytesAttested": false,
+      "formalQualificationEligible": false
+    },
+    {
+      "caseId": "c0020",
+      "recordedAt": "2026-09-24T05:29:39.461Z",
+      "status": "complete_first_observation",
+      "visibleOutcome": {
+        "caseId": "c0020",
+        "observedAt": "2026-09-24T05:29:35.777Z",
+        "subject": "biological",
+        "commonName": "Canada Goose",
+        "scientificName": "Branta canadensis",
+        "displayedMatch": "Strong match",
+        "nativeConfidence": null,
+        "source": "observed_first_completed_simulator_result",
+        "identifyTaps": 1,
+        "manualRetries": 0,
+        "resultCorrectionPerformed": false,
+        "speciesLabelCryptographicallyBoundToMeasurement": false
+      },
+      "nativeMeasurement": {
+        "app": {
+          "build": "275",
+          "sourceFingerprint": "ebfa958011ec4e61dda121eea6b9d00890b67d23099dedf1612372aa5cbdb3df",
+          "sourceRevision": "fdfb142b6fcb96e6ae8f3c46a561015064c93cd2",
+          "sourceState": "clean",
+          "version": "1.0.3"
+        },
+        "contextProfile": null,
+        "delivery": "fresh",
+        "diagnostics": {
+          "backendBundleSha256": "a5939b36fd43dcf1fbfb7f5ee01875d3888a313e66af8756e79fb04f19694b2c",
+          "provider": "gemini",
+          "requestedModel": "gemini-2.5-pro",
+          "returnedModel": "gemini-2.5-pro",
+          "usage": {
+            "cachedTokens": null,
+            "candidateTokens": 350,
+            "promptTokens": 905,
+            "thinkingTokens": 1163,
+            "toolTokens": null,
+            "totalTokens": 2418
+          },
+          "version": 1
+        },
+        "otherEdgeMs": 1311.4000000000015,
+        "serverTimingMs": {
+          "edge_total": 14672.7,
+          "provider": 13361.3
+        },
+        "status": 200,
+        "timingStatus": "valid",
+        "version": "identification_app_measurement_v2"
+      },
+      "cost": {
+        "estimatedPrimaryUpperUsd": 0.0249575,
+        "reason": "estimated_primary_only",
+        "scope": "observed_primary_attempt_only",
+        "invoiceExact": false
+      },
+      "timingsSeconds": {
+        "response_to_first_result_state_seconds": 0.026,
+        "postflight_seconds": 0.026,
+        "total_pipeline_seconds": 15.432,
+        "tap_to_first_rendered_frame_seconds": 16.939
+      },
+      "observer": {
+        "startedAt": "2026-09-24T05:27:06.265Z",
+        "readyAt": "2026-09-24T05:27:06.814Z",
+        "finishedAt": "2026-09-24T05:29:14.826Z",
+        "status": "window_completed",
+        "events": 6,
+        "ready": true,
+        "stopReason": "collector_exit",
+        "collectorExitCode": 0,
+        "collectorSignal": null,
+        "unprojectedRows": 23,
+        "oversizedRows": 0,
+        "rejectedProofRows": 0
+      },
+      "inputAssetSha256": "6b5e9e6cc45d16a80980386541649b1ce9fcd94cf3ad54a49d37cf0fd6e3ed67",
+      "files": {
+        "c0020-staging.json": "31bc719fb7c7b2311f9ea43c0284d73a6e4b3a550511c7a0011322cdeba840bf",
+        "c0020-intent.json": "a8b07ef094dfb3348e9e90ccc39b76918b7280e9e80517ed2e33a8ece37c303f",
+        "c0020-ui.json": "732161647e69e55979f71a1104d7557cf017f5772fa0bb4504054aa762331842",
+        "c0020-observation.jsonl": "c4ed0db963824116c5d47466dcb8e0cc8bb8d4e86f48b8751ade3a73a72cc9b6"
+      },
+      "ordinaryContextProfileVerified": true,
+      "accuracyScored": false,
+      "fullRequestBytesAttested": false,
+      "formalQualificationEligible": false
+    },
+    {
+      "caseId": "c0021",
+      "recordedAt": "2026-09-24T05:32:48.046Z",
+      "status": "complete_first_observation",
+      "visibleOutcome": {
+        "caseId": "c0021",
+        "observedAt": "2026-09-24T05:31:21.791Z",
+        "subject": "biological",
+        "commonName": "Coyote",
+        "scientificName": "Canis latrans",
+        "displayedMatch": "Strong match",
+        "nativeConfidence": null,
+        "source": "observed_first_completed_simulator_result",
+        "identifyTaps": 1,
+        "manualRetries": 0,
+        "resultCorrectionPerformed": false,
+        "speciesLabelCryptographicallyBoundToMeasurement": false
+      },
+      "nativeMeasurement": {
+        "app": {
+          "build": "275",
+          "sourceFingerprint": "ebfa958011ec4e61dda121eea6b9d00890b67d23099dedf1612372aa5cbdb3df",
+          "sourceRevision": "fdfb142b6fcb96e6ae8f3c46a561015064c93cd2",
+          "sourceState": "clean",
+          "version": "1.0.3"
+        },
+        "contextProfile": null,
+        "delivery": "fresh",
+        "diagnostics": {
+          "backendBundleSha256": "a5939b36fd43dcf1fbfb7f5ee01875d3888a313e66af8756e79fb04f19694b2c",
+          "provider": "gemini",
+          "requestedModel": "gemini-2.5-pro",
+          "returnedModel": "gemini-2.5-pro",
+          "usage": {
+            "cachedTokens": null,
+            "candidateTokens": 413,
+            "promptTokens": 973,
+            "thinkingTokens": 1085,
+            "toolTokens": null,
+            "totalTokens": 2471
+          },
+          "version": 1
+        },
+        "otherEdgeMs": 1255.8999999999996,
+        "serverTimingMs": {
+          "edge_total": 14585,
+          "provider": 13329.1
+        },
+        "status": 200,
+        "timingStatus": "valid",
+        "version": "identification_app_measurement_v2"
+      },
+      "cost": {
+        "estimatedPrimaryUpperUsd": 0.0249025,
+        "reason": "estimated_primary_only",
+        "scope": "observed_primary_attempt_only",
+        "invoiceExact": false
+      },
+      "timingsSeconds": {
+        "response_to_first_result_state_seconds": 0.031,
+        "postflight_seconds": 0.031,
+        "total_pipeline_seconds": 16.066,
+        "tap_to_first_rendered_frame_seconds": 16.908
+      },
+      "observer": {
+        "startedAt": "2026-09-24T05:30:28.027Z",
+        "readyAt": "2026-09-24T05:30:28.519Z",
+        "finishedAt": "2026-09-24T05:32:36.539Z",
+        "status": "window_completed",
+        "events": 6,
+        "ready": true,
+        "stopReason": "collector_exit",
+        "collectorExitCode": 0,
+        "collectorSignal": null,
+        "unprojectedRows": 25,
+        "oversizedRows": 0,
+        "rejectedProofRows": 0
+      },
+      "inputAssetSha256": "196789a6a6344ebff689c1847b88a29a1babda5d5485c17c1161ca7e949a9739",
+      "files": {
+        "c0021-staging.json": "079a7229147e11aa8f5f7bbe1e3e04f6b81758616f01018a02bb4fa1e103c804",
+        "c0021-intent.json": "b32b48ad38cd08b4cb08a75ce8a597ce8ff50864cf918c3b9fe84e04ea2691d7",
+        "c0021-ui.json": "6726e0e38eeba1ae04bc7a93f0c502901601c66051f71791fc793ccf09071f9b",
+        "c0021-observation.jsonl": "6ffb5f71f48f205ef0610890d0e868cb187025e081a7dd7140c543a1b79d3ccf"
+      },
+      "ordinaryContextProfileVerified": true,
+      "accuracyScored": false,
+      "fullRequestBytesAttested": false,
+      "formalQualificationEligible": false
+    },
+    {
+      "caseId": "c0022",
+      "recordedAt": "2026-09-24T05:35:47.799Z",
+      "status": "complete_first_observation",
+      "visibleOutcome": {
+        "caseId": "c0022",
+        "observedAt": "2026-09-24T05:34:19.934Z",
+        "subject": "biological",
+        "commonName": "Green Frog",
+        "scientificName": "Lithobates clamitans",
+        "displayedMatch": "Strong match",
+        "nativeConfidence": null,
+        "source": "observed_first_completed_simulator_result",
+        "identifyTaps": 1,
+        "manualRetries": 0,
+        "resultCorrectionPerformed": false,
+        "speciesLabelCryptographicallyBoundToMeasurement": false
+      },
+      "nativeMeasurement": {
+        "app": {
+          "build": "275",
+          "sourceFingerprint": "ebfa958011ec4e61dda121eea6b9d00890b67d23099dedf1612372aa5cbdb3df",
+          "sourceRevision": "fdfb142b6fcb96e6ae8f3c46a561015064c93cd2",
+          "sourceState": "clean",
+          "version": "1.0.3"
+        },
+        "contextProfile": null,
+        "delivery": "fresh",
+        "diagnostics": {
+          "backendBundleSha256": "a5939b36fd43dcf1fbfb7f5ee01875d3888a313e66af8756e79fb04f19694b2c",
+          "provider": "gemini",
+          "requestedModel": "gemini-2.5-pro",
+          "returnedModel": "gemini-2.5-pro",
+          "usage": {
+            "cachedTokens": null,
+            "candidateTokens": 404,
+            "promptTokens": 856,
+            "thinkingTokens": 1119,
+            "toolTokens": null,
+            "totalTokens": 2379
+          },
+          "version": 1
+        },
+        "otherEdgeMs": 1269.800000000001,
+        "serverTimingMs": {
+          "edge_total": 15076.1,
+          "provider": 13806.3
+        },
+        "status": 200,
+        "timingStatus": "valid",
+        "version": "identification_app_measurement_v2"
+      },
+      "cost": {
+        "estimatedPrimaryUpperUsd": 0.024985,
+        "reason": "estimated_primary_only",
+        "scope": "observed_primary_attempt_only",
+        "invoiceExact": false
+      },
+      "timingsSeconds": {
+        "response_to_first_result_state_seconds": 0.026,
+        "postflight_seconds": 0.026,
+        "total_pipeline_seconds": 16.47,
+        "tap_to_first_rendered_frame_seconds": 17.194
+      },
+      "observer": {
+        "startedAt": "2026-09-24T05:33:29.588Z",
+        "readyAt": "2026-09-24T05:33:30.122Z",
+        "finishedAt": "2026-09-24T05:35:38.136Z",
+        "status": "window_completed",
+        "events": 6,
+        "ready": true,
+        "stopReason": "collector_exit",
+        "collectorExitCode": 0,
+        "collectorSignal": null,
+        "unprojectedRows": 25,
+        "oversizedRows": 0,
+        "rejectedProofRows": 0
+      },
+      "inputAssetSha256": "5370a491b7d3fb1af3effe9020ace11305a349e2c979cab7a411dcb73869e409",
+      "files": {
+        "c0022-staging.json": "a2038d39f92d7b8f7fba938571488250b690123ab2ff4c17cc8dc1837ba95377",
+        "c0022-intent.json": "723616098ffa8b11a05805815d4a9eace8f01a6f44f0c9e2dbfb0df64f0bffd8",
+        "c0022-ui.json": "86befbae1194aad4256b8abc9eeeeadd1caf4f30310fa97fbaa2b3f6b7515c54",
+        "c0022-observation.jsonl": "d653d1505f744bbd644d34124b20974f9f969cdddb2686b130498e889c55e93d"
+      },
+      "ordinaryContextProfileVerified": true,
+      "accuracyScored": false,
+      "fullRequestBytesAttested": false,
+      "formalQualificationEligible": false
+    },
+    {
+      "caseId": "c0023",
+      "recordedAt": "2026-09-24T05:38:46.503Z",
+      "status": "complete_first_observation",
+      "visibleOutcome": {
+        "caseId": "c0023",
+        "observedAt": "2026-09-24T05:37:55.101Z",
+        "subject": "biological",
+        "commonName": "Snowy Tree Cricket",
+        "scientificName": "Oecanthus fultoni",
+        "displayedMatch": "Strong match",
+        "nativeConfidence": null,
+        "source": "observed_first_completed_simulator_result",
+        "identifyTaps": 1,
+        "manualRetries": 0,
+        "resultCorrectionPerformed": false,
+        "speciesLabelCryptographicallyBoundToMeasurement": false
+      },
+      "nativeMeasurement": {
+        "app": {
+          "build": "275",
+          "sourceFingerprint": "ebfa958011ec4e61dda121eea6b9d00890b67d23099dedf1612372aa5cbdb3df",
+          "sourceRevision": "fdfb142b6fcb96e6ae8f3c46a561015064c93cd2",
+          "sourceState": "clean",
+          "version": "1.0.3"
+        },
+        "contextProfile": null,
+        "delivery": "fresh",
+        "diagnostics": {
+          "backendBundleSha256": "a5939b36fd43dcf1fbfb7f5ee01875d3888a313e66af8756e79fb04f19694b2c",
+          "provider": "gemini",
+          "requestedModel": "gemini-2.5-pro",
+          "returnedModel": "gemini-2.5-pro",
+          "usage": {
+            "cachedTokens": null,
+            "candidateTokens": 329,
+            "promptTokens": 963,
+            "thinkingTokens": 831,
+            "toolTokens": null,
+            "totalTokens": 2123
+          },
+          "version": 1
+        },
+        "otherEdgeMs": 1222,
+        "serverTimingMs": {
+          "edge_total": 12341.7,
+          "provider": 11119.7
+        },
+        "status": 200,
+        "timingStatus": "valid",
+        "version": "identification_app_measurement_v2"
+      },
+      "cost": {
+        "estimatedPrimaryUpperUsd": 0.0198075,
+        "reason": "estimated_primary_only",
+        "scope": "observed_primary_attempt_only",
+        "invoiceExact": false
+      },
+      "timingsSeconds": {
+        "response_to_first_result_state_seconds": 0.023,
+        "postflight_seconds": 0.023,
+        "total_pipeline_seconds": 13.62,
+        "tap_to_first_rendered_frame_seconds": 14.418
+      },
+      "observer": {
+        "startedAt": "2026-09-24T05:36:24.252Z",
+        "readyAt": "2026-09-24T05:36:24.752Z",
+        "finishedAt": "2026-09-24T05:38:32.779Z",
+        "status": "window_completed",
+        "events": 6,
+        "ready": true,
+        "stopReason": "collector_exit",
+        "collectorExitCode": 0,
+        "collectorSignal": null,
+        "unprojectedRows": 25,
+        "oversizedRows": 0,
+        "rejectedProofRows": 0
+      },
+      "inputAssetSha256": "4ee517d08701c5f7cebd4a9b7c2f4029351f72fb079cbbb72106dd2d04f51a0f",
+      "files": {
+        "c0023-staging.json": "6bf64fbb50c369164682cde3a11e84b8bec6b68d8e02bb43b49460f18c3b49c1",
+        "c0023-intent.json": "e058f9f50066c9ac4145601042806a878565cafb953b5c6f0e17fd22fbe56c81",
+        "c0023-ui.json": "ff7f7ac88d27d42ea6e4934c6efdba63ed42b0e843d9b7bafe8200e5d5b647a6",
+        "c0023-observation.jsonl": "d734ce9faf6d3161ca3169b33082d980191146627309590cf03d3363f5db3cd5"
+      },
+      "ordinaryContextProfileVerified": true,
+      "accuracyScored": false,
+      "fullRequestBytesAttested": false,
+      "formalQualificationEligible": false
+    },
+    {
+      "caseId": "c0024",
+      "recordedAt": "2026-09-24T05:41:55.040Z",
+      "status": "complete_first_observation",
+      "visibleOutcome": {
+        "caseId": "c0024",
+        "observedAt": "2026-09-24T05:40:19.082Z",
+        "subject": "non_biological",
+        "commonName": "No wildlife detected",
+        "scientificName": null,
+        "displayedMatch": "Non-biological",
+        "nativeConfidence": null,
+        "source": "observed_first_completed_simulator_result",
+        "identifyTaps": 1,
+        "manualRetries": 0,
+        "resultCorrectionPerformed": false,
+        "speciesLabelCryptographicallyBoundToMeasurement": false
+      },
+      "nativeMeasurement": {
+        "app": {
+          "build": "275",
+          "sourceFingerprint": "ebfa958011ec4e61dda121eea6b9d00890b67d23099dedf1612372aa5cbdb3df",
+          "sourceRevision": "fdfb142b6fcb96e6ae8f3c46a561015064c93cd2",
+          "sourceState": "clean",
+          "version": "1.0.3"
+        },
+        "contextProfile": null,
+        "delivery": "fresh",
+        "diagnostics": {
+          "backendBundleSha256": "a5939b36fd43dcf1fbfb7f5ee01875d3888a313e66af8756e79fb04f19694b2c",
+          "provider": "gemini",
+          "requestedModel": "gemini-2.5-pro",
+          "returnedModel": "gemini-2.5-pro",
+          "usage": {
+            "cachedTokens": null,
+            "candidateTokens": 275,
+            "promptTokens": 977,
+            "thinkingTokens": 1258,
+            "toolTokens": null,
+            "totalTokens": 2510
+          },
+          "version": 1
+        },
+        "otherEdgeMs": 1222.300000000001,
+        "serverTimingMs": {
+          "edge_total": 13129.2,
+          "provider": 11906.9
+        },
+        "status": 200,
+        "timingStatus": "valid",
+        "version": "identification_app_measurement_v2"
+      },
+      "cost": {
+        "estimatedPrimaryUpperUsd": 0.0254375,
+        "reason": "estimated_primary_only",
+        "scope": "observed_primary_attempt_only",
+        "invoiceExact": false
+      },
+      "timingsSeconds": {
+        "response_to_first_result_state_seconds": 0.017,
+        "postflight_seconds": 0.017,
+        "total_pipeline_seconds": 14.502,
+        "tap_to_first_rendered_frame_seconds": 15.096
+      },
+      "observer": {
+        "startedAt": "2026-09-24T05:39:29.782Z",
+        "readyAt": "2026-09-24T05:39:30.170Z",
+        "finishedAt": "2026-09-24T05:41:38.176Z",
+        "status": "window_completed",
+        "events": 6,
+        "ready": true,
+        "stopReason": "collector_exit",
+        "collectorExitCode": 0,
+        "collectorSignal": null,
+        "unprojectedRows": 17,
+        "oversizedRows": 0,
+        "rejectedProofRows": 0
+      },
+      "inputAssetSha256": "694d5a5feaafe50c9147b9d2249ab59e710935efb99d16c09001af8787464c60",
+      "files": {
+        "c0024-staging.json": "ce2c90b6c6d097a28c80cde55396ee02aa1debbf5103d973d85704830b25850a",
+        "c0024-intent.json": "7bf3c54b38131ddd11de37005568054676ddc3be9c0ebb5f9f7578d8a63ecadf",
+        "c0024-ui.json": "84229a22bfaf7043a303bd7a77bc2c6d10d32316c12bb13fe2413bc1f055d33c",
+        "c0024-observation.jsonl": "8cadd048db6a305a19b220601fc0b2d37f1e72c1d4e443a93f15c958b1f8d1df"
+      },
+      "ordinaryContextProfileVerified": true,
+      "accuracyScored": false,
+      "fullRequestBytesAttested": false,
+      "formalQualificationEligible": false
+    }
+  ],
+  "limits": [
+    "Animal labels are provisional; source-label agreements/disagreements are not accuracy scores.",
+    "Two source-and-owner-reviewed non-biological controls do not establish a general false-positive rate.",
+    "Native confidence was not recorded for ordinary replay; the visible match band is not a calibrated probability.",
+    "Ordinary audio replay retains live context and re-encodes the input. Source hashes do not attest full request context or inference bytes.",
+    "One first result per source cannot measure repeatability, provider differences or processing causality.",
+    "UI labels are manually observed first-result metadata, not cryptographically bound biological truth.",
+    "No native persistence proof is claimed for ordinary replay; comparison-only finalization/receipt/draw proofs do not apply.",
+    "Cost estimates cover observed primary attempts only, not enrichment, other attempts or a complete invoice.",
+    "All sources are exploratory development groups; public training exposure is unknown.",
+    "The app was restarted before each case to restore capture readiness; this is outside the measured interval."
+  ],
+  "productionChanges": {
+    "deployments": 0,
+    "comparisonActivations": 0,
+    "providerAssignmentChanges": 0
+  },
+  "retentionThrough": "2026-10-24",
+  "privatePacketFileCount": 64,
+  "privatePacketFreezeSha256": "88b76f5e3039a00cf339e7c23b2907cc9436af242f6fa2abace8cef0c2ec474c",
+  "privateSourceManifest": [
+    {
+      "path": "assets/a00190.wav",
+      "sha256": "2356a662632ce43f88c1ae0773f65960c4ffb0ba8744f3aebc51f12c12fb40e1",
+      "byteLength": 311084
+    },
+    {
+      "path": "assets/a00200.wav",
+      "sha256": "6b5e9e6cc45d16a80980386541649b1ce9fcd94cf3ad54a49d37cf0fd6e3ed67",
+      "byteLength": 285740
+    },
+    {
+      "path": "assets/a00210.wav",
+      "sha256": "196789a6a6344ebff689c1847b88a29a1babda5d5485c17c1161ca7e949a9739",
+      "byteLength": 875564
+    },
+    {
+      "path": "assets/a00220.wav",
+      "sha256": "5370a491b7d3fb1af3effe9020ace11305a349e2c979cab7a411dcb73869e409",
+      "byteLength": 184364
+    },
+    {
+      "path": "assets/a00230.wav",
+      "sha256": "4ee517d08701c5f7cebd4a9b7c2f4029351f72fb079cbbb72106dd2d04f51a0f",
+      "byteLength": 437804
+    },
+    {
+      "path": "assets/a00240.wav",
+      "sha256": "694d5a5feaafe50c9147b9d2249ab59e710935efb99d16c09001af8787464c60",
+      "byteLength": 476972
+    },
+    {
+      "path": "corpus.json",
+      "sha256": "7e9783f06d4eb04adda12e3913d3867b192877c68e45ceaed9679db492cb6f2b",
+      "byteLength": 7988
+    },
+    {
+      "path": "input-freeze.json",
+      "sha256": "26d64f587217d40714c47891414a843477512746bcb74a17186fec931f0079c2",
+      "byteLength": 4739
+    },
+    {
+      "path": "preflight.json",
+      "sha256": "b5878caae0f19175d33533a7a487251df083c50b3e194273d7ab8c382eea7fd5",
+      "byteLength": 13236
+    },
+    {
+      "path": "records/admission.json",
+      "sha256": "621187ece1de442e8acd0fa316f07ebbd6de5cea9ce7970e055eeabb80b4fb7d",
+      "byteLength": 405
+    },
+    {
+      "path": "records/admit.py",
+      "sha256": "3cd6edc25a76113b7682663c578635a48862f074b681b93441f22b628ef95a5b",
+      "byteLength": 6006
+    },
+    {
+      "path": "records/completion-helper.py",
+      "sha256": "91af31c01e8b1e02529c58696a2361cea4b269616fba0f02717fd3f26959c2bb",
+      "byteLength": 8652
+    },
+    {
+      "path": "records/eligibility-audio-expansion-v1.json",
+      "sha256": "a049768cbeb94ec3849346f896a176650f629d68c5f2598f7fa826ce777605f6",
+      "byteLength": 1347
+    },
+    {
+      "path": "records/reference-audio-c0019-v1.json",
+      "sha256": "3b5845f533193c23a1da2af73a898c98b50950df00d2f7945b656b822a04a3e0",
+      "byteLength": 639
+    },
+    {
+      "path": "records/reference-audio-c0020-v1.json",
+      "sha256": "c15a81e6cbe59f1066aabca2b22201e19ae7421d76dc2bb1753d90ff9a0f0614",
+      "byteLength": 655
+    },
+    {
+      "path": "records/reference-audio-c0021-v1.json",
+      "sha256": "b35d318402ddc8a6eefa36374f81f825687ea1882a5de397701446806adcaa69",
+      "byteLength": 617
+    },
+    {
+      "path": "records/reference-audio-c0022-v1.json",
+      "sha256": "6eda1fb1159ea839a7be2b3740718f7b70ffdeb0a6f981b182ed1627065e0e4c",
+      "byteLength": 696
+    },
+    {
+      "path": "records/reference-audio-c0023-v1.json",
+      "sha256": "f9926470d2a951036f7ab246d88b50f1740be615adb18b9cd8ecd8241e951b2f",
+      "byteLength": 451
+    },
+    {
+      "path": "records/reference-audio-c0024-v1.json",
+      "sha256": "281c5a51e2bc8202d72799ca3eb5fc690d4221cf7a7b12e5e6911e653fe3e5b6",
+      "byteLength": 451
+    },
+    {
+      "path": "records/result-helper.py",
+      "sha256": "8d3d8cc5cc23a34e9d8bd46011d2fde4c0e0e86c79dfaa07f9b34049f5f46c9b",
+      "byteLength": 4744
+    },
+    {
+      "path": "records/run-helper.py",
+      "sha256": "02b3cd2f888175b1c6379b1ca671beebafa3bc4f85dd070e985c02738ba5570e",
+      "byteLength": 8476
+    },
+    {
+      "path": "records/source-audio-c0019-v1.json",
+      "sha256": "3d8eaade1031a9766152fee347615cc5ca66ad356b2820d1ef6c9b15b47382c1",
+      "byteLength": 918
+    },
+    {
+      "path": "records/source-audio-c0020-v1.json",
+      "sha256": "683f88c504cea7a3ea8820afacc0efef10095ceb0b44c76409f53b55ada1c757",
+      "byteLength": 908
+    },
+    {
+      "path": "records/source-audio-c0021-v1.json",
+      "sha256": "1ad2ee9c78d8b9740efd2c4bcf58407587a342ab1780a2a5752a8b2505d5ba16",
+      "byteLength": 898
+    },
+    {
+      "path": "records/source-audio-c0022-v1.json",
+      "sha256": "10b705c02e8074af5b84a6d2e739be32f842ef6fe3b7b629dde3ec2812e686f9",
+      "byteLength": 907
+    },
+    {
+      "path": "records/source-audio-c0023-v1.json",
+      "sha256": "f708f007dc27a672eb1d3c718b473367bbb831664cd1d5d5b1fa7064f5ef83e2",
+      "byteLength": 889
+    },
+    {
+      "path": "records/source-audio-c0024-v1.json",
+      "sha256": "edd549be45d3406b0f1b9da3c6c9a19ebb43030ff6fa0724ce72d9edf71b1309",
+      "byteLength": 901
+    },
+    {
+      "path": "records/source-rights.json",
+      "sha256": "44b1f2e2a416352fb547d3fc097506cd004daf411a03feebe01d1dff69b778a6",
+      "byteLength": 569
+    },
+    {
+      "path": "records/validation-helper.ts",
+      "sha256": "73b67041561bd691d2664d02244f85b1190d1d35eefcc72b3e48bd26a2fcaead",
+      "byteLength": 3200
+    },
+    {
+      "path": "run/c0019-intent.json",
+      "sha256": "180406328a91827298d1fce46fea0ad7c89de6d0f5e21f7a3cf24d110ac5ef6b",
+      "byteLength": 276
+    },
+    {
+      "path": "run/c0019-observation.jsonl",
+      "sha256": "cbbc810a8c80b230405f3a46cfd4f7f11e5f52a4e50d584ac69a4457b2f4db5b",
+      "byteLength": 3388
+    },
+    {
+      "path": "run/c0019-result.json",
+      "sha256": "d1e5db1a663eb746ec1f9db6a825adc702fb9e1af86f1eeaf2c3cc55d0d84051",
+      "byteLength": 3013
+    },
+    {
+      "path": "run/c0019-staging.json",
+      "sha256": "af428a086771b1a8a6eb288f36799561e6fff21fa965ff3c0ef98e7d922642f8",
+      "byteLength": 800
+    },
+    {
+      "path": "run/c0019-ui.json",
+      "sha256": "e23ca0f568457f1c21fe0fa8380e347df8e272fcd1e437d6c148dcd3f26d536b",
+      "byteLength": 437
+    },
+    {
+      "path": "run/c0020-intent.json",
+      "sha256": "a8b07ef094dfb3348e9e90ccc39b76918b7280e9e80517ed2e33a8ece37c303f",
+      "byteLength": 269
+    },
+    {
+      "path": "run/c0020-observation.jsonl",
+      "sha256": "c4ed0db963824116c5d47466dcb8e0cc8bb8d4e86f48b8751ade3a73a72cc9b6",
+      "byteLength": 3393
+    },
+    {
+      "path": "run/c0020-result.json",
+      "sha256": "f4a5467d46a098523b7e7273e29981e5b011cb31626db1411c80e2abc52a4892",
+      "byteLength": 3011
+    },
+    {
+      "path": "run/c0020-staging.json",
+      "sha256": "31bc719fb7c7b2311f9ea43c0284d73a6e4b3a550511c7a0011322cdeba840bf",
+      "byteLength": 800
+    },
+    {
+      "path": "run/c0020-ui.json",
+      "sha256": "732161647e69e55979f71a1104d7557cf017f5772fa0bb4504054aa762331842",
+      "byteLength": 430
+    },
+    {
+      "path": "run/c0021-intent.json",
+      "sha256": "b32b48ad38cd08b4cb08a75ce8a597ce8ff50864cf918c3b9fe84e04ea2691d7",
+      "byteLength": 269
+    },
+    {
+      "path": "run/c0021-observation.jsonl",
+      "sha256": "6ffb5f71f48f205ef0610890d0e868cb187025e081a7dd7140c543a1b79d3ccf",
+      "byteLength": 3390
+    },
+    {
+      "path": "run/c0021-result.json",
+      "sha256": "7c592a718220b24d3331169e3ee84053868734c474deffcc33068a9ec1e29dbd",
+      "byteLength": 2999
+    },
+    {
+      "path": "run/c0021-staging.json",
+      "sha256": "079a7229147e11aa8f5f7bbe1e3e04f6b81758616f01018a02bb4fa1e103c804",
+      "byteLength": 800
+    },
+    {
+      "path": "run/c0021-ui.json",
+      "sha256": "6726e0e38eeba1ae04bc7a93f0c502901601c66051f71791fc793ccf09071f9b",
+      "byteLength": 420
+    },
+    {
+      "path": "run/c0022-intent.json",
+      "sha256": "723616098ffa8b11a05805815d4a9eace8f01a6f44f0c9e2dbfb0df64f0bffd8",
+      "byteLength": 269
+    },
+    {
+      "path": "run/c0022-observation.jsonl",
+      "sha256": "d653d1505f744bbd644d34124b20974f9f969cdddb2686b130498e889c55e93d",
+      "byteLength": 3391
+    },
+    {
+      "path": "run/c0022-result.json",
+      "sha256": "a86a3dae9f79e96feac10372fec6ebffe587db3c3db101e62a687ecb8256bc0b",
+      "byteLength": 3009
+    },
+    {
+      "path": "run/c0022-staging.json",
+      "sha256": "a2038d39f92d7b8f7fba938571488250b690123ab2ff4c17cc8dc1837ba95377",
+      "byteLength": 800
+    },
+    {
+      "path": "run/c0022-ui.json",
+      "sha256": "86befbae1194aad4256b8abc9eeeeadd1caf4f30310fa97fbaa2b3f6b7515c54",
+      "byteLength": 431
+    },
+    {
+      "path": "run/c0023-intent.json",
+      "sha256": "e058f9f50066c9ac4145601042806a878565cafb953b5c6f0e17fd22fbe56c81",
+      "byteLength": 269
+    },
+    {
+      "path": "run/c0023-observation.jsonl",
+      "sha256": "d734ce9faf6d3161ca3169b33082d980191146627309590cf03d3363f5db3cd5",
+      "byteLength": 3378
+    },
+    {
+      "path": "run/c0023-result.json",
+      "sha256": "bb4b4236e19a95fa5ff96e4beed376d5606a22d94412b385420d6d9eb506b143",
+      "byteLength": 3001
+    },
+    {
+      "path": "run/c0023-staging.json",
+      "sha256": "6bf64fbb50c369164682cde3a11e84b8bec6b68d8e02bb43b49460f18c3b49c1",
+      "byteLength": 800
+    },
+    {
+      "path": "run/c0023-ui.json",
+      "sha256": "ff7f7ac88d27d42ea6e4934c6efdba63ed42b0e843d9b7bafe8200e5d5b647a6",
+      "byteLength": 436
+    },
+    {
+      "path": "run/c0024-intent.json",
+      "sha256": "7bf3c54b38131ddd11de37005568054676ddc3be9c0ebb5f9f7578d8a63ecadf",
+      "byteLength": 269
+    },
+    {
+      "path": "run/c0024-observation.jsonl",
+      "sha256": "8cadd048db6a305a19b220601fc0b2d37f1e72c1d4e443a93f15c958b1f8d1df",
+      "byteLength": 3389
+    },
+    {
+      "path": "run/c0024-result.json",
+      "sha256": "f31eadb27a1d00d7b32815466aae710928c0c5eaf3d86b39224c9ed055e34f6c",
+      "byteLength": 3009
+    },
+    {
+      "path": "run/c0024-staging.json",
+      "sha256": "ce2c90b6c6d097a28c80cde55396ee02aa1debbf5103d973d85704830b25850a",
+      "byteLength": 800
+    },
+    {
+      "path": "run/c0024-ui.json",
+      "sha256": "84229a22bfaf7043a303bd7a77bc2c6d10d32316c12bb13fe2413bc1f055d33c",
+      "byteLength": 429
+    },
+    {
+      "path": "run/plan.json",
+      "sha256": "4a9685a091ec860078a39f51d5ad3d6081a9397d09e46b7c9b524848dc5e07ab",
+      "byteLength": 2281
+    },
+    {
+      "path": "run/pricing.json",
+      "sha256": "f7543c9c837a04a35db70c6eebeb403d7e2981167f3d140cc56a0b15aeea7309",
+      "byteLength": 980
+    },
+    {
+      "path": "run/results.json",
+      "sha256": "7056d82689b73fa03135c33452656aa292194c6671f60e4258fa0708c9a9ab7b",
+      "byteLength": 34750
+    },
+    {
+      "path": "run/validation.json",
+      "sha256": "58b6b759c337844c2bc054f33ee9fe9f9beb308b448360164a56c6f6d405c798",
+      "byteLength": 1448
+    },
+    {
+      "path": "taxonomy.json",
+      "sha256": "07cdb999c224da091915ed290d3087656fe3f5de70d9bfa1c67675b53a47ac7f",
+      "byteLength": 939
+    }
+  ]
+}
