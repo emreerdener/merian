@@ -272,7 +272,12 @@ production submission or public release.
   admits six additional exploratory clips and retains every first result. Rain
   returned a Strong biological match despite its reviewed non-animal reference.
   Species identity remains unresolved; independently verified references remain
-  necessary before scoring accuracy or tuning model assignment.
+  necessary before scoring accuracy or tuning model assignment. The
+  [rain-control diagnostic and confidence plan](./rfcs/identification-audio-rain-diagnostic-2026-09-24.md)
+  verifies the disputed inputs and local processing, identifies the mismatch
+  between audio subject confidence and the species-match badge, and proposes a
+  focused correction. No runtime behavior or earlier result changes in that
+  diagnostic.
 - **Deferred family and prior combined planning:**
   [PRD](./product/02-family-plans-and-ai-platform-prd.md) and
   [SRD](./rfcs/family-plans-and-ai-platform-srd.md). Family plans are deferred;

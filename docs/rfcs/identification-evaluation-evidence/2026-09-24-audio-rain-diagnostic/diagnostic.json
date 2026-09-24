@@ -1,0 +1,985 @@
+{
+  "version": "audio_rain_diagnostic_v1",
+  "date": "2026-09-24",
+  "recordedAt": "2026-09-24T06:05:18.243Z",
+  "status": "offline_investigation_complete_correction_proposed_not_implemented",
+  "sourceAudit": {
+    "version": "audio_rain_source_audit_v1",
+    "createdAt": "2026-09-24T05:56:21.300Z",
+    "retentionThrough": "2026-10-24",
+    "oldFreezesVerifiedBeforeAndAfter": [
+      {
+        "packet": "2026-09-24-audio-reference-and-expansion-v1",
+        "fileCount": 29,
+        "freezeSha256": "f22d71d787ea593e6daab38f735311b40084dfa0c8e6b4a0e6a341c85bc65532"
+      },
+      {
+        "packet": "2026-09-24-audio-expansion-app-v1",
+        "fileCount": 64,
+        "freezeSha256": "88b76f5e3039a00cf339e7c23b2907cc9436af242f6fa2abace8cef0c2ec474c"
+      }
+    ],
+    "cases": [
+      {
+        "caseId": "c0019",
+        "checkedAt": "2026-09-24T05:56:20.947Z",
+        "sourcePage": "https://www.nps.gov/subjects/sound/sounds-american-robin.htm",
+        "resolvedSourcePage": "https://www.nps.gov/subjects/sound/sounds-american-robin.htm",
+        "sourcePageSha256": "ffa09f8cf82b46fede510052d4cf2a862dfb071eadae27569113ae6bb89ef131",
+        "sourceMediaUrl": "https://www.nps.gov/nps-audiovideo/legacy/mp3/nri/avElement/nri-AmericanRobinYELL.mp3",
+        "resolvedMediaUrl": "https://www.nps.gov/nps-audiovideo/legacy/mp3/nri/avElement/nri-AmericanRobinYELL.mp3",
+        "sourceSha256": "74a4cec070fce5bbba559ef7c24a7bb2e62b15549d9bb3d1643946923491f920",
+        "sourceByteLength": 59495,
+        "preparedSha256": "2356a662632ce43f88c1ae0773f65960c4ffb0ba8744f3aebc51f12c12fb40e1",
+        "preparedPcmSha256": "92c29ca349c1a480ae0aa83d2cc5614acebbff30216418f8e13cfe93dcdef5cc",
+        "preparedByteLength": 311084,
+        "sampleCount": 155520,
+        "durationSeconds": 3.526530612244898,
+        "sourceDurationSeconds": 3.526530612244898,
+        "sourceBytesMatched": true,
+        "preparedWavMatched": true,
+        "preparedPcmMatched": true,
+        "preparationAndAdmittedAssetMatched": true,
+        "stagingRecordSha256": "af428a086771b1a8a6eb288f36799561e6fff21fa965ff3c0ef98e7d922642f8",
+        "biologicalReferencePromoted": false
+      },
+      {
+        "caseId": "c0022",
+        "checkedAt": "2026-09-24T05:56:21.108Z",
+        "sourcePage": "https://www.nps.gov/subjects/sound/sounds-pigfrog.htm",
+        "resolvedSourcePage": "https://www.nps.gov/subjects/sound/sounds-pigfrog.htm",
+        "sourcePageSha256": "5b7f9f9b2be4e6c45eebb5fbb7ba5557a7dbe4dff020ff5a74e243baec870e81",
+        "sourceMediaUrl": "https://www.nps.gov/nps-audiovideo/legacy/mp3/nri/avElement/nri-PigFrogEvergladesNP.mp3",
+        "resolvedMediaUrl": "https://www.nps.gov/nps-audiovideo/legacy/mp3/nri/avElement/nri-PigFrogEvergladesNP.mp3",
+        "sourceSha256": "3b97ec3c01371f690dd4a54376fe0626ee2ad42d1fcc6f7e37e6f6241892f342",
+        "sourceByteLength": 36011,
+        "preparedSha256": "5370a491b7d3fb1af3effe9020ace11305a349e2c979cab7a411dcb73869e409",
+        "preparedPcmSha256": "8324130538b3d034b0b3761e73e03dd40a5bd8c3194d7eeb30c791d9860e75fd",
+        "preparedByteLength": 184364,
+        "sampleCount": 92160,
+        "durationSeconds": 2.089795918367347,
+        "sourceDurationSeconds": 2.089795918367347,
+        "sourceBytesMatched": true,
+        "preparedWavMatched": true,
+        "preparedPcmMatched": true,
+        "preparationAndAdmittedAssetMatched": true,
+        "stagingRecordSha256": "a2038d39f92d7b8f7fba938571488250b690123ab2ff4c17cc8dc1837ba95377",
+        "biologicalReferencePromoted": false
+      },
+      {
+        "caseId": "c0023",
+        "checkedAt": "2026-09-24T05:56:21.285Z",
+        "sourcePage": "https://www.nps.gov/subjects/sound/sounds-rain.htm",
+        "resolvedSourcePage": "https://www.nps.gov/subjects/sound/sounds-rain.htm",
+        "sourcePageSha256": "3553452b03b20a26bb0d9f2df8a3be59d90506f991e2bc6de79516529e0af01b",
+        "sourceMediaUrl": "https://www.nps.gov/nps-audiovideo/legacy/mp3/nri/avElement/nri-RainDEPO.mp3",
+        "resolvedMediaUrl": "https://www.nps.gov/nps-audiovideo/legacy/mp3/nri/avElement/nri-RainDEPO.mp3",
+        "sourceSha256": "8f349402462580e1faca6a51bc13fea4655698624966e976195d2b2fd08a5337",
+        "sourceByteLength": 81986,
+        "preparedSha256": "4ee517d08701c5f7cebd4a9b7c2f4029351f72fb079cbbb72106dd2d04f51a0f",
+        "preparedPcmSha256": "cdda714f8932e1ec06f2e12b37e4baa645dcf0a70d396eb834eb608658963c87",
+        "preparedByteLength": 437804,
+        "sampleCount": 218880,
+        "durationSeconds": 4.963265306122449,
+        "sourceDurationSeconds": 4.963265306122449,
+        "sourceBytesMatched": true,
+        "preparedWavMatched": true,
+        "preparedPcmMatched": true,
+        "preparationAndAdmittedAssetMatched": true,
+        "stagingRecordSha256": "6bf64fbb50c369164682cde3a11e84b8bec6b68d8e02bb43b49460f18c3b49c1",
+        "biologicalReferencePromoted": false
+      }
+    ],
+    "temporaryDownloadsAndDecodesRemoved": true,
+    "newAppSubmissions": 0,
+    "newProviderCalls": 0,
+    "limits": [
+      "Page labels and transcripts are source evidence, not independent biological verification.",
+      "No new audible-content review was performed by the assistant.",
+      "Source-to-staged-input equality does not attest historical provider bytes or live context."
+    ]
+  },
+  "processingAudit": {
+    "version": "audio_rain_processing_audit_v1",
+    "checkedAt": "2026-09-24T05:58:10.119Z",
+    "runtime": {
+      "deno": "2.9.4",
+      "v8": "15.0.245.2-rusty",
+      "typescript": "6.0.3"
+    },
+    "evidenceType": "offline_reproduction_of_repository_helpers",
+    "networkAccess": "denied",
+    "environmentAccess": "denied",
+    "files": [
+      {
+        "path": "services/supabase/functions/_shared/audioProcessing.ts",
+        "sha256": "69601412422152a62095358838a1b7be4a6ab4cca2a27bb601f0287266b6d5b6"
+      },
+      {
+        "path": "services/supabase/functions/audio-spec/wav.ts",
+        "sha256": "b8f3fbf2aed80b4873a82f32d1271476426f2411d4ab17138a810b2041a5dfdc"
+      },
+      {
+        "path": "services/supabase/functions/audio-spec/resample.ts",
+        "sha256": "697a29cd6e937d08d7bbf6a5d9df7d32589227a21034db119feb43a723d45de1"
+      },
+      {
+        "path": "services/supabase/functions/identify-multimodal/audio.ts",
+        "sha256": "ff70036c97f6110b20824d7cfbc4f38b5cc92367d9d8acec95f9f5ce3f852706"
+      },
+      {
+        "path": "services/supabase/functions/identify-multimodal/comparison/audio.ts",
+        "sha256": "56d0091c4d8800bfd34abf365d77285ef9e4352253841e6a820b5f753cf74a59"
+      },
+      {
+        "path": "services/supabase/functions/identify-multimodal/comparison/legacyAudio.ts",
+        "sha256": "9943f7e17eabc208df541b42723164696287dde2630527e55aae4a8dc391e183"
+      },
+      {
+        "path": "services/supabase/functions/identify-multimodal/provider.ts",
+        "sha256": "0f88e88c80aef67888d2ff5356974f6f5ccb9cabe9400e76b05bb531eedca49f"
+      },
+      {
+        "path": "services/supabase/functions/_shared/identify/contract.ts",
+        "sha256": "13c33719b52637819156d5124e5e920d01ef46e271db72fd93462fae171667f4"
+      },
+      {
+        "path": "services/supabase/functions/_shared/identify/audioSubjectPolicy.ts",
+        "sha256": "bdf1cdcddfb7579e63ebdec48649dbb186ccaa312a3e915303cd98dc8fccd556"
+      },
+      {
+        "path": "services/supabase/functions/_shared/ai/registry.ts",
+        "sha256": "d470af3e7ebea8a23676a8e08773f293a0b270a33a3a0fe7c3e325cfc0b3d045"
+      },
+      {
+        "path": "services/supabase/functions/_shared/ai/geminiRequest.ts",
+        "sha256": "b993b6630649636922643845673ddc0d2d3a7b1062f84e618a88c0745b9fa61c"
+      },
+      {
+        "path": "services/supabase/scripts/identification_evaluation/audioComparison.ts",
+        "sha256": "9a6f006b274667f6865397dcc29e656c8f085b30f1fa23421c70af19799eaac1"
+      }
+    ],
+    "cases": [
+      {
+        "caseId": "c0019",
+        "inputSha256": "2356a662632ce43f88c1ae0773f65960c4ffb0ba8744f3aebc51f12c12fb40e1",
+        "source": {
+          "sampleCount": 155520,
+          "durationSeconds": 3.526530612244898,
+          "rms": 0.01123870610129165,
+          "rmsDbfs": -38.9856737138005,
+          "peak": 0.09783935546875,
+          "peakDbfs": -20.189728338831834,
+          "zeroSampleCount": 4437,
+          "fullScaleSampleCount": 0
+        },
+        "trim": {
+          "thresholdRms": 0.008,
+          "windowMilliseconds": 20,
+          "padWindows": 2,
+          "windowCount": 177,
+          "activeWindowCount": 74,
+          "maximumWindowRms": 0.03409859927798424,
+          "retainedStartSample": 11466,
+          "retainedEndSampleExclusive": 112896,
+          "retainedSampleCount": 101430,
+          "retainedDurationSeconds": 2.3,
+          "removedSampleCount": 54090
+        },
+        "current": {
+          "sampleRate": 16000,
+          "channels": 1,
+          "byteLength": 73644,
+          "wavSha256": "5eace347b696a62538502e0bbe1133a84ec96f6faeb6a8cc7c2bc6eac9350d09",
+          "pcmSha256": "87b9085c27b4391e87f76a8fea524805d449f4ed2cfe970715eba053f1f4beca",
+          "sampleCount": 36800,
+          "durationSeconds": 2.3,
+          "rms": 0.013745189041542311,
+          "rmsDbfs": -37.23698565604779,
+          "peak": 0.0972900390625,
+          "peakDbfs": -20.238632444712863,
+          "zeroSampleCount": 59,
+          "fullScaleSampleCount": 0
+        },
+        "offlinePreparedRequests": {
+          "sourceWavSha256": "2356a662632ce43f88c1ae0773f65960c4ffb0ba8744f3aebc51f12c12fb40e1",
+          "sourceByteLength": 311084,
+          "arms": [
+            {
+              "arm": "audio-linear-full-windows-v1",
+              "processedWavSha256": "13d582dab61e1615005c6f822f01d08defa05d9f147550533b395b58143e54c8",
+              "processedByteLength": 73644,
+              "sampleRate": 16000,
+              "channels": 1,
+              "bitsPerSample": 16,
+              "sampleCount": 36800,
+              "providerRequestSha256": "c01150c8f6905edd16f5c0362df22b407c8fee4b3e21044ad051b3718f7aed5d",
+              "requestWithoutAudioSha256": "484b9148374542eb5fa8bd0d6b4cb7b35154b812ab5c72f9ea0b55189f38ab68",
+              "policySha256": "e87be3d9d907ae1ab710861181f19ed2bc542fb207c075c3b316797f734ce99c",
+              "confidenceSha256": "7994954960f1355f6f0fe520ad2f5a6552fb3785f6bd900661ff48abae85fdcf",
+              "model": "gemini-2.5-pro",
+              "prompt": "identify_audio_v1",
+              "schema": "merian_audio_v1",
+              "generation": {
+                "temperature": 0.1,
+                "seed": 42,
+                "maxOutputTokens": 8192,
+                "thinkingBudget": 5000
+              }
+            },
+            {
+              "arm": "audio-sinc-partial-tail-v1",
+              "processedWavSha256": "5eace347b696a62538502e0bbe1133a84ec96f6faeb6a8cc7c2bc6eac9350d09",
+              "processedByteLength": 73644,
+              "sampleRate": 16000,
+              "channels": 1,
+              "bitsPerSample": 16,
+              "sampleCount": 36800,
+              "providerRequestSha256": "8897b077e4f46a59f3c38b34f2af5491b991b3fe6e3494ba24345e9d4d3d58bd",
+              "requestWithoutAudioSha256": "484b9148374542eb5fa8bd0d6b4cb7b35154b812ab5c72f9ea0b55189f38ab68",
+              "policySha256": "e87be3d9d907ae1ab710861181f19ed2bc542fb207c075c3b316797f734ce99c",
+              "confidenceSha256": "7994954960f1355f6f0fe520ad2f5a6552fb3785f6bd900661ff48abae85fdcf",
+              "model": "gemini-2.5-pro",
+              "prompt": "identify_audio_v1",
+              "schema": "merian_audio_v1",
+              "generation": {
+                "temperature": 0.1,
+                "seed": 42,
+                "maxOutputTokens": 8192,
+                "thinkingBudget": 5000
+              }
+            }
+          ]
+        },
+        "referencePromoted": false
+      },
+      {
+        "caseId": "c0020",
+        "inputSha256": "6b5e9e6cc45d16a80980386541649b1ce9fcd94cf3ad54a49d37cf0fd6e3ed67",
+        "source": {
+          "sampleCount": 142848,
+          "durationSeconds": 3.239183673469388,
+          "rms": 0.10503825400609658,
+          "rmsDbfs": -19.57305011800213,
+          "peak": 0.999969482421875,
+          "peakDbfs": -0.00026507636037961915,
+          "zeroSampleCount": 4049,
+          "fullScaleSampleCount": 20
+        },
+        "trim": {
+          "thresholdRms": 0.008,
+          "windowMilliseconds": 20,
+          "padWindows": 2,
+          "windowCount": 162,
+          "activeWindowCount": 153,
+          "maximumWindowRms": 0.3954575818061765,
+          "retainedStartSample": 882,
+          "retainedEndSampleExclusive": 139356,
+          "retainedSampleCount": 138474,
+          "retainedDurationSeconds": 3.14,
+          "removedSampleCount": 4374
+        },
+        "current": {
+          "sampleRate": 16000,
+          "channels": 1,
+          "byteLength": 100524,
+          "wavSha256": "410e61df41cdf01359865e8aa48663bd078a6411a8b1e24d561ac9de1d468829",
+          "pcmSha256": "9f0585269a2b8cd8093dc9f91870511e47da69e22c16c9ef1cb7ba3caaf9f10e",
+          "sampleCount": 50240,
+          "durationSeconds": 3.14,
+          "rms": 0.10666688166671433,
+          "rmsDbfs": -19.43940802051259,
+          "peak": 0.999969482421875,
+          "peakDbfs": -0.00026507636037961915,
+          "zeroSampleCount": 182,
+          "fullScaleSampleCount": 7
+        },
+        "offlinePreparedRequests": {
+          "sourceWavSha256": "6b5e9e6cc45d16a80980386541649b1ce9fcd94cf3ad54a49d37cf0fd6e3ed67",
+          "sourceByteLength": 285740,
+          "arms": [
+            {
+              "arm": "audio-linear-full-windows-v1",
+              "processedWavSha256": "39e5b70f1310a6503d6be9704af7c4ce4b518bea91003568c224e8908ca3a065",
+              "processedByteLength": 100524,
+              "sampleRate": 16000,
+              "channels": 1,
+              "bitsPerSample": 16,
+              "sampleCount": 50240,
+              "providerRequestSha256": "cf72f7d3f6a568ca2100ffd1a3f78f005477315c86cf9d04417acf6c802e8ec0",
+              "requestWithoutAudioSha256": "484b9148374542eb5fa8bd0d6b4cb7b35154b812ab5c72f9ea0b55189f38ab68",
+              "policySha256": "e87be3d9d907ae1ab710861181f19ed2bc542fb207c075c3b316797f734ce99c",
+              "confidenceSha256": "7994954960f1355f6f0fe520ad2f5a6552fb3785f6bd900661ff48abae85fdcf",
+              "model": "gemini-2.5-pro",
+              "prompt": "identify_audio_v1",
+              "schema": "merian_audio_v1",
+              "generation": {
+                "temperature": 0.1,
+                "seed": 42,
+                "maxOutputTokens": 8192,
+                "thinkingBudget": 5000
+              }
+            },
+            {
+              "arm": "audio-sinc-partial-tail-v1",
+              "processedWavSha256": "410e61df41cdf01359865e8aa48663bd078a6411a8b1e24d561ac9de1d468829",
+              "processedByteLength": 100524,
+              "sampleRate": 16000,
+              "channels": 1,
+              "bitsPerSample": 16,
+              "sampleCount": 50240,
+              "providerRequestSha256": "eeac1a2b26dabd940b2dc512c5b7e5bde5f4e0a26326c97dc6ca9bcae12e4b5e",
+              "requestWithoutAudioSha256": "484b9148374542eb5fa8bd0d6b4cb7b35154b812ab5c72f9ea0b55189f38ab68",
+              "policySha256": "e87be3d9d907ae1ab710861181f19ed2bc542fb207c075c3b316797f734ce99c",
+              "confidenceSha256": "7994954960f1355f6f0fe520ad2f5a6552fb3785f6bd900661ff48abae85fdcf",
+              "model": "gemini-2.5-pro",
+              "prompt": "identify_audio_v1",
+              "schema": "merian_audio_v1",
+              "generation": {
+                "temperature": 0.1,
+                "seed": 42,
+                "maxOutputTokens": 8192,
+                "thinkingBudget": 5000
+              }
+            }
+          ]
+        },
+        "referencePromoted": false
+      },
+      {
+        "caseId": "c0021",
+        "inputSha256": "196789a6a6344ebff689c1847b88a29a1babda5d5485c17c1161ca7e949a9739",
+        "source": {
+          "sampleCount": 437760,
+          "durationSeconds": 9.926530612244898,
+          "rms": 0.004951992961803701,
+          "rmsDbfs": -46.10439962487988,
+          "peak": 0.02996826171875,
+          "peakDbfs": -30.466768943455364,
+          "zeroSampleCount": 4166,
+          "fullScaleSampleCount": 0
+        },
+        "trim": {
+          "thresholdRms": 0.008,
+          "windowMilliseconds": 20,
+          "padWindows": 2,
+          "windowCount": 497,
+          "activeWindowCount": 33,
+          "maximumWindowRms": 0.012041308187152709,
+          "retainedStartSample": 32634,
+          "retainedEndSampleExclusive": 264600,
+          "retainedSampleCount": 231966,
+          "retainedDurationSeconds": 5.26,
+          "removedSampleCount": 205794
+        },
+        "current": {
+          "sampleRate": 16000,
+          "channels": 1,
+          "byteLength": 168364,
+          "wavSha256": "82a45978b1d42e57c5780232d4131345bb48c069085f2ed0bd61cf6f8bee3769",
+          "pcmSha256": "6ddc3e8b78765f91683a96ca6391df2aaa230e505095afd4d1523552398f6564",
+          "sampleCount": 84160,
+          "durationSeconds": 5.26,
+          "rms": 0.0058861138479031905,
+          "rmsDbfs": -44.60342684256042,
+          "peak": 0.029754638671875,
+          "peakDbfs": -30.52890638522362,
+          "zeroSampleCount": 192,
+          "fullScaleSampleCount": 0
+        },
+        "offlinePreparedRequests": {
+          "sourceWavSha256": "196789a6a6344ebff689c1847b88a29a1babda5d5485c17c1161ca7e949a9739",
+          "sourceByteLength": 875564,
+          "arms": [
+            {
+              "arm": "audio-linear-full-windows-v1",
+              "processedWavSha256": "d6849cff6eaf87ce36b9cbdfbf6f34ffde1e48869ebfd4f2343cd4bc5ad87d16",
+              "processedByteLength": 168364,
+              "sampleRate": 16000,
+              "channels": 1,
+              "bitsPerSample": 16,
+              "sampleCount": 84160,
+              "providerRequestSha256": "f27013e68287d55565b6c2cf02d086965d98402b30a79b656765928892bec1b9",
+              "requestWithoutAudioSha256": "484b9148374542eb5fa8bd0d6b4cb7b35154b812ab5c72f9ea0b55189f38ab68",
+              "policySha256": "e87be3d9d907ae1ab710861181f19ed2bc542fb207c075c3b316797f734ce99c",
+              "confidenceSha256": "7994954960f1355f6f0fe520ad2f5a6552fb3785f6bd900661ff48abae85fdcf",
+              "model": "gemini-2.5-pro",
+              "prompt": "identify_audio_v1",
+              "schema": "merian_audio_v1",
+              "generation": {
+                "temperature": 0.1,
+                "seed": 42,
+                "maxOutputTokens": 8192,
+                "thinkingBudget": 5000
+              }
+            },
+            {
+              "arm": "audio-sinc-partial-tail-v1",
+              "processedWavSha256": "82a45978b1d42e57c5780232d4131345bb48c069085f2ed0bd61cf6f8bee3769",
+              "processedByteLength": 168364,
+              "sampleRate": 16000,
+              "channels": 1,
+              "bitsPerSample": 16,
+              "sampleCount": 84160,
+              "providerRequestSha256": "35fc09d01de8e68408e9af97342fb59cf8a50ad480de89c786932a534b5c4936",
+              "requestWithoutAudioSha256": "484b9148374542eb5fa8bd0d6b4cb7b35154b812ab5c72f9ea0b55189f38ab68",
+              "policySha256": "e87be3d9d907ae1ab710861181f19ed2bc542fb207c075c3b316797f734ce99c",
+              "confidenceSha256": "7994954960f1355f6f0fe520ad2f5a6552fb3785f6bd900661ff48abae85fdcf",
+              "model": "gemini-2.5-pro",
+              "prompt": "identify_audio_v1",
+              "schema": "merian_audio_v1",
+              "generation": {
+                "temperature": 0.1,
+                "seed": 42,
+                "maxOutputTokens": 8192,
+                "thinkingBudget": 5000
+              }
+            }
+          ]
+        },
+        "referencePromoted": false
+      },
+      {
+        "caseId": "c0022",
+        "inputSha256": "5370a491b7d3fb1af3effe9020ace11305a349e2c979cab7a411dcb73869e409",
+        "source": {
+          "sampleCount": 92160,
+          "durationSeconds": 2.089795918367347,
+          "rms": 0.06908734345941092,
+          "rmsDbfs": -23.212030128982395,
+          "peak": 0.997955322265625,
+          "peakDbfs": -0.01777802651374401,
+          "zeroSampleCount": 2706,
+          "fullScaleSampleCount": 0
+        },
+        "trim": {
+          "thresholdRms": 0.008,
+          "windowMilliseconds": 20,
+          "padWindows": 2,
+          "windowCount": 105,
+          "activeWindowCount": 53,
+          "maximumWindowRms": 0.31242845807184544,
+          "retainedStartSample": 4410,
+          "retainedEndSampleExclusive": 75852,
+          "retainedSampleCount": 71442,
+          "retainedDurationSeconds": 1.62,
+          "removedSampleCount": 20718
+        },
+        "current": {
+          "sampleRate": 16000,
+          "channels": 1,
+          "byteLength": 51884,
+          "wavSha256": "bbfe4bf93af4c0c17f470443336c1357337f22b2ab9be16c5d08945cc42a344c",
+          "pcmSha256": "42af41fbabd730ebfd698fd6d16a157566ebc7278ed21bb7b64e21826872278c",
+          "sampleCount": 25920,
+          "durationSeconds": 1.62,
+          "rms": 0.07845781443613135,
+          "rmsDbfs": -22.107275879660705,
+          "peak": 0.996551513671875,
+          "peakDbfs": -0.030004937258847,
+          "zeroSampleCount": 28,
+          "fullScaleSampleCount": 0
+        },
+        "offlinePreparedRequests": {
+          "sourceWavSha256": "5370a491b7d3fb1af3effe9020ace11305a349e2c979cab7a411dcb73869e409",
+          "sourceByteLength": 184364,
+          "arms": [
+            {
+              "arm": "audio-linear-full-windows-v1",
+              "processedWavSha256": "46520ad4a1623179b1722f1ab972fa47a47cd667b4c7b85712e5534176e7b36a",
+              "processedByteLength": 51884,
+              "sampleRate": 16000,
+              "channels": 1,
+              "bitsPerSample": 16,
+              "sampleCount": 25920,
+              "providerRequestSha256": "9db3871490cb72635edf85d24bfbd29dac873c56c828205939a971f2a4f28fd5",
+              "requestWithoutAudioSha256": "484b9148374542eb5fa8bd0d6b4cb7b35154b812ab5c72f9ea0b55189f38ab68",
+              "policySha256": "e87be3d9d907ae1ab710861181f19ed2bc542fb207c075c3b316797f734ce99c",
+              "confidenceSha256": "7994954960f1355f6f0fe520ad2f5a6552fb3785f6bd900661ff48abae85fdcf",
+              "model": "gemini-2.5-pro",
+              "prompt": "identify_audio_v1",
+              "schema": "merian_audio_v1",
+              "generation": {
+                "temperature": 0.1,
+                "seed": 42,
+                "maxOutputTokens": 8192,
+                "thinkingBudget": 5000
+              }
+            },
+            {
+              "arm": "audio-sinc-partial-tail-v1",
+              "processedWavSha256": "bbfe4bf93af4c0c17f470443336c1357337f22b2ab9be16c5d08945cc42a344c",
+              "processedByteLength": 51884,
+              "sampleRate": 16000,
+              "channels": 1,
+              "bitsPerSample": 16,
+              "sampleCount": 25920,
+              "providerRequestSha256": "56ddeb467223ae6a1a12bfaf1ea1d815894de3f1d0e98a47ddbd05840b8dd1bf",
+              "requestWithoutAudioSha256": "484b9148374542eb5fa8bd0d6b4cb7b35154b812ab5c72f9ea0b55189f38ab68",
+              "policySha256": "e87be3d9d907ae1ab710861181f19ed2bc542fb207c075c3b316797f734ce99c",
+              "confidenceSha256": "7994954960f1355f6f0fe520ad2f5a6552fb3785f6bd900661ff48abae85fdcf",
+              "model": "gemini-2.5-pro",
+              "prompt": "identify_audio_v1",
+              "schema": "merian_audio_v1",
+              "generation": {
+                "temperature": 0.1,
+                "seed": 42,
+                "maxOutputTokens": 8192,
+                "thinkingBudget": 5000
+              }
+            }
+          ]
+        },
+        "referencePromoted": false
+      },
+      {
+        "caseId": "c0023",
+        "inputSha256": "4ee517d08701c5f7cebd4a9b7c2f4029351f72fb079cbbb72106dd2d04f51a0f",
+        "source": {
+          "sampleCount": 218880,
+          "durationSeconds": 4.963265306122449,
+          "rms": 0.0025198352695155403,
+          "rmsDbfs": -51.97255699293112,
+          "peak": 0.040008544921875,
+          "peakDbfs": -27.95694486539267,
+          "zeroSampleCount": 7997,
+          "fullScaleSampleCount": 0
+        },
+        "trim": {
+          "thresholdRms": 0.008,
+          "windowMilliseconds": 20,
+          "padWindows": 2,
+          "windowCount": 249,
+          "activeWindowCount": 0,
+          "maximumWindowRms": 0.004628649345089704,
+          "retainedStartSample": 0,
+          "retainedEndSampleExclusive": 218880,
+          "retainedSampleCount": 218880,
+          "retainedDurationSeconds": 4.963265306122449,
+          "removedSampleCount": 0
+        },
+        "current": {
+          "sampleRate": 16000,
+          "channels": 1,
+          "byteLength": 158868,
+          "wavSha256": "12d57d18a270203f3765cddc3312666892c7c1e5169ce451b24eca0a1d005bbb",
+          "pcmSha256": "4de38b10c5a848f5626e2e281ef3111011b307dff3ed112a909d0c4d7951ac4f",
+          "sampleCount": 79412,
+          "durationSeconds": 4.96325,
+          "rms": 0.002372018858211998,
+          "rmsDbfs": -52.49763725063397,
+          "peak": 0.032684326171875,
+          "peakDbfs": -29.713209282557248,
+          "zeroSampleCount": 2898,
+          "fullScaleSampleCount": 0
+        },
+        "offlinePreparedRequests": {
+          "sourceWavSha256": "4ee517d08701c5f7cebd4a9b7c2f4029351f72fb079cbbb72106dd2d04f51a0f",
+          "sourceByteLength": 437804,
+          "arms": [
+            {
+              "arm": "audio-linear-full-windows-v1",
+              "processedWavSha256": "78aeef45459a6459e3452089863a1809793e77e8360c47f38d866c36e10cdb72",
+              "processedByteLength": 158764,
+              "sampleRate": 16000,
+              "channels": 1,
+              "bitsPerSample": 16,
+              "sampleCount": 79360,
+              "providerRequestSha256": "0b94f1d0ff30a8b707ea8d34e36462b50521d7dd30eeaa3f960c5a0333a11357",
+              "requestWithoutAudioSha256": "484b9148374542eb5fa8bd0d6b4cb7b35154b812ab5c72f9ea0b55189f38ab68",
+              "policySha256": "e87be3d9d907ae1ab710861181f19ed2bc542fb207c075c3b316797f734ce99c",
+              "confidenceSha256": "7994954960f1355f6f0fe520ad2f5a6552fb3785f6bd900661ff48abae85fdcf",
+              "model": "gemini-2.5-pro",
+              "prompt": "identify_audio_v1",
+              "schema": "merian_audio_v1",
+              "generation": {
+                "temperature": 0.1,
+                "seed": 42,
+                "maxOutputTokens": 8192,
+                "thinkingBudget": 5000
+              }
+            },
+            {
+              "arm": "audio-sinc-partial-tail-v1",
+              "processedWavSha256": "12d57d18a270203f3765cddc3312666892c7c1e5169ce451b24eca0a1d005bbb",
+              "processedByteLength": 158868,
+              "sampleRate": 16000,
+              "channels": 1,
+              "bitsPerSample": 16,
+              "sampleCount": 79412,
+              "providerRequestSha256": "2e8ab3dcdd5b74373faeccf106f79a83994fb215181ed6e9658c2c93cf7771d8",
+              "requestWithoutAudioSha256": "484b9148374542eb5fa8bd0d6b4cb7b35154b812ab5c72f9ea0b55189f38ab68",
+              "policySha256": "e87be3d9d907ae1ab710861181f19ed2bc542fb207c075c3b316797f734ce99c",
+              "confidenceSha256": "7994954960f1355f6f0fe520ad2f5a6552fb3785f6bd900661ff48abae85fdcf",
+              "model": "gemini-2.5-pro",
+              "prompt": "identify_audio_v1",
+              "schema": "merian_audio_v1",
+              "generation": {
+                "temperature": 0.1,
+                "seed": 42,
+                "maxOutputTokens": 8192,
+                "thinkingBudget": 5000
+              }
+            }
+          ]
+        },
+        "referencePromoted": false
+      },
+      {
+        "caseId": "c0024",
+        "inputSha256": "694d5a5feaafe50c9147b9d2249ab59e710935efb99d16c09001af8787464c60",
+        "source": {
+          "sampleCount": 238464,
+          "durationSeconds": 5.40734693877551,
+          "rms": 0.21754881301415002,
+          "rmsDbfs": -13.24886563908799,
+          "peak": 0.99560546875,
+          "peakDbfs": -0.03825453051306293,
+          "zeroSampleCount": 1900,
+          "fullScaleSampleCount": 0
+        },
+        "trim": {
+          "thresholdRms": 0.008,
+          "windowMilliseconds": 20,
+          "padWindows": 2,
+          "windowCount": 271,
+          "activeWindowCount": 266,
+          "maximumWindowRms": 0.36378125657158206,
+          "retainedStartSample": 0,
+          "retainedEndSampleExclusive": 237258,
+          "retainedSampleCount": 237258,
+          "retainedDurationSeconds": 5.38,
+          "removedSampleCount": 1206
+        },
+        "current": {
+          "sampleRate": 16000,
+          "channels": 1,
+          "byteLength": 172204,
+          "wavSha256": "65f15be292427e349694122a12980b8219883fc632b1c3823844b265b6bf470a",
+          "pcmSha256": "11972b68edf91c1328af758ed5bee263078578fc7cd0daec65d59db739d420c6",
+          "sampleCount": 86080,
+          "durationSeconds": 5.38,
+          "rms": 0.21804868229734756,
+          "rmsDbfs": -13.228930669856489,
+          "peak": 0.98516845703125,
+          "peakDbfs": -0.1297900356553149,
+          "zeroSampleCount": 270,
+          "fullScaleSampleCount": 0
+        },
+        "offlinePreparedRequests": {
+          "sourceWavSha256": "694d5a5feaafe50c9147b9d2249ab59e710935efb99d16c09001af8787464c60",
+          "sourceByteLength": 476972,
+          "arms": [
+            {
+              "arm": "audio-linear-full-windows-v1",
+              "processedWavSha256": "1e5d3bf2fdbdb456054625d0c0241ed0c76229b8258fbce6b95a7b79d8a02471",
+              "processedByteLength": 172204,
+              "sampleRate": 16000,
+              "channels": 1,
+              "bitsPerSample": 16,
+              "sampleCount": 86080,
+              "providerRequestSha256": "14c72f25e78837bb2073e96aa28cc5e3cc498dbd50a72f2de126aaa006ca502e",
+              "requestWithoutAudioSha256": "484b9148374542eb5fa8bd0d6b4cb7b35154b812ab5c72f9ea0b55189f38ab68",
+              "policySha256": "e87be3d9d907ae1ab710861181f19ed2bc542fb207c075c3b316797f734ce99c",
+              "confidenceSha256": "7994954960f1355f6f0fe520ad2f5a6552fb3785f6bd900661ff48abae85fdcf",
+              "model": "gemini-2.5-pro",
+              "prompt": "identify_audio_v1",
+              "schema": "merian_audio_v1",
+              "generation": {
+                "temperature": 0.1,
+                "seed": 42,
+                "maxOutputTokens": 8192,
+                "thinkingBudget": 5000
+              }
+            },
+            {
+              "arm": "audio-sinc-partial-tail-v1",
+              "processedWavSha256": "65f15be292427e349694122a12980b8219883fc632b1c3823844b265b6bf470a",
+              "processedByteLength": 172204,
+              "sampleRate": 16000,
+              "channels": 1,
+              "bitsPerSample": 16,
+              "sampleCount": 86080,
+              "providerRequestSha256": "aceb1c2f79f551d97ed09b3bc35aafcfd4523fef18a1a5b3c668fbfac5454ad6",
+              "requestWithoutAudioSha256": "484b9148374542eb5fa8bd0d6b4cb7b35154b812ab5c72f9ea0b55189f38ab68",
+              "policySha256": "e87be3d9d907ae1ab710861181f19ed2bc542fb207c075c3b316797f734ce99c",
+              "confidenceSha256": "7994954960f1355f6f0fe520ad2f5a6552fb3785f6bd900661ff48abae85fdcf",
+              "model": "gemini-2.5-pro",
+              "prompt": "identify_audio_v1",
+              "schema": "merian_audio_v1",
+              "generation": {
+                "temperature": 0.1,
+                "seed": 42,
+                "maxOutputTokens": 8192,
+                "thinkingBudget": 5000
+              }
+            }
+          ]
+        },
+        "referencePromoted": false
+      }
+    ],
+    "preparedRequestCount": 12,
+    "requestBodiesRetained": false,
+    "mediaDerivativesRetained": false,
+    "providerCalls": 0,
+    "newAppSubmissions": 0,
+    "limits": [
+      "The canonical prepared source is supplied directly to backend helpers; iOS re-encoding is not reproduced.",
+      "Fixed-context request hashes describe new offline preparations, not historical production requests.",
+      "Signal measurements do not identify a species or prove the absence of biological sound.",
+      "Legacy/current offline differences do not establish identification causality."
+    ]
+  },
+  "contractTrace": {
+    "version": "audio_confidence_contract_trace_v1",
+    "checkedAt": "2026-09-24T06:05:18.191Z",
+    "checkoutRevision": "dfb1408e98298b8b9d60f22b3b6ed1e4706e41a5",
+    "inspectedCode": [
+      {
+        "repositoryRelativePath": "services/supabase/functions/_shared/audioProcessing.ts",
+        "sha256": "69601412422152a62095358838a1b7be4a6ab4cca2a27bb601f0287266b6d5b6",
+        "baselineRevision": "6b961a4e702fc06ec91cad624790cd36b52f2f2c",
+        "matchesBaselineAndCheckoutHead": true
+      },
+      {
+        "repositoryRelativePath": "services/supabase/functions/audio-spec/wav.ts",
+        "sha256": "b8f3fbf2aed80b4873a82f32d1271476426f2411d4ab17138a810b2041a5dfdc",
+        "baselineRevision": "6b961a4e702fc06ec91cad624790cd36b52f2f2c",
+        "matchesBaselineAndCheckoutHead": true
+      },
+      {
+        "repositoryRelativePath": "services/supabase/functions/audio-spec/resample.ts",
+        "sha256": "697a29cd6e937d08d7bbf6a5d9df7d32589227a21034db119feb43a723d45de1",
+        "baselineRevision": "6b961a4e702fc06ec91cad624790cd36b52f2f2c",
+        "matchesBaselineAndCheckoutHead": true
+      },
+      {
+        "repositoryRelativePath": "services/supabase/functions/identify-multimodal/audio.ts",
+        "sha256": "ff70036c97f6110b20824d7cfbc4f38b5cc92367d9d8acec95f9f5ce3f852706",
+        "baselineRevision": "6b961a4e702fc06ec91cad624790cd36b52f2f2c",
+        "matchesBaselineAndCheckoutHead": true
+      },
+      {
+        "repositoryRelativePath": "services/supabase/functions/identify-multimodal/comparison/audio.ts",
+        "sha256": "56d0091c4d8800bfd34abf365d77285ef9e4352253841e6a820b5f753cf74a59",
+        "baselineRevision": "6b961a4e702fc06ec91cad624790cd36b52f2f2c",
+        "matchesBaselineAndCheckoutHead": true
+      },
+      {
+        "repositoryRelativePath": "services/supabase/functions/identify-multimodal/comparison/legacyAudio.ts",
+        "sha256": "9943f7e17eabc208df541b42723164696287dde2630527e55aae4a8dc391e183",
+        "baselineRevision": "6b961a4e702fc06ec91cad624790cd36b52f2f2c",
+        "matchesBaselineAndCheckoutHead": true
+      },
+      {
+        "repositoryRelativePath": "services/supabase/functions/identify-multimodal/provider.ts",
+        "sha256": "0f88e88c80aef67888d2ff5356974f6f5ccb9cabe9400e76b05bb531eedca49f",
+        "baselineRevision": "6b961a4e702fc06ec91cad624790cd36b52f2f2c",
+        "matchesBaselineAndCheckoutHead": true
+      },
+      {
+        "repositoryRelativePath": "services/supabase/functions/_shared/identify/contract.ts",
+        "sha256": "13c33719b52637819156d5124e5e920d01ef46e271db72fd93462fae171667f4",
+        "baselineRevision": "6b961a4e702fc06ec91cad624790cd36b52f2f2c",
+        "matchesBaselineAndCheckoutHead": true
+      },
+      {
+        "repositoryRelativePath": "services/supabase/functions/_shared/identify/audioSubjectPolicy.ts",
+        "sha256": "bdf1cdcddfb7579e63ebdec48649dbb186ccaa312a3e915303cd98dc8fccd556",
+        "baselineRevision": "6b961a4e702fc06ec91cad624790cd36b52f2f2c",
+        "matchesBaselineAndCheckoutHead": true
+      },
+      {
+        "repositoryRelativePath": "services/supabase/functions/_shared/ai/registry.ts",
+        "sha256": "d470af3e7ebea8a23676a8e08773f293a0b270a33a3a0fe7c3e325cfc0b3d045",
+        "baselineRevision": "6b961a4e702fc06ec91cad624790cd36b52f2f2c",
+        "matchesBaselineAndCheckoutHead": true
+      },
+      {
+        "repositoryRelativePath": "services/supabase/functions/_shared/ai/geminiRequest.ts",
+        "sha256": "b993b6630649636922643845673ddc0d2d3a7b1062f84e618a88c0745b9fa61c",
+        "baselineRevision": "6b961a4e702fc06ec91cad624790cd36b52f2f2c",
+        "matchesBaselineAndCheckoutHead": true
+      },
+      {
+        "repositoryRelativePath": "services/supabase/scripts/identification_evaluation/audioComparison.ts",
+        "sha256": "9a6f006b274667f6865397dcc29e656c8f085b30f1fa23421c70af19799eaac1",
+        "baselineRevision": "6b961a4e702fc06ec91cad624790cd36b52f2f2c",
+        "matchesBaselineAndCheckoutHead": true
+      },
+      {
+        "repositoryRelativePath": "services/supabase/functions/identify-multimodal/instructions.ts",
+        "sha256": "752d0bf97042b57f361d4c34c4e28ba55f66e7765aa4a7db0558285f4090b772",
+        "baselineRevision": "6b961a4e702fc06ec91cad624790cd36b52f2f2c",
+        "matchesBaselineAndCheckoutHead": true
+      },
+      {
+        "repositoryRelativePath": "services/supabase/functions/audio-spec/instructions.ts",
+        "sha256": "bbb948b19bdbf0aa48c9f938a69b06f842697293551ff30f3d083fbae07cc9fc",
+        "baselineRevision": "6b961a4e702fc06ec91cad624790cd36b52f2f2c",
+        "matchesBaselineAndCheckoutHead": true
+      },
+      {
+        "repositoryRelativePath": "services/supabase/functions/_shared/identify/normalizeIdentification.ts",
+        "sha256": "8d4654f49cfa735fac50d53314f8e86e47dbf1e370be9f7ce31016ddcaba3f99",
+        "baselineRevision": "6b961a4e702fc06ec91cad624790cd36b52f2f2c",
+        "matchesBaselineAndCheckoutHead": true
+      },
+      {
+        "repositoryRelativePath": "services/supabase/functions/_shared/identify/thresholds.ts",
+        "sha256": "658cb9b056e3ad3f3cf618ac18ee6e792d8a2267d35bea7f59167bcc87ad443b",
+        "baselineRevision": "6b961a4e702fc06ec91cad624790cd36b52f2f2c",
+        "matchesBaselineAndCheckoutHead": true
+      },
+      {
+        "repositoryRelativePath": "apps/ios/Merian/Core/AI/Models/SpeciesData+EdgeResponse.swift",
+        "sha256": "f57aa81e6f8d7114429c7734559165deaaabf9e0fde1444dcf9531e22efba69b",
+        "baselineRevision": "fdfb142b6fcb96e6ae8f3c46a561015064c93cd2",
+        "matchesBaselineAndCheckoutHead": true
+      },
+      {
+        "repositoryRelativePath": "apps/ios/Merian/Core/AI/Inference/Result/InferenceConfidencePolicy.swift",
+        "sha256": "8b7b5bfcd489fe273874111c005c6b7102f1a3959d77ab39a83f8647dcafc0d3",
+        "baselineRevision": "fdfb142b6fcb96e6ae8f3c46a561015064c93cd2",
+        "matchesBaselineAndCheckoutHead": true
+      },
+      {
+        "repositoryRelativePath": "apps/ios/Merian/Models/Species/SpeciesData+Presentation.swift",
+        "sha256": "470d39e05f1fcde09714e80be1febee775b0ccf123f84151803cf896330f4361",
+        "baselineRevision": "fdfb142b6fcb96e6ae8f3c46a561015064c93cd2",
+        "matchesBaselineAndCheckoutHead": true
+      },
+      {
+        "repositoryRelativePath": "apps/ios/Merian/Features/Insights/IdentificationReview/Confidence/Models/ConfidenceReviewPresentation.swift",
+        "sha256": "149f36152a6c3f7c57db279f9e24c4557ac0ddc4beddfbc57b42dac8325697b1",
+        "baselineRevision": "fdfb142b6fcb96e6ae8f3c46a561015064c93cd2",
+        "matchesBaselineAndCheckoutHead": true
+      },
+      {
+        "repositoryRelativePath": "apps/ios/Merian/Features/Insights/Content/Views/BiologicalView.swift",
+        "sha256": "9ea350fc9bf04b9a33bfab376e4253e5010570b6fda86792c5de417aaa6557b1",
+        "baselineRevision": "fdfb142b6fcb96e6ae8f3c46a561015064c93cd2",
+        "matchesBaselineAndCheckoutHead": true
+      },
+      {
+        "repositoryRelativePath": "apps/ios/Merian/Core/Media/InferenceAudioPreparer.swift",
+        "sha256": "0b67ea6ed791b8374686ea9d25e47a52c8633c483a4604ed4acee9b1b7c49063",
+        "baselineRevision": "fdfb142b6fcb96e6ae8f3c46a561015064c93cd2",
+        "matchesBaselineAndCheckoutHead": true
+      }
+    ],
+    "appSourceRevision": "fdfb142b6fcb96e6ae8f3c46a561015064c93cd2",
+    "backendSourceBaseline": "6b961a4e702fc06ec91cad624790cd36b52f2f2c",
+    "priorObservedBackendBundle": "a5939b36fd43dcf1fbfb7f5ee01875d3888a313e66af8756e79fb04f19694b2c",
+    "newHostedDeploymentInspection": false,
+    "finding": "Audio subject-classification confidence is exposed as species-match confidence for a resolved identity.",
+    "smallestProposedCorrection": "Define confidence by the existing audio result state; resolved taxon and Human identity confidence are distinct from unresolved animal-presence confidence.",
+    "newPublicFieldsRequiredForCurrentUI": false,
+    "humanBadgeCurrentlySuppressed": false,
+    "rawScoreForOriginalRainResult": null,
+    "rainRootCauseEstablished": false,
+    "fieldTripEligibilityIntegrationProofRequired": true,
+    "invalidFieldTripCreditObserved": false,
+    "runtimeChangeImplemented": false
+  },
+  "verification": {
+    "version": "audio_rain_diagnostic_verification_v1",
+    "checkedAt": "2026-09-24T06:05:18.241Z",
+    "priorPackets": [
+      {
+        "packet": "2026-09-24-audio-reference-and-expansion-v1",
+        "filesVerified": 29,
+        "freezeSha256": "f22d71d787ea593e6daab38f735311b40084dfa0c8e6b4a0e6a341c85bc65532"
+      },
+      {
+        "packet": "2026-09-24-audio-expansion-app-v1",
+        "filesVerified": 64,
+        "freezeSha256": "88b76f5e3039a00cf339e7c23b2907cc9436af242f6fa2abace8cef0c2ec474c"
+      }
+    ],
+    "stagingBindings": [
+      {
+        "caseId": "c0019",
+        "inputSha256": "2356a662632ce43f88c1ae0773f65960c4ffb0ba8744f3aebc51f12c12fb40e1",
+        "stagingRecordBoundToInput": true,
+        "historicalProviderBytesAttested": false
+      },
+      {
+        "caseId": "c0022",
+        "inputSha256": "5370a491b7d3fb1af3effe9020ace11305a349e2c979cab7a411dcb73869e409",
+        "stagingRecordBoundToInput": true,
+        "historicalProviderBytesAttested": false
+      },
+      {
+        "caseId": "c0023",
+        "inputSha256": "4ee517d08701c5f7cebd4a9b7c2f4029351f72fb079cbbb72106dd2d04f51a0f",
+        "stagingRecordBoundToInput": true,
+        "historicalProviderBytesAttested": false
+      }
+    ],
+    "focusedExistingTests": {
+      "passed": 38,
+      "failed": 0,
+      "networkAccess": "denied",
+      "environmentAccess": "denied",
+      "files": [
+        "services/supabase/functions/_shared/identify/audioSubjectPolicy_test.ts",
+        "services/supabase/functions/_shared/identify/contract_test.ts",
+        "services/supabase/functions/_shared/audioProcessing_test.ts",
+        "services/supabase/functions/audio-spec/wav_test.ts"
+      ]
+    },
+    "biologicalReferencesPromoted": 0,
+    "newAppSubmissions": 0,
+    "newProviderCalls": 0,
+    "newProductionMutations": 0,
+    "nativeSuiteRun": false,
+    "fullBackendSuiteRun": false,
+    "physicalCaptureVerified": false
+  },
+  "privatePacket": "2026-09-24-audio-rain-diagnostic-v1",
+  "privateFreezeSha256": "47bc28ddbc350b3c42b5d59cf3984b2c5d26eab20cbfd3cb77a8e4e399a5c2d0",
+  "privateFileCount": 7,
+  "privateFiles": [
+    {
+      "path": "contract-trace.json",
+      "sha256": "90a50421508b3e701f5f10e842e67bfdd12749c7bf6a3347f1244968ce8a0f10",
+      "byteLength": 7910
+    },
+    {
+      "path": "processing-audit.json",
+      "sha256": "11ac0e969e486fb2d67ed06546378186013def120da741c856f7a3684208f6b7",
+      "byteLength": 25741
+    },
+    {
+      "path": "source-audit.json",
+      "sha256": "7d11c93a3c3e460cf46a48e32052614338cdf4e3e2c49f405bc2d8a8eb6d3917",
+      "byteLength": 4915
+    },
+    {
+      "path": "tools/finalize.py",
+      "sha256": "130dc070410b73510670b9f45f14fce63e646a212b1ccc5f4ae6a7cf4d983461",
+      "byteLength": 7918
+    },
+    {
+      "path": "tools/processing-audit.ts",
+      "sha256": "ebefb1b96c19b7dee62d993a83e8598a2e5885766ff252778ce8c3ded6d05bd4",
+      "byteLength": 6463
+    },
+    {
+      "path": "tools/source-audit.py",
+      "sha256": "4c9a714eb1bb87df73f3401cf44e58070972b7694d63a29075feee0bd7c34f16",
+      "byteLength": 6428
+    },
+    {
+      "path": "verification.json",
+      "sha256": "a877d11a56124a040cb5b597acd9b1828cb0ca9896c4ad3145320ae42486bfaa",
+      "byteLength": 1819
+    }
+  ],
+  "retentionThrough": "2026-10-24",
+  "directoryMode": "0700",
+  "fileMode": "0600"
+}
