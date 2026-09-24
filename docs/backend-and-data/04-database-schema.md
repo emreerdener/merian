@@ -3784,6 +3784,17 @@ coordinates to the client contract.
   boundary. Null and out-of-range scores fail unless confirmation overrides
   them. Execute is denied to `PUBLIC`, `anon`, `authenticated`, and
   `service_role`.
+- `public.field_trip_scan_evidence_is_eligible(candidate public.scans)`: Private
+  stable invoker used by both progress wrappers. Requires a non-tombstoned,
+  non-explicitly-non-biological scan with resolved effective taxonomy, excludes
+  Human taxonomy/overrides and unresolved names, then applies the unchanged
+  scalar confidence helper. Confirmation cannot override the subject guard.
+  Execute is denied to all API roles. Migration
+  `20260924062640_gate_field_trip_progress_by_subject.sql` adds the override to
+  the atomic revision/update trigger and repairs affected historical
+  credit/receipts using the existing reconciliation helpers with ten-second lock
+  and five-minute statement timeouts. Valid receipts and selected-goal
+  preferences are preserved.
 - `public.remove_ineligible_field_trip_scan_progress(self_id UUID, target_scan_id UUID)`
   and
   `public.remove_ineligible_field_trip_challenge_scan_progress(self_id UUID, target_scan_id UUID)`:
@@ -3800,9 +3811,10 @@ coordinates to the client contract.
   outing and joined Event progress, persists the validated preference, evaluates
   the first Field trip achievement, and writes the receipt in the same
   transaction. Confidence, inference tier, and explicit confirmation are part of
-  the scan revision. Any error rolls back every component. Scan-ingestion and
-  evidence-changing correction triggers call this function; the Edge progress
-  action calls it again to retrieve the response for notifications.
+  the scan revision, along with `user_identification_override`. Any error rolls
+  back every component. Scan-ingestion and evidence-changing correction triggers
+  call this function; the Edge progress action calls it again to retrieve the
+  response for notifications.
 - `public.get_first_field_trip_achievement_progress(self_id UUID)`: Private
   `SECURITY INVOKER` achievement projection executable only by `service_role`.
   The repair migration adds that role's missing read access to

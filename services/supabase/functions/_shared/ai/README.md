@@ -85,6 +85,16 @@ confidence-threshold settings independently of that model string.
 | Images/snapshots and WAV audio | Existing blended instruction         | Main Identify       |
 | Description only               | Existing main-route text instruction | Main Identify       |
 
+Audio-only assignments bind `identify_audio_v2`, `merian_audio_v2`, and
+`gemini_audio_v2`; compatibility audio binds `identify_audio_compat_v2`,
+`merian_audio_v2`, and `gemini_audio_compat_v2`. The shared
+`AUDIO_CONFIDENCE_DESCRIPTION` in the executable contract defines taxon
+confidence for named animals, presence confidence for unresolved wildlife, Human
+identity confidence, and non-biological source-classification confidence.
+Numeric thresholds, models and generation settings retain their existing values.
+Evaluator policy, prompt and schema digests distinguish these semantics from
+historical V1 results.
+
 The main text profile is distinct from the legacy description profile above.
 `identify-multimodal/provider.ts` preserves observation text, visual-context
 text, ordered images, ordered processed WAVs, and capture-context text in that

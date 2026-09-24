@@ -204,3 +204,9 @@ The diagnostic itself passed an independent read-only review. Markdown
 formatting, 184 local link targets, JSON/privacy-key checks, public/private
 record equality, all seven new frozen files and 22 inspected code hashes passed
 verification.
+
+## Implementation follow-up
+
+The separately authorized implementation is recorded in
+[audio confidence V2](./identification-audio-confidence-v2-2026-09-24.md). The
+diagnostic evidence and original benchmark results above remain unchanged.

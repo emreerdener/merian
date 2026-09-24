@@ -47,6 +47,16 @@ and native provider duration. Scan-row usage meanings are unchanged, including
 null cached tokens for this route even when provider usage includes a cache
 count.
 
+## Audio Confidence V2
+
+The compatibility assignment uses `identify_audio_compat_v2`, `merian_audio_v2`,
+and `gemini_audio_compat_v2`. Named animals score acoustic support for the
+returned taxon; unresolved wildlife scores presence, Human scores Human
+identity, and non-biological audio scores its source classification. The
+prompt/schema definition is shared with primary audio. The compatibility
+candidate cutoff remains `0.95`; primary audio retains `0.99`. No stored or
+replayed score is changed.
+
 ## Subject Selection Compatibility
 
 This route imports the same `_shared/identify/audioSubjectPolicy.ts`

@@ -144,8 +144,8 @@ export interface AIAttemptSnapshot {
   readonly prompt:
     | "identify_describe_v1"
     | "identify_vision_v1"
-    | "identify_audio_v1"
-    | "identify_audio_compat_v1"
+    | "identify_audio_v2"
+    | "identify_audio_compat_v2"
     | "identify_text_v1"
     | "identify_blended_v1"
     | "species_overview_v1"
@@ -154,15 +154,16 @@ export interface AIAttemptSnapshot {
   readonly schema:
     | "merian_describe_v1"
     | "merian_identify_v1"
-    | "merian_audio_v1"
+    | "merian_audio_v2"
     | "species_overview_v1"
     | "lookalikes_v1"
     | "group_tags_v1";
   readonly confidence:
     | "gemini_describe_v1"
     | "gemini_identify_v1"
+    | "gemini_audio_v2"
     | "gemini_vision_compat_v1"
-    | "gemini_audio_compat_v1"
+    | "gemini_audio_compat_v2"
     | null;
   readonly diagnosticTrigger?: number;
   // Legacy vision binds its prompt to the model and schema to the admitted tier.

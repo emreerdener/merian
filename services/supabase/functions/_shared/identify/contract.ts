@@ -512,6 +512,10 @@ const audioImageQualityContract = object(
   },
 );
 
+/** One definition shared by the audio schema and both audio-only prompts. */
+export const AUDIO_CONFIDENCE_DESCRIPTION =
+  "Confidence (0.0–1.0) has a different target for each audio_subject_type. For identified_non_human, score confidence in the returned scientific_name from diagnostic acoustic evidence, not merely confidence that an animal is present. Similar plausible taxa, obscured calls, or insufficient diagnostic detail must lower taxon confidence. Location, season, habitat, or local abundance may help choose among plausible taxa but must not inflate this score. If non-human animal presence is clear but the audible evidence cannot support a taxon, use unidentified_non_human and omit scientific_name rather than attach a presence score to a guessed species. For unidentified_non_human, score confidence in non-human animal presence only; a high score does not resolve its taxonomy. For human_only, score confidence in the returned Human identity, without inferring human sex or gender. For no_confident_biological_source, score confidence in that source-classification decision, never confidence in a species. These are model estimates, not calibrated probabilities.";
+
 /**
  * Private structured-output contract for audio-only provider calls. The
  * audio_subject_type discriminator is consumed and removed before the public
@@ -564,8 +568,7 @@ export const merianAudioModelContract = deepFreezeJson(object(
     ),
     confidence_score: field(
       decimal(0, 1, {
-        description:
-          "Confidence in the selected audio subject classification. Species uncertainty may lower taxonomic confidence but must not erase confident non-human animal presence.",
+        description: AUDIO_CONFIDENCE_DESCRIPTION,
       }),
       true,
     ),

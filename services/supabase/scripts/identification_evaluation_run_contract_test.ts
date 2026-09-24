@@ -473,3 +473,29 @@ Deno.test("reviewed intervals handle hand-computed extremes, paired ordering and
     pairedInterval([rate(0, 1), rate(1, 1)], [rate(1, 1), rate(0, 1)]),
   );
 });
+
+Deno.test("evaluation records audio v2 semantics while retaining tier thresholds and generation", async () => {
+  const audioRequest: MultimodalAIRequest = {
+    ...request,
+    evidence: [{
+      kind: "audio",
+      order: 0,
+      inputIndex: 0,
+      lineage: null,
+      data: "Ag==",
+      mimeType: "audio/wav",
+    }],
+  };
+  for (const profile of ["gemini_flash_free", "gemini_pro"] as const) {
+    const audio = await assignmentFor(input, audioRequest, profile, 1, null);
+    const text = await assignmentFor(input, request, profile, 1, null);
+    assertEquals(audio.prompt, "identify_audio_v2");
+    assertEquals(audio.schema, "merian_audio_v2");
+    assertEquals(audio.confidence, "gemini_audio_v2");
+    assertEquals(audio.generation, text.generation);
+    assertEquals(audio.confidenceDigest, text.confidenceDigest);
+    assert(audio.promptDigest !== text.promptDigest);
+    assert(audio.schemaDigest !== text.schemaDigest);
+    assert(audio.policyDigest !== text.policyDigest);
+  }
+});

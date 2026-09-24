@@ -277,7 +277,11 @@ production submission or public release.
   verifies the disputed inputs and local processing, identifies the mismatch
   between audio subject confidence and the species-match badge, and proposes a
   focused correction. No runtime behavior or earlier result changes in that
-  diagnostic.
+  diagnostic. The subsequent
+  [audio confidence V2 implementation](./rfcs/identification-audio-confidence-v2-2026-09-24.md)
+  aligns the existing audio score with the returned identity and adds a resolved
+  non-Human Field Trip eligibility guard. It is a verified implementation
+  candidate, not a production deployment or an acoustic accuracy result.
 - **Deferred family and prior combined planning:**
   [PRD](./product/02-family-plans-and-ai-platform-prd.md) and
   [SRD](./rfcs/family-plans-and-ai-platform-srd.md). Family plans are deferred;

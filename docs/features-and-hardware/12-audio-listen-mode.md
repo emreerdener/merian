@@ -958,6 +958,15 @@ normal acoustic candidates. If a resolved non-human result has a blank,
 placeholder, or incorrectly Human common name, the scientific name is used as a
 safe display fallback without changing the selected taxon.
 
+Audio confidence V2 scores the returned taxon for named animals, animal presence
+for unresolved wildlife, Human identity for Human, and source classification for
+non-biological sound. Clear presence or geographic plausibility cannot inflate a
+species score. The existing Human badge remains; unresolved/non-biological audio
+has no species-match badge. These are model estimates, not calibrated
+probabilities. Field Trip progress independently excludes Human, unresolved, and
+non-biological subjects even with a high score or explicit confirmation.
+Existing saved scores and prior benchmark results retain their original meaning.
+
 Human remains a durable biological result, but the existing Human presentation
 policy suppresses candidate review, external reference imagery, Explore and
 Community sharing, and Field Chat. An audio-only biological result without a

@@ -23,8 +23,11 @@ through `enrich-scan`, `groupTagQuota.ts`, and `refresh-species-model-content`.
 User calls carry admitted reservations; public jobs carry claimed task/attempt
 bounds and use Flash without a user quota reservation. See the
 [implementation tracker](../rfcs/identification-foundation-srd.md#implementation-slices).
-This introduces no alternate live provider, new confidence interpretation,
-automatic failover, or native-video inference.
+That provider-boundary refactor introduced no alternate live provider, automatic
+failover, or native-video inference. The subsequent audio confidence V2 contract
+clarifies the score by audio result state while preserving Gemini and its
+settings; see the
+[implementation record](../rfcs/identification-audio-confidence-v2-2026-09-24.md).
 
 Fresh primary success also exposes bounded provider/model, token counts and a
 generated Function runtime-bundle fingerprint for passive app measurement. The
@@ -576,7 +579,13 @@ network access; it does not change the live provider or its request settings.
   no-confident-biological-source results. It is consumed before public response
   assembly, so the existing Identify fields and generated Swift DTOs remain
   unchanged. Blended requests reuse only its non-human-over-Human acoustic
-  tie-break and keep the existing cross-modal arbitration.
+  tie-break and keep the existing cross-modal arbitration. Audio confidence V2
+  shares `AUDIO_CONFIDENCE_DESCRIPTION` between both prompts and the private
+  schema: named animals score acoustic taxon evidence, unresolved wildlife
+  scores presence, Human scores identity, and non-biological audio scores
+  classification. The registry versions audio-only prompt/schema/confidence
+  references while keeping Gemini, generation settings and numerical thresholds.
+  Historical results retain their original scores and evidence bindings.
 - **`_shared/identify/types.ts`**: Request/database contracts and the
   `MerianIdentification` / `ClientPayload` aliases inferred from `contract.ts`.
 

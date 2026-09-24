@@ -718,6 +718,13 @@ generated DTOs. Root response fields remain optional to decode older cached
 payloads and support staggered rollout; the Edge runtime validates the full
 final response strictly before sending it.
 
+Audio confidence V2 retains the same decoded numeric field. Named animals use
+confidence in the returned taxon; Human uses confidence in Human identity and
+keeps its existing badge. Unresolved wildlife retains presence confidence
+without presenting it as species certainty. `SpeciesDataEdgeResponseTests`
+covers both tiers, badge boundaries, all four states, and preservation of the
+original score.
+
 Audio subject presentation continues to use those existing fields. `Human` /
 `Homo sapiens` is a resolved biological result and keeps the established Human
 candidate, reference, sharing, and Field Chat suppressions. A biological result

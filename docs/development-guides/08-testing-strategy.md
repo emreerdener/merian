@@ -9234,3 +9234,23 @@ Local test passes and inspected fixture attachments establish only local source
 validation. Live-provider behavior, manual VoiceOver/device navigation, and
 hosted deployment verification remain separate evidence; do not infer them from
 simulator fixtures or the existing Field Chat beta authorization.
+
+## Audio confidence V2 verification
+
+The shared audio schema and both audio-only prompt bindings use one confidence
+definition. `_shared/ai/ai_test.ts` and the evaluator/comparison tests bind the
+V2 references while retaining model settings and numeric thresholds. The
+normalizer matrix tests both sides of the candidate cutoff and all four result
+states; `SpeciesDataEdgeResponseTests` exercises the decoded score and actual
+badge presentation for Flash and Pro, including high-confidence unresolved and
+Human cases.
+
+`fieldTripAtomicProgressDb.test.ts` proves that high presence confidence, Human
+taxonomy and Human overrides cannot earn standard/Event credit. It also
+exercises completed-credit withdrawal, receipt invalidation, preference
+retention and the forward migration against simulated historical invalid credit.
+The static migration contract and `field_trip_subject_eligibility.sql` cover
+private helper ACLs and the atomic trigger boundary. Run these against a
+disposable database replayed from the complete migration history. Fixture
+success does not establish acoustic accuracy or calibration; a new live
+comparison must have its own frozen V2 input/settings plan.

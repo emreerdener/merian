@@ -479,8 +479,8 @@ proxy or clear a newer highlight.
 - Matching is limited to the current unlocked level. Later levels cannot fill
   early.
 - Eligibility is media-kind agnostic after a scan is saved and has a resolved
-  biological identification. An unreviewed AI identification must be at least a
-  `Possible match` for the exact inference tier (`Flash >= 0.75`,
+  non-Human biological identification. An unreviewed AI identification must be
+  at least a `Possible match` for the exact inference tier (`Flash >= 0.75`,
   `Pro >= 0.65`). A weaker identification remains uncredited until the user
   confirms it or a correction/community resolution supplies a confirmed species.
   A qualifying photo or video can count; the camera-only active-target capsule
@@ -529,8 +529,20 @@ presentation thresholds:
 A null or out-of-range model score never auto-qualifies. The score is bypassed
 only when `user_confirmed_identification` is true or `confirmed_species_id` is
 populated by a correction or community resolution. The scan must still be
-caller-owned, saved, biological, not tombstoned, and match all timing,
-current-level, and checklist criteria.
+caller-owned, saved, resolved and non-Human, biological, not tombstoned, and
+match all timing, current-level, and checklist criteria.
+
+Unresolved wildlife presence, Human identity, and non-biological classification
+scores never establish a qualifying taxon. The database checks effective
+selected taxonomy and normalized Human overrides, including speech/breathing
+aliases, before both standard and Event matching. Confirmation bypasses only the
+score requirement. Legacy nullable biological flags retain their previous
+meaning when taxonomy resolves. `user_identification_override` participates in
+the update trigger and atomic receipt revision. Subject invalidation withdraws
+credit even after completion, retaining selected-goal preferences and repairing
+derived badges/publications like a confidence downgrade. Migration
+`20260924062640_gate_field_trip_progress_by_subject.sql` applies the same
+bounded repair to existing affected credit and receipts.
 
 `preferred_goal` is only a ranking hint. For a weak unreviewed scan, the atomic
 receipt retains the complete hint but returns empty standard/Event updates. A

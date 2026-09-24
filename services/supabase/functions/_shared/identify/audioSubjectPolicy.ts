@@ -1,4 +1,7 @@
-import type { AudioProviderSubjectType } from "./contract.ts";
+import {
+  AUDIO_CONFIDENCE_DESCRIPTION,
+  type AudioProviderSubjectType,
+} from "./contract.ts";
 
 export const HUMAN_COMMON_NAME = "Human";
 export const HUMAN_SCIENTIFIC_NAME = "Homo sapiens";
@@ -19,7 +22,10 @@ Evaluate the recording in this exact priority order:
 3. If no non-human animal is confidently present but unmistakable human biological sound is present, return is_biological_subject=true, common_name="Human", scientific_name="Homo sapiens", sex="not_applicable", and an empty candidates array. Human biological sound includes speech, breathing, coughing, and snoring; handling noise alone does not qualify.
 4. For silence, handling noise, weather, mechanical sound, or otherwise indeterminate evidence, return is_biological_subject=false, common_name="No Wildlife Detected", omit scientific_name and all biology-only fields, and return an empty candidates array.
 
-For an identified non-human animal, retain the normal species name and acoustically plausible alternative candidates. confidence_score is confidence in the returned primary classification; species uncertainty must not erase a confident non-human animal-presence determination. Never infer human sex or gender.`;
+For an identified non-human animal, retain the supported species name and acoustically plausible alternative candidates. Species uncertainty must not erase a confident non-human animal-presence determination. Never infer human sex or gender.
+
+# Audio Confidence
+${AUDIO_CONFIDENCE_DESCRIPTION}`;
 
 export const BLENDED_AUDIO_SUBJECT_PRECEDENCE_INSTRUCTION =
   `# Acoustic Subject Precedence
