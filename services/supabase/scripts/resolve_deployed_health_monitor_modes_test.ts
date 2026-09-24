@@ -1,6 +1,7 @@
 import { assertEquals, assertRejects, assertThrows } from "@std/assert";
 import {
   type DeploymentEvidenceRuntime,
+  githubApiRequest,
   parseWorkflowJobsPage,
   parseWorkflowRunsPage,
   resolveDeployedHealthMonitorMode,
@@ -12,6 +13,38 @@ const CURRENT_SHA = "f".repeat(40);
 const DEPLOY_SHA = "a".repeat(40);
 const HELD_SHA = "b".repeat(40);
 const BEFORE_DEADLINE = new Date("2026-08-20T00:00:00.000Z");
+
+Deno.test("deployment evidence revalidates cached GitHub responses", async () => {
+  const originalFetch = globalThis.fetch;
+  const paths = [
+    "/repos/emreerdener/merian/actions/workflows/deploy.yml/runs?branch=main&status=success&per_page=100&page=1",
+    "/repos/emreerdener/merian/actions/runs/42/jobs?filter=latest&per_page=100&page=1",
+  ];
+  const inspected: string[] = [];
+  globalThis.fetch = (input, init) => {
+    const url = new URL(String(input));
+    inspected.push(url.pathname + url.search);
+    assertEquals(url.origin, "https://api.github.com");
+    assertEquals(init?.redirect, "error");
+    const headers = new Headers(init?.headers);
+    assertEquals(headers.get("authorization"), "Bearer synthetic-test-token");
+    const fresh = headers.get("cache-control") === "no-cache";
+    return Promise.resolve(
+      Response.json({ evidence: fresh ? "current" : "stale" }),
+    );
+  };
+  try {
+    for (const path of paths) {
+      assertEquals(await githubApiRequest(path, "synthetic-test-token"), {
+        evidence: "current",
+      });
+    }
+    assertEquals(inspected, paths);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 const DEPLOY_WORKFLOW = `
       - name: Push Database Migrations
         run: supabase db push

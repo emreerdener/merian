@@ -24,14 +24,21 @@ assert args[-2:] == ['--output-format', 'json']
 args = args[:-2]
 stored = root / 'synthetic-remote-value'
 name = 'IDENTIFICATION_AUDIO_COMPARISON_V1'
+template = (pathlib.Path.cwd() / 'supabase/config.toml').read_text()
+assert [line.strip() for line in template.splitlines() if line.strip() and not line.lstrip().startswith('#')] == [
+    'project_id = "merian-audio-comparison-control"',
+    '[edge_runtime.secrets]',
+    name + ' = "env(MERIAN_AUDIO_COMPARISON_VALUE)"',
+]
+assert sys.stdin.read() == ''
+config = os.environ.get('MERIAN_AUDIO_COMPARISON_VALUE')
+if args != ['secrets', 'set']:
+    assert config is None
 if args == ['secrets', 'list', '--output', 'json']:
     rows = [] if not stored.exists() else [{'name': name, 'value': hashlib.sha256(stored.read_bytes()).hexdigest()}]
     print(json.dumps(rows))
-elif args == ['secrets', 'set', '--env-file', '/dev/stdin']:
-    value = sys.stdin.read()
-    prefix = name + "='"
-    assert value.startswith(prefix) and value.endswith("'\n")
-    config = value[len(prefix):-2]
+elif args == ['secrets', 'set']:
+    assert config is not None
     assert len(config.encode()) <= 1024
     json.loads(config)
     stored.write_text(config)
@@ -63,10 +70,9 @@ export GITHUB_TOKEN=synthetic-other-credential
 
 # Use a fixed time only in the isolated child under test so the retained
 # historical plan can be regression-tested after its real eligibility window.
-cat > "$comparison_test_dir/entry.ts" <<'TS'
+cat > "$comparison_test_dir/entry.ts" <<TS
+import { runAudioComparisonControl } from "file://$comparison_test_root/services/supabase/scripts/control_audio_comparison.ts";
 Date.now = () => Date.parse("2026-09-23T22:00:00.000Z");
-const control = Deno.args.shift()!;
-const { runAudioComparisonControl } = await import(control);
 await runAudioComparisonControl();
 TS
 export IDENTIFICATION_AUDIO_COMPARISON_V1="$(python3 - <<'PY'
@@ -83,11 +89,9 @@ run_control() {
   local comparison_output="$2"
   deno run --frozen --no-prompt --deny-net \
     --config services/supabase/functions/deno.json \
-    --allow-read="$comparison_test_root/services/supabase,$comparison_test_dir" \
     --allow-env=GITHUB_ACTIONS,GITHUB_REPOSITORY,GITHUB_REF,GITHUB_EVENT_NAME,GITHUB_WORKFLOW_REF,GITHUB_SHA,PATH,SUPABASE_ACCESS_TOKEN,IDENTIFICATION_AUDIO_COMPARISON_V1 \
     --allow-run=supabase --allow-write="$comparison_test_dir" \
     "$comparison_test_dir/entry.ts" \
-    "file://$comparison_test_root/services/supabase/scripts/control_audio_comparison.ts" \
     --operation "$comparison_operation" --deployed-sha bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb \
     --evidence "$comparison_test_dir/$comparison_output.json" \
     > "$comparison_test_dir/$comparison_output.log" 2>&1

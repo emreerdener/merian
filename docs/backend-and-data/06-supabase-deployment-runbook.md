@@ -4935,13 +4935,14 @@ Activation additionally requires the complete exact-SHA **Supabase Candidate
 Validation** gate and the live `automatic-release` audit. The existing
 deployment resolver must find a successful production `deploy` job with
 completed migration and smoke steps; a green workflow that skipped production is
-insufficient. The reviewed candidate's generated identification bundle identity
-and comparison plan must match that deployed revision. An unchanged runtime may
-therefore be controlled after a documentation or tooling-only commit. No
-deployment or schema operation is performed by this workflow. `inspect` and
-`deactivate` remain available for recovery without a new database validation or
-deployment, while retaining the exact-main, protected-environment and
-concurrency controls.
+insufficient. Its GitHub Actions reads request cache revalidation so cached run
+or job listings do not silently substitute older deployment evidence. The
+reviewed candidate's generated identification bundle identity and comparison
+plan must match that deployed revision. An unchanged runtime may therefore be
+controlled after a documentation or tooling-only commit. No deployment or schema
+operation is performed by this workflow. `inspect` and `deactivate` remain
+available for recovery without a new database validation or deployment, while
+retaining the exact-main, protected-environment and concurrency controls.
 
 ### Prepare and activate a run
 
@@ -4969,10 +4970,13 @@ concurrency controls.
 4. Dispatch `activate` for that same current SHA. Validation may take time, so
    the approved window must still be open when the control runs. The controller
    accepts only the checked-in plan and bundle. It refuses a different hosted
-   value, pipes canonical JSON to the CLI through stdin, and verifies its remote
-   digest without retaining either value or digest. Repeating activation of the
-   exact active value reports `already_active`; it cannot extend expiry or reset
-   consumed assignments.
+   value and passes canonical JSON only in the `set` subprocess environment. An
+   isolated checked-in `config.toml` references that variable for this one
+   secret; the template contains no private value. The CLI receives no private
+   JSON in argv, stdin or files, and inspection/removal receive no configuration
+   value. The controller verifies the remote digest without retaining either
+   value or digest. Repeating activation of the exact active value reports
+   `already_active`; it cannot extend expiry or reset consumed assignments.
 5. Only after verified activation, submit the reviewed slots through the
    ordinary app, one attempt and one complete observer window at a time. The
    existing server gate enforces the authenticated owner, source, settings,

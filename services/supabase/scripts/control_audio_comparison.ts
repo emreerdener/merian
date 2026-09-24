@@ -89,7 +89,7 @@ interface Configuration {
 export interface ComparisonControlRuntime {
   now(): number;
   list(): Promise<unknown>;
-  set(envInput: string): Promise<void>;
+  set(canonicalConfiguration: string): Promise<void>;
   unset(): Promise<void>;
 }
 
@@ -253,7 +253,7 @@ export async function controlAudioComparison(
     evidence.mutationAttempted = true;
     settingAttempted = true;
     stage = "set";
-    await runtime.set(`${COMPARISON_SECRET}='${canonical}'\n`);
+    await runtime.set(canonical);
     stage = "verify_set";
     require(remoteDigest(await runtime.list()) === intendedDigest);
     // A delayed API call must not produce a false successful activation.
@@ -336,7 +336,10 @@ export async function runAudioComparisonControl(): Promise<void> {
     write: true,
     mode: 0o600,
   });
-  const cli = async (args: string[], input?: string): Promise<string> => {
+  const cli = async (
+    args: string[],
+    configuration?: string,
+  ): Promise<string> => {
     const signal = AbortSignal.timeout(60_000);
     let child: Deno.ChildProcess;
     try {
@@ -349,13 +352,19 @@ export async function runAudioComparisonControl(): Promise<void> {
           "--project-ref",
           COMPARISON_PROJECT,
         ],
+        // A dedicated public template loads exactly one env-backed secret.
+        // Do not load the application's config or pass private JSON in argv/files.
+        cwd: new URL("./audio-comparison-control/", import.meta.url),
         clearEnv: true,
         env: {
           PATH: Deno.env.get("PATH") ?? "",
           SUPABASE_ACCESS_TOKEN: accessToken,
           SUPABASE_TELEMETRY_DISABLED: "1",
+          ...(configuration === undefined
+            ? {}
+            : { MERIAN_AUDIO_COMPARISON_VALUE: configuration }),
         },
-        stdin: input === undefined ? "null" : "piped",
+        stdin: "null",
         stdout: "piped",
         // Upstream errors can contain the private value; discard them entirely.
         stderr: "null",
@@ -365,11 +374,6 @@ export async function runAudioComparisonControl(): Promise<void> {
       throw new ComparisonCliError("spawn_failure");
     }
     try {
-      if (input !== undefined) {
-        const writer = child.stdin.getWriter();
-        await writer.write(new TextEncoder().encode(input));
-        await writer.close();
-      }
       const result = await child.output();
       if (signal.aborted) throw new ComparisonCliError("timeout");
       if (!result.success) {
@@ -402,8 +406,8 @@ export async function runAudioComparisonControl(): Promise<void> {
       }, {
         now: Date.now,
         list: async () => JSON.parse(await cli(["list", "--output", "json"])),
-        set: async (input) => {
-          await cli(["set", "--env-file", "/dev/stdin"], input);
+        set: async (configuration) => {
+          await cli(["set"], configuration);
         },
         unset: async () => {
           await cli(["unset", COMPARISON_SECRET, "--yes"]);

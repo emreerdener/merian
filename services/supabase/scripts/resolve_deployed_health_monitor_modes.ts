@@ -623,7 +623,7 @@ async function readResponseJson(response: Response): Promise<unknown> {
   }
 }
 
-async function githubApiRequest(
+export async function githubApiRequest(
   path: string,
   token: string,
 ): Promise<unknown> {
@@ -643,6 +643,8 @@ async function githubApiRequest(
             Accept: "application/vnd.github+json",
             Authorization: `Bearer ${token}`,
             "X-GitHub-Api-Version": GITHUB_API_VERSION,
+            // Deployment evidence must revalidate cached Actions listings/jobs.
+            "Cache-Control": "no-cache",
           },
           redirect: "error",
         },

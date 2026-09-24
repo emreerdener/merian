@@ -1,0 +1,6 @@
+# Public transport template: the controller provides the value only to `set`.
+# Never add another secret or a private value to this isolated configuration.
+project_id = "merian-audio-comparison-control"
+
+[edge_runtime.secrets]
+IDENTIFICATION_AUDIO_COMPARISON_V1 = "env(MERIAN_AUDIO_COMPARISON_VALUE)"

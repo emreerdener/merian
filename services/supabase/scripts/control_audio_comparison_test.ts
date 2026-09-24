@@ -103,9 +103,8 @@ function fake() {
     },
     set: async (input) => {
       state.sets.push(input);
-      const prefix = `${COMPARISON_SECRET}='`;
-      assert(input.startsWith(prefix) && input.endsWith("'\n"));
-      state.digest = await sha256Hex(input.slice(prefix.length, -2));
+      assertEquals(input, JSON.stringify(comparisonConfiguration(input)));
+      state.digest = await sha256Hex(input);
     },
     unset: () => {
       state.unsets++;
@@ -365,10 +364,7 @@ Deno.test("malformed remote digest inventory fails closed", async () => {
 Deno.test("control output remains compatible with runtime owner and expiry enforcement", async () => {
   const { state, runtime } = fake();
   await controlAudioComparison(request("activate"), runtime);
-  const configuration = state.sets[0].slice(
-    `${COMPARISON_SECRET}='`.length,
-    -2,
-  );
+  const configuration = state.sets[0];
   const scanId = await audioComparisonScanId(1);
   const body = {
     user_id: OWNER,
