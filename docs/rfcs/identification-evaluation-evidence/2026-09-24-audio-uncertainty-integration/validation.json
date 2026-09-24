@@ -1,0 +1,73 @@
+{
+  "version": "identification_audio_prompt_integration_validation_v1",
+  "observedAt": "2026-09-24T17:56:29Z",
+  "scope": "local_synthetic_mechanics",
+  "source": {
+    "revision": "8c831e90fafe582a2cce7bc22ab63a17d0c507ac",
+    "state": "dirty"
+  },
+  "bindings": {
+    "preparationSha256": "068f74f51f4e7c81a2eaae36f1f51363e84fa57e5f4dadf6694e007fe1fb63bb",
+    "planSha256": "8019602955455d8c8fb83ff368a1e54a6dfee58e1f4680f801e45bcee30d8dee",
+    "backendBundleSha256": "1949f9c56f0bfa70378adf2f35d8a7275effeeb34c2d6a3afad7bae91f8ad9dd",
+    "slots": 36,
+    "blocks": 3
+  },
+  "native": {
+    "configuration": "Debug simulator",
+    "appVersion": "1.0.3",
+    "appBuild": "275",
+    "sourceRevision": "8c831e90fafe582a2cce7bc22ab63a17d0c507ac",
+    "sourceFingerprint": "3470ee5c9a62feb77c70b3283f2455554001c201a2b72cf422f2adba85d1f302",
+    "sourceState": "dirty",
+    "buildForTesting": "passed",
+    "testWithoutBuilding": "passed",
+    "xctestPassed": 1358,
+    "swiftTestingPassed": 2959,
+    "swiftTestingSuites": 461,
+    "projectValidation": "passed"
+  },
+  "backend": {
+    "supabaseCliVersion": "2.109.1",
+    "tooling": "passed",
+    "standardToolingSources": 96,
+    "standardToolingTestFiles": 47,
+    "isolatedDtoTestFiles": 2,
+    "isolatedEvaluationTestFiles": 1,
+    "shellSources": 17,
+    "shellTestFiles": 8,
+    "deployTimeEntrypointsChecked": 101,
+    "staticMigrationContractTestsPassed": 347,
+    "migrationReplay": "passed_on_fresh_disposable_database",
+    "catalogFiles": 53,
+    "catalogAssertionsPassed": 389,
+    "edgeTestsPassed": 2083,
+    "edgeTestStepsPassed": 233,
+    "edgeTestsFailed": 0,
+    "edgeTestsIgnored": 0,
+    "databaseLint": "passed",
+    "advisorErrorGate": "passed",
+    "advisorWarnings": {
+      "security": 105,
+      "performance": 80
+    },
+    "advisorWarningScope": "existing_unmodified_migration_catalog",
+    "disposableDatabaseRemoved": true,
+    "recursiveFmt": "passed",
+    "recursiveLint": "passed"
+  },
+  "review": "read_only_contract_review_completed_and_documentation_findings_resolved",
+  "ordinaryAudioPrompt": "identify_audio_v2",
+  "providerCalls": 0,
+  "appExperimentSubmissions": 0,
+  "productionMutations": 0,
+  "activationControllerImplemented": false,
+  "exactShaReleaseValidation": "pending_final_committed_candidate",
+  "formalQualificationEligible": false,
+  "limitations": [
+    "Synthetic tests establish implementation behavior, not acoustic quality or confidence calibration.",
+    "An initial Edge run used an outdated local catalog; the complete suite was rerun successfully against the fresh migrated disposable database.",
+    "User-level skill links still point to the primary checkout; reviewed checked-in skill files were read directly.",
+    "Slice 3 still requires the parallel activation controller, execution freeze and named deployment/activation authorization."
+  ]
+}

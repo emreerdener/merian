@@ -2652,7 +2652,12 @@ mutation or deployment is authorized by this refactor.
   separate from measurement-v2, within the 1 KiB log budget. They retain no
   response prose, media or request identity. Device/Release builds cannot create
   comparison requests or proof records, and background builders never attach the
-  measurement context.
+  measurement context. `DebugAudioComparisonBinding` shares lifecycle mechanics
+  across the immutable DSP and new prompt assignments; each retains its own
+  plan, request key, receipt and proof version. Prompt finalization additionally
+  binds actual subject state and a named animal's normalized scientific-name
+  digest without logging the name. The offline observer admits these as
+  provisional source agreement only, never independent species accuracy.
 - Records URLSession request-upload, time-to-first-byte-after-upload, and
   response-transfer intervals.
 - Treats current `/identify-multimodal` `200` as a server durability fence:

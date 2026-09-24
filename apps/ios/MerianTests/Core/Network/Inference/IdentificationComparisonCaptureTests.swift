@@ -7,7 +7,11 @@ import Testing
 
 @MainActor
 final class AudioComparisonTestFixture {
-    let assignment = DebugAudioComparisonSlot.slot1.assignment
+    let assignment: any DebugAudioComparisonBinding
+    init(prompt: Bool = false) {
+        if prompt { assignment = DebugAudioPromptComparisonSlot.slot2.assignment }
+        else { assignment = DebugAudioComparisonSlot.slot1.assignment }
+    }
     var records: [String] = []
     lazy var capture = IdentificationComparisonCapture(assignment: assignment) { [unowned self] in records.append($0) }
 
@@ -21,7 +25,7 @@ final class AudioComparisonTestFixture {
             "returnedModel": "gemini-2.5-pro", "backendBundleSha256": String(repeating: "b", count: 64)
         ]
         var headers = [
-            "X-Merian-Audio-Comparison": String(decoding: try JSONSerialization.data(withJSONObject: receipt ?? assignment.receipt), as: UTF8.self),
+            assignment.responseHeader: String(decoding: try JSONSerialization.data(withJSONObject: receipt ?? assignment.receipt), as: UTF8.self),
             "X-Merian-Identification": String(decoding: try JSONSerialization.data(withJSONObject: diagnostics), as: UTF8.self),
             "Server-Timing": "provider;dur=10.1, edge_total;dur=20.2"
         ]
@@ -62,9 +66,9 @@ struct IdentificationComparisonCaptureTests {
         }
     }
 
-    @Test func malformedReceiptMissingProofReplayAndStaleAttemptsCannotComplete() throws {
-        for key in DebugAudioComparisonSlot.slot1.assignment.receipt.keys {
-            let fixture = AudioComparisonTestFixture()
+    @Test(arguments: [false, true]) func malformedReceiptMissingProofReplayAndStaleAttemptsCannotComplete(prompt: Bool) throws {
+        for key in AudioComparisonTestFixture(prompt: prompt).assignment.receipt.keys {
+            let fixture = AudioComparisonTestFixture(prompt: prompt)
             var receipt = fixture.assignment.receipt
             receipt[key] = "synthetic-wrong-value"
             try fixture.receive(response: fixture.response(receipt: receipt))
@@ -73,28 +77,30 @@ struct IdentificationComparisonCaptureTests {
             #expect(fixture.records.isEmpty)
         }
         for failure in ["replay", "retry", "stale", "ordinary", "failure", "extra"] {
-            let fixture = AudioComparisonTestFixture()
+            let fixture = AudioComparisonTestFixture(prompt: prompt)
             var receipt = fixture.assignment.receipt
             if failure == "extra" { receipt["rawContent"] = "synthetic-private" }
             let response = try fixture.response(receipt: receipt, replay: failure == "replay" ? "stored" : nil, status: failure == "failure" ? 503 : 200)
             try fixture.receive(response: response, current: !["retry", "stale"].contains(failure), fixed: failure != "ordinary")
             #expect(fixture.records.isEmpty)
         }
-        var booleanVersion = DebugAudioComparisonSlot.slot1.assignment.receipt
-        booleanVersion["version"] = true
-        #expect(!DebugAudioComparisonSlot.slot1.assignment.acceptsReceipt(String(decoding: try JSONSerialization.data(withJSONObject: booleanVersion), as: UTF8.self)))
+        for key in (prompt ? ["version", "slot", "block", "repeat"] : ["version", "slot"]) {
+            var receipt = AudioComparisonTestFixture(prompt: prompt).assignment.receipt
+            receipt[key] = true
+            #expect(!AudioComparisonTestFixture(prompt: prompt).assignment.acceptsReceipt(String(decoding: try JSONSerialization.data(withJSONObject: receipt), as: UTF8.self)))
+        }
     }
 
-    @Test func responseAdoptionRechecksTheLiveOwnerOnTheMainActor() throws {
-        let fixture = AudioComparisonTestFixture()
-        let telemetry = DebugIdentificationReplayProfile.audioComparison(slot: .slot1).makeTelemetry()
+    @Test(arguments: [false, true]) func responseAdoptionRechecksTheLiveOwnerOnTheMainActor(prompt: Bool) throws {
+        let fixture = AudioComparisonTestFixture(prompt: prompt)
+        let telemetry = (prompt ? DebugIdentificationReplayProfile.audioPromptComparison(slot: .slot2) : .audioComparison(slot: .slot1)).makeTelemetry()
         let body: [String: Any] = [
             "user_id": "synthetic-owner", "client_scan_id": fixture.assignment.scanId,
             "geoprivacy": "private", "mimeType": "image/webp", "deviceLocale": "en", "deviceTimeZone": "UTC",
             "currentMonth": 1, "timeOfDay": "12:00 PM", "audioBase64s": ["AA=="],
             "audioMediaItems": [IdentifyAudioMediaItem.audio(sourceIndex: 0).jsonObject],
             "ownerMediaTimeline": [IdentifyOwnerMediaTimelineItem.audio(audioInputIndex: 0, sourceIndex: 0).jsonObject],
-            "audio_comparison": fixture.assignment.handle
+            fixture.assignment.requestKey: fixture.assignment.handle
         ]
         var current = true
         let context = try #require(IdentificationMeasurementContext.fixedAudio(
@@ -123,6 +129,39 @@ struct IdentificationComparisonCaptureTests {
         #expect(noMatch.events == ["receipt", "finalized"])
     }
 
+    @Test(arguments: ["named", "unresolved", "human", "non_biological"])
+    func promptProofBindsActualSubjectAndScoreWithoutLoggingNames(kind: String) throws {
+        let fixture = AudioComparisonTestFixture(prompt: true)
+        try fixture.receive()
+        let species = SpeciesData(
+            scanId: fixture.assignment.scanId,
+            commonName: kind == "unresolved" ? "Unidentified Wildlife" : kind == "human" ? "Human" : "Synthetic subject",
+            scientificName: kind == "named" ? "Syntheticus testus" : kind == "human" ? "Homo sapiens" : "",
+            insightData: InsightData(aiReasoning: "Synthetic observation", hazardType: "none"),
+            confidenceScore: 0.91, isBiological: kind != "non_biological", inferenceTier: "pro"
+        )
+        // Incomplete or mismatched handoffs cannot manufacture a finalized proof.
+        fixture.capture.finalize(scanId: species.scanId, confidenceScore: 0.91, isBiological: species.isBiological, persistence: .saved)
+        fixture.capture.finalize(scanId: species.scanId, confidenceScore: 0.5, isBiological: species.isBiological, persistence: .saved, species: species)
+        #expect(fixture.events == ["receipt"])
+        fixture.capture.finalize(scanId: species.scanId, confidenceScore: 0.91, isBiological: species.isBiological, persistence: .saved, species: species)
+        fixture.capture.recordFirstRender(scanId: fixture.assignment.scanId)
+        #expect(fixture.events == ["receipt", "finalized", "rendered"])
+        let value = try #require(JSONSerialization.jsonObject(with: Data(fixture.records[1].utf8)) as? [String: Any])
+        let expected = ["named": "identified_non_human", "unresolved": "unidentified_non_human", "human": "human", "non_biological": "non_biological"]
+        #expect(value["subjectState"] as? String == expected[kind])
+        #expect(value["version"] as? String == "identification_audio_prompt_comparison_v1")
+        #expect(value["planSha256"] as? String == DebugAudioPromptComparisonPlan.sha256)
+        if kind == "named" {
+            #expect(value["scientificNameSha256"] as? String == DebugAudioComparisonAssignment.digest(Data("syntheticus testus".utf8)))
+        } else { #expect(value["scientificNameSha256"] == nil) }
+        for record in fixture.records {
+            #expect(record.utf8.count + fixture.assignment.logMarker.utf8.count < 1_024)
+            #expect(!record.contains(species.scanId ?? "synthetic-missing"))
+            #expect(!record.contains("Syntheticus") && !record.contains("Homo sapiens"))
+        }
+    }
+
     @Test func renderProofIsExactAndClearedByReplacementAndAuth() throws {
         for transition in ["reset", "auth", "published", "quiescence"] {
             let fixture = AudioComparisonTestFixture()
@@ -145,18 +184,30 @@ struct IdentificationComparisonCaptureTests {
         #expect(owner.consumeComparisonRender(scanId: fixture.assignment.scanId) == nil)
     }
 
-    @Test func sourceGuardRejectsChangedBytesAndWrongQueueIdentity() throws {
+    @Test(arguments: [false, true]) func sourceGuardRejectsChangedBytesAndWrongQueueIdentity(prompt: Bool) throws {
         let bytes = Data([1, 2, 3, 4])
-        let frozen = DebugAudioComparisonSlot.slot1.assignment
-        let synthetic = DebugAudioComparisonAssignment(
-            slot: frozen.slot, caseId: frozen.caseId, arm: frozen.arm,
-            sourceWavSha256: DebugAudioComparisonAssignment.digest(bytes), sourceByteLength: bytes.count,
-            processedWavSha256: frozen.processedWavSha256, providerRequestSha256: frozen.providerRequestSha256,
-            policySha256: frozen.policySha256, confidenceSha256: frozen.confidenceSha256, scanId: frozen.scanId
-        )
+        let frozen: any DebugAudioComparisonBinding = AudioComparisonTestFixture(prompt: prompt).assignment
+        let synthetic: any DebugAudioComparisonBinding
+        if prompt {
+            let binding = DebugAudioPromptComparisonSlot.slot2.assignment
+            synthetic = DebugAudioPromptComparisonAssignment(
+                slot: binding.slot, block: binding.block, repeatIndex: binding.repeatIndex, caseId: binding.caseId, arm: binding.arm,
+                sourceWavSha256: DebugAudioPromptComparisonAssignment.digest(bytes), sourceByteLength: bytes.count,
+                processedWavSha256: binding.processedWavSha256, providerRequestSha256: binding.providerRequestSha256,
+                policySha256: binding.policySha256, confidenceSha256: binding.confidenceSha256, scanId: binding.scanId
+            )
+        } else {
+            let binding = DebugAudioComparisonSlot.slot1.assignment
+            synthetic = DebugAudioComparisonAssignment(
+                slot: binding.slot, caseId: binding.caseId, arm: binding.arm,
+                sourceWavSha256: DebugAudioComparisonAssignment.digest(bytes), sourceByteLength: bytes.count,
+                processedWavSha256: binding.processedWavSha256, providerRequestSha256: binding.providerRequestSha256,
+                policySha256: binding.policySha256, confidenceSha256: binding.confidenceSha256, scanId: binding.scanId
+            )
+        }
         var payload: [String: Any] = ["client_scan_id": synthetic.scanId, "audioBase64s": [bytes.base64EncodedString()]]
         try synthetic.addHandle(to: &payload)
-        #expect((payload["audio_comparison"] as? [String: Any])?["slot"] as? Int == 1)
+        #expect((payload[synthetic.requestKey] as? [String: Any])?["slot"] as? Int == synthetic.slot)
         payload["client_scan_id"] = "synthetic-other"
         #expect(throws: (any Error).self) { try synthetic.addHandle(to: &payload) }
         #expect(!synthetic.matchesSource(Data([1, 2, 3, 5])))
@@ -164,11 +215,11 @@ struct IdentificationComparisonCaptureTests {
         #expect(!frozen.matchesSource(bytes))
     }
 
-    @Test func comparisonIDsCannotUpsertQueuedOrSavedRecords() throws {
+    @Test(arguments: [false, true]) func comparisonIDsCannotUpsertQueuedOrSavedRecords(prompt: Bool) throws {
         let schema = Schema([OfflineQueuedScan.self, LocalScanRecord.self])
         let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(isStoredInMemoryOnly: true)])
         let context = ModelContext(container)
-        let id = DebugAudioComparisonSlot.slot1.assignment.scanId
+        let id = AudioComparisonTestFixture(prompt: prompt).assignment.scanId
         #expect(!DebugAudioComparisonAdmission.isAvailable(scanId: id, context: nil))
         #expect(DebugAudioComparisonAdmission.isAvailable(scanId: id, context: context))
         let queued = OfflineQueuedScan(id: id)

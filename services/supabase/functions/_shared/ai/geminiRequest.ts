@@ -1,3 +1,4 @@
+import { audioUncertaintySystemInstruction } from "../../identify-multimodal/comparison/promptInstruction.ts";
 import type {
   GenerateContentParameters,
   HarmBlockThreshold,
@@ -65,6 +66,8 @@ export function buildGeminiRequestParameters(
       ? getSystemInstruction(
         snapshot.promptDiagnosticTrigger ?? diagnosticTrigger(snapshot),
       )
+      : snapshot.prompt === "identify_audio_uncertainty_experiment_v1"
+      ? audioUncertaintySystemInstruction()
       : snapshot.prompt === "identify_audio_v2"
       ? BIOACOUSTIC_SYSTEM_INSTRUCTION
       : snapshot.prompt === "identify_audio_compat_v2"

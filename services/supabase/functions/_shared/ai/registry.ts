@@ -11,6 +11,24 @@ export function resolveAIClaim(
   request: AIRequest,
   authority: AIExecutionAuthority,
 ): AIAttemptSnapshot {
+  if (
+    authority.kind === "user_request" &&
+    authority.audioPromptComparison !== undefined
+  ) {
+    if (
+      !["A", "B"].includes(authority.audioPromptComparison) ||
+      request.task !== "identify" || request.variant !== "multimodal" ||
+      authority.reservation.model !== "gemini-2.5-pro" ||
+      authority.reservation.tier?.effective_tier !== "pro" ||
+      authority.reservation.attemptCount !== 1 ||
+      request.capture.hasVideo || request.capture.videoClipCount !== 0 ||
+      request.capture.declaredVideoFrameCount !== 0 ||
+      request.capture.videoInferenceFrameCount !== 0 ||
+      request.evidence.length !== 2 || request.evidence[0].kind !== "audio" ||
+      request.evidence[1].kind !== "text" ||
+      request.evidence[1].source !== "capture_context"
+    ) throw new Error("ai_audio_prompt_authority_mismatch");
+  }
   if (request.task !== "identify") {
     return resolveContentClaim(request, authority);
   }
@@ -153,7 +171,9 @@ export function resolveAIClaim(
       prompt: images
         ? audio ? "identify_blended_v1" : "identify_vision_v1"
         : audio
-        ? "identify_audio_v2"
+        ? authority.audioPromptComparison === "B"
+          ? "identify_audio_uncertainty_experiment_v1"
+          : "identify_audio_v2"
         : "identify_text_v1",
       schema: !images && audio ? "merian_audio_v2" : "merian_identify_v1",
       confidence: !images && audio ? "gemini_audio_v2" : "gemini_identify_v1",

@@ -6755,6 +6755,40 @@ equivalence. See the
 [assignment record](../rfcs/identification-audio-comparison-assignment-2026-09-23.md)
 for the backend checkpoint.
 
+The separate offline audio uncertainty slice adds the root-discovered
+`identification_audio_uncertainty_test.ts`: actual V2 request parity, the exact
+instruction delta, design drift rejection, current DSP format validation, all 36
+prospective assignments and repeated request hashes. The existing isolated
+evaluator suite registers
+`identification_evaluation/testing/audioPromptPacketTests.ts` for frozen
+source/review/reference bindings, retention, tampering, unsafe permissions,
+symlinks/hardlinks, added context, reused outputs and CLI network/environment
+denial. These checks are synthetic mechanics only. The
+[evaluation tooling guide](../../services/supabase/scripts/identification_evaluation/README.md#offline-audio-uncertainty-prompt-preparation)
+owns the offline command. Slice 2 adds the default-off server/native prompt
+lane: `promptAssignment_test.ts` and handler tests exercise owner/block/window,
+reserved IDs, exact media/request/policy hashes, Pro first-attempt admission,
+refunds and ordinary-route parity. The candidate workflow explicitly includes
+the new assignment test. `generate_audio_prompt_comparison_plan_test.ts`
+compares all 36 backend/native bindings to immutable preparation. Native
+capture, pipeline and Debug replay tests run against both lane types; prompt
+finalization additionally checks all four subject states, confidence and private
+name hashes. `identification_audio_prompt_observation_test.ts` and the isolated
+runner test exercise complete 120-second admission, malformed/mixed proof,
+provisional agreement, private exclusive output and historical DSP
+compatibility. Tests use synthetic media/results and provide no acoustic quality
+evidence. No prompt-comparison lane is active. Slice 3 adds
+`control_audio_prompt_comparison_test.ts` and its fake-CLI shell test for the
+separate private configuration, all 36 slots across three selected blocks,
+replacement refusal and independently verified cleanup. The isolated evaluator
+suite registers `testing/audioPromptExecutionTests.ts` for clean-source/pricing
+freeze, all 36 ordered observations, asset tampering and link rejection, fresh
+boolean-only operator preflight, unknown claims, terminal exclusions, immutable
+results and cleanup ordering between blocks. These use synthetic metadata and
+zero provider requests. Actual clean app/backend bindings, exact-SHA candidate
+validation, named deployment/activation and paid observations remain separate
+execution requirements.
+
 The subsequent
 [app integration](../rfcs/identification-audio-comparison-app-integration-2026-09-23.md)
 adds `IdentificationComparisonCaptureTests` and
@@ -6772,14 +6806,14 @@ activation and paid observations remain separate release operations.
 configuration lifecycle, malformed inventories, owner/runtime compatibility,
 expiry, idempotency, mismatched replacements, ambiguous activation cleanup and
 redacted failure evidence. `control_audio_comparison_cli_test.sh` runs the
-actual controller with a local fake CLI to verify stdin-only private transport,
-child environment isolation, private evidence permissions,
-activation/deactivation and suppression of upstream output. Both are discovered
-by the complete Supabase tooling gate and make no network or provider requests.
-Workflow guards preserve current-main, Production, the shared deployment lock,
-candidate validation and actual deployed-source evidence. These tests cannot
-prove atomic list/delete against an out-of-workflow operator or cleanup after
-runner loss; the
+actual controller with a local fake CLI to verify the isolated template's
+set-only subprocess environment transport, child environment isolation, private
+evidence permissions, activation/deactivation and suppression of upstream
+output. Both are discovered by the complete Supabase tooling gate and make no
+network or provider requests. Workflow guards preserve current-main, Production,
+the shared deployment lock, candidate validation and actual deployed-source
+evidence. These tests cannot prove atomic list/delete against an out-of-workflow
+operator or cleanup after runner loss; the
 [operator recovery procedure](../backend-and-data/06-supabase-deployment-runbook.md#audio-comparison-activation-hold)
 and runtime expiry own those boundaries.
 

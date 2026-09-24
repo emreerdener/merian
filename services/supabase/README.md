@@ -45,6 +45,15 @@ hours and makes no identification requests. Expiry leaves the infrastructure
 installed while making that run inactive; deactivation separately verifies
 removal of its hosted setting. See the
 [canonical activation and recovery procedure](../../docs/backend-and-data/06-supabase-deployment-runbook.md#audio-comparison-activation-hold).
+The separate default-off prompt comparison uses a new 36-slot plan and
+`IDENTIFICATION_AUDIO_PROMPT_COMPARISON_V1`. Its own **Control identification
+audio prompt comparison** workflow and
+`scripts/control_audio_prompt_comparison.ts` preserve the same release/recovery
+controls and select one twelve-slot block. The offline execution freeze/ledger
+rechecks source assets, binds the reviewed app/backend and requires admitted
+first-attempt observations plus verified cleanup before progression. Follow its
+[activation prerequisites](../../docs/backend-and-data/06-supabase-deployment-runbook.md#audio-prompt-comparison-activation-prerequisites);
+local implementation does not activate or execute an experiment.
 
 ```text
 services/supabase/

@@ -87,7 +87,7 @@ enum CaptureDebugReplayPreparer {
         _ kind: CaptureDebugReplayKind,
         composingCenter: CGFloat,
         isProActive: Bool,
-        comparison: DebugAudioComparisonAssignment? = nil,
+        comparison: (any DebugAudioComparisonBinding)? = nil,
         documentsDirectory: URL = .documentsDirectory,
         dependencies: Dependencies = .live
     ) async throws -> PreparedCaptureDebugReplay {

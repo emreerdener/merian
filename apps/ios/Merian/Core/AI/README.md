@@ -28,7 +28,13 @@ This README maps that contract to native source and test ownership.
   `InferencePresentationCoordinator`, and successful queue finalization records
   a separate completion proof. The existing UIKit draw callback consumes render
   proof once; replacement/Auth/queue transitions clear it. These proofs are
-  observation evidence, not durable species metadata.
+  observation evidence, not durable species metadata. The new prompt-comparison
+  profile uses a separate generated table and typed binding through those same
+  owners. Its finalization proof receives the actual `SpeciesData` and binds
+  subject state plus conditional confidence; only a named animal includes a
+  normalized scientific-name digest. The
+  [prompt observation contract](../../../../../docs/development-guides/21-identification-app-measurement.md#prompt-comparison-observation)
+  defines the strict log shape and provisional-reference limits.
   `Models/SpeciesData+EdgeResponse.swift` is the sole handwritten
   `EdgeResponse`-to-`SpeciesData` adapter. The platform-neutral species value
   graph and display/identity policies remain under `Merian/Models/Species`,

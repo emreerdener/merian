@@ -4913,6 +4913,125 @@ customer before the Supabase job completes, and never change
 `internal.entitlement_rollout_config.entitlement_mode` as part of cleanup.
 `legacy_trial` and manually granted beta Pro are separate access policies.
 
+## Audio prompt comparison activation prerequisites
+
+The 36-slot uncertainty experiment has its own **Control identification audio
+prompt comparison** workflow
+(`.github/workflows/identification-audio-prompt-comparison.yml`) and
+`services/supabase/scripts/control_audio_prompt_comparison.ts`. Its hosted
+`IDENTIFICATION_AUDIO_PROMPT_COMPARISON_V1` setting remains unset until a named,
+authorized activation. Installing this control submits no requests. The old DSP
+workflow, configuration, twelve assignments, scan IDs and results stay separate.
+
+The new workflow preserves the existing protected `Production` environment,
+`supabase-production-deploy` concurrency group, exact clean current `main`,
+pinned Deno/Supabase tools and fixed `qlarqavoqhkuwzmevrmf` target. `inspect` is
+the default; `activate` additionally requires full candidate validation, the
+`automatic-release` audit and successful production deployment evidence. The
+candidate's generated bundle identity, `promptPlan.ts` and
+`promptInstruction.ts` must match the deployed source. This workflow does not
+deploy functions, push migrations or identify media. `inspect` and `deactivate`
+remain available without a new deployment or database validation.
+
+### Prepare the prompt experiment
+
+1. Finish review, the complete affected gates and the exact-SHA release process.
+   Obtain the named production deployment and bounded experiment authorization.
+   Build the reviewed app from clean source; the execution freeze requires its
+   actual source revision/fingerprint and the successful deployed revision.
+   Synthetic tests and an earlier dirty simulator build are not execution
+   evidence. An unchanged deployed runtime may match a later tooling-only
+   control commit, but all three blocks retain one app/source/bundle pair.
+2. Privately check the installed app, its foreground state, ordinary Pro access,
+   current authenticated owner and fresh session-bound consent synchronization.
+   The owner must match the reviewed private configuration and stay the same
+   across blocks. Do not extract credentials or session data into the packet.
+   Record only the strict, fresh boolean operator witness described in the
+   [execution tooling guide](../../services/supabase/scripts/identification_evaluation/README.md#offline-prompt-execution-freeze-and-ledger).
+   This is an operator assertion, not an authentication attestation; the backend
+   still enforces authenticated ownership, consent and quota.
+3. Freeze the two reviewed source packets, all six exact WAV copies, 36 fixed
+   assignments, generated app/server tables, actual source/app/backend
+   identities, reviewed pricing, decision-plan digest and three bounded block
+   windows with `prepare_audio_prompt_execution.ts`. Use a new private directory
+   outside Git. Each window is at most two hours, stays inside media retention
+   and is covered by pricing no older than seven days at its end. Windows may
+   overlap in time, but active configurations and submitted slots must be
+   serialized. Freeze and per-slot preparation make zero provider calls. Keep
+   the historical preparation and completed packets immutable.
+4. Through the authorized private GitHub secret-management channel, prepare the
+   **Production environment secret** `IDENTIFICATION_AUDIO_PROMPT_COMPARISON_V1`
+   with exactly seven fields: `version: 1`, `block` (integer 1, 2 or 3), private
+   `ownerId`, `planSha256`, `backendBundleSha256`, `startsAt` and `expiresAt`.
+   Use UTC millisecond timestamps and the corresponding frozen block window.
+   Never put this JSON or its digest in workflow inputs, source, messages, logs
+   or experiment artifacts. The controller passes it only through the isolated
+   set subprocess environment and records sanitized block/window evidence.
+5. Dispatch `inspect` on exact current `main` and require verified absence
+   before the first activation. Dispatch `activate` with the same candidate SHA
+   and require `active` or `already_active` evidence matching the frozen block,
+   plan, bundle, source and deployed revision. The approved window must still be
+   open after candidate validation finishes. A different hosted value is
+   preserved and rejected. Management-plane evidence does not prove runtime
+   readiness or identification quality.
+
+### Execute and close each block
+
+Before **each** Identify tap, recheck the private owner/consent/app/foreground
+facts and run `manage_audio_prompt_execution.ts claim` for the next exact slot.
+The claim verifies the clean frozen local implementation, all six current asset
+hashes, activation evidence, fresh operator witness and sufficient remaining
+window time. It reserves an immutable local first attempt before UI submission.
+Stage only its case/slot through the Debug prompt menu, start the normal
+120-second observer with the frozen pricing, wait for `observer_ready`, and tap
+Identify once. Admit the normally closed observation with the ledger's `admit`
+operation before claiming the next slot. The app and server still validate the
+actual source, request, arm, owner, first Pro attempt and fresh result proof.
+
+An uncompleted claim blocks every later slot; a rejected admission also writes
+an immutable exclusion. There is no retry, replacement, reset or skip operation.
+Retain all complete unfavorable results and all failures; missing cost remains
+unknown and makes the eventual cost comparison inconclusive. Keep first visible
+names and bands in the separate reviewed observations, never raw provider prose
+or response bodies. An uncertain tap, account change, failure, wrong identity or
+incomplete observation stops the run under the
+[comparison plan](../rfcs/identification-audio-uncertainty-comparison-plan-2026-09-24.md).
+
+After each block, or immediately on a stop, dispatch `deactivate` using its
+unchanged private configuration and require verified hosted absence. Then use
+ledger `close` to retain that cleanup evidence after the last claim, completion
+or exclusion. An incomplete block may be closed, but cannot resume. The next
+block requires all prior slots admitted, prior cleanup recorded, and its new
+activation after that cleanup. Only after verified absence may the private
+environment secret be replaced for the next block; keep the same reviewed owner
+and build.
+
+Expiry makes a stored setting inactive; it does not prove removal. Cleanup of a
+matching expired or older configuration remains available independently of a
+fresh plan, bundle or deployment. The offline ledger accepts cleanup from a
+different controller SHA when recovery outlives the frozen execution source.
+Verify trusted workflow-artifact provenance and hosted absence separately; the
+offline ledger validates the receipt shape and bindings but does not establish
+Git ancestry or current-main status. Continue using the frozen checkout for
+ledger admission/recovery. Do not delete claims, rewrite completed observations
+or create a replacement packet to reuse consumed IDs.
+
+The [existing recovery rules](#expiry-deactivation-and-recovery) also apply:
+serialize all writers through the workflow, prohibit concurrent dashboard/API
+edits, preserve detected replacements, and resolve interrupted or unverified
+cleanup before proceeding. List/delete is not atomic compare-and-swap. Never
+replace the private environment secret while recovery is unresolved.
+
+Each control emits sanitized `audio_prompt_comparison_control_v1` evidence with
+block, window, source/deployed revisions, plan/bundle hashes, state and cleanup;
+no owner, secret value/digest, session, media or response is retained. GitHub
+artifacts expire after thirty days. Retain the private ledger and observations
+under the source packet's earlier retention limit. The
+[API contract](./05-api-contracts.md#server-owned-audio-prompt-comparison) and
+[measurement guide](../development-guides/21-identification-app-measurement.md#prompt-comparison-observation)
+remain authoritative for runtime payloads and admissible evidence. No live
+execution or candidate-quality conclusion follows from the local tests.
+
 ## Audio comparison activation hold
 
 The reusable control is **Control identification audio comparison**

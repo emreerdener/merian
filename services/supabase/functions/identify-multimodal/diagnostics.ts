@@ -1,3 +1,8 @@
+import {
+  AUDIO_PROMPT_COMPARISON_HEADER,
+  type AudioPromptComparison,
+  audioPromptComparisonReceipt,
+} from "./comparison/promptAssignment.ts";
 import type { AIExecutionOutcome } from "../_shared/ai/contracts.ts";
 import { corsHeaders } from "../_shared/http.ts";
 import { IDENTIFICATION_BUNDLE_SHA256 } from "./deploymentIdentity.ts";
@@ -23,6 +28,7 @@ function tokens(value: number | null | undefined): number | null {
 export function identificationDiagnosticHeaders(
   result: AIExecutionOutcome,
   comparison: AudioComparison | null = null,
+  promptComparison: AudioPromptComparison | null = null,
 ): Record<string, string> {
   const usage = result.usage;
   const metadata = {
@@ -51,10 +57,17 @@ export function identificationDiagnosticHeaders(
     ...(comparison
       ? { [AUDIO_COMPARISON_HEADER]: audioComparisonReceipt(comparison) }
       : {}),
+    ...(promptComparison
+      ? {
+        [AUDIO_PROMPT_COMPARISON_HEADER]: audioPromptComparisonReceipt(
+          promptComparison,
+        ),
+      }
+      : {}),
     "Access-Control-Expose-Headers": `${
       corsHeaders["Access-Control-Expose-Headers"]
     }, ${IDENTIFICATION_DIAGNOSTICS_HEADER}, X-Merian-Idempotent-Replay${
       comparison ? `, ${AUDIO_COMPARISON_HEADER}` : ""
-    }`,
+    }${promptComparison ? `, ${AUDIO_PROMPT_COMPARISON_HEADER}` : ""}`,
   };
 }

@@ -28,10 +28,14 @@ struct CaptureTelemetry: Sendable {
 enum DebugIdentificationReplayProfile: Equatable, Sendable {
     case audioMinimalV1
     case audioComparison(slot: DebugAudioComparisonSlot)
+    case audioPromptComparison(slot: DebugAudioPromptComparisonSlot)
 
-    var comparison: DebugAudioComparisonAssignment? {
-        guard case .audioComparison(let slot) = self else { return nil }
-        return slot.assignment
+    var comparison: (any DebugAudioComparisonBinding)? {
+        switch self {
+        case .audioMinimalV1: nil
+        case .audioComparison(let slot): slot.assignment
+        case .audioPromptComparison(let slot): slot.assignment
+        }
     }
 
     func makeTelemetry() -> CaptureTelemetry {

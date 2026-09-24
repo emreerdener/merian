@@ -1,8 +1,13 @@
 # Audio confidence V2 implementation
 
 Date: 24 September 2026\
-Status: implemented and independently reviewed; local verification recorded
-below; not deployed.
+Status: implemented, independently reviewed and deployed; implementation-stage
+verification is recorded below. The subsequent
+[production release](../release-evidence/identification-audio-confidence-v2-deployment-2026-09-24.md)
+and
+[fixed-context app benchmark](./identification-audio-confidence-v2-app-benchmark-2026-09-24.md)
+record hosted execution separately; species accuracy and calibration remain
+unproven.
 
 This follows the
 [rain-control diagnostic](./identification-audio-rain-diagnostic-2026-09-24.md).
@@ -44,10 +49,11 @@ receipt. The migration reuses existing removal helpers for affected historical
 credit/receipts, reopening progress and withdrawing derived Event badges and
 completion publications while retaining selected-goal preferences. It preserves
 valid cached receipts. The ten-second lock and five-minute statement limits
-remain fail-closed. This candidate contains the migration; it has not been
-applied to production.
+remain fail-closed. The migration was unapplied at implementation sign-off; the
+separately authorized production release applied it at 14:35 UTC on 24 September
+2026, as recorded in the release evidence above.
 
-## Verification
+## Implementation-stage verification
 
 Validation uses the isolated `codex/audio-confidence-semantics` checkout. The
 original working checkout and its unrelated map edits are untouched.
@@ -89,12 +95,15 @@ in this slice. All provider/storage fixtures are synthetic.
 ## Acceptance and next experiment
 
 Prompt and fixture tests establish contract behavior, not recognition quality or
-calibration. Freeze a fresh bounded V2 plan before another live comparison, with
-exact assets, context profile, admitted model/settings, attempt order/count and
-stop conditions. Use the existing ordinary-app billing path and retain every
-outcome. Do not reactivate or regenerate the consumed twelve-slot processing
-plan. Earlier ordinary-context observations remain descriptive history, not a
-controlled V2 baseline. Formal corpus progress remains **0/60 development and
-0/240 held-out groups**. Deployment remains a separate, explicitly named
-operation and target. Run the comparison only after the reviewed backend
-candidate is deployed and its identity is verified.
+calibration. The subsequent deployment and bounded six-case V2 benchmark
+completed the next operational step: fresh responses matched the deployed
+runtime and fixed context, while disputed animal species labels remain.
+
+Any further comparison needs a new frozen plan with exact assets, context
+profile, admitted model/settings, attempt order/count and stop conditions. Use
+the ordinary-app billing path and retain every outcome. Do not reactivate or
+regenerate the consumed twelve-slot processing plan. Earlier ordinary-context
+observations remain descriptive history, not a controlled V2 baseline. Formal
+corpus progress remains **0/60 development and 0/240 held-out groups**. Further
+deployment remains a separately authorized operation and target; verify the
+reviewed deployed identity before another comparison.
