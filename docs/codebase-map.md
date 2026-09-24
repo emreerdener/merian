@@ -1687,7 +1687,13 @@ pure helpers; ordinary scans retain their current processor. The
 [app integration record](./rfcs/identification-audio-comparison-app-integration-2026-09-23.md)
 maps the generated native assignments, authenticated receipt collection, exact
 foreground finalization/render proof and offline observation admission. Server
-configuration remains unset; no paid comparison has run.
+configuration and release evidence remain run-specific. The separate
+[prompt lane](./rfcs/identification-audio-uncertainty-comparison-plan-2026-09-24.md)
+adds generated 36-slot bindings, `promptAssignment.ts`, `promptInstruction.ts`,
+`DebugAudioPromptComparisonAssignment` and strict prompt observation admission.
+The new lane is default-off. Its separate `control_audio_prompt_comparison.ts`
+and prompt-comparison workflow preserve bounded Production activation/recovery;
+old DSP IDs and results remain immutable.
 
 Inference and media staging:
 
@@ -1727,12 +1733,23 @@ own the separately versioned provisional corpus and agreement report for solo
 development. `preflight.ts` verifies assets and fingerprints requests without
 network, credentials or dispatch. Formal scoring and comparison reject this
 exploratory evidence; the same live execution controls apply to eligible real
-exploratory runs. `services/supabase/scripts/validate_edge_dtos.ts` imports that
-same executable descriptor and deterministically generates the marked Identify
-DTO block in iOS `InferenceEdgeDTOs.swift`, including nested types, arrays,
-numeric representations, coding keys, and explicit decoders. The gate compares
-the checked-in block exactly and checks exclusive generated DTO ownership across
-the complete `apps/ios` source graph. Its focused tests, third-party-free Deno
+exploratory runs. The separate offline prompt-comparison owner
+`scripts/identification_evaluation/audioPromptComparison.ts` builds the frozen
+audio uncertainty candidate and hash-only assignments; `frozenAudioPacket.ts`
+validates its retained private inputs. The
+`scripts/prepare_audio_uncertainty_comparison.ts` entry point creates a new
+preparation without production routing or dispatch. The later
+`prepare_audio_prompt_execution.ts` freezes actual clean execution bindings and
+assets; `manage_audio_prompt_execution.ts` and `audioPromptExecution.ts` own the
+private ordered first-attempt ledger, fresh operator preflight witness and
+verified block cleanup. They make no submissions. See the
+[evaluation tooling guide](../services/supabase/scripts/identification_evaluation/README.md#offline-audio-uncertainty-prompt-preparation).
+`services/supabase/scripts/validate_edge_dtos.ts` imports that same executable
+descriptor and deterministically generates the marked Identify DTO block in iOS
+`InferenceEdgeDTOs.swift`, including nested types, arrays, numeric
+representations, coding keys, and explicit decoders. The gate compares the
+checked-in block exactly and checks exclusive generated DTO ownership across the
+complete `apps/ios` source graph. Its focused tests, third-party-free Deno
 config, and frozen lock exercise stale generation, aliased decoder extensions,
 missing source roots, and runtime numeric bounds.
 `_shared/capturedMediaContract.ts` independently owns the durable

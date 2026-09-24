@@ -1,3 +1,7 @@
+import {
+  AUDIO_PROMPT_COMPARISON_MARKER,
+  parseAudioPromptComparisonEvent,
+} from "./audioPromptComparisonObservation.ts";
 import { estimateCost } from "./profiles.ts";
 import type { Pricing, StoredUsage } from "./runContracts.ts";
 import { fields, integer, requireCondition as check } from "./validation.ts";
@@ -289,6 +293,11 @@ export function projectAppLog(
       typeof row.eventMessage !== "string" || row.eventMessage.length > 4096
     ) return null;
     const message: string = row.eventMessage;
+    if (message.startsWith(AUDIO_PROMPT_COMPARISON_MARKER)) {
+      return parseAudioPromptComparisonEvent(
+        JSON.parse(message.slice(AUDIO_PROMPT_COMPARISON_MARKER.length)),
+      );
+    }
     if (message.startsWith(AUDIO_COMPARISON_MARKER)) {
       return parseAudioComparisonEvent(
         JSON.parse(message.slice(AUDIO_COMPARISON_MARKER.length)),
@@ -352,7 +361,8 @@ export function isProofLogRow(line: string): boolean {
     return row.subsystem === "com.merian.app" &&
       typeof row.eventMessage === "string" &&
       (row.eventMessage.startsWith(APP_MEASUREMENT_MARKER) ||
-        row.eventMessage.startsWith(AUDIO_COMPARISON_MARKER));
+        (row.eventMessage.startsWith(AUDIO_COMPARISON_MARKER) ||
+          row.eventMessage.startsWith(AUDIO_PROMPT_COMPARISON_MARKER)));
   } catch {
     return false;
   }

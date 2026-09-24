@@ -57,6 +57,21 @@ unknown scan persistence retains its existing recovery ownership. Preparation
 failure refunds unused quota. Refusals and malformed/truncated output retain
 their distinct terminal/retryable responses.
 
+## Scoped audio prompt authority
+
+The default-off 36-slot prompt lane adds the internal
+`UserRequestAuthority.audioPromptComparison` discriminator. Only the validated
+route assignment supplies A/B; the registry rejects mismatched task, tier,
+attempt, video flags or audio/context shape. A retains `identify_audio_v2`; B
+uses `identify_audio_uncertainty_experiment_v1` from the route-private candidate
+instruction. The native builder changes only the resolved system instruction;
+model, schema, DSP, confidence thresholds and generation settings remain fixed.
+This discriminator is not copied from caller JSON and grants no quota or
+provider authority. The
+[prompt contract](../../../../../docs/backend-and-data/05-api-contracts.md#server-owned-audio-prompt-comparison)
+owns its deployment/activation boundary. Normal and historical DSP claims omit
+it and retain their existing projection.
+
 ## Preserved description profile
 
 | Admitted model     | Output tokens | Thinking tokens | Shared options                     |

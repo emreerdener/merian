@@ -118,6 +118,167 @@ request. See the
 for the offline evidence. Historical run fingerprints remain frozen; a new
 processor requires a new run rather than overwriting a prior baseline.
 
+### Prompt assignment and observation integration
+
+`generate_audio_prompt_comparison_plan.ts --write` checks the immutable Slice 1
+preparation digest and derives separate backend/native tables with 36 stable
+scan IDs. `--check` and its root test detect stale output. Neither mode
+recreates the old preparation or grants runtime permission. Runtime A/B request
+and policy hashes must still match the frozen source preparation; the newly
+generated backend bundle identity records the extended runtime graph separately.
+
+`audioPromptComparisonObservation.ts` strictly parses the new bounded native
+proof. `comparisonWindow.ts` shares unchanged lifecycle admission with the old
+DSP wrapper; `audioPromptComparisonWindow.ts` requires exactly 120 seconds and
+retains actual subject state, conditional confidence and provisional name-hash
+agreement. The separate
+[offline admission CLI](../admit_audio_prompt_comparison_observation.ts) writes
+exclusive private evidence with no network or environment access. See the
+[measurement guide](../../../../docs/development-guides/21-identification-app-measurement.md#prompt-comparison-observation)
+for command, input shape and evidence limits. The old DSP controller cannot
+activate this new plan. The separate prompt controller and offline execution
+ledger below own its bounded operation.
+
+### Offline prompt execution freeze and ledger
+
+[prepare_audio_prompt_execution.ts](../prepare_audio_prompt_execution.ts)
+creates a new private execution packet from the two retained reviewed source
+packets and a reviewed metadata JSON file. Unlike the dated preparation, this
+requires a clean actual source/app pair, matching generated backend/native
+tables and bundle, current reviewed pricing, and three bounded windows. It
+verifies the retained source/reference permissions and request hashes, copies
+six exact WAVs to case-only filenames, and freezes `run.json` with exact-file
+and canonical hashes in `freeze.json`. A failed preparation cannot resume or
+overwrite an output. No owner ID, credential, session data or provider response
+is accepted.
+
+The strict review shape is `audio_prompt_execution_review_v1`: `reviewedAt`,
+`sourceSha`, `deployedSha`, the five-field measurement `app` identity,
+`backendBundleSha256`, `pricing` (the existing `evaluation_pricing_v1`
+contract), `windows` (ordered blocks 1–3, each with `block`, `startsAt`,
+`expiresAt`) and `privatePreflight`. Use UTC millisecond timestamps. The pricing
+snapshot must cover all three windows; each window is at most two hours inside
+source retention. Obtain the actual clean app and deployment identities after
+review, not from a synthetic fixture or the previous dirty test build.
+
+`privatePreflight` has exactly `version: audio_prompt_private_preflight_v1`,
+`checkedAt` and five true boolean assertions:
+`ownerMatchesReviewedConfiguration`, `sameReviewedOwner`, `consentCurrent`,
+`appMatchesReview`, `foreground`. Perform those checks privately against the
+current authenticated simulator and reviewed configuration before recording the
+witness. It must be at most five minutes old and, for each new claim, no earlier
+than activation or the previous observation's completion. It is an unsigned
+operator witness, not proof of authentication; backend owner/consent checks stay
+authoritative. Never record the actual account/configuration/session values.
+
+Replace uppercase placeholders with absolute private paths. `OUTPUT_PARENT` must
+exist, `RUN` must be its new child, and all paths must be canonical:
+
+```bash
+deno run --frozen --no-prompt --deny-net --deny-env \
+  --config services/supabase/functions/deno.json \
+  --allow-read=.,SOURCE_V2,SOURCE_VISIBLE,REVIEW,OUTPUT_PARENT \
+  --allow-run=git --allow-write=RUN \
+  services/supabase/scripts/prepare_audio_prompt_execution.ts \
+  SOURCE_V2 SOURCE_VISIBLE REVIEW RUN
+```
+
+[manage_audio_prompt_execution.ts](../manage_audio_prompt_execution.ts) and
+[audioPromptExecution.ts](./audioPromptExecution.ts) maintain `slots/` and
+`controls/` under that packet, with exclusive locking and flushed, create-only
+records. `claim` verifies all six frozen WAV hashes again and the unchanged
+clean local implementation, then reserves the next first attempt **before**
+manual Identify. It accepts only the exact block's sanitized activation receipt
+and a fresh witness. It submits nothing. Example claim for slot 1:
+
+```bash
+deno run --frozen --no-prompt --deny-net --deny-env \
+  --config services/supabase/functions/deno.json \
+  --allow-read=.,RUN,ACTIVATION,WITNESS --allow-run=git --allow-write=RUN \
+  services/supabase/scripts/manage_audio_prompt_execution.ts \
+  claim RUN 1 ACTIVATION WITNESS
+```
+
+The other operations have four arguments: `admit RUN SLOT OBSERVATION` and
+`close RUN BLOCK CLEANUP`. Use the same denied network/environment flags,
+`--allow-read=.,RUN,INPUT --allow-write=RUN`, and the corresponding private
+input file; neither operation needs `--allow-run`. `admit` requires the exact
+frozen pricing, a matching fresh 120-second window after the claim, and
+completion before block expiry. It retains normalized proof, subject state,
+score, timing and cost provenance, never response prose. A failed observation
+creates an immutable exclusion and cannot be replaced by a later good window.
+
+A claim without completion blocks all subsequent slots, including after a crash
+before the tap. There is no retry, skip, reset or budget expansion API. Complete
+unfavorable outcomes are retained; missing cost stays unknown for the final
+screen. Close each block with verified deactivation evidence after its last
+completion or exclusion. A failed block can close for recovery but cannot
+resume. The next block requires the previous twelve completions and verified
+cleanup before its own activation. Recovery may use a different controller SHA
+with trusted workflow-artifact provenance and verified absence. The offline
+ledger validates receipt shape and bindings, not ancestry or current-main
+status; identification still uses the frozen app/runtime bindings.
+
+Follow the
+[activation/recovery procedure](../../../../docs/backend-and-data/06-supabase-deployment-runbook.md#audio-prompt-comparison-activation-prerequisites).
+The controller and ledger do not authorize a deployment, secret creation or paid
+run; they also do not prove that a request happened or replace the server's
+single-attempt gate. Actual admission requires the app's runtime receipts. Keep
+the frozen checkout throughout execution, stop on uncertain submissions, and
+preserve every record through the source retention deadline.
+
+### Offline audio uncertainty prompt preparation
+
+[The six-clip prompt design](../../../../docs/rfcs/identification-audio-uncertainty-comparison-plan-2026-09-24.md)
+has a separate offline builder:
+[prepare_audio_uncertainty_comparison.ts](../prepare_audio_uncertainty_comparison.ts).
+It accepts the two previously reviewed private source packets and a fresh output
+directory. Network and environment permissions must be denied. The builder has
+no provider executor or client prompt selector. Slice 2 adds a separately gated
+runtime registry arm and Debug client handle; the new lane remains default-off
+behind its separate activation controller.
+
+[Audio prompt comparison](./audioPromptComparison.ts) pins the complete design,
+inserts its exact species-evidence block into the resolved current V2
+instruction, and uses the production processor, Pro policy and Gemini request
+projection. Both arms share the processed WAV and fixed context. A
+native-request comparison removes only the system instruction and requires
+equality. The actual processed WAV must be canonical mono PCM16 at 16 kHz and
+0.5–15 seconds before its format is recorded.
+
+[Frozen packet loading](./frozenAudioPacket.ts) verifies the design's completed
+freeze, corpus, taxonomy, selected media, eligibility, source and reference
+records. It requires current owner-reviewed retention, existing Gemini
+evaluation permission, the exact selected groups/references, one bounded
+standalone WAV and no observation text or source context. Private canonical
+roots and regular single-link files are required. Historical outcomes and
+response prose are not loaded.
+
+Replace all uppercase path placeholders with absolute paths. `OUTPUT_PARENT`
+must exist and `OUTPUT` must be its new child; these paths must have no symlink
+aliases. Parent read access permits the directory sync after exclusive creation.
+
+```bash
+deno run --frozen --no-prompt --deny-net --deny-env \
+  --config services/supabase/functions/deno.json \
+  --allow-read=.,SOURCE_V2,SOURCE_VISIBLE,OUTPUT_PARENT \
+  --allow-run=git --allow-write=OUTPUT \
+  services/supabase/scripts/prepare_audio_uncertainty_comparison.ts \
+  SOURCE_V2 SOURCE_VISIBLE OUTPUT
+```
+
+The private `preparation.json` contains only source/provenance/request/policy
+hashes, settings, implementation identity and the 36 reviewed assignments.
+`freeze.json` records both its exact-file and canonical-JSON hashes. Source and
+completed packets stay immutable. Preparation slot handles use a new
+`audio-uncertainty-v1` namespace; they are not reserved scan identities or live
+authorization. Scan IDs, app/bundle/private owner/window bindings and live
+dispatch remain unset. Repeats preserve request hashes and receive distinct
+assignment hashes. Neither existing RunSpecs nor the historical DSP lane can
+consume this artifact. Any implementation or binding change requires a new
+preparation; formatting an evidence copy preserves its canonical digest but
+changes its exact-file digest.
+
 ### Offline audio comparison preparation
 
 `prepare_audio_preprocessing_comparison.ts` verifies the frozen six-audio

@@ -11,6 +11,9 @@ export type AITask =
   | "group_tags";
 
 export interface UserRequestAuthority {
+  /** Internal authority from the validated server-owned prompt experiment only.
+   * Never decoded from client JSON, persisted, or accepted as a model override. */
+  readonly audioPromptComparison?: "A" | "B";
   readonly kind: "user_request";
   readonly userId: string;
   readonly permission: "google_gemini";
@@ -145,6 +148,7 @@ export interface AIAttemptSnapshot {
     | "identify_describe_v1"
     | "identify_vision_v1"
     | "identify_audio_v2"
+    | "identify_audio_uncertainty_experiment_v1"
     | "identify_audio_compat_v2"
     | "identify_text_v1"
     | "identify_blended_v1"

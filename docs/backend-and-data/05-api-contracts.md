@@ -2229,6 +2229,58 @@ complete-window admission. Keep the configuration unset; deployment, activation
 and the bounded paid run require the separate operations defined in the
 [activation hold](./06-supabase-deployment-runbook.md#audio-comparison-activation-hold).
 
+### Server-owned audio prompt comparison
+
+The separate default-off prompt lane accepts `audio_prompt_comparison` with
+exactly `{ "planSha256": "<generated plan SHA-256>", "slot": 1 }`; slots are
+integers 1–36. `comparison/promptPlan.ts` is generated from the frozen
+[six-case preparation](../rfcs/identification-audio-uncertainty-comparison-plan-2026-09-24.md).
+The client supplies no instruction, model or policy. Arm A keeps
+`identify_audio_v2`; arm B uses `identify_audio_uncertainty_experiment_v1`. Both
+use current DSP, Gemini Pro, the existing audio schema, fixed context and
+unchanged confidence semantics. Identify JSON response DTOs are unchanged.
+
+`comparison/promptAssignment.ts` validates the private
+`IDENTIFICATION_AUDIO_PROMPT_COMPARISON_V1` configuration: exactly `version`
+(`1`), `block` (integer 1–3), `ownerId`, `startsAt`, `expiresAt`, `planSha256`
+and `backendBundleSha256`. UTC timestamps must form a currently active window of
+at most two hours within the generated plan's preparation/retention lifetime.
+The authenticated owner, backend bundle, plan, selected block and derived
+`ac0b0001-` scan UUID must match. Marked requests and reserved IDs are guarded
+before recovery even when configuration or the handle is missing. Internal
+replay is excluded. Both comparison markers together are invalid.
+
+The exact body/context contract is the same as the DSP lane above, replacing
+`audio_comparison` with `audio_prompt_comparison`. Source WAV length/hash and
+current processed WAV hash are checked before reservation. Normal consent,
+entitlement, quota and persistence remain authoritative. Only the first Pro
+reservation without Flash fallback is eligible. Native request, policy and
+confidence hashes must match their generated slot before commitment; expiry is
+rechecked there. Failed setup refunds unused quota; a committed attempt retains
+ordinary settlement rules and never gains a replacement slot. Unmarked ordinary
+requests continue to use their existing binding.
+
+Errors use `409 audio_prompt_comparison_unavailable` for invalid/missing
+configuration (including an invalid block), owner or window;
+`409 audio_prompt_comparison_mismatch` for a slot outside the active block or
+handle, identity, body or media drift; and
+`409 audio_prompt_comparison_excluded` for service replay or a reopened attempt.
+Normal auth/media/quota errors and caller-safe execution failure paths remain
+unchanged. No failed or replayed response receives prompt-comparison proof.
+
+Fresh durable success adds the CORS-exposed `X-Merian-Audio-Prompt-Comparison`
+header. Its version-1 JSON has `planSha256`, `slot`, `block`, `repeat`,
+`caseId`, `arm` (`A` or `B`), `sourceWavSha256`, `processedWavSha256`,
+`providerRequestSha256`, `policySha256` and `confidenceSha256`. The native
+generated table validates every field and emits separate prompt-lane
+receipt/finalization/draw records. The older DSP plan, namespace and receipt
+interpretation remain immutable. The
+[measurement contract](../development-guides/21-identification-app-measurement.md#prompt-comparison-observation)
+defines native subject-state evidence and its limits. Keep the new configuration
+unset until the separate
+[prompt activation prerequisites](./06-supabase-deployment-runbook.md#audio-prompt-comparison-activation-prerequisites)
+are implemented and verified.
+
 ### AI authorization and idempotency
 
 Every authenticated route that can dispatch paid model work uses the same

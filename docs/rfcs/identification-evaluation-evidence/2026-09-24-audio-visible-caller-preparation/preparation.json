@@ -1,0 +1,409 @@
+{
+  "version": "audio_visible_caller_preparation_v1",
+  "createdAt": "2026-09-24T15:41:31.300Z",
+  "status": "prepared_pending_owner_content_review",
+  "scope": "Two new development-only audio candidates with separately retained visual reference context.",
+  "candidateCount": 2,
+  "eligibleCaseCount": 0,
+  "newAppSubmissions": 0,
+  "newModelCalls": 0,
+  "independentBiologicalReviewers": 0,
+  "formalProgress": {
+    "development": 0,
+    "heldOut": 0
+  },
+  "sourceSelectionSha256": "377650b059f9096ddb9edc6c459416a60318140d1dd86294709394007228d08b",
+  "candidateInputsSha256": "bd85b8e645e599fe4dd2555c07c5c462bc799a553adb34ad29106a1f8bcd746d",
+  "candidateReferencesSha256": "75e026d949aca3d39b1001e77186da3b1dc59d3b407125c3f914e26e942d3faa",
+  "taxonomySha256": "e9408b88f188e83dbfe52943c58d24bd9325568e73ad85fcd74236e0e0e3a2cb",
+  "cases": [
+    {
+      "caseId": "c0025",
+      "groupId": "g0025",
+      "sourceLabel": "American Pika",
+      "sourcePage": "https://www.nps.gov/media/video/view.htm?id=5833D73D-CDF3-4B07-A008-D668ADCD51D5",
+      "sourceMediaUrl": "https://www.nps.gov/nps-audiovideo/audiovideo/2630cd29-d715-42a4-ade2-acd1775fef9e720p.mp4",
+      "sourcePageSha256": "1fc655260a7a4b9affe0103b8ad7aebcf90d2111fafa4f2bc75d5d0286fc0a35",
+      "sourceRenditionSha256": "4b6cb4c6b1ddb8dcbfec7a5155fa89abbe82a9a447ae02662cca92a9f881fe90",
+      "sourceRenditionByteLength": 15524775,
+      "startSeconds": 16,
+      "segmentBasis": "Fixed 16-26 second interval includes the first two source-caption call intervals, 18-19 and 23-24 seconds; chosen before downloading media.",
+      "preparedPath": "assets/a00250.wav",
+      "preparedSha256": "5a35dc6ad96f1b905a7eca55d71e8efb39a1af8fa1617c0d3dcdccd362dcaada",
+      "preparedPcmSha256": "a154c76a2f64dab9f80cf6066d2f182e8fcc4114e1e5567ed82077f3074fd5b5",
+      "preparedDurationSeconds": 10.0,
+      "sourceDecodedDurationSeconds": 59.721337868480724,
+      "proposedReference": {
+        "subject": "biological",
+        "resolution": "named",
+        "supportedRank": "species",
+        "acceptableTaxa": [
+          {
+            "id": "species-ochotona-princeps",
+            "rank": "species"
+          }
+        ]
+      },
+      "referenceStatus": "provisional_source_label_pending_content_review",
+      "nameAuthorityUrl": "https://www.nps.gov/media/video/view.htm?id=5833D73D-CDF3-4B07-A008-D668ADCD51D5",
+      "attribution": "National Park Service, Mount Rainier National Park",
+      "rightsBasis": "Source page credits NPS and states NPS multimedia without a copyright symbol are public domain.",
+      "reviewVideoSha256": "8124563427da77e43aa4f40877f1d3f670adee688ae0788f37b34b113058474d",
+      "personalDataExcluded": null,
+      "spokenLabelsExcluded": null,
+      "listeningReviewCompleted": false,
+      "sourceVideoAudioAuthenticityVerified": false,
+      "visibleCallerSynchronizationVerified": false,
+      "originalRecordingBytesAttested": false
+    },
+    {
+      "caseId": "c0026",
+      "groupId": "g0026",
+      "sourceLabel": "Domestic Chicken (rooster)",
+      "sourcePage": "https://commons.wikimedia.org/wiki/File:Rooster_crowing_small.ogv",
+      "sourceMediaUrl": "https://upload.wikimedia.org/wikipedia/commons/transcoded/8/8b/Rooster_crowing_small.ogv/Rooster_crowing_small.ogv.360p.mpeg4.mov",
+      "sourcePageSha256": "4d49da94bf622c11e59918bddc343eb8145b066773d2f7e3d920e9e5a2e281f6",
+      "sourceRenditionSha256": "67acd1c64726be00741f6faf716988d4b959a7648a660893996255d4a0fa4007",
+      "sourceRenditionByteLength": 772141,
+      "startSeconds": 0,
+      "segmentBasis": "Complete source when shorter than ten seconds, otherwise first ten seconds; no alternate crop search.",
+      "preparedPath": "assets/a00260.wav",
+      "preparedSha256": "6f4cd19d980986aceff21efa656a6b17ba993bfe5d5363967530c4add3de316d",
+      "preparedPcmSha256": "4251c244815faffe815f3783a05fd55d90075e5c9ae03b4504ddc8ce49db14ce",
+      "preparedDurationSeconds": 5.423990929705216,
+      "sourceDecodedDurationSeconds": 5.423990929705216,
+      "proposedReference": {
+        "subject": "biological",
+        "resolution": "named",
+        "supportedRank": "species",
+        "acceptableTaxa": [
+          {
+            "id": "species-gallus-gallus",
+            "rank": "species"
+          }
+        ]
+      },
+      "referenceStatus": "provisional_source_label_pending_content_review",
+      "nameAuthorityUrl": "https://nationalzoo.si.edu/animals/chicken",
+      "attribution": "Benchill, Wikimedia Commons; public-domain own-work recording",
+      "rightsBasis": "Creator declares own work and releases it worldwide into the public domain, with an unrestricted-use fallback.",
+      "reviewVideoSha256": "11e2de8d91ec9bf1ed5c79a56d93ff589d4ff12675e1a34dea144e3ab8308ec6",
+      "personalDataExcluded": null,
+      "spokenLabelsExcluded": null,
+      "listeningReviewCompleted": false,
+      "sourceVideoAudioAuthenticityVerified": false,
+      "visibleCallerSynchronizationVerified": false,
+      "originalRecordingBytesAttested": false
+    }
+  ],
+  "listeningReel": {
+    "purpose": "Exact input audio for owner content review; never a model input.",
+    "path": "review/listening-reel.wav",
+    "sha256": "9233f305759d609b0092a63978e00a09c7f7522457ffd408732454bd4268785c",
+    "durationSeconds": 16.423990929705216,
+    "sampleRateHz": 44100,
+    "channels": 1,
+    "bitsPerSample": 16,
+    "silenceBetweenClipsSeconds": 1,
+    "speechOrTonesAdded": false,
+    "segments": [
+      {
+        "caseId": "c0025",
+        "startSample": 0,
+        "endSample": 441000,
+        "startSeconds": 0.0,
+        "endSeconds": 10.0,
+        "pcmSha256": "a154c76a2f64dab9f80cf6066d2f182e8fcc4114e1e5567ed82077f3074fd5b5"
+      },
+      {
+        "caseId": "c0026",
+        "startSample": 485100,
+        "endSample": 724298,
+        "startSeconds": 11.0,
+        "endSeconds": 16.423990929705216,
+        "pcmSha256": "4251c244815faffe815f3783a05fd55d90075e5c9ae03b4504ddc8ce49db14ce"
+      }
+    ]
+  },
+  "visualSourceReview": {
+    "version": "audio_visible_context_review_v1",
+    "reviewedAt": "2026-09-24T15:41:15.703Z",
+    "reviewerKind": "automated",
+    "reviewScope": "Four extracted still images inspected visually; source descriptions and rights read. No listening or continuous audiovisual inspection.",
+    "cases": [
+      {
+        "caseId": "c0025",
+        "sampledSourceSeconds": [
+          18.485133333333334,
+          23.490133333333333
+        ],
+        "observed": "A small round-eared mammal on rocks is visible in both stills, consistent with the source description of a pika.",
+        "visibleCallSynchronizationVerified": false
+      },
+      {
+        "caseId": "c0026",
+        "sampledSourceSeconds": [
+          1,
+          3
+        ],
+        "observed": "A combed, wattled rooster with a curved tail is visible in both stills; its beak is open in the second still.",
+        "visibleCallSynchronizationVerified": false
+      }
+    ],
+    "biologicalSpeciesIndependentlyVerified": false,
+    "eligibilityCompleted": false,
+    "nameAuthorityReview": {
+      "retrieval": "web tool, separate from scripted download checks",
+      "urls": [
+        "https://www.nps.gov/media/video/view.htm?id=5833D73D-CDF3-4B07-A008-D668ADCD51D5",
+        "https://nationalzoo.si.edu/animals/chicken"
+      ],
+      "mappings": [
+        "Source identifies pika as Ochotona princeps.",
+        "Smithsonian identifies domestic chicken as Gallus gallus domesticus, a subspecies of Gallus gallus."
+      ],
+      "nameMappingVerifiesAudibleSpecies": false
+    },
+    "reviewVideoCaveat": "Reference MP4s are re-encoded excerpts, not exact input PCM. The rooster review video is 5.4 seconds while complete afconvert-decoded input is 5.423990929705216 seconds. Use the WAV reel for exact input review."
+  },
+  "technicalCheck": {
+    "version": "audio_candidate_technical_check_v1",
+    "createdAt": "2026-09-24T15:38:18.218Z",
+    "status": "technical_checks_passed_owner_review_pending",
+    "networkAccess": "denied",
+    "environmentAccess": "denied",
+    "candidateInputDigest": "00062a6893437193852678412dbca8e0ee2433d3eaa55f6097572b42dc5ddf50",
+    "taxonomyDigest": "53ea92c5921b20b48947528d27e0d257e16ecbce7e2a85630ea97763dfbdcebb",
+    "source": {
+      "commit": "8c831e90fafe582a2cce7bc22ab63a17d0c507ac",
+      "dirty": true,
+      "digest": "21bee0b93dc9004ed5e6697f2790eaa2c45c7810f70a64eef0d115719f5c79d0",
+      "sdk": "npm:@google/genai@2.23.0"
+    },
+    "candidateCount": 2,
+    "technicallyPreparedProfileRequests": 4,
+    "corpusPreflightRun": false,
+    "eligibleCaseCount": 0,
+    "dispatchAuthorized": false,
+    "newModelCalls": 0,
+    "newAppSubmissions": 0,
+    "noRequestBodiesRetained": true,
+    "priorCaseIdsChecked": [
+      "c0013",
+      "c0014",
+      "c0015",
+      "c0016",
+      "c0017",
+      "c0018",
+      "c0019",
+      "c0020",
+      "c0021",
+      "c0022",
+      "c0023",
+      "c0024"
+    ],
+    "previousAndNewInputSeparationPassed": true,
+    "checks": [
+      {
+        "caseId": "c0025",
+        "groupId": "g0025",
+        "preparedAssetSha256": "5a35dc6ad96f1b905a7eca55d71e8efb39a1af8fa1617c0d3dcdccd362dcaada",
+        "assetValidationPassed": true,
+        "requestPreparationPassed": true,
+        "visualAssetCount": 0,
+        "audioAssetCount": 1,
+        "profiles": [
+          {
+            "key": "c0025-gemini_flash_free-1",
+            "caseId": "c0025",
+            "profile": "gemini_flash_free",
+            "attempt": 1,
+            "inputDigest": "63cf2954ef7e932ad689dff626c43e662c92720d2f30853c069e1a7b58e4a196",
+            "requestDigest": "430e3e6eb76de63f15f2315d5154d7bcc1ef966a382ac9095bca4411e2d0e03c",
+            "policyDigest": "2ea7383e69ae8987eadfae33322f60d8e11fc40107e7d3f8c554f05ba0e09dde",
+            "promptDigest": "e08e8c8ac29ac186d88847ab2dd1a9e6196c0e22c08c8b4e5096e2711e71e383",
+            "schemaDigest": "c19a61baf25b4ecc9a7f1d466f224e633b4e1e3d8f29c09032b8b94caa620785",
+            "confidenceDigest": "c97b222734059f40b7138a4aff3cc6472caaab8c871c4216f237b9dd1443a109",
+            "model": "gemini-2.5-flash",
+            "prompt": "identify_audio_v2",
+            "schema": "merian_audio_v2",
+            "confidence": "gemini_audio_v2",
+            "timeoutMs": 90000,
+            "generation": {
+              "temperature": 0.1,
+              "maxOutputTokens": 8192,
+              "seed": 42,
+              "thinkingBudget": null
+            }
+          },
+          {
+            "key": "c0025-gemini_pro-1",
+            "caseId": "c0025",
+            "profile": "gemini_pro",
+            "attempt": 1,
+            "inputDigest": "63cf2954ef7e932ad689dff626c43e662c92720d2f30853c069e1a7b58e4a196",
+            "requestDigest": "55af31aa20047e6178ba964ff66ef29318e4bd4df864a4d2999eacbae66b668d",
+            "policyDigest": "83000ad1bbcb2912c61a4d29a60c77b382f78150a464640f7c757e5c1a896f39",
+            "promptDigest": "e08e8c8ac29ac186d88847ab2dd1a9e6196c0e22c08c8b4e5096e2711e71e383",
+            "schemaDigest": "c19a61baf25b4ecc9a7f1d466f224e633b4e1e3d8f29c09032b8b94caa620785",
+            "confidenceDigest": "7994954960f1355f6f0fe520ad2f5a6552fb3785f6bd900661ff48abae85fdcf",
+            "model": "gemini-2.5-pro",
+            "prompt": "identify_audio_v2",
+            "schema": "merian_audio_v2",
+            "confidence": "gemini_audio_v2",
+            "timeoutMs": 90000,
+            "generation": {
+              "temperature": 0.1,
+              "maxOutputTokens": 8192,
+              "seed": 42,
+              "thinkingBudget": 5000
+            }
+          }
+        ]
+      },
+      {
+        "caseId": "c0026",
+        "groupId": "g0026",
+        "preparedAssetSha256": "6f4cd19d980986aceff21efa656a6b17ba993bfe5d5363967530c4add3de316d",
+        "assetValidationPassed": true,
+        "requestPreparationPassed": true,
+        "visualAssetCount": 0,
+        "audioAssetCount": 1,
+        "profiles": [
+          {
+            "key": "c0026-gemini_flash_free-1",
+            "caseId": "c0026",
+            "profile": "gemini_flash_free",
+            "attempt": 1,
+            "inputDigest": "af5f5d0b46ec84dbe3e6c73f43ac4d72ca7044bd4cc20cd574fd5c6a9a7847b6",
+            "requestDigest": "087f06c9dc6be419852dd60aeebb26bff794ecc32e7de4f36640c018d64e3ace",
+            "policyDigest": "2ea7383e69ae8987eadfae33322f60d8e11fc40107e7d3f8c554f05ba0e09dde",
+            "promptDigest": "e08e8c8ac29ac186d88847ab2dd1a9e6196c0e22c08c8b4e5096e2711e71e383",
+            "schemaDigest": "c19a61baf25b4ecc9a7f1d466f224e633b4e1e3d8f29c09032b8b94caa620785",
+            "confidenceDigest": "c97b222734059f40b7138a4aff3cc6472caaab8c871c4216f237b9dd1443a109",
+            "model": "gemini-2.5-flash",
+            "prompt": "identify_audio_v2",
+            "schema": "merian_audio_v2",
+            "confidence": "gemini_audio_v2",
+            "timeoutMs": 90000,
+            "generation": {
+              "temperature": 0.1,
+              "maxOutputTokens": 8192,
+              "seed": 42,
+              "thinkingBudget": null
+            }
+          },
+          {
+            "key": "c0026-gemini_pro-1",
+            "caseId": "c0026",
+            "profile": "gemini_pro",
+            "attempt": 1,
+            "inputDigest": "af5f5d0b46ec84dbe3e6c73f43ac4d72ca7044bd4cc20cd574fd5c6a9a7847b6",
+            "requestDigest": "743f8f4f931d912b236144cfdc8082635942906d7dd64bd75861bc0929e48217",
+            "policyDigest": "83000ad1bbcb2912c61a4d29a60c77b382f78150a464640f7c757e5c1a896f39",
+            "promptDigest": "e08e8c8ac29ac186d88847ab2dd1a9e6196c0e22c08c8b4e5096e2711e71e383",
+            "schemaDigest": "c19a61baf25b4ecc9a7f1d466f224e633b4e1e3d8f29c09032b8b94caa620785",
+            "confidenceDigest": "7994954960f1355f6f0fe520ad2f5a6552fb3785f6bd900661ff48abae85fdcf",
+            "model": "gemini-2.5-pro",
+            "prompt": "identify_audio_v2",
+            "schema": "merian_audio_v2",
+            "confidence": "gemini_audio_v2",
+            "timeoutMs": 90000,
+            "generation": {
+              "temperature": 0.1,
+              "maxOutputTokens": 8192,
+              "seed": 42,
+              "thinkingBudget": 5000
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "verification": {
+    "version": "audio_visible_caller_verification_v1",
+    "verifiedAt": "2026-09-24T15:41:15.704Z",
+    "selectionWrittenBeforeMediaDownloads": true,
+    "assetAndRecordBindingsPassed": true,
+    "canonicalWavContainersPassed": true,
+    "reelSegmentsMatchInputPcmExactly": true,
+    "oneSecondSilentGapVerified": true,
+    "reviewVideoHashesMatchRecords": true,
+    "additionalCardinalDuplicateCheck": {
+      "recordSha256": "4a403ad700b278af3cc250685152a522b5d2042587ee31e573d0e42ba0d437e4",
+      "caseId": "c0011",
+      "exactSourceWavPcmMatches": 0
+    },
+    "priorPacketsVerified": [
+      {
+        "packetName": "2026-09-22-audio-six-preparation-v1",
+        "freezeSha256": "a9f33d2c482036c2b8d73a69269e0528d4f038697a7a497624626fa406602daf",
+        "filesVerified": 24
+      },
+      {
+        "packetName": "2026-09-24-audio-reference-and-expansion-v1",
+        "freezeSha256": "f22d71d787ea593e6daab38f735311b40084dfa0c8e6b4a0e6a341c85bc65532",
+        "filesVerified": 29
+      },
+      {
+        "packetName": "2026-09-24-audio-disputed-reference-audit-v1",
+        "freezeSha256": "f6abee77a6473e55d93602a2600d99d1467a889cafa75c69a21430d200fa0a67",
+        "filesVerified": 2
+      }
+    ],
+    "newModelCalls": 0,
+    "newAppSubmissions": 0,
+    "technicalRequestsPrepared": 4,
+    "ownerListeningReviewComplete": false,
+    "eligibleCaseCount": 0
+  },
+  "pendingAppPlan": {
+    "status": "pending_review_admission_preflight_and_execution_identity",
+    "caseOrder": [
+      "c0025",
+      "c0026"
+    ],
+    "maximumSequentialFirstSubmissions": 2,
+    "inputMode": "audio_only",
+    "contextPolicy": "audio-minimal-v1",
+    "ordinaryGeminiRouting": true,
+    "imageOrVideoEvidenceSent": false,
+    "sourceNamesOrCaptionTextSent": false,
+    "manualRetriesAllowed": false,
+    "preserveAllFirstOutcomes": true,
+    "passiveWindowSeconds": 120,
+    "shutdownGraceSeconds": 30,
+    "overlappingWindowsAllowed": false,
+    "priorComparisonAssignmentsReusable": false,
+    "speciesAccuracyQualification": false,
+    "costEstimate": null,
+    "newAppSubmissions": 0,
+    "newModelCalls": 0,
+    "executionStarted": false
+  },
+  "separation": {
+    "audioOnlyModelInput": true,
+    "sourceLabelsAndCaptionTextExcluded": true,
+    "visualReferenceMediaExcluded": true,
+    "observationTextEmpty": true,
+    "regionAndMonthNull": true
+  },
+  "limitations": [
+    "No independently adjudicated audible species.",
+    "Source audio/video authenticity and synchronization not verified.",
+    "Public training exposure unknown; development only.",
+    "No corpus admission or canonical corpus preflight until actual content review.",
+    "No formal accuracy, calibration or provider-switch claim."
+  ],
+  "privatePacket": {
+    "name": "2026-09-24-audio-visible-caller-preparation-v1",
+    "freezeSha256": "3ab97dbbbcac2f3ce43330ba1c15a6472bae598c8e87c4fd64eb2198c87ba84e",
+    "frozenFileCount": 29,
+    "directoryMode": "0700",
+    "fileMode": "0600",
+    "retentionThrough": "2026-10-24",
+    "sourceDownloadsRetained": false,
+    "temporaryDecodesRetained": false
+  },
+  "runtimeImplementationChanged": false
+}

@@ -8,9 +8,9 @@ import Testing
 @MainActor
 @Suite("Inference Audio Comparison Pipeline")
 struct InferenceAudioComparisonPipelineTests {
-    @Test(arguments: ["saved", "no_match", "persistence_failed", "publication_failed", "queue_failed", "cancelled", "no_context"])
-    func completionProofRequiresAllForegroundBoundaries(scenario: String) async throws {
-        let fixture = AudioComparisonTestFixture()
+    @Test(arguments: ["saved", "no_match", "persistence_failed", "publication_failed", "queue_failed", "cancelled", "no_context"], [false, true])
+    func completionProofRequiresAllForegroundBoundaries(scenario: String, prompt: Bool) async throws {
+        let fixture = AudioComparisonTestFixture(prompt: prompt)
         let harness = InferenceLivePipelineHarness()
         let isNoMatch = scenario == "no_match"
         harness.parsedResult = .init(
@@ -53,7 +53,7 @@ struct InferenceAudioComparisonPipelineTests {
         let request = InferenceLivePipelineCoordinator.NonVisualRequest(
             session: session, submissionProjection: timeline.submissionMediaProjection,
             ownerMediaTimeline: [.audio(audioInputIndex: 0, sourceIndex: 0)], mediaTimeline: timeline,
-            telemetry: DebugIdentificationReplayProfile.audioComparison(slot: .slot1).makeTelemetry(),
+            telemetry: (prompt ? DebugIdentificationReplayProfile.audioPromptComparison(slot: .slot2) : .audioComparison(slot: .slot1)).makeTelemetry(),
             modelContext: scenario == "no_context" ? nil : ModelContext(container), targetEradicationScanId: nil
         )
         let callbacks = InferenceLivePipelineCoordinator.Callbacks(

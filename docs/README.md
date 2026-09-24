@@ -280,8 +280,30 @@ production submission or public release.
   diagnostic. The subsequent
   [audio confidence V2 implementation](./rfcs/identification-audio-confidence-v2-2026-09-24.md)
   aligns the existing audio score with the returned identity and adds a resolved
-  non-Human Field Trip eligibility guard. It is a verified implementation
-  candidate, not a production deployment or an acoustic accuracy result.
+  non-Human Field Trip eligibility guard. Its
+  [production deployment](./release-evidence/identification-audio-confidence-v2-deployment-2026-09-24.md)
+  passed migration, function, smoke and health gates. The subsequent
+  [fixed-context six-audio benchmark](./rfcs/identification-audio-confidence-v2-app-benchmark-2026-09-24.md)
+  verified all six fresh V2 responses. Both reviewed non-animal controls
+  returned No wildlife detected; two animal clips still received Strong species
+  labels that disagree with their provisional references. Accuracy improvement
+  and confidence calibration remain unproven. The
+  [disputed-reference review](./rfcs/identification-audio-disputed-reference-review-2026-09-24.md)
+  verifies unchanged source and V2 input bindings and distinct taxon names;
+  audible species remain unresolved. Keep those cases diagnostic until their
+  references are adjudicated. The next
+  [two-audio preparation](./rfcs/identification-audio-visible-caller-preparation-2026-09-24.md)
+  retained separate video context for a pika and a rooster. After owner review,
+  the
+  [two-case app benchmark](./rfcs/identification-audio-visible-caller-app-benchmark-2026-09-24.md)
+  verified both fresh responses: pika returned Peregrine Falcon, while rooster
+  agreed at the planned chicken species rank. Both displayed Strong match;
+  confidence calibration remains unproven. The
+  [controlled confidence comparison plan](./rfcs/identification-audio-uncertainty-comparison-plan-2026-09-24.md)
+  defines six clips, two Gemini prompt arms and three planned repeats. Its
+  offline preparation, default-off server lane and Debug simulator proof path
+  are implemented and locally validated. Separate activation controls and the
+  execution freeze are next; no prompt-comparison requests have run.
 - **Deferred family and prior combined planning:**
   [PRD](./product/02-family-plans-and-ai-platform-prd.md) and
   [SRD](./rfcs/family-plans-and-ai-platform-srd.md). Family plans are deferred;

@@ -39,11 +39,19 @@ import {
   readRecords,
 } from "./identification_evaluation/runner.ts";
 
+import { admitAudioPromptComparisonObservation } from "./admit_audio_prompt_comparison_observation.ts";
+import { audioPromptComparisonObservationFixture as promptFixture } from "./identification_evaluation/testing/audioPromptComparisonFixture.ts";
 import { admitAudioComparisonObservation } from "./admit_audio_comparison_observation.ts";
 import { audioComparisonObservationFixture as fixture } from "./identification_evaluation/testing/audioComparisonFixture.ts";
 
+import { registerAudioPromptPacketTests } from "./identification_evaluation/testing/audioPromptPacketTests.ts";
+
+import { registerAudioPromptExecutionTests } from "./identification_evaluation/testing/audioPromptExecutionTests.ts";
+
 const scratch = Deno.args[0];
 if (!scratch) throw new Error("evaluation_test_directory_required");
+registerAudioPromptPacketTests(scratch);
+registerAudioPromptExecutionTests(scratch);
 const source: SourceIdentity = {
   commit: "0".repeat(40),
   dirty: true,
@@ -608,6 +616,57 @@ Deno.test("offline admission writes private new evidence and refuses upgrades or
         ]),
       Error,
       "audio_comparison_observation_excluded",
+    );
+    await assertRejects(
+      () => Deno.stat(dir + "/excluded.json"),
+      Deno.errors.NotFound,
+    );
+  } finally {
+    await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("prompt admission writes private new evidence and refuses upgrades or overwrites", async () => {
+  const dir = await Deno.makeTempDir({ dir: scratch, prefix: "comparison-" });
+  try {
+    const f = promptFixture();
+    const observation = dir + "/observation.jsonl",
+      expected = dir + "/expected.json",
+      output = dir + "/admitted.json";
+    await Deno.writeTextFile(
+      observation,
+      f.rows.map((r) => JSON.stringify(r)).join("\n") + "\n",
+    );
+    await Deno.writeTextFile(expected, JSON.stringify(f.expected));
+    const args = [
+      "--observation",
+      observation,
+      "--expected",
+      expected,
+      "--output",
+      output,
+    ];
+    await admitAudioPromptComparisonObservation(args);
+    const stored = await Deno.readTextFile(output);
+    assertEquals(JSON.parse(stored).accuracyScored, false);
+    if (Deno.build.os !== "windows") {
+      assertEquals((await Deno.stat(output)).mode! & 0o777, 0o600);
+    }
+    await assertRejects(() => admitAudioPromptComparisonObservation(args));
+    assertEquals(await Deno.readTextFile(output), stored);
+    f.rows[0].version = "identification_app_observation_v1";
+    await Deno.writeTextFile(
+      observation,
+      f.rows.map((r) => JSON.stringify(r)).join("\n"),
+    );
+    await assertRejects(
+      () =>
+        admitAudioPromptComparisonObservation([
+          ...args.slice(0, -1),
+          dir + "/excluded.json",
+        ]),
+      Error,
+      "audio_prompt_comparison_observation_excluded",
     );
     await assertRejects(
       () => Deno.stat(dir + "/excluded.json"),

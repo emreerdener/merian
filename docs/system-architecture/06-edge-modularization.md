@@ -72,6 +72,12 @@ tooling imports these pure route helpers; runtime code never imports scripts.
 The handler retains ordinary admission/settlement/finalization ownership. The
 [assignment contract](../rfcs/identification-audio-comparison-assignment-2026-09-23.md)
 does not add a configurable provider/model registry or a new SDK dispatch site.
+The separate `promptPlan.ts`, `promptAssignment.ts` and `promptInstruction.ts`
+owners add a default-off 36-slot prompt lane. It supplies a narrow internal A/B
+authority to the same registry/executor, attests exact native request hashes and
+retains the current DSP. Its
+[contract](../backend-and-data/05-api-contracts.md#server-owned-audio-prompt-comparison)
+uses a new namespace while preserving the older DSP bindings.
 
 ## 2. The PostgreSQL Layer (`db.ts`)
 

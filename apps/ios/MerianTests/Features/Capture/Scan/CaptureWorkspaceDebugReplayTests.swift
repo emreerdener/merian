@@ -7,22 +7,24 @@ import XCTest
 
 extension CaptureWorkspaceViewModelRefinementTests {
     func testComparisonSlotRejectsDifferentAudioAndCleansOwnedCopy() async throws {
-        let viewModel = try await makeDebugReplayWorkspace()
-        let url = URL.documentsDirectory.appendingPathComponent("comparison-test-\(UUID().uuidString).wav")
-        try makeInferenceTestPCM16WAVData().write(to: url)
-        defer { try? FileManager.default.removeItem(at: url) }
-        let task = try XCTUnwrap(viewModel.startDebugReplay(
-            .audio, profile: .audioComparison(slot: .slot1), prepare: { _, _, _, comparison in
-                XCTAssertEqual(comparison?.slot, 1)
-                XCTAssertEqual(comparison?.sourceWavSha256, DebugAudioComparisonSlot.slot1.assignment.sourceWavSha256)
-                return .audio(url)
-            }
-        ))
-        await task.value
-        XCTAssertTrue(viewModel.stagedCapture.isEmpty)
-        XCTAssertNil(viewModel.pendingAnalyzeScanId)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
-        XCTAssertEqual(viewModel.offlineToastMessage?.title, "This audio sample doesn't match the selected comparison slot.")
+        for profile in [DebugIdentificationReplayProfile.audioComparison(slot: .slot1), .audioPromptComparison(slot: .slot2)] {
+            let viewModel = try await makeDebugReplayWorkspace()
+            let url = URL.documentsDirectory.appendingPathComponent("comparison-test-\(UUID().uuidString).wav")
+            try makeInferenceTestPCM16WAVData().write(to: url)
+            defer { try? FileManager.default.removeItem(at: url) }
+            let task = try XCTUnwrap(viewModel.startDebugReplay(
+                .audio, profile: profile, prepare: { _, _, _, comparison in
+                    XCTAssertEqual(comparison?.slot, profile.comparison?.slot)
+                    XCTAssertEqual(comparison?.sourceWavSha256, profile.comparison?.sourceWavSha256)
+                    return .audio(url)
+                }
+            ))
+            await task.value
+            XCTAssertTrue(viewModel.stagedCapture.isEmpty)
+            XCTAssertNil(viewModel.pendingAnalyzeScanId)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
+            XCTAssertEqual(viewModel.offlineToastMessage?.title, "This audio sample doesn't match the selected comparison slot.")
+        }
     }
 
     func testDebugReplayStagesAudioForManualIdentifyWithoutSubmitting() async throws {

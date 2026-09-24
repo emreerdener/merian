@@ -1,0 +1,811 @@
+{
+  "version": "identification_audio_uncertainty_design_v1",
+  "date": "2026-09-24",
+  "status": "design_only",
+  "executionReady": false,
+  "dispatchAuthorizedByThisArtifact": false,
+  "implementsExistingRunSpec": false,
+  "actualNewAppSubmissions": 0,
+  "actualNewModelCalls": 0,
+  "question": "Does a stricter species-evidence instruction reduce Strong source-label mismatches without erasing useful animal identifications or mistaking reviewed non-animal controls for animals?",
+  "scope": "exploratory_development_screen_not_accuracy_qualification",
+  "target": {
+    "preferredPath": "existing_authenticated_production_app_with_server_owned_test_assignments",
+    "supabaseProject": "qlarqavoqhkuwzmevrmf",
+    "provider": "gemini",
+    "model": "gemini-2.5-pro",
+    "newProviderCredentialRequired": false,
+    "quotaBypass": false
+  },
+  "sourceReview": {
+    "commit": "8c831e90fafe582a2cce7bc22ab63a17d0c507ac",
+    "uncommittedChanges": "documentation_only",
+    "files": [
+      {
+        "path": "services/supabase/functions/identify-multimodal/instructions.ts",
+        "sha256": "da038dc3292068b3da132dbbce3908a14926798ded597a3cb6de13078b35e783"
+      },
+      {
+        "path": "services/supabase/functions/_shared/identify/audioSubjectPolicy.ts",
+        "sha256": "5ce04dde2e970f266894cbb35e18441793b7787d0d93a28b93b2391226b6c601"
+      },
+      {
+        "path": "services/supabase/functions/_shared/identify/contract.ts",
+        "sha256": "943939db7f8dd1ef93d62a555bef79297a50bb6460e63858dc1f9a04781c997c"
+      }
+    ]
+  },
+  "arms": {
+    "A": {
+      "label": "Current audio V2",
+      "prompt": "identify_audio_v2",
+      "instructionDelta": null
+    },
+    "B": {
+      "label": "Species-evidence check",
+      "proposedPrompt": "identify_audio_uncertainty_experiment_v1",
+      "implemented": false,
+      "base": "A",
+      "insertionPoint": "Immediately before # Response Detail Rules in the resolved primary audio system instruction",
+      "instructionDelta": "# Species evidence check\nBefore choosing identified_non_human, require audible features that distinguish the proposed species from other plausible animals. Familiarity with a call, a best guess, clarity, repetition, or geographic plausibility alone is insufficient.\nWhen non-human animal presence is confident but the recording does not distinguish among plausible species, choose unidentified_non_human even if one species seems most likely. Use the existing Unidentified Wildlife fields, omit scientific_name, and return no candidates. Do not turn clear animal presence into a non-biological result to avoid naming a species.\nWhen the recording does distinguish a species, retain identified_non_human and score that identity using the existing Audio Confidence definition. Preserve the existing Human and non-biological precedence and response rules. Return only the existing JSON structure; do not add fields.",
+      "instructionDeltaSha256": "ad95cee2b2732cc80036fd30bf2ac44dd5e8ca397eb830024872be83365b5f83"
+    }
+  },
+  "invariants": {
+    "schema": "merian_audio_v2",
+    "confidenceSemantics": "gemini_audio_v2",
+    "temperature": 0.1,
+    "seed": 42,
+    "maxOutputTokens": 8192,
+    "thinkingBudget": 5000,
+    "timeoutMs": 90000,
+    "primaryCandidateCutoff": 0.99,
+    "strongThresholdPro": 0.85,
+    "possibleThresholdPro": 0.65,
+    "contextProfile": "audio-minimal-v1",
+    "syntheticContext": {
+      "locale": "en",
+      "timezone": "UTC",
+      "month": 1,
+      "time": "12:00 PM"
+    },
+    "dsp": "current_sinc_partial_tail_same_implementation_both_arms",
+    "oneAudioOnly": true,
+    "referenceInformationInModelInput": false,
+    "newModelOrFallback": false,
+    "equalNativeRequestExceptSystemInstruction": true
+  },
+  "sources": {
+    "v2": {
+      "sourcePacket": "2026-09-24-audio-confidence-v2-app-v1",
+      "evidence": "docs/rfcs/identification-evaluation-evidence/2026-09-24-audio-confidence-v2/app-results.json",
+      "completedFreezeSha256": "a1a4ed2c58c1814476f37ac081f61e31ab2aad7e9d6fe117530b8685e7f5aede",
+      "sourceCorpusSha256": "7e9783f06d4eb04adda12e3913d3867b192877c68e45ceaed9679db492cb6f2b",
+      "sourceTaxonomySha256": "07cdb999c224da091915ed290d3087656fe3f5de70d9bfa1c67675b53a47ac7f"
+    },
+    "visible": {
+      "sourcePacket": "2026-09-24-audio-visible-caller-app-v1",
+      "evidence": "docs/rfcs/identification-evaluation-evidence/2026-09-24-audio-visible-caller-app/app-results.json",
+      "completedFreezeSha256": "deace8cf3681b05d7a9e3b505cbdf8c77a0dcd3613b45f4639112096519746cf",
+      "sourceCorpusSha256": "2ace4f7af9d79285d7bb1be488fcee1f8355679e60b99a7691a0ea51a52f9de1",
+      "sourceTaxonomySha256": "e9408b88f188e83dbfe52943c58d24bd9325568e73ad85fcd74236e0e0e3a2cb"
+    }
+  },
+  "cases": [
+    {
+      "caseId": "c0025",
+      "groupId": "g0025",
+      "role": "challenge",
+      "sourcePacketKey": "visible",
+      "assetPath": "assets/a00250.wav",
+      "sourceWavSha256": "5a35dc6ad96f1b905a7eca55d71e8efb39a1af8fa1617c0d3dcdccd362dcaada",
+      "byteLength": 882044,
+      "reference": {
+        "commonName": "American Pika",
+        "scientificName": "Ochotona princeps",
+        "status": "provisional_species",
+        "independentBiologicalReviewers": 0
+      },
+      "provisionalReference": {
+        "subject": "biological",
+        "resolution": "named",
+        "supportedRank": "species",
+        "acceptableTaxa": [
+          {
+            "id": "species-ochotona-princeps",
+            "rank": "species"
+          }
+        ]
+      },
+      "priorOutcomeUsedAsTruth": false
+    },
+    {
+      "caseId": "c0020",
+      "groupId": "g0020",
+      "role": "positive_retention",
+      "sourcePacketKey": "v2",
+      "assetPath": "assets/a00200.wav",
+      "sourceWavSha256": "6b5e9e6cc45d16a80980386541649b1ce9fcd94cf3ad54a49d37cf0fd6e3ed67",
+      "byteLength": 285740,
+      "reference": {
+        "commonName": "Canada Goose",
+        "scientificName": "Branta canadensis",
+        "status": "provisional_species",
+        "independentBiologicalReviewers": 0
+      },
+      "provisionalReference": {
+        "subject": "biological",
+        "resolution": "named",
+        "supportedRank": "species",
+        "acceptableTaxa": [
+          {
+            "id": "species-branta-canadensis",
+            "rank": "species"
+          }
+        ]
+      },
+      "priorOutcomeUsedAsTruth": false
+    },
+    {
+      "caseId": "c0023",
+      "groupId": "g0023",
+      "role": "non_biological_control",
+      "sourcePacketKey": "v2",
+      "assetPath": "assets/a00230.wav",
+      "sourceWavSha256": "4ee517d08701c5f7cebd4a9b7c2f4029351f72fb079cbbb72106dd2d04f51a0f",
+      "byteLength": 437804,
+      "reference": {
+        "commonName": "Rain",
+        "scientificName": null,
+        "status": "owner_reviewed_non_biological",
+        "independentBiologicalReviewers": 0
+      },
+      "provisionalReference": {
+        "subject": "non_biological",
+        "resolution": "unresolved",
+        "supportedRank": null,
+        "acceptableTaxa": []
+      },
+      "priorOutcomeUsedAsTruth": false
+    },
+    {
+      "caseId": "c0026",
+      "groupId": "g0026",
+      "role": "positive_retention",
+      "sourcePacketKey": "visible",
+      "assetPath": "assets/a00260.wav",
+      "sourceWavSha256": "6f4cd19d980986aceff21efa656a6b17ba993bfe5d5363967530c4add3de316d",
+      "byteLength": 478440,
+      "reference": {
+        "commonName": "Domestic Chicken / Rooster",
+        "scientificName": "Gallus gallus",
+        "status": "provisional_species",
+        "independentBiologicalReviewers": 0
+      },
+      "provisionalReference": {
+        "subject": "biological",
+        "resolution": "named",
+        "supportedRank": "species",
+        "acceptableTaxa": [
+          {
+            "id": "species-gallus-gallus",
+            "rank": "species"
+          }
+        ]
+      },
+      "priorOutcomeUsedAsTruth": false
+    },
+    {
+      "caseId": "c0021",
+      "groupId": "g0021",
+      "role": "positive_retention",
+      "sourcePacketKey": "v2",
+      "assetPath": "assets/a00210.wav",
+      "sourceWavSha256": "196789a6a6344ebff689c1847b88a29a1babda5d5485c17c1161ca7e949a9739",
+      "byteLength": 875564,
+      "reference": {
+        "commonName": "Coyote",
+        "scientificName": "Canis latrans",
+        "status": "provisional_species",
+        "independentBiologicalReviewers": 0
+      },
+      "provisionalReference": {
+        "subject": "biological",
+        "resolution": "named",
+        "supportedRank": "species",
+        "acceptableTaxa": [
+          {
+            "id": "species-canis-latrans",
+            "rank": "species"
+          }
+        ]
+      },
+      "priorOutcomeUsedAsTruth": false
+    },
+    {
+      "caseId": "c0024",
+      "groupId": "g0024",
+      "role": "non_biological_control",
+      "sourcePacketKey": "v2",
+      "assetPath": "assets/a00240.wav",
+      "sourceWavSha256": "694d5a5feaafe50c9147b9d2249ab59e710935efb99d16c09001af8787464c60",
+      "byteLength": 476972,
+      "reference": {
+        "commonName": "Chainsaw",
+        "scientificName": null,
+        "status": "owner_reviewed_non_biological",
+        "independentBiologicalReviewers": 0
+      },
+      "provisionalReference": {
+        "subject": "non_biological",
+        "resolution": "unresolved",
+        "supportedRank": null,
+        "acceptableTaxa": []
+      },
+      "priorOutcomeUsedAsTruth": false
+    }
+  ],
+  "excludedFromNewRuns": [
+    {
+      "caseId": "c0019",
+      "reason": "Audible robin reference unresolved; retain earlier evidence diagnostically."
+    },
+    {
+      "caseId": "c0022",
+      "reason": "Audible pig-frog reference unresolved; retain earlier evidence diagnostically."
+    }
+  ],
+  "blocks": [
+    {
+      "block": 1,
+      "pairs": [
+        {
+          "caseId": "c0025",
+          "armOrder": [
+            "A",
+            "B"
+          ]
+        },
+        {
+          "caseId": "c0020",
+          "armOrder": [
+            "B",
+            "A"
+          ]
+        },
+        {
+          "caseId": "c0023",
+          "armOrder": [
+            "A",
+            "B"
+          ]
+        },
+        {
+          "caseId": "c0026",
+          "armOrder": [
+            "B",
+            "A"
+          ]
+        },
+        {
+          "caseId": "c0021",
+          "armOrder": [
+            "A",
+            "B"
+          ]
+        },
+        {
+          "caseId": "c0024",
+          "armOrder": [
+            "B",
+            "A"
+          ]
+        }
+      ],
+      "plannedSubmissions": 12,
+      "activationMaximumMinutes": 120
+    },
+    {
+      "block": 2,
+      "pairs": [
+        {
+          "caseId": "c0023",
+          "armOrder": [
+            "B",
+            "A"
+          ]
+        },
+        {
+          "caseId": "c0026",
+          "armOrder": [
+            "A",
+            "B"
+          ]
+        },
+        {
+          "caseId": "c0021",
+          "armOrder": [
+            "B",
+            "A"
+          ]
+        },
+        {
+          "caseId": "c0024",
+          "armOrder": [
+            "A",
+            "B"
+          ]
+        },
+        {
+          "caseId": "c0025",
+          "armOrder": [
+            "B",
+            "A"
+          ]
+        },
+        {
+          "caseId": "c0020",
+          "armOrder": [
+            "A",
+            "B"
+          ]
+        }
+      ],
+      "plannedSubmissions": 12,
+      "activationMaximumMinutes": 120
+    },
+    {
+      "block": 3,
+      "pairs": [
+        {
+          "caseId": "c0021",
+          "armOrder": [
+            "A",
+            "B"
+          ]
+        },
+        {
+          "caseId": "c0024",
+          "armOrder": [
+            "B",
+            "A"
+          ]
+        },
+        {
+          "caseId": "c0025",
+          "armOrder": [
+            "A",
+            "B"
+          ]
+        },
+        {
+          "caseId": "c0020",
+          "armOrder": [
+            "B",
+            "A"
+          ]
+        },
+        {
+          "caseId": "c0023",
+          "armOrder": [
+            "A",
+            "B"
+          ]
+        },
+        {
+          "caseId": "c0026",
+          "armOrder": [
+            "B",
+            "A"
+          ]
+        }
+      ],
+      "plannedSubmissions": 12,
+      "activationMaximumMinutes": 120
+    }
+  ],
+  "schedule": [
+    {
+      "slot": 1,
+      "block": 1,
+      "caseId": "c0025",
+      "repeat": 1,
+      "arm": "A",
+      "maxSubmissions": 1
+    },
+    {
+      "slot": 2,
+      "block": 1,
+      "caseId": "c0025",
+      "repeat": 1,
+      "arm": "B",
+      "maxSubmissions": 1
+    },
+    {
+      "slot": 3,
+      "block": 1,
+      "caseId": "c0020",
+      "repeat": 1,
+      "arm": "B",
+      "maxSubmissions": 1
+    },
+    {
+      "slot": 4,
+      "block": 1,
+      "caseId": "c0020",
+      "repeat": 1,
+      "arm": "A",
+      "maxSubmissions": 1
+    },
+    {
+      "slot": 5,
+      "block": 1,
+      "caseId": "c0023",
+      "repeat": 1,
+      "arm": "A",
+      "maxSubmissions": 1
+    },
+    {
+      "slot": 6,
+      "block": 1,
+      "caseId": "c0023",
+      "repeat": 1,
+      "arm": "B",
+      "maxSubmissions": 1
+    },
+    {
+      "slot": 7,
+      "block": 1,
+      "caseId": "c0026",
+      "repeat": 1,
+      "arm": "B",
+      "maxSubmissions": 1
+    },
+    {
+      "slot": 8,
+      "block": 1,
+      "caseId": "c0026",
+      "repeat": 1,
+      "arm": "A",
+      "maxSubmissions": 1
+    },
+    {
+      "slot": 9,
+      "block": 1,
+      "caseId": "c0021",
+      "repeat": 1,
+      "arm": "A",
+      "maxSubmissions": 1
+    },
+    {
+      "slot": 10,
+      "block": 1,
+      "caseId": "c0021",
+      "repeat": 1,
+      "arm": "B",
+      "maxSubmissions": 1
+    },
+    {
+      "slot": 11,
+      "block": 1,
+      "caseId": "c0024",
+      "repeat": 1,
+      "arm": "B",
+      "maxSubmissions": 1
+    },
+    {
+      "slot": 12,
+      "block": 1,
+      "caseId": "c0024",
+      "repeat": 1,
+      "arm": "A",
+      "maxSubmissions": 1
+    },
+    {
+      "slot": 13,
+      "block": 2,
+      "caseId": "c0023",
+      "repeat": 2,
+      "arm": "B",
+      "maxSubmissions": 1
+    },
+    {
+      "slot": 14,
+      "block": 2,
+      "caseId": "c0023",
+      "repeat": 2,
+      "arm": "A",
+      "maxSubmissions": 1
+    },
+    {
+      "slot": 15,
+      "block": 2,
+      "caseId": "c0026",
+      "repeat": 2,
+      "arm": "A",
+      "maxSubmissions": 1
+    },
+    {
+      "slot": 16,
+      "block": 2,
+      "caseId": "c0026",
+      "repeat": 2,
+      "arm": "B",
+      "maxSubmissions": 1
+    },
+    {
+      "slot": 17,
+      "block": 2,
+      "caseId": "c0021",
+      "repeat": 2,
+      "arm": "B",
+      "maxSubmissions": 1
+    },
+    {
+      "slot": 18,
+      "block": 2,
+      "caseId": "c0021",
+      "repeat": 2,
+      "arm": "A",
+      "maxSubmissions": 1
+    },
+    {
+      "slot": 19,
+      "block": 2,
+      "caseId": "c0024",
+      "repeat": 2,
+      "arm": "A",
+      "maxSubmissions": 1
+    },
+    {
+      "slot": 20,
+      "block": 2,
+      "caseId": "c0024",
+      "repeat": 2,
+      "arm": "B",
+      "maxSubmissions": 1
+    },
+    {
+      "slot": 21,
+      "block": 2,
+      "caseId": "c0025",
+      "repeat": 2,
+      "arm": "B",
+      "maxSubmissions": 1
+    },
+    {
+      "slot": 22,
+      "block": 2,
+      "caseId": "c0025",
+      "repeat": 2,
+      "arm": "A",
+      "maxSubmissions": 1
+    },
+    {
+      "slot": 23,
+      "block": 2,
+      "caseId": "c0020",
+      "repeat": 2,
+      "arm": "A",
+      "maxSubmissions": 1
+    },
+    {
+      "slot": 24,
+      "block": 2,
+      "caseId": "c0020",
+      "repeat": 2,
+      "arm": "B",
+      "maxSubmissions": 1
+    },
+    {
+      "slot": 25,
+      "block": 3,
+      "caseId": "c0021",
+      "repeat": 3,
+      "arm": "A",
+      "maxSubmissions": 1
+    },
+    {
+      "slot": 26,
+      "block": 3,
+      "caseId": "c0021",
+      "repeat": 3,
+      "arm": "B",
+      "maxSubmissions": 1
+    },
+    {
+      "slot": 27,
+      "block": 3,
+      "caseId": "c0024",
+      "repeat": 3,
+      "arm": "B",
+      "maxSubmissions": 1
+    },
+    {
+      "slot": 28,
+      "block": 3,
+      "caseId": "c0024",
+      "repeat": 3,
+      "arm": "A",
+      "maxSubmissions": 1
+    },
+    {
+      "slot": 29,
+      "block": 3,
+      "caseId": "c0025",
+      "repeat": 3,
+      "arm": "A",
+      "maxSubmissions": 1
+    },
+    {
+      "slot": 30,
+      "block": 3,
+      "caseId": "c0025",
+      "repeat": 3,
+      "arm": "B",
+      "maxSubmissions": 1
+    },
+    {
+      "slot": 31,
+      "block": 3,
+      "caseId": "c0020",
+      "repeat": 3,
+      "arm": "B",
+      "maxSubmissions": 1
+    },
+    {
+      "slot": 32,
+      "block": 3,
+      "caseId": "c0020",
+      "repeat": 3,
+      "arm": "A",
+      "maxSubmissions": 1
+    },
+    {
+      "slot": 33,
+      "block": 3,
+      "caseId": "c0023",
+      "repeat": 3,
+      "arm": "A",
+      "maxSubmissions": 1
+    },
+    {
+      "slot": 34,
+      "block": 3,
+      "caseId": "c0023",
+      "repeat": 3,
+      "arm": "B",
+      "maxSubmissions": 1
+    },
+    {
+      "slot": 35,
+      "block": 3,
+      "caseId": "c0026",
+      "repeat": 3,
+      "arm": "B",
+      "maxSubmissions": 1
+    },
+    {
+      "slot": 36,
+      "block": 3,
+      "caseId": "c0026",
+      "repeat": 3,
+      "arm": "A",
+      "maxSubmissions": 1
+    }
+  ],
+  "executionRules": {
+    "distinctSourceGroups": 6,
+    "repeatsPerCasePerArm": 3,
+    "maxPlannedAppSubmissions": 36,
+    "maxSubmissionsPerSlot": 1,
+    "replacementOrManualRetrySlots": 0,
+    "concurrency": 1,
+    "observerSeconds": 120,
+    "shutdownGraceSeconds": 30,
+    "nonoverlappingWindows": true,
+    "newNamespaceAndScanIdentitiesRequired": true,
+    "reuseConsumedDspSlots": false,
+    "sameCandidateBundleForBothArms": true,
+    "sameAppIdentityAllSlots": true,
+    "stopOnOperationalOrProvenanceFailure": true,
+    "continueOnValidUnfavorableOutcome": true,
+    "expiryMustNotExtendUnreviewed": true
+  },
+  "outcomeDefinitions": {
+    "strongSourceLabelMismatch": "Named non-human result outside the case provisional species mapping, with current Pro confidence >= 0.85; descriptive mismatch, not established biological error.",
+    "referenceAgreement": "Named non-human result at the predeclared species mapping; unresolved, Human and non-biological do not count as agreement.",
+    "taxonomicAbstention": "Normalized unresolved non-human wildlife, not merely a low numeric score.",
+    "negativeControlViolation": "Any biological result, including unresolved wildlife or Human, on either owner-reviewed non-biological control.",
+    "unexpectedOutcome": "Failed, refused, invalid, unknown or unattempted slot; retain separately and never count as successful abstention."
+  },
+  "decisionRules": {
+    "completeEvidence": "All 36 scheduled slots must have valid first-attempt arm-bound evidence for the full screening decision; interrupted runs remain incomplete.",
+    "candidateNegativeControlViolationsMaximum": 0,
+    "candidateMismatchReductionMinimum": 2,
+    "candidateStrongMismatchPerAnimalCaseMustNotIncrease": true,
+    "candidateNamedMismatchPerAnimalCaseMustNotIncrease": true,
+    "positiveRetentionCases": [
+      "c0020",
+      "c0021",
+      "c0026"
+    ],
+    "candidateAgreementMinimumPerPositiveRetentionCase": 2,
+    "candidateAgreementPerPositiveRetentionCaseMustNotDecrease": true,
+    "candidateMedianFirstRenderRatioMaximum": 1.2,
+    "candidateEstimatedPrimaryCostRatioMaximum": 1.2,
+    "unknownMeasurement": "inconclusive_not_zero",
+    "eligibleNextDecision": "advance_to_fresh_reviewed_development_cases_only",
+    "productionPromotionAuthorized": false,
+    "minimumMismatchReductionRationale": "Two fewer of twelve provisional animal observations is a prespecified practical signal, not statistical significance; fewer than two baseline mismatches makes this screen inconclusive.",
+    "candidateAnimalPresenceViolationsMaximum": 0
+  },
+  "measurement": {
+    "requireFreshHttp200": true,
+    "requireActualRequestedAndReturnedModel": true,
+    "requireSourceAndProcessedWavBinding": true,
+    "requirePromptArmReceipt": true,
+    "requireNativeFinalizationAndFirstDrawProof": true,
+    "requireContentFreeNormalizedSubjectState": true,
+    "requireConditionalNativeScore": true,
+    "requireManuallyObservedFirstLabelAndBadge": true,
+    "speciesNameCryptographicallyAttested": false,
+    "rawResponsesOrProviderProseRetained": false,
+    "calibrationClaimPermitted": false
+  },
+  "planningEstimate": {
+    "basedOnSelectedSixHistoricalPrimaryEstimatesUsd": [
+      0.0301675,
+      0.02854,
+      0.02045,
+      0.02453,
+      0.0243,
+      0.02422
+    ],
+    "sameObservedUsageExtrapolationUsd": 0.913245,
+    "historicalHighestSelectedCostTimes36Usd": 1.08603,
+    "currency": "USD",
+    "completeInvoice": false,
+    "hardSpendingCap": false,
+    "futureCandidateUsageUnknown": true,
+    "pricingCheckedDate": "2026-09-24",
+    "pricingSource": "https://ai.google.dev/gemini-api/docs/pricing",
+    "conservativeInputPerMillionUsd": 2.5,
+    "conservativeOutputIncludingThinkingPerMillionUsd": 15,
+    "observationWindowMinutesAt120Seconds": 72,
+    "worstWindowMinutesIncluding30SecondGrace": 90,
+    "operatorTimePlanningHours": [
+      2,
+      3
+    ]
+  },
+  "executionBindingsPending": {
+    "newCorpusDigest": null,
+    "newPlanDigest": null,
+    "fullyResolvedCandidatePromptDigest": null,
+    "allNativeRequestDigests": null,
+    "sourceAndProcessedAudioPairs": null,
+    "reviewedImplementationSha": null,
+    "newBackendBundleSha256": null,
+    "newSignedAppIdentity": null,
+    "privateOwnerConfiguration": null,
+    "blockActivationWindows": null
+  },
+  "readinessNote": "Null bindings are intentional design placeholders, not an executable freeze or permission to dispatch. Implementation must generate and review a separate immutable run artifact before first submission.",
+  "retention": {
+    "sourcePacketsRetainThrough": "2026-10-24",
+    "newPacketPrivateDirectoryMode": "0700",
+    "newPacketPrivateFileMode": "0600",
+    "reuseAfterExpiryRequiresRenewedRetentionReview": true
+  },
+  "limitations": {
+    "independentBiologicalReviewers": 0,
+    "formalDevelopmentGroups": 0,
+    "formalHeldOutGroups": 0,
+    "previouslyObservedDevelopmentCases": true,
+    "publicTrainingExposureKnown": false,
+    "sourceAudioVisualAuthenticityIndependentlyVerified": false,
+    "repeatTrialsAreIndependentSourceGroups": false,
+    "providerComparisonPerformed": false
+  }
+}

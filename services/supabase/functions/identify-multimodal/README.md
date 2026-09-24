@@ -28,6 +28,21 @@ operations. See the
 for field names, errors, retry and proof-header semantics. This is neither a
 provider/model selector nor an additional provider dispatch path.
 
+## Bounded audio prompt comparison (disabled)
+
+`comparison/promptPlan.ts` separately binds the frozen 36-slot uncertainty
+experiment. `promptAssignment.ts` owns its strict owner/block/window, reserved
+scan ID, media, first-Pro-attempt and execution checks. `promptInstruction.ts`
+contains the exact reviewed candidate delta without changing the base audio
+instruction. The handler supplies trusted A/B authority only after admission;
+ordinary requests remain V2 and both arms use current DSP. Runtime imports no
+evaluation scripts. The new environment, request marker and receipt are
+specified in the
+[API contract](../../../../docs/backend-and-data/05-api-contracts.md#server-owned-audio-prompt-comparison).
+Keep the environment unset: its activation controller and exact-SHA release
+validation are
+[Slice 3 prerequisites](../../../../docs/backend-and-data/06-supabase-deployment-runbook.md#audio-prompt-comparison-activation-prerequisites).
+
 ## Request Contract
 
 The endpoint accepts authenticated user requests through `withEdgeHandler`.

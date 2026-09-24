@@ -258,6 +258,67 @@ an observed native outcome to an authenticated response claim, not a standalone
 signed artifact or a species accuracy judgment. The integration record gives the
 offline admission command.
 
+### Prompt comparison observation
+
+The separate
+[36-slot prompt comparison](../rfcs/identification-audio-uncertainty-comparison-plan-2026-09-24.md)
+uses **Debug replay → Stage prompt comparison**, then a block and slot. It
+reuses fixed-context staging, complete source-byte checks, stable queue
+identity, manual Identify, current-attempt ownership and first-draw/finalization
+fences. The generated `DebugAudioPromptComparisonPlan` and typed assignment have
+their own handle/header/scan namespace; they do not alter the consumed DSP
+slots. Device and Release builds expose neither comparison menu.
+
+After exact receipt validation, compact **Audio prompt comparison** records use
+`identification_audio_prompt_comparison_v1`. Each carries the new plan digest,
+slot and exact measurement-JSON digest. A `finalized` record additionally binds
+the actual `SpeciesData` score, biological flag, persistence outcome and one of
+`identified_non_human`, `unidentified_non_human`, `human` or `non_biological`.
+Only named non-human results include `scientificNameSha256`: SHA-256 of the
+scientific name with whitespace collapsed, trimmed and lowercased. This digest
+is a join aid for provisional source agreement; it is not anonymization, an
+independent biological review or a signed attestation. Names, provider prose,
+raw responses, media and owner/scan IDs remain excluded from logs.
+
+The passive observer recognizes both versioned lanes and counts malformed proof
+rows. `admit_audio_prompt_comparison_observation.ts` is an offline-only writer:
+
+```bash
+deno run --frozen --config services/supabase/functions/deno.json \
+  --deny-net --deny-env --allow-read=services/supabase,docs,/private/run \
+  --allow-write=/private/run \
+  services/supabase/scripts/admit_audio_prompt_comparison_observation.ts \
+  --observation /private/run/slot.jsonl \
+  --expected /private/run/expected.json --output /private/run/admitted.json
+```
+
+Replace the example private directory with the retained execution packet.
+Expected input has exactly `slot`, the reviewed `app` identity and
+`backendBundleSha256`. Admission requires one fresh fixed-context Pro response,
+all three matching proofs, one first-render timing and a complete **120-second**
+window with the existing bounded shutdown grace. Old/mixed lanes, altered
+identities, duplicate/missing proof, retries/replays and interrupted or rejected
+proof windows fail closed. Outputs are exclusive private files; existing
+artifacts cannot be overwritten. Admission never submits a request.
+
+The output retains conditional confidence and subject state separately.
+`provisionalSpeciesAgreement` compares the named-result digest only with the
+frozen provisional species reference; unresolved/Human/non-biological results
+and non-animal references are `not_applicable`. Neither that value nor a Strong
+unresolved score counts as species accuracy. Every output keeps
+`accuracyScored: false` and `formalQualificationEligible: false`. Human-visible
+names/bands, full schedule accounting and the screening decision remain separate
+Slice 3 evidence. For the actual three-block run, use the
+[execution freeze and ledger](../../services/supabase/scripts/identification_evaluation/README.md#offline-prompt-execution-freeze-and-ledger)
+to claim each first attempt before Identify and admit its observation before
+progression. The standalone admission CLI above checks a single observation; it
+does not enforce the full schedule. The ledger additionally binds frozen
+pricing, clean app/source, private operator checks, all six asset hashes and
+verified cleanup between blocks. An incomplete claim or excluded observation
+cannot be replaced. The old activation workflow does not control this new lane;
+follow its
+[activation prerequisites](../backend-and-data/06-supabase-deployment-runbook.md#audio-prompt-comparison-activation-prerequisites).
+
 The
 [offline audio-path verification](../rfcs/identification-audio-path-verification-2026-09-22.md)
 adds synthetic sample-preservation tests through preparation, replay,

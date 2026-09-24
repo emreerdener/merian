@@ -29,6 +29,20 @@ clarifies the score by audio result state while preserving Gemini and its
 settings; see the
 [implementation record](../rfcs/identification-audio-confidence-v2-2026-09-24.md).
 
+The separate default-off
+[audio prompt comparison](../rfcs/identification-audio-uncertainty-comparison-plan-2026-09-24.md)
+adds a server-owned A/B authority for 36 frozen first-attempt Pro slots. The
+route checks the private owner, selected block, bounded window, reserved scan
+identity and exact media/request hashes before the registry can select the
+candidate instruction. A retains V2; B adds only the reviewed species-evidence
+instruction. Both preserve current DSP, schema, conditional confidence and
+Gemini settings. Ordinary and compatibility routes retain their existing
+bindings. Its
+[request/proof contract](../backend-and-data/05-api-contracts.md#server-owned-audio-prompt-comparison)
+and Debug simulator support are implemented, while its own activation controller
+and exact-SHA release evidence remain
+[Slice 3 prerequisites](../backend-and-data/06-supabase-deployment-runbook.md#audio-prompt-comparison-activation-prerequisites).
+
 Fresh primary success also exposes bounded provider/model, token counts and a
 generated Function runtime-bundle fingerprint for passive app measurement. The
 [recording guide](../development-guides/21-identification-app-measurement.md)
