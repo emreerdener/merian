@@ -5,6 +5,15 @@ activation or paid comparison was performed in this slice. Gemini remains the
 only identification provider. The formal development/held-out qualification
 counts remain 0/60 and 0/240.
 
+Completed live follow-up, 23 September 2026: the
+[completed processing benchmark](./identification-audio-processing-comparison-completed-2026-09-23.md)
+records all twelve admitted slots across two execution segments. The exact
+frozen app and original account were verified before running the five unused
+slots. The first seven results remain unchanged, and hosted setting removal and
+absence were verified again after completion. All three non-animal controls
+agreed across processors; animal identification improvement remains unproven.
+The partial-run and implementation statuses below remain historical.
+
 Live follow-up, 23 September 2026: the
 [partial processing benchmark](./identification-audio-processing-comparison-2026-09-23.md)
 records seven admitted slots after authorized deployment and activation. The run

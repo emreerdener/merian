@@ -1,0 +1,2345 @@
+{
+  "version": "identification_audio_processing_comparison_completed_v1",
+  "date": "2026-09-23",
+  "timezone": "America/Chicago",
+  "recordedAt": "2026-09-24T04:36:50.423435+00:00",
+  "status": "completed_across_two_execution_segments",
+  "scope": "twelve_admitted_exploratory_results_six_pairs",
+  "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+  "preparationSha256": "42350d978486e1a9edb409065be163b45f2d01d1182042b3e48f318e7ed43681",
+  "executionIdentity": {
+    "app": {
+      "version": "1.0.3",
+      "build": "275",
+      "sourceRevision": "fdfb142b6fcb96e6ae8f3c46a561015064c93cd2",
+      "sourceFingerprint": "ebfa958011ec4e61dda121eea6b9d00890b67d23099dedf1612372aa5cbdb3df",
+      "sourceState": "clean"
+    },
+    "simulator": "iPhone 18 Pro",
+    "os": "iOS 27.0",
+    "backendBundleSha256": "a5939b36fd43dcf1fbfb7f5ee01875d3888a313e66af8756e79fb04f19694b2c",
+    "provider": "gemini",
+    "model": "gemini-2.5-pro",
+    "contextProfile": "audio-minimal-v1"
+  },
+  "references": [
+    {
+      "caseId": "c0013",
+      "commonName": "Common Raven",
+      "scientificName": "Corvus corax",
+      "referenceStatus": "provisional_source_label"
+    },
+    {
+      "caseId": "c0014",
+      "commonName": "Elk",
+      "scientificName": "Cervus canadensis",
+      "referenceStatus": "provisional_source_label"
+    },
+    {
+      "caseId": "c0015",
+      "commonName": "American Green Tree Frog",
+      "scientificName": "Dryophytes cinereus",
+      "referenceStatus": "provisional_source_label"
+    },
+    {
+      "caseId": "c0016",
+      "commonName": "Stream",
+      "scientificName": null,
+      "referenceStatus": "source_and_owner_reviewed_non_biological"
+    },
+    {
+      "caseId": "c0017",
+      "commonName": "Thunder",
+      "scientificName": null,
+      "referenceStatus": "source_and_owner_reviewed_non_biological"
+    },
+    {
+      "caseId": "c0018",
+      "commonName": "Car alarm",
+      "scientificName": null,
+      "referenceStatus": "source_and_owner_reviewed_non_biological"
+    }
+  ],
+  "summary": {
+    "plannedSlots": 12,
+    "submittedSlots": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "admittedSlots": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "unsubmittedSlots": [],
+    "uiSubmissions": 12,
+    "manualRetries": 0,
+    "completePairs": 6,
+    "executionSegments": 2,
+    "interruptedAndResumed": true,
+    "observedPrimaryAttempts": 12,
+    "completeBillingLedger": false,
+    "tapToFirstFrameSeconds": {
+      "minimum": 11.387,
+      "median": 16.612,
+      "maximum": 19.586
+    },
+    "estimatedPrimaryUpperUsdSum": 0.29523,
+    "pairedObservations": {
+      "legacyMedianTapToFirstFrameSeconds": 16.9455,
+      "currentMedianTapToFirstFrameSeconds": 16.0305,
+      "medianPairedDeltaCurrentMinusLegacySeconds": -1.6985,
+      "pairs": [
+        {
+          "caseId": "c0013",
+          "legacySlot": 1,
+          "currentSlot": 2,
+          "spansExecutionSegments": false,
+          "tapToFirstFrameDeltaCurrentMinusLegacySeconds": -2.366,
+          "primaryEstimateDeltaCurrentMinusLegacyUsd": -0.001425,
+          "sameVisibleOutcomeAcrossArms": false
+        },
+        {
+          "caseId": "c0014",
+          "legacySlot": 4,
+          "currentSlot": 3,
+          "spansExecutionSegments": false,
+          "tapToFirstFrameDeltaCurrentMinusLegacySeconds": -2.51,
+          "primaryEstimateDeltaCurrentMinusLegacyUsd": -0.00477,
+          "sameVisibleOutcomeAcrossArms": true
+        },
+        {
+          "caseId": "c0015",
+          "legacySlot": 5,
+          "currentSlot": 6,
+          "spansExecutionSegments": false,
+          "tapToFirstFrameDeltaCurrentMinusLegacySeconds": 1.772,
+          "primaryEstimateDeltaCurrentMinusLegacyUsd": 0.0027775,
+          "sameVisibleOutcomeAcrossArms": true
+        },
+        {
+          "caseId": "c0016",
+          "legacySlot": 8,
+          "currentSlot": 7,
+          "spansExecutionSegments": true,
+          "tapToFirstFrameDeltaCurrentMinusLegacySeconds": -2.573,
+          "primaryEstimateDeltaCurrentMinusLegacyUsd": -0.006705,
+          "sameVisibleOutcomeAcrossArms": true
+        },
+        {
+          "caseId": "c0017",
+          "legacySlot": 9,
+          "currentSlot": 10,
+          "spansExecutionSegments": false,
+          "tapToFirstFrameDeltaCurrentMinusLegacySeconds": -1.031,
+          "primaryEstimateDeltaCurrentMinusLegacyUsd": -0.002535,
+          "sameVisibleOutcomeAcrossArms": true
+        },
+        {
+          "caseId": "c0018",
+          "legacySlot": 12,
+          "currentSlot": 11,
+          "spansExecutionSegments": false,
+          "tapToFirstFrameDeltaCurrentMinusLegacySeconds": 5.908,
+          "primaryEstimateDeltaCurrentMinusLegacyUsd": 0.0099325,
+          "sameVisibleOutcomeAcrossArms": true
+        }
+      ]
+    },
+    "accuracyRate": null,
+    "formalDevelopmentGroups": 0,
+    "formalDevelopmentTarget": 60,
+    "formalHeldOutGroups": 0,
+    "formalHeldOutTarget": 240
+  },
+  "originalSegment": {
+    "record": "app-results.json",
+    "recordSha256": "104c0c743a3d4a54a5f15fbc453117d3200ccdbaedbe361d53c89b0df962ca2d",
+    "statusAtClose": "interrupted_before_slot_08_submission",
+    "slots": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7
+    ],
+    "controls": {
+      "activation": {
+        "workflowRunUrl": "https://github.com/emreerdener/merian/actions/runs/35946828135",
+        "evidence": {
+          "version": "audio_comparison_control_v1",
+          "operation": "activate",
+          "target": "qlarqavoqhkuwzmevrmf",
+          "sourceSha": "9d7900d25c0f280685d4519554f4ac8fedafdae2",
+          "deployedSha": "9d7900d25c0f280685d4519554f4ac8fedafdae2",
+          "observedAt": "2026-09-24T02:27:22.672Z",
+          "status": "active",
+          "mutationAttempted": true,
+          "cleanup": "not_needed",
+          "configurationPresent": true,
+          "window": {
+            "startsAt": "2026-09-24T02:20:08.261Z",
+            "expiresAt": "2026-09-24T04:20:08.261Z"
+          },
+          "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+          "backendBundleSha256": "a5939b36fd43dcf1fbfb7f5ee01875d3888a313e66af8756e79fb04f19694b2c",
+          "automaticIdentificationRequests": 0,
+          "failure": null
+        }
+      },
+      "deactivation": {
+        "workflowRunUrl": "https://github.com/emreerdener/merian/actions/runs/35949585331",
+        "evidence": {
+          "version": "audio_comparison_control_v1",
+          "operation": "deactivate",
+          "target": "qlarqavoqhkuwzmevrmf",
+          "sourceSha": "9d7900d25c0f280685d4519554f4ac8fedafdae2",
+          "deployedSha": null,
+          "observedAt": "2026-09-24T03:00:26.832Z",
+          "status": "disabled",
+          "mutationAttempted": true,
+          "cleanup": "verified_absent",
+          "configurationPresent": false,
+          "window": {
+            "startsAt": "2026-09-24T02:20:08.261Z",
+            "expiresAt": "2026-09-24T04:20:08.261Z"
+          },
+          "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+          "backendBundleSha256": "a5939b36fd43dcf1fbfb7f5ee01875d3888a313e66af8756e79fb04f19694b2c",
+          "automaticIdentificationRequests": 0,
+          "failure": null
+        }
+      }
+    },
+    "preservedWithoutModification": true
+  },
+  "continuationSegment": {
+    "slots": [
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "controls": {
+      "activate": {
+        "workflowRunUrl": "https://github.com/emreerdener/merian/actions/runs/35954744408",
+        "evidence": {
+          "version": "audio_comparison_control_v1",
+          "operation": "activate",
+          "target": "qlarqavoqhkuwzmevrmf",
+          "sourceSha": "fc8995430b6251ffaf8fc17c866181e470c6f8d0",
+          "deployedSha": "9d7900d25c0f280685d4519554f4ac8fedafdae2",
+          "observedAt": "2026-09-24T04:19:33.261Z",
+          "status": "active",
+          "mutationAttempted": true,
+          "cleanup": "not_needed",
+          "configurationPresent": true,
+          "window": {
+            "startsAt": "2026-09-24T04:13:19.210Z",
+            "expiresAt": "2026-09-24T06:13:19.210Z"
+          },
+          "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+          "backendBundleSha256": "a5939b36fd43dcf1fbfb7f5ee01875d3888a313e66af8756e79fb04f19694b2c",
+          "automaticIdentificationRequests": 0,
+          "failure": null
+        }
+      },
+      "deactivate": {
+        "workflowRunUrl": "https://github.com/emreerdener/merian/actions/runs/35956296002",
+        "evidence": {
+          "version": "audio_comparison_control_v1",
+          "operation": "deactivate",
+          "target": "qlarqavoqhkuwzmevrmf",
+          "sourceSha": "fc8995430b6251ffaf8fc17c866181e470c6f8d0",
+          "deployedSha": null,
+          "observedAt": "2026-09-24T04:35:52.631Z",
+          "status": "disabled",
+          "mutationAttempted": true,
+          "cleanup": "verified_absent",
+          "configurationPresent": false,
+          "window": {
+            "startsAt": "2026-09-24T04:13:19.210Z",
+            "expiresAt": "2026-09-24T06:13:19.210Z"
+          },
+          "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+          "backendBundleSha256": "a5939b36fd43dcf1fbfb7f5ee01875d3888a313e66af8756e79fb04f19694b2c",
+          "automaticIdentificationRequests": 0,
+          "failure": null
+        }
+      }
+    },
+    "restoredAppPreflight": {
+      "observedAt": "2026-09-24T04:06:05.853605+00:00",
+      "app": {
+        "version": "1.0.3",
+        "build": "275",
+        "sourceRevision": "fdfb142b6fcb96e6ae8f3c46a561015064c93cd2",
+        "sourceFingerprint": "ebfa958011ec4e61dda121eea6b9d00890b67d23099dedf1612372aa5cbdb3df",
+        "sourceState": "clean"
+      },
+      "codeSignatureVerified": true,
+      "savedComparisonRecordsPreserved": true,
+      "originalBenchmarkOwnerVerifiedFromSavedJobs": true,
+      "sameOriginalOwnerSlotCount": 7,
+      "unusedSlotJobCount": 0,
+      "freshConsentSynchronizationVerified": true,
+      "synchronizationLaunchAt": "2026-09-24T04:06:00.836999+00:00",
+      "dataResetOrUninstallPerformed": false,
+      "automaticIdentificationRequests": 0,
+      "sourceWorktreeClean": true,
+      "resultBundles": [
+        ".artifacts/local-ios/5a9d7f9eff764705ab4032bf6e7f13d0.xcresult"
+      ]
+    },
+    "originalOwnerWitness": {
+      "observedAt": "2026-09-24T04:04:21.896534+00:00",
+      "completedSlotsVerified": 7,
+      "completeJobCount": 7,
+      "fundingScanBindingsVerified": 7,
+      "sameOriginalOwnerCount": 7,
+      "jobAndFundingDatesWithinOriginalObservationWindows": true,
+      "unusedJobCount": 0,
+      "unusedSlots": [
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "currentSynchronizedConsentOwnerMatchesAllSavedJobs": true,
+      "readOnlyLocalStore": true,
+      "privateIdentifiersRetained": false,
+      "automaticIdentificationRequests": 0
+    },
+    "completedOwnerWitness": {
+      "observedAt": "2026-09-24T04:35:40.404456+00:00",
+      "completedSlotsVerified": 12,
+      "completeJobCount": 12,
+      "fundingScanBindingsVerified": 12,
+      "sameOriginalOwnerCount": 12,
+      "jobAndFundingDatesWithinOriginalObservationWindows": true,
+      "unusedJobCount": 0,
+      "unusedSlots": [],
+      "currentSynchronizedConsentOwnerMatchesAllSavedJobs": true,
+      "readOnlyLocalStore": true,
+      "privateIdentifiersRetained": false,
+      "automaticIdentificationRequests": 0
+    },
+    "window": {
+      "startsAt": "2026-09-24T04:13:19.210Z",
+      "expiresAt": "2026-09-24T06:13:19.210Z"
+    },
+    "appRebuiltFromExactFrozenSource": true,
+    "samePlanAndStableAssignments": true,
+    "consumedAssignmentsRepeated": false,
+    "renewalChangedAssignments": false
+  },
+  "pricing": {
+    "version": "evaluation_pricing_v1",
+    "currency": "USD",
+    "service": "paid_standard_synchronous",
+    "retrievedAt": "2026-09-23T22:35:58.637Z",
+    "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+    "reviewRef": "pricing-audio-comparison-20260923",
+    "includesReasoning": true,
+    "models": [
+      {
+        "model": "gemini-2.5-flash",
+        "inputPerMillion": {
+          "text": 0.3,
+          "image": 0.3,
+          "audio": 1,
+          "cached": 0.1
+        },
+        "outputPerMillion": 2.5,
+        "maxInputTokens": 1048576,
+        "maxBillableOutputTokens": 65536,
+        "limitsEvidenceRef": "limits-gemini-2.5-flash-20260923"
+      },
+      {
+        "model": "gemini-2.5-pro",
+        "inputPerMillion": {
+          "text": 2.5,
+          "image": 2.5,
+          "audio": 2.5,
+          "cached": 0.25
+        },
+        "outputPerMillion": 15,
+        "maxInputTokens": 1048576,
+        "maxBillableOutputTokens": 65536,
+        "limitsEvidenceRef": "limits-gemini-2.5-pro-20260923"
+      }
+    ]
+  },
+  "records": [
+    {
+      "admitted": {
+        "version": "identification_audio_comparison_observation_v1",
+        "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+        "assignment": {
+          "slot": 1,
+          "caseId": "c0013",
+          "arm": "audio-linear-full-windows-v1",
+          "sourceWavSha256": "214e0f3f8e9c35f966503033ae159edb524498e0532700daa3802359ff7f8303",
+          "sourceByteLength": 506924,
+          "processedWavSha256": "039adae1fdd8cfbaa7daa7a39df643f06459dd536b4e8145dc93898e57a988c1",
+          "providerRequestSha256": "e86fa568e8e403bfb24096ba890c1985a24ca55334fd3dcdd620544c0cb129c2",
+          "policySha256": "e87be3d9d907ae1ab710861181f19ed2bc542fb207c075c3b316797f734ce99c",
+          "confidenceSha256": "7994954960f1355f6f0fe520ad2f5a6552fb3785f6bd900661ff48abae85fdcf"
+        },
+        "measurement": {
+          "app": {
+            "build": "275",
+            "sourceFingerprint": "ebfa958011ec4e61dda121eea6b9d00890b67d23099dedf1612372aa5cbdb3df",
+            "sourceRevision": "fdfb142b6fcb96e6ae8f3c46a561015064c93cd2",
+            "sourceState": "clean",
+            "version": "1.0.3"
+          },
+          "contextProfile": "audio-minimal-v1",
+          "delivery": "fresh",
+          "diagnostics": {
+            "backendBundleSha256": "a5939b36fd43dcf1fbfb7f5ee01875d3888a313e66af8756e79fb04f19694b2c",
+            "provider": "gemini",
+            "requestedModel": "gemini-2.5-pro",
+            "returnedModel": "gemini-2.5-pro",
+            "usage": {
+              "cachedTokens": null,
+              "candidateTokens": 428,
+              "promptTokens": 982,
+              "thinkingTokens": 948,
+              "toolTokens": null,
+              "totalTokens": 2358
+            },
+            "version": 1
+          },
+          "otherEdgeMs": 1596,
+          "serverTimingMs": {
+            "edge_total": 13179.9,
+            "provider": 11583.9
+          },
+          "status": 200,
+          "timingStatus": "valid",
+          "version": "identification_app_measurement_v2"
+        },
+        "measurementSha256": "b5c7ca0d43cc0497b2721936c38288eff5e51c049e19f56867d21aebaf2a8ee6",
+        "nativeOutcome": {
+          "confidenceScore": 0.95,
+          "isBiological": true,
+          "persistence": "saved"
+        },
+        "tapToFirstRenderedFrameSeconds": 17.547,
+        "primaryCost": {
+          "estimatedPrimaryUpperUsd": 0.023095,
+          "reason": "estimated_primary_only",
+          "scope": "observed_primary_attempt_only",
+          "invoiceExact": false
+        },
+        "scope": "single_foreground_slot_saved_or_completed_without_record_and_rendered",
+        "accuracyScored": false,
+        "automaticSubmissions": 0,
+        "observationSha256": "4bcf918c6f3c309562c5faae4fe28a5d00cc8edbffc5942b8946ea91d1012e0a"
+      },
+      "visibleOutcome": {
+        "observedAt": "2026-09-24T02:29:16.297901+00:00",
+        "slot": 1,
+        "kind": "species",
+        "commonName": "Common Raven",
+        "scientificName": "Corvus corax",
+        "displayedMatch": "Strong match",
+        "method": "first visible app outcome read from Device Hub; no provider response body retained",
+        "accuracyScored": false
+      },
+      "observationWindow": {
+        "startedAt": "2026-09-24T02:28:11.615Z",
+        "readyAt": "2026-09-24T02:28:12.381Z",
+        "finishedAt": "2026-09-24T02:30:20.400Z",
+        "status": "window_completed",
+        "events": 9,
+        "ready": true,
+        "stopReason": "collector_exit",
+        "collectorExitCode": 0,
+        "collectorSignal": null,
+        "unprojectedRows": 25,
+        "oversizedRows": 0,
+        "rejectedProofRows": 0
+      },
+      "comparisonProofs": [
+        {
+          "event": "receipt",
+          "measurementSha256": "b5c7ca0d43cc0497b2721936c38288eff5e51c049e19f56867d21aebaf2a8ee6",
+          "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+          "slot": 1,
+          "version": "identification_audio_comparison_v1"
+        },
+        {
+          "event": "rendered",
+          "measurementSha256": "b5c7ca0d43cc0497b2721936c38288eff5e51c049e19f56867d21aebaf2a8ee6",
+          "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+          "slot": 1,
+          "version": "identification_audio_comparison_v1"
+        },
+        {
+          "confidenceScore": 0.95,
+          "event": "finalized",
+          "isBiological": true,
+          "measurementSha256": "b5c7ca0d43cc0497b2721936c38288eff5e51c049e19f56867d21aebaf2a8ee6",
+          "persistence": "saved",
+          "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+          "slot": 1,
+          "version": "identification_audio_comparison_v1"
+        }
+      ],
+      "admissionFileSha256": "63e2e45a7089687e2dcf9e576d0c8c29bd9cd2b84821a8ac3610c15df7d8711f",
+      "visibleOutcomeFileSha256": "869d5596fa071ee9766575787e3a892d3b2cc6c0dab949c7549cfd611f1763bd",
+      "inputFileSha256": "8954a72e379bfc658745877f5ba0789e40f1cd595e6ee5b3839f3c6bc06c8450",
+      "expectedFileSha256": "358d5d9ac753d2098b3f30309eb5b169083c1bd402b4ccb652a4bad83c8f1e89"
+    },
+    {
+      "admitted": {
+        "version": "identification_audio_comparison_observation_v1",
+        "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+        "assignment": {
+          "slot": 2,
+          "caseId": "c0013",
+          "arm": "audio-sinc-partial-tail-v1",
+          "sourceWavSha256": "214e0f3f8e9c35f966503033ae159edb524498e0532700daa3802359ff7f8303",
+          "sourceByteLength": 506924,
+          "processedWavSha256": "3a68bd5965993de8ac0c4c282da98d1bddcc5c11998abd2408d5dac379d5dce2",
+          "providerRequestSha256": "8a1ff98f77c5fbe042348e5b410712a8ed87b4343e5e21ce9acf903ced3c4d22",
+          "policySha256": "e87be3d9d907ae1ab710861181f19ed2bc542fb207c075c3b316797f734ce99c",
+          "confidenceSha256": "7994954960f1355f6f0fe520ad2f5a6552fb3785f6bd900661ff48abae85fdcf"
+        },
+        "measurement": {
+          "app": {
+            "build": "275",
+            "sourceFingerprint": "ebfa958011ec4e61dda121eea6b9d00890b67d23099dedf1612372aa5cbdb3df",
+            "sourceRevision": "fdfb142b6fcb96e6ae8f3c46a561015064c93cd2",
+            "sourceState": "clean",
+            "version": "1.0.3"
+          },
+          "contextProfile": "audio-minimal-v1",
+          "delivery": "fresh",
+          "diagnostics": {
+            "backendBundleSha256": "a5939b36fd43dcf1fbfb7f5ee01875d3888a313e66af8756e79fb04f19694b2c",
+            "provider": "gemini",
+            "requestedModel": "gemini-2.5-pro",
+            "returnedModel": "gemini-2.5-pro",
+            "usage": {
+              "cachedTokens": null,
+              "candidateTokens": 383,
+              "promptTokens": 982,
+              "thinkingTokens": 898,
+              "toolTokens": null,
+              "totalTokens": 2263
+            },
+            "version": 1
+          },
+          "otherEdgeMs": 1338.1000000000004,
+          "serverTimingMs": {
+            "edge_total": 12840.1,
+            "provider": 11502
+          },
+          "status": 200,
+          "timingStatus": "valid",
+          "version": "identification_app_measurement_v2"
+        },
+        "measurementSha256": "2bf93c6adb0f284bd9f535c15475c4f10ad58f1745ea0150eaf0a1cd2cecb5c2",
+        "nativeOutcome": {
+          "confidenceScore": 1,
+          "isBiological": true,
+          "persistence": "saved"
+        },
+        "tapToFirstRenderedFrameSeconds": 15.181,
+        "primaryCost": {
+          "estimatedPrimaryUpperUsd": 0.02167,
+          "reason": "estimated_primary_only",
+          "scope": "observed_primary_attempt_only",
+          "invoiceExact": false
+        },
+        "scope": "single_foreground_slot_saved_or_completed_without_record_and_rendered",
+        "accuracyScored": false,
+        "automaticSubmissions": 0,
+        "observationSha256": "ef4c33f0b3e73227b6f00150310839d1c4eb0b01a74f0e8c771c9e4a46bccb07"
+      },
+      "visibleOutcome": {
+        "observedAt": "2026-09-24T02:34:11.474696+00:00",
+        "slot": 2,
+        "kind": "species",
+        "commonName": "American Crow",
+        "scientificName": "Corvus brachyrhynchos",
+        "displayedMatch": "Strong match",
+        "method": "first visible app outcome read from Device Hub; no provider response body retained",
+        "accuracyScored": false
+      },
+      "observationWindow": {
+        "startedAt": "2026-09-24T02:33:09.892Z",
+        "readyAt": "2026-09-24T02:33:10.434Z",
+        "finishedAt": "2026-09-24T02:35:18.473Z",
+        "status": "window_completed",
+        "events": 9,
+        "ready": true,
+        "stopReason": "collector_exit",
+        "collectorExitCode": 0,
+        "collectorSignal": null,
+        "unprojectedRows": 25,
+        "oversizedRows": 0,
+        "rejectedProofRows": 0
+      },
+      "comparisonProofs": [
+        {
+          "event": "receipt",
+          "measurementSha256": "2bf93c6adb0f284bd9f535c15475c4f10ad58f1745ea0150eaf0a1cd2cecb5c2",
+          "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+          "slot": 2,
+          "version": "identification_audio_comparison_v1"
+        },
+        {
+          "event": "rendered",
+          "measurementSha256": "2bf93c6adb0f284bd9f535c15475c4f10ad58f1745ea0150eaf0a1cd2cecb5c2",
+          "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+          "slot": 2,
+          "version": "identification_audio_comparison_v1"
+        },
+        {
+          "confidenceScore": 1,
+          "event": "finalized",
+          "isBiological": true,
+          "measurementSha256": "2bf93c6adb0f284bd9f535c15475c4f10ad58f1745ea0150eaf0a1cd2cecb5c2",
+          "persistence": "saved",
+          "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+          "slot": 2,
+          "version": "identification_audio_comparison_v1"
+        }
+      ],
+      "admissionFileSha256": "87347dc3f08dc7e1d51bdd0e6fd4819d8dde77e41777e2f070af5cf3dae39f5a",
+      "visibleOutcomeFileSha256": "9d90280483ab4077019df1953e3803f2f3d6e1d94da21f7c4e5d4febd0849444",
+      "inputFileSha256": "087988b79a468855469b95265fd0b951146a5aea03e61127f6c3a7d511a2afd4",
+      "expectedFileSha256": "0141f202c1454852fbf3c34874411447a2be25c6e27c6ea6b13189a6a837e470"
+    },
+    {
+      "admitted": {
+        "version": "identification_audio_comparison_observation_v1",
+        "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+        "assignment": {
+          "slot": 3,
+          "caseId": "c0014",
+          "arm": "audio-sinc-partial-tail-v1",
+          "sourceWavSha256": "4696164a9407ecf5242425fd4f803ad3c62e4d9d765c28e1dc7b1cbf330abab8",
+          "sourceByteLength": 882044,
+          "processedWavSha256": "6560d967771137d8b3598e0a145782a68e4e5f4ca6e6e5059eb91dbeb22ead32",
+          "providerRequestSha256": "1ee3cded1f4aacee074688c7f01d88d345308366113125f63041ba67cf94cd14",
+          "policySha256": "e87be3d9d907ae1ab710861181f19ed2bc542fb207c075c3b316797f734ce99c",
+          "confidenceSha256": "7994954960f1355f6f0fe520ad2f5a6552fb3785f6bd900661ff48abae85fdcf"
+        },
+        "measurement": {
+          "app": {
+            "build": "275",
+            "sourceFingerprint": "ebfa958011ec4e61dda121eea6b9d00890b67d23099dedf1612372aa5cbdb3df",
+            "sourceRevision": "fdfb142b6fcb96e6ae8f3c46a561015064c93cd2",
+            "sourceState": "clean",
+            "version": "1.0.3"
+          },
+          "contextProfile": "audio-minimal-v1",
+          "delivery": "fresh",
+          "diagnostics": {
+            "backendBundleSha256": "a5939b36fd43dcf1fbfb7f5ee01875d3888a313e66af8756e79fb04f19694b2c",
+            "provider": "gemini",
+            "requestedModel": "gemini-2.5-pro",
+            "returnedModel": "gemini-2.5-pro",
+            "usage": {
+              "cachedTokens": null,
+              "candidateTokens": 385,
+              "promptTokens": 1088,
+              "thinkingTokens": 1068,
+              "toolTokens": null,
+              "totalTokens": 2541
+            },
+            "version": 1
+          },
+          "otherEdgeMs": 1466.300000000001,
+          "serverTimingMs": {
+            "edge_total": 14568.6,
+            "provider": 13102.3
+          },
+          "status": 200,
+          "timingStatus": "valid",
+          "version": "identification_app_measurement_v2"
+        },
+        "measurementSha256": "f0c6979d4d387de6ac0e2a62f38e1b87cf7d90b533912f09bf1667cab59bd378",
+        "nativeOutcome": {
+          "confidenceScore": 0.95,
+          "isBiological": true,
+          "persistence": "saved"
+        },
+        "tapToFirstRenderedFrameSeconds": 16.88,
+        "primaryCost": {
+          "estimatedPrimaryUpperUsd": 0.024515,
+          "reason": "estimated_primary_only",
+          "scope": "observed_primary_attempt_only",
+          "invoiceExact": false
+        },
+        "scope": "single_foreground_slot_saved_or_completed_without_record_and_rendered",
+        "accuracyScored": false,
+        "automaticSubmissions": 0,
+        "observationSha256": "1afa13515db8e945206ec296fa9fff6a51e35578c449bab0bd9c2d6d5d17f5fd"
+      },
+      "visibleOutcome": {
+        "observedAt": "2026-09-24T02:37:36.876749+00:00",
+        "slot": 3,
+        "kind": "species",
+        "commonName": "Red Fox",
+        "scientificName": "Vulpes vulpes",
+        "displayedMatch": "Strong match",
+        "method": "first visible app outcome read from Device Hub; no provider response body retained",
+        "accuracyScored": false
+      },
+      "observationWindow": {
+        "startedAt": "2026-09-24T02:36:43.267Z",
+        "readyAt": "2026-09-24T02:36:43.789Z",
+        "finishedAt": "2026-09-24T02:38:51.797Z",
+        "status": "window_completed",
+        "events": 9,
+        "ready": true,
+        "stopReason": "collector_exit",
+        "collectorExitCode": 0,
+        "collectorSignal": null,
+        "unprojectedRows": 25,
+        "oversizedRows": 0,
+        "rejectedProofRows": 0
+      },
+      "comparisonProofs": [
+        {
+          "event": "receipt",
+          "measurementSha256": "f0c6979d4d387de6ac0e2a62f38e1b87cf7d90b533912f09bf1667cab59bd378",
+          "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+          "slot": 3,
+          "version": "identification_audio_comparison_v1"
+        },
+        {
+          "event": "rendered",
+          "measurementSha256": "f0c6979d4d387de6ac0e2a62f38e1b87cf7d90b533912f09bf1667cab59bd378",
+          "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+          "slot": 3,
+          "version": "identification_audio_comparison_v1"
+        },
+        {
+          "confidenceScore": 0.95,
+          "event": "finalized",
+          "isBiological": true,
+          "measurementSha256": "f0c6979d4d387de6ac0e2a62f38e1b87cf7d90b533912f09bf1667cab59bd378",
+          "persistence": "saved",
+          "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+          "slot": 3,
+          "version": "identification_audio_comparison_v1"
+        }
+      ],
+      "admissionFileSha256": "60cb99a8d624b1fcb6cc7f6bf785dd87135baaa17723aa17f96522393e30e4ad",
+      "visibleOutcomeFileSha256": "a187dd21da46d50b49722b6009c79d12c8393b63ffbe88f3dc68682a550ff2a9",
+      "inputFileSha256": "28eba5879c7c93aca544204c25d8f0b9ed1aae69ad58b3fd84a8f83e3e9fa8d2",
+      "expectedFileSha256": "c91a16d6e73d9ea5c0fefe480f2c97193f84e5d3adb56042528a3487b7af5656"
+    },
+    {
+      "admitted": {
+        "version": "identification_audio_comparison_observation_v1",
+        "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+        "assignment": {
+          "slot": 4,
+          "caseId": "c0014",
+          "arm": "audio-linear-full-windows-v1",
+          "sourceWavSha256": "4696164a9407ecf5242425fd4f803ad3c62e4d9d765c28e1dc7b1cbf330abab8",
+          "sourceByteLength": 882044,
+          "processedWavSha256": "b691d815635fed7e48f08adeaa2d9634f8a17852db7a8330d201a98ce6423c60",
+          "providerRequestSha256": "230f5dfdc81615cbbc922a30dfdae9272956c7291565b15ed8e36fba9a12b521",
+          "policySha256": "e87be3d9d907ae1ab710861181f19ed2bc542fb207c075c3b316797f734ce99c",
+          "confidenceSha256": "7994954960f1355f6f0fe520ad2f5a6552fb3785f6bd900661ff48abae85fdcf"
+        },
+        "measurement": {
+          "app": {
+            "build": "275",
+            "sourceFingerprint": "ebfa958011ec4e61dda121eea6b9d00890b67d23099dedf1612372aa5cbdb3df",
+            "sourceRevision": "fdfb142b6fcb96e6ae8f3c46a561015064c93cd2",
+            "sourceState": "clean",
+            "version": "1.0.3"
+          },
+          "contextProfile": "audio-minimal-v1",
+          "delivery": "fresh",
+          "diagnostics": {
+            "backendBundleSha256": "a5939b36fd43dcf1fbfb7f5ee01875d3888a313e66af8756e79fb04f19694b2c",
+            "provider": "gemini",
+            "requestedModel": "gemini-2.5-pro",
+            "returnedModel": "gemini-2.5-pro",
+            "usage": {
+              "cachedTokens": null,
+              "candidateTokens": 486,
+              "promptTokens": 1088,
+              "thinkingTokens": 1285,
+              "toolTokens": null,
+              "totalTokens": 2859
+            },
+            "version": 1
+          },
+          "otherEdgeMs": 1474,
+          "serverTimingMs": {
+            "edge_total": 16825.5,
+            "provider": 15351.5
+          },
+          "status": 200,
+          "timingStatus": "valid",
+          "version": "identification_app_measurement_v2"
+        },
+        "measurementSha256": "d637327e8f605bc0ebdba87489e2b8ef0be1db63dbe4d78843a1fb7b7161eb6c",
+        "nativeOutcome": {
+          "confidenceScore": 0.95,
+          "isBiological": true,
+          "persistence": "saved"
+        },
+        "tapToFirstRenderedFrameSeconds": 19.39,
+        "primaryCost": {
+          "estimatedPrimaryUpperUsd": 0.029285,
+          "reason": "estimated_primary_only",
+          "scope": "observed_primary_attempt_only",
+          "invoiceExact": false
+        },
+        "scope": "single_foreground_slot_saved_or_completed_without_record_and_rendered",
+        "accuracyScored": false,
+        "automaticSubmissions": 0,
+        "observationSha256": "6a4dc9dbe6dde13150487240ecfb998178f5664c995cac75e462c751ee4c06dc"
+      },
+      "visibleOutcome": {
+        "observedAt": "2026-09-24T02:41:20.243943+00:00",
+        "slot": 4,
+        "kind": "species",
+        "commonName": "Red Fox",
+        "scientificName": "Vulpes vulpes",
+        "displayedMatch": "Strong match",
+        "method": "first visible app outcome read from Device Hub; no provider response body retained",
+        "accuracyScored": false
+      },
+      "observationWindow": {
+        "startedAt": "2026-09-24T02:40:03.054Z",
+        "readyAt": "2026-09-24T02:40:03.574Z",
+        "finishedAt": "2026-09-24T02:42:11.588Z",
+        "status": "window_completed",
+        "events": 9,
+        "ready": true,
+        "stopReason": "collector_exit",
+        "collectorExitCode": 0,
+        "collectorSignal": null,
+        "unprojectedRows": 23,
+        "oversizedRows": 0,
+        "rejectedProofRows": 0
+      },
+      "comparisonProofs": [
+        {
+          "event": "receipt",
+          "measurementSha256": "d637327e8f605bc0ebdba87489e2b8ef0be1db63dbe4d78843a1fb7b7161eb6c",
+          "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+          "slot": 4,
+          "version": "identification_audio_comparison_v1"
+        },
+        {
+          "event": "rendered",
+          "measurementSha256": "d637327e8f605bc0ebdba87489e2b8ef0be1db63dbe4d78843a1fb7b7161eb6c",
+          "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+          "slot": 4,
+          "version": "identification_audio_comparison_v1"
+        },
+        {
+          "confidenceScore": 0.95,
+          "event": "finalized",
+          "isBiological": true,
+          "measurementSha256": "d637327e8f605bc0ebdba87489e2b8ef0be1db63dbe4d78843a1fb7b7161eb6c",
+          "persistence": "saved",
+          "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+          "slot": 4,
+          "version": "identification_audio_comparison_v1"
+        }
+      ],
+      "admissionFileSha256": "70fb5a0a3e93303ff686afd993fad1543f54d3cec9fc4ba7d5c92a8fb0899eab",
+      "visibleOutcomeFileSha256": "3319135bdcc8578fe70f0f27011f4cf6992d6fae7d2ce490531ba154ef1678a5",
+      "inputFileSha256": "4921ac40e7f69bfb122d632ec640fed68544c5f5d764a139f432dec8107ca404",
+      "expectedFileSha256": "87bb9faf6e774d73c80ff3b793cf9dc4f0567e9eb055c79e3b824be2708631f7"
+    },
+    {
+      "admitted": {
+        "version": "identification_audio_comparison_observation_v1",
+        "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+        "assignment": {
+          "slot": 5,
+          "caseId": "c0015",
+          "arm": "audio-linear-full-windows-v1",
+          "sourceWavSha256": "5d327fae2cea263c348572557ab1a2774ab0d7a8c0a612970ade1b550640154c",
+          "sourceByteLength": 880172,
+          "processedWavSha256": "bf5f801240adbcf67fbea62c9b3356e4f5d28ab06120c173d4895f5c91f57533",
+          "providerRequestSha256": "84deb3cb918c9c830c8b642d22fe3c5186186c8848dd55d016cdb6f6e059739e",
+          "policySha256": "e87be3d9d907ae1ab710861181f19ed2bc542fb207c075c3b316797f734ce99c",
+          "confidenceSha256": "7994954960f1355f6f0fe520ad2f5a6552fb3785f6bd900661ff48abae85fdcf"
+        },
+        "measurement": {
+          "app": {
+            "build": "275",
+            "sourceFingerprint": "ebfa958011ec4e61dda121eea6b9d00890b67d23099dedf1612372aa5cbdb3df",
+            "sourceRevision": "fdfb142b6fcb96e6ae8f3c46a561015064c93cd2",
+            "sourceState": "clean",
+            "version": "1.0.3"
+          },
+          "contextProfile": "audio-minimal-v1",
+          "delivery": "fresh",
+          "diagnostics": {
+            "backendBundleSha256": "a5939b36fd43dcf1fbfb7f5ee01875d3888a313e66af8756e79fb04f19694b2c",
+            "provider": "gemini",
+            "requestedModel": "gemini-2.5-pro",
+            "returnedModel": "gemini-2.5-pro",
+            "usage": {
+              "cachedTokens": null,
+              "candidateTokens": 472,
+              "promptTokens": 1117,
+              "thinkingTokens": 1203,
+              "toolTokens": null,
+              "totalTokens": 2792
+            },
+            "version": 1
+          },
+          "otherEdgeMs": 1202.7999999999993,
+          "serverTimingMs": {
+            "edge_total": 15314.9,
+            "provider": 14112.1
+          },
+          "status": 200,
+          "timingStatus": "valid",
+          "version": "identification_app_measurement_v2"
+        },
+        "measurementSha256": "f4230a397d388743c9b5896f2e096607cf60f837e3c8e76d2c3f2713257dc34a",
+        "nativeOutcome": {
+          "confidenceScore": 0.95,
+          "isBiological": true,
+          "persistence": "saved"
+        },
+        "tapToFirstRenderedFrameSeconds": 17.814,
+        "primaryCost": {
+          "estimatedPrimaryUpperUsd": 0.0279175,
+          "reason": "estimated_primary_only",
+          "scope": "observed_primary_attempt_only",
+          "invoiceExact": false
+        },
+        "scope": "single_foreground_slot_saved_or_completed_without_record_and_rendered",
+        "accuracyScored": false,
+        "automaticSubmissions": 0,
+        "observationSha256": "2ec30d014ef933c7668ffd7325c5e59a9606f52375d1a5a03adf8757a1a93e40"
+      },
+      "visibleOutcome": {
+        "observedAt": "2026-09-24T02:44:40.060480+00:00",
+        "slot": 5,
+        "kind": "species",
+        "commonName": "Snow Goose",
+        "scientificName": "Anser caerulescens",
+        "displayedMatch": "Strong match",
+        "method": "first visible app outcome read from Device Hub; no provider response body retained",
+        "accuracyScored": false
+      },
+      "observationWindow": {
+        "startedAt": "2026-09-24T02:43:32.015Z",
+        "readyAt": "2026-09-24T02:43:32.564Z",
+        "finishedAt": "2026-09-24T02:45:40.582Z",
+        "status": "window_completed",
+        "events": 9,
+        "ready": true,
+        "stopReason": "collector_exit",
+        "collectorExitCode": 0,
+        "collectorSignal": null,
+        "unprojectedRows": 25,
+        "oversizedRows": 0,
+        "rejectedProofRows": 0
+      },
+      "comparisonProofs": [
+        {
+          "event": "receipt",
+          "measurementSha256": "f4230a397d388743c9b5896f2e096607cf60f837e3c8e76d2c3f2713257dc34a",
+          "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+          "slot": 5,
+          "version": "identification_audio_comparison_v1"
+        },
+        {
+          "event": "rendered",
+          "measurementSha256": "f4230a397d388743c9b5896f2e096607cf60f837e3c8e76d2c3f2713257dc34a",
+          "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+          "slot": 5,
+          "version": "identification_audio_comparison_v1"
+        },
+        {
+          "confidenceScore": 0.95,
+          "event": "finalized",
+          "isBiological": true,
+          "measurementSha256": "f4230a397d388743c9b5896f2e096607cf60f837e3c8e76d2c3f2713257dc34a",
+          "persistence": "saved",
+          "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+          "slot": 5,
+          "version": "identification_audio_comparison_v1"
+        }
+      ],
+      "admissionFileSha256": "b4e5dd08c6378384d368ce146c4748c234522ff48e6492df7eb6ce40d230cfb4",
+      "visibleOutcomeFileSha256": "4e66f38e38a43ab9e9ea9576e70ff44d6ea51ab9bd1c1e16cbaea85755c9a277",
+      "inputFileSha256": "ccc341a8abc7e010df94314d0db694d5966224924bfcf63a03998d7c697a52fb",
+      "expectedFileSha256": "dc1fc8bff0fd6c10b5a47b3acf02d2da9b4034994cfac23a0ec8fe25fbe48028"
+    },
+    {
+      "admitted": {
+        "version": "identification_audio_comparison_observation_v1",
+        "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+        "assignment": {
+          "slot": 6,
+          "caseId": "c0015",
+          "arm": "audio-sinc-partial-tail-v1",
+          "sourceWavSha256": "5d327fae2cea263c348572557ab1a2774ab0d7a8c0a612970ade1b550640154c",
+          "sourceByteLength": 880172,
+          "processedWavSha256": "5ee6d5e1732c89e7eeb20b1edf152d627993004cebdb9aefc773dd9f8b8496cd",
+          "providerRequestSha256": "19354d37b472470aece13948a44bc9134d9095caacffc35b8e624070ec3d5828",
+          "policySha256": "e87be3d9d907ae1ab710861181f19ed2bc542fb207c075c3b316797f734ce99c",
+          "confidenceSha256": "7994954960f1355f6f0fe520ad2f5a6552fb3785f6bd900661ff48abae85fdcf"
+        },
+        "measurement": {
+          "app": {
+            "build": "275",
+            "sourceFingerprint": "ebfa958011ec4e61dda121eea6b9d00890b67d23099dedf1612372aa5cbdb3df",
+            "sourceRevision": "fdfb142b6fcb96e6ae8f3c46a561015064c93cd2",
+            "sourceState": "clean",
+            "version": "1.0.3"
+          },
+          "contextProfile": "audio-minimal-v1",
+          "delivery": "fresh",
+          "diagnostics": {
+            "backendBundleSha256": "a5939b36fd43dcf1fbfb7f5ee01875d3888a313e66af8756e79fb04f19694b2c",
+            "provider": "gemini",
+            "requestedModel": "gemini-2.5-pro",
+            "returnedModel": "gemini-2.5-pro",
+            "usage": {
+              "cachedTokens": null,
+              "candidateTokens": 387,
+              "promptTokens": 1118,
+              "thinkingTokens": 1473,
+              "toolTokens": null,
+              "totalTokens": 2978
+            },
+            "version": 1
+          },
+          "otherEdgeMs": 1611.2999999999993,
+          "serverTimingMs": {
+            "edge_total": 16681.5,
+            "provider": 15070.2
+          },
+          "status": 200,
+          "timingStatus": "valid",
+          "version": "identification_app_measurement_v2"
+        },
+        "measurementSha256": "f5c2356bfb1a250991e9db8ebb5a3e46aece81163d19303cc71b785750d8becf",
+        "nativeOutcome": {
+          "confidenceScore": 0.95,
+          "isBiological": true,
+          "persistence": "saved"
+        },
+        "tapToFirstRenderedFrameSeconds": 19.586,
+        "primaryCost": {
+          "estimatedPrimaryUpperUsd": 0.030695,
+          "reason": "estimated_primary_only",
+          "scope": "observed_primary_attempt_only",
+          "invoiceExact": false
+        },
+        "scope": "single_foreground_slot_saved_or_completed_without_record_and_rendered",
+        "accuracyScored": false,
+        "automaticSubmissions": 0,
+        "observationSha256": "41d77484fec6846f47d25d230f2a8fb4e865bb311e513a66f5e0e745e1b7d967"
+      },
+      "visibleOutcome": {
+        "observedAt": "2026-09-24T02:48:49.893353+00:00",
+        "slot": 6,
+        "kind": "species",
+        "commonName": "Snow Goose",
+        "scientificName": "Anser caerulescens",
+        "displayedMatch": "Strong match",
+        "method": "first visible app outcome read from Device Hub; no provider response body retained",
+        "accuracyScored": false
+      },
+      "observationWindow": {
+        "startedAt": "2026-09-24T02:47:24.630Z",
+        "readyAt": "2026-09-24T02:47:25.851Z",
+        "finishedAt": "2026-09-24T02:49:33.878Z",
+        "status": "window_completed",
+        "events": 9,
+        "ready": true,
+        "stopReason": "collector_exit",
+        "collectorExitCode": 0,
+        "collectorSignal": null,
+        "unprojectedRows": 23,
+        "oversizedRows": 0,
+        "rejectedProofRows": 0
+      },
+      "comparisonProofs": [
+        {
+          "event": "receipt",
+          "measurementSha256": "f5c2356bfb1a250991e9db8ebb5a3e46aece81163d19303cc71b785750d8becf",
+          "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+          "slot": 6,
+          "version": "identification_audio_comparison_v1"
+        },
+        {
+          "event": "rendered",
+          "measurementSha256": "f5c2356bfb1a250991e9db8ebb5a3e46aece81163d19303cc71b785750d8becf",
+          "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+          "slot": 6,
+          "version": "identification_audio_comparison_v1"
+        },
+        {
+          "confidenceScore": 0.95,
+          "event": "finalized",
+          "isBiological": true,
+          "measurementSha256": "f5c2356bfb1a250991e9db8ebb5a3e46aece81163d19303cc71b785750d8becf",
+          "persistence": "saved",
+          "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+          "slot": 6,
+          "version": "identification_audio_comparison_v1"
+        }
+      ],
+      "admissionFileSha256": "9f73ae7b751040cb2c420e4daf70d8c5e9e5949f2d7847ac3844aa4569274c63",
+      "visibleOutcomeFileSha256": "d4a16fffd4083e8f99a986fd3d7ae94fb19987533861a42bb9250740877cda9b",
+      "inputFileSha256": "cb5a3c9609cee085b4f47ad2c648d6d9b86f2aa1358fc5612a44e8bdcaaf18ab",
+      "expectedFileSha256": "60eef50faf8a352635f9fe0da69a553a2920e304418ba84d96317c0d345fdf59"
+    },
+    {
+      "admitted": {
+        "version": "identification_audio_comparison_observation_v1",
+        "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+        "assignment": {
+          "slot": 7,
+          "caseId": "c0016",
+          "arm": "audio-sinc-partial-tail-v1",
+          "sourceWavSha256": "f67b22b951b922cd222441e39acbfe67a7f6253d8c7e2c07631308726d274b0f",
+          "sourceByteLength": 447020,
+          "processedWavSha256": "29898907d1e59e696deb9e1bd7322268df10291883bacf037320b38b097bde4e",
+          "providerRequestSha256": "144d768d92409043e3b9de77b370ee18b35b4c5ae8feee1e882b9b36a2ed728b",
+          "policySha256": "e87be3d9d907ae1ab710861181f19ed2bc542fb207c075c3b316797f734ce99c",
+          "confidenceSha256": "7994954960f1355f6f0fe520ad2f5a6552fb3785f6bd900661ff48abae85fdcf"
+        },
+        "measurement": {
+          "app": {
+            "build": "275",
+            "sourceFingerprint": "ebfa958011ec4e61dda121eea6b9d00890b67d23099dedf1612372aa5cbdb3df",
+            "sourceRevision": "fdfb142b6fcb96e6ae8f3c46a561015064c93cd2",
+            "sourceState": "clean",
+            "version": "1.0.3"
+          },
+          "contextProfile": "audio-minimal-v1",
+          "delivery": "fresh",
+          "diagnostics": {
+            "backendBundleSha256": "a5939b36fd43dcf1fbfb7f5ee01875d3888a313e66af8756e79fb04f19694b2c",
+            "provider": "gemini",
+            "requestedModel": "gemini-2.5-pro",
+            "returnedModel": "gemini-2.5-pro",
+            "usage": {
+              "cachedTokens": null,
+              "candidateTokens": 271,
+              "promptTokens": 955,
+              "thinkingTokens": 853,
+              "toolTokens": null,
+              "totalTokens": 2079
+            },
+            "version": 1
+          },
+          "otherEdgeMs": 1847.7000000000007,
+          "serverTimingMs": {
+            "edge_total": 11753.2,
+            "provider": 9905.5
+          },
+          "status": 200,
+          "timingStatus": "valid",
+          "version": "identification_app_measurement_v2"
+        },
+        "measurementSha256": "580c7053c242701d0af632d5a42fe7a61aa9ec38bee9447eca59c4ae89014156",
+        "nativeOutcome": {
+          "confidenceScore": 1,
+          "isBiological": false,
+          "persistence": "saved"
+        },
+        "tapToFirstRenderedFrameSeconds": 13.771,
+        "primaryCost": {
+          "estimatedPrimaryUpperUsd": 0.0192475,
+          "reason": "estimated_primary_only",
+          "scope": "observed_primary_attempt_only",
+          "invoiceExact": false
+        },
+        "scope": "single_foreground_slot_saved_or_completed_without_record_and_rendered",
+        "accuracyScored": false,
+        "automaticSubmissions": 0,
+        "observationSha256": "4550784c22614bff11b4682811b7e27b397e52d52c1b1f60db018bb4995a272c"
+      },
+      "visibleOutcome": {
+        "observedAt": "2026-09-24T02:51:53.741678+00:00",
+        "slot": 7,
+        "kind": "non_biological",
+        "commonName": null,
+        "scientificName": null,
+        "displayedMatch": "Non-biological",
+        "method": "first visible app outcome read from Device Hub; no provider response body retained",
+        "accuracyScored": false
+      },
+      "observationWindow": {
+        "startedAt": "2026-09-24T02:50:56.950Z",
+        "readyAt": "2026-09-24T02:50:57.570Z",
+        "finishedAt": "2026-09-24T02:53:05.599Z",
+        "status": "window_completed",
+        "events": 9,
+        "ready": true,
+        "stopReason": "collector_exit",
+        "collectorExitCode": 0,
+        "collectorSignal": null,
+        "unprojectedRows": 17,
+        "oversizedRows": 0,
+        "rejectedProofRows": 0
+      },
+      "comparisonProofs": [
+        {
+          "event": "receipt",
+          "measurementSha256": "580c7053c242701d0af632d5a42fe7a61aa9ec38bee9447eca59c4ae89014156",
+          "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+          "slot": 7,
+          "version": "identification_audio_comparison_v1"
+        },
+        {
+          "event": "rendered",
+          "measurementSha256": "580c7053c242701d0af632d5a42fe7a61aa9ec38bee9447eca59c4ae89014156",
+          "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+          "slot": 7,
+          "version": "identification_audio_comparison_v1"
+        },
+        {
+          "confidenceScore": 1,
+          "event": "finalized",
+          "isBiological": false,
+          "measurementSha256": "580c7053c242701d0af632d5a42fe7a61aa9ec38bee9447eca59c4ae89014156",
+          "persistence": "saved",
+          "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+          "slot": 7,
+          "version": "identification_audio_comparison_v1"
+        }
+      ],
+      "admissionFileSha256": "d4d353c35ab8905a8d6e5c6635033020f13fce2682eb26164edaabeeacd07f22",
+      "visibleOutcomeFileSha256": "80474963e1c733befd168e00af64d640677d832a3fead09cb4047d60f5d04d13",
+      "inputFileSha256": "07d274f6975da0211d1da8cc0007c8464c05a4ccc6bbc676594ee8b892045638",
+      "expectedFileSha256": "a1270b697ca961fa9b95fd6a0c70fd1303e21b50972ee8ba13a4aa7539545cbb"
+    },
+    {
+      "admitted": {
+        "version": "identification_audio_comparison_observation_v1",
+        "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+        "assignment": {
+          "slot": 8,
+          "caseId": "c0016",
+          "arm": "audio-linear-full-windows-v1",
+          "sourceWavSha256": "f67b22b951b922cd222441e39acbfe67a7f6253d8c7e2c07631308726d274b0f",
+          "sourceByteLength": 447020,
+          "processedWavSha256": "28563d3c4b6e0628a5bd3b03e334fbfb2e4ea83b338f0c78051da088a4347381",
+          "providerRequestSha256": "648a46fd1aa17b2642a9487e903c1a7c45ddfa9761559d859e7030c256322d88",
+          "policySha256": "e87be3d9d907ae1ab710861181f19ed2bc542fb207c075c3b316797f734ce99c",
+          "confidenceSha256": "7994954960f1355f6f0fe520ad2f5a6552fb3785f6bd900661ff48abae85fdcf"
+        },
+        "measurement": {
+          "app": {
+            "build": "275",
+            "sourceFingerprint": "ebfa958011ec4e61dda121eea6b9d00890b67d23099dedf1612372aa5cbdb3df",
+            "sourceRevision": "fdfb142b6fcb96e6ae8f3c46a561015064c93cd2",
+            "sourceState": "clean",
+            "version": "1.0.3"
+          },
+          "contextProfile": "audio-minimal-v1",
+          "delivery": "fresh",
+          "diagnostics": {
+            "backendBundleSha256": "a5939b36fd43dcf1fbfb7f5ee01875d3888a313e66af8756e79fb04f19694b2c",
+            "provider": "gemini",
+            "requestedModel": "gemini-2.5-pro",
+            "returnedModel": "gemini-2.5-pro",
+            "usage": {
+              "cachedTokens": null,
+              "candidateTokens": 240,
+              "promptTokens": 955,
+              "thinkingTokens": 1331,
+              "toolTokens": null,
+              "totalTokens": 2526
+            },
+            "version": 1
+          },
+          "otherEdgeMs": 1311,
+          "serverTimingMs": {
+            "edge_total": 13619.4,
+            "provider": 12308.4
+          },
+          "status": 200,
+          "timingStatus": "valid",
+          "version": "identification_app_measurement_v2"
+        },
+        "measurementSha256": "72af29da1a2f98b43a9686ca63dd3ab476b8c1f79e8f630021c6c8832909a288",
+        "nativeOutcome": {
+          "confidenceScore": 1,
+          "isBiological": false,
+          "persistence": "saved"
+        },
+        "tapToFirstRenderedFrameSeconds": 16.344,
+        "primaryCost": {
+          "estimatedPrimaryUpperUsd": 0.0259525,
+          "reason": "estimated_primary_only",
+          "scope": "observed_primary_attempt_only",
+          "invoiceExact": false
+        },
+        "scope": "single_foreground_slot_saved_or_completed_without_record_and_rendered",
+        "accuracyScored": false,
+        "automaticSubmissions": 0,
+        "observationSha256": "5854d968b5cf97361d07386dd33a4b84f16cacb9f593fae8a79b51cd74da6fbf"
+      },
+      "visibleOutcome": {
+        "observedAt": "2026-09-24T04:21:26.320568+00:00",
+        "slot": 8,
+        "kind": "non_biological",
+        "commonName": null,
+        "scientificName": null,
+        "displayedMatch": "Non-biological",
+        "method": "first visible app outcome read from Device Hub; no provider response body retained",
+        "accuracyScored": false
+      },
+      "observationWindow": {
+        "startedAt": "2026-09-24T04:20:29.767Z",
+        "readyAt": "2026-09-24T04:20:30.265Z",
+        "finishedAt": "2026-09-24T04:22:38.281Z",
+        "status": "window_completed",
+        "events": 9,
+        "ready": true,
+        "stopReason": "collector_exit",
+        "collectorExitCode": 0,
+        "collectorSignal": null,
+        "unprojectedRows": 17,
+        "oversizedRows": 0,
+        "rejectedProofRows": 0
+      },
+      "comparisonProofs": [
+        {
+          "event": "receipt",
+          "measurementSha256": "72af29da1a2f98b43a9686ca63dd3ab476b8c1f79e8f630021c6c8832909a288",
+          "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+          "slot": 8,
+          "version": "identification_audio_comparison_v1"
+        },
+        {
+          "event": "rendered",
+          "measurementSha256": "72af29da1a2f98b43a9686ca63dd3ab476b8c1f79e8f630021c6c8832909a288",
+          "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+          "slot": 8,
+          "version": "identification_audio_comparison_v1"
+        },
+        {
+          "confidenceScore": 1,
+          "event": "finalized",
+          "isBiological": false,
+          "measurementSha256": "72af29da1a2f98b43a9686ca63dd3ab476b8c1f79e8f630021c6c8832909a288",
+          "persistence": "saved",
+          "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+          "slot": 8,
+          "version": "identification_audio_comparison_v1"
+        }
+      ],
+      "admissionFileSha256": "c31283935d70978683254ef74bff120ba3cf4909dbac52ecbb15c2c7b8806277",
+      "visibleOutcomeFileSha256": "b18eb9c86d8b0f379a8e29148a8b188aec58f0a6c1d89d0298962b38d67080d5",
+      "inputFileSha256": "a3afad1194d04e0ffed00aaa88f16929c212d04e6fa3cb3cc0ea0c2dce99b5f3",
+      "expectedFileSha256": "9281fc43b9b16d23fa7349f0633ed01a1f867fe8f1981e6cf0db4d876ae5dafc"
+    },
+    {
+      "admitted": {
+        "version": "identification_audio_comparison_observation_v1",
+        "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+        "assignment": {
+          "slot": 9,
+          "caseId": "c0017",
+          "arm": "audio-linear-full-windows-v1",
+          "sourceWavSha256": "dfabd74210a85b46a80a42656c79586c144145108a692e32d03a17a836a4ac8a",
+          "sourceByteLength": 882044,
+          "processedWavSha256": "dcfb5d38e22384a49f7b89a7620660df3a90830ec3f8e45fa5de9ad88bc1781f",
+          "providerRequestSha256": "3a86d484d6f37f4bddcc338ca3d367627bd317eed7a59afb83701adb5beda1aa",
+          "policySha256": "e87be3d9d907ae1ab710861181f19ed2bc542fb207c075c3b316797f734ce99c",
+          "confidenceSha256": "7994954960f1355f6f0fe520ad2f5a6552fb3785f6bd900661ff48abae85fdcf"
+        },
+        "measurement": {
+          "app": {
+            "build": "275",
+            "sourceFingerprint": "ebfa958011ec4e61dda121eea6b9d00890b67d23099dedf1612372aa5cbdb3df",
+            "sourceRevision": "fdfb142b6fcb96e6ae8f3c46a561015064c93cd2",
+            "sourceState": "clean",
+            "version": "1.0.3"
+          },
+          "contextProfile": "audio-minimal-v1",
+          "delivery": "fresh",
+          "diagnostics": {
+            "backendBundleSha256": "a5939b36fd43dcf1fbfb7f5ee01875d3888a313e66af8756e79fb04f19694b2c",
+            "provider": "gemini",
+            "requestedModel": "gemini-2.5-pro",
+            "returnedModel": "gemini-2.5-pro",
+            "usage": {
+              "cachedTokens": null,
+              "candidateTokens": 224,
+              "promptTokens": 1118,
+              "thinkingTokens": 1313,
+              "toolTokens": null,
+              "totalTokens": 2655
+            },
+            "version": 1
+          },
+          "otherEdgeMs": 1689.5,
+          "serverTimingMs": {
+            "edge_total": 13122.7,
+            "provider": 11433.2
+          },
+          "status": 200,
+          "timingStatus": "valid",
+          "version": "identification_app_measurement_v2"
+        },
+        "measurementSha256": "ce07bdb150ea599f945936adba617bda30c790dedb30dcda8643d933afdc9a44",
+        "nativeOutcome": {
+          "confidenceScore": 1,
+          "isBiological": false,
+          "persistence": "saved"
+        },
+        "tapToFirstRenderedFrameSeconds": 14.933,
+        "primaryCost": {
+          "estimatedPrimaryUpperUsd": 0.02585,
+          "reason": "estimated_primary_only",
+          "scope": "observed_primary_attempt_only",
+          "invoiceExact": false
+        },
+        "scope": "single_foreground_slot_saved_or_completed_without_record_and_rendered",
+        "accuracyScored": false,
+        "automaticSubmissions": 0,
+        "observationSha256": "30b648e800ccd60f3816bc4d4ecb6c70b35e83baaa0b27cf54854eb954bbe51f"
+      },
+      "visibleOutcome": {
+        "observedAt": "2026-09-24T04:24:26.081479+00:00",
+        "slot": 9,
+        "kind": "non_biological",
+        "commonName": null,
+        "scientificName": null,
+        "displayedMatch": "Non-biological",
+        "method": "first visible app outcome read from Device Hub; no provider response body retained",
+        "accuracyScored": false
+      },
+      "observationWindow": {
+        "startedAt": "2026-09-24T04:23:37.164Z",
+        "readyAt": "2026-09-24T04:23:37.748Z",
+        "finishedAt": "2026-09-24T04:25:45.762Z",
+        "status": "window_completed",
+        "events": 9,
+        "ready": true,
+        "stopReason": "collector_exit",
+        "collectorExitCode": 0,
+        "collectorSignal": null,
+        "unprojectedRows": 17,
+        "oversizedRows": 0,
+        "rejectedProofRows": 0
+      },
+      "comparisonProofs": [
+        {
+          "event": "receipt",
+          "measurementSha256": "ce07bdb150ea599f945936adba617bda30c790dedb30dcda8643d933afdc9a44",
+          "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+          "slot": 9,
+          "version": "identification_audio_comparison_v1"
+        },
+        {
+          "event": "rendered",
+          "measurementSha256": "ce07bdb150ea599f945936adba617bda30c790dedb30dcda8643d933afdc9a44",
+          "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+          "slot": 9,
+          "version": "identification_audio_comparison_v1"
+        },
+        {
+          "confidenceScore": 1,
+          "event": "finalized",
+          "isBiological": false,
+          "measurementSha256": "ce07bdb150ea599f945936adba617bda30c790dedb30dcda8643d933afdc9a44",
+          "persistence": "saved",
+          "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+          "slot": 9,
+          "version": "identification_audio_comparison_v1"
+        }
+      ],
+      "admissionFileSha256": "e660b092ff62d4512577ad7cb501d8fc5aa48c7def06bf4e4ae58d3a0669f09e",
+      "visibleOutcomeFileSha256": "4796d28c4bff6470bd97cddda3e4541a2883d27e8721af95e4da28b97ffe5696",
+      "inputFileSha256": "9813d16a50256545e7454b317ac8895523c980ef4add470247b1361c18bf4f5e",
+      "expectedFileSha256": "f1dfd56bc4dc42c1d88c73582119a83296e99eb71aea48136eafb437eff8b2ce"
+    },
+    {
+      "admitted": {
+        "version": "identification_audio_comparison_observation_v1",
+        "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+        "assignment": {
+          "slot": 10,
+          "caseId": "c0017",
+          "arm": "audio-sinc-partial-tail-v1",
+          "sourceWavSha256": "dfabd74210a85b46a80a42656c79586c144145108a692e32d03a17a836a4ac8a",
+          "sourceByteLength": 882044,
+          "processedWavSha256": "41d4ed55f3cede3cfed9ab4683fbd3d91b116fd7e774c3a0eff8c02bae414e97",
+          "providerRequestSha256": "43ad87da85a6098b0c888e31831ae3d59ff9ae5a359f4789a6d8aeaf22b0c58c",
+          "policySha256": "e87be3d9d907ae1ab710861181f19ed2bc542fb207c075c3b316797f734ce99c",
+          "confidenceSha256": "7994954960f1355f6f0fe520ad2f5a6552fb3785f6bd900661ff48abae85fdcf"
+        },
+        "measurement": {
+          "app": {
+            "build": "275",
+            "sourceFingerprint": "ebfa958011ec4e61dda121eea6b9d00890b67d23099dedf1612372aa5cbdb3df",
+            "sourceRevision": "fdfb142b6fcb96e6ae8f3c46a561015064c93cd2",
+            "sourceState": "clean",
+            "version": "1.0.3"
+          },
+          "contextProfile": "audio-minimal-v1",
+          "delivery": "fresh",
+          "diagnostics": {
+            "backendBundleSha256": "a5939b36fd43dcf1fbfb7f5ee01875d3888a313e66af8756e79fb04f19694b2c",
+            "provider": "gemini",
+            "requestedModel": "gemini-2.5-pro",
+            "returnedModel": "gemini-2.5-pro",
+            "usage": {
+              "cachedTokens": 845,
+              "candidateTokens": 224,
+              "promptTokens": 1118,
+              "thinkingTokens": 1144,
+              "toolTokens": null,
+              "totalTokens": 2486
+            },
+            "version": 1
+          },
+          "otherEdgeMs": 1307.5,
+          "serverTimingMs": {
+            "edge_total": 11941.9,
+            "provider": 10634.4
+          },
+          "status": 200,
+          "timingStatus": "valid",
+          "version": "identification_app_measurement_v2"
+        },
+        "measurementSha256": "8de897cb620279490b86aa43a9f5712a3c2a3884c0fb24e55340683f5e0be6e8",
+        "nativeOutcome": {
+          "confidenceScore": 1,
+          "isBiological": false,
+          "persistence": "saved"
+        },
+        "tapToFirstRenderedFrameSeconds": 13.902,
+        "primaryCost": {
+          "estimatedPrimaryUpperUsd": 0.023315,
+          "reason": "estimated_primary_only",
+          "scope": "observed_primary_attempt_only",
+          "invoiceExact": false
+        },
+        "scope": "single_foreground_slot_saved_or_completed_without_record_and_rendered",
+        "accuracyScored": false,
+        "automaticSubmissions": 0,
+        "observationSha256": "fd7af8915e5c4da06991c4a0eabe4c141fc64113afca337b82692b6c8418f5b7"
+      },
+      "visibleOutcome": {
+        "observedAt": "2026-09-24T04:27:39.307279+00:00",
+        "slot": 10,
+        "kind": "non_biological",
+        "commonName": null,
+        "scientificName": null,
+        "displayedMatch": "Non-biological",
+        "method": "first visible app outcome read from Device Hub; no provider response body retained",
+        "accuracyScored": false
+      },
+      "observationWindow": {
+        "startedAt": "2026-09-24T04:26:38.905Z",
+        "readyAt": "2026-09-24T04:26:39.439Z",
+        "finishedAt": "2026-09-24T04:28:47.452Z",
+        "status": "window_completed",
+        "events": 9,
+        "ready": true,
+        "stopReason": "collector_exit",
+        "collectorExitCode": 0,
+        "collectorSignal": null,
+        "unprojectedRows": 17,
+        "oversizedRows": 0,
+        "rejectedProofRows": 0
+      },
+      "comparisonProofs": [
+        {
+          "event": "receipt",
+          "measurementSha256": "8de897cb620279490b86aa43a9f5712a3c2a3884c0fb24e55340683f5e0be6e8",
+          "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+          "slot": 10,
+          "version": "identification_audio_comparison_v1"
+        },
+        {
+          "event": "rendered",
+          "measurementSha256": "8de897cb620279490b86aa43a9f5712a3c2a3884c0fb24e55340683f5e0be6e8",
+          "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+          "slot": 10,
+          "version": "identification_audio_comparison_v1"
+        },
+        {
+          "confidenceScore": 1,
+          "event": "finalized",
+          "isBiological": false,
+          "measurementSha256": "8de897cb620279490b86aa43a9f5712a3c2a3884c0fb24e55340683f5e0be6e8",
+          "persistence": "saved",
+          "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+          "slot": 10,
+          "version": "identification_audio_comparison_v1"
+        }
+      ],
+      "admissionFileSha256": "93bfd0d09896c913a121fed8857738ed14363d4503dc541fc6e514f761f8838d",
+      "visibleOutcomeFileSha256": "766507afcd94befe4849cc4b4435e3a9b9829c98a7e4bb42282883beae5a7306",
+      "inputFileSha256": "e28419a712723ed38b81018607613a5446b198a5bae42d0b0fcb61adc00a6085",
+      "expectedFileSha256": "edbc59c11a544fcc295385e62abc45d3c661de3bb44832686e5a2b839dd029ce"
+    },
+    {
+      "admitted": {
+        "version": "identification_audio_comparison_observation_v1",
+        "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+        "assignment": {
+          "slot": 11,
+          "caseId": "c0018",
+          "arm": "audio-sinc-partial-tail-v1",
+          "sourceWavSha256": "1803ceef8ae9ad9e71e7fcfa322208a8970485ffdf84a466770e73fb15b1c711",
+          "sourceByteLength": 880172,
+          "processedWavSha256": "57274ab66c13e03464f3d0407eeaadc64401012ff7b22afcf48da8e70c560aeb",
+          "providerRequestSha256": "40f829199d2d97ee33ae9ac2cd945ad27c84fed82108b916a4a219750d2ccdaa",
+          "policySha256": "e87be3d9d907ae1ab710861181f19ed2bc542fb207c075c3b316797f734ce99c",
+          "confidenceSha256": "7994954960f1355f6f0fe520ad2f5a6552fb3785f6bd900661ff48abae85fdcf"
+        },
+        "measurement": {
+          "app": {
+            "build": "275",
+            "sourceFingerprint": "ebfa958011ec4e61dda121eea6b9d00890b67d23099dedf1612372aa5cbdb3df",
+            "sourceRevision": "fdfb142b6fcb96e6ae8f3c46a561015064c93cd2",
+            "sourceState": "clean",
+            "version": "1.0.3"
+          },
+          "contextProfile": "audio-minimal-v1",
+          "delivery": "fresh",
+          "diagnostics": {
+            "backendBundleSha256": "a5939b36fd43dcf1fbfb7f5ee01875d3888a313e66af8756e79fb04f19694b2c",
+            "provider": "gemini",
+            "requestedModel": "gemini-2.5-pro",
+            "returnedModel": "gemini-2.5-pro",
+            "usage": {
+              "cachedTokens": 845,
+              "candidateTokens": 240,
+              "promptTokens": 1118,
+              "thinkingTokens": 1361,
+              "toolTokens": null,
+              "totalTokens": 2719
+            },
+            "version": 1
+          },
+          "otherEdgeMs": 1252.4000000000015,
+          "serverTimingMs": {
+            "edge_total": 15265.7,
+            "provider": 14013.3
+          },
+          "status": 200,
+          "timingStatus": "valid",
+          "version": "identification_app_measurement_v2"
+        },
+        "measurementSha256": "aff0f65c1dc0df5a94633d66359af9094cae2372c18469cff22d71f7ded74227",
+        "nativeOutcome": {
+          "confidenceScore": 1,
+          "isBiological": false,
+          "persistence": "saved"
+        },
+        "tapToFirstRenderedFrameSeconds": 17.295,
+        "primaryCost": {
+          "estimatedPrimaryUpperUsd": 0.02681,
+          "reason": "estimated_primary_only",
+          "scope": "observed_primary_attempt_only",
+          "invoiceExact": false
+        },
+        "scope": "single_foreground_slot_saved_or_completed_without_record_and_rendered",
+        "accuracyScored": false,
+        "automaticSubmissions": 0,
+        "observationSha256": "9cd6d424f6ebc03ea16d83ee896187fa4255bc07396ec11143dcdb2f95d118fd"
+      },
+      "visibleOutcome": {
+        "observedAt": "2026-09-24T04:30:46.954112+00:00",
+        "slot": 11,
+        "kind": "non_biological",
+        "commonName": null,
+        "scientificName": null,
+        "displayedMatch": "Non-biological",
+        "method": "first visible app outcome read from Device Hub; no provider response body retained",
+        "accuracyScored": false
+      },
+      "observationWindow": {
+        "startedAt": "2026-09-24T04:29:49.731Z",
+        "readyAt": "2026-09-24T04:29:50.144Z",
+        "finishedAt": "2026-09-24T04:31:58.162Z",
+        "status": "window_completed",
+        "events": 9,
+        "ready": true,
+        "stopReason": "collector_exit",
+        "collectorExitCode": 0,
+        "collectorSignal": null,
+        "unprojectedRows": 17,
+        "oversizedRows": 0,
+        "rejectedProofRows": 0
+      },
+      "comparisonProofs": [
+        {
+          "event": "receipt",
+          "measurementSha256": "aff0f65c1dc0df5a94633d66359af9094cae2372c18469cff22d71f7ded74227",
+          "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+          "slot": 11,
+          "version": "identification_audio_comparison_v1"
+        },
+        {
+          "event": "rendered",
+          "measurementSha256": "aff0f65c1dc0df5a94633d66359af9094cae2372c18469cff22d71f7ded74227",
+          "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+          "slot": 11,
+          "version": "identification_audio_comparison_v1"
+        },
+        {
+          "confidenceScore": 1,
+          "event": "finalized",
+          "isBiological": false,
+          "measurementSha256": "aff0f65c1dc0df5a94633d66359af9094cae2372c18469cff22d71f7ded74227",
+          "persistence": "saved",
+          "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+          "slot": 11,
+          "version": "identification_audio_comparison_v1"
+        }
+      ],
+      "admissionFileSha256": "5723b225e5c80234fd4fb673efafe3249ba15d5030e796b9cfd8c0e44f78e8d6",
+      "visibleOutcomeFileSha256": "1b7b02db9da7a6dde204742c04a56d9c4075d6e2bfd6b24df10683f24ebf8d57",
+      "inputFileSha256": "bc75d5ff64d1488225d033ab7f46b97e1134197e74db3d55c5b9c580ba393e0a",
+      "expectedFileSha256": "fa3766c986468839f83f463ebff4b0f70671328574b83db4533afa0a22e4b936"
+    },
+    {
+      "admitted": {
+        "version": "identification_audio_comparison_observation_v1",
+        "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+        "assignment": {
+          "slot": 12,
+          "caseId": "c0018",
+          "arm": "audio-linear-full-windows-v1",
+          "sourceWavSha256": "1803ceef8ae9ad9e71e7fcfa322208a8970485ffdf84a466770e73fb15b1c711",
+          "sourceByteLength": 880172,
+          "processedWavSha256": "e377172d4eb59e80b41a55c4ce2cd67a5848ffd2b7caf712be855a0698fe4e40",
+          "providerRequestSha256": "08872a4dbeace4b0dd446bd185992f8e288180dac1d254e145958d13931f8801",
+          "policySha256": "e87be3d9d907ae1ab710861181f19ed2bc542fb207c075c3b316797f734ce99c",
+          "confidenceSha256": "7994954960f1355f6f0fe520ad2f5a6552fb3785f6bd900661ff48abae85fdcf"
+        },
+        "measurement": {
+          "app": {
+            "build": "275",
+            "sourceFingerprint": "ebfa958011ec4e61dda121eea6b9d00890b67d23099dedf1612372aa5cbdb3df",
+            "sourceRevision": "fdfb142b6fcb96e6ae8f3c46a561015064c93cd2",
+            "sourceState": "clean",
+            "version": "1.0.3"
+          },
+          "contextProfile": "audio-minimal-v1",
+          "delivery": "fresh",
+          "diagnostics": {
+            "backendBundleSha256": "a5939b36fd43dcf1fbfb7f5ee01875d3888a313e66af8756e79fb04f19694b2c",
+            "provider": "gemini",
+            "requestedModel": "gemini-2.5-pro",
+            "returnedModel": "gemini-2.5-pro",
+            "usage": {
+              "cachedTokens": null,
+              "candidateTokens": 259,
+              "promptTokens": 1117,
+              "thinkingTokens": 680,
+              "toolTokens": null,
+              "totalTokens": 2056
+            },
+            "version": 1
+          },
+          "otherEdgeMs": 1160.7999999999993,
+          "serverTimingMs": {
+            "edge_total": 9426.4,
+            "provider": 8265.6
+          },
+          "status": 200,
+          "timingStatus": "valid",
+          "version": "identification_app_measurement_v2"
+        },
+        "measurementSha256": "dc6d8f5856658a6261ee81edbb7b463a0d20666e125650f27ac0038188983aef",
+        "nativeOutcome": {
+          "confidenceScore": 1,
+          "isBiological": false,
+          "persistence": "saved"
+        },
+        "tapToFirstRenderedFrameSeconds": 11.387,
+        "primaryCost": {
+          "estimatedPrimaryUpperUsd": 0.0168775,
+          "reason": "estimated_primary_only",
+          "scope": "observed_primary_attempt_only",
+          "invoiceExact": false
+        },
+        "scope": "single_foreground_slot_saved_or_completed_without_record_and_rendered",
+        "accuracyScored": false,
+        "automaticSubmissions": 0,
+        "observationSha256": "8d319acfd66b7c86bf8bdcbb5c0967ca1f81f7ae0e27422726d41e19170f1968"
+      },
+      "visibleOutcome": {
+        "observedAt": "2026-09-24T04:34:04.211340+00:00",
+        "slot": 12,
+        "kind": "non_biological",
+        "commonName": null,
+        "scientificName": null,
+        "displayedMatch": "Non-biological",
+        "method": "first visible app outcome read from Device Hub; no provider response body retained",
+        "accuracyScored": false
+      },
+      "observationWindow": {
+        "startedAt": "2026-09-24T04:33:04.439Z",
+        "readyAt": "2026-09-24T04:33:04.844Z",
+        "finishedAt": "2026-09-24T04:35:12.863Z",
+        "status": "window_completed",
+        "events": 9,
+        "ready": true,
+        "stopReason": "collector_exit",
+        "collectorExitCode": 0,
+        "collectorSignal": null,
+        "unprojectedRows": 17,
+        "oversizedRows": 0,
+        "rejectedProofRows": 0
+      },
+      "comparisonProofs": [
+        {
+          "event": "receipt",
+          "measurementSha256": "dc6d8f5856658a6261ee81edbb7b463a0d20666e125650f27ac0038188983aef",
+          "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+          "slot": 12,
+          "version": "identification_audio_comparison_v1"
+        },
+        {
+          "event": "rendered",
+          "measurementSha256": "dc6d8f5856658a6261ee81edbb7b463a0d20666e125650f27ac0038188983aef",
+          "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+          "slot": 12,
+          "version": "identification_audio_comparison_v1"
+        },
+        {
+          "confidenceScore": 1,
+          "event": "finalized",
+          "isBiological": false,
+          "measurementSha256": "dc6d8f5856658a6261ee81edbb7b463a0d20666e125650f27ac0038188983aef",
+          "persistence": "saved",
+          "planSha256": "fc30d6c938d000b2ecb994509e63b0f8e129bc5dfcb2a914a3517c8cbd4fc213",
+          "slot": 12,
+          "version": "identification_audio_comparison_v1"
+        }
+      ],
+      "admissionFileSha256": "d530212aa097a4aab9f0ea19483939632e13d42fa54ed637c34d2828e6e9cb0d",
+      "visibleOutcomeFileSha256": "96f1e635bef407ce467e3d054f3390568007932cca5b58aeea902c63d8153235",
+      "inputFileSha256": "3e933f8309c2522c7690d2ffceb1bc0a4814a3151e129352f9e33966f8043227",
+      "expectedFileSha256": "f80107ef63a4818394e5d07e66d98ce46d1783fd56fcb420c5f2fb7adc1294e5"
+    }
+  ],
+  "retention": {
+    "privateEvidenceRetainThrough": "2026-10-23",
+    "privateDirectoryMode": "0700",
+    "privateFileMode": "0600",
+    "sourceManifest": [
+      {
+        "packet": "continuation",
+        "file": "completed-owner-witness.json",
+        "sha256": "071f741c0b9f858f02917ffab6fad58c75b1b4b55a8633ddbbfec2c876ab90ee",
+        "bytes": 459
+      },
+      {
+        "packet": "continuation",
+        "file": "expected-slot-08.json",
+        "sha256": "9281fc43b9b16d23fa7349f0633ed01a1f867fe8f1981e6cf0db4d876ae5dafc",
+        "bytes": 355
+      },
+      {
+        "packet": "continuation",
+        "file": "expected-slot-09.json",
+        "sha256": "f1dfd56bc4dc42c1d88c73582119a83296e99eb71aea48136eafb437eff8b2ce",
+        "bytes": 355
+      },
+      {
+        "packet": "continuation",
+        "file": "expected-slot-10.json",
+        "sha256": "edbc59c11a544fcc295385e62abc45d3c661de3bb44832686e5a2b839dd029ce",
+        "bytes": 356
+      },
+      {
+        "packet": "continuation",
+        "file": "expected-slot-11.json",
+        "sha256": "fa3766c986468839f83f463ebff4b0f70671328574b83db4533afa0a22e4b936",
+        "bytes": 356
+      },
+      {
+        "packet": "continuation",
+        "file": "expected-slot-12.json",
+        "sha256": "f80107ef63a4818394e5d07e66d98ce46d1783fd56fcb420c5f2fb7adc1294e5",
+        "bytes": 356
+      },
+      {
+        "packet": "continuation",
+        "file": "input-slot-08.json",
+        "sha256": "a3afad1194d04e0ffed00aaa88f16929c212d04e6fa3cb3cc0ea0c2dce99b5f3",
+        "bytes": 289
+      },
+      {
+        "packet": "continuation",
+        "file": "input-slot-09.json",
+        "sha256": "9813d16a50256545e7454b317ac8895523c980ef4add470247b1361c18bf4f5e",
+        "bytes": 289
+      },
+      {
+        "packet": "continuation",
+        "file": "input-slot-10.json",
+        "sha256": "e28419a712723ed38b81018607613a5446b198a5bae42d0b0fcb61adc00a6085",
+        "bytes": 290
+      },
+      {
+        "packet": "continuation",
+        "file": "input-slot-11.json",
+        "sha256": "bc75d5ff64d1488225d033ab7f46b97e1134197e74db3d55c5b9c580ba393e0a",
+        "bytes": 290
+      },
+      {
+        "packet": "continuation",
+        "file": "input-slot-12.json",
+        "sha256": "3e933f8309c2522c7690d2ffceb1bc0a4814a3151e129352f9e33966f8043227",
+        "bytes": 290
+      },
+      {
+        "packet": "continuation",
+        "file": "original-owner-witness.json",
+        "sha256": "d552ec660a735d9f36321b1d16bd71a6a444ddc425ae2d51d7fc3770cda402eb",
+        "bytes": 495
+      },
+      {
+        "packet": "continuation",
+        "file": "pricing.json",
+        "sha256": "f7543c9c837a04a35db70c6eebeb403d7e2981167f3d140cc56a0b15aeea7309",
+        "bytes": 980
+      },
+      {
+        "packet": "continuation",
+        "file": "restored-app-preflight.json",
+        "sha256": "a41dae6a736a95882a737b74848a6c9495fa1afd1d8bdf8542d4a553dc897bb8",
+        "bytes": 814
+      },
+      {
+        "packet": "continuation",
+        "file": "restored-app-session-observation.json",
+        "sha256": "279bdefaa6e87aa5a77ca8983e548a725d4047616fef3d8ec052b3d0b002a35e",
+        "bytes": 679
+      },
+      {
+        "packet": "continuation",
+        "file": "slot-08-admission.json",
+        "sha256": "c31283935d70978683254ef74bff120ba3cf4909dbac52ecbb15c2c7b8806277",
+        "bytes": 2419
+      },
+      {
+        "packet": "continuation",
+        "file": "slot-08-observation.jsonl",
+        "sha256": "5854d968b5cf97361d07386dd33a4b84f16cacb9f593fae8a79b51cd74da6fbf",
+        "bytes": 4553
+      },
+      {
+        "packet": "continuation",
+        "file": "slot-08-visible.json",
+        "sha256": "b18eb9c86d8b0f379a8e29148a8b188aec58f0a6c1d89d0298962b38d67080d5",
+        "bytes": 307
+      },
+      {
+        "packet": "continuation",
+        "file": "slot-09-admission.json",
+        "sha256": "e660b092ff62d4512577ad7cb501d8fc5aa48c7def06bf4e4ae58d3a0669f09e",
+        "bytes": 2420
+      },
+      {
+        "packet": "continuation",
+        "file": "slot-09-capture-restart.json",
+        "sha256": "b5f8bb26ecc2b9a48e9bc4ed93b59c45de657c6265753f5ec915b409beb3e039",
+        "bytes": 211
+      },
+      {
+        "packet": "continuation",
+        "file": "slot-09-observation.jsonl",
+        "sha256": "30b648e800ccd60f3816bc4d4ecb6c70b35e83baaa0b27cf54854eb954bbe51f",
+        "bytes": 4559
+      },
+      {
+        "packet": "continuation",
+        "file": "slot-09-visible.json",
+        "sha256": "4796d28c4bff6470bd97cddda3e4541a2883d27e8721af95e4da28b97ffe5696",
+        "bytes": 307
+      },
+      {
+        "packet": "continuation",
+        "file": "slot-10-admission.json",
+        "sha256": "93bfd0d09896c913a121fed8857738ed14363d4503dc541fc6e514f761f8838d",
+        "bytes": 2419
+      },
+      {
+        "packet": "continuation",
+        "file": "slot-10-capture-restart.json",
+        "sha256": "f52a43aef76e4c07148c2fe7c131e8a6a1bbf621ac099422758a257750e0db2b",
+        "bytes": 212
+      },
+      {
+        "packet": "continuation",
+        "file": "slot-10-observation.jsonl",
+        "sha256": "fd7af8915e5c4da06991c4a0eabe4c141fc64113afca337b82692b6c8418f5b7",
+        "bytes": 4561
+      },
+      {
+        "packet": "continuation",
+        "file": "slot-10-visible.json",
+        "sha256": "766507afcd94befe4849cc4b4435e3a9b9829c98a7e4bb42282883beae5a7306",
+        "bytes": 308
+      },
+      {
+        "packet": "continuation",
+        "file": "slot-11-admission.json",
+        "sha256": "5723b225e5c80234fd4fb673efafe3249ba15d5030e796b9cfd8c0e44f78e8d6",
+        "bytes": 2430
+      },
+      {
+        "packet": "continuation",
+        "file": "slot-11-capture-restart.json",
+        "sha256": "b5c5289a83f9d516ef4b8999a13811aa45aed5391e78e5e1da0279312996704c",
+        "bytes": 212
+      },
+      {
+        "packet": "continuation",
+        "file": "slot-11-observation.jsonl",
+        "sha256": "9cd6d424f6ebc03ea16d83ee896187fa4255bc07396ec11143dcdb2f95d118fd",
+        "bytes": 4572
+      },
+      {
+        "packet": "continuation",
+        "file": "slot-11-visible.json",
+        "sha256": "1b7b02db9da7a6dde204742c04a56d9c4075d6e2bfd6b24df10683f24ebf8d57",
+        "bytes": 308
+      },
+      {
+        "packet": "continuation",
+        "file": "slot-12-admission.json",
+        "sha256": "d530212aa097a4aab9f0ea19483939632e13d42fa54ed637c34d2828e6e9cb0d",
+        "bytes": 2432
+      },
+      {
+        "packet": "continuation",
+        "file": "slot-12-capture-restart.json",
+        "sha256": "bb732fad05ef6699ae7f44f9737bb47f5090e952e8d7f80bd702722ca3168652",
+        "bytes": 212
+      },
+      {
+        "packet": "continuation",
+        "file": "slot-12-observation.jsonl",
+        "sha256": "8d319acfd66b7c86bf8bdcbb5c0967ca1f81f7ae0e27422726d41e19170f1968",
+        "bytes": 4568
+      },
+      {
+        "packet": "continuation",
+        "file": "slot-12-visible.json",
+        "sha256": "96f1e635bef407ce467e3d054f3390568007932cca5b58aeea902c63d8153235",
+        "bytes": 308
+      },
+      {
+        "packet": "continuation-control",
+        "file": "control-activate-evidence.json",
+        "sha256": "00eebd8217bac6cbfd067f604d45c33df618cbcb6df75a13ed073ff98d0bf057",
+        "bytes": 727
+      },
+      {
+        "packet": "continuation-control",
+        "file": "control-deactivate-evidence.json",
+        "sha256": "f787d68ce9d54e840916c8eab202200bead37c91685509f93255f87218c87bab",
+        "bytes": 699
+      },
+      {
+        "packet": "continuation-control",
+        "file": "private-config-renewal.json",
+        "sha256": "e0eecced3287305a2de533858cd3a5113e060f45cba1db552dd5ace21fa21c6d",
+        "bytes": 1116
+      },
+      {
+        "packet": "original",
+        "file": "expected-slot-01.json",
+        "sha256": "358d5d9ac753d2098b3f30309eb5b169083c1bd402b4ccb652a4bad83c8f1e89",
+        "bytes": 355
+      },
+      {
+        "packet": "original",
+        "file": "expected-slot-02.json",
+        "sha256": "0141f202c1454852fbf3c34874411447a2be25c6e27c6ea6b13189a6a837e470",
+        "bytes": 355
+      },
+      {
+        "packet": "original",
+        "file": "expected-slot-03.json",
+        "sha256": "c91a16d6e73d9ea5c0fefe480f2c97193f84e5d3adb56042528a3487b7af5656",
+        "bytes": 355
+      },
+      {
+        "packet": "original",
+        "file": "expected-slot-04.json",
+        "sha256": "87bb9faf6e774d73c80ff3b793cf9dc4f0567e9eb055c79e3b824be2708631f7",
+        "bytes": 355
+      },
+      {
+        "packet": "original",
+        "file": "expected-slot-05.json",
+        "sha256": "dc1fc8bff0fd6c10b5a47b3acf02d2da9b4034994cfac23a0ec8fe25fbe48028",
+        "bytes": 355
+      },
+      {
+        "packet": "original",
+        "file": "expected-slot-06.json",
+        "sha256": "60eef50faf8a352635f9fe0da69a553a2920e304418ba84d96317c0d345fdf59",
+        "bytes": 355
+      },
+      {
+        "packet": "original",
+        "file": "expected-slot-07.json",
+        "sha256": "a1270b697ca961fa9b95fd6a0c70fd1303e21b50972ee8ba13a4aa7539545cbb",
+        "bytes": 355
+      },
+      {
+        "packet": "original",
+        "file": "input-slot-01-window2.json",
+        "sha256": "8954a72e379bfc658745877f5ba0789e40f1cd595e6ee5b3839f3c6bc06c8450",
+        "bytes": 289
+      },
+      {
+        "packet": "original",
+        "file": "input-slot-02.json",
+        "sha256": "087988b79a468855469b95265fd0b951146a5aea03e61127f6c3a7d511a2afd4",
+        "bytes": 289
+      },
+      {
+        "packet": "original",
+        "file": "input-slot-03.json",
+        "sha256": "28eba5879c7c93aca544204c25d8f0b9ed1aae69ad58b3fd84a8f83e3e9fa8d2",
+        "bytes": 289
+      },
+      {
+        "packet": "original",
+        "file": "input-slot-04.json",
+        "sha256": "4921ac40e7f69bfb122d632ec640fed68544c5f5d764a139f432dec8107ca404",
+        "bytes": 289
+      },
+      {
+        "packet": "original",
+        "file": "input-slot-05.json",
+        "sha256": "ccc341a8abc7e010df94314d0db694d5966224924bfcf63a03998d7c697a52fb",
+        "bytes": 289
+      },
+      {
+        "packet": "original",
+        "file": "input-slot-06.json",
+        "sha256": "cb5a3c9609cee085b4f47ad2c648d6d9b86f2aa1358fc5612a44e8bdcaaf18ab",
+        "bytes": 289
+      },
+      {
+        "packet": "original",
+        "file": "input-slot-07.json",
+        "sha256": "07d274f6975da0211d1da8cc0007c8464c05a4ccc6bbc676594ee8b892045638",
+        "bytes": 289
+      },
+      {
+        "packet": "original",
+        "file": "pricing.json",
+        "sha256": "f7543c9c837a04a35db70c6eebeb403d7e2981167f3d140cc56a0b15aeea7309",
+        "bytes": 980
+      },
+      {
+        "packet": "original",
+        "file": "slot-01-admission.json",
+        "sha256": "63e2e45a7089687e2dcf9e576d0c8c29bd9cd2b84821a8ac3610c15df7d8711f",
+        "bytes": 2419
+      },
+      {
+        "packet": "original",
+        "file": "slot-01-before-unlock-observation.jsonl",
+        "sha256": "e8b91979065a554cb569b11778dc8257ccfa6856bc59f8608cb728898a879d37",
+        "bytes": 1314
+      },
+      {
+        "packet": "original",
+        "file": "slot-01-before-unlock-window.json",
+        "sha256": "93ed82c794f79999e5eb833396d0b25cf08c3df7b7d5393d3eddd84cc0ca4b1c",
+        "bytes": 405
+      },
+      {
+        "packet": "original",
+        "file": "slot-01-observation.jsonl",
+        "sha256": "4bcf918c6f3c309562c5faae4fe28a5d00cc8edbffc5942b8946ea91d1012e0a",
+        "bytes": 4556
+      },
+      {
+        "packet": "original",
+        "file": "slot-01-visible.json",
+        "sha256": "869d5596fa071ee9766575787e3a892d3b2cc6c0dab949c7549cfd611f1763bd",
+        "bytes": 318
+      },
+      {
+        "packet": "original",
+        "file": "slot-02-admission.json",
+        "sha256": "87347dc3f08dc7e1d51bdd0e6fd4819d8dde77e41777e2f070af5cf3dae39f5a",
+        "bytes": 2425
+      },
+      {
+        "packet": "original",
+        "file": "slot-02-observation.jsonl",
+        "sha256": "ef4c33f0b3e73227b6f00150310839d1c4eb0b01a74f0e8c771c9e4a46bccb07",
+        "bytes": 4566
+      },
+      {
+        "packet": "original",
+        "file": "slot-02-visible.json",
+        "sha256": "9d90280483ab4077019df1953e3803f2f3d6e1d94da21f7c4e5d4febd0849444",
+        "bytes": 328
+      },
+      {
+        "packet": "original",
+        "file": "slot-03-admission.json",
+        "sha256": "60cb99a8d624b1fcb6cc7f6bf785dd87135baaa17723aa17f96522393e30e4ad",
+        "bytes": 2431
+      },
+      {
+        "packet": "original",
+        "file": "slot-03-observation.jsonl",
+        "sha256": "1afa13515db8e945206ec296fa9fff6a51e35578c449bab0bd9c2d6d5d17f5fd",
+        "bytes": 4570
+      },
+      {
+        "packet": "original",
+        "file": "slot-03-visible.json",
+        "sha256": "a187dd21da46d50b49722b6009c79d12c8393b63ffbe88f3dc68682a550ff2a9",
+        "bytes": 314
+      },
+      {
+        "packet": "original",
+        "file": "slot-04-admission.json",
+        "sha256": "70fb5a0a3e93303ff686afd993fad1543f54d3cec9fc4ba7d5c92a8fb0899eab",
+        "bytes": 2420
+      },
+      {
+        "packet": "original",
+        "file": "slot-04-observation.jsonl",
+        "sha256": "6a4dc9dbe6dde13150487240ecfb998178f5664c995cac75e462c751ee4c06dc",
+        "bytes": 4556
+      },
+      {
+        "packet": "original",
+        "file": "slot-04-visible.json",
+        "sha256": "3319135bdcc8578fe70f0f27011f4cf6992d6fae7d2ce490531ba154ef1678a5",
+        "bytes": 314
+      },
+      {
+        "packet": "original",
+        "file": "slot-05-admission.json",
+        "sha256": "b4e5dd08c6378384d368ce146c4748c234522ff48e6492df7eb6ce40d230cfb4",
+        "bytes": 2436
+      },
+      {
+        "packet": "original",
+        "file": "slot-05-observation.jsonl",
+        "sha256": "2ec30d014ef933c7668ffd7325c5e59a9606f52375d1a5a03adf8757a1a93e40",
+        "bytes": 4575
+      },
+      {
+        "packet": "original",
+        "file": "slot-05-visible.json",
+        "sha256": "4e66f38e38a43ab9e9ea9576e70ff44d6ea51ab9bd1c1e16cbaea85755c9a277",
+        "bytes": 322
+      },
+      {
+        "packet": "original",
+        "file": "slot-06-admission.json",
+        "sha256": "9f73ae7b751040cb2c420e4daf70d8c5e9e5949f2d7847ac3844aa4569274c63",
+        "bytes": 2433
+      },
+      {
+        "packet": "original",
+        "file": "slot-06-observation.jsonl",
+        "sha256": "41d77484fec6846f47d25d230f2a8fb4e865bb311e513a66f5e0e745e1b7d967",
+        "bytes": 4573
+      },
+      {
+        "packet": "original",
+        "file": "slot-06-visible.json",
+        "sha256": "d4a16fffd4083e8f99a986fd3d7ae94fb19987533861a42bb9250740877cda9b",
+        "bytes": 322
+      },
+      {
+        "packet": "original",
+        "file": "slot-07-admission.json",
+        "sha256": "d4d353c35ab8905a8d6e5c6635033020f13fce2682eb26164edaabeeacd07f22",
+        "bytes": 2429
+      },
+      {
+        "packet": "original",
+        "file": "slot-07-observation.jsonl",
+        "sha256": "4550784c22614bff11b4682811b7e27b397e52d52c1b1f60db018bb4995a272c",
+        "bytes": 4570
+      },
+      {
+        "packet": "original",
+        "file": "slot-07-visible.json",
+        "sha256": "80474963e1c733befd168e00af64d640677d832a3fead09cb4047d60f5d04d13",
+        "bytes": 307
+      },
+      {
+        "packet": "original",
+        "file": "slot-08-build-interruption.json",
+        "sha256": "6e005fd4169732ddaa46ff93a3461fe07d67276ba0212d68e87c8315c6900b13",
+        "bytes": 1344
+      },
+      {
+        "packet": "original",
+        "file": "slot-08-observation.jsonl",
+        "sha256": "c778cab25e54225b9d0f4150da6dc936656f1a5b8405051c4c89abcdeffa89e9",
+        "bytes": 1314
+      }
+    ]
+  },
+  "limits": [
+    "Animal species labels are provisional; accuracy is not scored.",
+    "Six paired sources are exploratory and do not qualify development or held-out groups.",
+    "One outcome per source and arm cannot separate processing effects from provider variability.",
+    "The two arms change anti-alias filtering and partial-tail measurement together.",
+    "Slots 1–7 and 8–12 ran in separate execution segments after an app replacement; the stream pair crosses that gap.",
+    "Native confidence and displayed match are not calibrated probabilities.",
+    "Cost estimates cover observed primary attempts only and are not an invoice or complete billing ledger.",
+    "Passive tools submitted no requests; twelve ordinary Identify taps submitted the comparisons.",
+    "Visible labels are supplemental UI observations; their file hashes do not cryptographically bind biological labels to provider results.",
+    "The authenticated receipt joins the admitted measurement to finalization and rendering; it is not independent biological review.",
+    "No raw provider prose, media, coordinates, owner IDs, scan IDs, auth state, or private configuration values are retained.",
+    "Ordinary Gemini routing and current audio processing remain unchanged."
+  ]
+}
