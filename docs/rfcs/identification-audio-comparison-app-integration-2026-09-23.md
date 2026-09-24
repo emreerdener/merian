@@ -5,6 +5,13 @@ activation or paid comparison was performed in this slice. Gemini remains the
 only identification provider. The formal development/held-out qualification
 counts remain 0/60 and 0/240.
 
+Live follow-up, 23 September 2026: the
+[partial processing benchmark](./identification-audio-processing-comparison-2026-09-23.md)
+records seven admitted slots after authorized deployment and activation. The run
+stopped before slot 8 because the installed app changed; hosted setting removal
+and absence were verified. Five slots remain unsubmitted. The original
+implementation and verification status below remains historical.
+
 Follow-up, 23 September 2026: live staging exposed Core Audio WAV padding added
 by the ordinary replay transcoder. The source's PCM was unchanged, but its full
 file hash failed the frozen assignment before admission. The comparison preparer

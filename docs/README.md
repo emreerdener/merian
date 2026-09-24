@@ -256,9 +256,13 @@ production submission or public release.
   preserves the frozen listening-review checkpoint. The subsequent
   [six-audio app benchmark](./rfcs/identification-audio-six-app-benchmark-2026-09-22.md)
   records three Strong source-species disagreements and three non-biological
-  controls returning No wildlife detected, with no manual retries. Trace audio
-  preparation and request construction before tuning model selection or
-  confidence.
+  controls returning No wildlife detected, with no manual retries. The
+  subsequent
+  [audio processing comparison](./rfcs/identification-audio-processing-comparison-2026-09-23.md)
+  retains seven admitted results from twelve planned slots and three complete
+  animal pairs. The run stopped before slot 8 when the installed app changed;
+  hosted cleanup is verified. Five slots remain unsubmitted, and identification
+  improvement is unproven.
 - **Deferred family and prior combined planning:**
   [PRD](./product/02-family-plans-and-ai-platform-prd.md) and
   [SRD](./rfcs/family-plans-and-ai-platform-srd.md). Family plans are deferred;
