@@ -74,9 +74,10 @@ export function registerAudioPromptContinuationTests(scratch: string) {
     const original =
       (await inspectPromptContinuationOriginal(s.root, runtime)).original;
     const review = {
-      version: "audio_prompt_continuation_review_v1",
+      version: "audio_prompt_continuation_review_v2",
       reviewedAt: iso(s.state.now),
       sourceSha: tooling.commit,
+      deployedSha: "e".repeat(40),
       originalEvidenceSha256: original.evidenceSha256,
       firstSlot: prefix + 1,
       windows: Array.from(
@@ -97,6 +98,7 @@ export function registerAudioPromptContinuationTests(scratch: string) {
     const control = (block: number, cleanup = false) => ({
       ...s.control(block, cleanup),
       sourceSha: tooling.commit,
+      deployedSha: cleanup ? null : review.deployedSha,
       window: {
         startsAt: review.windows.find((w) => w.block === block)!.startsAt,
         expiresAt: review.windows.find((w) => w.block === block)!.expiresAt,
@@ -201,6 +203,12 @@ export function registerAudioPromptContinuationTests(scratch: string) {
       assertEquals(report.screeningRulesMayBeEvaluated, false);
       assertEquals(report.decision, "inconclusive");
       assertEquals(report.productionPromotionAuthorized, false);
+      assertEquals(report.original.deployedSha, s.original.deployedSha);
+      assert(s.review.deployedSha !== report.original.deployedSha);
+      assertEquals(
+        report.continuationControls.map((c) => c.activation.deployedSha),
+        [s.review.deployedSha, s.review.deployedSha],
+      );
       assertEquals(
         (await auditOriginalPromptExecution(s.root, s.state.now, s.runtime))
           .files,
@@ -227,6 +235,12 @@ export function registerAudioPromptContinuationTests(scratch: string) {
         },
         (v) => {
           v.sourceSha = "a".repeat(40);
+        },
+        (v) => {
+          v.deployedSha = "invalid";
+        },
+        (v) => {
+          v.version = "audio_prompt_continuation_review_v3";
         },
         (v) => {
           v.remainingNeverSubmitted = false;
@@ -302,6 +316,12 @@ export function registerAudioPromptContinuationTests(scratch: string) {
         claimPromptContinuationSlot(s.root, 18, {
           ...active,
           deployedSha: "f".repeat(40),
+        }, s.runtime)
+      );
+      await assertRejects(() =>
+        claimPromptContinuationSlot(s.root, 18, {
+          ...active,
+          deployedSha: s.original.deployedSha,
         }, s.runtime)
       );
       await assertRejects(() =>
@@ -471,6 +491,59 @@ export function registerAudioPromptContinuationTests(scratch: string) {
       await assertRejects(() => reportPromptContinuation(s.root, s.runtime));
       assert(
         await exists(join(s.continuation, "controls/block-2.cleanup.json")),
+      );
+    } finally {
+      await s.dispose();
+    }
+  });
+
+  Deno.test("prompt continuation keeps v1 deployment semantics and requires a v2 deployment binding", async () => {
+    const s = await setup();
+    try {
+      const legacyReview: Record<string, unknown> = { ...s.review };
+      delete legacyReview.deployedSha;
+      await assertRejects(() =>
+        preparePromptContinuation(s.root, legacyReview, s.runtime)
+      );
+      assertEquals(await exists(s.continuation), false);
+      legacyReview.version = "audio_prompt_continuation_review_v1";
+      await assertRejects(() =>
+        preparePromptContinuation(s.root, {
+          ...legacyReview,
+          deployedSha: s.review.deployedSha,
+        }, s.runtime)
+      );
+      await preparePromptContinuation(s.root, legacyReview, s.runtime);
+      const frozen = JSON.parse(
+        await Deno.readTextFile(join(s.continuation, "run.json")),
+      );
+      assertEquals(frozen.review, legacyReview);
+      assertEquals(frozen.original.deployedSha, s.original.deployedSha);
+      await assertRejects(() =>
+        claimPromptContinuationSlot(
+          s.root,
+          18,
+          s.amendedControl(2),
+          s.runtime,
+        )
+      );
+      await claimPromptContinuationSlot(s.root, 18, {
+        ...s.amendedControl(2),
+        deployedSha: s.original.deployedSha,
+      }, s.runtime);
+      await s.observe(18);
+      await admitPromptContinuationSlot(s.root, 18, s.runtime);
+      await closePromptContinuationBlock(
+        s.root,
+        2,
+        s.amendedControl(2, true),
+        s.state.now,
+      );
+      const report = await reportPromptContinuation(s.root, s.runtime);
+      assertEquals(report.continuationCompleted, 1);
+      assertEquals(
+        report.continuationControls[0].activation.deployedSha,
+        s.original.deployedSha,
       );
     } finally {
       await s.dispose();

@@ -248,8 +248,9 @@ so a second preparation or continuation-of-continuation fails closed. Keep both
 directories canonical and private. Never copy the original to manufacture
 another eligible path or remove a failed sidecar.
 
-The continuation pins the clean tooling commit/digest separately from the
-original app, deployed revision, generated assignments and runtime bundle.
+The continuation pins the clean tooling commit/digest and the reviewed current
+deployment revision separately from the original app, deployment history,
+generated assignments and runtime bundle.
 [audioPromptContinuationContract.ts](./audioPromptContinuationContract.ts)
 requires the new control SHA and amended window while keeping the original
 runtime identity. The app is not rebuilt for a tooling-only continuation.
@@ -265,16 +266,24 @@ deno run --frozen --no-prompt --deny-net --deny-env \
   services/supabase/scripts/manage_audio_prompt_continuation.ts inspect ORIGINAL
 ```
 
-Prepare a strict `audio_prompt_continuation_review_v1` review with `reviewedAt`,
-`sourceSha` (the clean tooling/controller SHA), `originalEvidenceSha256` from
-inspection, `firstSlot` (exactly the completed prefix plus one), ordered
-`windows` for the remaining blocks, and the existing fresh `privatePreflight`
-witness. It also requires true `noUnrecordedAttempts`,
+Prepare a strict `audio_prompt_continuation_review_v2` review with `reviewedAt`,
+`sourceSha` (the clean tooling/controller SHA), `deployedSha` (the current
+successful deployment resolved by the protected control workflow),
+`originalEvidenceSha256` from inspection, `firstSlot` (exactly the completed
+prefix plus one), ordered `windows` for the remaining blocks, and the existing
+fresh `privatePreflight` witness. It also requires true `noUnrecordedAttempts`,
 `remainingNeverSubmitted`, and `pauseBetweenCompletedSlots` operator assertions,
 plus `analysisPolicy: original_screening_rules_with_disclosed_interruption`.
 These are unsigned assertions, not a provider-dispatch audit. Obtain separate
 authorization for the new bounded windows before activation; preparation and
 inspection submit nothing.
+
+The reviewed deployment SHA may advance after a tooling-only release, while the
+original bundle, prompts, plan and app must still match. Activation must equal
+the new review's exact `deployedSha`; merely naming any valid revision is
+insufficient. Keep the original evidence's deployment SHA unchanged. Existing
+`audio_prompt_continuation_review_v1` packets retain their original-deployment
+binding and reject an added `deployedSha`; they are never upgraded in place.
 
 ```bash
 deno run --frozen --no-prompt --deny-net --deny-env \

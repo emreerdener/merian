@@ -5070,9 +5070,14 @@ Obtain new bounded activation/execution authorization naming the same project,
 private setting and exact remaining slot set. Follow the same protected
 Production workflow and current-main candidate/deployed-runtime checks. A
 tooling-only controller revision can differ from the original app revision when
-the deployed plan, prompt and bundle are unchanged. Continuation activation
-receipts bind that reviewed controller SHA and new window to the original
-deployed runtime. Never replace a hosted configuration before verified absence.
+the deployed plan, prompt and bundle are unchanged. A successful deployment of
+tooling-only changes can also advance the resolved deployment SHA. Use the v2
+continuation review to pin that exact current `deployedSha` separately from the
+immutable original deployment history. Activation receipts must match the
+reviewed controller SHA, current deployment SHA, original runtime bundle and new
+window. Legacy v1 packets retain their original deployment binding; never
+rewrite or upgrade an existing packet. Never replace a hosted configuration
+before verified absence.
 
 Before each Identify, use the sidecar claim command and a fresh private
 owner/consent/app/foreground witness. The backend's existing first-attempt gate
