@@ -244,8 +244,9 @@ control receipts, observation bytes, and any retained operator/witness files. It
 checks all six original assets each time. The original's existing `.lock` inode
 is locked read-only; it is never created, replaced or written. Operations take
 that lock before the sidecar lock. The fixed sibling directory is create-only,
-so a second preparation or continuation-of-continuation fails closed. Keep both
-directories canonical and private. Never copy the original to manufacture
+so a second preparation or continuation-of-continuation fails closed. The
+separate successor protocol below leaves this legacy behavior unchanged. Keep
+both directories canonical and private. Never copy the original to manufacture
 another eligible path or remove a failed sidecar.
 
 The continuation pins the clean tooling commit/digest and the reviewed current
@@ -341,6 +342,87 @@ The report does not itself score visible names, declare a candidate win or
 authorize promotion. Preserve the original stopped-run report and disclose the
 interruption in any subsequent analysis. See the
 [canonical amendment procedure](../../../../docs/backend-and-data/06-supabase-deployment-runbook.md#amend-an-expired-prompt-comparison-between-completed-trials).
+
+### Explicit successor after a closed first continuation
+
+The separate
+[manage_audio_prompt_successor.ts](../manage_audio_prompt_successor.ts) creates
+exactly one fixed sibling, `ORIGINAL.continuation.successor`. It is a new
+protocol, not an upgrade or reset of either predecessor. Existing v1/v2
+continuations stay terminal after failure or expiry. No additional successor,
+copied packet, alternate directory, replacement slot or uncertain attempt is
+eligible.
+
+`audioPromptSuccessorEvidence.ts` re-admits both original and continuation
+observations, requires a contiguous completed prefix ending inside a block, and
+requires every activation closed, with the final continuation cleanup after its
+expiry. It hashes all continuation records and binds two retained stopped
+reports as opaque, bounded private JSON files. Private path locators stay inside
+the private manifest; inspect and derived report output expose only their
+hashes. Those report hashes preserve history; their contents never replace
+runtime observation validation or prove biological truth. Their paths and bytes
+must remain unchanged.
+
+Locks are acquired in order: the existing original lock read-only, the existing
+continuation lock read-only, then the successor lock. Preparation uses a
+create-only directory and fsynced files. Parent evidence is revalidated before
+each claim, admission and report. Parents and reports receive read permissions
+only. A pending or excluded successor trial permanently prevents further
+progression. Cleanup stays available after parent/tooling drift.
+
+Inspect both parents before preparing a new review:
+
+```bash
+deno run --frozen --no-prompt --deny-net --deny-env \
+  --config services/supabase/functions/deno.json \
+  --allow-read=.,ORIGINAL_PARENT,ORIGINAL_REPORT,CONTINUATION_REPORT \
+  services/supabase/scripts/manage_audio_prompt_successor.ts \
+  inspect ORIGINAL ORIGINAL_REPORT CONTINUATION_REPORT
+```
+
+The strict `audio_prompt_successor_review_v1` has `reviewedAt`, `sourceSha`,
+current `deployedSha`, inspected `predecessorEvidenceSha256`, `firstSlot`
+(exactly the completed prefix plus one), ordered `windows` for remaining
+original blocks, fresh `privatePreflight`, and `reports` with canonical absolute
+`original` and `continuation` report paths. It requires true
+`noUnrecordedAttempts`, `remainingNeverSubmitted`, `pauseBetweenCompletedSlots`,
+and `analysisPolicy: original_screening_rules_with_disclosed_interruptions`.
+Keep owner IDs, session data and private hosted configuration out of these
+files. Reports must be private regular single-link JSON files, at most 8 MiB,
+with private canonical parents.
+
+After review, preparation is offline:
+
+```bash
+deno run --frozen --no-prompt --deny-net --deny-env \
+  --config services/supabase/functions/deno.json \
+  --allow-read=.,ORIGINAL_PARENT,REVIEW,ORIGINAL_REPORT,CONTINUATION_REPORT \
+  --allow-run=git --allow-write=ORIGINAL.continuation.successor \
+  services/supabase/scripts/manage_audio_prompt_successor.ts \
+  prepare ORIGINAL REVIEW
+```
+
+Use `claim ORIGINAL SLOT ACTIVATION WITNESS`, `admit ORIGINAL SLOT`, and
+`close ORIGINAL BLOCK CLEANUP` with the same denied network/environment,
+parent/report/source read grants and successor-only write grant. Claim and admit
+need `--allow-run=git`; close needs only the successor and cleanup receipt. The
+observer writes one new
+`ORIGINAL.continuation.successor/observations/slot-NN.jsonl`. Wait for
+readiness, tap Identify once, retain the complete 120-second window and admit it
+before the next claim. Activation receipts bind the current reviewed controller
+and deployment plus the unchanged runtime/plan. Admission also binds app and
+pricing. Cleanup verifies absence and binds the window/bundle when those fields
+are present; a later recovery controller is allowed. Each activation remains at
+most two hours. Verified cleanup precedes the next block.
+
+`report ORIGINAL OUTPUT_PARENT/report.json` also needs read/write access to a
+canonical private output parent outside all three packets. It creates a new
+report and refuses overwrite. The report distinguishes original, continuation
+and successor rows/controls, and requires all 36 unique first attempts, required
+known timing/cost/score and verified cleanup before screening. It neither scores
+visible labels nor authorizes promotion. Retain bounded UI labels separately,
+disclose both interruptions, and follow the
+[successor authorization procedure](../../../../docs/backend-and-data/06-supabase-deployment-runbook.md#continue-after-a-second-between-trial-expiry).
 
 ### Offline audio uncertainty prompt preparation
 

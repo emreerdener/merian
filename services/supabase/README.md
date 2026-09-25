@@ -59,6 +59,11 @@ pause strictly between completed trials, the separately reviewed
 for only untouched assignments. It preserves the original packet and requires
 new bounded authorization before any activation. See the
 [amendment procedure](../../docs/backend-and-data/06-supabase-deployment-runbook.md#amend-an-expired-prompt-comparison-between-completed-trials).
+A closed first continuation has a separate, explicitly reviewed
+`manage_audio_prompt_successor.ts` path for one fixed successor. It binds both
+prior segments and their stopped reports, preserves all original assignments,
+and requires new bounded authorization. See the
+[successor procedure](../../docs/backend-and-data/06-supabase-deployment-runbook.md#continue-after-a-second-between-trial-expiry).
 
 ```text
 services/supabase/

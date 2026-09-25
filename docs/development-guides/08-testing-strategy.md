@@ -6804,6 +6804,18 @@ measurements and cleanup before screening; it does not authorize promotion. The
 [continuation contract](../../services/supabase/scripts/identification_evaluation/README.md#explicit-continuation-after-an-expired-between-trial-pause)
 and canonical runbook govern separately approved live amendments.
 
+`testing/audioPromptSuccessorTests.ts` covers the separately versioned
+successor: the closed 17+2 prefix and remaining 20–36 order, legacy terminal
+behavior, predecessor/report bindings, incorrect
+approval/deployment/window/witness, unknown measurements, missing or premature
+cleanup, future artifacts, hard links and symlinks, exclusive preparation/claim
+races, read-only parent locks, terminal excluded attempts, recovery after
+predecessor drift and create-only external reports. The same isolated evaluator
+suite discovers these synthetic cases; they grant no network or environment
+access and make no provider requests. The
+[successor procedure](../backend-and-data/06-supabase-deployment-runbook.md#continue-after-a-second-between-trial-expiry)
+requires separately authorized live windows.
+
 The subsequent
 [app integration](../rfcs/identification-audio-comparison-app-integration-2026-09-23.md)
 adds `IdentificationComparisonCaptureTests` and

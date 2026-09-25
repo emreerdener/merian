@@ -25,115 +25,117 @@ import { claimJson, exists } from "../files.ts";
 import { promptExecutionFixture } from "./audioPromptExecutionTests.ts";
 
 const iso = (n: number) => new Date(n).toISOString();
-export function registerAudioPromptContinuationTests(scratch: string) {
-  async function setup(prefix = 17) {
-    const s = await promptExecutionFixture(scratch);
-    await Deno.mkdir(join(s.root, "observations"), { mode: 0o700 });
-    let active = s.control(1);
-    for (let slot = 1; slot <= prefix; slot++) {
-      if (slot === 13 || slot === 25) {
-        await closePromptExecutionBlock(
-          s.root,
-          Math.ceil((slot - 1) / 12),
-          s.control(Math.ceil((slot - 1) / 12), true),
-          s.state.now,
-        );
-        active = s.control(Math.ceil(slot / 12));
-      }
-      await claimPromptExecutionSlot(s.root, slot, active, s.runtime);
-      const bytes = s.bytes(s.observation(slot));
-      await Deno.writeFile(join(s.root, promptObservationFile(slot)), bytes, {
-        mode: 0o600,
-      });
-      s.state.now += 121_000;
-      await admitPromptExecutionSlot(s.root, slot, bytes, s.state.now);
-      s.state.now += 1000;
-    }
-    const lastBlock = Math.ceil(prefix / 12);
-    s.state.now =
-      Date.parse(s.manifest.review.windows[lastBlock - 1].expiresAt) + 1000;
-    await closePromptExecutionBlock(
-      s.root,
-      lastBlock,
-      s.control(lastBlock, true),
-      s.state.now,
-    );
-    s.state.now =
-      Date.parse(s.manifest.review.windows[lastBlock - 1].expiresAt) + 1000;
-    const tooling = {
-      ...await s.runtime.source(),
-      commit: "c".repeat(40),
-      digest: "d".repeat(64),
-    };
-    const runtime = {
-      ...s.runtime,
-      source: () => Promise.resolve(tooling),
-      bundle: () => Promise.resolve(s.manifest.review.backendBundleSha256),
-      verifyTables: () => Promise.resolve(),
-    };
-    const original =
-      (await inspectPromptContinuationOriginal(s.root, runtime)).original;
-    const review = {
-      version: "audio_prompt_continuation_review_v2",
-      reviewedAt: iso(s.state.now),
-      sourceSha: tooling.commit,
-      deployedSha: "e".repeat(40),
-      originalEvidenceSha256: original.evidenceSha256,
-      firstSlot: prefix + 1,
-      windows: Array.from(
-        { length: 4 - lastBlock },
-        (_, i) => ({
-          block: lastBlock + i,
-          startsAt: iso(s.state.now + i * 1_200_000),
-          expiresAt: iso(s.state.now + 7_200_000 + i * 1_200_000),
-        }),
-      ),
-      privatePreflight: await runtime.privatePreflight(),
-      noUnrecordedAttempts: true,
-      remainingNeverSubmitted: true,
-      pauseBetweenCompletedSlots: true,
-      analysisPolicy: "original_screening_rules_with_disclosed_interruption",
-    };
-    const continuation = promptContinuationDirectory(s.root);
-    const control = (block: number, cleanup = false) => ({
-      ...s.control(block, cleanup),
-      sourceSha: tooling.commit,
-      deployedSha: cleanup ? null : review.deployedSha,
-      window: {
-        startsAt: review.windows.find((w) => w.block === block)!.startsAt,
-        expiresAt: review.windows.find((w) => w.block === block)!.expiresAt,
-      },
-    });
-    const observe = async (
-      slot: number,
-      mutate?: (rows: Record<string, unknown>[]) => void,
-    ) => {
-      const rows = s.observation(slot);
-      mutate?.(rows);
-      await Deno.writeFile(
-        join(continuation, promptObservationFile(slot)),
-        s.bytes(rows),
-        { mode: 0o600, createNew: true },
+export async function promptContinuationFixture(scratch: string, prefix = 17) {
+  const s = await promptExecutionFixture(scratch);
+  await Deno.mkdir(join(s.root, "observations"), { mode: 0o700 });
+  let active = s.control(1);
+  for (let slot = 1; slot <= prefix; slot++) {
+    if (slot === 13 || slot === 25) {
+      await closePromptExecutionBlock(
+        s.root,
+        Math.ceil((slot - 1) / 12),
+        s.control(Math.ceil((slot - 1) / 12), true),
+        s.state.now,
       );
-      s.state.now += 121_000;
-    };
-    const dispose = async () => {
-      await Deno.remove(s.root, { recursive: true });
-      if (await exists(continuation)) {
-        await Deno.remove(continuation, { recursive: true });
-      }
-    };
-    return {
-      ...s,
-      original,
-      review,
-      continuation,
-      runtime,
-      amendedControl: control,
-      observe,
-      dispose,
-    };
+      active = s.control(Math.ceil(slot / 12));
+    }
+    await claimPromptExecutionSlot(s.root, slot, active, s.runtime);
+    const bytes = s.bytes(s.observation(slot));
+    await Deno.writeFile(join(s.root, promptObservationFile(slot)), bytes, {
+      mode: 0o600,
+    });
+    s.state.now += 121_000;
+    await admitPromptExecutionSlot(s.root, slot, bytes, s.state.now);
+    s.state.now += 1000;
   }
+  const lastBlock = Math.ceil(prefix / 12);
+  s.state.now = Date.parse(s.manifest.review.windows[lastBlock - 1].expiresAt) +
+    1000;
+  await closePromptExecutionBlock(
+    s.root,
+    lastBlock,
+    s.control(lastBlock, true),
+    s.state.now,
+  );
+  s.state.now = Date.parse(s.manifest.review.windows[lastBlock - 1].expiresAt) +
+    1000;
+  const tooling = {
+    ...await s.runtime.source(),
+    commit: "c".repeat(40),
+    digest: "d".repeat(64),
+  };
+  const runtime = {
+    ...s.runtime,
+    source: () => Promise.resolve(tooling),
+    bundle: () => Promise.resolve(s.manifest.review.backendBundleSha256),
+    verifyTables: () => Promise.resolve(),
+  };
+  const original =
+    (await inspectPromptContinuationOriginal(s.root, runtime)).original;
+  const review = {
+    version: "audio_prompt_continuation_review_v2",
+    reviewedAt: iso(s.state.now),
+    sourceSha: tooling.commit,
+    deployedSha: "e".repeat(40),
+    originalEvidenceSha256: original.evidenceSha256,
+    firstSlot: prefix + 1,
+    windows: Array.from(
+      { length: 4 - lastBlock },
+      (_, i) => ({
+        block: lastBlock + i,
+        startsAt: iso(s.state.now + i * 1_200_000),
+        expiresAt: iso(s.state.now + 7_200_000 + i * 1_200_000),
+      }),
+    ),
+    privatePreflight: await runtime.privatePreflight(),
+    noUnrecordedAttempts: true,
+    remainingNeverSubmitted: true,
+    pauseBetweenCompletedSlots: true,
+    analysisPolicy: "original_screening_rules_with_disclosed_interruption",
+  };
+  const continuation = promptContinuationDirectory(s.root);
+  const control = (block: number, cleanup = false) => ({
+    ...s.control(block, cleanup),
+    sourceSha: tooling.commit,
+    deployedSha: cleanup ? null : review.deployedSha,
+    window: {
+      startsAt: review.windows.find((w) => w.block === block)!.startsAt,
+      expiresAt: review.windows.find((w) => w.block === block)!.expiresAt,
+    },
+  });
+  const observe = async (
+    slot: number,
+    mutate?: (rows: Record<string, unknown>[]) => void,
+  ) => {
+    const rows = s.observation(slot);
+    mutate?.(rows);
+    await Deno.writeFile(
+      join(continuation, promptObservationFile(slot)),
+      s.bytes(rows),
+      { mode: 0o600, createNew: true },
+    );
+    s.state.now += 121_000;
+  };
+  const dispose = async () => {
+    await Deno.remove(s.root, { recursive: true });
+    if (await exists(continuation)) {
+      await Deno.remove(continuation, { recursive: true });
+    }
+  };
+  return {
+    ...s,
+    original,
+    review,
+    continuation,
+    runtime,
+    amendedControl: control,
+    observe,
+    dispose,
+  };
+}
+
+export function registerAudioPromptContinuationTests(scratch: string) {
+  const setup = (prefix = 17) => promptContinuationFixture(scratch, prefix);
 
   Deno.test("prompt continuation completes only untouched 18–36 and preserves the closed original", async () => {
     const s = await setup();

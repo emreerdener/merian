@@ -24,7 +24,9 @@ const revision = (v: unknown) => {
   return v;
 };
 
-function originalBinding(value: unknown): OriginalPromptBinding {
+export function parseOriginalPromptBinding(
+  value: unknown,
+): OriginalPromptBinding {
   const v = fields(value, [
     "manifestSha256",
     "evidenceSha256",
@@ -67,7 +69,7 @@ export function promptContinuationManifest(
   toolingValue: unknown,
   now: number,
 ) {
-  const original = originalBinding(originalValue);
+  const original = parseOriginalPromptBinding(originalValue);
   const tooling = fields(toolingValue, ["commit", "dirty", "digest", "sdk"]);
   revision(tooling.commit);
   hash(tooling.digest);
@@ -185,12 +187,19 @@ export type PromptContinuationManifest = ReturnType<
 >;
 
 /** Release provenance can advance while the original runtime bundle stays fixed. */
-export function requirePromptContinuationControl(
+export function requirePromptAmendmentControl(
   value: unknown,
-  manifest: PromptContinuationManifest,
+  manifest: PromptAmendmentControlBinding,
   block: number,
   mode: "activation" | "cleanup",
 ) {
+  check(
+    [
+      "audio_prompt_continuation_review_v1",
+      "audio_prompt_continuation_review_v2",
+      "audio_prompt_successor_review_v1",
+    ].includes(manifest.review.version),
+  );
   const window = manifest.review.windows.find((w) => w.block === block);
   check(window !== undefined);
   const v = fields(value, [
@@ -224,9 +233,9 @@ export function requirePromptContinuationControl(
   check(observedAt >= executionInstant(manifest.preparedAt));
   if (mode === "activation") {
     const deployedSha = revision(
-      manifest.review.version === "audio_prompt_continuation_review_v2"
-        ? manifest.review.deployedSha
-        : manifest.original.deployedSha,
+      manifest.review.version === "audio_prompt_continuation_review_v1"
+        ? manifest.original.deployedSha
+        : manifest.review.deployedSha,
     );
     check(
       v.sourceSha === manifest.tooling.commit &&
@@ -266,3 +275,24 @@ export function requirePromptContinuationControl(
   }
   return structuredClone(v);
 }
+
+interface PromptAmendmentControlBinding {
+  preparedAt: string;
+  tooling: { commit: string };
+  original: {
+    deployedSha: string;
+    lastCleanupAt: string;
+    backendBundleSha256: string;
+  };
+  review: {
+    version: string;
+    deployedSha?: unknown;
+    windows: { block: number; startsAt: string; expiresAt: string }[];
+  };
+}
+export const requirePromptContinuationControl = (
+  value: unknown,
+  manifest: PromptContinuationManifest,
+  block: number,
+  mode: "activation" | "cleanup",
+) => requirePromptAmendmentControl(value, manifest, block, mode);
