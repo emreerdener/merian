@@ -227,6 +227,108 @@ single-attempt gate. Actual admission requires the app's runtime receipts. Keep
 the frozen checkout throughout execution, stop on uncertain submissions, and
 preserve every record through the source retention deadline.
 
+### Explicit continuation after an expired between-trial pause
+
+[manage_audio_prompt_continuation.ts](../manage_audio_prompt_continuation.ts)
+creates one separately versioned amendment at the fixed sibling path
+`ORIGINAL.continuation`. It does not reopen the original ledger. Eligibility
+requires a contiguous completed prefix ending **inside** a block, all activated
+original blocks closed with verified absence, the final partial block cleaned up
+after its window expired, and no local evidence or operator uncertainty about
+later submissions. Open claims, exclusions, gaps, and a prefix ending at a block
+boundary are ineligible.
+
+[audioPromptExecutionEvidence.ts](./audioPromptExecutionEvidence.ts) re-admits
+every original observation and binds the exact manifest, claims, completions,
+control receipts, observation bytes, and any retained operator/witness files. It
+checks all six original assets each time. The original's existing `.lock` inode
+is locked read-only; it is never created, replaced or written. Operations take
+that lock before the sidecar lock. The fixed sibling directory is create-only,
+so a second preparation or continuation-of-continuation fails closed. Keep both
+directories canonical and private. Never copy the original to manufacture
+another eligible path or remove a failed sidecar.
+
+The continuation pins the clean tooling commit/digest separately from the
+original app, deployed revision, generated assignments and runtime bundle.
+[audioPromptContinuationContract.ts](./audioPromptContinuationContract.ts)
+requires the new control SHA and amended window while keeping the original
+runtime identity. The app is not rebuilt for a tooling-only continuation.
+Pricing cannot be refreshed: the original reviewed snapshot must remain valid
+through all new windows, each at most two hours and within media retention.
+
+First inspect the stopped original offline:
+
+```bash
+deno run --frozen --no-prompt --deny-net --deny-env \
+  --config services/supabase/functions/deno.json \
+  --allow-read=.,ORIGINAL \
+  services/supabase/scripts/manage_audio_prompt_continuation.ts inspect ORIGINAL
+```
+
+Prepare a strict `audio_prompt_continuation_review_v1` review with `reviewedAt`,
+`sourceSha` (the clean tooling/controller SHA), `originalEvidenceSha256` from
+inspection, `firstSlot` (exactly the completed prefix plus one), ordered
+`windows` for the remaining blocks, and the existing fresh `privatePreflight`
+witness. It also requires true `noUnrecordedAttempts`,
+`remainingNeverSubmitted`, and `pauseBetweenCompletedSlots` operator assertions,
+plus `analysisPolicy: original_screening_rules_with_disclosed_interruption`.
+These are unsigned assertions, not a provider-dispatch audit. Obtain separate
+authorization for the new bounded windows before activation; preparation and
+inspection submit nothing.
+
+```bash
+deno run --frozen --no-prompt --deny-net --deny-env \
+  --config services/supabase/functions/deno.json \
+  --allow-read=.,ORIGINAL,REVIEW --allow-run=git \
+  --allow-write=ORIGINAL.continuation \
+  services/supabase/scripts/manage_audio_prompt_continuation.ts \
+  prepare ORIGINAL REVIEW
+```
+
+For `claim ORIGINAL SLOT ACTIVATION WITNESS`, `admit ORIGINAL SLOT`, and
+`close ORIGINAL BLOCK CLEANUP`, use the same denied network/environment flags
+and `--allow-read=.,ORIGINAL,ORIGINAL.continuation,INPUTS`, plus
+`--allow-write=ORIGINAL.continuation`. Claim and admit also need
+`--allow-run=git` to verify the pinned tooling. Substitute the actual
+receipt/witness files for `INPUTS`.
+
+Report requires an existing canonical private `OUTPUT_PARENT` outside both
+packets. It writes a new direct child file and cannot overwrite an existing
+report:
+
+```bash
+deno run --frozen --no-prompt --deny-net --deny-env \
+  --config services/supabase/functions/deno.json \
+  --allow-read=.,ORIGINAL,ORIGINAL.continuation,OUTPUT_PARENT --allow-run=git \
+  --allow-write=ORIGINAL.continuation,OUTPUT_PARENT \
+  services/supabase/scripts/manage_audio_prompt_continuation.ts \
+  report ORIGINAL OUTPUT_PARENT/report.json
+```
+
+Claim verifies the original evidence again and reserves only the next untouched
+assignment. Stage that original slot and WAV in the unchanged app, start the
+normal passive observer at `ORIGINAL.continuation/observations/slot-NN.jsonl`,
+wait for `observer_ready`, then tap Identify once. Admit reads this fixed file,
+requires the full matching 120-second window and frozen pricing, and records a
+distinct continuation completion. Invalid observations become terminal sidecar
+exclusions. An open claim cannot be retried even if the tap may not have
+happened. A previously used server assignment fails first-attempt admission; it
+never authorizes another slot or replacement.
+
+Close every activated amended block after its last claim/completion/exclusion.
+Close can retain verified cleanup even if the original files or tooling later
+change; claiming and reporting still reject that drift. The next block requires
+the preceding block's final completion, verified cleanup and subsequent new
+activation. Failure or expiry closes this sidecar permanently.
+
+The content-free combined evidence report identifies original and amended rows
+separately. All 36 unique first attempts, known required timing/cost and
+verified cleanup are required before evaluating the unchanged screening rules.
+The report does not itself score visible names, declare a candidate win or
+authorize promotion. Preserve the original stopped-run report and disclose the
+interruption in any subsequent analysis. See the
+[canonical amendment procedure](../../../../docs/backend-and-data/06-supabase-deployment-runbook.md#amend-an-expired-prompt-comparison-between-completed-trials).
+
 ### Offline audio uncertainty prompt preparation
 
 [The six-clip prompt design](../../../../docs/rfcs/identification-audio-uncertainty-comparison-plan-2026-09-24.md)

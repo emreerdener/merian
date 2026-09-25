@@ -47,11 +47,13 @@ import { audioComparisonObservationFixture as fixture } from "./identification_e
 import { registerAudioPromptPacketTests } from "./identification_evaluation/testing/audioPromptPacketTests.ts";
 
 import { registerAudioPromptExecutionTests } from "./identification_evaluation/testing/audioPromptExecutionTests.ts";
+import { registerAudioPromptContinuationTests } from "./identification_evaluation/testing/audioPromptContinuationTests.ts";
 
 const scratch = Deno.args[0];
 if (!scratch) throw new Error("evaluation_test_directory_required");
 registerAudioPromptPacketTests(scratch);
 registerAudioPromptExecutionTests(scratch);
+registerAudioPromptContinuationTests(scratch);
 const source: SourceIdentity = {
   commit: "0".repeat(40),
   dirty: true,

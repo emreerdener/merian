@@ -53,7 +53,12 @@ controls and select one twelve-slot block. The offline execution freeze/ledger
 rechecks source assets, binds the reviewed app/backend and requires admitted
 first-attempt observations plus verified cleanup before progression. Follow its
 [activation prerequisites](../../docs/backend-and-data/06-supabase-deployment-runbook.md#audio-prompt-comparison-activation-prerequisites);
-local implementation does not activate or execute an experiment.
+local implementation does not activate or execute an experiment. For an expired
+pause strictly between completed trials, the separately reviewed
+`scripts/manage_audio_prompt_continuation.ts` can prepare one offline sidecar
+for only untouched assignments. It preserves the original packet and requires
+new bounded authorization before any activation. See the
+[amendment procedure](../../docs/backend-and-data/06-supabase-deployment-runbook.md#amend-an-expired-prompt-comparison-between-completed-trials).
 
 ```text
 services/supabase/

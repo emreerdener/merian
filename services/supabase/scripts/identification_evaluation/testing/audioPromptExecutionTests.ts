@@ -68,70 +68,72 @@ function review() {
   };
 }
 
-export function registerAudioPromptExecutionTests(scratch: string) {
-  async function setup() {
-    const root = await Deno.makeTempDir({
-      dir: scratch,
-      prefix: "prompt-ledger-",
-    });
-    await Deno.chmod(root, 0o700);
-    for (const name of ["slots", "controls"]) {
-      await Deno.mkdir(join(root, name), { mode: 0o700 });
-    }
-    const manifest = promptExecutionManifest(review(), source, NOW);
-    await claimJson(join(root, "run.json"), manifest);
-    await claimJson(join(root, "freeze.json"), {
-      version: "audio_prompt_execution_freeze_v1",
-      manifestSha256: await fingerprintJson(manifest),
-      manifestFileSha256: await fingerprintBytes(
-        await readBytes(join(root, "run.json"), 262_144),
-      ),
-    });
-    const state = { now: NOW + 1000 };
-    const runtime = {
-      now: () => state.now,
-      source: () => Promise.resolve(source),
-      privatePreflight: () => Promise.resolve(witness(state.now)),
-      verifyAssets: () => Promise.resolve(), // Ledger metadata fixtures contain no recorded media.
-    };
-    const control = (block: number, cleanup = false) => ({
-      version: "audio_prompt_comparison_control_v1",
-      operation: cleanup ? "deactivate" : "activate",
-      target: PROMPT_COMPARISON_PROJECT,
-      sourceSha: manifest.review.sourceSha,
-      deployedSha: cleanup ? null : manifest.review.deployedSha,
-      observedAt: iso(state.now),
-      status: cleanup ? "disabled" : "active",
-      mutationAttempted: true,
-      cleanup: cleanup ? "verified_absent" : "not_needed",
-      configurationPresent: !cleanup,
-      block,
-      window: {
-        startsAt: manifest.review.windows[block - 1].startsAt,
-        expiresAt: manifest.review.windows[block - 1].expiresAt,
-      },
-      planSha256: manifest.planSha256,
-      backendBundleSha256: manifest.review.backendBundleSha256,
-      automaticIdentificationRequests: 0,
-      failure: null,
-    });
-    const observation = (slot: number) => {
-      const f = fixture(slot);
-      f.measurement.diagnostics.backendBundleSha256 =
-        IDENTIFICATION_BUNDLE_SHA256;
-      f.rows[0].pricing = manifest.review.pricing;
-      f.rows[0].startedAt = iso(state.now);
-      f.rows[1].readyAt = iso(state.now + 1000);
-      for (const r of f.rows.slice(2, -1)) r.observedAt = iso(state.now + 3000);
-      f.rows.at(-1)!.finishedAt = iso(state.now + 120_000);
-      return f.rows;
-    };
-    const bytes = (rows: unknown[]) =>
-      new TextEncoder().encode(
-        rows.map((r) => JSON.stringify(r)).join("\n") + "\n",
-      );
-    return { root, manifest, state, runtime, control, observation, bytes };
+export async function promptExecutionFixture(scratch: string) {
+  const root = await Deno.makeTempDir({
+    dir: scratch,
+    prefix: "prompt-ledger-",
+  });
+  await Deno.chmod(root, 0o700);
+  for (const name of ["slots", "controls"]) {
+    await Deno.mkdir(join(root, name), { mode: 0o700 });
   }
+  const manifest = promptExecutionManifest(review(), source, NOW);
+  await claimJson(join(root, "run.json"), manifest);
+  await claimJson(join(root, "freeze.json"), {
+    version: "audio_prompt_execution_freeze_v1",
+    manifestSha256: await fingerprintJson(manifest),
+    manifestFileSha256: await fingerprintBytes(
+      await readBytes(join(root, "run.json"), 262_144),
+    ),
+  });
+  const state = { now: NOW + 1000 };
+  const runtime = {
+    now: () => state.now,
+    source: () => Promise.resolve(source),
+    privatePreflight: () => Promise.resolve(witness(state.now)),
+    verifyAssets: () => Promise.resolve(), // Ledger metadata fixtures contain no recorded media.
+  };
+  const control = (block: number, cleanup = false) => ({
+    version: "audio_prompt_comparison_control_v1",
+    operation: cleanup ? "deactivate" : "activate",
+    target: PROMPT_COMPARISON_PROJECT,
+    sourceSha: manifest.review.sourceSha,
+    deployedSha: cleanup ? null : manifest.review.deployedSha,
+    observedAt: iso(state.now),
+    status: cleanup ? "disabled" : "active",
+    mutationAttempted: true,
+    cleanup: cleanup ? "verified_absent" : "not_needed",
+    configurationPresent: !cleanup,
+    block,
+    window: {
+      startsAt: manifest.review.windows[block - 1].startsAt,
+      expiresAt: manifest.review.windows[block - 1].expiresAt,
+    },
+    planSha256: manifest.planSha256,
+    backendBundleSha256: manifest.review.backendBundleSha256,
+    automaticIdentificationRequests: 0,
+    failure: null,
+  });
+  const observation = (slot: number) => {
+    const f = fixture(slot);
+    f.measurement.diagnostics.backendBundleSha256 =
+      IDENTIFICATION_BUNDLE_SHA256;
+    f.rows[0].pricing = manifest.review.pricing;
+    f.rows[0].startedAt = iso(state.now);
+    f.rows[1].readyAt = iso(state.now + 1000);
+    for (const r of f.rows.slice(2, -1)) r.observedAt = iso(state.now + 3000);
+    f.rows.at(-1)!.finishedAt = iso(state.now + 120_000);
+    return f.rows;
+  };
+  const bytes = (rows: unknown[]) =>
+    new TextEncoder().encode(
+      rows.map((r) => JSON.stringify(r)).join("\n") + "\n",
+    );
+  return { root, manifest, state, runtime, control, observation, bytes };
+}
+
+export function registerAudioPromptExecutionTests(scratch: string) {
+  const setup = () => promptExecutionFixture(scratch);
 
   Deno.test("prompt execution freeze rejects dirty builds, stale pricing, changed plans and private fields", () => {
     assertEquals(
