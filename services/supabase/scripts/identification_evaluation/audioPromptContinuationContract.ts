@@ -72,6 +72,12 @@ export function promptContinuationManifest(
   revision(tooling.commit);
   hash(tooling.digest);
   check(tooling.dirty === false && tooling.sdk === "npm:@google/genai@2.23.0");
+  check(reviewValue !== null && typeof reviewValue === "object");
+  const reviewVersion = "version" in reviewValue ? reviewValue.version : null;
+  check(
+    reviewVersion === "audio_prompt_continuation_review_v1" ||
+      reviewVersion === "audio_prompt_continuation_review_v2",
+  );
   const review = fields(reviewValue, [
     "version",
     "reviewedAt",
@@ -84,8 +90,14 @@ export function promptContinuationManifest(
     "remainingNeverSubmitted",
     "pauseBetweenCompletedSlots",
     "analysisPolicy",
+    ...(reviewVersion === "audio_prompt_continuation_review_v2"
+      ? ["deployedSha"]
+      : []),
   ]);
-  check(review.version === "audio_prompt_continuation_review_v1");
+  const deploymentBinding =
+    reviewVersion === "audio_prompt_continuation_review_v2"
+      ? { deployedSha: revision(review.deployedSha) }
+      : {};
   const reviewedAt = executionInstant(review.reviewedAt);
   check(
     Number.isFinite(now) && reviewedAt <= now &&
@@ -150,6 +162,8 @@ export function promptContinuationManifest(
     tooling: structuredClone(tooling) as unknown as SourceIdentity,
     review: {
       ...review,
+      version: reviewVersion,
+      ...deploymentBinding,
       privatePreflight,
       windows,
       analysisPolicy:
@@ -170,7 +184,7 @@ export type PromptContinuationManifest = ReturnType<
   typeof promptContinuationManifest
 >;
 
-/** Tooling SHA/new windows and original deployed runtime are separate bindings. */
+/** Release provenance can advance while the original runtime bundle stays fixed. */
 export function requirePromptContinuationControl(
   value: unknown,
   manifest: PromptContinuationManifest,
@@ -209,9 +223,14 @@ export function requirePromptContinuationControl(
   const observedAt = executionInstant(v.observedAt);
   check(observedAt >= executionInstant(manifest.preparedAt));
   if (mode === "activation") {
+    const deployedSha = revision(
+      manifest.review.version === "audio_prompt_continuation_review_v2"
+        ? manifest.review.deployedSha
+        : manifest.original.deployedSha,
+    );
     check(
       v.sourceSha === manifest.tooling.commit &&
-        v.deployedSha === manifest.original.deployedSha,
+        v.deployedSha === deployedSha,
     );
     check(
       v.operation === "activate" &&

@@ -405,6 +405,12 @@ explicitly amended run, never an uninterrupted original execution. See the
 This tooling capability provides no live execution or identification-quality
 evidence.
 
+The subsequent v2 continuation review records the current successful deployment
+SHA separately from the immutable original deployment history. This accommodates
+tooling-only releases that advance deployment provenance with an identical
+identification bundle. App, prompts, plan, media and pricing remain frozen;
+existing v1 continuation packets retain their original deployment binding.
+
 The separate prompt activation controller and workflow are implemented. They
 retain the protected environment, shared deployment lock, exact clean-main
 candidate and deployed-runtime checks, private environment-only transport,
