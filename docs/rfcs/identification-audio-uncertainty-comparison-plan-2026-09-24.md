@@ -411,6 +411,18 @@ tooling-only releases that advance deployment provenance with an identical
 identification bundle. App, prompts, plan, media and pricing remain frozen;
 existing v1 continuation packets retain their original deployment binding.
 
+**Successor protocol implementation — 25 September 2026:** A separately
+versioned successor can bind both a closed original and its expired, closed
+first continuation, preserving every prior observation and stopped report. The
+existing v1/v2 packets retain their terminal behavior. Only untouched original
+assignments may enter the fixed successor, in order, after new bounded
+authorization. Shared ledger mechanics retain complete observer admission,
+terminal uncertainty, immutable records and verified cleanup; reporting keeps
+all three segments distinct. This source capability does not constitute
+deployment, activation or new paid observations. The original screening
+thresholds are unchanged. See the
+[current successor procedure](../backend-and-data/06-supabase-deployment-runbook.md#continue-after-a-second-between-trial-expiry).
+
 The separate prompt activation controller and workflow are implemented. They
 retain the protected environment, shared deployment lock, exact clean-main
 candidate and deployed-runtime checks, private environment-only transport,

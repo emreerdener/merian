@@ -320,8 +320,13 @@ use the separately reviewed
 [continuation sidecar](../../services/supabase/scripts/identification_evaluation/README.md#explicit-continuation-after-an-expired-between-trial-pause).
 It reuses the unchanged app and only untouched original assignments, writes new
 observer files under the sidecar, and keeps the interrupted original evidence
-distinct. An open, failed or uncertain attempt remains ineligible. The old DSP
-activation workflow does not control this lane; follow its
+distinct. An open, failed or uncertain attempt remains ineligible. A closed,
+expired first continuation may use the separately reviewed
+[successor ledger](../../services/supabase/scripts/identification_evaluation/README.md#explicit-successor-after-a-closed-first-continuation).
+It re-admits both earlier segments, binds their stopped reports and admits only
+the next untouched original slot. Successor observations remain separate;
+another uncertainty or failure remains terminal. The old DSP activation workflow
+does not control this lane; follow its
 [activation prerequisites](../backend-and-data/06-supabase-deployment-runbook.md#audio-prompt-comparison-activation-prerequisites).
 
 The

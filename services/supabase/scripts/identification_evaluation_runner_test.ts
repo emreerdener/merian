@@ -48,12 +48,14 @@ import { registerAudioPromptPacketTests } from "./identification_evaluation/test
 
 import { registerAudioPromptExecutionTests } from "./identification_evaluation/testing/audioPromptExecutionTests.ts";
 import { registerAudioPromptContinuationTests } from "./identification_evaluation/testing/audioPromptContinuationTests.ts";
+import { registerAudioPromptSuccessorTests } from "./identification_evaluation/testing/audioPromptSuccessorTests.ts";
 
 const scratch = Deno.args[0];
 if (!scratch) throw new Error("evaluation_test_directory_required");
 registerAudioPromptPacketTests(scratch);
 registerAudioPromptExecutionTests(scratch);
 registerAudioPromptContinuationTests(scratch);
+registerAudioPromptSuccessorTests(scratch);
 const source: SourceIdentity = {
   commit: "0".repeat(40),
   dirty: true,

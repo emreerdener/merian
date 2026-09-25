@@ -5053,8 +5053,10 @@ block cleanup and retained evidence, rechecks the six assets, and permits only
 the original remaining slot IDs in their original order. It requires the
 existing original lock inode without writing that packet. A second sidecar,
 copied packet, reset, skip, replacement or continuation-of-continuation is not
-permitted. The original must end inside a closed block so even the old ledger
-executable cannot progress past its remaining missing slots.
+permitted by this v1/v2 procedure. A separately versioned successor requires the
+additional review and authorization described below. The original must end
+inside a closed block so even the old ledger executable cannot progress past its
+remaining missing slots.
 
 Review the separate clean tooling SHA, unchanged app/runtime/plan, original
 pricing validity, new remaining-block windows and explicit operator assertion
@@ -5095,6 +5097,54 @@ uninterrupted original execution. Missing observations, timing, score or cost
 remain inconclusive, and no result authorizes production promotion. The
 [tooling guide](../../services/supabase/scripts/identification_evaluation/README.md#explicit-continuation-after-an-expired-between-trial-pause)
 owns exact schemas, permissions and commands.
+
+### Continue after a second between-trial expiry
+
+A first continuation that expired between certain, fully completed trials may
+use the separately reviewed successor protocol. This is an explicit narrow
+exception to the v1/v2 single-continuation procedure above. The old ledger stays
+closed. A successor never reopens an earlier packet or replaces an attempt.
+
+First deactivate the unchanged hosted configuration and record verified cleanup
+in the first continuation. Require a contiguous completed prefix ending inside a
+block, no pending/excluded/missing observations, no possible unrecorded
+submissions, and final cleanup after expiry. Preserve both stopped reports.
+`manage_audio_prompt_successor.ts inspect` revalidates both parents and returns
+their combined binding. Local absence and operator assertions remain supporting
+evidence, not an independent provider-dispatch audit.
+
+Review a new `audio_prompt_successor_review_v1` using that binding and only the
+untouched original assignments. The fixed sibling is
+`ORIGINAL.continuation.successor`; a second preparation or further successor
+fails closed. Preserve app, prompts, bundle, media, plan, pricing, IDs, order
+and screening thresholds. Pin the clean controller/tooling commit and current
+successful deployed SHA separately from each predecessor's history. Bind the
+canonical paths and byte hashes of both retained stopped reports.
+
+Prepare only when app, operator, ordinary quota and host are ready. Obtain new
+bounded execution/activation authorization naming the same Supabase project,
+private setting and exact remaining slots. Each reviewed window is at most two
+hours and must fit original pricing validity and retention. Implementation,
+tests, preparation and old-window authorization do not activate a new window.
+Use the protected Production control workflow with its current-main candidate
+and deployed-runtime checks; preserve the private configuration until verified
+deactivation.
+
+Claim each next slot exclusively, with fresh private
+owner/consent/app/foreground evidence, then stage the original media and start
+the passive observer before one Identify tap. Admit the complete observation
+before progression. Complete and deactivate the partial block before configuring
+the following block. On interruption, uncertainty, failure or expiry, deactivate
+promptly and record verified absence. Cleanup remains possible if earlier
+evidence/tooling drifts; further claims and reports reject that drift. Do not
+weaken host lock settings or automate unlocking.
+
+The successor report keeps all three segments and both interruptions explicit.
+Missing trials or required measurements remain inconclusive. An open or excluded
+trial cannot be retried, and an expired successor has no further successor path.
+No result promotes the candidate to production. Exact commands, permissions and
+record ownership are in the
+[evaluation tooling guide](../../services/supabase/scripts/identification_evaluation/README.md#explicit-successor-after-a-closed-first-continuation).
 
 ## Audio comparison activation hold
 

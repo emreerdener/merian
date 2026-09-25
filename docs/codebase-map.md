@@ -1748,8 +1748,14 @@ verified block cleanup. They make no submissions. See the separate
 sidecar containing only untouched slots after an expired, closed partial block.
 `audioPromptExecutionEvidence.ts` revalidates the original prefix and immutable
 cross-packet evidence; original and amended app/tooling identities stay
-separate. No continuation tool invokes a provider. See the
-[evaluation tooling guide](../services/supabase/scripts/identification_evaluation/README.md#offline-audio-uncertainty-prompt-preparation).
+separate. No continuation tool invokes a provider. `audioPromptLedger.ts` shares
+immutable claim/admission/cleanup checks without changing legacy schemas.
+`manage_audio_prompt_successor.ts` and `audioPromptSuccessor.ts` own one fixed
+successor to a closed first continuation; `audioPromptSuccessorContract.ts` owns
+its new versions and `audioPromptSuccessorEvidence.ts` revalidates both
+read-only predecessors and binds retained report bytes. The combined report
+keeps all three segments distinct. No successor tool invokes a provider. See the
+[successor tooling guide](../services/supabase/scripts/identification_evaluation/README.md#explicit-successor-after-a-closed-first-continuation).
 `services/supabase/scripts/validate_edge_dtos.ts` imports that same executable
 descriptor and deterministically generates the marked Identify DTO block in iOS
 `InferenceEdgeDTOs.swift`, including nested types, arrays, numeric
