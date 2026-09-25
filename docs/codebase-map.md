@@ -1742,7 +1742,13 @@ preparation without production routing or dispatch. The later
 `prepare_audio_prompt_execution.ts` freezes actual clean execution bindings and
 assets; `manage_audio_prompt_execution.ts` and `audioPromptExecution.ts` own the
 private ordered first-attempt ledger, fresh operator preflight witness and
-verified block cleanup. They make no submissions. See the
+verified block cleanup. They make no submissions. See the separate
+`manage_audio_prompt_continuation.ts` amendment entry point and
+`audioPromptContinuation.ts`/`audioPromptContinuationContract.ts` for a single
+sidecar containing only untouched slots after an expired, closed partial block.
+`audioPromptExecutionEvidence.ts` revalidates the original prefix and immutable
+cross-packet evidence; original and amended app/tooling identities stay
+separate. No continuation tool invokes a provider. See the
 [evaluation tooling guide](../services/supabase/scripts/identification_evaluation/README.md#offline-audio-uncertainty-prompt-preparation).
 `services/supabase/scripts/validate_edge_dtos.ts` imports that same executable
 descriptor and deterministically generates the marked Identify DTO block in iOS

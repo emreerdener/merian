@@ -5000,8 +5000,11 @@ incomplete observation stops the run under the
 After each block, or immediately on a stop, dispatch `deactivate` using its
 unchanged private configuration and require verified hosted absence. Then use
 ledger `close` to retain that cleanup evidence after the last claim, completion
-or exclusion. An incomplete block may be closed, but cannot resume. The next
-block requires all prior slots admitted, prior cleanup recorded, and its new
+or exclusion. An incomplete block may be closed, but cannot resume in that
+original ledger. The separately reviewed
+[between-trial amendment](#amend-an-expired-prompt-comparison-between-completed-trials)
+is available only for an expired, fully certain completed prefix. The next block
+requires all prior slots admitted, prior cleanup recorded, and its new
 activation after that cleanup. Only after verified absence may the private
 environment secret be replaced for the next block; keep the same reviewed owner
 and build.
@@ -5031,6 +5034,62 @@ under the source packet's earlier retention limit. The
 [measurement guide](../development-guides/21-identification-app-measurement.md#prompt-comparison-observation)
 remain authoritative for runtime payloads and admissible evidence. No live
 execution or candidate-quality conclusion follows from the local tests.
+
+### Amend an expired prompt comparison between completed trials
+
+Use this path only when the original stopped **between** completed trials and
+its last activated partial block expired and was then deactivated. A voluntary
+early closure followed by waiting for expiry is ineligible. An open claim,
+excluded observation, uncertain tap, missing completion or possible unrecorded
+submission is ineligible. Deactivate the original unchanged configuration and
+record verified cleanup first. The original packet and its stopped-incomplete
+report remain immutable. No failed or uncertain slot can be recovered through
+this procedure.
+
+The offline `manage_audio_prompt_continuation.ts` command creates one fixed
+`ORIGINAL.continuation` sibling, with distinct manifest/claim/completion
+versions. It hashes and revalidates the original completed prefix, all active
+block cleanup and retained evidence, rechecks the six assets, and permits only
+the original remaining slot IDs in their original order. It requires the
+existing original lock inode without writing that packet. A second sidecar,
+copied packet, reset, skip, replacement or continuation-of-continuation is not
+permitted. The original must end inside a closed block so even the old ledger
+executable cannot progress past its remaining missing slots.
+
+Review the separate clean tooling SHA, unchanged app/runtime/plan, original
+pricing validity, new remaining-block windows and explicit operator assertion
+that no remaining slot has been submitted. Keep owner IDs and private
+configuration out of the review and evidence. Every new window is at most two
+hours, follows original cleanup/expiry and stays within pricing and media
+retention. Freeze it only when the app, operator and ordinary quota are ready.
+This is an explicit protocol amendment with disclosed interruption; the review
+must retain the original screening rules and require all 36 unique first
+attempts before evaluating them.
+
+Obtain new bounded activation/execution authorization naming the same project,
+private setting and exact remaining slot set. Follow the same protected
+Production workflow and current-main candidate/deployed-runtime checks. A
+tooling-only controller revision can differ from the original app revision when
+the deployed plan, prompt and bundle are unchanged. Continuation activation
+receipts bind that reviewed controller SHA and new window to the original
+deployed runtime. Never replace a hosted configuration before verified absence.
+
+Before each Identify, use the sidecar claim command and a fresh private
+owner/consent/app/foreground witness. The backend's existing first-attempt gate
+remains authoritative: local absence and an operator assertion do not prove a
+server ID is unused. A rejected or uncertain reservation stops the continuation;
+never retry or choose another assignment. Retain the full passive observer
+window and admit it before the next claim. No tooling operation submits media.
+
+After every amended block, or immediately on a stop, deactivate and record
+verified cleanup in the sidecar. Cleanup remains available if original evidence
+later changes, while further claims and combined reporting reject that drift.
+The next amended block requires every preceding completion and its cleanup. Keep
+original and successor evidence distinct; report an amended run, never an
+uninterrupted original execution. Missing observations, timing, score or cost
+remain inconclusive, and no result authorizes production promotion. The
+[tooling guide](../../services/supabase/scripts/identification_evaluation/README.md#explicit-continuation-after-an-expired-between-trial-pause)
+owns exact schemas, permissions and commands.
 
 ## Audio comparison activation hold
 

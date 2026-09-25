@@ -300,7 +300,7 @@ export function requirePromptControl(
   return structuredClone(v);
 }
 
-async function readExecution(root: string) {
+export async function readPromptExecution(root: string) {
   check(await Deno.realPath(root) === root);
   await privateDirectory(root);
   const read = async (path: string) =>
@@ -380,7 +380,7 @@ export async function claimPromptExecutionSlot(
   const root = resolve(directory);
   await privateDirectory(root);
   return await withRunLock(root, async () => {
-    const { manifest, manifestSha256, read } = await readExecution(root);
+    const { manifest, manifestSha256, read } = await readPromptExecution(root);
     check(
       await fingerprintJson(await runtime.source()) ===
         await fingerprintJson(manifest.implementation),
@@ -496,7 +496,7 @@ export async function admitPromptExecutionSlot(
   const root = resolve(directory);
   await privateDirectory(root);
   return await withRunLock(root, async () => {
-    const { manifest, manifestSha256, read } = await readExecution(root);
+    const { manifest, manifestSha256, read } = await readPromptExecution(root);
     check(
       !await exists(join(root, slotFile(slot, "completed"))) &&
         !await exists(join(root, slotFile(slot, "excluded"))),
@@ -603,7 +603,7 @@ export async function closePromptExecutionBlock(
   const root = resolve(directory);
   await privateDirectory(root);
   return await withRunLock(root, async () => {
-    const { manifest, read } = await readExecution(root);
+    const { manifest, read } = await readPromptExecution(root);
     const cleanup = requirePromptControl(
       controlValue,
       manifest,

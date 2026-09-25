@@ -390,6 +390,21 @@ before any of the three paid blocks. The configured setting remains unset.
 
 ## Slice 3 preparation checkpoint — 24 September 2026
 
+**Subsequent tooling amendment — 24 September 2026:** The original execution
+ledger remains non-resumable. A separately versioned continuation can retain a
+completed prefix after expiry strictly between trials, following verified
+post-expiry cleanup and a newly reviewed bounded authorization. It keeps the
+original packet unchanged, uses only untouched original assignments, and records
+the interruption and amended windows separately. Open claims, exclusions,
+uncertain submissions, early voluntary closure, pricing/runtime drift and
+replacement slots remain ineligible. The original screening thresholds remain
+unchanged; all 36 unique first attempts with known required measurements and
+cleanup are still required before evaluating them. Combined evidence is an
+explicitly amended run, never an uninterrupted original execution. See the
+[current amendment contract](../backend-and-data/06-supabase-deployment-runbook.md#amend-an-expired-prompt-comparison-between-completed-trials).
+This tooling capability provides no live execution or identification-quality
+evidence.
+
 The separate prompt activation controller and workflow are implemented. They
 retain the protected environment, shared deployment lock, exact clean-main
 candidate and deployed-runtime checks, private environment-only transport,

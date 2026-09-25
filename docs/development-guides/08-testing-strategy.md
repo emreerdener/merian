@@ -6789,6 +6789,18 @@ zero provider requests. Actual clean app/backend bindings, exact-SHA candidate
 validation, named deployment/activation and paid observations remain separate
 execution requirements.
 
+The isolated evaluator also registers `testing/audioPromptContinuationTests.ts`
+for the explicit expired-between-trials amendment. Synthetic receipts exercise
+preservation of a closed original prefix, separate tooling/app identities, exact
+remaining-slot order, original evidence drift and future-slot artifacts,
+review/window/owner-witness rejection, exclusive claim races, terminal uncertain
+or invalid observations, block cleanup, and read-only locking of the original.
+These tests make no provider requests. A combined evidence report keeps segments
+distinct and requires all 36 admitted first attempts, known required
+measurements and cleanup before screening; it does not authorize promotion. The
+[continuation contract](../../services/supabase/scripts/identification_evaluation/README.md#explicit-continuation-after-an-expired-between-trial-pause)
+and canonical runbook govern separately approved live amendments.
+
 The subsequent
 [app integration](../rfcs/identification-audio-comparison-app-integration-2026-09-23.md)
 adds `IdentificationComparisonCaptureTests` and

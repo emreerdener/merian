@@ -315,8 +315,13 @@ progression. The standalone admission CLI above checks a single observation; it
 does not enforce the full schedule. The ledger additionally binds frozen
 pricing, clean app/source, private operator checks, all six asset hashes and
 verified cleanup between blocks. An incomplete claim or excluded observation
-cannot be replaced. The old activation workflow does not control this new lane;
-follow its
+cannot be replaced. An expired pause between fully completed trials may instead
+use the separately reviewed
+[continuation sidecar](../../services/supabase/scripts/identification_evaluation/README.md#explicit-continuation-after-an-expired-between-trial-pause).
+It reuses the unchanged app and only untouched original assignments, writes new
+observer files under the sidecar, and keeps the interrupted original evidence
+distinct. An open, failed or uncertain attempt remains ineligible. The old DSP
+activation workflow does not control this lane; follow its
 [activation prerequisites](../backend-and-data/06-supabase-deployment-runbook.md#audio-prompt-comparison-activation-prerequisites).
 
 The
