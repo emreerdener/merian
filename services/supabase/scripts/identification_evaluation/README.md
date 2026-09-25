@@ -285,10 +285,14 @@ insufficient. Keep the original evidence's deployment SHA unchanged. Existing
 `audio_prompt_continuation_review_v1` packets retain their original-deployment
 binding and reject an added `deployedSha`; they are never upgraded in place.
 
+For preparation, `ORIGINAL_PARENT` is the existing canonical parent directory of
+`ORIGINAL`. Its read grant covers the new sibling and the parent-directory flush
+needed to make creation durable. The write grant stays limited to the sibling.
+
 ```bash
 deno run --frozen --no-prompt --deny-net --deny-env \
   --config services/supabase/functions/deno.json \
-  --allow-read=.,ORIGINAL,REVIEW --allow-run=git \
+  --allow-read=.,ORIGINAL_PARENT,REVIEW --allow-run=git \
   --allow-write=ORIGINAL.continuation \
   services/supabase/scripts/manage_audio_prompt_continuation.ts \
   prepare ORIGINAL REVIEW
