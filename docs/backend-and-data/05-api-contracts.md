@@ -346,6 +346,13 @@ disclosure permits delivery. A permitted capture has a 2.5-second deadline. A
 timeout or provider diagnostic is logged privately and does not become a raw
 public API error.
 
+The local identification evaluator can separately compose the OpenAI photo/text
+adapter. It uses the same bounded transport and outcome interface but creates no
+production authority, consent receipt, quota reservation or public DTO. Its
+[provider evaluation contract](../development-guides/22-alternative-identification-provider.md)
+is versioned separately from these HTTP contracts. All production identification
+and enrichment routes retain Gemini admission and composition.
+
 ## Deno `/field-trips` Edge Node
 
 `/field-trips` is an action-based Explore-adjacent social endpoint. It is

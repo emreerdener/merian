@@ -6,8 +6,12 @@ Slices 1–3 of the
 here as local, offline tooling. The production route and tooling reuse the same
 pure normalization helper. No production function imports these scripts modules.
 The CLI runs offline by default and has a separate, explicitly gated live mode.
-No formal reviewed corpus has been collected and no paid direct-evaluator run
-has occurred. The first two-photo exploratory corpus passed local preflight; its
+No formal reviewed corpus has been collected. The September 25
+[OpenAI photo/text pilot](../../../../docs/rfcs/identification-openai-photo-text-pilot-2026-09-25.md)
+completed seven paid direct-evaluator results and retained one unknown execution
+across eight unique attempted cases. Its provisional references do not establish
+formal accuracy or provider qualification. The earlier two-photo exploratory
+corpus passed local preflight; its
 [experiment record](../../../../docs/rfcs/identification-exploratory-benchmark-2026-09-22.md)
 retains scope and limits. A subsequent
 [six-photo source packet](../../../../docs/rfcs/identification-source-photo-pilot-2026-09-22.md)
@@ -15,8 +19,9 @@ also passed offline preflight with provisional references and no model calls.
 Its completed
 [six-photo app benchmark](../../../../docs/rfcs/identification-source-photo-app-benchmark-2026-09-22.md)
 records ordinary-app outcomes and passive measurements separately from the
-direct evaluator's dry schedule. Gemini remains the only live provider; video
-evidence is ordered snapshots and included WAV audio, never a playback video.
+direct evaluator's dry schedule. Gemini remains the only production provider;
+video evidence is ordered snapshots and included WAV audio, never a playback
+video.
 
 The later
 [description app benchmark](../../../../docs/rfcs/identification-description-app-benchmark-2026-09-22.md)
@@ -38,27 +43,45 @@ audio fusion. After the owner's listening review, the
 completed one first submission and a six-event window. Its Wood Thrush Strong
 match disagreed with the provisional Northern Cardinal source label. The new
 single-group packet passed offline preflight without dispatch; earlier packets
-remain frozen. The direct evaluator still has no paid run, and formal counts
-remain unchanged.
+remain frozen. At that September 22 checkpoint, the direct evaluator had no paid
+run. The September 25 pilot above adds paid exploratory evidence; formal
+reviewed-corpus counts remain unchanged.
+
+## Alternative-provider comparison
+
+The explicit `openai_gpt_6_sol` evaluation profile supports photos/text through
+OpenAI Responses. Production remains Gemini-only. The
+[provider guide](../../../../docs/development-guides/22-alternative-identification-provider.md)
+owns the `demo-providers` command, new provider-run/pricing/readiness versions,
+OpenAI-specific input permission, single-provider live runs and credential
+scope. A reviewed Naturebook application project/key can also serve OpenAI
+benchmarks; record `dedicatedEvaluationProject: false` and inject the key as
+`OPENAI_EVALUATION_API_KEY`. The local
+[`run_openai_evaluation.sh`](../run_openai_evaluation.sh) launcher supplies
+hidden terminal key entry, an optional private credential fingerprint, and the
+existing preflight/live commands without saving the key. Its procedure is in the
+provider guide. Historical Gemini specifications, corpus permissions and audio
+records remain unchanged. OpenAI raw confidence has no Gemini Strong/diagnostic
+interpretation.
 
 ## Owners and use
 
-| File                                   | Responsibility                                                                                                                                                     |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [contracts.ts](./contracts.ts)         | Versioned corpus, input, reference, curation, normalized prediction, and aggregate score-report types. These are internal evaluation records, not public API DTOs. |
-| [validation.ts](./validation.ts)       | Runtime validation of corpus/input/prediction records, approval assertions, split/duplicate checks, media relationships, and content-free error codes.             |
-| [evidence.ts](./evidence.ts)           | Allowlisted evidence projection, existing production capture-context formatting, and canonical SHA-256 fingerprints.                                               |
-| [scoring.ts](./scoring.ts)             | Pure point estimates over normalized predictions, using current Gemini confidence thresholds. No provider invocation or real-output normalization.                 |
-| [normalization.ts](./normalization.ts) | Validates input records and passes actual media-presence/tier facts into the shared production normalizer. No copied identification policy or I/O.                 |
-| [fixtures.ts](./fixtures.ts)           | Twelve invented cases across all six input groups, with invented taxonomy IDs, asset descriptors, and normalized outcomes. No actual media files.                  |
+| File                                   | Responsibility                                                                                                                                                                                   |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [contracts.ts](./contracts.ts)         | Versioned corpus, input, reference, curation, normalized prediction, and aggregate score-report types. These are internal evaluation records, not public API DTOs.                               |
+| [validation.ts](./validation.ts)       | Runtime validation of corpus/input/prediction records, approval assertions, split/duplicate checks, media relationships, and content-free error codes.                                           |
+| [evidence.ts](./evidence.ts)           | Allowlisted evidence projection, existing production capture-context formatting, and canonical SHA-256 fingerprints.                                                                             |
+| [scoring.ts](./scoring.ts)             | Pure point estimates over normalized predictions, using current Gemini thresholds only for Gemini; OpenAI confidence bands are unqualified. No provider invocation or real-output normalization. |
+| [normalization.ts](./normalization.ts) | Validates input records and passes actual media-presence/tier facts into the shared production normalizer. No copied identification policy or I/O.                                               |
+| [fixtures.ts](./fixtures.ts)           | Twelve invented cases across all six input groups, with invented taxonomy IDs, asset descriptors, and normalized outcomes. No actual media files.                                                |
 
 Additional owners:
 
 - `assets.ts` loads prepared evidence and reuses the production multimodal
   builder.
-- `profiles.ts` resolves production profiles and fingerprints native parameters;
-  the pure shared `functions/_shared/ai/geminiRequest.ts` avoids SDK
-  initialization.
+- `profiles.ts` resolves Gemini production profiles or the explicit OpenAI
+  evaluation binding and fingerprints native parameters; the pure shared
+  `functions/_shared/ai/geminiRequest.ts` avoids SDK initialization.
 - `runContracts.ts` validates specifications, pricing, readiness, manifests,
   durable claims and bounded attempt records.
 - `admission.ts` binds live corpus, taxonomy, project/key review and
@@ -675,10 +698,12 @@ case, approved Gemini-evaluation rights, exclusion/review assertions, distinct
 reviewer references, and resolved labels. Synthetic corpora require null
 approval and synthetic curation. These fields are assertions for a controlled
 intake, not cryptographic proof of permission, reviewer identity, or biological
-correctness. Passing validation does not authorize a live run. For real
-execution, the implemented runner also requires asset preflight, reviewed
-processor/account readiness, an approved digest and budget, durable dispatch,
-and explicit live selection. The user must authorize the concrete paid run.
+correctness. Passing validation does not authorize a live run. OpenAI
+additionally requires a recipient-specific permission record bound to the exact
+corpus and selected cases; see the provider guide above. For real execution, the
+implemented runner also requires asset preflight, reviewed processor/account
+readiness, an approved digest and budget, durable dispatch, and explicit live
+selection. The user must authorize the concrete paid run.
 
 ## Automated exploratory runs
 
@@ -700,15 +725,15 @@ source permission before asserting these checks. One automated eligibility
 review does not create independently verified biological truth. Synthetic
 records instead require null eligibility and synthetic curation.
 
-A real run uses `identification_exploratory_run_spec_v1`, `stage: exploratory`,
-all selected corpus groups, one repeat, and both existing Gemini profiles. The
-maximum is twelve groups and twenty-four calls. It retains every live gate
-below: dedicated reviewed project/key, processor readiness, fresh reviewed
-pricing, retention, exact immutable inputs/source, a positive authorized USD
-budget, durable claims and no automatic retry of unknown executions. Synthetic
-evidence cannot run live, and real evidence cannot be executed by the offline
-fixture transport. The formal corpus/scorer and its two-reviewer requirement are
-unchanged.
+A legacy Gemini run uses `identification_exploratory_run_spec_v1`,
+`stage: exploratory`, all selected corpus groups, one repeat, and both existing
+Gemini profiles. The maximum is twelve groups and twenty-four calls. It retains
+every live gate below: dedicated reviewed project/key, processor readiness,
+fresh reviewed pricing, retention, exact immutable inputs/source, a positive
+authorized USD budget, durable claims and no automatic retry of unknown
+executions. Synthetic evidence cannot run live, and real evidence cannot be
+executed by the offline fixture transport. The formal corpus/scorer and its
+two-reviewer requirement are unchanged.
 
 Use the same permissions as the offline example below:
 
@@ -846,7 +871,11 @@ app rendering; the adapter does not distinguish timeout causes from other
 unknown executions. Offline durations and costs supply no live performance
 evidence.
 
-## Future explicitly approved live use
+## Future explicitly approved Gemini live use
+
+The following dedicated-project and SDK rules apply to Gemini. OpenAI uses the
+[alternative-provider contract](../../../../docs/development-guides/22-alternative-identification-provider.md),
+which also supports a reviewed shared application project/key.
 
 Only `--live DIRECTORY` can select paid execution. Before using it, approve an
 eligible real reference or exploratory corpus, its exact digest and both
@@ -922,7 +951,8 @@ caps, sanitized artifacts, report regeneration and comparison are exercised
 there. The main tooling suite also explicitly denies network and environment
 access.
 
-Slice 4 is next: curate and approve the 60-group development corpus, exact
-processor/pricing records and bounded run, then explicitly authorize that paid
-pilot. Held-out evaluation and decision qualification remain later work. No
-synthetic result establishes biological accuracy or a provider cost/latency win.
+The first paid OpenAI exploratory pilot is recorded above. Formal Slice 4 still
+requires the reviewed 60-group development corpus, exact processor/pricing
+records and an explicitly authorized bounded run. Held-out evaluation and
+decision qualification remain later work. Neither synthetic results nor the
+small provisional pilot establish a provider accuracy, cost or latency win.

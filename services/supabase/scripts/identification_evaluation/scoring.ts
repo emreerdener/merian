@@ -108,7 +108,8 @@ export async function scoreEvaluation(
 ): Promise<ScoreReport> {
   const corpus = parseEvaluationCorpus(corpusValue);
   requireCondition(
-    scope.profile === "gemini_flash_free" || scope.profile === "gemini_pro",
+    scope.profile === "gemini_flash_free" || scope.profile === "gemini_pro" ||
+      scope.profile === "openai_gpt_6_sol",
   );
   requireCondition(scope.split === "development" || scope.split === "held_out");
   requireCondition(
@@ -163,15 +164,17 @@ export async function scoreEvaluation(
   );
   const named = count((row) => row.assessment.named);
   const correct = count((row) => row.assessment.correct);
+  const qualified = scope.profile !== "openai_gpt_6_sol";
   const pro = scope.profile === "gemini_pro";
   const possible = pro ? PRO_POSSIBLE : FLASH_POSSIBLE;
   const strong = pro ? PRO_STRONG : FLASH_STRONG;
   const diagnostic = pro ? PRO_DIAGNOSTIC_TRIGGER : FLASH_DIAGNOSTIC_TRIGGER;
   const strongRows = rows.filter((row) =>
-    row.assessment.score !== null && row.assessment.score >= strong
+    qualified && row.assessment.score !== null && row.assessment.score >= strong
   );
   const diagnosticRows = rows.filter((row) =>
-    row.assessment.score !== null && row.assessment.score >= diagnostic
+    qualified && row.assessment.score !== null &&
+    row.assessment.score >= diagnostic
   );
   const strongErrors =
     strongRows.filter((row) => !row.assessment.correct).length;
@@ -202,7 +205,8 @@ export async function scoreEvaluation(
   }
   const bin = (min: number, max: number) => {
     const members = rows.filter((row) =>
-      row.assessment.score !== null && row.assessment.score >= min &&
+      qualified && row.assessment.score !== null &&
+      row.assessment.score >= min &&
       row.assessment.score < max
     );
     return {
@@ -276,9 +280,9 @@ export async function scoreEvaluation(
         count((row) => row.assessment.unsupportedBiological),
         count((row) => row.testCase.reference.subject === "indeterminate"),
       ),
-      strongErrorRate: rate(strongErrors, rows.length),
+      strongErrorRate: rate(strongErrors, qualified ? rows.length : 0),
       strongErrorAmongNamed: rate(strongErrors, strongRows.length),
-      diagnosticErrorRate: rate(diagnosticErrors, rows.length),
+      diagnosticErrorRate: rate(diagnosticErrors, qualified ? rows.length : 0),
       diagnosticErrorAmongNamed: rate(diagnosticErrors, diagnosticRows.length),
     },
     reliability: {

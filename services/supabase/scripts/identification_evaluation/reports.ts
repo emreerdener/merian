@@ -174,12 +174,14 @@ export async function validateReportInputs(
         confidence = r.prediction.confidence;
       check(
         r.band ===
-            (confidence >= p.strong
+            (p === null
+              ? "unqualified"
+              : confidence >= p.strong
               ? "strong"
               : confidence >= p.possible
               ? "possible"
               : "below_possible") &&
-          r.diagnostic === (confidence >= p.diagnostic),
+          r.diagnostic === (p !== null && confidence >= p.diagnostic),
       );
     }
   }

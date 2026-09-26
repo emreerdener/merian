@@ -148,10 +148,15 @@ Deno.test("identification evaluation dispatch is explicit, input-validated and d
   assertStringIncludes(cli, 'mode === "--live"');
   assertStringIncludes(runner, "await prepareEvidence(root, item.input)");
   assertStringIncludes(runner, "await approve()");
+  assertStringIncludes(runner, 'await import("./providers.ts")');
+  const providers = await Deno.readTextFile(
+    new URL("identification_evaluation/providers.ts", root),
+  );
   assertStringIncludes(
-    runner,
+    providers,
     'await import("../../functions/_shared/ai/production.ts")',
   );
+  assertStringIncludes(providers, "createOpenAIEvaluationAdapter(credential)");
   assert(
     runner.indexOf("await claimJson(") <
       runner.indexOf("await execution.invoke()"),
@@ -162,7 +167,7 @@ Deno.test("identification evaluation dispatch is explicit, input-validated and d
   assertStringIncludes(admission, "readiness.credentialSha256");
   assertStringIncludes(
     admission,
-    'host: "generativelanguage.googleapis.com:443"',
+    '"generativelanguage.googleapis.com:443"',
   );
   assert(!runner.includes("console.") && !runner.includes("fetch("));
 });
@@ -563,5 +568,30 @@ Deno.test("public dictionary fallback and webhook contain no hidden isolate auth
   await assertRejects(
     () => Deno.stat(new URL("../_shared/tierCache.ts", import.meta.url)),
     Deno.errors.NotFound,
+  );
+});
+
+Deno.test("OpenAI dispatch stays outside production composition and its offline adapter tests remain in CI", async () => {
+  const root = new URL("../", import.meta.url);
+  for (const file of await runtimeTypeScriptFiles(root)) {
+    if (/(?:_test|[.]test)[.]ts$/.test(file.pathname)) continue;
+    const source = await Deno.readTextFile(file);
+    if (/from ["'][^"']*openai(?:Request)?[.]ts["']/.test(source)) {
+      assertEquals(
+        file.pathname,
+        new URL("_shared/ai/openai.ts", root).pathname,
+      );
+    }
+  }
+  const workflow = await Deno.readTextFile(
+    new URL(
+      "../../../../.github/workflows/supabase-candidate-validation.yml",
+      import.meta.url,
+    ),
+  );
+  assertStringIncludes(workflow, "--no-prompt --deny-net --deny-env");
+  assertStringIncludes(
+    workflow,
+    "supabase/functions/_shared/ai/openai_test.ts",
   );
 });

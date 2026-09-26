@@ -6897,6 +6897,25 @@ adds no calls, and saved reports regenerate without media. Both suites deny
 network and environment; their evidence establishes mechanics, not biological
 accuracy.
 
+`run_openai_evaluation_cli_test.sh` exercises the local OpenAI launcher with a
+pseudo-terminal and a local fake executable. It verifies hidden input, private
+exclusive fingerprint creation, refusal without a terminal, preflight before key
+entry, narrow child permissions, removal of unrelated credentials/overrides, and
+suppression of private child output on failure. The tooling gate discovers this
+shell test; it makes no provider calls.
+
+Alternative-provider evaluation adds `_shared/ai/openai_test.ts` to the
+candidate workflow with network/environment denied, plus the root-discovered
+`identification_evaluation_openai_test.ts` and a provider demo in the isolated
+runner suite. These cover fixed-origin single-call transport, ordered photo/text
+projection, whole-observation rejection, strict common schema decoding,
+refusals, partial/oversized output, usage accounting, provider-specific approval
+and unqualified confidence. The existing Gemini and handler suites preserve
+production parity. The
+[provider guide](./22-alternative-identification-provider.md) separates these
+synthetic checks from an authorized live comparison and later production
+rollout.
+
 Authoritative AI quota and entitlement security has four complementary base
 checks:
 

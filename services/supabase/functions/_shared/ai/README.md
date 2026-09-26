@@ -3,8 +3,8 @@
 All four identification routes (`identify-multimodal`, `identify-describe`,
 `identify`, and `audio-spec`) and the biological overview, lookalike, and
 group-tag helpers use this boundary. Their user enrichment and claimed
-public-job callers retain separate admission paths. All live requests still use
-Gemini; see the
+public-job callers retain separate admission paths. All production requests
+still use Gemini; see the
 [slice tracker](../../../../../docs/rfcs/identification-foundation-srd.md#implementation-slices).
 
 ## Ownership
@@ -56,6 +56,20 @@ Unknown provider execution remains charged and follows existing retry admission;
 unknown scan persistence retains its existing recovery ownership. Preparation
 failure refunds unused quota. Refusals and malformed/truncated output retain
 their distinct terminal/retryable responses.
+
+## Alternative-provider evaluation
+
+`openaiRequest.ts` and `openai.ts` implement an evaluation-only `gpt-6-sol`
+photo/text binding through the same generic single-invocation interface.
+Production snapshot/authority defaults remain Gemini-only. The pure request
+builder derives strict JSON from the common Identify contract; the bounded REST
+adapter accepts only an explicit evaluator-supplied credential. Scripts select
+it only through `identification_evaluation/providers.ts`. Unsupported
+audio/snapshots reject the whole observation. OpenAI confidence is unqualified
+and never inherits Gemini bands. No deployed entrypoint imports this adapter.
+See the
+[alternative-provider guide](../../../../../docs/development-guides/22-alternative-identification-provider.md)
+for permissions, pricing/usage mapping, offline demo and live comparison scope.
 
 ## Scoped audio prompt authority
 
@@ -267,4 +281,5 @@ it measures neither provider latency nor end-to-end product timing.
 Follow [Adding a provider later](ADDING_PROVIDERS.md) for exact input/task
 qualification, common-contract extensions, database/Edge admission, disclosure,
 confidence, usage, cache, and activation work. There is currently no runtime
-provider selector, percentage-routing control, or alternate live adapter.
+provider selector or percentage-routing control. The OpenAI adapter is available
+only to explicitly gated local evaluation.

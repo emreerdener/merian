@@ -60,6 +60,23 @@ phase and manual Apple-revocation notice keys.
 
 ---
 
+## OpenAI identification evaluation key
+
+`NATUREBOOK_OPENAI_API_KEY` is stored in GitHub `Production` as the future
+Naturebook backend deployment source. It is separate from Agent Quality's
+repository-level `OPENAI_API_KEY`. No deployment job currently synchronizes it
+to Supabase, and storing it does not enable OpenAI in production.
+
+The current benchmark uses private local source packets and a persistent local
+ledger. Its
+[terminal launcher](./22-alternative-identification-provider.md#private-local-key-entry)
+accepts the owner's copy of that same key through a hidden prompt and injects it
+only as `OPENAI_EVALUATION_API_KEY` for the evaluator child. It does not
+retrieve GitHub secrets or create another credential store. The optional private
+fingerprint file contains only the credential hash used by the readiness check.
+Never place the key in app-owned Keychain entries, client configuration or run
+artifacts.
+
 ## Deployment Environment Ownership
 
 GitHub `Production`, Supabase Edge, the public-web Vercel project, and the

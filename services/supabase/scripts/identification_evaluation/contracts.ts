@@ -145,7 +145,8 @@ export type Prediction =
       readonly confidence: number;
     }
   );
-export type Profile = "gemini_flash_free" | "gemini_pro";
+export type GeminiProfile = "gemini_flash_free" | "gemini_pro";
+export type Profile = GeminiProfile | "openai_gpt_6_sol";
 export interface Rate {
   readonly numerator: number;
   readonly denominator: number;

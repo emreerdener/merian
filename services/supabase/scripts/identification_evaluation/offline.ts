@@ -12,12 +12,13 @@ import {
   parseExploratoryCorpus,
   type RunCorpus,
 } from "./exploratory.ts";
-import { atomicJson, privateDirectory } from "./files.ts";
+import { atomicJson, privateDirectory, readJson } from "./files.ts";
 import { syntheticCorpus } from "./fixtures.ts";
 import {
   type Assignment,
   parseRunSpec,
   parseTaxonomy,
+  PROVIDER_SPEC_VERSION,
   type RunSpec,
   type Taxonomy,
 } from "./runContracts.ts";
@@ -276,4 +277,29 @@ export async function createDemo(
   await atomicJson(join(root, "taxonomy.json"), taxonomy);
   await atomicJson(join(root, "spec.json"), spec);
   await atomicJson(join(root, "fixtures.json"), fixtures);
+}
+
+/** Explicit opt-in demo: same invented photo/text inputs, two native projections. */
+export async function createProviderDemo(root: string): Promise<void> {
+  await createDemo(root);
+  const corpus = await readJson(join(root, "corpus.json")) as EvaluationCorpus;
+  const previous = parseRunSpec(await readJson(join(root, "spec.json")));
+  const caseIds = corpus.cases.filter((c) =>
+    c.input.inputGroup === "photos" || c.input.inputGroup === "description"
+  ).map((c) => c.input.caseId);
+  const spec = parseRunSpec({
+    ...previous,
+    version: PROVIDER_SPEC_VERSION,
+    runId: "offline-providers-v1",
+    profiles: ["gemini_pro", "openai_gpt_6_sol"],
+    caseIds,
+  });
+  const fixtures = await readJson(
+    join(root, "fixtures.json"),
+  ) as OfflineFixtures;
+  await atomicJson(join(root, "spec.json"), spec);
+  await atomicJson(join(root, "fixtures.json"), {
+    ...fixtures,
+    cases: fixtures.cases.filter((c) => caseIds.includes(c.caseId)),
+  });
 }

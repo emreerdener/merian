@@ -215,20 +215,22 @@ export type AIProviderOutcome =
     | { readonly kind: "operational_failure" | "unknown_execution" }
   );
 
-export type AIExecutionOutcome = AIProviderOutcome & {
-  readonly execution: AIAttemptSnapshot & { readonly durationMs: number };
-};
+export type AIExecutionOutcome<Snapshot = AIAttemptSnapshot> =
+  & AIProviderOutcome
+  & {
+    readonly execution: Snapshot & { readonly durationMs: number };
+  };
 
-export interface AIAdapter {
+export interface AIAdapter<Snapshot = AIAttemptSnapshot> {
   readonly provider: string;
   // Prepare must not dispatch. Local configuration failure precedes commitment.
   prepare(
     request: AIRequest,
-    snapshot: AIAttemptSnapshot,
+    snapshot: Snapshot,
   ): () => Promise<AIProviderOutcome>;
 }
 
-export interface PreparedAIExecution {
-  readonly snapshot: AIAttemptSnapshot;
-  invoke(): Promise<AIExecutionOutcome>;
+export interface PreparedAIExecution<Snapshot = AIAttemptSnapshot> {
+  readonly snapshot: Snapshot;
+  invoke(): Promise<AIExecutionOutcome<Snapshot>>;
 }

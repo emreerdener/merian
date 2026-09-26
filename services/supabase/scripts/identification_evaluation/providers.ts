@@ -1,0 +1,27 @@
+/** Scripts-only composition. No provider/endpoint override enters production. */
+import type { MultimodalAIRequest } from "../../functions/_shared/ai/contracts.ts";
+import { createAIExecution } from "../../functions/_shared/ai/execution.ts";
+import { createOpenAIEvaluationAdapter } from "../../functions/_shared/ai/openai.ts";
+import {
+  OPENAI_PROFILE,
+  openAIEvaluationSnapshot,
+} from "../../functions/_shared/ai/openaiRequest.ts";
+import type { Profile } from "./contracts.ts";
+import { fixtureAuthority } from "./profiles.ts";
+
+export async function prepareEvaluationExecution(
+  request: MultimodalAIRequest,
+  profile: Profile,
+  credential: string,
+) {
+  if (profile === OPENAI_PROFILE) {
+    return createAIExecution(
+      createOpenAIEvaluationAdapter(credential),
+      request,
+      openAIEvaluationSnapshot(request),
+    );
+  }
+  // Keep SDK initialization out of offline/OpenAI processes and preserve its settings.
+  return (await import("../../functions/_shared/ai/production.ts"))
+    .prepareAIExecution(request, fixtureAuthority(profile));
+}

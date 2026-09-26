@@ -14,6 +14,7 @@ import {
 } from "./identification_evaluation/files.ts";
 import {
   createDemo,
+  createProviderDemo,
   offlineOutcomes,
 } from "./identification_evaluation/offline.ts";
 import {
@@ -40,6 +41,7 @@ export async function main(args = Deno.args): Promise<void> {
   const known = [
     "demo",
     "demo-exploratory",
+    "demo-providers",
     "preflight",
     "offline",
     "--live",
@@ -51,7 +53,9 @@ export async function main(args = Deno.args): Promise<void> {
   check(values.length === (mode === "compare" ? 5 : mode === "report" ? 2 : 1));
   if (mode !== "--live") await assertOfflinePermissions();
   const repository = fileURLToPath(new URL("../../../", import.meta.url));
-  if (mode === "demo" || mode === "demo-exploratory") {
+  if (
+    mode === "demo" || mode === "demo-exploratory" || mode === "demo-providers"
+  ) {
     check(!await exists(values[0]));
   }
   const root = await privateDirectory(values[0]);
@@ -59,6 +63,7 @@ export async function main(args = Deno.args): Promise<void> {
   check(rel.startsWith("../")); // All corpus/artifacts, even examples, outside Git.
   if (mode === "demo") await createDemo(root);
   if (mode === "demo-exploratory") await createDemo(root, true);
+  if (mode === "demo-providers") await createProviderDemo(root);
   const save = async (runId: string) =>
     parseRunCorpus(await readJson(join(root, "corpus.json"))).kind ===
         "exploratory"

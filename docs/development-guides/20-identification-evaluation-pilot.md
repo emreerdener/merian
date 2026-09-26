@@ -5,6 +5,13 @@ Status: Six exploratory photos, two descriptions, first controlled video and
 first audio completed app checks; formal corpus at 0/60 reviewed groups; no paid
 direct-evaluator run
 
+Update, 25 September 2026: the
+[first OpenAI photo/text pilot](../rfcs/identification-openai-photo-text-pilot-2026-09-25.md)
+subsequently recorded seven normalized results and one unknown across eight
+reused examples. The dated status above describes the earlier collection
+checkpoint. Formal reference counts and qualification requirements remain
+unchanged.
+
 This is the collection workflow for Slice 4 of the
 [evaluation PRD](../product/04-identification-evaluation-prd.md) and
 [SRD](../rfcs/identification-evaluation-srd.md). Those documents own the scope

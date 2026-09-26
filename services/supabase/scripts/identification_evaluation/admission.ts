@@ -1,3 +1,4 @@
+import { OPENAI_PROFILE } from "../../functions/_shared/ai/openaiRequest.ts";
 import {
   corpusRetention,
   fingerprintRunCorpus,
@@ -9,10 +10,12 @@ import {
 import { INPUT_GROUPS } from "./contracts.ts";
 import { fingerprintBytes, fingerprintJson } from "./evidence.ts";
 import {
-  parsePricing,
-  parseReadiness,
-  type Pricing,
-  type Readiness,
+  type EvaluationPricing,
+  type EvaluationReadiness,
+  parseEvaluationPricing,
+  parseEvaluationReadiness,
+  PROVIDER_SPEC_VERSION,
+  providerForProfile,
   referenceTaxaExist,
   type RunSpec,
   type Taxonomy,
@@ -60,21 +63,27 @@ export async function validateSelection(
     return;
   }
   check(corpus.kind === "reference" && corpus.approval !== null);
+  const groups = spec.version === PROVIDER_SPEC_VERSION
+    ? ["photos", "description"] as const
+    : INPUT_GROUPS;
   const perGroup = spec.stage === "development"
     ? 10
     : spec.stage === "held_out"
     ? 40
     : 5;
   check(
-    INPUT_GROUPS.every((group) =>
+    groups.every((group) =>
       selected.filter((c) => c.input.inputGroup === group).length === perGroup
     ),
   );
-  check(selected.length === perGroup * INPUT_GROUPS.length);
+  check(selected.length === perGroup * groups.length);
   if (spec.stage !== "repeatability") {
     check(
       selected.length ===
-        corpus.cases.filter((c) => c.input.split === spec.split).length,
+        corpus.cases.filter((c) =>
+          c.input.split === spec.split &&
+          groups.some((g) => g === c.input.inputGroup)
+        ).length,
     );
   }
 }
@@ -85,10 +94,27 @@ export async function validateLiveApproval(
   readinessValue: unknown,
   credential: string,
   now: number,
-): Promise<{ pricing: Pricing; readiness: Readiness }> {
+): Promise<{ pricing: EvaluationPricing; readiness: EvaluationReadiness }> {
   check(spec.mode === "live" && credential.length > 0);
-  const pricing = parsePricing(pricingValue),
-    readiness = parseReadiness(readinessValue);
+  const pricing = parseEvaluationPricing(pricingValue),
+    readiness = parseEvaluationReadiness(readinessValue);
+  const openai = spec.profiles.includes(OPENAI_PROFILE);
+  check(
+    spec.profiles.every((p) =>
+      providerForProfile(p) === (openai ? "openai" : "gemini")
+    ),
+  );
+  check(
+    (pricing.version === "evaluation_openai_pricing_v1") === openai &&
+      (readiness.version === "evaluation_openai_processor_v1") === openai,
+  );
+  if (readiness.version === "evaluation_openai_processor_v1") {
+    check(readiness.inputPermission.corpusDigest === spec.corpusDigest);
+    check(
+      await fingerprintJson(readiness.inputPermission.caseIds.toSorted()) ===
+        await fingerprintJson(spec.caseIds.toSorted()),
+    );
+  }
   check(
     await fingerprintJson(pricing) === spec.pricingDigest &&
       await fingerprintJson(readiness) === spec.readinessDigest,
@@ -137,12 +163,16 @@ export async function assertOfflinePermissions(): Promise<void> {
   check((await Deno.permissions.query({ name: "net" })).state === "denied");
   check((await Deno.permissions.query({ name: "env" })).state === "denied");
 }
-export async function liveCredential(): Promise<string> {
+export async function liveCredential(
+  provider: "gemini" | "openai" = "gemini",
+): Promise<string> {
   check((await Deno.permissions.query({ name: "net" })).state !== "granted");
   check(
     (await Deno.permissions.query({
       name: "net",
-      host: "generativelanguage.googleapis.com:443",
+      host: provider === "openai"
+        ? "api.openai.com:443"
+        : "generativelanguage.googleapis.com:443",
     })).state === "granted",
   );
   check((await Deno.permissions.query({ name: "env" })).state !== "granted");
@@ -158,6 +188,23 @@ export async function liveCredential(): Promise<string> {
       (await Deno.permissions.query({ name: "env", variable: name })).state ===
         "denied",
     );
+  }
+  if (provider === "openai") {
+    for (
+      const name of [
+        ...SDK_ENVIRONMENT,
+        "GEMINI_PAID_API_KEY",
+        "OPENAI_API_KEY",
+      ]
+    ) {
+      check(
+        (await Deno.permissions.query({ name: "env", variable: name }))
+          .state === "denied",
+      );
+    }
+    const key = Deno.env.get("OPENAI_EVALUATION_API_KEY")?.trim();
+    check(key && key.length <= 512 && !/\s/.test(key));
+    return key;
   }
   for (const name of SDK_ENVIRONMENT) {
     check(

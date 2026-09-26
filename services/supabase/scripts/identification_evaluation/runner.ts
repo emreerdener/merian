@@ -1,3 +1,5 @@
+import type { OpenAIEvaluationSnapshot } from "../../functions/_shared/ai/openaiRequest.ts";
+import type { AIAttemptSnapshot } from "../../functions/_shared/ai/contracts.ts";
 import { join } from "node:path";
 import type {
   AIProviderOutcome,
@@ -22,19 +24,23 @@ import {
   readJson,
   withRunLock,
 } from "./files.ts";
-import { assignmentFor, fixtureAuthority, interleave } from "./profiles.ts";
+import { assignmentFor, interleave } from "./profiles.ts";
 import { emptyRecord, projectOutcome } from "./projection.ts";
 import {
   type Assignment,
   type AttemptRecord,
   BOUNDARY,
+  type EvaluationPricing,
+  type EvaluationReadiness,
   parseAttempt,
   parseClaim,
   parseManifest,
   parseRunSpec,
   parseTaxonomy,
-  type Pricing,
-  type Readiness,
+  PROVIDER_RUN_VERSION,
+  PROVIDER_SPEC_VERSION,
+  providerForProfile,
+  providerTransports,
   RUN_VERSION,
   type RunManifest,
   type SourceIdentity,
@@ -62,9 +68,12 @@ export async function prepareRun(
   const spec = parseRunSpec(await readJson(join(root, "spec.json")));
   check(spec.mode === mode);
   await validateSelection(corpus, spec, taxonomy);
-  let pricing: Pricing | null = null, readiness: Readiness | null = null;
+  let pricing: EvaluationPricing | null = null,
+    readiness: EvaluationReadiness | null = null;
   if (mode === "live") {
-    const credential = await liveCredential();
+    const credential = await liveCredential(
+      providerForProfile(spec.profiles[0]),
+    );
     ({ pricing, readiness } = await validateLiveApproval(
       corpus,
       spec,
@@ -92,11 +101,16 @@ export async function prepareRun(
     }
   }
   const manifest = parseManifest({
-    version: RUN_VERSION,
+    version: spec.version === PROVIDER_SPEC_VERSION
+      ? PROVIDER_RUN_VERSION
+      : RUN_VERSION,
     boundary: BOUNDARY,
     createdAt: new Date(now).toISOString(),
     spec,
     source,
+    ...(spec.version === PROVIDER_SPEC_VERSION
+      ? { transports: providerTransports(spec.profiles, source.sdk) }
+      : {}),
     scorerVersion: SCORER_VERSION,
     taxonomyVersion: taxonomy.taxonomyVersion,
     preparationVersion: corpus.preparationVersion,
@@ -116,7 +130,7 @@ export function validateRecord(
   recordValue: unknown,
   assignment: Assignment,
   runDigest: string,
-  pricing: Pricing | null,
+  pricing: EvaluationPricing | null,
 ): AttemptRecord {
   const r = parseAttempt(recordValue);
   check(
@@ -129,6 +143,10 @@ export function validateRecord(
     !["unknown_execution", "operational_failure"].includes(r.prediction.outcome)
   ) check(r.returnedModel === assignment.model);
   if (!pricing) check(r.estimatedUpperUsd === null);
+  check(
+    (r.version === "evaluation_openai_attempt_v1") ===
+      (assignment.profile === "openai_gpt_6_sol"),
+  );
   return r;
 }
 /** Read the durable ledger, synthesizing unattempted/uncertain entries without
@@ -180,7 +198,7 @@ export interface RunnerDependencies {
   prepare?: (
     request: MultimodalAIRequest,
     assignment: Assignment,
-  ) => PreparedAIExecution;
+  ) => PreparedAIExecution<AIAttemptSnapshot | OpenAIEvaluationSnapshot>;
   offlineOutcome?: (
     input: EvaluationInput,
     assignment: Assignment,
@@ -249,7 +267,9 @@ export async function executeRun(
     // Revalidate bindings and the actual credential before every live dispatch,
     // including resumed runs. The readiness record is never copied to artifacts.
     const approve = async () => {
-      const key = await liveCredential();
+      const key = await liveCredential(
+        providerForProfile(manifest.spec.profiles[0]),
+      );
       await validateLiveApproval(
         inputs.corpus,
         manifest.spec,
@@ -258,6 +278,7 @@ export async function executeRun(
         key,
         Date.now(),
       );
+      return key;
     };
     if (!live) {
       await assertOfflinePermissions();
@@ -302,10 +323,13 @@ export async function executeRun(
           ),
         ) === await fingerprintJson(a),
       );
-      if (live) await approve();
+      const credential = live ? await approve() : null;
       const execution = dependencies.prepare?.(request, a) ?? (live
-        ? (await import("../../functions/_shared/ai/production.ts"))
-          .prepareAIExecution(request, fixtureAuthority(a.profile))
+        ? await (await import("./providers.ts")).prepareEvaluationExecution(
+          request,
+          a.profile,
+          credential!,
+        )
         : null);
       if (execution) {
         check(await fingerprintJson(execution.snapshot) === a.policyDigest);

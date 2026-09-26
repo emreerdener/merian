@@ -8,8 +8,8 @@ import { confidencePolicy, estimateCost } from "./profiles.ts";
 import {
   type Assignment,
   type AttemptRecord,
+  type EvaluationPricing,
   parseAttempt,
-  type Pricing,
   type Reason,
   type StoredUsage,
   type Taxonomy,
@@ -69,7 +69,9 @@ export function emptyRecord(
   reason: Reason = "unattempted",
 ): AttemptRecord {
   return parseAttempt({
-    version: "evaluation_attempt_v1",
+    version: a.profile === "openai_gpt_6_sol"
+      ? "evaluation_openai_attempt_v1"
+      : "evaluation_attempt_v1",
     key: a.key,
     runDigest,
     prediction: {
@@ -96,13 +98,15 @@ export function projectOutcome(
   a: Assignment,
   runDigest: string,
   taxonomy: Taxonomy,
-  pricing: Pricing | null,
+  pricing: EvaluationPricing | null,
 ): AttemptRecord {
   const record = emptyRecord(a, runDigest);
   record.usage = projectUsage(outcome.usage);
   record.providerMs = duration(outcome.providerDurationMs);
   record.returnedModel = typeof outcome.returnedModel === "string" &&
-      /^gemini-[a-zA-Z0-9.-]{1,100}$/.test(outcome.returnedModel)
+      (a.profile === "openai_gpt_6_sol"
+        ? /^gpt-6-sol(?:-[a-zA-Z0-9.-]{1,80})?$/
+        : /^gemini-[a-zA-Z0-9.-]{1,100}$/).test(outcome.returnedModel)
     ? outcome.returnedModel
     : null;
   record.estimatedUpperUsd = pricing
@@ -143,12 +147,14 @@ export function projectOutcome(
       } satisfies Prediction;
       const confidence = record.prediction.confidence,
         policy = confidencePolicy(a.profile);
-      record.band = confidence >= policy.strong
+      record.band = policy === null
+        ? "unqualified"
+        : confidence >= policy.strong
         ? "strong"
         : confidence >= policy.possible
         ? "possible"
         : "below_possible";
-      record.diagnostic = confidence >= policy.diagnostic;
+      record.diagnostic = policy !== null && confidence >= policy.diagnostic;
       record.candidates = normalized.clientCandidates?.map((c) => ({
         taxon: lookup(c.scientific_name),
         confidence: c.confidence_score,

@@ -52,7 +52,8 @@ export function exploratoryAgreement(
     r.c.provisionalReference!.resolution === "unresolved"
   );
   const strong = named.filter((r) =>
-    r.assessment!.score! >= confidencePolicy(profile).strong
+    confidencePolicy(profile) !== null &&
+    r.assessment!.score! >= confidencePolicy(profile)!.strong
   );
   return {
     evidenceStatus: corpus.evidenceOrigin === "synthetic"

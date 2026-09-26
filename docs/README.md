@@ -205,7 +205,13 @@ production submission or public release.
   adds the successful Gemini-only rollout, owner verification, and remaining CI
   observation. The
   [provider onboarding guide](../services/supabase/functions/_shared/ai/ADDING_PROVIDERS.md)
-  explains the work needed before assigning another service.
+  explains the work needed before assigning another service. The
+  [alternative-provider evaluation guide](./development-guides/22-alternative-identification-provider.md)
+  documents the implemented, production-disabled OpenAI photo/text adapter and
+  how to use the existing evaluator for a bounded comparison. The
+  [first OpenAI pilot](./rfcs/identification-openai-photo-text-pilot-2026-09-25.md)
+  retains seven normalized results and one unknown across eight examples,
+  including the unmatched-name scoring limitation; production remains Gemini.
 - **Identification evaluation readiness:**
   [PRD](./product/04-identification-evaluation-prd.md) and
   [SRD](./rfcs/identification-evaluation-srd.md) plan the next milestone: an
@@ -680,9 +686,10 @@ production submission or public release.
   and stop-condition rules for future hygiene work.
 - **[`/development-guides/20-identification-evaluation-pilot.md`](./development-guides/20-identification-evaluation-pilot.md)**
   — Solo phone/computer checks and automated exploratory testing, proposed
-  60-example formal pilot coverage and blank intake/reference-review forms; paid
-  evaluator measurement remains pending. The first two normal production-app
-  submissions are recorded in the
+  60-example formal pilot coverage and blank intake/reference-review forms. The
+  [first OpenAI pilot](./rfcs/identification-openai-photo-text-pilot-2026-09-25.md)
+  adds paid exploratory evaluator evidence; formal qualification remains
+  pending. The first two normal production-app submissions are recorded in the
   [live benchmark](./rfcs/identification-production-app-benchmark-2026-09-22.md).
 - **[`/development-guides/21-identification-app-measurement.md`](./development-guides/21-identification-app-measurement.md)**
   — Passive app measurement of provider/model, app and Function source identity,

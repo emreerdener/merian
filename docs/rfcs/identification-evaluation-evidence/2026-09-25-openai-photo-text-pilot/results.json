@@ -1,0 +1,226 @@
+{
+  "schemaVersion": "identification_openai_photo_text_pilot_v1",
+  "recordedAt": "2026-09-26T01:10:40.780164+00:00",
+  "dateTimezone": "America/Chicago",
+  "status": "pilot_accounted_for_with_one_unknown_outcome",
+  "boundary": "prepared_evidence_to_normalized_decision_v1",
+  "provider": "openai",
+  "model": "gpt-6-sol",
+  "productionProviderChanged": false,
+  "source": {
+    "commit": "480593d6d3b15e2c1c60514737feab414411a334",
+    "dirty": true,
+    "digest": "701c94dba3ae0cccb6f8160dc0225267563260bb988ff294a98ebfcb992d5bc2",
+    "sdk": "npm:@google/genai@2.23.0"
+  },
+  "runs": [
+    {
+      "runId": "openai-photo-text-20260925-v2",
+      "manifestFileSha256": "f9f17c48f217f92885553856c740ec54499f5f80c42ee93795b26b74eb129535",
+      "freezeFileSha256": "8eaa6966e210b42927b2c2a0698e16c83f557b78d4518246b8f5b22ae6e2900a",
+      "summaryFileSha256": "facd893465ff2a01109f88dbb111c9bbf1d6446b53155f2aa1ee21e6c3f2d052",
+      "ledgerFiles": {
+        "claims/c0001-openai_gpt_6_sol-1.json": "e4cd876025f0552cb31b48833437f651d41084ae472be4436b176d44f74e0f5b",
+        "results/c0001-openai_gpt_6_sol-1.json": "df631731e39b69a637347cfb57ed5b414afc1f5da5773ca4941c98fe02cc893a",
+        "claims/c0002-openai_gpt_6_sol-1.json": "9779ff636ffb935b09876717c794ff97952ab4c698dd63902883dbdedcfe10dc",
+        "results/c0002-openai_gpt_6_sol-1.json": "ade677ae13ed8319340c032fe86148991a066b68d929a34607bc98d43356713d",
+        "claims/c0008-openai_gpt_6_sol-1.json": "7c1785f413829e0e2d74399a4c8cdc3623fb027523a2b57df18be6af743beb1c",
+        "results/c0008-openai_gpt_6_sol-1.json": "b930841a82df8f1ce59e43962e00fe1caff6578e2c08c3b436e39bf0ed6678f5",
+        "claims/c0009-openai_gpt_6_sol-1.json": "ec71ad348997ebe3ebb1699ec705c4a122450107b0bd8f4d6dcffc121a700f28",
+        "results/c0009-openai_gpt_6_sol-1.json": "026cbc117f9054bcd267f24a3a0cfb9737dc96d6b21d869493f61320c811cc5f"
+      }
+    },
+    {
+      "runId": "openai-photo-text-20260925-remaining-v1",
+      "manifestFileSha256": "7e80cc9539cd33d74dca88316b25e78fd68290eb19a230f3e061730d2316ddc9",
+      "freezeFileSha256": "6bbd2eecc8cf526571842978ab43f9361625c47fd6d5e0b4f03e5ae557f84ec9",
+      "summaryFileSha256": "f5ccc6ee3842a913fa07483e70b9ca4a38450fa1d87c0f4595a2bf00fdab39f2",
+      "ledgerFiles": {
+        "claims/c0003-openai_gpt_6_sol-1.json": "812892724f9ccc8d8606d12151f3993256a44b6e975012db9e949124a7016084",
+        "results/c0003-openai_gpt_6_sol-1.json": "41feeca6501045c34c287f8a3f60ebed0f256c4883a3d4ce0a62f8cfb44492c8",
+        "claims/c0004-openai_gpt_6_sol-1.json": "0bb9168a7d83ea2f3c42e18c28884497cc0f05acc50d7765cc853df921118901",
+        "results/c0004-openai_gpt_6_sol-1.json": "c1950f01cc7b2f6413132d8f7a49c8bb7816bba4a4604b9ed1591a464c0bdcae",
+        "claims/c0007-openai_gpt_6_sol-1.json": "66c47a4e43b4b40c1bd4dc3c42ae3aa97a8f678deb3f10b0051ffd7ea1502695",
+        "results/c0007-openai_gpt_6_sol-1.json": "9efceb3a4497f95ace784ea7170ff715c6b430d9392a4afa7cbb539bc3b48bff",
+        "claims/c0010-openai_gpt_6_sol-1.json": "05b7df517d44e459b21d429ec25edc9c3f6bb4dd6c8f9859c94849a53bd1be75",
+        "results/c0010-openai_gpt_6_sol-1.json": "0dda58e6264fd007ead2bc2dea443fe4fc8a16147870eb2e4dc120d44fe26270"
+      }
+    }
+  ],
+  "operationalCounts": {
+    "plannedUniqueCases": 8,
+    "durableClaims": 8,
+    "normalizedResults": 7,
+    "unknownOutcomes": 1,
+    "unattempted": 0,
+    "replayedCases": 0,
+    "automaticRetries": 0
+  },
+  "referenceAssessment": {
+    "provisionalReferences": 8,
+    "independentlyReviewedReferences": 0,
+    "speciesReferenceAgreements": 4,
+    "nonBiologicalReferenceAgreements": 2,
+    "unmappedNamedResults": 1,
+    "unknownOutcomes": 1,
+    "formalAccuracy": null,
+    "confidenceCalibration": null
+  },
+  "performance": {
+    "successfulRequests": 7,
+    "providerMs": {
+      "minimum": 6508.767083000001,
+      "median": 6914.193334,
+      "maximum": 7476.776750000001
+    },
+    "estimatedKnownUpperUsd": 0.17579,
+    "unknownCostRequests": 1,
+    "completeBilledCostUsd": null,
+    "invoiceExact": false,
+    "pairedProviderComparison": false
+  },
+  "budget": {
+    "combinedApprovedGuardUsd": 15,
+    "unknownAttemptReservedUsd": 5.37288,
+    "combinedKnownPlusUnknownReservationUsd": 5.54867,
+    "reservationIsActualCharge": false
+  },
+  "interruption": {
+    "caseId": "c0001",
+    "reason": "interrupted_attempt",
+    "ownerReportedCause": "OpenAI server status issue",
+    "causeIndependentlyVerified": false,
+    "providerOutcomeAndUsage": "unknown"
+  },
+  "cases": [
+    {
+      "caseId": "c0001",
+      "example": "Bison photo",
+      "assessment": "unknown_execution",
+      "openai": {
+        "outcome": "unknown_execution",
+        "subject": null,
+        "taxon": null,
+        "providerMs": null,
+        "estimatedUpperUsd": null
+      },
+      "geminiHistoricalAssessment": "Bison bison"
+    },
+    {
+      "caseId": "c0002",
+      "example": "Bald eagle photo",
+      "assessment": "species_reference_agreement",
+      "openai": {
+        "outcome": "normalized",
+        "subject": "biological",
+        "taxon": {
+          "id": "species-haliaeetus-leucocephalus",
+          "rank": "species"
+        },
+        "providerMs": 6508.767083000001,
+        "estimatedUpperUsd": 0.02843
+      },
+      "geminiHistoricalAssessment": "Haliaeetus leucocephalus"
+    },
+    {
+      "caseId": "c0003",
+      "example": "Monarch photo",
+      "assessment": "species_reference_agreement",
+      "openai": {
+        "outcome": "normalized",
+        "subject": "biological",
+        "taxon": {
+          "id": "species-danaus-plexippus",
+          "rank": "species"
+        },
+        "providerMs": 7254.761874999999,
+        "estimatedUpperUsd": 0.032375
+      },
+      "geminiHistoricalAssessment": "Danaus plexippus"
+    },
+    {
+      "caseId": "c0004",
+      "example": "Sunflower photo",
+      "assessment": "species_reference_agreement",
+      "openai": {
+        "outcome": "normalized",
+        "subject": "biological",
+        "taxon": {
+          "id": "species-helianthus-annuus",
+          "rank": "species"
+        },
+        "providerMs": 6758.760707999998,
+        "estimatedUpperUsd": 0.030365
+      },
+      "geminiHistoricalAssessment": "Helianthus annuus"
+    },
+    {
+      "caseId": "c0007",
+      "example": "Saguaro photo",
+      "assessment": "species_reference_agreement",
+      "openai": {
+        "outcome": "normalized",
+        "subject": "biological",
+        "taxon": {
+          "id": "species-carnegiea-gigantea",
+          "rank": "species"
+        },
+        "providerMs": 7450.791499999999,
+        "estimatedUpperUsd": 0.03054
+      },
+      "geminiHistoricalAssessment": "Carnegiea gigantea"
+    },
+    {
+      "caseId": "c0008",
+      "example": "Mineral photo",
+      "assessment": "non_biological_reference_agreement",
+      "openai": {
+        "outcome": "normalized",
+        "subject": "non_biological",
+        "taxon": null,
+        "providerMs": 6914.193334,
+        "estimatedUpperUsd": 0.02483
+      },
+      "geminiHistoricalAssessment": "Non-biological"
+    },
+    {
+      "caseId": "c0009",
+      "example": "Mushroom description",
+      "assessment": "named_result_unmapped_identity_unassessable",
+      "openai": {
+        "outcome": "normalized",
+        "subject": "biological",
+        "taxon": null,
+        "providerMs": 6758.496833,
+        "estimatedUpperUsd": 0.01513
+      },
+      "geminiHistoricalAssessment": "Amanita muscaria; provisional reference supports genus only"
+    },
+    {
+      "caseId": "c0010",
+      "example": "Basalt description",
+      "assessment": "non_biological_reference_agreement",
+      "openai": {
+        "outcome": "normalized",
+        "subject": "non_biological",
+        "taxon": null,
+        "providerMs": 7476.776750000001,
+        "estimatedUpperUsd": 0.01412
+      },
+      "geminiHistoricalAssessment": "Daldinia concentrica; biological assertion on non-biological source"
+    }
+  ],
+  "historicalGeminiEvidence": [
+    "docs/rfcs/identification-evaluation-evidence/2026-09-22-source-photo-pilot/app-results.json",
+    "docs/rfcs/identification-evaluation-evidence/2026-09-22-description-pilot/app-results.json"
+  ],
+  "limitations": [
+    "All references remain provisional; no production qualification.",
+    "The mushroom scientific name was not retained when it failed the closed taxonomy lookup; identity agreement cannot be recovered or counted as a verified error.",
+    "The ambiguous basalt description favors OpenAI against the source reference in this observation only.",
+    "Historical Gemini app crops, context and execution boundary differ; no paired accuracy, latency or cost superiority claim.",
+    "The uncertain bison attempt remains included; all seven normalized results are retained."
+  ],
+  "decision": "close_initial_provider_path_pilot_keep_Gemini_in_production",
+  "followUp": "review_and_commit_adapter_with_this_evidence; resolve_taxonomy_matching_and_provider_onboarding_controls_before_production_assignment"
+}

@@ -1,4 +1,9 @@
 import {
+  OPENAI_GENERATION,
+  OPENAI_MODEL,
+  OPENAI_PROFILE,
+} from "../../functions/_shared/ai/openaiRequest.ts";
+import {
   type Prediction,
   type Profile,
   RANKS,
@@ -21,7 +26,19 @@ import { EXPLORATORY_SPEC_VERSION } from "./exploratory.ts";
 
 export const RUN_VERSION = "identification_run_v1" as const;
 export const BOUNDARY = "prepared_evidence_to_normalized_decision_v1" as const;
-export const PROFILES = ["gemini_flash_free", "gemini_pro"] as const;
+export const GEMINI_PROFILES = ["gemini_flash_free", "gemini_pro"] as const;
+export const PROFILES = [...GEMINI_PROFILES, OPENAI_PROFILE] as const;
+export const PROVIDER_SPEC_VERSION =
+  "identification_provider_run_spec_v1" as const;
+export const PROVIDER_RUN_VERSION = "identification_provider_run_v1" as const;
+export const MODEL_FOR_PROFILE = {
+  gemini_flash_free: "gemini-2.5-flash",
+  gemini_pro: "gemini-2.5-pro",
+  [OPENAI_PROFILE]: OPENAI_MODEL,
+} as const;
+export function providerForProfile(profile: Profile): "gemini" | "openai" {
+  return profile === OPENAI_PROFILE ? "openai" : "gemini";
+}
 export const MODELS = ["gemini-2.5-flash", "gemini-2.5-pro"] as const;
 export const STAGE_LIMITS = {
   exploratory: 24,
@@ -94,7 +111,10 @@ export function parseTaxonomy(value: unknown): Taxonomy {
 }
 
 export interface RunSpec {
-  version: "identification_run_spec_v1" | typeof EXPLORATORY_SPEC_VERSION;
+  version:
+    | "identification_run_spec_v1"
+    | typeof EXPLORATORY_SPEC_VERSION
+    | typeof PROVIDER_SPEC_VERSION;
   runId: string;
   mode: "offline" | "live";
   corpusDigest: string;
@@ -129,10 +149,10 @@ export function parseRunSpec(value: unknown): RunSpec {
     "readinessDigest",
   ]);
   check(
-    v.version ===
-      (v.stage === "exploratory"
-        ? EXPLORATORY_SPEC_VERSION
-        : "identification_run_spec_v1"),
+    v.version === PROVIDER_SPEC_VERSION || v.version ===
+        (v.stage === "exploratory"
+          ? EXPLORATORY_SPEC_VERSION
+          : "identification_run_spec_v1"),
   );
   token(v.runId);
   member(v.mode, ["offline", "live"]);
@@ -141,7 +161,9 @@ export function parseRunSpec(value: unknown): RunSpec {
   member(v.split, ["development", "held_out"]);
   member(v.stage, Object.keys(STAGE_LIMITS) as (keyof typeof STAGE_LIMITS)[]);
   const profiles = array(v.profiles, 1, 2);
-  profiles.forEach((p) => member(p, PROFILES));
+  profiles.forEach((p) =>
+    member(p, v.version === PROVIDER_SPEC_VERSION ? PROFILES : GEMINI_PROFILES)
+  );
   unique(profiles);
   const ids = array(v.caseIds, 1, 240);
   if (v.stage === "exploratory") check(ids.length <= 12);
@@ -156,7 +178,7 @@ export function parseRunSpec(value: unknown): RunSpec {
     check(v.budgetUsd > 0);
     hash(v.pricingDigest);
     hash(v.readinessDigest);
-    check(profiles.length === 2);
+    check(profiles.length === (v.version === PROVIDER_SPEC_VERSION ? 1 : 2));
   } else {check(
       v.budgetUsd === 0 && v.pricingDigest === null &&
         v.readinessDigest === null,
@@ -269,8 +291,19 @@ export function parseReadiness(value: unknown): Readiness {
   ]);
   check(
     v.version === "evaluation_processor_v1" &&
-      v.dedicatedEvaluationProject === true && v.paidServiceApproved === true &&
-      v.purpose === "identification_evaluation",
+      v.dedicatedEvaluationProject === true,
+  );
+  return {
+    ...parseReadinessReview(v),
+    version: "evaluation_processor_v1",
+    dedicatedEvaluationProject: true,
+  };
+}
+function parseReadinessReview(
+  v: Record<string, unknown>,
+): Omit<Readiness, "version" | "dedicatedEvaluationProject"> {
+  check(
+    v.paidServiceApproved === true && v.purpose === "identification_evaluation",
   );
   hash(v.corpusDigest);
   hash(v.credentialSha256);
@@ -287,7 +320,152 @@ export function parseReadiness(value: unknown): Readiness {
       "retentionAbuseLogRef",
     ]
   ) token(v[k]);
-  return structuredClone(v) as unknown as Readiness;
+  return structuredClone(v) as unknown as Omit<
+    Readiness,
+    "version" | "dedicatedEvaluationProject"
+  >;
+}
+
+/** Provider-qualified evaluation records; legacy Gemini approvals never authorize OpenAI. */
+export interface OpenAIPricing
+  extends Omit<Pricing, "version" | "sourceUrl" | "models"> {
+  version: "evaluation_openai_pricing_v1";
+  provider: "openai";
+  sourceUrl: "https://developers.openai.com/api/docs/models/gpt-6-sol";
+  models: {
+    model: typeof OPENAI_MODEL;
+    inputPerMillion: {
+      text: number;
+      image: number;
+      cached: number;
+      cacheWrite: number;
+    };
+    outputPerMillion: number;
+    maxInputTokens: number;
+    maxBillableOutputTokens: number;
+    limitsEvidenceRef: string;
+  }[];
+}
+export type EvaluationPricing = Pricing | OpenAIPricing;
+export interface OpenAIReadiness
+  extends Omit<Readiness, "version" | "dedicatedEvaluationProject"> {
+  version: "evaluation_openai_processor_v1";
+  provider: "openai";
+  dedicatedEvaluationProject: boolean;
+  inputPermission: {
+    provider: "openai";
+    corpusDigest: string;
+    caseIds: string[];
+    reviewRef: string;
+    approved: true;
+  };
+}
+export type EvaluationReadiness = Readiness | OpenAIReadiness;
+export function parseEvaluationPricing(value: unknown): EvaluationPricing {
+  if (
+    (value as { version?: unknown } | null)?.version !==
+      "evaluation_openai_pricing_v1"
+  ) return parsePricing(value);
+  const v = fields(value, [
+    "version",
+    "provider",
+    "currency",
+    "service",
+    "retrievedAt",
+    "sourceUrl",
+    "reviewRef",
+    "includesReasoning",
+    "models",
+  ]);
+  check(
+    v.provider === "openai" && v.currency === "USD" &&
+      v.service === "paid_standard_synchronous" && v.includesReasoning === true,
+  );
+  timestamp(v.retrievedAt);
+  token(v.reviewRef);
+  check(
+    v.sourceUrl === "https://developers.openai.com/api/docs/models/gpt-6-sol",
+  );
+  for (const raw of array(v.models, 1, 1)) {
+    const m = fields(raw, [
+      "model",
+      "inputPerMillion",
+      "outputPerMillion",
+      "maxInputTokens",
+      "maxBillableOutputTokens",
+      "limitsEvidenceRef",
+    ]);
+    check(m.model === OPENAI_MODEL);
+    const rates = fields(m.inputPerMillion, [
+      "text",
+      "image",
+      "cached",
+      "cacheWrite",
+    ]);
+    Object.values(rates).forEach((r) => number(r, 0.000001, 10000));
+    number(m.outputPerMillion, 0.000001, 10000);
+    // Reserve the entire model context because bytes are not a token bound.
+    // The reviewed rates must cover long-context/cache-write pricing as well.
+    integer(m.maxInputTokens, 1050000, 10000000);
+    integer(
+      m.maxBillableOutputTokens,
+      OPENAI_GENERATION.maxOutputTokens,
+      1000000,
+    );
+    token(m.limitsEvidenceRef);
+  }
+  return structuredClone(v) as unknown as OpenAIPricing;
+}
+export function parseEvaluationReadiness(value: unknown): EvaluationReadiness {
+  if (
+    (value as { version?: unknown } | null)?.version !==
+      "evaluation_openai_processor_v1"
+  ) return parseReadiness(value);
+  const { provider, inputPermission, dedicatedEvaluationProject, ...rest } =
+    fields(value, [
+      "version",
+      "provider",
+      "inputPermission",
+      "corpusDigest",
+      "projectRef",
+      "credentialRef",
+      "credentialSha256",
+      "reviewedAt",
+      "expiresAt",
+      "reviewerRole",
+      "dedicatedEvaluationProject",
+      "paidServiceApproved",
+      "purpose",
+      "termsRef",
+      "dataUseRef",
+      "regionSubprocessorRef",
+      "retentionAbuseLogRef",
+    ]);
+  check(
+    provider === "openai" && typeof dedicatedEvaluationProject === "boolean",
+  );
+  const permission = fields(inputPermission, [
+    "provider",
+    "corpusDigest",
+    "caseIds",
+    "reviewRef",
+    "approved",
+  ]);
+  check(permission.provider === "openai" && permission.approved === true);
+  hash(permission.corpusDigest);
+  token(permission.reviewRef);
+  const caseIds = array(permission.caseIds, 1, 240);
+  caseIds.forEach((value) => id(value, "c"));
+  unique(caseIds);
+  return {
+    ...parseReadinessReview(rest),
+    version: "evaluation_openai_processor_v1",
+    provider,
+    dedicatedEvaluationProject,
+    inputPermission: structuredClone(
+      permission,
+    ) as unknown as OpenAIReadiness["inputPermission"],
+  };
 }
 
 export interface SourceIdentity {
@@ -307,7 +485,7 @@ export interface Assignment {
   promptDigest: string;
   schemaDigest: string;
   confidenceDigest: string;
-  model: typeof MODELS[number];
+  model: typeof MODEL_FOR_PROFILE[Profile];
   prompt: string;
   schema: string;
   confidence: string;
@@ -317,29 +495,46 @@ export interface Assignment {
     maxOutputTokens: number;
     seed: number;
     thinkingBudget: number | null;
-  };
+  } | typeof OPENAI_GENERATION;
   reservedUsd: number;
 }
+export function providerTransports(
+  profiles: readonly Profile[],
+  googleSdk: string,
+): Record<string, string> {
+  return Object.fromEntries(
+    [...new Set(profiles.map(providerForProfile))].sort().map((
+      provider,
+    ) => [
+      provider,
+      provider === "openai" ? "openai_responses_https_v1" : googleSdk,
+    ]),
+  );
+}
 export interface RunManifest {
-  version: typeof RUN_VERSION;
+  version: typeof RUN_VERSION | typeof PROVIDER_RUN_VERSION;
   boundary: typeof BOUNDARY;
   createdAt: string;
   spec: RunSpec;
   source: SourceIdentity;
+  transports?: Record<string, string>;
   scorerVersion: string;
   taxonomyVersion: string;
   preparationVersion: string;
-  pricing: Pricing | null;
+  pricing: EvaluationPricing | null;
   processor: { projectRef: string; credentialRef: string } | null;
   order: Assignment[];
 }
 export function parseManifest(value: unknown): RunManifest {
+  const providerRun =
+    (value as { version?: unknown } | null)?.version === PROVIDER_RUN_VERSION;
   const v = fields(value, [
     "version",
     "boundary",
     "createdAt",
     "spec",
     "source",
+    ...(providerRun ? ["transports"] : []),
     "scorerVersion",
     "taxonomyVersion",
     "preparationVersion",
@@ -347,9 +542,19 @@ export function parseManifest(value: unknown): RunManifest {
     "processor",
     "order",
   ]);
-  check(v.version === RUN_VERSION && v.boundary === BOUNDARY);
+  check(
+    [RUN_VERSION, PROVIDER_RUN_VERSION].includes(
+      v.version as typeof RUN_VERSION,
+    ) && v.boundary === BOUNDARY,
+  );
   timestamp(v.createdAt);
   const spec = parseRunSpec(v.spec);
+  check(
+    v.version ===
+      (spec.version === PROVIDER_SPEC_VERSION
+        ? PROVIDER_RUN_VERSION
+        : RUN_VERSION),
+  );
   const source = fields(v.source, ["commit", "dirty", "digest", "sdk"]);
   check(
     typeof source.commit === "string" && /^[a-f0-9]{40}$/.test(source.commit),
@@ -360,11 +565,24 @@ export function parseManifest(value: unknown): RunManifest {
     typeof source.sdk === "string" &&
       /^npm:@google\/genai@\d+\.\d+\.\d+$/.test(source.sdk),
   );
+  if (providerRun) {
+    const expected = providerTransports(spec.profiles, source.sdk);
+    const transports = fields(v.transports, Object.keys(expected));
+    check(
+      Object.entries(expected).every(([provider, transport]) =>
+        transports[provider] === transport
+      ),
+    );
+  }
   for (const k of ["scorerVersion", "taxonomyVersion", "preparationVersion"]) {
     token(v[k]);
   }
   if (spec.mode === "live") {
-    parsePricing(v.pricing);
+    const pricing = parseEvaluationPricing(v.pricing);
+    check(
+      (pricing.version === "evaluation_openai_pricing_v1") ===
+        (spec.profiles[0] === OPENAI_PROFILE),
+    );
     const processor = fields(v.processor, ["projectRef", "credentialRef"]);
     token(processor.projectRef);
     token(processor.credentialRef);
@@ -406,21 +624,40 @@ export function parseManifest(value: unknown): RunManifest {
         "confidenceDigest",
       ]
     ) hash(a[k]);
-    member(a.model, MODELS);
-    check(a.model === (a.profile === "gemini_pro" ? MODELS[1] : MODELS[0]));
+    check(a.model === MODEL_FOR_PROFILE[a.profile]);
     for (const k of ["prompt", "schema", "confidence"]) token(a[k]);
     integer(a.timeoutMs, 1, 120000);
     number(a.reservedUsd);
-    const g = fields(a.generation, [
-      "temperature",
-      "maxOutputTokens",
-      "seed",
-      "thinkingBudget",
-    ]);
-    number(g.temperature, 0, 2);
-    integer(g.maxOutputTokens, 1, 1000000);
-    integer(g.seed, 0, 0xffffffff);
-    if (g.thinkingBudget !== null) integer(g.thinkingBudget, 0, 1000000);
+    if (a.profile === OPENAI_PROFILE) {
+      const g = fields(a.generation, [
+        "maxOutputTokens",
+        "reasoningEffort",
+        "imageDetail",
+      ]);
+      check(
+        g.maxOutputTokens === OPENAI_GENERATION.maxOutputTokens &&
+          g.reasoningEffort === OPENAI_GENERATION.reasoningEffort &&
+          g.imageDetail === OPENAI_GENERATION.imageDetail,
+      );
+      check(
+        a.confidence === "openai_unqualified_v1" &&
+          a.schema === "merian_openai_identify_v1" &&
+          ["openai_identify_vision_v1", "openai_identify_text_v1"].includes(
+            a.prompt as string,
+          ) && a.timeoutMs === 90000,
+      );
+    } else {
+      const g = fields(a.generation, [
+        "temperature",
+        "maxOutputTokens",
+        "seed",
+        "thinkingBudget",
+      ]);
+      number(g.temperature, 0, 2);
+      integer(g.maxOutputTokens, 1, 1000000);
+      integer(g.seed, 0, 0xffffffff);
+      if (g.thinkingBudget !== null) integer(g.thinkingBudget, 0, 1000000);
+    }
   }
   unique(keys);
   check(
@@ -445,13 +682,13 @@ export interface StoredUsage {
 }
 export type TokenModalities = { text: number; image: number; audio: number };
 export interface AttemptRecord {
-  version: "evaluation_attempt_v1";
+  version: "evaluation_attempt_v1" | "evaluation_openai_attempt_v1";
   runDigest: string;
   key: string;
   prediction: Prediction;
   reason: Reason;
   returnedModel: string | null;
-  band: "below_possible" | "possible" | "strong" | null;
+  band: "below_possible" | "possible" | "strong" | "unqualified" | null;
   diagnostic: boolean;
   candidates: { taxon: Taxon | null; confidence: number }[] | null;
   usage: StoredUsage | null;
@@ -475,7 +712,10 @@ export function parseAttempt(value: unknown): AttemptRecord {
     "normalizationMs",
     "estimatedUpperUsd",
   ]);
-  check(v.version === "evaluation_attempt_v1");
+  check(
+    v.version === "evaluation_attempt_v1" ||
+      v.version === "evaluation_openai_attempt_v1",
+  );
   hash(v.runDigest);
   token(v.key);
   const prediction = parsePrediction(v.prediction);
@@ -483,9 +723,19 @@ export function parseAttempt(value: unknown): AttemptRecord {
   check(
     v.returnedModel === null ||
       typeof v.returnedModel === "string" &&
-        /^gemini-[a-zA-Z0-9.-]{1,100}$/.test(v.returnedModel),
+        (v.version === "evaluation_openai_attempt_v1"
+          ? /^gpt-6-sol(?:-[a-zA-Z0-9.-]{1,80})?$/
+          : /^gemini-[a-zA-Z0-9.-]{1,100}$/).test(v.returnedModel),
   );
-  member(v.band, [null, "below_possible", "possible", "strong"]);
+  member(
+    v.band,
+    v.version === "evaluation_openai_attempt_v1"
+      ? [null, "unqualified"]
+      : [null, "below_possible", "possible", "strong"],
+  );
+  if (v.version === "evaluation_openai_attempt_v1") {
+    check(v.diagnostic === false);
+  }
   check(typeof v.diagnostic === "boolean");
   if (v.candidates !== null) {
     for (const raw of array(v.candidates, 0, 5)) {

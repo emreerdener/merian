@@ -29,6 +29,13 @@ clarifies the score by audio result state while preserving Gemini and its
 settings; see the
 [implementation record](../rfcs/identification-audio-confidence-v2-2026-09-24.md).
 
+The evaluation-only OpenAI adapter now supports photo/text requests through the
+shared executor, with a separate binding and unqualified confidence policy.
+Production composition and admission remain Gemini-only. The
+[alternative-provider guide](../development-guides/22-alternative-identification-provider.md)
+owns its input capabilities, disclosure gates, usage interpretation and
+comparison procedure.
+
 The separate default-off
 [audio prompt comparison](../rfcs/identification-audio-uncertainty-comparison-plan-2026-09-24.md)
 adds a server-owned A/B authority for 36 frozen first-attempt Pro slots. The
