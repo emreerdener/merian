@@ -225,38 +225,49 @@ final class ConsentMutationService {
     }
 
     @discardableResult
-    func withdrawGeminiPermission(
-        hasGrantedGeminiProcessing: Bool,
+    func setAIProcessingEnabled(
+        _ enabled: Bool,
+        processor: AIConsentProcessor,
         ownerUserId: UUID?
     ) throws -> Bool {
-        guard hasGrantedGeminiProcessing else { return false }
         try ledgerRepository.ensureLedgerStorageAvailable()
-
         let source = ledgerRepository.ledger
+        let head = ConsentAuthorityPolicy.currentAIConsentStreamHead(
+            ownerUserId: ownerUserId, processor: processor, in: source
+        )
+        if enabled, head?.eventKind == .granted,
+           head?.disclosureVersion == processor.disclosureVersion { return false }
+        if !enabled, head?.eventKind == .revoked { return false }
+
         var candidate = source
         candidate.activeUserId = ownerUserId
         candidate.aiConsentEvents.append(ConsentManager.AIConsentEvent(
             id: dependencies.makeUUID(),
             ownerUserId: ownerUserId,
             syncedUserId: nil,
-            provider: ConsentPolicy.geminiProvider,
-            disclosureVersion: ConsentPolicy.geminiDisclosureVersion,
-            eventKind: .revoked,
+            provider: processor.rawValue,
+            disclosureVersion: processor.disclosureVersion,
+            eventKind: enabled ? .granted : .revoked,
             occurredAt: dependencies.now(),
-            disclosureText: ConsentPolicy.geminiDisclosureText,
-            actionText: ConsentPolicy.geminiWithdrawalText,
+            disclosureText: processor.disclosureText,
+            actionText: enabled ? processor.grantText : processor.withdrawalText,
             platform: "ios",
             appVersion: dependencies.appVersion(),
             appBuild: dependencies.appBuild(),
             recordedAt: nil,
-            causalParentId: ConsentAuthorityPolicy.currentAIConsentStreamHead(
-                ownerUserId: ownerUserId,
-                in: candidate
-            )?.id
+            causalParentId: head?.id
         ))
-
         try ledgerRepository.persistLedger(candidate)
         return true
+    }
+
+    @discardableResult
+    func withdrawGeminiPermission(
+        hasGrantedGeminiProcessing: Bool,
+        ownerUserId: UUID?
+    ) throws -> Bool {
+        guard hasGrantedGeminiProcessing else { return false }
+        return try setAIProcessingEnabled(false, processor: .gemini, ownerUserId: ownerUserId)
     }
 
     private func confirmationPersistenceEvent(

@@ -208,15 +208,17 @@ authenticated PostgREST RPCs:
 
 - `append_user_ai_consent_event(...)`, fixed to the caller's `google_gemini`
   stream;
+- `append_user_openai_consent_event(...)`, fixed to the caller's independent
+  `openai` stream (collection implemented but disabled in shipped source);
 - `append_user_analytics_consent_event(...)`, fixed to the caller's `posthog`
   stream.
 
-Both accept the same parameters: `p_id`, `p_disclosure_version`, `p_event_kind`,
-`p_occurred_at`, `p_disclosure_text`, `p_action_text`, `p_platform`,
-`p_app_version`, `p_app_build`, and the nullable `p_causal_parent_id` observed
-when the local action was created. The caller cannot supply a user ID, provider,
-server timestamp, or revision. Direct table inserts and sequence access are
-denied.
+All three accept the same parameters: `p_id`, `p_disclosure_version`,
+`p_event_kind`, `p_occurred_at`, `p_disclosure_text`, `p_action_text`,
+`p_platform`, `p_app_version`, `p_app_build`, and the nullable
+`p_causal_parent_id` observed when the local action was created. The caller
+cannot supply a user ID, provider, server timestamp, or revision. Direct table
+inserts and sequence access are denied.
 
 Each call returns exactly one row with this shape:
 
@@ -232,8 +234,10 @@ Each call returns exactly one row with this shape:
 ```
 
 The RPC first locks the caller's `public.users` row against ghost-profile merge,
-then serializes the account/provider stream with a transaction-scoped advisory
-lock. Under that lock:
+then takes a transaction-scoped advisory lock. Both AI recipients share the
+account-level AI lock because their event IDs share one table; PostHog retains
+its separate lock. Head lookup and causal comparison are always
+recipient-specific. Under that lock:
 
 - a grant is inserted only when `p_causal_parent_id` equals the current head;
 - a stale grant returns `accepted = false`, no event revision or timestamp, and
@@ -246,28 +250,32 @@ The client must persist the returned accepted parent and revision. It retains a
 rejected grant only as superseded local evidence. `occurred_at` and
 `recorded_at` are audit evidence and never order provider authorization.
 
-Reusing an event ID is idempotent only when every immutable payload field
-matches. A revocation retry may repeat its originally observed parent because
-the stored parent can have been rebased; any other mismatch raises
-`consent_event_id_conflict` (`23505`). Missing authentication or an unavailable
-caller account fails with `42501`. After an ambiguous transport failure, a
-fetched row is confirmation only when its immutable payload matches the
-attempted event, with the same revocation-parent exception.
+Reusing an event ID is idempotent only when its owner, provider and every
+immutable payload field match. Concurrent same-account cross-provider reuse
+returns the same controlled conflict as a sequential collision. A revocation
+retry may repeat its originally observed parent because the stored parent can
+have been rebased; any other mismatch raises `consent_event_id_conflict`
+(`23505`). Missing authentication or an unavailable caller account fails with
+`42501`. After an ambiguous transport failure, a fetched row is confirmation
+only when its immutable payload matches the attempted event, with the same
+revocation-parent exception.
 
 On iOS, `Core/Security/Consent/Services/ConsentRemoteModels.swift` owns this
 exact request/result shape and the selected-row projections.
-`ConsentRemoteService.swift` owns result validation, mapping, and
-immutable-payload retry confirmation; `ConsentRemoteService+Live.swift` is the
-sole direct PostgREST/RPC adapter. `ConsentSynchronizationCoordinator` supplies
-the runtime-wired observed-account, SDK-session, cancellation, and generation
-fence across every suspended service phase; it sequences pending evidence before
-the authoritative read and persists a merged result before notifying the
-observable facade. `ConsentCloudSessionCoordinator` separately owns ordinary and
-Auth-transition session/account-work authorization around session adoption,
-scheduled synchronization, inference admission, and Ghost rebinding. Its live
-adapter is the only owner that resolves Supabase Auth and account-work leases
-for those workflows. After suspended inference synchronization, the coordinator
-checks cancellation, the original lease, and synchronization generation before
+`ConsentRemoteService.swift` owns result validation, fixed-recipient dispatch,
+and immutable-payload retry confirmation; `ConsentRemoteMapping.swift` owns pure
+row mapping, exact payload comparison and timestamp conversion;
+`ConsentRemoteService+Live.swift` is the sole direct PostgREST/RPC adapter.
+`ConsentSynchronizationCoordinator` supplies the runtime-wired observed-account,
+SDK-session, cancellation, and generation fence across every suspended service
+phase; it sequences pending evidence before the authoritative read and persists
+a merged result before notifying the observable facade.
+`ConsentCloudSessionCoordinator` separately owns ordinary and Auth-transition
+session/account-work authorization around session adoption, scheduled
+synchronization, inference admission, and Ghost rebinding. Its live adapter is
+the only owner that resolves Supabase Auth and account-work leases for those
+workflows. After suspended inference synchronization, the coordinator checks
+cancellation, the original lease, and synchronization generation before
 interpreting authoritative absence; a stale authorization context exits without
 writing a reapproval marker. `ConsentSynchronizationMergePolicy` performs the
 evidence upsert and authority derivation. `ConsentLedgerRepository` publishes
@@ -326,6 +334,33 @@ service-only pre-challenge and insertion RPCs are documented in the web README
 and deployment runbook. The distributed IP claim runs before Turnstile; the
 tighter verified-attempt and global-growth transaction runs only after a valid
 challenge.
+
+### Independent OpenAI consent evidence
+
+Migration `20260926150509_add_independent_openai_consent_stream.sql` must
+precede any client collecting OpenAI consent. The iOS live adapter dispatches
+known `google_gemini` and `openai` events to their fixed-recipient RPCs and
+rejects an unknown provider or mismatched owner before network work. Its seven
+authoritative reads include a separate owner-scoped, all-version OpenAI stream
+head. The existing ID-scoped AI read-back verifies provider as well as the
+entire immutable payload. No Identify DTO or client-selected provider field is
+added.
+
+`internal.require_current_ai_consent(uuid,text)` accepts OpenAI evidence only
+when its latest provider-wide event is a grant for disclosure `2026-09-26` and
+current adult policy and Terms receipts both exist for `2026-08-03`. Missing,
+revoked, old or unknown-version heads deny; Gemini permission and its legacy
+rollout mode confer no OpenAI permission. The gate uses the version as the
+policy identifier. Supplied disclosure/action text remains immutable client
+evidence, not server verification of a screen presentation. A material policy
+change must update the client version and server gate together and require a
+fresh action.
+
+The optional Settings coordinator is not inference authorization. Required
+onboarding, `ensureCloudConsentForInference`, generic `ai_consent_required`
+recovery and the legacy quota delegate still require Gemini. OpenAI routing
+requires a later recipient-aware admission/client recovery change; a consent
+receipt alone cannot enable it.
 
 ## Fleet-Wide Outbound Provider Contract
 
@@ -2349,8 +2384,10 @@ owns the private catalog, recipient gate and retention contract.
 Apply migration `20260926142824_bind_identification_quota_to_provider.sql`
 before deploying the new Edge callers through the existing exact-SHA release
 procedure. A missing RPC has no fallback to legacy admission. Existing workers
-remain compatible with the additive migration. This source change neither
-collects OpenAI consent nor enables OpenAI production traffic.
+remain compatible with the additive migration. The subsequent
+[OpenAI consent slice](../rfcs/identification-provider-openai-consent-2026-09-26.md)
+adds an independent evidence stream and a source-disabled Settings flow. Neither
+slice enables OpenAI production traffic.
 
 ### Scan response replay
 

@@ -219,7 +219,12 @@ production submission or public release.
   The subsequent
   [provider-bound admission slice](./rfcs/identification-provider-production-admission-2026-09-26.md)
   adds exact database assignment and per-attempt evidence while production stays
-  on Gemini; OpenAI disclosure and permission are still pending.
+  on Gemini. The subsequent
+  [independent OpenAI consent slice](./rfcs/identification-provider-openai-consent-2026-09-26.md)
+  implements separate permission evidence, causal withdrawal and a
+  source-disabled Settings flow. Gemini remains required for current onboarding
+  and inference; qualified durable provenance and provider activation remain
+  later work.
 - **[Identification provider optimization plan](./rfcs/identification-provider-optimization-plan.md):**
   Shared measurement repairs are implemented with versioned mapping, reports and
   descriptive comparisons. Versioned baseline profiles and experiment-wide

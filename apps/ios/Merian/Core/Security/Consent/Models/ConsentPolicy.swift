@@ -5,6 +5,16 @@ enum ConsentPolicy {
     static let analyticsDisclosureVersion = "2026-08-04"
     static let geminiProvider = "google_gemini"
     static let analyticsProvider = "posthog"
+    static let openAIProvider = "openai"
+    static let openAIDisclosureVersion = "2026-09-26"
+    // Source-only candidate: enable collection only with reviewed provider rollout.
+    static let openAIConsentCollectionEnabled = false
+
+    static let openAIDisclosureText = """
+    With your permission, Naturebook can send photos, written descriptions, and related observation context to OpenAI for AI-powered identification. OpenAI processes this data under its API data policies. You can withdraw permission for future OpenAI processing in Settings.
+    """
+    static let openAIGrantText = "I allow OpenAI to process these observations."
+    static let openAIWithdrawalText = "I withdraw permission for OpenAI to process future observations."
 
     static let adultConfirmationText = """
     I confirm I am 18 or older
@@ -29,4 +39,38 @@ enum ConsentPolicy {
     static let analyticsWithdrawalText = """
     I withdraw permission to process future usage and diagnostics.
     """
+}
+
+/// Only reviewed recipients can construct or upload AI consent evidence.
+enum AIConsentProcessor: String {
+    case gemini = "google_gemini"
+    case openAI = "openai"
+
+    var disclosureVersion: String {
+        switch self {
+        case .gemini: ConsentPolicy.geminiDisclosureVersion
+        case .openAI: ConsentPolicy.openAIDisclosureVersion
+        }
+    }
+
+    var disclosureText: String {
+        switch self {
+        case .gemini: ConsentPolicy.geminiDisclosureText
+        case .openAI: ConsentPolicy.openAIDisclosureText
+        }
+    }
+
+    var grantText: String {
+        switch self {
+        case .gemini: ConsentPolicy.combinedAcceptanceText
+        case .openAI: ConsentPolicy.openAIGrantText
+        }
+    }
+
+    var withdrawalText: String {
+        switch self {
+        case .gemini: ConsentPolicy.geminiWithdrawalText
+        case .openAI: ConsentPolicy.openAIWithdrawalText
+        }
+    }
 }

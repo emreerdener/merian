@@ -106,3 +106,13 @@ or snapshot records as a rollback shortcut.
 The optional concise-prompt optimization stays deferred. Completing this
 admission sub-slice is progress toward production integration, not a claim that
 OpenAI production assignment or provider-specific user consent is complete.
+
+## Subsequent consent slice — 26 September 2026
+
+The
+[independent OpenAI consent implementation](./identification-provider-openai-consent-2026-09-26.md)
+now adds its own evidence stream, strict recipient helper and source-disabled
+Settings flow. The sections above record the admission slice as completed at
+that time. Current API/schema documentation includes the later consent work;
+production bindings, legacy quota admission and current client inference remain
+Gemini-only. Durable generation provenance and reviewed activation remain ahead.

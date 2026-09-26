@@ -9383,3 +9383,31 @@ private helper ACLs and the atomic trigger boundary. Run these against a
 disposable database replayed from the complete migration history. Fixture
 success does not establish acoustic accuracy or calibration; a new live
 comparison must have its own frozen V2 input/settings plan.
+
+## Independent OpenAI consent infrastructure
+
+The source-disabled optional OpenAI flow uses the existing consent lifecycle and
+local simulator gate; no provider key or paid inference is required.
+`AIProcessingConsentCoordinatorTests` covers closed collection, independent
+Gemini/OpenAI parents, withdrawal of current and older grants, stale dialogs,
+SDK mismatch, transitions, cancellation, durable save failure and account
+rebinding. `ConsentRemoteOpenAITests.swift` extends `ConsentRemoteServiceTests`
+with fixed-recipient dispatch, cross-provider ambiguous-write rejection and
+owner-scoped head mapping. Run the complete `merianTests` target through
+`make ios-local-build`, plus generated project/privacy validation, after
+changes.
+
+`openAIConsentMigrationContract.test.ts` is discovered by the migration gate.
+The disposable `openai_consent_security.sql` catalog covers role ACLs,
+provider/version/adult/Terms proof, immutable replay, stale grant rejection,
+independent withdrawal, merge preconditions/reparenting and account deletion.
+`legalConsentConcurrencyDb.test.ts` includes overlapping OpenAI grants and
+revocations and same-ID Gemini/OpenAI collisions in both arrival orders. Set
+`SUPABASE_DB_TEST_URL` to the task-owned disposable database; never use
+production for these fixtures. The complete Supabase candidate gate runs these
+tests.
+
+These checks prove consent mechanics, not public legal approval, model quality,
+production OpenAI authorization or a live provider rollout. Retain source and
+validation status in the
+[implementation record](../rfcs/identification-provider-openai-consent-2026-09-26.md).

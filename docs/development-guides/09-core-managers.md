@@ -3404,12 +3404,13 @@ consent. `ConsentSynchronizationCoordinator` owns the scheduled/active task
 identities, same-account coalescing, generation invalidation, and retention and
 exact cancellation drain of every outstanding handle, including superseded or
 previously invalidated work. It also owns unowned-evidence binding, stable
-adult/Terms/Gemini/PostHog push order, authoritative fetch, and verified merge
-sequencing. It applies the manager-supplied account/generation/session validator
-across every suspended remote phase and contains no direct Supabase or singleton
-dependency. `RequiredConsentRestorationCoordinator` owns the restoration state
-machine, automatic retry budget, UUID-keyed registry of outstanding retry tasks,
-stable completion identity, cancellation snapshot and exact drain, manual retry
+adult/Terms/AI/PostHog push order (each AI event routes to its own fixed
+recipient), authoritative fetch, and verified merge sequencing. It applies the
+manager-supplied account/generation/session validator across every suspended
+remote phase and contains no direct Supabase or singleton dependency.
+`RequiredConsentRestorationCoordinator` owns the restoration state machine,
+automatic retry budget, UUID-keyed registry of outstanding retry tasks, stable
+completion identity, cancellation snapshot and exact drain, manual retry
 admission, duplicate-session preservation, and the account, SDK-session,
 synchronization-generation, and caller-cancellation fences around every
 transition. Its timing, synchronization, context, publication, and
@@ -3429,6 +3430,17 @@ account-work leases for those workflows. `ConsentManager` remains the
 shutdown, publishes synchronization merges and restoration state, applies SDK
 permission, and drains account-bound work before Auth replacement.
 `ConsentLedgerStore` remains the raw durable-byte boundary.
+
+`AIProcessingConsentCoordinator` independently presents optional OpenAI choices
+and validates the dialog's expected account against observed and SDK identity,
+transition state and cancellation. The source collection gate remains closed.
+Any-version historic grants remain withdrawable; successful changes use verified
+ledger persistence before the existing synchronization pipeline. Its display
+state is not cloud authorization and never satisfies required Gemini onboarding.
+`ConsentRemoteMapping` owns the extracted pure mapping helpers; the live adapter
+adds the fixed OpenAI append RPC and a separate provider-head read. Required
+consent restoration and inference admission remain Gemini-only until a later
+reviewed provider rollout.
 
 - `ensureCloudConsentForInference()` is the new-account and returning-account
   provider gate exposed by the facade and implemented by

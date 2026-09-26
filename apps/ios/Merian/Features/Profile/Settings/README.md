@@ -436,3 +436,17 @@ Successful Settings sign-out invokes the app-root confirmation callback only
 after the complete transition succeeds. The shared **Signed out successfully**
 toast survives replacement of Settings by consent onboarding; failed or
 overlapping attempts do not emit success feedback.
+
+## Optional OpenAI permission
+
+`Components/AIProcessingPrivacySection.swift` delegates to the injected
+`ConsentManager.aiProcessingPermissions` coordinator. It owns only disclosure
+presentation, the captured account identity and unsaved-error feedback. An
+explicit displayed action records a grant or withdrawal; cancel records nothing.
+
+New collection is disabled in source. The section is hidden unless OpenAI
+history exists; current or older-version grants remain withdrawable with the
+gate closed. It never changes required Gemini onboarding or selects a model. The
+[consent owner](../../../Core/Security/Consent/README.md) owns persistence,
+account validation and synchronization. The displayed choice is not cloud
+inference authorization.

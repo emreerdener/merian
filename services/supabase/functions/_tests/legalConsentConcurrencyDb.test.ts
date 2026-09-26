@@ -7,7 +7,7 @@ const DEFAULT_DB_URL =
 const CONFIGURED_DB_URL = Deno.env.get("SUPABASE_DB_TEST_URL");
 const DB_URL = CONFIGURED_DB_URL ?? DEFAULT_DB_URL;
 
-type Provider = "ai" | "analytics";
+type Provider = "ai" | "analytics" | "openai";
 
 interface AppendResult {
   accepted: boolean;
@@ -60,6 +60,9 @@ async function hasCausalConsentMigration(
       ) IS NOT NULL
       AND pg_catalog.TO_REGPROCEDURE(
         'public.append_user_analytics_consent_event(uuid,text,text,timestamptz,text,text,text,text,text,uuid)'
+      ) IS NOT NULL
+      AND pg_catalog.TO_REGPROCEDURE(
+        'public.append_user_openai_consent_event(uuid,text,text,timestamptz,text,text,text,text,text,uuid)'
       ) IS NOT NULL AS installed
   `);
   const installed = result.rows[0]?.installed === true;
@@ -106,7 +109,7 @@ async function appendConsent(
   const action = eventKind === "granted"
     ? "The test device grants permission."
     : "The test device withdraws permission.";
-  const query = provider === "ai"
+  let query = provider !== "analytics"
     ? `
       SELECT
         result.accepted,
@@ -143,6 +146,14 @@ async function appendConsent(
         $5::UUID
       ) AS result
     `;
+  if (provider === "openai") {
+    query = query.replace(
+      "append_user_ai_consent_event",
+      "append_user_openai_consent_event",
+    )
+      .replace("2026-08-04.1", "2026-09-26")
+      .replace("Google Gemini", "OpenAI");
+  }
   const result = await client.queryObject<AppendResult>(query, [
     id,
     eventKind,
@@ -171,7 +182,7 @@ async function waitUntilCallersAreBlocked(
     if (result.rows[0]?.waiter_count === applicationNames.length) return;
     await new Promise((resolve) => setTimeout(resolve, 20));
   }
-  throw new Error("consent callers did not reach the account-row lock");
+  throw new Error("consent callers did not reach the expected database lock");
 }
 
 async function latestConsentEvent(
@@ -184,10 +195,14 @@ async function latestConsentEvent(
   consent_revision: string;
   causal_parent_id: string | null;
 }> {
-  const table = provider === "ai"
+  const table = provider !== "analytics"
     ? "public.user_ai_consent_events"
     : "public.user_analytics_consent_events";
-  const providerName = provider === "ai" ? "google_gemini" : "posthog";
+  const providerName = provider === "ai"
+    ? "google_gemini"
+    : provider === "openai"
+    ? "openai"
+    : "posthog";
   const result = await observer.queryObject<{
     id: string;
     event_kind: string;
@@ -346,6 +361,18 @@ Deno.test("Causal consent concurrency DB - overlapping grants and revocations ar
       pendingCalls,
     );
     blockerTransactionOpen = false;
+
+    blockerTransactionOpen = true;
+    await proveDenyWinsRace(
+      observer,
+      grantClient,
+      revokeClient,
+      "openai",
+      userId,
+      applicationNames,
+      pendingCalls,
+    );
+    blockerTransactionOpen = false;
   } finally {
     if (blockerTransactionOpen) {
       await observer.queryArray("ROLLBACK").catch(() => {});
@@ -362,3 +389,83 @@ Deno.test("Causal consent concurrency DB - overlapping grants and revocations ar
     await Promise.all(clients.map((client) => client.end().catch(() => {})));
   }
 });
+
+for (const firstProvider of ["ai", "openai"] as const) {
+  Deno.test(`Causal consent concurrency DB - ${firstProvider} and the other AI provider cannot reuse an event ID`, async () => {
+    const clients = await connectClients("crossProviderConsentCollisionDb", 3);
+    if (clients == null) return;
+    const [observer, firstClient, secondClient] = clients;
+    const userId = crypto.randomUUID();
+    const eventId = crypto.randomUUID();
+    const secondProvider = firstProvider === "ai" ? "openai" : "ai";
+    const suffix = crypto.randomUUID().slice(0, 8);
+    const secondApplication = `consent-collision-second-${suffix}`;
+    let firstTransactionOpen = false;
+    let secondCall: Promise<unknown> | undefined;
+    try {
+      if (
+        !(await hasCausalConsentMigration(
+          observer,
+          "crossProviderConsentCollisionDb",
+        ))
+      ) return;
+      await insertUser(observer, userId, `Consent Collision ${suffix}`);
+      await Promise.all([
+        configureAuthenticatedCaller(
+          firstClient,
+          userId,
+          `consent-collision-first-${suffix}`,
+        ),
+        configureAuthenticatedCaller(secondClient, userId, secondApplication),
+      ]);
+      await firstClient.queryArray("BEGIN");
+      firstTransactionOpen = true;
+      const first = await appendConsent(
+        firstClient,
+        firstProvider,
+        eventId,
+        "granted",
+        null,
+        "2026-09-26T00:00:00Z",
+      );
+      assert(first.accepted);
+      // Keep the first insert uncommitted while the other provider tries the
+      // same ID. Separate locks would expose an uncontrolled primary-key error.
+      secondCall = appendConsent(
+        secondClient,
+        secondProvider,
+        eventId,
+        "granted",
+        null,
+        "2026-09-26T00:00:00Z",
+      )
+        .then(() => null, (error: unknown) => error);
+      await waitUntilCallersAreBlocked(observer, [secondApplication]);
+      await firstClient.queryArray("COMMIT");
+      firstTransactionOpen = false;
+      const collision = await secondCall;
+      assert(collision instanceof Error);
+      assertEquals(collision.message, "consent_event_id_conflict");
+      const persisted = await observer.queryObject<{ provider: string }>(
+        "SELECT provider FROM public.user_ai_consent_events WHERE user_id = $1::UUID",
+        [userId],
+      );
+      assertEquals(persisted.rows, [{
+        provider: firstProvider === "ai" ? "google_gemini" : "openai",
+      }]);
+    } finally {
+      if (firstTransactionOpen) {
+        await firstClient.queryArray("ROLLBACK").catch(() => {});
+      }
+      await secondCall;
+      await observer.queryArray(
+        "DELETE FROM public.users WHERE id = $1::UUID",
+        [userId],
+      ).catch(() => {});
+      await observer.queryArray("DELETE FROM auth.users WHERE id = $1::UUID", [
+        userId,
+      ]).catch(() => {});
+      await Promise.all(clients.map((client) => client.end().catch(() => {})));
+    }
+  });
+}

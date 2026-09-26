@@ -45,9 +45,13 @@ observation jobs retain user authority even when a service invokes the worker.
    immutable quota-attempt snapshots, accessed through
    `reserve_identification_quota`; see the
    [admission contract](../../../../../docs/backend-and-data/05-api-contracts.md#provider-bound-identification-reservations).
-   Its legacy admission delegate and recipient helper still require Gemini
-   consent. Adding a catalog row alone cannot admit another provider; revise the
-   underlying recipient-aware admission with the new consent flow. Before
+   The recipient helper now validates independent OpenAI evidence, while the
+   legacy admission delegate and current iOS inference gate still require
+   Gemini. The
+   [consent infrastructure](../../../../../docs/rfcs/identification-provider-openai-consent-2026-09-26.md)
+   is implemented with collection disabled. Adding a catalog row alone cannot
+   admit another provider; complete underlying recipient-aware admission and
+   client consent-denial/recovery routing together before activation. Before
    activation, extend durable scan/recovery provenance and the full generation
    snapshot beyond this quota-attempt record. Public jobs require an approved
    task/model assignment in their service path as well. Do not let the registry
@@ -66,8 +70,12 @@ observation jobs retain user authority even when a service invokes the worker.
 Before sending real observation data, complete processor/purpose permission,
 processing terms, account settings, region/subprocessor, retention/deletion, and
 abuse-log review. Existing `google_gemini` receipts do not authorize another
-recipient. Implement deny/revoke/account-switch/replay behavior with the actual
-consent owner; do not relabel historical Gemini receipts.
+recipient. The independent OpenAI stream and source-disabled Settings flow
+implement local deny/revoke/account-switch and causal synchronization behavior.
+Review and publish the intended disclosure/purpose before enabling collection; a
+material copy/purpose change requires a new version and fresh action. Complete
+provider-aware inference admission and recovery with the same consent owner; do
+not relabel historical Gemini receipts.
 
 Qualify confidence interpretation for every affected consumer: candidate bands,
 history, queued results, older clients, public projections, SQL decisions, and

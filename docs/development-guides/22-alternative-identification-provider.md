@@ -334,11 +334,17 @@ records an exact Gemini provider/binding/permission assignment per metered
 identification attempt and rejects unqualified recipients before dispatch. See
 its
 [implementation record](../rfcs/identification-provider-production-admission-2026-09-26.md).
-This prepares the server boundary while keeping OpenAI disabled. The next slice
-must implement OpenAI-specific disclosure, consent and account-lifecycle
-behavior; confidence/persistence compatibility, safety, qualification and
-controlled activation remain separate requirements. The optional concise-prompt
-screen is closed and is not required to implement these boundaries. Follow the
+The subsequent
+[OpenAI consent slice](../rfcs/identification-provider-openai-consent-2026-09-26.md)
+implements independent evidence, strict recipient proof and optional Settings
+choices with collection disabled in source. Account changes, failed saves,
+revocation and causal synchronization are covered locally. Current onboarding,
+client inference admission and the underlying quota delegate still require
+Gemini. Next, preserve qualified provider and generation identity through
+durable results/recovery, then complete recipient-aware admission, confidence
+and safety compatibility, qualification and controlled activation. The optional
+concise-prompt screen is closed and is not required to implement these
+boundaries. Follow the
 [provider onboarding contract](../../services/supabase/functions/_shared/ai/ADDING_PROVIDERS.md).
 Photo/text could then receive one provider and audio-containing observations
 another, using complete-task capability checks. This slice enables that work

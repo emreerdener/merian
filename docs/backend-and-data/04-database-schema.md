@@ -192,10 +192,10 @@ provider-wide greatest revision the mandatory first authorization decision:
   `terms_version`, device `accepted_at`, exact `acceptance_text`, platform, app
   version/build, and server-controlled `recorded_at`;
 - `public.user_ai_consent_events`: UUID primary key, `user_id`, constrained
-  provider, `disclosure_version`, `event_kind` (`granted` or `revoked`), device
-  `occurred_at`, exact disclosure/action text, platform, app version/build, and
-  server-controlled `recorded_at`, server-only monotonic `consent_revision`, and
-  the accepted event's `causal_parent_id`;
+  provider (`google_gemini` or `openai`), `disclosure_version`, `event_kind`
+  (`granted` or `revoked`), device `occurred_at`, exact disclosure/action text,
+  platform, app version/build, and server-controlled `recorded_at`, server-only
+  monotonic `consent_revision`, and the accepted event's `causal_parent_id`;
 - `public.user_analytics_consent_events`: UUID primary key, `user_id`, PostHog
   disclosure version, `granted` / `revoked` event kind, device action time,
   exact disclosure/action text, platform, app version/build, and
@@ -205,17 +205,19 @@ provider-wide greatest revision the mandatory first authorization decision:
 Authenticated users may select only their own rows under RLS. Adult and Terms
 receipts retain narrow column-level insert ACLs. AI and analytics event tables
 deny direct client insertion and sequence access; callers use
-`append_user_ai_consent_event(...)` or
+`append_user_ai_consent_event(...)`, `append_user_openai_consent_event(...)` or
 `append_user_analytics_consent_event(...)`. Each `SECURITY DEFINER` routine
 authenticates with `auth.uid()`, locks the caller's `public.users` row
 `FOR KEY SHARE` to serialize against ghost-profile merge, then takes a
-transaction-scoped advisory lock for the caller/provider stream. Under that
+transaction-scoped advisory lock. Both AI recipients share the caller-level AI
+lock to serialize global event IDs in the shared table; their head queries
+remain provider-specific. PostHog keeps its separate account lock. Under that
 lock, a grant whose supplied parent is not current returns `accepted = false`
 with the authoritative head. A revocation always appends and stores that current
 head as its accepted parent, so a stale device cannot preserve a grant. Every
 accepted response returns the stored parent and the only authoritative server
 revision. No table grants client insert, update, delete, or sequence access.
-Reusing an event ID with different immutable content raises
+Reusing an event ID with a different owner, provider or immutable content raises
 `consent_event_id_conflict`. An exact revocation retry may repeat its originally
 observed parent after server rebasing; the existing stored parent is returned.
 Exact `(user_id, provider, consent_revision DESC)` stream-head indexes and
@@ -4148,12 +4150,18 @@ private, RLS-enabled tables with no direct API-role grants:
 existing eight-argument admission. It saves the exact assignment in the same
 transaction as quota/hold reservation; missing bindings or mismatches roll back
 all admission effects. The recipient-aware
-`internal.require_current_ai_consent(uuid,text)` accepts only `google_gemini`
-and delegates to the unchanged causal stream-head gate. A legacy in-progress or
-committed reservation with no snapshot returns replay plus null assignment
-fields, which cannot dispatch. Existing snapshots replay without consulting a
-new catalog binding; fresh attempts require a current exact match. All existing
-quota RPC signatures and user receipts remain compatible.
+`internal.require_current_ai_consent(uuid,text)` delegates `google_gemini` to
+the unchanged causal stream-head gate. Migration
+`20260926150509_add_independent_openai_consent_stream.sql` also implements
+OpenAI proof: its all-version latest event must be a grant for `2026-09-26`,
+with adult and Terms `2026-08-03` receipts. It ignores Gemini grants and legacy
+rollout compatibility, and denies unknown recipients. This helper expansion does
+not widen the Gemini-only catalog, model allowlists or underlying legacy quota
+delegate. A legacy in-progress or committed reservation with no snapshot returns
+replay plus null assignment fields, which cannot dispatch. Existing snapshots
+replay without consulting a new catalog binding; fresh attempts require a
+current exact match. All existing quota RPC signatures and user receipts remain
+compatible.
 
 Migration `20260809155517_add_scan_admission_preview.sql` exposes one narrow
 authenticated RPC, `public.get_my_scan_admission_preview(boolean)`, over this

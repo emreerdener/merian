@@ -40,15 +40,16 @@ enum ConsentAuthorityPolicy {
 
     static func currentAIConsentEvent(
         ownerUserId: UUID?,
+        processor: AIConsentProcessor = .gemini,
         in source: ConsentManager.LocalLedger
     ) -> ConsentManager.AIConsentEvent? {
         // Resolve the provider-wide head before checking its disclosure. A
         // prior-version revocation may be the newest accepted user action.
         guard let streamHead = currentAIConsentStreamHead(
             ownerUserId: ownerUserId,
+            processor: processor,
             in: source
-        ), streamHead.disclosureVersion
-            == ConsentPolicy.geminiDisclosureVersion else {
+        ), streamHead.disclosureVersion == processor.disclosureVersion else {
             return nil
         }
         return streamHead
@@ -72,11 +73,12 @@ enum ConsentAuthorityPolicy {
 
     static func currentAIConsentStreamHead(
         ownerUserId: UUID?,
+        processor: AIConsentProcessor = .gemini,
         in source: ConsentManager.LocalLedger
     ) -> ConsentManager.AIConsentEvent? {
         let matchingEvents = source.aiConsentEvents.filter {
             $0.ownerUserId == ownerUserId
-                && $0.provider == ConsentPolicy.geminiProvider
+                && $0.provider == processor.rawValue
                 && !isSuperseded($0)
         }
         if let pendingEvent = matchingEvents.last(where: {
