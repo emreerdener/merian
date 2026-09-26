@@ -1,25 +1,35 @@
 # Naturebook AI Provider Flexibility — SRD
 
 Document ID: NB-SRD-IDENTIFICATION-001\
-Version: 1.1\
-Date: 21 September 2026\
-Status: Gemini-only backend deployed; owner verification confirmed\
+Version: 1.2\
+Date: 26 September 2026\
+Status: Gemini-only foundation deployed; separate OpenAI evaluator implemented
+locally\
 Suggested owners: Backend and Product, with iOS contract review\
 Product authority:
 [Provider Flexibility PRD](../product/03-identification-foundation-prd.md)
 
 ## 1. Scope and current implementation
 
-Create the shared interfaces, explicit Gemini task bindings, execution metadata,
-and verification needed for a later provider change. **All identification and
-scoped content-generation requests remain on their current approved Gemini
-models.** An OpenAI or other live-provider integration is future work.
+**Scope clarification — 26 September 2026:** This SRD preserves the original
+Gemini-only foundation and its dated implementation history. A subsequent
+[OpenAI photo/text evaluator](../development-guides/22-alternative-identification-provider.md)
+uses the shared boundary locally; its paid exploratory evidence does not grant
+production authority. The
+[implementation review](./identification-provider-flexibility-review-2026-09-26.md)
+records the current source boundary and later activation work.
 
-The current milestone preserves prompts, sampling, media encoding, confidence,
-permissions, subscription policy, response contracts, and recovery behavior. It
-does not require another SDK, vendor credentials, new processor disclosures,
-confidence recalibration, or live multi-provider evaluation. BioCLIP, training,
-model cascades, and family plans remain deferred.
+Create the shared interfaces, explicit Gemini task bindings, execution metadata,
+and verification needed for a later provider change. **All production
+identification and scoped content-generation requests remain on their approved
+Gemini models.** Production integration of OpenAI or another provider remains
+future work.
+
+The original milestone preserves prompts, sampling, media encoding, confidence,
+permissions, subscription policy, response contracts, and recovery behavior.
+Completing it required no second SDK, vendor credentials, new processor
+disclosures, confidence recalibration or live multi-provider evaluation.
+BioCLIP, training, model cascades, and family plans remain deferred.
 
 This revision supersedes the earlier plan to add OpenAI during the initial
 milestone. Repository contracts were reviewed on 2 September 2026, with timeout,

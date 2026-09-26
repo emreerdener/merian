@@ -212,6 +212,10 @@ production submission or public release.
   [first OpenAI pilot](./rfcs/identification-openai-photo-text-pilot-2026-09-25.md)
   retains seven normalized results and one unknown across eight examples,
   including the unmatched-name scoring limitation; production remains Gemini.
+- **[Provider-flexibility implementation review](./rfcs/identification-provider-flexibility-review-2026-09-26.md):**
+  No runtime blockers identified for the evaluation-only OpenAI adapter and
+  controlled evaluator. Corrects original-phase documentation scope and records
+  the remaining production admission, permission, confidence and rollout work.
 - **[Identification provider optimization plan](./rfcs/identification-provider-optimization-plan.md):**
   Shared measurement repairs are implemented with versioned mapping, reports and
   descriptive comparisons. Versioned baseline profiles and experiment-wide

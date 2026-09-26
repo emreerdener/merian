@@ -32,10 +32,12 @@ observation jobs retain user authority even when a service invokes the worker.
    executes once and distinguishes refusal, unusable output, operational
    failure, and uncertain execution. Preserve caller-owned timeouts and
    recovery.
-2. Extend the explicit unions in `contracts.ts` and approved profiles in
-   `registry.ts` / `contentRegistry.ts` for the qualified variants. The current
-   provider/model/configuration unions intentionally contain only Gemini values.
-   Keep the evidence/result contracts independent of the new SDK. Reuse
+2. For production assignment, extend the production attempt/model unions in
+   `contracts.ts` and approved profiles in `registry.ts` / `contentRegistry.ts`
+   for the qualified variants. Those production unions and bindings currently
+   contain only Gemini values. The separate `OpenAIEvaluationSnapshot` and local
+   evaluator profiles do not create production authority. Keep the
+   evidence/result contracts independent of the new SDK. Reuse
    `identify/contract.ts` for common validation and add a provider-specific
    schema projection alongside the existing Google projection when necessary.
 3. Extend authoritative database model/operation admission and the Edge registry
