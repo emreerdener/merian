@@ -2461,10 +2461,10 @@ release procedure. The legacy eight-argument identification RPC and both
 `reserve_ai_quota` ABIs remain compatible and Gemini-gated. New callers never
 fall back to them if the routing overload is missing. This infrastructure does
 not activate OpenAI or enable consent collection. Future activation also needs
-native integration of the recipient preflight below, a qualified client protocol
-and coordinated accepted maximum expansion, qualified model admission,
-confidence and versioned result provenance. The implemented recipient-specific
-saved-scan recovery remains dormant while all assignments are Gemini.
+the recipient preflight below, a qualified client protocol and coordinated
+accepted maximum expansion, qualified model admission, confidence and versioned
+result provenance. The implemented recipient-specific saved-scan recovery
+remains dormant while all assignments are Gemini.
 
 ### Assigned-recipient preflight
 
@@ -2538,15 +2538,29 @@ require fresh admission. Headerless clients continue through the nine-argument
 ABI, and eight-argument workers remain compatible; a caller using the new header
 never falls back to an older overload on failure.
 
-Native integration is the next slice. It must validate the response, carry the
-closed expectation through live, authentication and transport retries and
-durable background requests, and recheck local owner/generation/recipient
-permission before dispatch. Policy drift must preserve the observation and
-request another preflight rather than choosing a provider or automatically
-granting consent. Offline preservation may continue, but inference waits for a
-successful current check. Confidence interpretation and deliberate permission
-collection remain separate activation prerequisites. See the
-[implementation record](../rfcs/identification-recipient-preflight-2026-09-26.md).
+Native `identify` and `identify-multimodal` preparation derives this metadata
+from the exact outgoing body off-main. The authenticated fixed-route RPC uses
+the configured pinned Supabase transport and a five-second request timeout. A
+missing RPC, unavailable response, unknown decision, wrong profile or malformed
+row blocks inference; there is no headerless fallback. The expectation survives
+live request reconstruction, Auth/transport retries and the prepared background
+URLRequest. Foreground attempts recheck the local owner, exact live generation
+and recipient permission before each dispatch. Background preparation rechecks
+queue generation and the local gate after each dispatch-related suspension;
+completed-result recovery still comes first.
+
+`409 ai_identification_preflight_changed` preserves the observation and lets
+durable recovery prepare a new request with a fresh preflight. Permission and
+`426 client_update_required` denials pause the saved scan without recording a
+network circuit failure. A late local withdrawal after background activation
+must save needs-attention before releasing its durable owner. These controls
+cannot choose another provider or collect permission. Existing required Gemini
+onboarding/synchronization, native protocol 3 and disabled OpenAI collection
+remain in place; this is not an OpenAI activation path. Confidence
+interpretation and deliberate permission collection remain separate
+prerequisites. Deploy the additive backend contract before distributing a native
+build that requires it. See the
+[native implementation record](../rfcs/identification-native-recipient-preflight-2026-09-26.md).
 
 ### Scan response replay
 

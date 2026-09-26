@@ -45,7 +45,7 @@ extension MerianNetworkClient {
         let capturedTelemetry = telemetry
         let capturedDescription = description
         let capturedObservationContextJSON = observationContextJSON
-        let bodyData = try await DetachedWork.value(
+        let prepared = try await DetachedWork.value(
             category: .inferenceRequestPreparation
         ) {
             try Task.checkCancellation()
@@ -60,7 +60,7 @@ extension MerianNetworkClient {
                 observationContextJSON: capturedObservationContextJSON
             )
             try Task.checkCancellation()
-            return bodyData
+            return try PreparedIdentificationPayload(data: bodyData, function: "identify")
         }
 
         guard Self.inferenceObjectKeysBelongToExpectedUser(
@@ -69,15 +69,20 @@ extension MerianNetworkClient {
         ) else {
             throw SupabaseAuthTransitionError.signOutSessionChanged
         }
+        let authorization = try await prepareIdentificationAuthorization(
+            input: prepared.preflight, expectedAuthUserID: expectedAuthUserID
+        )
         let request = try await makeAuthenticatedInferenceURLRequest(
             function: "identify",
-            bodyData: bodyData,
+            bodyData: prepared.data,
             idempotencyKey: capturedScanId,
-            expectedAuthUserID: expectedAuthUserID
+            expectedAuthUserID: expectedAuthUserID,
+            identificationAuthorization: authorization
         )
         return AuthenticatedInferenceRequest(
             request: request,
-            expectedAuthUserID: expectedAuthUserID
+            expectedAuthUserID: expectedAuthUserID,
+            identificationAuthorization: authorization
         )
     }
 
@@ -108,7 +113,7 @@ extension MerianNetworkClient {
         ) else {
             throw SupabaseAuthTransitionError.signOutSessionChanged
         }
-        let bodyData = try await DetachedWork.value(
+        let prepared = try await DetachedWork.value(
             category: .inferenceRequestPreparation
         ) {
             try Task.checkCancellation()
@@ -123,17 +128,21 @@ extension MerianNetworkClient {
                 observationContextJSON: capturedObservationContextJSON
             )
             try Task.checkCancellation()
-            return bodyData
+            return try PreparedIdentificationPayload(data: bodyData, function: "identify")
         }
 
+        let authorization = try await prepareIdentificationAuthorization(
+            input: prepared.preflight, expectedAuthUserID: expectedAuthUserID
+        )
         // Inference calls can take up to 25–30s on gemini-2.5-pro with slow connections.
         // Use a 90s timeout matching timeoutIntervalForResource to prevent false timeouts.
         return try await performAuthenticatedInferenceJSONPost(
             function: "identify",
-            body: bodyData,
+            body: prepared.data,
             timeoutInterval: Self.directIdentifyRequestTimeout,
             idempotencyKey: capturedClientScanId,
-            expectedAuthUserID: expectedAuthUserID
+            expectedAuthUserID: expectedAuthUserID,
+            identificationAuthorization: authorization
         )
     }
 
@@ -207,7 +216,8 @@ extension MerianNetworkClient {
         observationContextsJSON: [String] = [],
         telemetry: CaptureTelemetry,
         clientScanId: String,
-        preferredGoal: FieldTripPreferredGoal? = nil
+        preferredGoal: FieldTripPreferredGoal? = nil,
+        validateAttempt: (@MainActor @Sendable () throws -> Void)? = nil
     ) async throws -> AuthenticatedInferenceRequest {
         try await ensureInferenceConsent()
         try validateEndpointConfiguration("identify-multimodal")
@@ -230,7 +240,7 @@ extension MerianNetworkClient {
         let capturedMimeType = mimeType
         let capturedPreferredGoal = preferredGoal
 
-        let bodyData = try await DetachedWork.value(
+        let prepared = try await DetachedWork.value(
             category: .inferenceRequestPreparation
         ) {
             try Task.checkCancellation()
@@ -263,7 +273,7 @@ extension MerianNetworkClient {
                 preferredGoal: capturedPreferredGoal
             )
             try Task.checkCancellation()
-            return bodyData
+            return try PreparedIdentificationPayload(data: bodyData, function: "identify-multimodal")
         }
 
         guard Self.inferenceObjectKeysBelongToExpectedUser(
@@ -276,15 +286,21 @@ extension MerianNetworkClient {
         ) else {
             throw SupabaseAuthTransitionError.signOutSessionChanged
         }
+        let authorization = try await prepareIdentificationAuthorization(
+            input: prepared.preflight, expectedAuthUserID: expectedAuthUserID,
+            validateAttempt: validateAttempt
+        )
         let request = try await makeAuthenticatedInferenceURLRequest(
             function: "identify-multimodal",
-            bodyData: bodyData,
+            bodyData: prepared.data,
             idempotencyKey: capturedClientScanId,
-            expectedAuthUserID: expectedAuthUserID
+            expectedAuthUserID: expectedAuthUserID,
+            identificationAuthorization: authorization
         )
         return AuthenticatedInferenceRequest(
             request: request,
-            expectedAuthUserID: expectedAuthUserID
+            expectedAuthUserID: expectedAuthUserID,
+            identificationAuthorization: authorization
         )
     }
 
@@ -306,7 +322,9 @@ extension MerianNetworkClient {
         isProFunded: Bool = false,
         onRequestBodySent: (@Sendable () -> Void)? = nil,
         measurementValidator: IdentificationMeasurementContext.Validator? = nil,
-        comparisonCapture: IdentificationComparisonCapture? = nil
+        comparisonCapture: IdentificationComparisonCapture? = nil,
+        validateAttempt: (@MainActor @Sendable () throws -> Void)? = nil,
+        onProviderDispatchReady: (@MainActor @Sendable () -> Void)? = nil
     ) async throws -> Data {
         let authenticatedRequest = try await buildMultiModalRequest(
             r2ObjectKeys: r2ObjectKeys,
@@ -321,8 +339,11 @@ extension MerianNetworkClient {
             observationContextsJSON: observationContextsJSON,
             telemetry: telemetry,
             clientScanId: clientScanId ?? UUID().uuidString.lowercased(),
-            preferredGoal: preferredGoal
+            preferredGoal: preferredGoal,
+            validateAttempt: validateAttempt
         )
+        try await authenticatedRequest.validateForDispatch()
+        await onProviderDispatchReady?()
 
         return try await performAuthenticatedInferenceRequest(
             authenticatedRequest,

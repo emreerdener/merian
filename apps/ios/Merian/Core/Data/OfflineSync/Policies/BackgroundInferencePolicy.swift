@@ -24,6 +24,29 @@ enum BackgroundInferencePolicy {
     static let openAIConsentAttentionMessage =
         "This scan needs permission for OpenAI processing. It remains saved and paused."
 
+    static let clientUpdateAttentionMessage =
+        "Update Naturebook to identify this saved scan, then retry it from Scans."
+
+    /// A read-only recipient preflight can pause before an inference task exists.
+    static func preparationAttention(for error: Error) -> (reason: String, code: String)? {
+        switch error {
+        case MerianError.aiConsentRequired:
+            return (requiredConsentAttentionMessage, "ai_consent_required")
+        case MerianError.openAIConsentRequired:
+            return (openAIConsentAttentionMessage, "ai_openai_consent_required")
+        default:
+            guard case let MerianError.httpError(status, _) = error,
+                  let code = EdgeFunctionErrorPolicy.stableCode(from: error) else { return nil }
+            if status == 426, code == "client_update_required" {
+                return (clientUpdateAttentionMessage, code)
+            }
+            if status == 402, code == "pro_required" {
+                return ("This saved scan requires Pro access. Upgrade, then retry it from Scans.", code)
+            }
+            return nil
+        }
+    }
+
     static func shouldRetryBackgroundInferenceRouteFailure(
         statusCode: Int?,
         functionRouteEvidence: EdgeFunctionRouteResponseEvidence?,

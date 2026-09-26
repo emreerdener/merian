@@ -4,6 +4,23 @@ import Testing
 @testable import Merian
 
 enum NetworkEndpointTestSupport {
+    static func readyGeminiPreflight(_ request: URLRequest) throws -> (HTTPURLResponse, Data) {
+        #expect(request.url?.path == "/rest/v1/rpc/get_my_identification_preflight")
+        #expect(request.httpMethod == "POST")
+        #expect(request.timeoutInterval == 5)
+        let body = try #require(MockURLProtocol.bodyData(for: request))
+        let input = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        #expect(Set(input.keys) == Set([
+            "p_operation", "p_input_profile", "p_flash_fallback_eligible",
+            "p_original_analysis_id", "p_client_protocol"
+        ]))
+        #expect(input["p_operation"] as? String == "scan_identification")
+        #expect(input["p_client_protocol"] as? Int == 3)
+        let profile = try #require(input["p_input_profile"] as? String)
+        let json = "[{\"input_profile\":\"\(profile)\",\"decision\":\"ready\",\"processor_permission\":\"google_gemini\",\"minimum_client_protocol\":0}]"
+        return try response(to: request, json: json)
+    }
+
     /// Reads a potentially one-shot body stream once, then shares the same bytes
     /// with payload assertions and exact-wire replay comparisons.
     @discardableResult
@@ -71,6 +88,9 @@ struct NetworkEndpointFixture {
         session = transport.makeSession()
         client.overridingSession = session
         client.overridingAuthUserID = UUID()
+        transport.register(path: "/get_my_identification_preflight") {
+            try NetworkEndpointTestSupport.readyGeminiPreflight($0)
+        }
     }
 
     func close() {

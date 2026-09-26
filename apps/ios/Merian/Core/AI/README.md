@@ -939,6 +939,20 @@ resumes an OpenAI-paused row. OpenAI collection remains disabled; activation
 work is recorded in the
 [canonical API contract](../../../../../docs/backend-and-data/05-api-contracts.md#independent-openai-consent-evidence).
 
+Identification now checks the app-assigned recipient before sending its
+serialized observation. Live visual and nonvisual attempt validators survive
+preflight and request reconstruction. A changed assignment
+(`409
+ai_identification_preflight_changed`) preserves the saved observation and
+restarts durable preparation with a fresh check. An incompatible client
+(`426
+client_update_required`) transfers the exact foreground owner to the same
+durable pause mechanism used for recipient denial and presents **Update
+needed**. Neither condition advances the network circuit. The background queue
+persists recipient/update denial before retiring a prepared but unresumed task.
+All current assignments and required onboarding remain Gemini; permission
+collection and provider activation are separate work.
+
 Provider admission is also separated from transport health for both live
 pipelines. Exact `402 pro_required` presents **Upgrade needed / Scan saved**;
 `429 ai_quota_daily_exceeded` requests the root paywall without publishing a

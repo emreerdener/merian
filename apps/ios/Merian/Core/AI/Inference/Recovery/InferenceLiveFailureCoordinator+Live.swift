@@ -66,6 +66,8 @@ extension InferenceLiveFailureCoordinator.Dependencies {
             MerianLog.general.debug(
                 "Inference response was ambiguous after server acceptance; restoring scanId=\(scanId, privacy: .public)"
             )
+        case .recipientChanged, .clientUpdateRequired:
+            MerianLog.general.debug("Identification assignment needs a fresh compatible request; the observation remains saved.")
         case .consentRequired, .openAIConsentRequired:
             MerianLog.general.debug(
                 "Inference paused until required consent is authoritative; the queued scan remains saved."

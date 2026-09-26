@@ -245,7 +245,7 @@ struct MediaUploadSyncTests {
         ))
         #expect(inferencePipelineSource.components(
             separatedBy: "allowsAutomaticNetworkWorkOnCurrentPath"
-        ).count == 19)
+        ).count == 20)
         #expect(normalizedInferencePipelineSource.components(
             separatedBy:
                 "guard !Task.isCancelled, allowsAutomaticNetworkWorkOnCurrentPath, isServerIngestionPollCurrent("

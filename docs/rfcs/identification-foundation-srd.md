@@ -808,3 +808,16 @@ The tracker and linked baseline distinguish checks already run from future
 implementation and release requirements. The
 [earlier combined SRD](./family-plans-and-ai-platform-srd.md) remains deferred
 background.
+
+## Subsequent native integration — 26 September 2026
+
+The
+[native recipient preflight](./identification-native-recipient-preflight-2026-09-26.md)
+carries the backend's app-owned assignment through foreground and saved-scan
+identification. It stops on changed assignments, missing recipient permission or
+incompatible clients while preserving the observation. Existing Gemini
+assignments, required onboarding and disabled OpenAI collection remain
+unchanged. This extends the later-provider foundation; the original completed
+Gemini-only phase and its historical release evidence above are unchanged.
+Matched candidate qualification and deliberate provider activation remain
+separate milestones.

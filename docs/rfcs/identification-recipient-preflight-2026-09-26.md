@@ -118,3 +118,12 @@ links.
 This slice changes no Swift source or Identify response DTO. No iOS build was
 needed or run. It includes no hosted mutation, push, deployment, provider
 activation or benchmark spending.
+
+## Subsequent native slice — 26 September 2026
+
+The
+[native integration](./identification-native-recipient-preflight-2026-09-26.md)
+implements the next-slice contract described above. Its local verification and
+release ordering are recorded separately; the backend verification above remains
+historical evidence for its own candidate. Gemini remains the only active
+assignment, with no deployment or provider activation in either local slice.

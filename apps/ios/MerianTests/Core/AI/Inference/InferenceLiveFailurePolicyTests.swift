@@ -67,6 +67,8 @@ struct InferenceLiveFailurePolicyTests {
             .init(status: 409, code: "ai_request_in_progress", failure: .recoverableConflict),
             .init(status: 409, code: "scan_already_complete", failure: .recoverableConflict),
             .init(status: 409, code: "scan_already_finalized", failure: .recoverableConflict),
+            .init(status: 409, code: "ai_identification_preflight_changed", failure: .recipientChanged),
+            .init(status: 426, code: "client_update_required", failure: .clientUpdateRequired),
             .init(status: 402, code: "pro_required", failure: .proRequired),
             .init(status: 429, code: "ai_quota_daily_exceeded", failure: .dailyQuotaExceeded),
             .init(status: 429, code: "ai_user_rate_limit_exceeded", failure: .rateLimited(.user)),
@@ -75,7 +77,7 @@ struct InferenceLiveFailurePolicyTests {
         ]
         for mode in modes {
             for testCase in cases {
-                for status in [400, 402, 403, 409, 429, 500] {
+                for status in [400, 402, 403, 409, 426, 429, 500] {
                     #expect(Policy.failure(
                         for: httpError(status, code: testCase.code), mode: mode
                     ) == (status == testCase.status ? testCase.failure : .service))
@@ -120,6 +122,8 @@ struct InferenceLiveFailurePolicyTests {
     @Test func consentAndSpecialPoliciesStayOutsideCircuitFailure() {
         let cases: [SpecialPolicyCase] = [
             .init(failure: .recoverableConflict, event: "InferenceCompletionRecovery", triggersFeedback: false),
+            .init(failure: .recipientChanged, event: "InferenceRecipientChanged", triggersFeedback: true),
+            .init(failure: .clientUpdateRequired, event: "InferenceClientUpdateRequired", triggersFeedback: true),
             .init(failure: .consentRequired, event: "InferenceConsentRequired", triggersFeedback: true),
             .init(failure: .openAIConsentRequired, event: "InferenceOpenAIConsentRequired", triggersFeedback: true),
             .init(failure: .proRequired, event: "InferenceProRequired", triggersFeedback: true),

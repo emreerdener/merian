@@ -123,15 +123,18 @@ final class InferenceLiveFailureCoordinator {
 
         guard stillOwnsAttempt else { return }
         let failure = InferenceLiveFailurePolicy.failure(for: error, mode: mode)
-        if failure == .openAIConsentRequired,
+        if failure == .openAIConsentRequired || failure == .clientUpdateRequired,
            let scanId, let foregroundGeneration {
             // Transfer this exact owner to durable pause recovery. Its local
             // persistence retries must not release runnable work to inference.
             _ = attemptCoordinator.pauseQueuedScan(
                 scanId: scanId, attemptGeneration: attemptGeneration,
                 foregroundGeneration: foregroundGeneration,
-                reason: BackgroundInferencePolicy.openAIConsentAttentionMessage,
-                errorCode: "ai_openai_consent_required"
+                reason: failure == .openAIConsentRequired
+                    ? BackgroundInferencePolicy.openAIConsentAttentionMessage
+                    : BackgroundInferencePolicy.clientUpdateAttentionMessage,
+                errorCode: failure == .openAIConsentRequired
+                    ? "ai_openai_consent_required" : "client_update_required"
             )
             guard attemptCoordinator.isLocalAttemptCurrent(
                 scanId: scanId, attemptGeneration: attemptGeneration

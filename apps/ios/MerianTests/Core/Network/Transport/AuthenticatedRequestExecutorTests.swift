@@ -5,6 +5,31 @@ import Testing
 
 @Suite("Authenticated Request Executor")
 struct AuthenticatedRequestExecutorTests {
+    @Test(arguments: [401, 500])
+    func retriesKeepRecipientExpectationAndValidator(status: Int) async throws {
+        let userID = UUID()
+        let probe = AuthenticatedRequestExecutorProbe(
+            authUserIDs: [userID, userID],
+            outcomes: [
+                .response(statusCode: status, data: Data(#"{"code":"invalid_session_token"}"#.utf8)),
+                .response(statusCode: 200, data: Data("{}".utf8))
+            ], refreshResult: true
+        )
+        var request = try makeRequest(function: "identify-multimodal", idempotencyKey: "stable-key")
+        request.identificationAuthorization = .init(recipient: .openAI) { throw CancellationError() }
+        _ = try await makeExecutor(probe: probe).execute(request)
+        #expect(probe.attempts.count == 2)
+        for attempt in probe.attempts {
+            #expect(attempt.request.value(forHTTPHeaderField: IdentificationRecipientExpectation.header) == "openai")
+            #expect(attempt.identificationAuthorization?.recipient == .openAI)
+            // The transport double captures the validator instead of running it.
+            // Confirm reconstruction retained the exact denial-capable closure.
+            await #expect(throws: CancellationError.self) {
+                try await attempt.identificationAuthorization?.validate()
+            }
+        }
+    }
+
     @Test func openAIConsentDenialDoesNotOpenGeminiOnboardingOrRetry() async throws {
         let probe = AuthenticatedRequestExecutorProbe(
             authUserIDs: [UUID()],
@@ -540,6 +565,7 @@ private final class AuthenticatedRequestExecutorProbe: @unchecked Sendable {
         let request: URLRequest
         let authTransitionOwner: AuthTransitionToken?
         let expectedAuthUserID: UUID?
+        let identificationAuthorization: IdentificationDispatchAuthorization?
     }
 
     private let lock = NSLock()
@@ -643,7 +669,8 @@ private final class AuthenticatedRequestExecutorProbe: @unchecked Sendable {
             capturedAttempts.append(Attempt(
                 request: attempt.request,
                 authTransitionOwner: attempt.authTransitionOwner,
-                expectedAuthUserID: attempt.expectedAuthUserID
+                expectedAuthUserID: attempt.expectedAuthUserID,
+                identificationAuthorization: attempt.identificationAuthorization
             ))
             guard !remainingOutcomes.isEmpty else {
                 throw CocoaError(.fileReadCorruptFile)

@@ -36,6 +36,8 @@ enum InferenceLiveFailurePolicy {
 
     enum Failure: Equatable, Sendable {
         case recoverableConflict
+        case recipientChanged
+        case clientUpdateRequired
         case consentRequired
         case openAIConsentRequired
         case proRequired
@@ -58,6 +60,10 @@ enum InferenceLiveFailurePolicy {
             switch self {
             case .recoverableConflict:
                 return "InferenceCompletionRecovery"
+            case .recipientChanged:
+                return "InferenceRecipientChanged"
+            case .clientUpdateRequired:
+                return "InferenceClientUpdateRequired"
             case .consentRequired:
                 return "InferenceConsentRequired"
             case .openAIConsentRequired:
@@ -139,6 +145,10 @@ enum InferenceLiveFailurePolicy {
             return nil
         }
         switch (statusCode, code) {
+        case (409, "ai_identification_preflight_changed"):
+            return .recipientChanged
+        case (426, "client_update_required"):
+            return .clientUpdateRequired
         case (402, "pro_required"):
             return .proRequired
         case (429, "ai_quota_daily_exceeded"):

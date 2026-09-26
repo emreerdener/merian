@@ -4,6 +4,19 @@ import Testing
 
 @Suite("Background Inference Policy")
 struct BackgroundInferencePolicyTests {
+    @Test func preflightDenialsPauseWithoutRetryOrProviderChoice() {
+        let openAI = BackgroundInferencePolicy.preparationAttention(for: MerianError.openAIConsentRequired)
+        #expect(openAI?.code == "ai_openai_consent_required")
+        #expect(openAI?.reason == BackgroundInferencePolicy.openAIConsentAttentionMessage)
+        let update = BackgroundInferencePolicy.preparationAttention(for:
+            MerianError.httpError(statusCode: 426, message: #"{"code":"client_update_required"}"#))
+        #expect(update?.code == "client_update_required")
+        #expect(BackgroundInferencePolicy.preparationAttention(for: URLError(.notConnectedToInternet)) == nil)
+        let drift = Data(#"{"code":"ai_identification_preflight_changed"}"#.utf8)
+        #expect(BackgroundInferencePolicy.backgroundInferenceResponseDisposition(
+            statusCode: 409, functionRouteEvidence: nil, responseData: drift) == .retry)
+    }
+
     @Test func openAIConsentRequiresExactCodeAndStatus() {
         let data = Data(#"{"code":"ai_openai_consent_required"}"#.utf8)
         #expect(BackgroundInferencePolicy.backgroundInferenceResponseDisposition(

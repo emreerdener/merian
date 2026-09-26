@@ -29,8 +29,10 @@ still use Gemini; see the
   fresh work. Durable quota-attempt snapshots preserve each metered generation.
   The additive caller-bound recipient preflight is advisory. Edge accepts an
   optional denial-only recipient expectation and uses a ten-argument admission
-  overload to stop fresh work if assignment changed. The native preflight caller
-  is a subsequent slice; Gemini remains the sole active assignment. See the
+  overload to stop fresh work if assignment changed. Native preparation now
+  validates that result, preserves the expectation across retries and rechecks
+  local permission before dispatch; Gemini remains the sole active assignment.
+  See the
   [admission contract](../../../../../docs/backend-and-data/05-api-contracts.md#provider-bound-identification-reservations).
 - `registry.ts` independently checks that identification assignment and resolves
   the fixed `gemini_baseline_v1` binding from the quota-selected model and,

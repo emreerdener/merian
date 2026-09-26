@@ -27,6 +27,7 @@ struct AuthenticatedRequestExecutor {
         let authTransitionOwner: AuthTransitionToken?
         let expectedAuthUserID: UUID?
         var measurementContext: IdentificationMeasurementContext?
+        var identificationAuthorization: IdentificationDispatchAuthorization?
     }
 
     struct TransportAttempt {
@@ -35,6 +36,7 @@ struct AuthenticatedRequestExecutor {
         let onRequestBodySent: (@Sendable () -> Void)?
         let authTransitionOwner: AuthTransitionToken?
         let expectedAuthUserID: UUID?
+        var identificationAuthorization: IdentificationDispatchAuthorization?
     }
 
     struct UnauthorizedRecoveryState {
@@ -205,6 +207,10 @@ struct AuthenticatedRequestExecutor {
                 forHTTPHeaderField: "Idempotency-Key"
             )
         }
+        if let authorization = request.identificationAuthorization {
+            urlRequest.setValue(authorization.recipient.rawValue,
+                                forHTTPHeaderField: IdentificationRecipientExpectation.header)
+        }
         urlRequest.httpBody = request.body
 
         let transport: TransportResult
@@ -215,7 +221,8 @@ struct AuthenticatedRequestExecutor {
                     body: request.body,
                     onRequestBodySent: request.onRequestBodySent,
                     authTransitionOwner: request.authTransitionOwner,
-                    expectedAuthUserID: retryChainAuthUserID
+                    expectedAuthUserID: retryChainAuthUserID,
+                    identificationAuthorization: request.identificationAuthorization
                 )
             )
         } catch let urlError as URLError {

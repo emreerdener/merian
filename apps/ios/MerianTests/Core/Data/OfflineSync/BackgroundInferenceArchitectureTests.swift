@@ -613,7 +613,9 @@ struct BackgroundInferenceArchitectureTests {
             "Services/QueueMaintenance/OfflineQueueManager+QueueDeletion.swift"
         ],
         "BackgroundInferencePolicy.requiredConsentAttentionMessage": [
-            completionPath,
+            completionPath
+        ],
+        "BackgroundInferencePolicy.preparationAttention(for:": [
             dispatchPath
         ],
         "BackgroundInferencePolicy.backgroundInferenceResponseDisposition(": [

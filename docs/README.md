@@ -227,8 +227,11 @@ production submission or public release.
   [durable provenance slice](./rfcs/identification-provider-result-provenance-2026-09-26.md)
   preserves each saved Gemini result's configuration, and the
   [app-controlled routing slice](./rfcs/identification-provider-input-routing-2026-09-26.md)
-  adds complete-input assignments and recipient-aware quota admission. Provider
-  qualification and recipient-specific client recovery remain activation work.
+  adds complete-input assignments and recipient-aware quota admission. The
+  [native recipient preflight](./rfcs/identification-native-recipient-preflight-2026-09-26.md)
+  checks assignment before dispatch, preserves the expectation across retries,
+  and pauses saved observations on permission or client-version denial. Provider
+  qualification, deliberate permission collection and rollout remain ahead.
 - **[Identification provider optimization plan](./rfcs/identification-provider-optimization-plan.md):**
   Shared measurement repairs are implemented with versioned mapping, reports and
   descriptive comparisons. Versioned baseline profiles and experiment-wide

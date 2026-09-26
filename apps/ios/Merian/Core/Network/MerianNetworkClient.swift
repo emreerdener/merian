@@ -217,32 +217,22 @@ final class MerianNetworkClient {
         _ request: URLRequest,
         timeoutInterval: TimeInterval
     ) async throws -> (Data, URLResponse) {
-        guard let baseURL = SecureTransportPolicy.httpsURL(from: supabaseUrl),
-              let requestURL = request.url else {
-            throw MerianError.invalidURL
-        }
-        let expectedURL = baseURL
-            .appendingPathComponent("rest")
-            .appendingPathComponent("v1")
-            .appendingPathComponent("rpc")
-            .appendingPathComponent("get_my_scan_admission_preview")
-        let authorization = request.value(forHTTPHeaderField: "Authorization")
-        let apiKey = request.value(forHTTPHeaderField: "apikey")
-        guard request.httpMethod == "POST",
-              requestURL == expectedURL,
-              authorization?.hasPrefix("Bearer ") == true,
-              authorization.map({
-                  String($0.dropFirst("Bearer ".count))
-                      .trimmingCharacters(in: .whitespacesAndNewlines)
-              })?.isEmpty == false,
-              apiKey?.trimmingCharacters(in: .whitespacesAndNewlines)
-                .isEmpty == false else {
-            throw MerianError.invalidURL
-        }
+        try AdmissionRPCRequestPolicy.validateAllowanceRequest(request, baseURL: supabaseUrl)
         return try await sessionTransport.data(
             for: request,
             timeoutInterval: timeoutInterval
         )
+    }
+
+    /// Fixed read-only RPC through the same account-bound, pinned dispatcher.
+    func performIdentificationRecipientPreflight(body: Data, expectedAuthUserID: UUID) async throws -> Data {
+        let url = try AdmissionRPCRequestPolicy.url(baseURL: supabaseUrl, route: .recipient)
+        let (data, _) = try await performAuthenticatedRequest(
+            url: url, method: "POST", body: body, timeoutInterval: 5,
+            allowsTransientTransportRetry: false, allowsUnauthorizedSessionRecovery: false,
+            expectedAuthUserID: expectedAuthUserID
+        )
+        return data
     }
 
     /// Builds one authenticated inference request without exposing endpoint URLs,
@@ -251,14 +241,16 @@ final class MerianNetworkClient {
         function: String,
         bodyData: Data,
         idempotencyKey: String,
-        expectedAuthUserID: UUID
+        expectedAuthUserID: UUID,
+        identificationAuthorization: IdentificationDispatchAuthorization
     ) async throws -> URLRequest {
         let url = try endpointURL(function)
         return try await authenticatedTransport.makeAuthenticatedJSONRequest(
             url: url,
             bodyData: bodyData,
             idempotencyKey: idempotencyKey,
-            expectedAuthUserID: expectedAuthUserID
+            expectedAuthUserID: expectedAuthUserID,
+            identificationAuthorization: identificationAuthorization
         )
     }
 
@@ -269,7 +261,8 @@ final class MerianNetworkClient {
         body: Data,
         timeoutInterval: TimeInterval,
         idempotencyKey: String,
-        expectedAuthUserID: UUID
+        expectedAuthUserID: UUID,
+        identificationAuthorization: IdentificationDispatchAuthorization
     ) async throws -> Data {
         let url = try endpointURL(function)
         let (data, _) = try await performAuthenticatedRequest(
@@ -278,7 +271,8 @@ final class MerianNetworkClient {
             body: body,
             timeoutInterval: timeoutInterval,
             idempotencyKey: idempotencyKey,
-            expectedAuthUserID: expectedAuthUserID
+            expectedAuthUserID: expectedAuthUserID,
+            identificationAuthorization: identificationAuthorization
         )
         return data
     }
@@ -305,7 +299,8 @@ final class MerianNetworkClient {
             allowsTransientTransportRetry: allowsTransientTransportRetry,
             onRequestBodySent: onRequestBodySent,
             expectedAuthUserID: authenticatedRequest.expectedAuthUserID,
-            measurementContext: measurementContext
+            measurementContext: measurementContext,
+            identificationAuthorization: authenticatedRequest.identificationAuthorization
         )
         return data
     }
@@ -492,7 +487,8 @@ final class MerianNetworkClient {
         onRequestBodySent: (@Sendable () -> Void)? = nil,
         authTransitionOwner: AuthTransitionToken? = nil,
         expectedAuthUserID: UUID? = nil,
-        measurementContext: IdentificationMeasurementContext? = nil
+        measurementContext: IdentificationMeasurementContext? = nil,
+        identificationAuthorization: IdentificationDispatchAuthorization? = nil
     ) async throws -> (Data, HTTPURLResponse) {
         let executor = AuthenticatedRequestExecutor(
             dependencies: .live(
@@ -523,7 +519,8 @@ final class MerianNetworkClient {
                 onRequestBodySent: onRequestBodySent,
                 authTransitionOwner: authTransitionOwner,
                 expectedAuthUserID: expectedAuthUserID,
-                measurementContext: measurementContext
+                measurementContext: measurementContext,
+                identificationAuthorization: identificationAuthorization
             )
         )
     }
