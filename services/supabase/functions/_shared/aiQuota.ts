@@ -1,3 +1,8 @@
+import type { AIRequest } from "./ai/contracts.ts";
+import {
+  type IdentificationInputProfile,
+  identificationInputProfile,
+} from "./ai/identificationInput.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   type IdentificationProviderAssignment,
@@ -40,6 +45,7 @@ export type AIQuotaOperation =
   | "species_discovery_search";
 
 interface AIQuotaReservationRow {
+  input_profile?: unknown;
   provider?: unknown;
   binding?: unknown;
   processor_permission?: unknown;
@@ -335,6 +341,7 @@ async function reserveQuota(
   supabaseAdmin: SupabaseClient,
   input: AIQuotaInput,
   rpcName: "reserve_ai_quota" | "reserve_identification_quota",
+  inputProfile?: IdentificationInputProfile,
 ): Promise<AIQuotaReservation> {
   if (
     rpcName === "reserve_identification_quota" &&
@@ -352,6 +359,9 @@ async function reserveQuota(
   const { data, error } = await (async () => {
     try {
       return await supabaseAdmin.rpc(rpcName, {
+        ...(rpcName === "reserve_identification_quota"
+          ? { p_input_profile: inputProfile }
+          : {}),
         p_user_id: input.userId,
         p_operation: input.operation,
         p_request_id: requestId,
@@ -499,11 +509,15 @@ async function reserveQuota(
   let assignment: IdentificationProviderAssignment | undefined;
   if (rpcName === "reserve_identification_quota") {
     const candidate = {
+      inputProfile: row.input_profile,
       provider: row.provider,
       binding: row.binding,
       permission: row.processor_permission,
     };
-    if (!isIdentificationProviderAssignment(candidate)) {
+    if (
+      !isIdentificationProviderAssignment(candidate) ||
+      candidate.inputProfile !== inputProfile
+    ) {
       throw new AIQuotaError(
         503,
         "ai_quota_unavailable",
@@ -670,6 +684,7 @@ export async function reserveIdentificationProviderCall(
   supabaseAdmin: SupabaseClient,
   input: AIQuotaInput & {
     operation: "scan_identification" | "scan_audio_identification";
+    request: AIRequest;
   },
 ): Promise<
   AIProviderQuotaLease<
@@ -678,11 +693,23 @@ export async function reserveIdentificationProviderCall(
     }
   >
 > {
+  const inputProfile = identificationInputProfile(input.request);
+  if (
+    (inputProfile === "audio_compat_v1") !==
+      (input.operation === "scan_audio_identification")
+  ) {
+    throw new AIQuotaError(
+      503,
+      "ai_quota_unavailable",
+      "AI service is temporarily unavailable.",
+    );
+  }
   const reservation = await reserveQuota(
     req,
     supabaseAdmin,
     input,
     "reserve_identification_quota",
+    inputProfile,
   );
   if (!reservation.assignment) {
     throw new AIQuotaError(

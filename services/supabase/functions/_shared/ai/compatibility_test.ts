@@ -99,6 +99,13 @@ function database(
           assertEquals(args.p_user_id, user.id);
           assertEquals(args.p_request_id, scanId);
           assertEquals(args.p_operation, options.operation);
+          assert(
+            (options.operation === "scan_audio_identification"
+              ? ["audio_compat_v1"]
+              : ["vision_compat_v1", "description_compat_v1"]).includes(
+                args.p_input_profile as string,
+              ),
+          );
           if (options.consentDenied) {
             return response(null, { message: "ai_consent_required" });
           }
@@ -106,6 +113,7 @@ function database(
             provider: "gemini",
             binding: "gemini_baseline_v1",
             processor_permission: "google_gemini",
+            input_profile: args.p_input_profile,
             reservation_id: "00000000-0000-4000-8000-000000000301",
             request_id: scanId,
             lease_token: "00000000-0000-4000-8000-000000000401",

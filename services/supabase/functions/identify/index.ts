@@ -279,9 +279,32 @@ export function createIdentifyHandler(prepare = prepareAIExecution) {
 
     console.log(`[⏱ BENCH] payload_resolved: ${Date.now() - fnStart}ms`);
 
+    const aiRequest = buildVisionAIRequest({
+      imageBase64s: base64Payloads,
+      mimeType,
+      description,
+      telemetry: {
+        safeGpsLat,
+        safeGpsLon,
+        gpsElevation,
+        depthScaleText,
+        zoomFactor,
+        estimatedSizeCm: estimated_size_cm,
+        semanticLocation,
+        weatherCondition,
+        weatherTemperatureF,
+        deviceLocale,
+        deviceTimeZone,
+        deviceRegion,
+        currentMonth: normalizedCurrentMonth,
+        timeOfDay,
+      },
+    });
+
     let quotaLease;
     try {
       quotaLease = await reserveIdentificationProviderCall(req, supabaseAdmin, {
+        request: aiRequest,
         userId: user.id,
         operation: "scan_identification",
         requestId: generatedScanId,
@@ -377,28 +400,6 @@ export function createIdentifyHandler(prepare = prepareAIExecution) {
       }
       throw error;
     }
-
-    const aiRequest = buildVisionAIRequest({
-      imageBase64s: base64Payloads,
-      mimeType,
-      description,
-      telemetry: {
-        safeGpsLat,
-        safeGpsLon,
-        gpsElevation,
-        depthScaleText,
-        zoomFactor,
-        estimatedSizeCm: estimated_size_cm,
-        semanticLocation,
-        weatherCondition,
-        weatherTemperatureF,
-        deviceLocale,
-        deviceTimeZone,
-        deviceRegion,
-        currentMonth: normalizedCurrentMonth,
-        timeOfDay,
-      },
-    });
 
     console.log(`[⏱ BENCH] pre_gemini: ${Date.now() - fnStart}ms`);
     const geminiStart = Date.now();

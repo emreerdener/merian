@@ -17,11 +17,17 @@ still use Gemini; see the
   appropriate. `service_job` supports claimed public-fact work and is rejected
   for identification. These types carry existing admission decisions; they do
   not authenticate callers or validate job claims.
+- `identificationInput.ts` validates and classifies the complete normalized
+  observation before reservation. It distinguishes compatibility variants and
+  primary text, photo, audio, photo/audio and sampled-video representations. The
+  registry recomputes the profile before preparation; changed or missing
+  assignment evidence cannot dispatch. This classifier never chooses a provider.
 - `admission.ts` defines the closed identification assignment returned by the
   service-only `reserve_identification_quota` RPC. The four identification
-  callers require its database-owned provider, binding and recipient permission;
-  missing or unknown assignment metadata cannot authorize fresh work. Durable
-  quota-attempt snapshots preserve each metered generation. See the
+  callers require its database-owned provider, binding, input profile and
+  recipient permission; missing or unknown assignment metadata cannot authorize
+  fresh work. Durable quota-attempt snapshots preserve each metered generation.
+  See the
   [admission contract](../../../../../docs/backend-and-data/05-api-contracts.md#provider-bound-identification-reservations).
 - `registry.ts` independently checks that identification assignment and resolves
   the fixed `gemini_baseline_v1` binding from the quota-selected model and,
@@ -314,6 +320,7 @@ it measures neither provider latency nor end-to-end product timing.
 
 Follow [Adding a provider later](ADDING_PROVIDERS.md) for exact input/task
 qualification, common-contract extensions, database/Edge admission, disclosure,
-confidence, usage, cache, and activation work. There is currently no runtime
-provider selector or percentage-routing control. The OpenAI adapter is available
-only to explicitly gated local evaluation.
+confidence, usage, cache, and activation work. The app owns a private
+complete-input routing catalog, currently seeded only with Gemini. There is no
+end-user provider selector or percentage-routing control. The OpenAI adapter is
+available only to explicitly gated local evaluation.

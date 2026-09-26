@@ -545,7 +545,7 @@ export function registerExperimentTests(scratch: string) {
               },
             },
             request,
-            resolveAIClaim(request, fixtureAuthority("gemini_pro")),
+            resolveAIClaim(request, fixtureAuthority("gemini_pro", request)),
           ),
       });
       await started;

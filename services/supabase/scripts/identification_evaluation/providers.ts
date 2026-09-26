@@ -23,5 +23,5 @@ export async function prepareEvaluationExecution(
   }
   // Keep SDK initialization out of offline/OpenAI processes and preserve its settings.
   return (await import("../../functions/_shared/ai/production.ts"))
-    .prepareAIExecution(request, fixtureAuthority(profile));
+    .prepareAIExecution(request, fixtureAuthority(profile, request));
 }

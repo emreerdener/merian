@@ -1,3 +1,4 @@
+import { buildDescribeAIRequest } from "../identify-describe/provider.ts";
 import {
   assert,
   assertEquals,
@@ -289,10 +290,26 @@ Deno.test("identification admission requires database assignment and preserves n
       provider: "gemini",
       binding: "gemini_baseline_v1",
       processor_permission: "google_gemini",
+      input_profile: "description_compat_v1",
     };
     for (
       const [name, changes, code] of [
         ["valid", {}, null],
+        [
+          "missing input profile",
+          { input_profile: undefined },
+          "ai_quota_unavailable",
+        ],
+        [
+          "unknown input profile",
+          { input_profile: "user_choice" },
+          "ai_quota_unavailable",
+        ],
+        [
+          "mismatched complete input",
+          { input_profile: "multimodal_audio_v1" },
+          "ai_quota_unavailable",
+        ],
         ["missing provider", { provider: undefined }, "ai_quota_unavailable"],
         ["missing binding", { binding: undefined }, "ai_quota_unavailable"],
         [
@@ -344,6 +361,7 @@ Deno.test("identification admission requires database assignment and preserves n
                 "p_flash_fallback_eligible",
                 "p_client_protocol",
                 "p_internal_replay",
+                "p_input_profile",
               ].sort(),
             );
             return {
@@ -360,6 +378,10 @@ Deno.test("identification admission requires database assignment and preserves n
             new Request("https://example.invalid"),
             client as never,
             {
+              request: buildDescribeAIRequest("Synthetic observation", {
+                safeGpsLat: null,
+                safeGpsLon: null,
+              }),
               userId: "synthetic-owner",
               operation: "scan_identification",
               requestId: REQUEST_ID,
@@ -374,6 +396,7 @@ Deno.test("identification admission requires database assignment and preserves n
             provider: "gemini",
             binding: "gemini_baseline_v1",
             permission: "google_gemini",
+            inputProfile: "description_compat_v1",
           });
           assert(Object.isFrozen(lease.reservation.assignment));
         }
@@ -391,6 +414,10 @@ Deno.test("identification admission requires database assignment and preserves n
               },
             } as never,
             {
+              request: buildDescribeAIRequest("Synthetic observation", {
+                safeGpsLat: null,
+                safeGpsLon: null,
+              }),
               userId: "synthetic-owner",
               operation: "species_overview" as never,
             },

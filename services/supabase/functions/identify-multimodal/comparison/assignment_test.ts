@@ -272,7 +272,10 @@ Deno.test("both processors attest actual bytes and reject media/request/policy d
         timeOfDay: "12:00 PM",
       },
     });
-    const snapshot = resolveAIClaim(request, fixtureAuthority("gemini_pro"));
+    const snapshot = resolveAIClaim(
+      request,
+      fixtureAuthority("gemini_pro", request),
+    );
     await verifyComparisonExecution(comparison, request, snapshot);
     const changed = new Uint8Array(source);
     changed[44] ^= 1;

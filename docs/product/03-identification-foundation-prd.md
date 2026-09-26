@@ -32,6 +32,15 @@ with scope and implementation slices separate from this completed foundation.
 The current provider guide above records the later evaluation implementation,
 exploratory results and remaining qualification limits.
 
+The later
+[app-controlled routing slice](../rfcs/identification-provider-input-routing-2026-09-26.md)
+makes assignment authority explicit: the app owner configures backend
+provider/model policy; end users never choose or approve a provider assignment.
+Consent permits data processing by the assigned recipient. Declining it blocks
+that processing without choosing a different provider. Every current route
+remains Gemini; OpenAI consent collection and runtime assignments remain
+disabled.
+
 ## 1. Goal and benefit
 
 Prepare the identification backend so we can add or change AI providers later.

@@ -4156,34 +4156,52 @@ Migration `20260926142824_bind_identification_quota_to_provider.sql` adds two
 private, RLS-enabled tables with no direct API-role grants:
 
 - `internal.identification_provider_bindings`: one reviewed assignment per exact
-  `(operation, effective_plan, model, policy_version)`. Only enabled, allowed
-  existing identification policies seed Gemini/baseline/Gemini-permission rows.
-  A new policy version or assignment requires an explicit matching catalog row;
-  the catalog and quota model constraints still reject OpenAI.
+  `(operation, effective_plan, model, policy_version, input_profile)` after
+  migration `20260926174645_add_identification_input_routing.sql`. Only enabled,
+  allowed existing identification policies seed
+  Gemini/baseline/Gemini-permission rows. A new policy version or assignment
+  requires an explicit matching catalog row; the catalog and quota model
+  constraints still reject OpenAI.
 - `internal.identification_provider_attempts`: one insert-only application
   snapshot per `(reservation_id, attempt_count)`, including operation, plan,
-  model, policy version, provider, binding and processor permission. A fresh
-  metered retry adds a generation instead of rewriting previous evidence. The
-  reservation foreign key cascades deletion under its existing retention and
-  account-cleanup rules. This is quota-attempt evidence, not permanent scan
-  provenance or a complete prompt/generation fingerprint.
+  model, policy version, provider, binding and processor permission. The later
+  routing migration adds a nullable complete-input profile; historical snapshots
+  stay null. A fresh metered retry adds a generation instead of rewriting
+  previous evidence. The reservation foreign key cascades deletion under its
+  existing retention and account-cleanup rules. This is quota-attempt evidence,
+  not permanent scan provenance or a complete prompt/generation fingerprint.
 
-`reserve_identification_quota` is the service-only identification wrapper around
-existing eight-argument admission. It saves the exact assignment in the same
-transaction as quota/hold reservation; missing bindings or mismatches roll back
-all admission effects. The recipient-aware
-`internal.require_current_ai_consent(uuid,text)` delegates `google_gemini` to
-the unchanged causal stream-head gate. Migration
-`20260926150509_add_independent_openai_consent_stream.sql` also implements
-OpenAI proof: its all-version latest event must be a grant for `2026-09-26`,
-with adult and Terms `2026-08-03` receipts. It ignores Gemini grants and legacy
-rollout compatibility, and denies unknown recipients. This helper expansion does
-not widen the Gemini-only catalog, model allowlists or underlying legacy quota
-delegate. A legacy in-progress or committed reservation with no snapshot returns
-replay plus null assignment fields, which cannot dispatch. Existing snapshots
-replay without consulting a new catalog binding; fresh attempts require a
-current exact match. All existing quota RPC signatures and user receipts remain
-compatible.
+`reserve_identification_quota` has compatible eight-argument legacy admission
+and a nine-argument complete-input overload. The latter chooses the private
+profile binding and saves its assignment in the quota transaction. Every current
+route is Gemini. Legacy catalog rows use `legacy_v1`; new rows distinguish the
+three compatibility representations plus six primary text/photo/audio/video
+combinations. No API role can read or write either table directly.
+
+The routing migration extracts the established four- and eight-argument quota
+algorithms into ungranted `internal.reserve_ai_quota_core` invoker overloads.
+They retain service-role guards, entitlement/user/reservation/counter locking,
+lease fencing and accounting; they do not choose a processor or grant consent.
+Both public `reserve_ai_quota` signatures remain service-only, preserve their
+Gemini gate and delegate to these cores. The new identification overload selects
+an exact binding and calls `internal.require_current_ai_consent(uuid,text)` in
+the same transaction. Missing binding or denied recipient rolls back all quota
+and complimentary-hold effects. Consent never changes the selected assignment.
+
+The recipient helper preserves Gemini's causal stream-head behavior. Since
+`20260926150509_add_independent_openai_consent_stream.sql`, OpenAI proof
+requires its all-version latest event to grant disclosure `2026-09-26`, with
+adult and Terms `2026-08-03` receipts. It ignores Gemini grants and legacy
+rollout compatibility, and denies unknown recipients. This helper does not widen
+the Gemini-only model or binding constraints.
+
+A live or committed replay keeps its saved assignment and never consults a new
+binding. If the old reservation has no snapshot, assignment fields remain null
+and Edge returns the existing non-dispatchable replay. New metered attempts may
+use current model/policy but cannot change an already recorded complete-input
+profile under the same reservation. Missing historical profiles are never
+backfilled. Old workers remain compatible through their legacy routing lane;
+activation of a new provider still requires qualification and client recovery.
 
 Migration `20260809155517_add_scan_admission_preview.sql` exposes one narrow
 authenticated RPC, `public.get_my_scan_admission_preview(boolean)`, over this

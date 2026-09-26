@@ -217,9 +217,24 @@ export function createDescribeHandler(prepare = prepareAIExecution) {
       );
     }
 
+    const aiRequest = buildDescribeAIRequest(description, {
+      safeGpsLat,
+      safeGpsLon,
+      gpsElevation,
+      semanticLocation,
+      weatherCondition,
+      weatherTemperatureF,
+      deviceLocale,
+      deviceTimeZone,
+      deviceRegion,
+      currentMonth: normalizedCurrentMonth,
+      timeOfDay,
+    });
+
     let quotaLease;
     try {
       quotaLease = await reserveIdentificationProviderCall(req, supabaseAdmin, {
+        request: aiRequest,
         userId: user.id,
         operation: "scan_identification",
         requestId: generatedScanId,
@@ -311,19 +326,6 @@ export function createDescribeHandler(prepare = prepareAIExecution) {
       }
       throw error;
     }
-    const aiRequest = buildDescribeAIRequest(description, {
-      safeGpsLat,
-      safeGpsLon,
-      gpsElevation,
-      semanticLocation,
-      weatherCondition,
-      weatherTemperatureF,
-      deviceLocale,
-      deviceTimeZone,
-      deviceRegion,
-      currentMonth: normalizedCurrentMonth,
-      timeOfDay,
-    });
 
     console.log(`[⏱ BENCH] pre_gemini: ${Date.now() - fnStart}ms`);
     const geminiStart = Date.now();

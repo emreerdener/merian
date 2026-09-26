@@ -648,6 +648,16 @@ The optimization milestone is complete when the shared measurement fixes,
 versioned profiles and comparison report are reviewed and documented. It can
 finish successfully with no provider switch.
 
+## App-controlled assignment foundation
+
+The [input-routing slice](./identification-provider-input-routing-2026-09-26.md)
+derives a complete-input profile before admission and records a private backend
+assignment. All rows remain Gemini. Users decide whether to permit data
+processing; they cannot pick or approve the model/provider assignment. Denied
+permission blocks that request without triggering another provider. This adds
+infrastructure, not production qualification, a live comparison or authority to
+enable OpenAI.
+
 ## Later milestone — Production qualification and integration
 
 Advance only a promising profile through the existing

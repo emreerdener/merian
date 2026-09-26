@@ -1,3 +1,4 @@
+import type { IdentificationInputProfile } from "./identificationInput.ts";
 import { assert, assertEquals, assertThrows } from "@std/assert";
 import { identificationProvenance } from "./provenance.ts";
 import { resolveAIClaim } from "./registry.ts";
@@ -11,6 +12,7 @@ function authority(
   model: string,
   tier: "free" | "pro",
   operation = "scan_identification",
+  inputProfile: IdentificationInputProfile = "description_compat_v1",
 ): UserRequestAuthority {
   return {
     kind: "user_request",
@@ -25,6 +27,7 @@ function authority(
       model,
       tier: { effective_tier: tier },
       assignment: {
+        inputProfile,
         provider: "gemini",
         binding: "gemini_baseline_v1",
         permission: "google_gemini",
@@ -82,22 +85,38 @@ Deno.test("provenance explicitly preserves absent generation settings and separa
     declaredVideoFrameCount: 0,
     videoInferenceFrameCount: 0,
   };
-  const main = resolveAIClaim({
-    task: "identify",
-    variant: "multimodal",
-    evidence: [image],
-    capture,
-  }, authority("gemini-2.5-flash", "free"));
+  const main = resolveAIClaim(
+    {
+      task: "identify",
+      variant: "multimodal",
+      evidence: [image],
+      capture,
+    },
+    authority(
+      "gemini-2.5-flash",
+      "free",
+      "scan_identification",
+      "multimodal_photo_v1",
+    ),
+  );
   const value = identificationProvenance(main);
   assertEquals(value.generation.thinking_budget, null);
   assertEquals(value.generation.top_k, null);
   assertEquals(value.safety, null);
   const legacy = identificationProvenance(
-    resolveAIClaim({
-      task: "identify",
-      variant: "vision_compat",
-      evidence: [image],
-    }, authority("gemini-2.5-pro", "free")),
+    resolveAIClaim(
+      {
+        task: "identify",
+        variant: "vision_compat",
+        evidence: [image],
+      },
+      authority(
+        "gemini-2.5-pro",
+        "free",
+        "scan_identification",
+        "vision_compat_v1",
+      ),
+    ),
   );
   assertEquals(legacy.diagnostic_trigger, main.diagnosticTrigger!);
   assertEquals(legacy.prompt_diagnostic_trigger, 0.99);

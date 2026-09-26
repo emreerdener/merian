@@ -1,3 +1,4 @@
+import { identificationInputProfile } from "../../functions/_shared/ai/identificationInput.ts";
 import { isOpenAIProfile } from "../../functions/_shared/ai/openaiRequest.ts";
 import {
   buildOpenAIRequestParameters,
@@ -19,7 +20,10 @@ import type {
 } from "./runContracts.ts";
 
 /** Scripts-only test authority. Never admission, consent or quota evidence. */
-export function fixtureAuthority(profile: GeminiProfile): UserRequestAuthority {
+export function fixtureAuthority(
+  profile: GeminiProfile,
+  request: MultimodalAIRequest,
+): UserRequestAuthority {
   return {
     kind: "user_request",
     userId: "synthetic-evaluation",
@@ -27,6 +31,7 @@ export function fixtureAuthority(profile: GeminiProfile): UserRequestAuthority {
     operation: "scan_identification",
     reservation: {
       assignment: {
+        inputProfile: identificationInputProfile(request),
         provider: "gemini",
         binding: "gemini_baseline_v1",
         permission: "google_gemini",
@@ -134,7 +139,7 @@ export async function assignmentFor(
       reservedUsd: pricing ? reserveCost(pricing, snapshot.model) : 0,
     };
   }
-  const snapshot = resolveAIClaim(request, fixtureAuthority(profile));
+  const snapshot = resolveAIClaim(request, fixtureAuthority(profile, request));
   const native = buildGeminiRequestParameters(request, snapshot);
   return {
     key: `${input.caseId}-${profile}-${attempt}`,

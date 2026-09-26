@@ -133,6 +133,14 @@ in the test suite. Do not bundle or register that adapter as a production route,
 add a live alternative-provider SDK, or accept arbitrary endpoint/provider names
 from clients or environment overrides.
 
+The subsequent
+[input-routing implementation](./identification-provider-input-routing-2026-09-26.md)
+adds private complete-input policy rows and recipient-aware identification
+admission. It preserves the original milestone's historical requirements below.
+Assignment is backend policy, not an end-user setting; permission never selects
+an alternative provider. Client recovery for a future recipient remains separate
+activation work.
+
 ## 3. Gemini-only routing and authoritative admission
 
 **SRD-PF-03 — Registry and capabilities.** Declare task support, actual input

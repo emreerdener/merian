@@ -86,7 +86,7 @@ async function profileBinding(
       schemaDigest: await fingerprintJson(settings.text.format.schema),
     };
   }
-  const snapshot = resolveAIClaim(request, fixtureAuthority(legacy));
+  const snapshot = resolveAIClaim(request, fixtureAuthority(legacy, request));
   const { contents: _contents, ...settings } = buildGeminiRequestParameters(
     request,
     snapshot,

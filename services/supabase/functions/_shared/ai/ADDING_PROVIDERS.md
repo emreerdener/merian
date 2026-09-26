@@ -45,14 +45,18 @@ observation jobs retain user authority even when a service invokes the worker.
    immutable quota-attempt snapshots, accessed through
    `reserve_identification_quota`; see the
    [admission contract](../../../../../docs/backend-and-data/05-api-contracts.md#provider-bound-identification-reservations).
-   The recipient helper now validates independent OpenAI evidence, while the
-   legacy admission delegate and current iOS inference gate still require
-   Gemini. The
+   The new complete-input admission path derives a profile from normalized
+   evidence and uses a processor-neutral private quota core before checking the
+   selected recipient. Legacy callers and the current iOS inference gate still
+   require Gemini. Backend policy selects the assignment; user permission can
+   block its disclosure but never select another provider. The
    [consent infrastructure](../../../../../docs/rfcs/identification-provider-openai-consent-2026-09-26.md)
    is implemented with collection disabled. Adding a catalog row alone cannot
-   admit another provider; complete underlying recipient-aware admission and
-   client consent-denial/recovery routing together before activation. Before
-   activation, extend the versioned
+   admit another provider; complete qualified model admission,
+   recipient-specific client consent-denial/recovery and profile-scoped
+   compatible-client gating before activation. The evaluation OpenAI binding
+   supports only primary multimodal photo/text; compatibility and snapshot
+   profiles are not qualified. Before activation, extend the versioned
    [durable result provenance](../../../../../docs/rfcs/identification-provider-result-provenance-2026-09-26.md)
    to cover the qualified adapter's generation settings and confidence profile.
    Gemini scans now retain this server configuration independently of the quota

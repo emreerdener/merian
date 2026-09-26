@@ -358,9 +358,13 @@ fresh action.
 
 The optional Settings coordinator is not inference authorization. Required
 onboarding, `ensureCloudConsentForInference`, generic `ai_consent_required`
-recovery and the legacy quota delegate still require Gemini. OpenAI routing
-requires a later recipient-aware admission/client recovery change; a consent
-receipt alone cannot enable it.
+recovery and legacy quota callers still require Gemini. Identification's new
+routing overload checks its database-selected recipient after a
+processor-neutral private quota core; all assignments remain Gemini. OpenAI
+activation still needs recipient-specific client recovery and compatible-client
+gating, as well as qualification and model admission. A consent receipt alone
+cannot enable it. Settings permission is not a provider preference: the app
+controls assignments.
 
 ## Fleet-Wide Outbound Provider Contract
 
@@ -2356,38 +2360,47 @@ resolution ends the exception.
 
 ### Provider-bound identification reservations
 
-The four identification routes call `reserveIdentificationProviderCall` in
-`_shared/aiQuota.ts`, backed by service-only `reserve_identification_quota`.
-Other AI operations keep `reserve_ai_quota`. The new RPC accepts the same eight
-server-supplied parameters as existing admission and adds `provider`, `binding`
-and `processor_permission` to its result. There is no client provider, model,
-URL or binding selector, and the public Identify payload is unchanged.
+The four identification routes build the complete normalized `AIRequest` before
+calling `reserveIdentificationProviderCall` in `_shared/aiQuota.ts`. The helper
+derives a closed `input_profile` from that request; it never reads a provider,
+model, binding or profile selector from HTTP JSON. The service-only
+`reserve_identification_quota` nine-argument overload adds this profile to the
+existing eight admission inputs and returns it with `provider`, `binding` and
+`processor_permission`. Public Identify payloads remain unchanged.
 
-Admission records an exact database-owned assignment per reservation attempt.
-Only Gemini, `gemini_baseline_v1` and `google_gemini` are accepted. The Edge
-parser requires these values for fresh work; the AI registry independently
-checks the assignment and matching recipient permission before preparation.
-Missing, unknown or mismatched metadata fails closed with
-`503 ai_quota_unavailable` before commitment or dispatch. A missing catalog
-binding rolls back SQL reservation/counter/hold changes atomically. A malformed
-transport result cannot authorize inference; any uncommitted lease retains its
-existing expiry/refund recovery.
+The backend chooses the assignment. End-user processing permission gates that
+assignment; it cannot select a different provider or fallback. All current
+catalog rows and runtime model/binding allowlists remain Gemini-only.
+`identificationInput.ts` distinguishes descriptions, photos, audio, combined
+photos/audio and video-derived frames/audio; compatibility request variants have
+separate profiles. Capture indications and lineage conservatively keep sampled
+video out of a photo-only lane. This classifies accepted representations, not
+proof of biological identity or cryptographically verified capture provenance.
 
-An old worker's live or committed reservation can have no assignment record. The
-wrapper preserves that replay with null assignment fields and Edge returns its
-existing 409 before metadata validation. It never creates historical provider
-evidence or uses legacy metadata absence to dispatch. A newly metered retry gets
-a separate snapshot; completed scans still replay before admission. The
+The registry independently recomputes the profile before preparation. Missing,
+unknown or mismatched fresh assignment metadata fails with
+`503 ai_quota_unavailable` before commitment or dispatch. A missing database
+route or denied recipient consent rolls back reservation, counters and held
+complimentary credit. Transport corruption cannot authorize inference; an
+uncommitted lease retains its existing expiry/refund recovery.
+
+A live or committed reservation returns its existing replay before Edge
+assignment validation, even if the duplicate's input differs. Old snapshots stay
+unknown where metadata was never recorded. A newly metered retry requires its
+previously recorded input profile and gets a separate assignment snapshot under
+current policy; it cannot silently change a photo observation into audio under
+the same request identifier. Completed scan replay still precedes admission. The
 [database schema](./04-database-schema.md#internalai_quota_policies-counters-and-reservations)
-owns the private catalog, recipient gate and retention contract.
+owns catalog keys, private quota cores and retention.
 
-Apply migration `20260926142824_bind_identification_quota_to_provider.sql`
-before deploying the new Edge callers through the existing exact-SHA release
-procedure. A missing RPC has no fallback to legacy admission. Existing workers
-remain compatible with the additive migration. The subsequent
-[OpenAI consent slice](../rfcs/identification-provider-openai-consent-2026-09-26.md)
-adds an independent evidence stream and a source-disabled Settings flow. Neither
-slice enables OpenAI production traffic.
+Apply `20260926174645_add_identification_input_routing.sql` and its predecessor
+migrations before deploying these Edge callers through the exact-SHA release
+procedure. The legacy eight-argument identification RPC and both
+`reserve_ai_quota` ABIs remain compatible and Gemini-gated. New callers never
+fall back to them if the routing overload is missing. This infrastructure does
+not activate OpenAI or enable consent collection. Future activation also needs
+recipient-specific client recovery, compatible protocol gating, qualified model
+admission, confidence and versioned result provenance.
 
 ### Scan response replay
 

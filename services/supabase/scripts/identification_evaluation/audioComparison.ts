@@ -47,7 +47,10 @@ export async function prepareAudioComparisonPair(bytes: Uint8Array) {
       },
       telemetry: AUDIO_COMPARISON_CONTEXT,
     });
-    const snapshot = resolveAIClaim(request, fixtureAuthority("gemini_pro"));
+    const snapshot = resolveAIClaim(
+      request,
+      fixtureAuthority("gemini_pro", request),
+    );
     const native = buildGeminiRequestParameters(request, snapshot);
     const withoutAudio = buildGeminiRequestParameters({
       ...request,

@@ -223,8 +223,12 @@ production submission or public release.
   [independent OpenAI consent slice](./rfcs/identification-provider-openai-consent-2026-09-26.md)
   implements separate permission evidence, causal withdrawal and a
   source-disabled Settings flow. Gemini remains required for current onboarding
-  and inference; qualified durable provenance and provider activation remain
-  later work.
+  and inference. The subsequent
+  [durable provenance slice](./rfcs/identification-provider-result-provenance-2026-09-26.md)
+  preserves each saved Gemini result's configuration, and the
+  [app-controlled routing slice](./rfcs/identification-provider-input-routing-2026-09-26.md)
+  adds complete-input assignments and recipient-aware quota admission. Provider
+  qualification and recipient-specific client recovery remain activation work.
 - **[Identification provider optimization plan](./rfcs/identification-provider-optimization-plan.md):**
   Shared measurement repairs are implemented with versioned mapping, reports and
   descriptive comparisons. Versioned baseline profiles and experiment-wide

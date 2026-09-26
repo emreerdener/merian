@@ -108,6 +108,7 @@ function database(
     commitDenied?: boolean;
     consentDenied?: boolean;
     wrongProvider?: boolean;
+    expectedInputProfile?: string;
     setupFailed?: boolean;
     unknownInsert?: boolean;
     retired?: boolean;
@@ -149,6 +150,9 @@ function database(
           assertEquals(args.p_user_id, user.id);
           assertEquals(args.p_request_id, options.requestId ?? acceptedScanId);
           assertEquals(args.p_operation, "scan_identification");
+          if (options.expectedInputProfile) {
+            assertEquals(args.p_input_profile, options.expectedInputProfile);
+          }
           if (options.consentDenied) {
             return response(null, { message: "ai_consent_required" });
           }
@@ -156,6 +160,7 @@ function database(
             provider: options.wrongProvider ? "openai" : "gemini",
             binding: "gemini_baseline_v1",
             processor_permission: "google_gemini",
+            input_profile: args.p_input_profile,
             reservation_id: "00000000-0000-4000-8000-000000000301",
             request_id: options.requestId ?? acceptedScanId,
             lease_token: "00000000-0000-4000-8000-000000000401",
@@ -1090,6 +1095,45 @@ Deno.test("multimodal handler preserves admission, evidence and recovery through
           createAIExecution(adapter, input, resolveAIClaim(input, authority)),
       );
     };
+    for (
+      const [videoFrameCount, expectedInputProfile] of [
+        [0, "multimodal_photo_v1"],
+        [1, "multimodal_video_frames_v1"],
+      ] as const
+    ) {
+      await t.step(
+        `app assigns ${expectedInputProfile} despite client selector extras`,
+        async () => {
+          const db = database({ pro: true, expectedInputProfile });
+          const result = await run(
+            db,
+            { ...facts, kind: "unknown_execution" },
+            {
+              imageBase64s: ["AQ=="],
+              videoFrameCount,
+              provider: "openai",
+              model: "unqualified",
+              binding: "client_choice",
+              input_profile: videoFrameCount
+                ? "multimodal_photo_v1"
+                : "multimodal_video_frames_v1",
+            },
+            (input) => {
+              assert(input.variant === "multimodal");
+              assertEquals(
+                input.evidence.filter((item) => item.kind === "image").length,
+                1,
+              );
+            },
+          );
+          assertEquals(result.status, 503);
+          assertEquals(
+            db.events.filter((event) => event === "invoke").length,
+            1,
+          );
+        },
+      );
+    }
     await t.step(
       "stored completion returns before media resolution and provider preparation",
       async () => {

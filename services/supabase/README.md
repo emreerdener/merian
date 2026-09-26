@@ -1249,6 +1249,13 @@ Only analytics and optional enrichment may continue in Edge background work.
 Provider success without an owned durable scan is a retryable failure, never an
 HTTP success.
 
+All four producers derive their routing profile from the complete normalized
+input before quota admission. A private catalog selects the provider and its
+recipient permission, independently of user preference; every current row still
+selects Gemini. Missing routes and denied permission roll back quota/holds. See
+the
+[routing contract](../../docs/rfcs/identification-provider-input-routing-2026-09-26.md).
+
 All four producers also save immutable, content-free identification
 configuration with new scan rows. The same transaction copies it into the exact
 ingestion job for server-authorized recovery. Historical missing configuration

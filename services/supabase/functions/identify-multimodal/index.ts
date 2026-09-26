@@ -805,9 +805,43 @@ export async function handleIdentifyMultimodalRequest(
       generatedScanId,
       `scan-ingestion-replay:${internalReplayAttempt}`,
     );
+  const aiRequest = buildMultimodalAIRequest({
+    observationEvidenceTexts,
+    visualMediaItems: normalizedVisualMediaItems,
+    imageBase64s: resolvedImageBase64s,
+    imageMimeType: mimeType,
+    processedAudios,
+    audioMediaItems: processedAudioMediaItems,
+    processedAudioInputIndexes,
+    hasVideoAudio,
+    capture: {
+      hasVideo: mediaTelemetry.hasVideo,
+      videoClipCount: mediaTelemetry.videoClipCount,
+      declaredVideoFrameCount: mediaTelemetry.declaredVideoFrameCount,
+      videoInferenceFrameCount: mediaTelemetry.videoInferenceFrameCount,
+    },
+    telemetry: {
+      safeGpsLat,
+      safeGpsLon,
+      gpsElevation,
+      depthScaleText,
+      zoomFactor,
+      estimatedSizeCm,
+      semanticLocation,
+      weatherCondition,
+      weatherTemperatureF,
+      deviceLocale,
+      deviceTimeZone,
+      deviceRegion,
+      currentMonth,
+      timeOfDay,
+    },
+  });
+
   let quotaLease;
   try {
     quotaLease = await reserveIdentificationProviderCall(req, supabaseAdmin, {
+      request: aiRequest,
       userId: user.id,
       operation: "scan_identification",
       requestId: quotaRequestId,
@@ -878,38 +912,6 @@ export async function handleIdentifyMultimodalRequest(
   const targetModel = quotaLease.reservation.model;
 
   const hasObservationContextText = observationEvidenceTexts.length > 0;
-  const aiRequest = buildMultimodalAIRequest({
-    observationEvidenceTexts,
-    visualMediaItems: normalizedVisualMediaItems,
-    imageBase64s: resolvedImageBase64s,
-    imageMimeType: mimeType,
-    processedAudios,
-    audioMediaItems: processedAudioMediaItems,
-    processedAudioInputIndexes,
-    hasVideoAudio,
-    capture: {
-      hasVideo: mediaTelemetry.hasVideo,
-      videoClipCount: mediaTelemetry.videoClipCount,
-      declaredVideoFrameCount: mediaTelemetry.declaredVideoFrameCount,
-      videoInferenceFrameCount: mediaTelemetry.videoInferenceFrameCount,
-    },
-    telemetry: {
-      safeGpsLat,
-      safeGpsLon,
-      gpsElevation,
-      depthScaleText,
-      zoomFactor,
-      estimatedSizeCm,
-      semanticLocation,
-      weatherCondition,
-      weatherTemperatureF,
-      deviceLocale,
-      deviceTimeZone,
-      deviceRegion,
-      currentMonth,
-      timeOfDay,
-    },
-  });
 
   const mediaCounts = {
     image_count: mediaTelemetry.imageCount,

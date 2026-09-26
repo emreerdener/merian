@@ -187,9 +187,9 @@ BEGIN
     WHERE saved.reservation_id = admitted.reservation_id AND saved.attempt_count = admitted.attempt_count;
 
     SELECT * INTO STRICT assignment FROM internal.identification_provider_bindings AS bindings
-    WHERE bindings.operation = 'scan_identification' AND bindings.effective_plan = admitted.effective_plan
+    WHERE bindings.input_profile = 'legacy_v1' AND bindings.operation = 'scan_identification' AND bindings.effective_plan = admitted.effective_plan
       AND bindings.model = admitted.model AND bindings.policy_version = admitted.policy_version;
-    DELETE FROM internal.identification_provider_bindings WHERE operation = assignment.operation
+    DELETE FROM internal.identification_provider_bindings WHERE input_profile = assignment.input_profile AND operation = assignment.operation
       AND effective_plan = assignment.effective_plan AND model = assignment.model AND policy_version = assignment.policy_version;
     SELECT * INTO STRICT repeated FROM public.reserve_identification_quota(
         test_user_id, 'scan_identification', request_id, pg_catalog.REPEAT('b',64), request_id, FALSE, 3, FALSE);

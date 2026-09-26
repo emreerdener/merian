@@ -1,3 +1,4 @@
+import { identificationInputProfile } from "../functions/_shared/ai/identificationInput.ts";
 /** Synthetic local timing only. Run with runtime network permission denied.
  * The cached native-request control intentionally excludes request preparation;
  * differences include that work, not just newly introduced wrapper overhead.
@@ -143,6 +144,16 @@ function authority(request: AIRequest, model: string): UserRequestAuthority {
       ? "scan_audio_identification"
       : "scan_identification",
     reservation: {
+      ...(request.task === "identify"
+        ? {
+          assignment: {
+            provider: "gemini" as const,
+            binding: "gemini_baseline_v1" as const,
+            permission: "google_gemini" as const,
+            inputProfile: identificationInputProfile(request),
+          },
+        }
+        : {}),
       id: "synthetic-reservation",
       requestId: "synthetic-request",
       attemptCount: 1,

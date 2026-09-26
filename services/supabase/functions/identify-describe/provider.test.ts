@@ -115,6 +115,7 @@ function database(
           assertEquals(args.p_user_id, user.id);
           assertEquals(args.p_request_id, scanId);
           assertEquals(args.p_operation, "scan_identification");
+          assertEquals(args.p_input_profile, "description_compat_v1");
           if (options.consentDenied) {
             return response(null, { message: "ai_consent_required" });
           }
@@ -122,6 +123,7 @@ function database(
             provider: "gemini",
             binding: "gemini_baseline_v1",
             processor_permission: "google_gemini",
+            input_profile: args.p_input_profile,
             reservation_id: "00000000-0000-4000-8000-000000000301",
             request_id: scanId,
             lease_token: "00000000-0000-4000-8000-000000000401",
