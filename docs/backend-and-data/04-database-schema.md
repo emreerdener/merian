@@ -4161,15 +4161,21 @@ private, RLS-enabled tables with no direct API-role grants:
   allowed existing identification policies seed
   Gemini/baseline/Gemini-permission rows. A new policy version or assignment
   requires an explicit matching catalog row; the catalog and quota model
-  constraints still reject OpenAI.
+  constraints still reject OpenAI. Migration
+  `20260926200227_add_identification_client_compatibility.sql` adds a bounded
+  `minimum_client_protocol`, defaulting to zero for every current Gemini row.
+  Zero adds no route-specific cutoff to the existing global entitlement gate.
 - `internal.identification_provider_attempts`: one insert-only application
   snapshot per `(reservation_id, attempt_count)`, including operation, plan,
   model, policy version, provider, binding and processor permission. The later
   routing migration adds a nullable complete-input profile; historical snapshots
-  stay null. A fresh metered retry adds a generation instead of rewriting
-  previous evidence. The reservation foreign key cascades deletion under its
-  existing retention and account-cleanup rules. This is quota-attempt evidence,
-  not permanent scan provenance or a complete prompt/generation fingerprint.
+  stay null. The compatibility migration adds nullable `minimum_client_protocol`
+  and `accepted_client_protocol` snapshots; historical values remain unknown.
+  Recognized original-client protocols are currently limited to 1–3. A fresh
+  metered retry adds a generation instead of rewriting previous evidence. The
+  reservation foreign key cascades deletion under its existing retention and
+  account-cleanup rules. This is quota-attempt evidence, not permanent scan
+  provenance or a complete prompt/generation fingerprint.
 
 `reserve_identification_quota` has compatible eight-argument legacy admission
 and a nine-argument complete-input overload. The latter chooses the private
@@ -4184,9 +4190,24 @@ They retain service-role guards, entitlement/user/reservation/counter locking,
 lease fencing and accounting; they do not choose a processor or grant consent.
 Both public `reserve_ai_quota` signatures remain service-only, preserve their
 Gemini gate and delegate to these cores. The new identification overload selects
-an exact binding and calls `internal.require_current_ai_consent(uuid,text)` in
-the same transaction. Missing binding or denied recipient rolls back all quota
-and complimentary-hold effects. Consent never changes the selected assignment.
+an exact binding, checks its client compatibility, and calls
+`internal.require_identification_processor_consent(uuid,text)` in the same
+transaction. The recipient wrapper delegates to the consent ledger and preserves
+OpenAI's distinct denial code. Missing binding, incompatible client or denied
+recipient rolls back all quota and complimentary-hold effects. Consent never
+changes the selected assignment.
+
+The ungranted invoker `internal.require_identification_client_protocol` accepts
+only recognized original-client capability claims as evidence. A nonzero binding
+minimum rejects missing, older or unsupported proof with
+`client_update_required`. An internal worker header is never proof: fresh
+internal replay requires the original reservation for the same owner, operation,
+request/original-analysis UUID and current attempt, with the same saved input
+profile. Its immutable accepted protocol must satisfy the new binding. The
+reservation-level `client_protocol` field cannot substitute for this attempt
+evidence. Unknown legacy proof remains admissible only where the binding minimum
+is zero. This gate neither authenticates a binary nor grants processing
+permission.
 
 The recipient helper preserves Gemini's causal stream-head behavior. Since
 `20260926150509_add_independent_openai_consent_stream.sql`, OpenAI proof
@@ -4200,8 +4221,15 @@ binding. If the old reservation has no snapshot, assignment fields remain null
 and Edge returns the existing non-dispatchable replay. New metered attempts may
 use current model/policy but cannot change an already recorded complete-input
 profile under the same reservation. Missing historical profiles are never
-backfilled. Old workers remain compatible through their legacy routing lane;
-activation of a new provider still requires qualification and client recovery.
+backfilled. Live/committed quota replays do not apply a new compatibility
+minimum; completed result and status recovery remain outside fresh admission.
+Old workers remain compatible through their legacy routing lane. Future protocol
+expansion must coordinate accepted maxima in Edge, SQL and the attempt
+constraint before a new app advertises it. Do not raise the global entitlement
+minimum to activate a provider; doing so could block older clients'
+completed-result replay. See the
+[compatibility implementation record](../rfcs/identification-provider-client-compatibility-2026-09-26.md)
+for the remaining activation requirements.
 
 Migration `20260809155517_add_scan_admission_preview.sql` exposes one narrow
 authenticated RPC, `public.get_my_scan_admission_preview(boolean)`, over this

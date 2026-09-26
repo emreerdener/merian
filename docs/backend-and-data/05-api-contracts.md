@@ -2423,17 +2423,43 @@ the same request identifier. Completed scan replay still precedes admission. The
 [database schema](./04-database-schema.md#internalai_quota_policies-counters-and-reservations)
 owns catalog keys, private quota cores and retention.
 
+A binding's `minimum_client_protocol` gates fresh work using the existing
+`X-Merian-Entitlement-Protocol` capability claim. Zero adds no restriction, and
+all current Gemini bindings remain zero. Nonzero minima require a recognized
+protocol at or above the binding requirement; rejection uses the existing
+`426 client_update_required` envelope and rolls back quota/complimentary
+effects. The accepted range is currently 1–3; no client protocol bump is
+included. This is compatibility evidence, not authentication or end-user
+provider selection.
+
+Fresh internal retries ignore any worker protocol header. They require accepted
+protocol evidence from the exact original owner's reservation and current
+attempt with the same operation, observation and complete-input profile. Old
+attempts with no evidence stay unknown and cannot unlock a gated assignment.
+Minimum and accepted protocol snapshots remain internal; neither Identify DTOs
+nor RPC return shapes change. In-progress/committed quota replays and completed
+result/status recovery do not re-evaluate current binding minima. Compatibility
+endpoints currently recover through the multimodal endpoint; that changes the
+profile (and audio operation). Such transformations remain supported by current
+zero-minimum Gemini bindings but do not inherit eligibility for a future gated
+binding. Qualifying that recovery path requires a separate durable origin
+mapping and provider review. Before a new app advertises a protocol above 3,
+coordinate the accepted maxima across Edge, SQL and snapshot constraints while
+retaining the global required minimum for older-client recovery. A global
+entitlement cutoff is not a provider switch.
+
 Apply `20260926174645_add_identification_input_routing.sql`,
-`20260926182547_add_identification_recipient_recovery.sql` and their predecessor
-migrations before deploying these Edge callers through the exact-SHA release
-procedure. The legacy eight-argument identification RPC and both
+`20260926182547_add_identification_recipient_recovery.sql`,
+`20260926200227_add_identification_client_compatibility.sql` and their
+predecessor migrations before deploying these Edge callers through the exact-SHA
+release procedure. The legacy eight-argument identification RPC and both
 `reserve_ai_quota` ABIs remain compatible and Gemini-gated. New callers never
 fall back to them if the routing overload is missing. This infrastructure does
 not activate OpenAI or enable consent collection. Future activation also needs
-recipient-aware preflight, compatible protocol gating, qualified model
-admission, confidence and versioned result provenance. The implemented
-recipient-specific saved-scan recovery remains dormant while all assignments are
-Gemini.
+recipient-aware preflight, a qualified client protocol and coordinated accepted
+maximum expansion, qualified model admission, confidence and versioned result
+provenance. The implemented recipient-specific saved-scan recovery remains
+dormant while all assignments are Gemini.
 
 ### Scan response replay
 

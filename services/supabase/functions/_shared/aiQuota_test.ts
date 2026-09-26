@@ -441,6 +441,75 @@ Deno.test("missing database assignment has a stable content-free failure", () =>
   assertEquals(error.message, "AI service is temporarily unavailable.");
 });
 
+Deno.test("identification compatibility denial returns 426 without another reservation or provider lease", async (test) => {
+  const previous = Deno.env.get("AI_QUOTA_IP_HASH_SECRET");
+  Deno.env.set("AI_QUOTA_IP_HASH_SECRET", SECRET);
+  try {
+    for (
+      const [header, expected] of [
+        [null, null],
+        ["2", 2],
+        ["3", 3],
+        ["999", 999],
+        ["3.0", null],
+        ["03", null],
+        ["3junk", null],
+      ] as const
+    ) {
+      await test.step(String(header), async () => {
+        let calls = 0;
+        const error = await assertRejects(
+          () =>
+            reserveIdentificationProviderCall(
+              new Request("https://example.invalid", {
+                headers: header == null
+                  ? {}
+                  : { "X-Merian-Entitlement-Protocol": header },
+              }),
+              {
+                rpc: (name: string, args: Record<string, unknown>) => {
+                  calls++;
+                  assertEquals(name, "reserve_identification_quota");
+                  assertEquals(args.p_client_protocol, expected);
+                  return {
+                    abortSignal: () =>
+                      Promise.resolve({
+                        data: null,
+                        error: {
+                          message: "client_update_required",
+                          code: "P0001",
+                        },
+                      }),
+                  };
+                },
+              } as never,
+              {
+                request: buildDescribeAIRequest("Synthetic observation", {
+                  safeGpsLat: null,
+                  safeGpsLon: null,
+                }),
+                userId: "synthetic-owner",
+                operation: "scan_identification",
+                requestId: REQUEST_ID,
+              },
+            ),
+          AIQuotaError,
+        );
+        assertEquals(calls, 1);
+        assertEquals(error.status, 426);
+        assertEquals(error.code, "client_update_required");
+        assertEquals(
+          error.message,
+          "Please update Naturebook to continue identifying.",
+        );
+      });
+    }
+  } finally {
+    if (previous === undefined) Deno.env.delete("AI_QUOTA_IP_HASH_SECRET");
+    else Deno.env.set("AI_QUOTA_IP_HASH_SECRET", previous);
+  }
+});
+
 Deno.test("OpenAI denial has a distinct bounded recipient code", () => {
   const error = quotaErrorForDatabaseMessage("ai_openai_consent_required");
   assertEquals(error.status, 403);

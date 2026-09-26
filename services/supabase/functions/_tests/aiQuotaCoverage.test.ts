@@ -537,6 +537,34 @@ Deno.test("server recovery retries use a separately metered idempotency key per 
   assertStringIncludes(worker, '"X-Merian-Replay-Attempt"');
 });
 
+Deno.test("stored identification recovery precedes provider compatibility admission", async () => {
+  for (
+    const route of [
+      "identify",
+      "identify-describe",
+      "identify-multimodal",
+      "audio-spec",
+    ]
+  ) {
+    const source = await Deno.readTextFile(
+      new URL(`../${route}/index.ts`, import.meta.url),
+    );
+    const completed = source.indexOf("await fetchCompletedIdentifyResponse(");
+    const admission = source.indexOf(
+      "await reserveIdentificationProviderCall(",
+    );
+    assert(
+      completed >= 0 && completed < admission,
+      `${route} must recover before fresh assignment admission`,
+    );
+  }
+  const status = await Deno.readTextFile(
+    new URL("../check-scan-status/index.ts", import.meta.url),
+  );
+  assert(!status.includes("reserveIdentificationProviderCall"));
+  assert(!status.includes("entitlementProtocolResponse"));
+});
+
 Deno.test("deployment does not require the optional quota hashing override", async () => {
   const workflow = await Deno.readTextFile(
     new URL("../../../../.github/workflows/deploy.yml", import.meta.url),
