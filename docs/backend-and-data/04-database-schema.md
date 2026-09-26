@@ -4177,12 +4177,20 @@ private, RLS-enabled tables with no direct API-role grants:
   account-cleanup rules. This is quota-attempt evidence, not permanent scan
   provenance or a complete prompt/generation fingerprint.
 
-`reserve_identification_quota` has compatible eight-argument legacy admission
-and a nine-argument complete-input overload. The latter chooses the private
-profile binding and saves its assignment in the quota transaction. Every current
-route is Gemini. Legacy catalog rows use `legacy_v1`; new rows distinguish the
-three compatibility representations plus six primary text/photo/audio/video
-combinations. No API role can read or write either table directly.
+`reserve_identification_quota` has compatible eight-argument legacy admission,
+nine-argument complete-input admission, and a ten-argument recipient-expectation
+overload added by `20260926213316_add_identification_recipient_preflight.sql`.
+The complete-input paths choose the private profile binding and save its
+assignment in the quota transaction. The tenth argument can only deny a fresh
+assignment that differs from the expected recipient; `recovery_only` always
+denies fresh inference. A mismatch raises `ai_identification_preflight_changed`
+and rolls back the complete transaction. Live/committed duplicates remain
+non-dispatchable and do not apply the expectation to a new catalog row. All
+three overloads are allowlisted only to `service_role`; the earlier signatures
+and return shapes are preserved. Every current route is Gemini. Legacy catalog
+rows use `legacy_v1`; new rows distinguish the three compatibility
+representations plus six primary text/photo/audio/video combinations. No API
+role can read or write either table directly.
 
 The routing migration extracts the established four- and eight-argument quota
 algorithms into ungranted `internal.reserve_ai_quota_core` invoker overloads.
@@ -4239,6 +4247,21 @@ paid → complimentary → Flash plan, and returns `allowed`,
 remaining count. It is intentionally read-only and does not create a hold,
 counter increment, or reservation. Only `authenticated` has execute privilege;
 the later service-only reservation remains authoritative.
+
+Migration `20260926213316_add_identification_recipient_preflight.sql` adds
+`get_my_identification_preflight(text,text,boolean,uuid,integer)`, executable
+only by `authenticated`. It uses `auth.uid()` with no target-account argument.
+This separate read-only recipient preview first applies the global protocol
+gate, then identifies caller-owned live/committed recovery. For fresh work it
+resolves the complete-input binding using the prospective plan, including
+held/consumed funding for that exact scan. It reports recipient, compatibility
+and permission readiness; it never creates or modifies admission, consent or
+usage state. It is not a quota-availability check. Profile/Flash hints are not
+trusted dispatch evidence. The final Edge request independently derives its
+shape, and its optional expectation chooses only the denial-capable ten-argument
+ABI. The native preflight caller is not included in this backend slice. The
+[API contract](./05-api-contracts.md#assigned-recipient-preflight) defines the
+closed result and header shapes.
 
 The database shape is intentionally independent from iOS reachability. The
 client gives this advisory read a two-second, no-wait/no-retry transport bound.

@@ -60,15 +60,24 @@ observation jobs retain user authority even when a service invokes the worker.
    carries a minimum, and each fresh attempt snapshots the minimum and
    recognized original-client protocol. All current Gemini minima are zero.
    Internal retries use exact original-attempt evidence, never a worker header.
-   Complete qualified model admission, recipient-aware preflight and explicit
-   permission collection before activation. Ship a qualified client capability
-   only after coordinating accepted maxima in Edge, SQL and snapshot constraints
-   (currently 3); preserve the global required minimum for older-client
-   recovery, then set the exact qualified binding's minimum. Marketing app
-   versions and consent grants cannot substitute for capability evidence. The
-   evaluation OpenAI binding supports only primary multimodal photo/text;
-   compatibility and snapshot profiles are not qualified. Before activation,
-   extend the versioned
+   The backend
+   [recipient preflight](../../../../../docs/backend-and-data/05-api-contracts.md#assigned-recipient-preflight)
+   now reports the app-assigned recipient without spending quota. A compatible
+   ten-argument reservation rejects a changed expected recipient atomically; its
+   optional header never selects a provider or proves permission. Native
+   integration must carry that expectation through live and durable retries,
+   preserve observations on drift, and recheck current local permission and
+   account ownership immediately before dispatch. Complete that integration,
+   qualified model admission and explicit permission collection before
+   activation. Future admission changes must review all three identification
+   overloads; do not patch only the older ones. Ship a qualified client
+   capability only after coordinating accepted maxima in Edge, SQL and snapshot
+   constraints (currently 3); preserve the global required minimum for
+   older-client recovery, then set the exact qualified binding's minimum.
+   Marketing app versions and consent grants cannot substitute for capability
+   evidence. The evaluation OpenAI binding supports only primary multimodal
+   photo/text; compatibility and snapshot profiles are not qualified. Before
+   activation, extend the versioned
    [durable result provenance](../../../../../docs/rfcs/identification-provider-result-provenance-2026-09-26.md)
    to cover the qualified adapter's generation settings and confidence profile.
    Gemini scans now retain this server configuration independently of the quota

@@ -255,6 +255,13 @@ export function quotaErrorForDatabaseMessage(
       "AI service is temporarily unavailable.",
     );
   }
+  if (databaseMessage === "ai_identification_preflight_changed") {
+    return new AIQuotaError(
+      409,
+      "ai_identification_preflight_changed",
+      "Identification requirements changed. Please check again before retrying.",
+    );
+  }
   if (databaseMessage === "ai_openai_consent_required") {
     return new AIQuotaError(
       403,
@@ -361,6 +368,19 @@ async function reserveQuota(
       "AI service is temporarily unavailable.",
     );
   }
+  const expectedRecipient = rpcName === "reserve_identification_quota"
+    ? req.headers.get("X-Merian-Identification-Recipient")
+    : null;
+  if (
+    expectedRecipient !== null &&
+    !["google_gemini", "openai", "recovery_only"].includes(expectedRecipient)
+  ) {
+    throw new AIQuotaError(
+      400,
+      "ai_identification_preflight_invalid",
+      "Invalid identification preflight expectation.",
+    );
+  }
   const requestId = resolveAIRequestId(req, input.requestId);
   const ipHash = await quotaIpHash(req);
   const { data, error } = await (async () => {
@@ -369,6 +389,9 @@ async function reserveQuota(
         ...(rpcName === "reserve_identification_quota"
           ? { p_input_profile: inputProfile }
           : {}),
+        ...(expectedRecipient === null ? {} : {
+          p_expected_processor_permission: expectedRecipient,
+        }),
         p_user_id: input.userId,
         p_operation: input.operation,
         p_request_id: requestId,

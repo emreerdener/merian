@@ -530,3 +530,121 @@ Deno.test("OpenAI denial has a distinct bounded recipient code", () => {
     assertEquals(unknown.message.includes("private detail"), false);
   }
 });
+
+Deno.test("recipient expectations only select the guarded admission overload and never a provider", async (test) => {
+  const previous = Deno.env.get("AI_QUOTA_IP_HASH_SECRET");
+  Deno.env.set("AI_QUOTA_IP_HASH_SECRET", SECRET);
+  try {
+    for (const recipient of ["google_gemini", "openai", "recovery_only"]) {
+      await test.step(recipient, async () => {
+        let calls = 0;
+        const error = await assertRejects(
+          () =>
+            reserveIdentificationProviderCall(
+              new Request("https://example.invalid", {
+                headers: { "X-Merian-Identification-Recipient": recipient },
+              }),
+              {
+                rpc: (name: string, args: Record<string, unknown>) => {
+                  calls++;
+                  assertEquals(name, "reserve_identification_quota");
+                  assertEquals(args.p_expected_processor_permission, recipient);
+                  assertEquals(args.p_input_profile, "description_compat_v1");
+                  assertEquals("p_provider" in args, false);
+                  assertEquals("p_model" in args, false);
+                  return {
+                    abortSignal: () =>
+                      Promise.resolve({
+                        data: null,
+                        error: {
+                          code: "P0001",
+                          message: "ai_identification_preflight_changed",
+                        },
+                      }),
+                  };
+                },
+              } as never,
+              {
+                request: buildDescribeAIRequest("Synthetic observation", {
+                  safeGpsLat: null,
+                  safeGpsLon: null,
+                }),
+                userId: "synthetic-owner",
+                operation: "scan_identification",
+                requestId: REQUEST_ID,
+              },
+            ),
+          AIQuotaError,
+        );
+        assertEquals(calls, 1);
+        assertEquals(error.status, 409);
+        assertEquals(error.code, "ai_identification_preflight_changed");
+        assertEquals(
+          error.message,
+          "Identification requirements changed. Please check again before retrying.",
+        );
+      });
+    }
+    for (
+      const recipient of [
+        "",
+        "gemini",
+        "OpenAI",
+        "google_gemini, openai",
+        "unknown-recipient",
+      ]
+    ) {
+      await test.step(`invalid: ${recipient}`, async () => {
+        let calls = 0;
+        const error = await assertRejects(
+          () =>
+            reserveIdentificationProviderCall(
+              new Request("https://example.invalid", {
+                headers: { "X-Merian-Identification-Recipient": recipient },
+              }),
+              {
+                rpc: () => {
+                  calls++;
+                  throw new Error("must not reserve");
+                },
+              } as never,
+              {
+                request: buildDescribeAIRequest("Synthetic observation", {
+                  safeGpsLat: null,
+                  safeGpsLon: null,
+                }),
+                userId: "synthetic-owner",
+                operation: "scan_identification",
+                requestId: REQUEST_ID,
+              },
+            ),
+          AIQuotaError,
+        );
+        assertEquals(calls, 0);
+        assertEquals(error.status, 400);
+        assertEquals(error.code, "ai_identification_preflight_invalid");
+        assertEquals(
+          error.message,
+          "Invalid identification preflight expectation.",
+        );
+      });
+    }
+  } finally {
+    if (previous === undefined) Deno.env.delete("AI_QUOTA_IP_HASH_SECRET");
+    else Deno.env.set("AI_QUOTA_IP_HASH_SECRET", previous);
+  }
+});
+
+Deno.test("recipient drift mapping is exact and does not expose database details", () => {
+  for (
+    const message of [
+      "ai_identification_preflight_changed_extra",
+      "private detail: ai_identification_preflight_changed",
+    ]
+  ) {
+    const error = quotaErrorForDatabaseMessage(message);
+    assertEquals(error.status, 503);
+    assertEquals(error.code, "ai_entitlement_unavailable");
+    assertEquals(error.message.includes("private detail"), false);
+  }
+});

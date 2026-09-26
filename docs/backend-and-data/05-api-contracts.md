@@ -111,14 +111,16 @@ runs before entitlement selection and provider-counter reservation, so this
 included Pro scan or daily Flash allowance. Provider-admission failures remain
 distinct:
 
-| HTTP | Code                          | Meaning and required client behavior                                                                                                                                                                                                                                             |
-| ---: | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-|  403 | `ai_consent_required`         | Disclosure-policy transition. Preserve queued media, stop automatic inference retry, and require fresh authoritative consent.                                                                                                                                                    |
-|  403 | `ai_openai_consent_required`  | Identification requires permission for its app-assigned OpenAI recipient. Preserve the saved scan and funding in needs-attention, stop automatic inference retry, and do not reopen Gemini onboarding or select another provider. OpenAI permission collection remains disabled. |
-|  402 | `pro_required`                | The requested capability has no valid paid/included/fallback entitlement. Present the existing upgrade path.                                                                                                                                                                     |
-|  429 | `ai_quota_daily_exceeded`     | The applicable daily provider allowance is exhausted. Preserve the queued retry and honor `Retry-After`; live Capture replaces Insight with the existing paywall instead of synthesizing a result placeholder. Do not route to consent.                                          |
-|  429 | `ai_user_rate_limit_exceeded` | Temporary per-user request-rate protection. Use bounded retry.                                                                                                                                                                                                                   |
-|  429 | `ai_ip_rate_limit_exceeded`   | Temporary per-network request-rate protection. Use bounded retry.                                                                                                                                                                                                                |
+| HTTP | Code                                  | Meaning and required client behavior                                                                                                                                                                                                                                             |
+| ---: | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+|  403 | `ai_consent_required`                 | Disclosure-policy transition. Preserve queued media, stop automatic inference retry, and require fresh authoritative consent.                                                                                                                                                    |
+|  403 | `ai_openai_consent_required`          | Identification requires permission for its app-assigned OpenAI recipient. Preserve the saved scan and funding in needs-attention, stop automatic inference retry, and do not reopen Gemini onboarding or select another provider. OpenAI permission collection remains disabled. |
+|  409 | `ai_identification_preflight_changed` | The app-assigned recipient changed after the client's check. Preserve the observation and rerun preflight; do not blindly retry, grant permission, or select another provider.                                                                                                   |
+|  400 | `ai_identification_preflight_invalid` | The recipient expectation header is invalid. Stop inference and correct the request; do not retry through an older admission path.                                                                                                                                               |
+|  402 | `pro_required`                        | The requested capability has no valid paid/included/fallback entitlement. Present the existing upgrade path.                                                                                                                                                                     |
+|  429 | `ai_quota_daily_exceeded`             | The applicable daily provider allowance is exhausted. Preserve the queued retry and honor `Retry-After`; live Capture replaces Insight with the existing paywall instead of synthesizing a result placeholder. Do not route to consent.                                          |
+|  429 | `ai_user_rate_limit_exceeded`         | Temporary per-user request-rate protection. Use bounded retry.                                                                                                                                                                                                                   |
+|  429 | `ai_ip_rate_limit_exceeded`           | Temporary per-network request-rate protection. Use bounded retry.                                                                                                                                                                                                                |
 
 ### Scan admission preview RPC
 
@@ -2396,7 +2398,9 @@ derives a closed `input_profile` from that request; it never reads a provider,
 model, binding or profile selector from HTTP JSON. The service-only
 `reserve_identification_quota` nine-argument overload adds this profile to the
 existing eight admission inputs and returns it with `provider`, `binding` and
-`processor_permission`. Public Identify payloads remain unchanged.
+`processor_permission`. An optional recipient-expectation header uses the
+compatible ten-argument overload described below. Public Identify JSON payloads
+remain unchanged.
 
 The backend chooses the assignment. End-user processing permission gates that
 assignment; it cannot select a different provider or fallback. All current
@@ -2450,16 +2454,99 @@ entitlement cutoff is not a provider switch.
 
 Apply `20260926174645_add_identification_input_routing.sql`,
 `20260926182547_add_identification_recipient_recovery.sql`,
-`20260926200227_add_identification_client_compatibility.sql` and their
+`20260926200227_add_identification_client_compatibility.sql`,
+`20260926213316_add_identification_recipient_preflight.sql` and their
 predecessor migrations before deploying these Edge callers through the exact-SHA
 release procedure. The legacy eight-argument identification RPC and both
 `reserve_ai_quota` ABIs remain compatible and Gemini-gated. New callers never
 fall back to them if the routing overload is missing. This infrastructure does
 not activate OpenAI or enable consent collection. Future activation also needs
-recipient-aware preflight, a qualified client protocol and coordinated accepted
-maximum expansion, qualified model admission, confidence and versioned result
-provenance. The implemented recipient-specific saved-scan recovery remains
-dormant while all assignments are Gemini.
+native integration of the recipient preflight below, a qualified client protocol
+and coordinated accepted maximum expansion, qualified model admission,
+confidence and versioned result provenance. The implemented recipient-specific
+saved-scan recovery remains dormant while all assignments are Gemini.
+
+### Assigned-recipient preflight
+
+The additive authenticated RPC `get_my_identification_preflight` prepares a
+future native recipient check. Current iOS clients do not call it yet. The
+existing Capture allowance preview remains unchanged and serves a different
+purpose: this RPC reports recipient readiness, not available quota.
+
+| Input                       | Type              | Meaning                                                                           |
+| --------------------------- | ----------------- | --------------------------------------------------------------------------------- |
+| `p_operation`               | text              | `scan_identification`, or `scan_audio_identification` only with `audio_compat_v1` |
+| `p_input_profile`           | text              | One of the nine complete-input profiles below; `legacy_v1` is not a preview input |
+| `p_flash_fallback_eligible` | boolean           | Prospective eligibility for the complete outgoing observation                     |
+| `p_original_analysis_id`    | UUID              | This request's `client_scan_id`, not the parent observation of a refinement       |
+| `p_client_protocol`         | integer, nullable | Client capability claim; null means unknown; non-null values must be 1–1000       |
+
+Accepted profiles are `description_compat_v1`, `vision_compat_v1`,
+`audio_compat_v1`, `multimodal_text_v1`, `multimodal_photo_v1`,
+`multimodal_audio_v1`, `multimodal_photo_audio_v1`, `multimodal_video_frames_v1`
+and `multimodal_video_audio_v1`. Video profiles represent sampled image
+snapshots, plus audio where present, rather than a native-video model input.
+
+Identity comes only from `auth.uid()`. There is no account or provider selector,
+media, description or location input. Shape and eligibility are advisory hints;
+Edge still derives the actual profile and eligibility from validated evidence.
+The RPC returns exactly one row:
+
+| Field                     | Type              | Meaning                                                                                                       |
+| ------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------- |
+| `input_profile`           | text              | Echo of the validated prospective profile; not proof of the saved input shape                                 |
+| `decision`                | text              | `ready`, `permission_required`, `client_update_required`, or `recovery_only`                                  |
+| `processor_permission`    | text, nullable    | App-assigned recipient: `google_gemini` or `openai`; null for recovery-only or a global protocol denial       |
+| `minimum_client_protocol` | integer, nullable | Greater of global and binding requirements; global minimum alone when it denies early; null for recovery-only |
+
+The global supported-protocol gate runs before recovery and entitlement,
+matching public Identify. A caller-owned live or committed reservation then
+returns `recovery_only`, without looking up a new binding or inventing
+historical recipient proof. Fresh work resolves paid/trial, legacy free,
+scan-specific held/consumed complimentary funding, available complimentary
+credit, then eligible Flash. It checks the exact policy binding, client
+compatibility and the assigned recipient's current consent stream. Missing or
+disabled bindings raise `ai_provider_assignment_unavailable`; denied entitlement
+raises `ai_entitlement_required`; invalid shape/required inputs raise
+`identification_preflight_invalid_request` (`22023`); missing identity raises
+`authentication_required` (`42501`). These are PostgREST errors, not Edge error
+envelopes. Consumers must fail closed on missing, malformed or unknown results.
+
+`ready` is advisory. Preflight creates no reservation, counters, credit hold,
+consent event or provider call. It neither promises daily/rate allowance nor
+records approval of a provider. The app owns assignment; processing permission
+can only allow or block that assigned recipient.
+
+A client integrating this contract sends the checked recipient in
+`X-Merian-Identification-Recipient`, or `recovery_only` for recovery-only work.
+The shared Edge admission helper accepts exactly `google_gemini`, `openai`, or
+`recovery_only`; other values return `400 ai_identification_preflight_invalid`
+if admission is reached. The header is an untrusted, denial-only expectation,
+not a signed preflight token or evidence of consent. It never changes
+assignment. The service-only ten-argument reservation compares it to the fresh
+binding within the existing quota transaction. A mismatch, including
+recovery-only after a reservation expires or is pruned, returns
+`409 ai_identification_preflight_changed` and rolls back counters, reservation,
+attempt and complimentary-hold effects. It creates no provider lease or
+automatic fallback. A change of model within the same permitted recipient is not
+rejected by this recipient-only check; all other admission and qualification
+gates apply.
+
+Live/committed duplicates retain non-dispatchable replay behavior. Completed
+result lookup remains before admission. Refunded, failed and expired requests
+require fresh admission. Headerless clients continue through the nine-argument
+ABI, and eight-argument workers remain compatible; a caller using the new header
+never falls back to an older overload on failure.
+
+Native integration is the next slice. It must validate the response, carry the
+closed expectation through live, authentication and transport retries and
+durable background requests, and recheck local owner/generation/recipient
+permission before dispatch. Policy drift must preserve the observation and
+request another preflight rather than choosing a provider or automatically
+granting consent. Offline preservation may continue, but inference waits for a
+successful current check. Confidence interpretation and deliberate permission
+collection remain separate activation prerequisites. See the
+[implementation record](../rfcs/identification-recipient-preflight-2026-09-26.md).
 
 ### Scan response replay
 
