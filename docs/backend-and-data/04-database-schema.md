@@ -1286,6 +1286,19 @@ The transaction log for every successful identification.
 - `species_id` (UUID - Foreign Key nullable)
 - `ai_confidence_score` (Float): 0.0 to 1.0. Bounded explicitly within the
   Gemini schema description ruleset.
+- `identification_provenance` (JSONB, nullable): Immutable, version-1
+  configuration projected only from the admitted successful server execution.
+  Contains provider, binding, requested model, variant, operation, policy,
+  prompt/schema/confidence references, diagnostic thresholds, safety profile,
+  timeout and explicit generation settings. It contains no evidence, returned
+  model text, account/request/reservation IDs or timing. These fixed facts
+  intentionally share the scan's existing public/owner Data API visibility;
+  curated Explore responses and Identify wire DTOs do not add the field.
+  Migration `20260926160249_persist_identification_result_provenance.sql`
+  enforces an exact bounded shape and atomically stores a recovery copy in the
+  matching ingestion job. Existing rows remain null; updates, including guessed
+  legacy backfills, are rejected. See the
+  [provenance record](../rfcs/identification-provider-result-provenance-2026-09-26.md).
 - `blur_score` (Float): 0.0 to 1.0. Mathematically derived natively in the Edge
   orchestrator from Gemini's `image_quality.sharpness` score to reduce
   generation latency.
@@ -2256,6 +2269,15 @@ all table privileges are revoked from `PUBLIC`, `anon`, `authenticated`, and
 `service_role`; only owner-executing private proof code reads it.
 
 ### `scan_ingestion_jobs`
+
+`identification_provenance` is the immutable server recovery copy of the same
+scan configuration, populated in the scan-insert transaction. It is independent
+of the expiring quota-attempt tables. Missing scan inserts restore it only by
+exact owner/scan lookup, including the existing `recover_missing_owned_scan`
+path; supplied client provenance is ignored. Old jobs remain null. Provenance
+survives ordinary retries and owner merge without changing its contents. The
+backup follows the job's existing access and Auth-owner cascade; retained
+scientific scan tombstones keep their content-free value.
 
 Durable server-side lifecycle ledger for accepted scan ingestion requests. Added
 in migration `20260705120000_add_scan_ingestion_jobs.sql`.

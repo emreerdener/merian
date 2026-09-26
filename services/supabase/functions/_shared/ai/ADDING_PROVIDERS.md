@@ -52,13 +52,16 @@ observation jobs retain user authority even when a service invokes the worker.
    is implemented with collection disabled. Adding a catalog row alone cannot
    admit another provider; complete underlying recipient-aware admission and
    client consent-denial/recovery routing together before activation. Before
-   activation, extend durable scan/recovery provenance and the full generation
-   snapshot beyond this quota-attempt record. Public jobs require an approved
-   task/model assignment in their service path as well. Do not let the registry
-   override a quota-selected model, accept client-selected providers/URLs, or
-   widen the allowlist speculatively. Snapshot each admitted attempt; only
-   existing recovery/admission can authorize a later attempt under a changed
-   policy.
+   activation, extend the versioned
+   [durable result provenance](../../../../../docs/rfcs/identification-provider-result-provenance-2026-09-26.md)
+   to cover the qualified adapter's generation settings and confidence profile.
+   Gemini scans now retain this server configuration independently of the quota
+   record; client confidence consumers still need their own compatibility work.
+   Public jobs require an approved task/model assignment in their service path
+   as well. Do not let the registry override a quota-selected model, accept
+   client-selected providers/URLs, or widen the allowlist speculatively.
+   Snapshot each admitted attempt; only existing recovery/admission can
+   authorize a later attempt under a changed policy.
 4. Update `production.ts` only when qualification and disclosure prerequisites
    below are met. Keep deterministic adapters test-only. Add the new
    SDK/dispatch owner to the reviewed inventory in

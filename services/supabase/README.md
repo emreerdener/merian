@@ -1249,6 +1249,13 @@ Only analytics and optional enrichment may continue in Edge background work.
 Provider success without an owned durable scan is a retryable failure, never an
 HTTP success.
 
+All four producers also save immutable, content-free identification
+configuration with new scan rows. The same transaction copies it into the exact
+ingestion job for server-authorized recovery. Historical missing configuration
+stays unknown; client recovery JSON cannot supply it. This does not change
+Identify responses, Gemini routing or confidence scores. See the
+[provenance contract](../../docs/rfcs/identification-provider-result-provenance-2026-09-26.md).
+
 Ordinary producer-owned `failed_retryable` transitions obtain their deadline
 from `functions/_shared/scanIngestionRetry.ts`. The helper returns a
 deterministic 30-second value for `identify-multimodal` and for the

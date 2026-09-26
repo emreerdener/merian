@@ -116,3 +116,12 @@ Settings flow. The sections above record the admission slice as completed at
 that time. Current API/schema documentation includes the later consent work;
 production bindings, legacy quota admission and current client inference remain
 Gemini-only. Durable generation provenance and reviewed activation remain ahead.
+
+## Subsequent result provenance slice — 26 September 2026
+
+The
+[server provenance implementation](./identification-provider-result-provenance-2026-09-26.md)
+now saves successful result configuration and an atomic server recovery backup.
+The earlier sections describe their completed slices at that time. Client
+confidence integration, recipient-aware admission and reviewed activation still
+remain prerequisites; production assignment remains Gemini-only.

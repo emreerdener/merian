@@ -1,3 +1,4 @@
+import type { IdentificationProvenance } from "./provenance.ts";
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createIdentifyHandler } from "../../identify/index.ts";
@@ -687,6 +688,26 @@ Deno.test("compatibility handlers preserve paid work, media durability and repla
           );
           assertEquals(mediaEvents, ["PUT"]);
           const row = db.inserted()!;
+          const provenance = row
+            .identification_provenance as IdentificationProvenance;
+          assertEquals(provenance.provider, "gemini");
+          assertEquals(provenance.binding, "gemini_baseline_v1");
+          assertEquals(provenance.model, "gemini-2.5-flash");
+          assertEquals(
+            provenance.prompt,
+            audio ? "identify_audio_compat_v2" : "identify_vision_v1",
+          );
+          assertEquals(
+            provenance.confidence,
+            audio ? "gemini_audio_compat_v2" : "gemini_vision_compat_v1",
+          );
+          assertEquals(
+            provenance.variant,
+            audio ? "audio_compat" : "vision_compat",
+          );
+          assertEquals(provenance.generation.temperature, 0.1);
+          assertEquals(provenance.version, 1);
+          assert(!("identification_provenance" in envelope.data));
           assertEquals([
             row.llm_prompt_tokens,
             row.llm_candidate_tokens,

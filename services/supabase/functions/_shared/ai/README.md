@@ -64,6 +64,32 @@ unknown scan persistence retains its existing recovery ownership. Preparation
 failure refunds unused quota. Refusals and malformed/truncated output retain
 their distinct terminal/retryable responses.
 
+## Durable identification provenance
+
+`provenance.ts` projects the admitted execution snapshot into a closed,
+versioned value saved with the scan by all four identification producers. It
+records the requested model, binding, prompt/schema/confidence references,
+policy version, variant, operation, thresholds, safety profile, timeout and
+generation settings. Unset settings are explicit nulls. It never serializes
+model output, returned model text, observation context, media, owner/attempt
+identifiers or timing.
+
+Migration `20260926160249_persist_identification_result_provenance.sql`
+atomically copies each new scan's value into its exact owner/scan ingestion job.
+Both values are immutable. A duplicate insert preserves the original result; a
+separately admitted retry resolves its own snapshot before it can produce a new
+durable result. The existing recovery RPC cannot supply provenance from its
+client JSON: an insert trigger restores only an existing server backup. Missing
+historical evidence stays null, including recovery of a result that never
+reached the scan-insert transaction.
+
+These fixed configuration facts intentionally share the scan's existing Data API
+visibility. They are not private operational telemetry. The backup follows
+existing ingestion-job ownership and retention. Neither Identify envelopes nor
+iOS local storage gain fields in this server-side slice. See the
+[implementation record](../../../../../docs/rfcs/identification-provider-result-provenance-2026-09-26.md)
+for rollout order, limits and the remaining client/confidence work.
+
 ## Alternative-provider evaluation
 
 `openaiRequest.ts` and `openai.ts` implement an evaluation-only `gpt-6-sol`
@@ -217,9 +243,10 @@ added to the existing optional `ScanCompleted` telemetry for image/description,
 `AudioScanCompleted` for legacy audio, and the successful primary
 `multimodal/latency` event. The compatibility `ai_provider_duration_ms` field
 measures native invocation only, excluding decoding. They contain no evidence,
-owner/attempt identifiers, provider diagnostics, or credentials. This adds no
-durable configuration pin or new billing record. Failed/uncertain attempts and
-disabled telemetry retain their existing accounting gaps.
+owner/attempt identifiers, provider diagnostics, or credentials. This telemetry
+adds no cross-retry configuration pin or new billing record. Successful scan
+configuration is separately persisted as described above. Failed/uncertain
+attempts and disabled telemetry retain their existing accounting gaps.
 
 Content adds `ai_task`, provider/binding/prompt/schema references, nullable user
 policy version, context kind, returned model, native duration, and outcome to

@@ -1,3 +1,4 @@
+import { identificationProvenance } from "../_shared/ai/provenance.ts";
 import {
   jsonResponse,
   logStructuredError,
@@ -793,6 +794,9 @@ export function createDescribeHandler(prepare = prepareAIExecution) {
           {
             id: generatedScanId,
             user_id: user.id,
+            identification_provenance: identificationProvenance(
+              result.execution,
+            ),
             species_id: speciesId,
             timestamp: timestamp ?? undefined,
             gps_lat_exact: safeGpsLat,

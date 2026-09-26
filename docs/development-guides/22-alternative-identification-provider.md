@@ -340,11 +340,14 @@ implements independent evidence, strict recipient proof and optional Settings
 choices with collection disabled in source. Account changes, failed saves,
 revocation and causal synchronization are covered locally. Current onboarding,
 client inference admission and the underlying quota delegate still require
-Gemini. Next, preserve qualified provider and generation identity through
-durable results/recovery, then complete recipient-aware admission, confidence
-and safety compatibility, qualification and controlled activation. The optional
-concise-prompt screen is closed and is not required to implement these
-boundaries. Follow the
+Gemini. The
+[server provenance slice](../rfcs/identification-provider-result-provenance-2026-09-26.md)
+now retains successful Gemini provider/model and generation/confidence
+configuration with atomic recovery backups. Historical unknown values stay null;
+this does not yet add client DTO/local-store fields. Next, complete
+recipient-aware admission, client confidence and safety compatibility,
+qualification and controlled activation. The optional concise-prompt screen is
+closed and is not required to implement these boundaries. Follow the
 [provider onboarding contract](../../services/supabase/functions/_shared/ai/ADDING_PROVIDERS.md).
 Photo/text could then receive one provider and audio-containing observations
 another, using complete-task capability checks. This slice enables that work

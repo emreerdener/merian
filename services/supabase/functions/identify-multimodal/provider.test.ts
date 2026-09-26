@@ -1,3 +1,4 @@
+import type { IdentificationProvenance } from "../_shared/ai/provenance.ts";
 import {
   AUDIO_PROMPT_COMPARISON_CONFIG_ENV,
   AUDIO_PROMPT_COMPARISON_HEADER,
@@ -1453,6 +1454,17 @@ Deno.test("multimodal handler preserves admission, evidence and recovery through
           toolTokens: null,
         });
         const row = db.inserted()!;
+        const provenance = row
+          .identification_provenance as IdentificationProvenance;
+        assertEquals(provenance.provider, "gemini");
+        assertEquals(provenance.binding, "gemini_baseline_v1");
+        assertEquals(provenance.model, "gemini-2.5-flash");
+        assertEquals(provenance.prompt, "identify_text_v1");
+        assertEquals(provenance.confidence, "gemini_identify_v1");
+        assertEquals(provenance.variant, "multimodal");
+        assertEquals(provenance.generation.temperature, 0.1);
+        assertEquals(provenance.version, 1);
+        assert(!("identification_provenance" in envelope.data));
         assertEquals([
           row.llm_prompt_tokens,
           row.llm_candidate_tokens,

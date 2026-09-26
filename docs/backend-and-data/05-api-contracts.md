@@ -2404,10 +2404,17 @@ safety and model/tier settings and legacy audio prompt/token budgets remain
 separate profiles. `audio-spec` retains the `scan_audio_identification` quota
 operation; the other identification routes retain `scan_identification`.
 Compatibility replay intents still target the primary endpoint under its
-existing admission and recovery rules. Execution/version facts are internal
-optional telemetry; no provider-selection request field or new Identify
-response/DTO field is introduced. The admission and replay rules below remain
-authoritative.
+existing admission and recovery rules. Successful execution configuration is
+also saved as bounded immutable `scans.identification_provenance` with an atomic
+ingestion-job recovery copy. These fixed facts share the scan's existing Data
+API visibility; they contain no evidence or owner/attempt identifiers. Client
+`recovery_scan` cannot assert provenance: missing scan insertion reads only the
+exact server-owned backup, and legacy/no-backup results remain null. Stored and
+reconstructed Identify envelopes stay unchanged; no provider-selection request
+field or new Identify response/DTO field is introduced. The
+[provenance record](../rfcs/identification-provider-result-provenance-2026-09-26.md)
+describes compatibility and rollout order. The admission and replay rules below
+remain authoritative.
 
 `/identify-multimodal`, `/identify`, `/identify-describe`, and `/audio-spec` use
 the canonical scan UUID as both the response identity and paid-provider request

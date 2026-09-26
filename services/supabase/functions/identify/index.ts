@@ -1,3 +1,4 @@
+import { identificationProvenance } from "../_shared/ai/provenance.ts";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import type { AIExecutionOutcome } from "../_shared/ai/contracts.ts";
 import { prepareAIExecution } from "../_shared/ai/production.ts";
@@ -1014,6 +1015,9 @@ export function createIdentifyHandler(prepare = prepareAIExecution) {
           {
             id: generatedScanId,
             user_id: user.id,
+            identification_provenance: identificationProvenance(
+              result.execution,
+            ),
             species_id: speciesId,
             timestamp: timestamp ?? undefined,
             gps_lat_exact: safeGpsLat,

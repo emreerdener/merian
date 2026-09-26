@@ -114,11 +114,11 @@ links. No physical-device or live OpenAI rollout test was performed.
 
 ## Next integration slice
 
-Carry the qualified provider and complete generation/confidence identity through
-durable scan results and recovery. Then complete recipient-aware quota admission
-and iOS inference/reapproval behavior, usage and confidence compatibility,
-held-out quality/safety qualification, published disclosure and controlled
-activation. The legacy quota delegate and current client inference gate remain
-Gemini-only; adding an OpenAI receipt or catalog row is insufficient. The
-optional concise-prompt experiment stays deferred and need not be rerun for this
-work.
+The server-side durable configuration step is now recorded in
+[result provenance](./identification-provider-result-provenance-2026-09-26.md).
+Next, complete recipient-aware quota admission and iOS inference/reapproval
+behavior, usage and confidence compatibility, held-out quality/safety
+qualification, published disclosure and controlled activation. The legacy quota
+delegate and current client inference gate remain Gemini-only; adding an OpenAI
+receipt or catalog row is insufficient. The optional concise-prompt experiment
+stays deferred and need not be rerun for this work.

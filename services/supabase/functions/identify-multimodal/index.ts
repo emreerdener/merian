@@ -1,3 +1,4 @@
+import { identificationProvenance } from "../_shared/ai/provenance.ts";
 import {
   AUDIO_PROMPT_COMPARISON_CONFIG_ENV,
   AudioPromptComparisonError,
@@ -1653,6 +1654,7 @@ export async function handleIdentifyMultimodalRequest(
         {
           id: generatedScanId,
           user_id: user.id,
+          identification_provenance: identificationProvenance(result.execution),
           species_id: speciesId,
           timestamp: timestamp ?? undefined,
           gps_lat_exact: safeGpsLat,

@@ -1,3 +1,4 @@
+import type { IdentificationProvenance } from "../_shared/ai/provenance.ts";
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createDescribeHandler } from "./index.ts";
@@ -427,6 +428,17 @@ Deno.test("describe handler executes the shared boundary and preserves recovery"
           "complete",
         ]);
         const row = db.inserted()!;
+        const provenance = row
+          .identification_provenance as IdentificationProvenance;
+        assertEquals(provenance.provider, "gemini");
+        assertEquals(provenance.binding, "gemini_baseline_v1");
+        assertEquals(provenance.model, "gemini-2.5-flash");
+        assertEquals(provenance.prompt, "identify_describe_v1");
+        assertEquals(provenance.confidence, "gemini_describe_v1");
+        assertEquals(provenance.variant, "description_compat");
+        assertEquals(provenance.generation.temperature, 0.15);
+        assertEquals(provenance.version, 1);
+        assert(!("identification_provenance" in envelope.data));
         assertEquals([
           row.llm_prompt_tokens,
           row.llm_candidate_tokens,
