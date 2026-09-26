@@ -1,4 +1,4 @@
-import { OPENAI_PROFILE } from "../../functions/_shared/ai/openaiRequest.ts";
+import { isOpenAIProfile } from "../../functions/_shared/ai/openaiRequest.ts";
 import {
   corpusRetention,
   fingerprintRunCorpus,
@@ -10,6 +10,7 @@ import {
 import { INPUT_GROUPS } from "./contracts.ts";
 import { fingerprintBytes, fingerprintJson } from "./evidence.ts";
 import {
+  CANDIDATE_SPEC_VERSION,
   type EvaluationPricing,
   type EvaluationReadiness,
   parseEvaluationPricing,
@@ -22,7 +23,7 @@ import {
 } from "./runContracts.ts";
 import { requireCondition as check } from "./validation.ts";
 
-export async function validateSelection(
+export async function validateSelectionFacts(
   corpusValue: RunCorpus,
   spec: RunSpec,
   taxonomy: Taxonomy,
@@ -33,6 +34,10 @@ export async function validateSelection(
       await fingerprintJson(taxonomy) === spec.taxonomyDigest,
   );
   check(corpus.taxonomyVersion === taxonomy.taxonomyVersion);
+  check(
+    taxonomy.version !== "evaluation_taxonomy_v2" ||
+      corpus.kind === "exploratory",
+  );
   const selected = corpus.cases.filter((c) =>
     spec.caseIds.includes(c.input.caseId)
   );
@@ -87,6 +92,19 @@ export async function validateSelection(
     );
   }
 }
+/** Standalone admission deliberately cannot opt into controlled v2 live runs. */
+export async function validateSelection(
+  corpus: RunCorpus,
+  spec: RunSpec,
+  taxonomy: Taxonomy,
+): Promise<void> {
+  check(spec.version !== CANDIDATE_SPEC_VERSION);
+  check(
+    taxonomy.version !== "evaluation_taxonomy_v2" || spec.mode === "offline",
+    "evaluation_measurement_live_pending",
+  );
+  await validateSelectionFacts(corpus, spec, taxonomy);
+}
 export async function validateLiveApproval(
   corpus: RunCorpus,
   spec: RunSpec,
@@ -98,7 +116,7 @@ export async function validateLiveApproval(
   check(spec.mode === "live" && credential.length > 0);
   const pricing = parseEvaluationPricing(pricingValue),
     readiness = parseEvaluationReadiness(readinessValue);
-  const openai = spec.profiles.includes(OPENAI_PROFILE);
+  const openai = spec.profiles.some(isOpenAIProfile);
   check(
     spec.profiles.every((p) =>
       providerForProfile(p) === (openai ? "openai" : "gemini")

@@ -189,6 +189,8 @@ export interface AIUsage {
   readonly totalTokens: number | null;
   readonly thinkingTokens: number | null;
   readonly cachedTokens: number | null;
+  /** Native write category, when reported. Absence is unknown, never zero. */
+  readonly cacheWriteTokens?: number | null;
   readonly toolTokens?: number | null;
   readonly modalityBreakdown: Record<string, unknown>;
 }

@@ -1,5 +1,7 @@
+import { isOpenAIProfile } from "../../functions/_shared/ai/openaiRequest.ts";
+import { MEASUREMENT_SCORER } from "./taxonomy.ts";
 import { join } from "node:path";
-import { validateSelection } from "./admission.ts";
+import { validateSelectionFacts } from "./admission.ts";
 import {
   INPUT_GROUPS,
   type Rate,
@@ -119,13 +121,19 @@ export async function validateReportInputs(
   const corpus = parseRunCorpus(corpusValue),
     manifest = parseManifest(manifestValue),
     records = recordValues.map(parseAttempt);
-  await validateSelection(corpus, manifest.spec, parseTaxonomy(taxonomyValue));
+  const taxonomy = parseTaxonomy(taxonomyValue);
+  await validateSelectionFacts(corpus, manifest.spec, taxonomy);
   check(
     await fingerprintRunCorpus(corpus) === manifest.spec.corpusDigest &&
       corpus.taxonomyVersion === manifest.taxonomyVersion &&
       corpus.preparationVersion === manifest.preparationVersion,
   );
-  check(manifest.scorerVersion === SCORER_VERSION);
+  check(
+    manifest.scorerVersion ===
+      (taxonomy.version === "evaluation_taxonomy_v2"
+        ? MEASUREMENT_SCORER
+        : SCORER_VERSION),
+  );
   check(
     records.length === manifest.order.length &&
       new Set(records.map((r) => r.key)).size === records.length,
@@ -160,7 +168,13 @@ export async function validateReportInputs(
       a.confidenceDigest === await fingerprintJson(confidencePolicy(a.profile)),
     );
     if (r.prediction.outcome !== "unattempted") {
-      validateRecord(r, a, digest, manifest.pricing);
+      validateRecord(
+        r,
+        a,
+        digest,
+        manifest.pricing,
+        manifest.scorerVersion === MEASUREMENT_SCORER,
+      );
     }
     if (manifest.pricing) {
       check(a.reservedUsd === reserveCost(manifest.pricing, a.model));
@@ -168,6 +182,29 @@ export async function validateReportInputs(
         r.estimatedUpperUsd ===
           estimateCost(manifest.pricing, a.model, r.usage),
       );
+    }
+    if (manifest.scorerVersion === MEASUREMENT_SCORER) {
+      check(
+        r.version ===
+          (isOpenAIProfile(a.profile) && a.profile !== "openai_gpt_6_sol"
+            ? "evaluation_openai_attempt_v3"
+            : isOpenAIProfile(a.profile)
+            ? "evaluation_openai_attempt_v2"
+            : "evaluation_attempt_v2"),
+      );
+      const identities = [
+        r.prediction.outcome === "normalized" ? r.prediction.taxon : null,
+        ...(r.candidates?.map((c) => c.taxon) ?? []),
+      ];
+      for (const identity of identities) {
+        if (identity) {
+          check(
+            taxonomy.taxa.some((t) =>
+              t.taxon.id === identity.id && t.taxon.rank === identity.rank
+            ),
+          );
+        }
+      }
     }
     if (r.prediction.outcome === "normalized") {
       const p = confidencePolicy(a.profile),

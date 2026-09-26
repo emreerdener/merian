@@ -1733,7 +1733,25 @@ own the separately versioned provisional corpus and agreement report for solo
 development. `preflight.ts` verifies assets and fingerprints requests without
 network, credentials or dispatch. Formal scoring and comparison reject this
 exploratory evidence; the same live execution controls apply to eligible real
-exploratory runs. The separate offline prompt-comparison owner
+exploratory runs. Provider optimization measurement lives in
+`scripts/identification_evaluation/taxonomy.ts` (frozen catalog resolution).
+`reusableProfiles.ts` freezes reviewed profile definitions and fingerprints;
+`experimentContracts.ts` and `experiment.ts` own experiment plans, allocations,
+locked execution, reservation settlement and persistent global stops.
+`experimentReport.ts` validates controlled reports, while `experimentOffline.ts`
+owns baseline demonstrations and `candidateOffline.ts` owns the synthetic
+concise candidate. `explanationContracts.ts`, `explanationCalibration.ts`,
+`explanationView.ts` and `explanationReview.ts` own bounded ratings, invented
+practice anchors, the ephemeral local view and private review projection. The v3
+experiment/assessment-v2/report-v3 path records explicitly delegated AI review
+without owner calibration; the v2 human path retains its certificate.
+`candidateReport.ts` applies the fixed provisional screening gate. The
+measurement modules are `measurementCost.ts` (usage-based cost),
+`exploratoryMeasurement.ts` (versioned provisional reports) and
+`exploratoryComparison.ts` (descriptive paired comparisons). The tooling README
+owns the opt-in v2 measurement and v2/v3 review contracts; historical v1 reports
+remain unchanged. These modules are not production imports.
+
 `scripts/identification_evaluation/audioPromptComparison.ts` builds the frozen
 audio uncertainty candidate and hash-only assignments; `frozenAudioPacket.ts`
 validates its retained private inputs. The

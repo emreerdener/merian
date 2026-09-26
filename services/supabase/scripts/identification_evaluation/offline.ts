@@ -303,3 +303,61 @@ export async function createProviderDemo(root: string): Promise<void> {
     cases: fixtures.cases.filter((c) => caseIds.includes(c.caseId)),
   });
 }
+
+/** New measurement format is opt-in; existing demos and historical evidence stay v1. */
+export async function createMeasurementDemo(root: string): Promise<void> {
+  await createProviderDemo(root);
+  const original = await readJson(
+    join(root, "corpus.json"),
+  ) as EvaluationCorpus;
+  const previous = parseRunSpec(await readJson(join(root, "spec.json")));
+  const legacy = parseTaxonomy(await readJson(join(root, "taxonomy.json")));
+  check(legacy.version === "evaluation_taxonomy_v1");
+  const taxonomy = parseTaxonomy({
+    version: "evaluation_taxonomy_v2",
+    taxonomyVersion: "synthetic-reviewed-taxonomy-v2",
+    catalogRef: "synthetic-catalog",
+    reviewRef: "synthetic-review",
+    taxa: legacy.taxa.map((t) => ({
+      taxon: t.taxon,
+      canonicalName: t.names[0],
+      synonyms: t.names.slice(1),
+    })),
+  });
+  const corpus = parseExploratoryCorpus({
+    version: EXPLORATORY_CORPUS_VERSION,
+    id: "synthetic-measurement-v2",
+    kind: "exploratory",
+    evidenceOrigin: "synthetic",
+    taxonomyVersion: taxonomy.taxonomyVersion,
+    preparationVersion: original.preparationVersion,
+    splitSeed: original.splitSeed,
+    eligibility: null,
+    cases: original.cases.filter((c) =>
+      previous.caseIds.includes(c.input.caseId)
+    ).map((c) => ({
+      input: c.input,
+      provisionalReference: c.reference,
+      curation: { kind: "synthetic" },
+    })),
+  });
+  const digest = await fingerprintRunCorpus(corpus);
+  const spec = parseRunSpec({
+    ...previous,
+    runId: "offline-measurement-v2",
+    stage: "exploratory",
+    corpusDigest: digest,
+    taxonomyDigest: await fingerprintJson(taxonomy),
+    maxCalls: previous.caseIds.length * previous.profiles.length,
+  });
+  const fixtures = await readJson(
+    join(root, "fixtures.json"),
+  ) as OfflineFixtures;
+  await atomicJson(join(root, "taxonomy.json"), taxonomy);
+  await atomicJson(join(root, "corpus.json"), corpus);
+  await atomicJson(join(root, "spec.json"), spec);
+  await atomicJson(join(root, "fixtures.json"), {
+    ...fixtures,
+    corpusDigest: digest,
+  });
+}

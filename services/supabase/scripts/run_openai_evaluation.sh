@@ -10,6 +10,7 @@ import getpass
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import stat
@@ -19,7 +20,14 @@ import warnings
 
 
 def main():
-    if len(sys.argv) != 4 or sys.argv[2] not in ("--credential-fingerprint", "--live"):
+    if len(sys.argv) not in (4, 5) or sys.argv[2] not in ("--credential-fingerprint", "--live", "--experiment-live", "--experiment-session"):
+        raise ValueError("arguments")
+    session = sys.argv[2] == "--experiment-session"
+    experiment = session or sys.argv[2] == "--experiment-live"
+    if len(sys.argv) != (5 if experiment and not session else 4):
+        raise ValueError("arguments")
+    run_id = sys.argv[4] if experiment and not session else None
+    if run_id is not None and not re.fullmatch("[a-z0-9][a-z0-9_.:-]{0,79}", run_id):
         raise ValueError("arguments")
     repository = Path(sys.argv[1]).resolve(strict=True)
     mode = sys.argv[2]
@@ -40,17 +48,29 @@ def main():
             raise ValueError("terminal_required")
     warnings.simplefilter("error", getpass.GetPassWarning)
     deno = shutil.which("deno")
-    if mode == "--live" and not deno:
+    if mode != "--credential-fingerprint" and not deno:
         raise ValueError("deno_required")
     environment = {name: os.environ[name] for name in ("PATH", "HOME", "DENO_DIR") if name in os.environ}
-    if mode == "--live":
+    if mode != "--credential-fingerprint":
         # Reject a different provider before even prompting for its credential.
-        spec_path = packet / "spec.json"
+        spec_path = packet / ("experiment.json" if experiment else "spec.json")
         info = spec_path.lstat()
         if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or not 0 < info.st_size <= 65536:
             raise ValueError("spec")
-        spec = json.loads(spec_path.read_text())
-        if spec.get("version") != "identification_provider_run_spec_v1" or spec.get("mode") != "live" or spec.get("profiles") != ["openai_gpt_6_sol"]:
+        spec_bytes = spec_path.read_bytes()
+        spec = json.loads(spec_bytes)
+        if experiment:
+            if spec.get("version") not in ("identification_experiment_plan_v1", "identification_experiment_plan_v2", "identification_experiment_plan_v3") or spec.get("mode") != "live" or not isinstance(spec.get("runs"), list):
+                raise ValueError("provider")
+            selected = spec["runs"] if session else [run for run in spec["runs"] if isinstance(run, dict) and run.get("runId") == run_id]
+            if not 1 <= len(selected) <= (4 if session else 1) or any(
+                not isinstance(run, dict) or not isinstance(run.get("runId"), str)
+                or not re.fullmatch("[a-z0-9][a-z0-9_.:-]{0,79}", run["runId"])
+                or run.get("profileId") not in ("openai_photo_text_v1", "openai_photo_text_uncached_v1", "openai_photo_text_concise_uncached_v1")
+                for run in selected
+            ) or len({run["runId"] for run in selected}) != len(selected):
+                raise ValueError("provider")
+        elif spec.get("version") != "identification_provider_run_spec_v1" or spec.get("mode") != "live" or spec.get("profiles") != ["openai_gpt_6_sol"]:
             raise ValueError("provider")
         common = [deno, "run", "--frozen", "--no-prompt", "--cached-only",
                   "--config", "services/supabase/functions/deno.json",
@@ -58,7 +78,7 @@ def main():
                   "--allow-write=" + str(packet), "--allow-run=git"]
         entry = "services/supabase/scripts/evaluate_identification.ts"
         # Existing preflight checks all exact inputs; it cannot read keys or call a provider.
-        preflight = subprocess.run(common + ["--deny-net", "--deny-env", entry, "preflight", str(packet)],
+        preflight = subprocess.run(common + ["--deny-net", "--deny-env", entry, "experiment-preflight" if experiment else "preflight", str(packet)],
                                    cwd=repository, env=environment, stdin=subprocess.DEVNULL,
                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         if preflight.returncode != 0:
@@ -86,19 +106,42 @@ def main():
             os.close(descriptor)
         print("Credential fingerprint saved privately; no API request was made.")
     else:
+        reviewed = experiment and spec.get("version") in ("identification_experiment_plan_v2", "identification_experiment_plan_v3")
+        if reviewed:
+            # Only the private local view needs a loopback listener and fixed browser opener.
+            common = [arg if arg != "--allow-run=git" else "--allow-run=git,/usr/bin/open" for arg in common]
         environment["OPENAI_EVALUATION_API_KEY"] = key
         # No inherited service keys or Git/SDK overrides; key exists only in child environment.
         # --no-prompt leaves ungranted variables in the "prompt" state. Admission
         # requires explicit denial of service credentials and other-provider overrides.
-        result = subprocess.run(common + ["--allow-net=api.openai.com:443",
-                                "--allow-env=OPENAI_EVALUATION_API_KEY",
-                                "--deny-env=SUPABASE_*,R2_*,GOOGLE_*,GEMINI_*,WS_*,OPENAI_API_KEY",
-                                entry, "--live", str(packet)],
-                                cwd=repository, env=environment, stdin=subprocess.DEVNULL,
-                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        del environment["OPENAI_EVALUATION_API_KEY"]
-        if result.returncode != 0:
-            raise ValueError("evaluation")
+        try:
+            # Reuse only this in-memory key; each run still enters the existing controller.
+            for selected_id in ([run["runId"] for run in selected] if experiment else [None]):
+                if session and spec_path.read_bytes() != spec_bytes:
+                    raise ValueError("spec_changed")
+                result = subprocess.run(common + ["--allow-net=api.openai.com:443,127.0.0.1" if reviewed else "--allow-net=api.openai.com:443",
+                                        "--allow-env=OPENAI_EVALUATION_API_KEY",
+                                        "--deny-env=SUPABASE_*,R2_*,GOOGLE_*,GEMINI_*,WS_*,OPENAI_API_KEY",
+                                        entry, "--experiment-live" if experiment else mode, str(packet)] + ([selected_id] if experiment else []),
+                                        cwd=repository, env=environment, stdin=subprocess.DEVNULL,
+                                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                if result.returncode != 0:
+                    raise ValueError("evaluation")
+                if session:
+                    state_path = packet / "experiment" / "state.json"
+                    info = state_path.lstat()
+                    if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or not 0 < info.st_size <= 65536:
+                        raise ValueError("session_stopped")
+                    state = json.loads(state_path.read_text())
+                    # A controller stop can return exit 0 after writing its durable outcome.
+                    if (not isinstance(state, dict) or state.get("version") != "identification_experiment_state_v1"
+                            or "stop" not in state or state["stop"] is not None
+                            or not isinstance(state.get("completedRunIds"), list)
+                            or selected_id not in state["completedRunIds"]):
+                        raise ValueError("session_stopped")
+        finally:
+            environment.pop("OPENAI_EVALUATION_API_KEY", None)
+            key = None
         print("Evaluation artifacts written. Review the private report for completion and failures.")
     key = None
 
@@ -109,7 +152,7 @@ except (Exception, KeyboardInterrupt) as error:
     # Only fixed codes; never echo an arbitrary exception or private child output.
     allowed = {"arguments", "path", "outside_repository", "directory", "private_directory",
                "terminal_required", "deno_required", "spec", "provider", "preflight",
-               "fingerprint_exists", "credential", "evaluation"}
+               "fingerprint_exists", "credential", "evaluation", "spec_changed", "session_stopped"}
     reason = str(error) if type(error) is ValueError and str(error) in allowed else "setup"
     if isinstance(error, KeyboardInterrupt):
         reason = "cancelled"

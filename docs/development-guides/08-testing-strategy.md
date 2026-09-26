@@ -6901,8 +6901,12 @@ accuracy.
 pseudo-terminal and a local fake executable. It verifies hidden input, private
 exclusive fingerprint creation, refusal without a terminal, preflight before key
 entry, narrow child permissions, removal of unrelated credentials/overrides, and
-suppression of private child output on failure. The tooling gate discovers this
-shell test; it makes no provider calls.
+suppression of private child output on failure. The single-session cases verify
+one hidden prompt across both ordered OpenAI profiles, real Deno admission,
+rejection of mixed providers and invalid run IDs, and stopping after a nonzero
+exit, exit-zero controller stop, missing completion/state, plan mutation or
+interruption. No key is persisted and no failed invocation is retried. The
+tooling gate discovers this shell test; it makes no provider calls.
 
 Alternative-provider evaluation adds `_shared/ai/openai_test.ts` to the
 candidate workflow with network/environment denied, plus the root-discovered
@@ -6915,6 +6919,51 @@ production parity. The
 [provider guide](./22-alternative-identification-provider.md) separates these
 synthetic checks from an authorized live comparison and later production
 rollout.
+
+Provider optimization Slice 1 adds the root-discovered
+`identification_evaluation_measurement_test.ts` and isolated
+`identification_evaluation/testing/measurementRunnerTests.ts`. They cover v1
+compatibility, canonical/synonym ambiguity, unmapped subject assessment,
+unsupported specificity, cache-read/write and reasoning accounting, fixed-case
+cost totals, arithmetic medians, missing measurements, versioned crash recovery,
+immutable taxonomy and the actual `demo-measurement` / `compare-exploratory`
+commands. Native OpenAI tests cover absent/invalid cache-write counters. These
+checks use synthetic records and denied network/environment access; they do not
+establish biological accuracy, explanation quality, cache isolation or a
+production qualification verdict.
+
+Provider optimization Slice 2 adds isolated
+`identification_evaluation/testing/experimentRunnerTests.ts`. It verifies frozen
+profile fingerprints and native request parity, complete-input rejection,
+standalone/forged-control rejection, allocation bounds, all reservation/claim/
+result/settlement crash points, settlement idempotence, sticky stops across
+runs/restarts, configuration drift, journal tampering, deadline settlement and
+parallel-controller exclusion. Controlled reports are exercised with synthetic
+live-shaped records under denied network/environment access, including
+regeneration without media and distinct-provider cost eligibility. The actual
+`demo-experiment` / `experiment-preflight` / `experiment-report` commands are
+covered. The local OpenAI launcher suite additionally checks controlled-run
+selection, pre-key provider rejection and real Deno permission admission with a
+fake transport. These checks perform no paid provider requests.
+
+The concise candidate adds `identification_evaluation_explanation_test.ts` and
+isolated `identification_evaluation/testing/candidateRunnerTests.ts`. These
+verify baseline/control/candidate native parity, distinct prompt versions,
+complete-input rejection, bounded ratings and calibration, local capability and
+origin checks, escaped text and no cached response, v1/v2 rejection of new
+identities, cache/read/write stops, missing/failed review, durable settlement
+before review interruption and report regeneration without private content. The
+v3 delegated-review checks additionally prove null human calibration, explicit
+delegation and assistant provenance, rejection of owner/synthetic substitution,
+unchanged stop rules, and AI-specific reports that never claim independent human
+validation. The actual `demo-candidate` workflow and per-run reports are
+exercised. Screening tests require complete assessments, latency/cost thresholds
+and no new quality fault even when the baseline already has a different fault.
+Launcher tests verify candidate-only loopback/opener grants with synthetic keys
+and no provider requests. Actual loopback lifecycle checks cover saving,
+cancellation, opener failure and timeout without aborting an already closed
+server. These tests do not establish AI assessor accuracy, actual owner
+calibration, live account cache behavior or production qualification.
 
 Authoritative AI quota and entitlement security has four complementary base
 checks:

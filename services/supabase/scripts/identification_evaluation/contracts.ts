@@ -1,3 +1,4 @@
+import type { OpenAIProfile } from "../../functions/_shared/ai/openaiRequest.ts";
 /** Tooling-only records. These are not HTTP DTOs, provider inputs or consent. */
 export const CORPUS_VERSION = "identification_corpus_v1" as const;
 export const REPORT_VERSION = "identification_scores_v1" as const;
@@ -146,7 +147,7 @@ export type Prediction =
     }
   );
 export type GeminiProfile = "gemini_flash_free" | "gemini_pro";
-export type Profile = GeminiProfile | "openai_gpt_6_sol";
+export type Profile = GeminiProfile | OpenAIProfile;
 export interface Rate {
   readonly numerator: number;
   readonly denominator: number;

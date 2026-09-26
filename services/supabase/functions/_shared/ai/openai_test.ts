@@ -85,6 +85,7 @@ Deno.test("OpenAI executes the frozen complete photo/text projection once, with 
       thinkingTokens: 10,
       totalTokens: 140,
       cachedTokens: 20,
+      cacheWriteTokens: null,
       toolTokens: 0,
       modalityBreakdown: {},
     } satisfies AIUsage,
@@ -306,5 +307,35 @@ Deno.test("OpenAI missing/contradictory reasoning usage stays unknown and model 
     ).invoke();
     assertEquals(result.usage?.candidateTokens, null);
     assertEquals(result.returnedModel, null);
+  }
+});
+
+Deno.test("OpenAI cache-write usage is bounded and missing or contradictory counters stay unknown", async () => {
+  for (const writes of [undefined, null, -1, 1.5, "30", 81, 30, 0]) {
+    const request = openAITextFixture(), raw = openAIResponseFixture();
+    const result = await createAIExecution(
+      createOpenAIEvaluationAdapter(
+        credential,
+        () =>
+          Promise.resolve(Response.json({
+            ...raw,
+            usage: {
+              ...raw.usage,
+              input_tokens_details: {
+                cached_tokens: 20,
+                cache_write_tokens: writes,
+              },
+            },
+          })),
+      ),
+      request,
+      openAIEvaluationSnapshot(request),
+    ).invoke();
+    assertEquals(
+      result.usage?.cacheWriteTokens,
+      writes === 30 || writes === 0 ? writes : null,
+    );
+    assertEquals(result.usage?.candidateTokens, 30);
+    assertEquals(result.usage?.thinkingTokens, 10);
   }
 });

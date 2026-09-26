@@ -64,6 +64,367 @@ provider guide. Historical Gemini specifications, corpus permissions and audio
 records remain unchanged. OpenAI raw confidence has no Gemini Strong/diagnostic
 interpretation.
 
+## Shared measurement repair (optimization Slice 1)
+
+New exploratory packets may opt into `evaluation_taxonomy_v2`. Standalone live
+v2 admission rejects before credential lookup with
+`evaluation_measurement_live_pending`; the verified Slice 2 controller below is
+the only controlled live path. Existing v1 live admission is unchanged. The
+catalog records a frozen `taxonomyVersion`, `catalogRef` and `reviewRef`, with
+each canonical taxon ID/rank, `canonicalName` and accepted `synonyms`. Review a
+catalog containing plausible alternatives as well as references before a real
+run; the new format and synthetic demo do not establish that review. Hash the
+catalog into a new corpus/spec. Never change an old packet to recover an unsaved
+name.
+
+Resolution compares Unicode NFC, case and normalized whitespace only. Different
+IDs sharing a name remain ambiguous, including canonical/synonym collisions;
+there is no fuzzy or live lookup. New projections store `matched`, `ambiguous`,
+`unmapped` or `not_applicable`, the canonical/synonym match category, canonical
+IDs/ranks and candidate mapping states. They retain no returned name or prose.
+
+The v2 catalog selects `identification_exploratory_decisions_v2`,
+`evaluation_attempt_v2` / `evaluation_openai_attempt_v2`, and
+`identification_exploratory_report_v2`. A run cannot mix these with v1 records
+or change taxonomy during resume. Existing v1 packets keep their original
+matching, scoring and nearest-rank p50 reports. Formal evaluation continues to
+use its existing format and `compare`; v2 measurement is exploratory only.
+
+V2 reports keep all scheduled outcomes. They separately show subject agreement,
+identity-assessment coverage, mapped identity agreement, ambiguity, unmapped
+names, unsupported specificity, valid abstentions and failures. An unmapped
+identity is unassessed, not a verified disagreement. A genus reference does not
+verify a more specific species prediction. Subject agreement remains measurable
+when the name is unmapped; unverified references never enter quality rates.
+
+Successful provider time uses the arithmetic median (average the middle two for
+an even count). Partial medians remain diagnostic: complete latency eligibility
+requires every scheduled case to normalize with a positive duration and no model
+mismatch. Normalization, completed-call and failure timing stay separate. Each
+report includes photo, description and combined summaries; empty groups remain
+untested.
+
+The separately labeled `rate_aware_usage_v1` estimate sums full-allocation cost
+at reviewed rates. OpenAI input is partitioned into ordinary, cache-read and
+cache-write tokens; visible output plus reasoning is charged once. Missing or
+contradictory write counts stay unknown. Gemini discounts observed cache reads
+and uses validated modality counts when input rates differ. Incomplete usage,
+unknown execution or unattempted cases prevents a complete cost total. Known
+partial cost and the unchanged conservative upper estimate remain visible.
+Reviewed rates may be tier ceilings; neither estimate is an invoice. Current
+profiles have no explicit cache objects or setup/storage operations; supporting
+those later requires new accounting. The dispatch spend guard still uses its
+original conservative estimate and applies to one run. Controlled experiments
+add the outer accounting boundary below.
+
+`compare-exploratory` validates saved v2 manifests/records, matched source,
+corpus, taxonomy, preparation, order and evidence, then produces
+`identification_exploratory_comparison_v1`. It preserves incomplete cases and
+reports descriptive paired changes with
+`100 * (baseline - candidate) / baseline`. A missing/nonpositive baseline or
+incomplete measurements produces no percentage; cost percentages additionally
+require matching pricing digests. Different-provider totals remain visible;
+paired rate-card validation for a cross-provider cost percentage is deferred to
+a reviewed candidate comparison. Cache comparability and screening are
+explicitly unestablished. This ordinary command does not establish experiment
+membership or completion; use `experiment-report` for controller evidence. This
+report never qualifies a switch. The concise OpenAI candidate below uses the
+separate v2 experiment report for cache verification and explanation ratings;
+ordinary comparisons cannot establish those controls.
+
+For a disposable demonstration using **four invented photo/text cases**, run
+from the repository root:
+
+```bash
+measurement_parent=$(mktemp -d /private/tmp/naturebook-measurement.XXXXXX)
+measurement_packet="$measurement_parent/packet"
+deno run --frozen --no-prompt --deny-env --deny-net \
+  --config services/supabase/functions/deno.json \
+  --allow-read="$PWD,$measurement_parent" --allow-write="$measurement_parent" \
+  --allow-run=git services/supabase/scripts/evaluate_identification.ts \
+  demo-measurement "$measurement_packet"
+deno run --frozen --no-prompt --deny-env --deny-net \
+  --config services/supabase/functions/deno.json \
+  --allow-read="$PWD,$measurement_parent" --allow-write="$measurement_parent" \
+  --allow-run=git services/supabase/scripts/evaluate_identification.ts \
+  compare-exploratory "$measurement_packet" \
+  offline-measurement-v2 offline-measurement-v2 gemini_pro openai_gpt_6_sol
+```
+
+Both commands use synthetic outcomes with no credentials/provider calls. The
+comparison JSON filename includes both run IDs and profiles. The existing
+`report` command regenerates either report version from saved records without
+media or inference. Real experiments still require the independent live
+admission and budget contract; the eight-case development campaign remains
+pending. The
+[optimization plan](../../../../docs/rfcs/identification-provider-optimization-plan.md)
+owns its remaining slices and production qualification path.
+
+## Reusable profiles and experiment controls (optimization Slice 2)
+
+`reusableProfiles.ts` owns two reviewed evaluation baselines:
+`gemini_photo_text_v1` and `openai_photo_text_v1`. Their versioned descriptors
+include provider/API, supported complete inputs, snapshot/generation settings,
+confidence policy, and hashes of actual native settings, prompts and schemas.
+The native settings hash excludes observation content. Golden fingerprints and
+per-case projection checks bind the descriptor to the unchanged request
+builders. No endpoint, generation override or candidate definition is accepted
+from packet JSON. Production still selects its fixed Gemini binding.
+
+The v1 controller accepts those two baselines and retains their automatic cache
+behavior recorded as uncontrolled. The separate v2 candidate contract below adds
+the uncached control and concise OpenAI profile with mandatory private review.
+No packet can supply arbitrary native settings. Neither contract adds
+prewarming, cache objects, paid judge calls, retries or a production selector.
+
+### Frozen plan and accounting
+
+`experimentContracts.ts` validates `identification_experiment_plan_v1` in a new
+private packet's `experiment.json`. It freezes source, corpus, taxonomy,
+preparation, case/evidence digests, order seed, review reference, metric
+formulas, a window of at most 24 hours, and one to four ordered single-provider
+runs. There are at most eight cases and 32 scheduled calls. Every run names a
+reviewed profile ID/digest, its exact call/USD allocation, a reviewed pricing
+card/digest and, for live execution, a readiness digest. Full conservative
+reservations must fit each allocation; their sums must fit the overall limits.
+Unused funds never transfer between runs. Synthetic packets use explicitly
+labeled simulated accounting with invented rates.
+
+Live readiness records live only in `approvals/<runId>.json` and use the
+existing provider-specific approval schema. They are not copied into experiment
+records. The active provider's key, readiness, input permissions, pricing age
+and consent review are revalidated through the existing admission before each
+invocation. The controller never obtains both provider keys. Preparation of all
+frozen inputs and profile settings precedes dispatch.
+
+The controller creates immutable `experiment/manifest.json`, linking the plan,
+profile descriptors and existing per-run manifests. Both the input marker and
+controller directory prevent ordinary `prepareRun`/`executeRun` from taking over
+a controlled packet. A private, expiring in-process capability is registered
+only after verification under the experiment lock; JSON or injected runner
+callbacks cannot enable controlled live execution. Fresh experiments reject
+preexisting run journals. V1 specifications, assignments and reports keep their
+original interpretation.
+
+Lock order is experiment, then run. One active controller holds the experiment
+OS lock throughout execution. Before **every** invocation it reconciles all
+linked journals, checks the frozen run order, time window and both budget
+levels, and durably writes a global reservation before the existing local claim.
+The sequence is reservation → local claim → one invocation → durable result →
+settlement. A saved result without a settlement is reconciled exactly once. An
+unmatched reservation/claim, unknown execution, model drift, operational
+failure, missing budget-critical usage or another runner stop blocks all later
+runs. A call finishing after expiry is recorded and settled before stopping.
+
+Known validated conservative usage replaces its reservation once. Uncertain
+execution and unknown cost retain the full reservation. The controller uses
+integer nanodollars, rounding charges up and budgets down; rate-aware reporting
+remains separate. `experiment/state.json` exposes charged/retained amounts,
+completed allocations and the global stop. Normal allocation completion permits
+the next frozen run; restarting or asking for another run cannot clear a stop.
+There is no reset/continuation command. A future reviewed continuation must
+preserve prior claims and original aggregate caps, never replay an uncertain
+attempt or erase the stop file.
+
+### Commands and reports
+
+For an offline demonstration with four invented cases and two baselines:
+
+```bash
+experiment_parent=$(mktemp -d /private/tmp/naturebook-experiment.XXXXXX)
+experiment_packet="$experiment_parent/packet"
+deno run --frozen --no-prompt --deny-env --deny-net \
+  --config services/supabase/functions/deno.json \
+  --allow-read="$PWD,$experiment_parent" --allow-write="$experiment_parent" \
+  --allow-run=git services/supabase/scripts/evaluate_identification.ts \
+  demo-experiment "$experiment_packet"
+```
+
+The same offline permission boundary supports `experiment-preflight <packet>`,
+`experiment-offline <packet> <runId>` and `experiment-report <packet>`.
+Preflight prepares every run without loading a key, claiming an attempt or
+dispatching. `demo-experiment` invokes eight synthetic outcomes; these are not
+provider calls or real accuracy/performance evidence. `report <packet> <runId>`
+still reads the existing per-run records. Both report forms regenerate after
+media removal.
+
+For an explicitly authorized real experiment, the active OpenAI run uses the
+existing hidden-input launcher:
+
+```bash
+bash services/supabase/scripts/run_openai_evaluation.sh \
+  --experiment-live /absolute/private/packet openai-baseline-run-id
+```
+
+The launcher checks the selected provider before prompting, runs credential-free
+experiment preflight, and grants OpenAI network/key access to
+`--experiment-live <packet> <runId>`. V2/v3 candidate runs additionally receive
+only the loopback listener and fixed macOS browser opener permissions described
+below. Gemini uses that same controlled CLI with its existing single-provider
+environment/network grants from the provider guide. Keys never appear in
+arguments, files or artifacts. This command is a procedure, not authorization to
+run a paid experiment. Regenerate `experiment-report` in a separate offline
+process after a live run; it requires neither keys nor media.
+
+To execute an approved OpenAI-only plan in one local session, use:
+
+```bash
+bash services/supabase/scripts/run_openai_evaluation.sh \
+  --experiment-session /absolute/private/packet
+```
+
+This prompts once and retains the key only in process memory while invoking the
+existing controller for each frozen run in order. Every selected run must be an
+allowlisted OpenAI profile. It checks the controller's durable state after each
+run, including successful process exits: a stop, missing state or incomplete run
+ends the session before another profile starts. Changing the plan ends the
+session as well. Interruption preserves the existing claims and never retries an
+uncertain call. Delegated explanation review still needs the active assistant
+for each result; session mode does not supply an unattended judge or relax any
+readiness, spending, cache or quality requirement.
+
+`identification_experiment_report_v1` verifies frozen run membership, saved
+record compatibility, reservation/result links and settlements under the
+experiment lock. It distinguishes a completed allocation from an unstopped
+complete experiment and from provider qualification. It includes the Slice 1
+measurements and retains incomplete cases. Ordinary `compare-exploratory`
+remains descriptive and is not a controller completion record.
+Different-provider rate cards still produce descriptive cost totals without a
+percentage verdict; frozen cards alone do not establish paired-rate
+comparability. Cache comparability remains `not_established`, screening is
+`deferred_no_candidate`, and production qualification is always false in these
+development reports.
+
+## Concise OpenAI candidate and private review
+
+The two additional code-defined profiles are `openai_photo_text_uncached_v1`
+(control) and `openai_photo_text_concise_uncached_v1` (candidate). Both use
+`prompt_cache_options: {mode: "explicit"}` with no breakpoints. Only the
+candidate adds the plan's `ai_reasoning` instruction and its own vision/text
+prompt versions. Model, low reasoning, high image detail, output limit, schema,
+input bytes and normalization stay identical. Baseline fingerprints and native
+requests are unchanged. Account support and live zero-cache behavior remain
+unverified; missing or nonzero read/write counters stop without a fallback call.
+
+`identification_experiment_plan_v2` admits exactly these two ordered runs, one
+shared pricing digest and `concise_explanation_latency_v1`. Live plans require
+six photos and two descriptions: eight calls per arm, sixteen overall. Existing
+allocations, readiness, source binding, lock and stop rules still apply. The
+candidate uses `identification_provider_run_spec_v2`,
+`identification_provider_run_v2` and `evaluation_openai_attempt_v3`; v1/v2
+historical attempts keep their meanings and reject candidate identities.
+Standalone candidate dispatch is rejected even offline.
+
+Before freezing either review mode, prepare private `review/facts.json`
+(`explanation_facts_v1`) from the exact evidence and complete the owner's
+calibration only when selecting the v2 human-review mode. Each fact card binds
+case/input digests, observed and missing facts, acceptable reasons,
+supported-rank limits and bounded requirements. These facts never enter provider
+requests. The plan's `review` binds the rubric, aggregate facts, individual card
+and calibration digests, an opaque reviewer reference, and a 60–600-second
+review timeout. A real v2 human-review packet must contain actual owner choices;
+the synthetic demonstration's certificate is rejected for live use. The
+delegated v3 mode below does not require a human calibration certificate.
+
+When the user delegates explanation analysis to the active assistant, use
+`identification_experiment_plan_v3` with
+`candidateDecision: concise_explanation_latency_ai_review_v1`. Its review adds
+`method: assistant_local_v1` and an opaque `delegationRef` recording that
+instruction, and requires `calibrationDigest: null`. No owner certificate is
+created or inferred from the synthetic answer key. The delegated assistant
+actually inspects each case's supplied evidence, frozen facts and bounded
+explanation in the existing private view, then submits the same three ratings.
+This is a supervised assistant workflow, not an unattended judge service or
+keyword heuristic; it adds no paid judging API requests. The owner need not
+complete the practice form or grade every result.
+
+Delegation covers only the task-approved evaluation corpus. The view's bounded
+content is processed in the assistant session and may be retained in that
+service's conversation/tool context; this mode must not be described as
+local-only or entirely in memory. Do not export screenshots, whole responses,
+hidden reasoning, private user observations or credentials into an analysis
+archive. Evaluation files still retain only bound enum assessments and
+measurements. User delegation does not approve new inputs, another processor,
+spending or production use.
+
+V3 emits `explanation_assessment_v2` with `assistant_local_v1` for actual review
+and `synthetic_fixture_v1` for offline tests. V1 owner assessments cannot be
+substituted for these records, and synthetic assessments never satisfy live
+review. `identification_experiment_report_v3` explicitly identifies AI-reviewed
+development evidence, `independentHumanValidation: false`, zero additional judge
+calls and the possibility of shared model errors. All existing quality, cache,
+budget, timeout, ledger and no-replay checks remain in force. Historical v2
+human plans keep their original calibration and assessment contract.
+
+For the optional v2 human mode on a Mac, run calibration without any API key or
+provider-network permission:
+
+```bash
+review_packet=/absolute/private/packet
+mkdir -p "$review_packet"
+chmod 700 "$review_packet"
+deno run --frozen --no-prompt --cached-only --deny-env \
+  --config services/supabase/functions/deno.json \
+  --allow-read="$PWD,$review_packet" --allow-write="$review_packet" \
+  --allow-net=127.0.0.1 --allow-run=/usr/bin/open \
+  services/supabase/scripts/evaluate_identification.ts \
+  calibrate-explanations "$review_packet" owner-review-v1
+```
+
+The owner scores eight invented examples using each page's Observation text as
+the reference; there is no separate photo or external source to look up. All
+expected ratings must match before `review/calibration.json` is created. A
+failed calibration writes bounded `review/calibration-feedback.json`; review its
+expected/actual ratings and rerun calibration. No real explanation is in that
+feedback. Calibration cannot replace an existing certificate or run after the
+experiment begins.
+
+During live execution, the bounded provider result and cost settle before the
+browser opens. The private view shows evidence, frozen facts, decision,
+`ai_reasoning`, extracted traits and applicable alternative explanations. It
+hides profile, tokens, timing, cost and prior ratings. The view uses escaped
+text, a one-use random capability, same-origin checks, no third-party assets, no
+browser storage and no response caching/logging. The opener has an empty child
+environment. Loopback/opener permissions are checked before a paid claim. Do not
+save, photograph or record real review pages. Sequential owner review is
+provisional and cannot guarantee full blinding.
+
+The next provider call waits for all three ratings. Close, timeout, unavailable
+review, failed or unassessable criteria stop the whole experiment. Durable
+`explanation_assessment_v1` files under
+`experiment/assessments/<runId>/<attemptKey>.json` contain only bounded
+ratings/reason codes and exact
+plan/run/request/profile/input/card/result/rubric/ calibration/reviewer
+bindings. No raw explanation enters these files or reports. A crash after
+settlement preserves the known result and charge; the missing assessment stops
+recovery without repeating inference.
+
+`identification_experiment_report_v2` validates and includes assessment records
+and their digests; it regenerates without facts, media or model prose. Per-run
+measurement reports point to it for explanation status. An offline result says
+`synthetic_mechanics_only`. A real screen requires all sixteen assessments to
+pass, verified zero cache reads/writes, complete paired quality/time/cost, at
+least 10% combined median latency improvement and no cost or input-group
+regression above 10%. Unresolved quality makes it inconclusive; a new quality
+fault retains the control. Passing means only
+`candidate_for_further_qualification`, with `productionQualified: false`.
+
+Run the complete synthetic path with no network or credentials:
+
+```bash
+candidate_parent=$(mktemp -d /private/tmp/naturebook-candidate.XXXXXX)
+deno run --frozen --no-prompt --deny-env --deny-net \
+  --config services/supabase/functions/deno.json \
+  --allow-read="$PWD,$candidate_parent" --allow-write="$candidate_parent" \
+  --allow-run=git services/supabase/scripts/evaluate_identification.ts \
+  demo-candidate "$candidate_parent/packet"
+```
+
+This makes four invented cases and eight synthetic outcomes/assessments. It
+proves workflow mechanics, not semantic review or model performance. A real
+packet, owner calibration and paid execution remain pending. Use the existing
+hidden-input launcher only after the exact paid experiment is authorized.
+
 ## Owners and use
 
 | File                                   | Responsibility                                                                                                                                                                                   |
@@ -88,9 +449,21 @@ Additional owners:
   permissions.
 - `files.ts` owns private files, exclusive OS locks and flushed writes.
 - `runner.ts` owns preflight, single-call execution, immutable resume and
-  budgets.
+  per-run budgets. `reusableProfiles.ts` owns reviewed profile descriptors;
+  `experimentContracts.ts` owns bounded plans and allocation math;
+  `experiment.ts` owns controller capability, locks, cross-run journals and
+  stops; `experimentReport.ts` owns controlled reports. `experimentOffline.ts`
+  supplies invented controller demonstrations; `candidateOffline.ts` adds the
+  synthetic candidate path. `candidateReport.ts` owns the fixed screening gate.
+- `explanationContracts.ts` owns bounded ratings, bindings and private fact-card
+  validation; `explanationCalibration.ts` owns invented practice anchors;
+  `explanationView.ts` owns the ephemeral loopback view; `explanationReview.ts`
+  owns its in-memory projection and calibration workflow.
 - `projection.ts` maps normalized decisions/usage without persisting model
-  prose.
+  prose. `taxonomy.ts` owns frozen catalog validation and bounded mapping.
+- `measurementCost.ts` owns rate-aware estimates; `exploratoryMeasurement.ts`
+  owns v2 provisional assessments/metrics, and `exploratoryComparison.ts` owns
+  descriptive comparisons with incomplete-case accounting.
 - `reports.ts` regenerates metrics, intervals, timing/cost and paired
   comparisons.
 - `offline.ts` builds invented PNG/WAV fixtures for local mechanics tests.

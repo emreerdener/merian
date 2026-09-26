@@ -1,3 +1,8 @@
+import { MEASUREMENT_SCORER } from "./taxonomy.ts";
+import {
+  measuredExploratoryReport,
+  renderMeasuredReport,
+} from "./exploratoryMeasurement.ts";
 import { join } from "node:path";
 import {
   INPUT_GROUPS,
@@ -113,6 +118,9 @@ export async function generateExploratoryReport(
     taxonomyValue,
   );
   check(corpus.kind === "exploratory" && manifest.spec.stage === "exploratory");
+  if (manifest.scorerVersion === MEASUREMENT_SCORER) {
+    return await measuredExploratoryReport(corpus, manifest, records);
+  }
   const slices = [];
   for (const profile of manifest.spec.profiles) {
     const keys = new Set(
@@ -146,7 +154,7 @@ export async function generateExploratoryReport(
     }
   }
   return {
-    version: "identification_exploratory_report_v1",
+    version: "identification_exploratory_report_v1" as const,
     runId: manifest.spec.runId,
     runDigest: await fingerprintJson(manifest),
     corpusDigest: manifest.spec.corpusDigest,
@@ -185,6 +193,9 @@ export type ExploratoryReport = Awaited<
   ReturnType<typeof generateExploratoryReport>
 >;
 export function renderExploratoryReport(r: ExploratoryReport): string {
+  if (r.version === "identification_exploratory_report_v2") {
+    return renderMeasuredReport(r);
+  }
   const lines = [
     "# Exploratory identification benchmark",
     "",

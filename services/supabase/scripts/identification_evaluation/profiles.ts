@@ -1,6 +1,6 @@
+import { isOpenAIProfile } from "../../functions/_shared/ai/openaiRequest.ts";
 import {
   buildOpenAIRequestParameters,
-  OPENAI_PROFILE,
   openAIEvaluationSnapshot,
 } from "../../functions/_shared/ai/openaiRequest.ts";
 import type {
@@ -43,7 +43,7 @@ type ConfidencePolicy = {
 export function confidencePolicy(profile: GeminiProfile): ConfidencePolicy;
 export function confidencePolicy(profile: Profile): ConfidencePolicy | null;
 export function confidencePolicy(profile: Profile): ConfidencePolicy | null {
-  if (profile === OPENAI_PROFILE) return null;
+  if (isOpenAIProfile(profile)) return null;
   return profile === "gemini_pro"
     ? {
       possible: thresholds.PRO_POSSIBLE,
@@ -103,11 +103,11 @@ export async function assignmentFor(
   attempt: number,
   pricing: EvaluationPricing | null,
 ): Promise<Assignment> {
-  if (profile === OPENAI_PROFILE) {
+  if (isOpenAIProfile(profile)) {
     if (input.inputGroup !== "photos" && input.inputGroup !== "description") {
       throw new Error("openai_input_unsupported");
     }
-    const snapshot = openAIEvaluationSnapshot(request);
+    const snapshot = openAIEvaluationSnapshot(request, profile);
     const native = buildOpenAIRequestParameters(request, snapshot);
     return {
       key: `${input.caseId}-${profile}-${attempt}`,

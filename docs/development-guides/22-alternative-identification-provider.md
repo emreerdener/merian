@@ -172,8 +172,11 @@ run or removes its ledger. Its success message means artifacts were written;
 inspect the private report for completeness, unknown executions and failures
 before interpreting the benchmark. An interruption is resumed only through the
 same evaluator/root; never erase claims or create a fresh run to repeat
-uncertain calls. Key entry is required again for each invocation; this launcher
-adds no persistent credential store.
+uncertain calls. Key entry is required again for each launcher invocation. For
+an approved OpenAI-only experiment, `--experiment-session PRIVATE_RUN_ROOT`
+prompts once and invokes the existing controller for each frozen run in order,
+stopping on failure, a durable stop, incomplete state or a changed plan. The key
+stays only in memory for that session; no persistent credential store is added.
 
 ## First live comparison
 
@@ -277,6 +280,47 @@ its retained taxonomy mapping. The four untouched cases completed in a separate
 bounded continuation without replaying any claimed case. This closes the initial
 provider-path check, not production qualification. The dated record owns the
 measurements and limitations.
+
+## Shared measurement and planned optimization
+
+Optimization Slice 1 is implemented for new offline exploratory packets:
+reviewed canonical/synonym catalogs, explicit mapping states, v2 reports,
+rate-aware cost estimates and a separate `compare-exploratory` command. Existing
+v1 records keep their original interpretation. The
+[tooling guide](../../services/supabase/scripts/identification_evaluation/README.md#shared-measurement-repair-optimization-slice-1)
+owns formats, offline commands, missing-measurement rules and compatibility.
+OpenAI native usage now includes bounded cache-write counts when reported; old
+attempts do not gain those missing values retroactively. Historical attempts
+have no explanation assessment; new candidate runs require the private review
+contract below.
+
+The
+[provider optimization plan](../rfcs/identification-provider-optimization-plan.md)
+owns the selected concise OpenAI hypothesis, delegated AI or optional owner
+review and uncached control/candidate pair, the bounded 16-request comparison
+and later production qualification. Slice 2 now supplies immutable baseline
+descriptors, a frozen experiment plan, shared allocations/reservations, an
+exclusive controller and a persistent global stop. The
+[controller contract](../../services/supabase/scripts/identification_evaluation/README.md#reusable-profiles-and-experiment-controls-optimization-slice-2)
+owns `experiment-preflight`, `experiment-offline`, `--experiment-live` and
+`experiment-report`. The OpenAI hidden-input launcher accepts
+`--experiment-live <packet> <runId>` or `--experiment-session <packet>` for one
+key entry across the ordered OpenAI runs. The new
+[private candidate workflow](../../services/supabase/scripts/identification_evaluation/README.md#concise-openai-candidate-and-private-review)
+adds code-defined uncached control/concise profiles, bounded v3 attempts and
+ephemeral explanation assessment. V2 experiments preserve owner calibration; v3
+experiments record explicitly delegated AI review without a human practice
+exercise. Their v3 reports identify AI assessment and no independent human
+validation. The assistant processes only the task-approved corpus and bounded
+review fields in its session; evaluator files still exclude explanation prose.
+Only candidate live runs add loopback and fixed macOS opener permissions. Any
+cache anomaly or missing/failed review stops remaining calls while preserving
+completed results and cost. Reports apply the frozen latency/quality gates and
+remain unqualified. Standalone candidate dispatch is blocked. Offline synthetic
+validation establishes mechanics only. A real eight-case draft has been
+prepared, and the owner approved its 16-request/$86 maximum on 26 September
+2026. Secure key entry, live cache support and the actual paid comparison remain
+pending. Delegation does not authorize spending or production activation.
 
 ## Later production assignment
 

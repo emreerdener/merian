@@ -28,41 +28,60 @@ assert real_deno, "the repository-pinned Deno is required"
 fake = root / "deno"
 fake.write_text(r'''#!/usr/bin/env python3
 import json, os, pathlib, signal, sys
-packet = pathlib.Path(sys.argv[-1])
-mode = sys.argv[-2]
-assert mode in ('preflight', '--live')
+entry_index = sys.argv.index('services/supabase/scripts/evaluate_identification.ts')
+mode = sys.argv[entry_index + 1]
+packet = pathlib.Path(sys.argv[entry_index + 2])
+assert mode in ('preflight', '--live', 'experiment-preflight', '--experiment-live')
 assert '--cached-only' in sys.argv
+reviewed = mode in ('experiment-preflight', '--experiment-live') and json.loads((packet / 'experiment.json').read_text()).get('version') in ('identification_experiment_plan_v2', 'identification_experiment_plan_v3')
 assert all(name not in os.environ for name in ('SUPABASE_SERVICE_ROLE_KEY', 'GITHUB_TOKEN', 'OPENAI_API_KEY', 'GIT_CONFIG_COUNT', 'GEMINI_PAID_API_KEY'))
 assert 'synthetic-local-launcher-value' not in ' '.join(sys.argv)
-if mode == 'preflight':
+if mode in ('preflight', 'experiment-preflight'):
     assert 'OPENAI_EVALUATION_API_KEY' not in os.environ
     assert '--deny-net' in sys.argv and '--deny-env' in sys.argv
 else:
     assert os.environ.get('OPENAI_EVALUATION_API_KEY') == 'synthetic-local-launcher-value'
-    assert '--allow-net=api.openai.com:443' in sys.argv
+    assert ('--allow-net=api.openai.com:443,127.0.0.1' if reviewed else '--allow-net=api.openai.com:443') in sys.argv
     assert '--allow-env=OPENAI_EVALUATION_API_KEY' in sys.argv
-    assert '--allow-run=git' in sys.argv
+    assert ('--allow-run=git,/usr/bin/open' if reviewed else '--allow-run=git') in sys.argv
 with (packet / 'calls.jsonl').open('a') as output:
-    output.write(json.dumps({'mode': mode}) + '\n')
-if mode == '--live' and (packet / 'check-permissions').exists():
-    flags = sys.argv[1:-3]
+    output.write(json.dumps({'mode': mode, 'runId': sys.argv[entry_index + 3] if mode == '--experiment-live' else None}) + '\n')
+if mode in ('--live', '--experiment-live') and (packet / 'check-permissions').exists():
+    flags = sys.argv[1:entry_index]
     # Use the actual launcher flags and actual permission gate; never invoke a provider.
     code = """
 import { liveCredential } from "./services/supabase/scripts/identification_evaluation/admission.ts";
 globalThis.fetch = () => { throw new Error("network_forbidden_in_permission_probe"); };
 if (await liveCredential("openai") !== "synthetic-local-launcher-value") Deno.exit(1);
 """
+    if reviewed:
+        code += """
+if ((await Deno.permissions.query({name: "net", host: "127.0.0.1"})).state !== "granted") Deno.exit(1);
+if ((await Deno.permissions.query({name: "run", command: "/usr/bin/open"})).state !== "granted") Deno.exit(1);
+"""
     import subprocess
     check = subprocess.run([__REAL_DENO__, *flags, '-'], input=code, text=True,
                            env=os.environ, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    sys.exit(check.returncode)
-if mode == '--live' and (packet / 'pause-live').exists():
+    if check.returncode:
+        sys.exit(check.returncode)
+if mode in ('--live', '--experiment-live') and (packet / 'pause-live').exists():
     (packet / 'claim.marker').write_text('started')
     print(os.environ['OPENAI_EVALUATION_API_KEY'], flush=True)
     signal.pause()
 if (packet / ('fail-' + mode.lstrip('-'))).exists():
     print(os.environ.get('OPENAI_EVALUATION_API_KEY', 'synthetic-upstream-private-output'))
     sys.exit(1)
+if mode == '--experiment-live':
+    run_id = sys.argv[entry_index + 3]
+    state_path = packet / 'experiment' / 'state.json'
+    if not (packet / 'missing-state').exists():
+        state_path.parent.mkdir(exist_ok=True)
+        completed = json.loads(state_path.read_text())['completedRunIds'] if state_path.exists() else []
+        state_path.write_text(json.dumps({'version': 'identification_experiment_state_v1',
+            'stop': 'explanation_review_unassessable' if (packet / 'stop-after-run').exists() else None,
+            'completedRunIds': completed + [run_id]}))
+    if (packet / 'change-plan').exists():
+        (packet / 'experiment.json').write_text('{}')
 '''.replace('__REAL_DENO__', repr(real_deno)))
 fake.chmod(0o700)
 environment = dict(os.environ, PATH=str(root) + os.pathsep + os.environ['PATH'])
@@ -79,10 +98,10 @@ def packet(name):
     return path
 
 
-def terminal(mode, path, cancel=False, cancel_live=False):
+def terminal(mode, path, cancel=False, cancel_live=False, run_id=None):
     pid, descriptor = pty.fork()
     if pid == 0:
-        os.execvpe('bash', ['bash', '-x', str(launcher), mode, str(path)], environment)
+        os.execvpe('bash', ['bash', '-x', str(launcher), mode, str(path)] + ([run_id] if run_id is not None else []), environment)
     output = bytearray()
     sent = False
     interrupted = False
@@ -113,6 +132,7 @@ def terminal(mode, path, cancel=False, cancel_live=False):
     finally:
         os.close(descriptor)
     _, status = os.waitpid(pid, 0)
+    assert output.count(b'Paste Naturebook OpenAI key (hidden; not saved): ') <= 1, 'session prompted more than once'
     assert key.encode() not in output, 'credential was echoed or logged'
     assert b'synthetic-unrelated-value' not in output
     assert b'synthetic-upstream-private-output' not in output
@@ -139,6 +159,78 @@ p = packet('runtime-permissions')
 (p / 'check-permissions').touch()
 assert terminal('--live', p) == (0, True), 'actual launcher grants must satisfy the real Deno admission gate'
 assert [json.loads(line)['mode'] for line in (p / 'calls.jsonl').read_text().splitlines()] == ['preflight', '--live']
+
+p = packet('controlled-experiment')
+(p / 'experiment.json').write_text(json.dumps({'version': 'identification_experiment_plan_v1', 'mode': 'live',
+    'runs': [{'runId': 'openai-baseline', 'profileId': 'openai_photo_text_v1'}, {'runId': 'gemini-baseline', 'profileId': 'gemini_photo_text_v1'}]}))
+(p / 'check-permissions').touch()
+assert terminal('--experiment-live', p, run_id='openai-baseline') == (0, True)
+assert [json.loads(line)['mode'] for line in (p / 'calls.jsonl').read_text().splitlines()] == ['experiment-preflight', '--experiment-live']
+assert terminal('--experiment-live', p, run_id='gemini-baseline') == (1, False)
+assert terminal('--experiment-live', p, run_id='missing') == (1, False)
+assert terminal('--experiment-live', p, run_id='../escape') == (1, False)
+assert terminal('--experiment-live', p) == (1, False)
+
+p = packet('reviewed-candidate')
+(p / 'experiment.json').write_text(json.dumps({'version': 'identification_experiment_plan_v2', 'mode': 'live',
+    'runs': [{'runId': 'uncached-control', 'profileId': 'openai_photo_text_uncached_v1'}, {'runId': 'concise-candidate', 'profileId': 'openai_photo_text_concise_uncached_v1'}]}))
+(p / 'check-permissions').touch()
+assert terminal('--experiment-live', p, run_id='uncached-control') == (0, True)
+assert terminal('--experiment-live', p, run_id='concise-candidate') == (0, True)
+
+p = packet('assistant-reviewed-candidate')
+(p / 'experiment.json').write_text(json.dumps({'version': 'identification_experiment_plan_v3', 'mode': 'live',
+    'runs': [{'runId': 'uncached-control', 'profileId': 'openai_photo_text_uncached_v1'},
+             {'runId': 'concise-candidate', 'profileId': 'openai_photo_text_concise_uncached_v1'}]}))
+(p / 'check-permissions').touch()
+assert terminal('--experiment-live', p, run_id='uncached-control') == (0, True)
+assert terminal('--experiment-live', p, run_id='concise-candidate') == (0, True)
+
+def session_packet(name):
+    path = packet(name)
+    (path / 'experiment.json').write_text(json.dumps({'version': 'identification_experiment_plan_v3', 'mode': 'live',
+        'runs': [{'runId': 'uncached-control', 'profileId': 'openai_photo_text_uncached_v1'},
+                 {'runId': 'concise-candidate', 'profileId': 'openai_photo_text_concise_uncached_v1'}]}))
+    return path
+
+p = session_packet('single-key-session')
+(p / 'check-permissions').touch()
+assert terminal('--experiment-session', p) == (0, True)
+calls = [json.loads(line) for line in (p / 'calls.jsonl').read_text().splitlines()]
+assert calls == [{'mode': 'experiment-preflight', 'runId': None},
+                 {'mode': '--experiment-live', 'runId': 'uncached-control'},
+                 {'mode': '--experiment-live', 'runId': 'concise-candidate'}]
+assert all(key not in f.read_text() for f in p.rglob('*') if f.is_file()), 'session saved its key'
+
+for marker in ('stop-after-run', 'missing-state', 'change-plan', 'fail-experiment-live'):
+    p = session_packet('session-' + marker)
+    (p / marker).touch()
+    assert terminal('--experiment-session', p) == (1, True)
+    calls = [json.loads(line) for line in (p / 'calls.jsonl').read_text().splitlines()]
+    assert len(calls) == 2 and calls[-1]['runId'] == 'uncached-control', 'session continued after a stop'
+
+p = session_packet('session-preflight-failure')
+(p / 'fail-experiment-preflight').touch()
+assert terminal('--experiment-session', p) == (1, False)
+
+p = session_packet('session-interruption')
+(p / 'pause-live').touch()
+assert terminal('--experiment-session', p, cancel_live=True) == (1, True)
+assert (p / 'claim.marker').read_text() == 'started'
+assert len((p / 'calls.jsonl').read_text().splitlines()) == 2, 'session retried after interruption'
+
+for invalid in ('mixed-provider', 'duplicate-run', 'invalid-run'):
+    p = session_packet('session-' + invalid)
+    spec = json.loads((p / 'experiment.json').read_text())
+    if invalid == 'mixed-provider':
+        spec['runs'][1]['profileId'] = 'gemini_photo_text_v1'
+    else:
+        spec['runs'][1]['runId'] = 'uncached-control' if invalid == 'duplicate-run' else '../escape'
+    (p / 'experiment.json').write_text(json.dumps(spec))
+    assert terminal('--experiment-session', p) == (1, False)
+    assert not (p / 'calls.jsonl').exists()
+p = session_packet('session-extra-argument')
+assert terminal('--experiment-session', p, run_id='uncached-control') == (1, False)
 
 p = packet('failed-preflight')
 (p / 'fail-preflight').touch()
@@ -180,5 +272,5 @@ no_tty = subprocess.run(['bash', str(launcher), '--credential-fingerprint', str(
 assert no_tty.returncode == 1
 assert key.encode() not in no_tty.stdout + no_tty.stderr
 assert not (p / 'openai-credential-fingerprint.json').exists()
-print('OpenAI local launcher: hidden terminal input, private fingerprint, real Deno admission, scoped child, and failure paths passed; zero API calls.')
+print('OpenAI local launcher: hidden terminal input, private fingerprint, real Deno admission, single-key ordered sessions, scoped child, and failure paths passed; zero API calls.')
 PYTHON

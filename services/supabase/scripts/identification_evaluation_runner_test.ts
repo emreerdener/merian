@@ -1,3 +1,5 @@
+import { registerCandidateTests } from "./identification_evaluation/testing/candidateRunnerTests.ts";
+import { registerExperimentTests } from "./identification_evaluation/testing/experimentRunnerTests.ts";
 /** Isolated filesystem suite: requires only the disposable directory argument,
  * repository source reads and a Deno child for the cross-process lock test.
  * No network or environment permission, and no provider is invoked.
@@ -50,8 +52,13 @@ import { registerAudioPromptExecutionTests } from "./identification_evaluation/t
 import { registerAudioPromptContinuationTests } from "./identification_evaluation/testing/audioPromptContinuationTests.ts";
 import { registerAudioPromptSuccessorTests } from "./identification_evaluation/testing/audioPromptSuccessorTests.ts";
 
+import { registerMeasurementTests } from "./identification_evaluation/testing/measurementRunnerTests.ts";
+
 const scratch = Deno.args[0];
 if (!scratch) throw new Error("evaluation_test_directory_required");
+registerMeasurementTests(scratch);
+registerCandidateTests(scratch);
+registerExperimentTests(scratch);
 registerAudioPromptPacketTests(scratch);
 registerAudioPromptExecutionTests(scratch);
 registerAudioPromptContinuationTests(scratch);
@@ -518,6 +525,7 @@ Deno.test("comparison rejects incomplete, source/input/model drift and undeclare
       )
     );
     const changedTaxonomy = structuredClone(inputs.taxonomy);
+    assert(changedTaxonomy.version === "evaluation_taxonomy_v1");
     changedTaxonomy.taxa[0].names.push("Changed synonym");
     await assertRejects(() =>
       generateReport(inputs.corpus, manifest, rows, changedTaxonomy)

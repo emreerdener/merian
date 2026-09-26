@@ -1,3 +1,8 @@
+import { isOpenAIProfile } from "../../functions/_shared/ai/openaiRequest.ts";
+import {
+  activeExperimentControl,
+  type ExperimentRunControl,
+} from "./experiment.ts";
 import type { OpenAIEvaluationSnapshot } from "../../functions/_shared/ai/openaiRequest.ts";
 import type { AIAttemptSnapshot } from "../../functions/_shared/ai/contracts.ts";
 import { join } from "node:path";
@@ -11,6 +16,7 @@ import {
   liveCredential,
   validateLiveApproval,
   validateSelection,
+  validateSelectionFacts,
 } from "./admission.ts";
 import { prepareEvidence } from "./assets.ts";
 import { type EvaluationInput, SCORER_VERSION } from "./contracts.ts";
@@ -25,13 +31,18 @@ import {
   withRunLock,
 } from "./files.ts";
 import { assignmentFor, interleave } from "./profiles.ts";
+import { MEASUREMENT_SCORER } from "./taxonomy.ts";
 import { emptyRecord, projectOutcome } from "./projection.ts";
 import {
   type Assignment,
   type AttemptRecord,
   BOUNDARY,
+  CANDIDATE_RUN_VERSION,
+  CANDIDATE_SPEC_VERSION,
   type EvaluationPricing,
   type EvaluationReadiness,
+  isMeasuredAttempt,
+  isOpenAIAttempt,
   parseAttempt,
   parseClaim,
   parseManifest,
@@ -43,6 +54,7 @@ import {
   providerTransports,
   RUN_VERSION,
   type RunManifest,
+  type RunSpec,
   type SourceIdentity,
   type Taxonomy,
 } from "./runContracts.ts";
@@ -59,6 +71,12 @@ export async function prepareRun(
   mode: "offline" | "live",
   now = Date.now(),
 ): Promise<EvaluationInputs> {
+  if (
+    await exists(join(root, "experiment.json")) ||
+    await exists(join(root, "experiment"))
+  ) {
+    throw new Error("evaluation_experiment_required");
+  }
   const corpus = parseRunCorpus(
     await readJson(join(root, "corpus.json")),
   );
@@ -83,6 +101,33 @@ export async function prepareRun(
       now,
     ));
   } else await assertOfflinePermissions();
+  return await assembleRun(
+    root,
+    corpus,
+    taxonomy,
+    spec,
+    source,
+    pricing,
+    readiness
+      ? {
+        projectRef: readiness.projectRef,
+        credentialRef: readiness.credentialRef,
+      }
+      : null,
+    now,
+  );
+}
+/** Credential-free construction only. Execution still requires independent admission. */
+export async function assembleRun(
+  root: string,
+  corpus: RunCorpus,
+  taxonomy: Taxonomy,
+  spec: RunSpec,
+  source: SourceIdentity,
+  pricing: EvaluationPricing | null,
+  processor: RunManifest["processor"],
+  now: number,
+): Promise<EvaluationInputs> {
   const assignments: Assignment[] = [];
   // Preflight ALL selected evidence before preparing even the first execution.
   // Keep only hashes/settings, then reload one bounded case at dispatch time.
@@ -101,26 +146,27 @@ export async function prepareRun(
     }
   }
   const manifest = parseManifest({
-    version: spec.version === PROVIDER_SPEC_VERSION
+    version: spec.version === CANDIDATE_SPEC_VERSION
+      ? CANDIDATE_RUN_VERSION
+      : spec.version === PROVIDER_SPEC_VERSION
       ? PROVIDER_RUN_VERSION
       : RUN_VERSION,
     boundary: BOUNDARY,
     createdAt: new Date(now).toISOString(),
     spec,
     source,
-    ...(spec.version === PROVIDER_SPEC_VERSION
+    ...([PROVIDER_SPEC_VERSION, CANDIDATE_SPEC_VERSION].includes(
+        spec.version as typeof PROVIDER_SPEC_VERSION,
+      )
       ? { transports: providerTransports(spec.profiles, source.sdk) }
       : {}),
-    scorerVersion: SCORER_VERSION,
+    scorerVersion: taxonomy.version === "evaluation_taxonomy_v2"
+      ? MEASUREMENT_SCORER
+      : SCORER_VERSION,
     taxonomyVersion: taxonomy.taxonomyVersion,
     preparationVersion: corpus.preparationVersion,
     pricing,
-    processor: readiness
-      ? {
-        projectRef: readiness.projectRef,
-        credentialRef: readiness.credentialRef,
-      }
-      : null,
+    processor,
     order: interleave(assignments, spec.orderSeed),
   });
   return { corpus, taxonomy, manifest };
@@ -131,6 +177,7 @@ export function validateRecord(
   assignment: Assignment,
   runDigest: string,
   pricing: EvaluationPricing | null,
+  measured = false,
 ): AttemptRecord {
   const r = parseAttempt(recordValue);
   check(
@@ -144,8 +191,8 @@ export function validateRecord(
   ) check(r.returnedModel === assignment.model);
   if (!pricing) check(r.estimatedUpperUsd === null);
   check(
-    (r.version === "evaluation_openai_attempt_v1") ===
-      (assignment.profile === "openai_gpt_6_sol"),
+    isMeasuredAttempt(r) === measured && isOpenAIAttempt(r) ===
+        (isOpenAIProfile(assignment.profile)),
   );
   return r;
 }
@@ -167,7 +214,14 @@ export async function readRecords(
     check(!result || started);
     if (!started) {
       gap = true;
-      rows.push(emptyRecord(a, digest));
+      rows.push(
+        emptyRecord(
+          a,
+          digest,
+          "unattempted",
+          manifest.scorerVersion === MEASUREMENT_SCORER,
+        ),
+      );
       continue;
     }
     check(!gap);
@@ -179,13 +233,19 @@ export async function readRecords(
           a,
           digest,
           manifest.pricing,
+          manifest.scorerVersion === MEASUREMENT_SCORER,
         )
-        : emptyRecord(a, digest, "interrupted_attempt"),
+        : emptyRecord(
+          a,
+          digest,
+          "interrupted_attempt",
+          manifest.scorerVersion === MEASUREMENT_SCORER,
+        ),
     );
   }
   return rows;
 }
-function stopAfter(record: AttemptRecord, live: boolean): boolean {
+export function stopAfter(record: AttemptRecord, live: boolean): boolean {
   return record.reason === "interrupted_attempt" || live && (
         ["unknown_execution", "operational_failure"].includes(
           record.prediction.outcome,
@@ -234,6 +294,7 @@ export async function executeRun(
   root: string,
   inputs: EvaluationInputs,
   dependencies: RunnerDependencies = {},
+  control?: ExperimentRunControl,
 ): Promise<RunResult> {
   if (
     inputs.manifest.spec.mode === "live" &&
@@ -241,7 +302,32 @@ export async function executeRun(
       dependencies.offlineOutcome || dependencies.checkpoint)
   ) throw new Error("evaluation_live_dependencies_forbidden");
   parseManifest(inputs.manifest);
-  await validateSelection(inputs.corpus, inputs.manifest.spec, inputs.taxonomy);
+  if (control) {
+    check(await activeExperimentControl(control, root, inputs.manifest));
+    await validateSelectionFacts(
+      inputs.corpus,
+      inputs.manifest.spec,
+      inputs.taxonomy,
+    );
+  } else {
+    if (
+      await exists(join(root, "experiment.json")) ||
+      await exists(join(root, "experiment"))
+    ) {
+      throw new Error("evaluation_experiment_required");
+    }
+    await validateSelection(
+      inputs.corpus,
+      inputs.manifest.spec,
+      inputs.taxonomy,
+    );
+  }
+  check(
+    inputs.manifest.scorerVersion ===
+      (inputs.taxonomy.version === "evaluation_taxonomy_v2"
+        ? MEASUREMENT_SCORER
+        : SCORER_VERSION),
+  );
   const runs = await privateDirectory(join(root, "runs"));
   const directory = await privateDirectory(
     join(runs, inputs.manifest.spec.runId),
@@ -273,8 +359,8 @@ export async function executeRun(
       await validateLiveApproval(
         inputs.corpus,
         manifest.spec,
-        await readJson(join(root, "pricing.json")),
-        await readJson(join(root, "readiness.json")),
+        control?.pricing ?? await readJson(join(root, "pricing.json")),
+        await readJson(control?.readinessPath ?? join(root, "readiness.json")),
         key,
         Date.now(),
       );
@@ -335,6 +421,10 @@ export async function executeRun(
         check(await fingerprintJson(execution.snapshot) === a.policyDigest);
       }
       dependencies.checkpoint?.("before_claim");
+      if (control) {
+        stopReason = await control.beforeClaim(a);
+        if (stopReason) break;
+      }
       await claimJson(
         join(directory, "claims", `${a.key}.json`),
         parseClaim(
@@ -352,8 +442,9 @@ export async function executeRun(
       );
       dependencies.checkpoint?.("after_claim");
       let record: AttemptRecord;
+      let outcome: AIProviderOutcome | null = null;
       try {
-        const outcome = execution
+        outcome = execution
           ? await execution.invoke()
           : dependencies.offlineOutcome!(input, a);
         record = projectOutcome(
@@ -365,12 +456,27 @@ export async function executeRun(
           manifest.pricing,
         );
       } catch {
-        record = emptyRecord(a, runDigest, "interrupted_attempt");
+        record = emptyRecord(
+          a,
+          runDigest,
+          "interrupted_attempt",
+          manifest.scorerVersion === MEASUREMENT_SCORER,
+        );
       }
       dependencies.checkpoint?.("after_invoke");
       await atomicJson(join(directory, "results", `${a.key}.json`), record);
       records[i] = record;
       dependencies.checkpoint?.("after_result");
+      if (control) {
+        stopReason = await control.afterResult(
+          a,
+          record,
+          outcome,
+          request,
+          input,
+        );
+        if (stopReason) break;
+      }
       if (stopAfter(record, live)) {
         stopReason = record.reason;
         break;
@@ -379,7 +485,12 @@ export async function executeRun(
     if (stopReason === "budget_exceeded" || stopReason === "call_limit") {
       for (let i = 0; i < records.length; i++) {
         if (records[i].prediction.outcome === "unattempted") {
-          records[i] = emptyRecord(manifest.order[i], runDigest, stopReason);
+          records[i] = emptyRecord(
+            manifest.order[i],
+            runDigest,
+            stopReason,
+            manifest.scorerVersion === MEASUREMENT_SCORER,
+          );
         }
       }
     }

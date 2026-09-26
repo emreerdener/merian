@@ -212,6 +212,14 @@ production submission or public release.
   [first OpenAI pilot](./rfcs/identification-openai-photo-text-pilot-2026-09-25.md)
   retains seven normalized results and one unknown across eight examples,
   including the unmatched-name scoring limitation; production remains Gemini.
+- **[Identification provider optimization plan](./rfcs/identification-provider-optimization-plan.md):**
+  Shared measurement repairs are implemented with versioned mapping, reports and
+  descriptive comparisons. Versioned baseline profiles and experiment-wide
+  budgets/stops are implemented. The first candidate is concise OpenAI
+  explanations, with implemented delegated AI review, optional owner review and
+  uncached profiles for a 16-request comparison. The real packet is prepared;
+  execution approval and the paid comparison remain pending. Includes the later
+  production qualification path; production remains Gemini.
 - **Identification evaluation readiness:**
   [PRD](./product/04-identification-evaluation-prd.md) and
   [SRD](./rfcs/identification-evaluation-srd.md) plan the next milestone: an
@@ -222,7 +230,8 @@ production submission or public release.
   [Slice 4 collection packet](./development-guides/20-identification-evaluation-pilot.md)
   supplies a solo phone/computer workflow, automated exploratory preflight and
   provisional reporting, proposed formal coverage and blank intake/reviewer
-  forms. The formal corpus and direct evaluator's live run remain pending; the
+  forms. The formal corpus and formal direct-evaluator baseline remain pending;
+  the
   [exploratory experiment record](./rfcs/identification-exploratory-benchmark-2026-09-22.md)
   distinguishes offline mechanics from the completed
   [two-photo production-app benchmark](./rfcs/identification-production-app-benchmark-2026-09-22.md),

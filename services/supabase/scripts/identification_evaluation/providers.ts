@@ -1,9 +1,9 @@
+import { isOpenAIProfile } from "../../functions/_shared/ai/openaiRequest.ts";
 /** Scripts-only composition. No provider/endpoint override enters production. */
 import type { MultimodalAIRequest } from "../../functions/_shared/ai/contracts.ts";
 import { createAIExecution } from "../../functions/_shared/ai/execution.ts";
 import { createOpenAIEvaluationAdapter } from "../../functions/_shared/ai/openai.ts";
 import {
-  OPENAI_PROFILE,
   openAIEvaluationSnapshot,
 } from "../../functions/_shared/ai/openaiRequest.ts";
 import type { Profile } from "./contracts.ts";
@@ -14,11 +14,11 @@ export async function prepareEvaluationExecution(
   profile: Profile,
   credential: string,
 ) {
-  if (profile === OPENAI_PROFILE) {
+  if (isOpenAIProfile(profile)) {
     return createAIExecution(
       createOpenAIEvaluationAdapter(credential),
       request,
-      openAIEvaluationSnapshot(request),
+      openAIEvaluationSnapshot(request, profile),
     );
   }
   // Keep SDK initialization out of offline/OpenAI processes and preserve its settings.

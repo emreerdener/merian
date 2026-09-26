@@ -28,7 +28,9 @@ function usageFrom(value: unknown): AIUsage | null {
   if (!u) return null;
   const input = count(u.input_tokens),
     output = count(u.output_tokens),
-    reasoning = count(object(u.output_tokens_details)?.reasoning_tokens);
+    reasoning = count(object(u.output_tokens_details)?.reasoning_tokens),
+    cached = count(object(u.input_tokens_details)?.cached_tokens),
+    writes = count(object(u.input_tokens_details)?.cache_write_tokens);
   return {
     promptTokens: input,
     // Responses output_tokens ALREADY includes reasoning. Never add it twice.
@@ -38,7 +40,11 @@ function usageFrom(value: unknown): AIUsage | null {
         : null,
     thinkingTokens: reasoning,
     totalTokens: count(u.total_tokens),
-    cachedTokens: count(object(u.input_tokens_details)?.cached_tokens),
+    cachedTokens: cached,
+    cacheWriteTokens: input !== null && cached !== null && writes !== null &&
+        cached + writes <= input
+      ? writes
+      : null,
     toolTokens: 0, // This binding sends tools: []; unexpected output tools are rejected.
     modalityBreakdown: {}, // Responses does not report these modality counts.
   };

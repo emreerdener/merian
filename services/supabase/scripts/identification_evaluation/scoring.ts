@@ -1,3 +1,4 @@
+import { isOpenAIProfile } from "../../functions/_shared/ai/openaiRequest.ts";
 import {
   FLASH_DIAGNOSTIC_TRIGGER,
   FLASH_POSSIBLE,
@@ -24,6 +25,7 @@ import {
   type Subject,
 } from "./contracts.ts";
 import { fingerprintCorpus } from "./evidence.ts";
+import type { IdentityMapping } from "./taxonomy.ts";
 import {
   parseEvaluationCorpus,
   parsePrediction,
@@ -81,6 +83,44 @@ export function assessReference(label: ReferenceLabel, result: Prediction) {
   };
 }
 
+/** V2 exploratory interpretation only; legacy formal/v1 scores remain unchanged. */
+export function assessMeasuredReference(
+  label: ReferenceLabel | null,
+  prediction: Prediction,
+  mapping: IdentityMapping | null,
+) {
+  const legacy = label ? assessReference(label, prediction) : null;
+  const subject = prediction.outcome !== "normalized"
+    ? "no_result"
+    : label === null
+    ? "unverified"
+    : legacy!.subjectCorrect
+    ? "agreement"
+    : "disagreement";
+  const identity = (() => {
+    if (prediction.outcome !== "normalized") return "no_result";
+    if (label === null) return "unverified";
+    if (legacy!.unmapped) {
+      return mapping?.status === "ambiguous" ? "ambiguous" : "unmapped";
+    }
+    if (legacy!.unsupported) return "unsupported_specificity";
+    if (legacy!.named) return legacy!.correct ? "agreement" : "disagreement";
+    if (
+      legacy!.appropriateUnresolved &&
+      ["biological", "indeterminate"].includes(label.subject)
+    ) return "valid_abstention";
+    if (prediction.subject === "biological") return "unresolved";
+    return "not_applicable";
+  })();
+  return {
+    subject,
+    identity,
+    falseBiological: legacy?.falseBiological ?? false,
+    unsupportedBiological: legacy?.unsupportedBiological ?? false,
+    unsupportedSpecificity: legacy?.unsupported ?? false,
+  };
+}
+
 function matrix<R extends string, C extends string>(
   rows: readonly R[],
   columns: readonly C[],
@@ -109,7 +149,7 @@ export async function scoreEvaluation(
   const corpus = parseEvaluationCorpus(corpusValue);
   requireCondition(
     scope.profile === "gemini_flash_free" || scope.profile === "gemini_pro" ||
-      scope.profile === "openai_gpt_6_sol",
+      isOpenAIProfile(scope.profile),
   );
   requireCondition(scope.split === "development" || scope.split === "held_out");
   requireCondition(
@@ -164,7 +204,7 @@ export async function scoreEvaluation(
   );
   const named = count((row) => row.assessment.named);
   const correct = count((row) => row.assessment.correct);
-  const qualified = scope.profile !== "openai_gpt_6_sol";
+  const qualified = !isOpenAIProfile(scope.profile);
   const pro = scope.profile === "gemini_pro";
   const possible = pro ? PRO_POSSIBLE : FLASH_POSSIBLE;
   const strong = pro ? PRO_STRONG : FLASH_STRONG;

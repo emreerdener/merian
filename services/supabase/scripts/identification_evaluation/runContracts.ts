@@ -1,4 +1,6 @@
 import {
+  isOpenAIProfile,
+  OPENAI_CANDIDATE_PROFILES,
   OPENAI_GENERATION,
   OPENAI_MODEL,
   OPENAI_PROFILE,
@@ -19,7 +21,6 @@ import {
   parsePrediction,
   requireCondition as check,
   taxon,
-  text,
   token,
 } from "./validation.ts";
 import { EXPLORATORY_SPEC_VERSION } from "./exploratory.ts";
@@ -31,13 +32,18 @@ export const PROFILES = [...GEMINI_PROFILES, OPENAI_PROFILE] as const;
 export const PROVIDER_SPEC_VERSION =
   "identification_provider_run_spec_v1" as const;
 export const PROVIDER_RUN_VERSION = "identification_provider_run_v1" as const;
+export const CANDIDATE_SPEC_VERSION =
+  "identification_provider_run_spec_v2" as const;
+export const CANDIDATE_RUN_VERSION = "identification_provider_run_v2" as const;
 export const MODEL_FOR_PROFILE = {
+  openai_photo_text_uncached_v1: OPENAI_MODEL,
+  openai_photo_text_concise_uncached_v1: OPENAI_MODEL,
   gemini_flash_free: "gemini-2.5-flash",
   gemini_pro: "gemini-2.5-pro",
   [OPENAI_PROFILE]: OPENAI_MODEL,
 } as const;
 export function providerForProfile(profile: Profile): "gemini" | "openai" {
-  return profile === OPENAI_PROFILE ? "openai" : "gemini";
+  return isOpenAIProfile(profile) ? "openai" : "gemini";
 }
 export const MODELS = ["gemini-2.5-flash", "gemini-2.5-pro"] as const;
 export const STAGE_LIMITS = {
@@ -86,35 +92,30 @@ export function unique<T>(values: readonly T[]): void {
   check(new Set(values).size === values.length);
 }
 
-export interface Taxonomy {
-  version: "evaluation_taxonomy_v1";
-  taxonomyVersion: string;
-  taxa: { taxon: Taxon; names: string[] }[];
+export { parseTaxonomy, type Taxonomy } from "./taxonomy.ts";
+import {
+  type IdentityMapping,
+  parseIdentityMapping,
+  type Taxonomy,
+} from "./taxonomy.ts";
+
+export function isMeasuredAttempt(record: { version: string }): boolean {
+  return record.version === "evaluation_attempt_v2" ||
+    record.version === "evaluation_openai_attempt_v2" ||
+    record.version === "evaluation_openai_attempt_v3";
 }
-export function parseTaxonomy(value: unknown): Taxonomy {
-  const v = fields(value, ["version", "taxonomyVersion", "taxa"]);
-  check(v.version === "evaluation_taxonomy_v1");
-  token(v.taxonomyVersion);
-  const names: string[] = [], ids: string[] = [];
-  for (const raw of array(v.taxa, 1, 100000)) {
-    const item = fields(raw, ["taxon", "names"]);
-    const t = taxon(item.taxon);
-    ids.push(t.id);
-    for (const name of array(item.names, 1, 32)) {
-      text(name, 255);
-      names.push(name.toLowerCase());
-    }
-  }
-  unique(ids);
-  unique(names);
-  return structuredClone(v) as unknown as Taxonomy;
+export function isOpenAIAttempt(record: { version: string }): boolean {
+  return record.version === "evaluation_openai_attempt_v1" ||
+    record.version === "evaluation_openai_attempt_v2" ||
+    record.version === "evaluation_openai_attempt_v3";
 }
 
 export interface RunSpec {
   version:
     | "identification_run_spec_v1"
     | typeof EXPLORATORY_SPEC_VERSION
-    | typeof PROVIDER_SPEC_VERSION;
+    | typeof PROVIDER_SPEC_VERSION
+    | typeof CANDIDATE_SPEC_VERSION;
   runId: string;
   mode: "offline" | "live";
   corpusDigest: string;
@@ -149,7 +150,8 @@ export function parseRunSpec(value: unknown): RunSpec {
     "readinessDigest",
   ]);
   check(
-    v.version === PROVIDER_SPEC_VERSION || v.version ===
+    v.version === CANDIDATE_SPEC_VERSION ||
+      v.version === PROVIDER_SPEC_VERSION || v.version ===
         (v.stage === "exploratory"
           ? EXPLORATORY_SPEC_VERSION
           : "identification_run_spec_v1"),
@@ -162,9 +164,19 @@ export function parseRunSpec(value: unknown): RunSpec {
   member(v.stage, Object.keys(STAGE_LIMITS) as (keyof typeof STAGE_LIMITS)[]);
   const profiles = array(v.profiles, 1, 2);
   profiles.forEach((p) =>
-    member(p, v.version === PROVIDER_SPEC_VERSION ? PROFILES : GEMINI_PROFILES)
+    member(
+      p,
+      v.version === CANDIDATE_SPEC_VERSION
+        ? OPENAI_CANDIDATE_PROFILES
+        : v.version === PROVIDER_SPEC_VERSION
+        ? PROFILES
+        : GEMINI_PROFILES,
+    )
   );
   unique(profiles);
+  if (v.version === CANDIDATE_SPEC_VERSION) {
+    check(v.stage === "exploratory" && profiles.length === 1);
+  }
   const ids = array(v.caseIds, 1, 240);
   if (v.stage === "exploratory") check(ids.length <= 12);
   ids.forEach((x) => id(x, "c"));
@@ -178,7 +190,13 @@ export function parseRunSpec(value: unknown): RunSpec {
     check(v.budgetUsd > 0);
     hash(v.pricingDigest);
     hash(v.readinessDigest);
-    check(profiles.length === (v.version === PROVIDER_SPEC_VERSION ? 1 : 2));
+    check(
+      profiles.length ===
+        (v.version === PROVIDER_SPEC_VERSION ||
+            v.version === CANDIDATE_SPEC_VERSION
+          ? 1
+          : 2),
+    );
   } else {check(
       v.budgetUsd === 0 && v.pricingDigest === null &&
         v.readinessDigest === null,
@@ -512,7 +530,10 @@ export function providerTransports(
   );
 }
 export interface RunManifest {
-  version: typeof RUN_VERSION | typeof PROVIDER_RUN_VERSION;
+  version:
+    | typeof RUN_VERSION
+    | typeof PROVIDER_RUN_VERSION
+    | typeof CANDIDATE_RUN_VERSION;
   boundary: typeof BOUNDARY;
   createdAt: string;
   spec: RunSpec;
@@ -526,8 +547,10 @@ export interface RunManifest {
   order: Assignment[];
 }
 export function parseManifest(value: unknown): RunManifest {
-  const providerRun =
-    (value as { version?: unknown } | null)?.version === PROVIDER_RUN_VERSION;
+  const providerRun = [PROVIDER_RUN_VERSION, CANDIDATE_RUN_VERSION].includes(
+    (value as { version?: unknown } | null)
+      ?.version as typeof PROVIDER_RUN_VERSION,
+  );
   const v = fields(value, [
     "version",
     "boundary",
@@ -543,7 +566,7 @@ export function parseManifest(value: unknown): RunManifest {
     "order",
   ]);
   check(
-    [RUN_VERSION, PROVIDER_RUN_VERSION].includes(
+    [RUN_VERSION, PROVIDER_RUN_VERSION, CANDIDATE_RUN_VERSION].includes(
       v.version as typeof RUN_VERSION,
     ) && v.boundary === BOUNDARY,
   );
@@ -551,7 +574,9 @@ export function parseManifest(value: unknown): RunManifest {
   const spec = parseRunSpec(v.spec);
   check(
     v.version ===
-      (spec.version === PROVIDER_SPEC_VERSION
+      (spec.version === CANDIDATE_SPEC_VERSION
+        ? CANDIDATE_RUN_VERSION
+        : spec.version === PROVIDER_SPEC_VERSION
         ? PROVIDER_RUN_VERSION
         : RUN_VERSION),
   );
@@ -581,7 +606,7 @@ export function parseManifest(value: unknown): RunManifest {
     const pricing = parseEvaluationPricing(v.pricing);
     check(
       (pricing.version === "evaluation_openai_pricing_v1") ===
-        (spec.profiles[0] === OPENAI_PROFILE),
+        isOpenAIProfile(spec.profiles[0]),
     );
     const processor = fields(v.processor, ["projectRef", "credentialRef"]);
     token(processor.projectRef);
@@ -628,7 +653,7 @@ export function parseManifest(value: unknown): RunManifest {
     for (const k of ["prompt", "schema", "confidence"]) token(a[k]);
     integer(a.timeoutMs, 1, 120000);
     number(a.reservedUsd);
-    if (a.profile === OPENAI_PROFILE) {
+    if (isOpenAIProfile(a.profile)) {
       const g = fields(a.generation, [
         "maxOutputTokens",
         "reasoningEffort",
@@ -642,9 +667,14 @@ export function parseManifest(value: unknown): RunManifest {
       check(
         a.confidence === "openai_unqualified_v1" &&
           a.schema === "merian_openai_identify_v1" &&
-          ["openai_identify_vision_v1", "openai_identify_text_v1"].includes(
-            a.prompt as string,
-          ) && a.timeoutMs === 90000,
+          (a.profile === "openai_photo_text_concise_uncached_v1"
+            ? [
+              "openai_concise_identify_vision_v1",
+              "openai_concise_identify_text_v1",
+            ]
+            : ["openai_identify_vision_v1", "openai_identify_text_v1"])
+            .includes(a.prompt as string) &&
+          a.timeoutMs === 90000,
       );
     } else {
       const g = fields(a.generation, [
@@ -673,6 +703,7 @@ export interface StoredUsage {
   thinkingTokens: number | null;
   cachedTokens: number | null;
   toolTokens: number | null;
+  cacheWriteTokens?: number | null;
   modalities: {
     prompt: TokenModalities;
     cached: TokenModalities;
@@ -682,7 +713,14 @@ export interface StoredUsage {
 }
 export type TokenModalities = { text: number; image: number; audio: number };
 export interface AttemptRecord {
-  version: "evaluation_attempt_v1" | "evaluation_openai_attempt_v1";
+  version:
+    | "evaluation_attempt_v1"
+    | "evaluation_openai_attempt_v1"
+    | "evaluation_attempt_v2"
+    | "evaluation_openai_attempt_v2"
+    | "evaluation_openai_attempt_v3";
+  mapping?: IdentityMapping | null;
+  candidateMappings?: IdentityMapping[] | null;
   runDigest: string;
   key: string;
   prediction: Prediction;
@@ -697,6 +735,9 @@ export interface AttemptRecord {
   estimatedUpperUsd: number | null;
 }
 export function parseAttempt(value: unknown): AttemptRecord {
+  const measured = isMeasuredAttempt({
+    version: String((value as { version?: unknown } | null)?.version),
+  });
   const v = fields(value, [
     "version",
     "runDigest",
@@ -711,29 +752,34 @@ export function parseAttempt(value: unknown): AttemptRecord {
     "providerMs",
     "normalizationMs",
     "estimatedUpperUsd",
+    ...(measured ? ["mapping", "candidateMappings"] : []),
   ]);
   check(
-    v.version === "evaluation_attempt_v1" ||
-      v.version === "evaluation_openai_attempt_v1",
+    measured || v.version === "evaluation_attempt_v1" ||
+      isOpenAIAttempt({ version: String(v.version) }),
   );
   hash(v.runDigest);
   token(v.key);
+  const candidateKey = OPENAI_CANDIDATE_PROFILES.some((p) =>
+    new RegExp(`^c[0-9]{4,12}-${p}-[12]$`).test(v.key as string)
+  );
+  check((v.version === "evaluation_openai_attempt_v3") === candidateKey);
   const prediction = parsePrediction(v.prediction);
   member(v.reason, REASONS);
   check(
     v.returnedModel === null ||
       typeof v.returnedModel === "string" &&
-        (v.version === "evaluation_openai_attempt_v1"
+        (isOpenAIAttempt({ version: String(v.version) })
           ? /^gpt-6-sol(?:-[a-zA-Z0-9.-]{1,80})?$/
           : /^gemini-[a-zA-Z0-9.-]{1,100}$/).test(v.returnedModel),
   );
   member(
     v.band,
-    v.version === "evaluation_openai_attempt_v1"
+    isOpenAIAttempt({ version: String(v.version) })
       ? [null, "unqualified"]
       : [null, "below_possible", "possible", "strong"],
   );
-  if (v.version === "evaluation_openai_attempt_v1") {
+  if (isOpenAIAttempt({ version: String(v.version) })) {
     check(v.diagnostic === false);
   }
   check(typeof v.diagnostic === "boolean");
@@ -753,6 +799,7 @@ export function parseAttempt(value: unknown): AttemptRecord {
       "cachedTokens",
       "toolTokens",
       "modalities",
+      ...(measured ? ["cacheWriteTokens"] : []),
     ]);
     for (const [key, item] of Object.entries(u)) {
       if (key === "modalities") continue;
@@ -784,6 +831,32 @@ export function parseAttempt(value: unknown): AttemptRecord {
     check(
       v.providerMs === null && v.usage === null && v.estimatedUpperUsd === null,
     );
+  }
+  if (measured) {
+    if (prediction.outcome !== "normalized") {
+      check(v.mapping === null && v.candidateMappings === null);
+    } else {
+      const mapping = parseIdentityMapping(v.mapping, prediction.taxon);
+      const named = prediction.subject === "biological" &&
+        prediction.resolution === "named";
+      check(
+        named
+          ? mapping.status !== "not_applicable"
+          : mapping.status === "not_applicable",
+      );
+      if (v.candidates === null) check(v.candidateMappings === null);
+      else {
+        const mappings = array(v.candidateMappings, 0, 5);
+        const candidates = v.candidates as { taxon: Taxon | null }[];
+        check(mappings.length === candidates.length);
+        mappings.forEach((mapping, i) =>
+          check(
+            parseIdentityMapping(mapping, candidates[i].taxon).status !==
+              "not_applicable",
+          )
+        );
+      }
+    }
   }
   if (v.reason === "completed") check(prediction.outcome === "normalized");
   if (
