@@ -923,6 +923,22 @@ lifecycle gate, it resumes at most the newest consent-blocked row whose
 unreleased, dispatchable funding reservation proves the current account and
 exact scan ID. Rows without that ownership proof remain paused in Scans.
 
+OpenAI recipient denial is a separate `.openAIConsentRequired` failure. The
+live-failure coordinator transfers the exact active attempt to the queue's
+retirement owner. Under the scan persistence lock, that owner atomically saves
+`ai_openai_consent_required` needs-attention and removes the matching durable
+generation, then releases its upload hold with background resume disabled. Local
+save failure retries only persistence with capped backoff while keeping the
+generation claimed and retired. Late upload callbacks, backgrounding and network
+changes cannot release that hold; generic cleanup cannot replace the pause
+policy. Durable generation replacement prevents stale writes.
+
+The failure publishes **Permission needed / Scan saved**, stays outside the
+network circuit, and does not reopen Gemini onboarding. Gemini approval never
+resumes an OpenAI-paused row. OpenAI collection remains disabled; activation
+work is recorded in the
+[canonical API contract](../../../../../docs/backend-and-data/05-api-contracts.md#independent-openai-consent-evidence).
+
 Provider admission is also separated from transport health for both live
 pipelines. Exact `402 pro_required` presents **Upgrade needed / Scan saved**;
 `429 ai_quota_daily_exceeded` requests the root paywall without publishing a

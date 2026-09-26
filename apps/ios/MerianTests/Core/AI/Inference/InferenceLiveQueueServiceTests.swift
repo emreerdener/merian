@@ -50,6 +50,7 @@ private final class InferenceLiveQueueRecorder {
                 events.append(.deleted(scanId, mediaPaths, generation))
                 return deleteResult
             },
+            pauseQueuedScan: { _, _, _, _ in true },
             rejectQueuedScan: { [self] scanId, reason, errorCode in
                 events.append(.rejected(scanId, reason, errorCode))
                 return rejectResult

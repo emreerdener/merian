@@ -159,7 +159,52 @@ BEGIN
 
 
 
-    UPDATE public.users SET subscription_tier = 'pro', subscription_expires_at = NULL WHERE id = test_user_id;
+    FOREACH role_name IN ARRAY ARRAY['anon', 'authenticated', 'service_role'] LOOP
+        IF pg_catalog.HAS_FUNCTION_PRIVILEGE(role_name,
+            'internal.require_identification_processor_consent(uuid,text)', 'EXECUTE') THEN
+            RAISE EXCEPTION 'identification consent helper exposed to API role';
+        END IF;
+    END LOOP;
+    FOREACH signature IN ARRAY ARRAY[
+        'public.reserve_identification_quota(uuid,text,uuid,text,uuid,boolean,integer,boolean)',
+        'public.reserve_identification_quota(uuid,text,uuid,text,uuid,boolean,integer,boolean,text)'
+    ] LOOP
+        IF pg_catalog.STRPOS(pg_catalog.PG_GET_FUNCTIONDEF(pg_catalog.TO_REGPROCEDURE(signature)),
+            'require_identification_processor_consent(p_user_id, assignment.processor_permission)') = 0
+           OR pg_catalog.STRPOS(pg_catalog.PG_GET_FUNCTIONDEF(pg_catalog.TO_REGPROCEDURE(signature)),
+            'require_identification_processor_consent(p_user_id, attempt.processor_permission)') = 0 THEN
+            RAISE EXCEPTION 'identification RPC lost recipient-specific fresh/replay denial';
+        END IF;
+    END LOOP;
+    FOREACH signature IN ARRAY ARRAY[NULL, '', 'unknown', 'OpenAI'] LOOP
+        denied := FALSE;
+        BEGIN
+            PERFORM internal.require_identification_processor_consent(test_user_id, signature);
+        EXCEPTION WHEN SQLSTATE 'P0001' THEN
+            IF SQLERRM <> 'ai_provider_assignment_unavailable' THEN RAISE; END IF;
+            denied := TRUE;
+        END;
+        IF NOT denied THEN RAISE EXCEPTION 'unknown recipient admitted'; END IF;
+    END LOOP;
+    denied := FALSE;
+    BEGIN
+        PERFORM internal.require_identification_processor_consent(NULL, 'openai');
+    EXCEPTION WHEN SQLSTATE 'P0001' THEN
+        IF SQLERRM <> 'ai_provider_assignment_unavailable' THEN RAISE; END IF;
+        denied := TRUE;
+    END;
+    IF NOT denied THEN RAISE EXCEPTION 'missing account admitted'; END IF;
+    -- A Gemini grant cannot authorize OpenAI or produce a Gemini recovery code.
+    denied := FALSE;
+    BEGIN
+        PERFORM internal.require_identification_processor_consent(test_user_id, 'openai');
+    EXCEPTION WHEN SQLSTATE 'P0001' THEN
+        IF SQLERRM <> 'ai_openai_consent_required' THEN RAISE; END IF;
+        denied := TRUE;
+    END;
+    IF NOT denied THEN RAISE EXCEPTION 'Gemini grant authorized OpenAI'; END IF;
+    PERFORM internal.require_identification_processor_consent(test_user_id, 'google_gemini');
+    UPDATE public.users SET subscription_tier = 'pro' , subscription_expires_at = NULL WHERE id = test_user_id;
     IF EXISTS (SELECT 1 FROM internal.identification_provider_bindings WHERE provider <> 'gemini' OR processor_permission <> 'google_gemini') THEN
         RAISE EXCEPTION 'routing enabled an unqualified provider';
     END IF;

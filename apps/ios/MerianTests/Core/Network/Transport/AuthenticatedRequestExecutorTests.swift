@@ -5,6 +5,50 @@ import Testing
 
 @Suite("Authenticated Request Executor")
 struct AuthenticatedRequestExecutorTests {
+    @Test func openAIConsentDenialDoesNotOpenGeminiOnboardingOrRetry() async throws {
+        let probe = AuthenticatedRequestExecutorProbe(
+            authUserIDs: [UUID()],
+            outcomes: [.response(statusCode: 403,
+                                 data: Data(#"{"code":"ai_openai_consent_required"}"#.utf8))]
+        )
+        await #expect(throws: MerianError.openAIConsentRequired) {
+            try await makeExecutor(probe: probe).execute(try makeRequest(function: "identify-multimodal"))
+        }
+        #expect(probe.aiConsentRequiredCount == 0)
+        #expect(probe.paymentRequiredCount == 0)
+        #expect(probe.attempts.count == 1)
+        #expect(probe.sleeps.isEmpty)
+    }
+
+    @Test(arguments: [
+        #"{"code":"ai_openai_consent_required_unknown"}"#,
+        #"{"error":"ai_openai_consent_required"}"#,
+        #"{"code":123}"#,
+        "not-json"
+    ])
+    func unknownConsentPayloadKeepsGenericForbiddenResponse(body: String) async throws {
+        let probe = AuthenticatedRequestExecutorProbe(
+            authUserIDs: [UUID()], outcomes: [.response(statusCode: 403, data: Data(body.utf8))]
+        )
+        await #expect(throws: MerianError.httpError(statusCode: 403, message: body)) {
+            try await makeExecutor(probe: probe).execute(try makeRequest(function: "identify-multimodal"))
+        }
+        #expect(probe.aiConsentRequiredCount == 0)
+        #expect(probe.attempts.count == 1)
+        #expect(probe.sleeps.isEmpty)
+    }
+
+    @Test func openAIConsentCodeRequiresForbiddenStatus() async throws {
+        let body = #"{"code":"ai_openai_consent_required"}"#
+        let probe = AuthenticatedRequestExecutorProbe(
+            authUserIDs: [UUID()], outcomes: [.response(statusCode: 400, data: Data(body.utf8))]
+        )
+        await #expect(throws: MerianError.httpError(statusCode: 400, message: body)) {
+            try await makeExecutor(probe: probe).execute(try makeRequest(function: "identify-multimodal"))
+        }
+        #expect(probe.aiConsentRequiredCount == 0)
+    }
+
     @Test func failedIdentificationResponsesAreMeasuredBeforeErrorHandling() async throws {
         for status in [400, 503] {
             let probe = AuthenticatedRequestExecutorProbe(

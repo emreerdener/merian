@@ -97,6 +97,14 @@ BEGIN
         denied := TRUE;
     END;
     IF NOT denied THEN RAISE EXCEPTION 'unexpected processor authorization: %', 'openai'; END IF;
+    denied := FALSE;
+    BEGIN
+        PERFORM internal.require_identification_processor_consent(test_user_id, 'openai');
+    EXCEPTION WHEN SQLSTATE 'P0001' THEN
+        IF SQLERRM <> 'ai_openai_consent_required' THEN RAISE; END IF;
+        denied := TRUE;
+    END;
+    IF NOT denied THEN RAISE EXCEPTION 'recipient recovery accepted invalid OpenAI evidence'; END IF;
     INSERT INTO public.user_adult_eligibility_receipts (
         id,
         user_id,
@@ -176,6 +184,7 @@ BEGIN
     );
 
     PERFORM internal.require_current_ai_consent(test_user_id, 'openai');
+    PERFORM internal.require_identification_processor_consent(test_user_id, 'openai');
     denied := FALSE;
     BEGIN
         PERFORM internal.require_current_ai_consent(test_user_id, 'google_gemini');
@@ -223,6 +232,14 @@ BEGIN
         denied := TRUE;
     END;
     IF NOT denied THEN RAISE EXCEPTION 'unexpected processor authorization: %', 'openai'; END IF;
+    denied := FALSE;
+    BEGIN
+        PERFORM internal.require_identification_processor_consent(test_user_id, 'openai');
+    EXCEPTION WHEN SQLSTATE 'P0001' THEN
+        IF SQLERRM <> 'ai_openai_consent_required' THEN RAISE; END IF;
+        denied := TRUE;
+    END;
+    IF NOT denied THEN RAISE EXCEPTION 'recipient recovery accepted invalid OpenAI evidence'; END IF;
     PERFORM internal.require_current_ai_consent(test_user_id, 'google_gemini');
     PERFORM pg_catalog.SET_CONFIG('role', 'authenticated', TRUE);
     SELECT * INTO result FROM public.append_user_openai_consent_event('00000000-0000-4000-8000-00000000c015', '2026-09-26', 'granted', '2026-09-26T00:00:00Z', 'Synthetic processor disclosure', 'Synthetic choice', 'ios', 'test', '1', '00000000-0000-4000-8000-00000000c013');
@@ -262,6 +279,14 @@ BEGIN
         denied := TRUE;
     END;
     IF NOT denied THEN RAISE EXCEPTION 'unexpected processor authorization: %', 'openai'; END IF;
+    denied := FALSE;
+    BEGIN
+        PERFORM internal.require_identification_processor_consent(test_user_id, 'openai');
+    EXCEPTION WHEN SQLSTATE 'P0001' THEN
+        IF SQLERRM <> 'ai_openai_consent_required' THEN RAISE; END IF;
+        denied := TRUE;
+    END;
+    IF NOT denied THEN RAISE EXCEPTION 'recipient recovery accepted invalid OpenAI evidence'; END IF;
     PERFORM pg_catalog.SET_CONFIG('role', 'authenticated', TRUE);
     SELECT * INTO result FROM public.append_user_openai_consent_event('00000000-0000-4000-8000-00000000c018', '2026-09-26', 'granted', '2026-09-26T00:00:00Z', 'Synthetic processor disclosure', 'Synthetic choice', 'ios', 'test', '1', '00000000-0000-4000-8000-00000000c017');
     PERFORM pg_catalog.SET_CONFIG('role', 'none', TRUE);

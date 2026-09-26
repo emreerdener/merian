@@ -34,6 +34,14 @@ struct InferenceFailurePresentation: Equatable, Sendable {
                     "consent step, and Naturebook will resume it automatically when eligible. " +
                     "If it stays paused, you can retry it from Scans."
             )
+        case .openAIConsentRequired:
+            return .init(
+                title: "Permission needed",
+                subtitle: hasQueuedScan ? "Scan saved" : "Identification paused",
+                reasoning: hasQueuedScan
+                    ? BackgroundInferencePolicy.openAIConsentAttentionMessage
+                    : "This observation needs permission for OpenAI processing. Identification is paused."
+            )
         case .proRequired:
             return .init(
                 title: "Upgrade needed",

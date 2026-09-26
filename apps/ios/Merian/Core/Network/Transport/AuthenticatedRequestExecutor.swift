@@ -342,6 +342,13 @@ struct AuthenticatedRequestExecutor {
 
         if response.statusCode == 403,
            EdgeFunctionErrorPolicy.stableCode(responseData: data)
+            == "ai_openai_consent_required" {
+            // The app's recipient assignment is authoritative. This denial
+            // neither opens Gemini onboarding nor grants another permission.
+            throw MerianError.openAIConsentRequired
+        }
+        if response.statusCode == 403,
+           EdgeFunctionErrorPolicy.stableCode(responseData: data)
             == "ai_consent_required" {
             await dependencies.handleAIConsentRequired()
             throw MerianError.aiConsentRequired

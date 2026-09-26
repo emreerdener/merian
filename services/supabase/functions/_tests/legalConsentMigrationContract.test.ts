@@ -535,7 +535,7 @@ Deno.test("Swift and backend consent versions cannot drift", async () => {
   );
   assertStringIncludes(
     quota,
-    'databaseMessage.includes("ai_consent_required")',
+    'databaseMessage === "ai_consent_required"',
   );
   assertStringIncludes(quota, '"ai_consent_required"');
 });

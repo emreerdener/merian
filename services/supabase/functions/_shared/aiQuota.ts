@@ -255,7 +255,14 @@ export function quotaErrorForDatabaseMessage(
       "AI service is temporarily unavailable.",
     );
   }
-  if (databaseMessage.includes("ai_consent_required")) {
+  if (databaseMessage === "ai_openai_consent_required") {
+    return new AIQuotaError(
+      403,
+      "ai_openai_consent_required",
+      "OpenAI processing permission is required before identifying this observation.",
+    );
+  }
+  if (databaseMessage === "ai_consent_required") {
     return new AIQuotaError(
       403,
       "ai_consent_required",

@@ -440,3 +440,24 @@ Deno.test("missing database assignment has a stable content-free failure", () =>
   assertEquals(error.code, "ai_quota_unavailable");
   assertEquals(error.message, "AI service is temporarily unavailable.");
 });
+
+Deno.test("OpenAI denial has a distinct bounded recipient code", () => {
+  const error = quotaErrorForDatabaseMessage("ai_openai_consent_required");
+  assertEquals(error.status, 403);
+  assertEquals(error.code, "ai_openai_consent_required");
+  assertEquals(
+    error.message,
+    "OpenAI processing permission is required before identifying this observation.",
+  );
+  for (
+    const message of [
+      "ai_openai_consent_required_unknown",
+      "private detail: ai_openai_consent_required",
+    ]
+  ) {
+    const unknown = quotaErrorForDatabaseMessage(message);
+    assertEquals(unknown.status, 503);
+    assertEquals(unknown.code, "ai_entitlement_unavailable");
+    assertEquals(unknown.message.includes("private detail"), false);
+  }
+});

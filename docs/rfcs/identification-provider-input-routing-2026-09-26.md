@@ -92,3 +92,32 @@ Identify DTO. No paid evaluation, live model request, hosted mutation, push or
 deployment was performed. These local gates establish behavior and integration
 contracts; they do not establish alternative-provider quality or product
 latency.
+
+## Follow-on status: 2026-09-26 recipient recovery
+
+A subsequent local implementation distinguishes Gemini and OpenAI permission
+denials across the database quota boundary, Edge errors and iOS saved-scan
+recovery. OpenAI denial pauses the original scan with a distinct stable code;
+Gemini reapproval cannot restart it. Provider assignment stays app-owned, every
+route remains Gemini, and OpenAI permission collection remains disabled. See the
+[current API contract](../backend-and-data/05-api-contracts.md#independent-openai-consent-evidence)
+for the remaining activation requirements. The validation table above describes
+the routing slice only.
+
+This follow-on candidate passed the complete iOS unit target: 1,366 XCTest tests
+and 2,974 Swift Testing tests (4,340 total). The new regressions cover exact
+recipient error mapping, missing local persistence followed by successful pause,
+late upload/release-all callbacks, durable replacement fencing, preserved media
+and funding, and Gemini-only automatic resume. The read-only implementation
+review found no remaining blocker after the persistence retry correction.
+
+Backend validation passed clean migration replay, all 57 database catalogs (393
+assertions), 2,106 Edge tests with 250 steps, 350 migration contract tests, all
+Supabase tooling suites, 101 recursive entrypoint/config/dependency checks,
+generated DTO and deployment-identity checks, formatting and lint. The privilege
+audit covered 261 public definer routines with zero violations. Database lint
+reported no warnings or errors; the 105 security and 80 performance advisor
+warnings were identical to the prior slice. XcodeGen regeneration, generated
+project/resource checks and changed Markdown formatting passed. The task-owned
+disposable database and its volumes were removed. No hosted deployment or paid
+provider evaluation was performed for this follow-on.

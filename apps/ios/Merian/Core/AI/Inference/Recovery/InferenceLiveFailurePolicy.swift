@@ -37,6 +37,7 @@ enum InferenceLiveFailurePolicy {
     enum Failure: Equatable, Sendable {
         case recoverableConflict
         case consentRequired
+        case openAIConsentRequired
         case proRequired
         case dailyQuotaExceeded
         case rateLimited(RateLimit)
@@ -59,6 +60,8 @@ enum InferenceLiveFailurePolicy {
                 return "InferenceCompletionRecovery"
             case .consentRequired:
                 return "InferenceConsentRequired"
+            case .openAIConsentRequired:
+                return "InferenceOpenAIConsentRequired"
             case .proRequired:
                 return "InferenceProRequired"
             case .dailyQuotaExceeded:
@@ -115,6 +118,9 @@ enum InferenceLiveFailurePolicy {
         }
         if (error as? MerianError) == .aiConsentRequired {
             return .consentRequired
+        }
+        if (error as? MerianError) == .openAIConsentRequired {
+            return .openAIConsentRequired
         }
         if let policyFailure = providerPolicyFailure(for: error) {
             return policyFailure

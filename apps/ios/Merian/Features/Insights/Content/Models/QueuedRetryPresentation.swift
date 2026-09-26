@@ -64,6 +64,7 @@ struct QueuedRetryPresentation: Equatable {
         case processing
         case missingMedia
         case consent
+        case openAIConsent
         case entitlement
         case retryLimit
         case terminal
@@ -81,6 +82,8 @@ struct QueuedRetryPresentation: Equatable {
                 "The analysis couldn’t continue because its photo or recording is no longer available on this device."
             case .consent:
                 "AI analysis is paused until you review the required AI consent."
+            case .openAIConsent:
+                BackgroundInferencePolicy.openAIConsentAttentionMessage
             case .entitlement:
                 "This analysis needs an active plan before it can continue."
             case .retryLimit:
@@ -98,6 +101,7 @@ struct QueuedRetryPresentation: Equatable {
     ) -> ReasonCategory {
         let code = errorCode?.lowercased() ?? ""
         if code == "ai_consent_required" { return .consent }
+        if code == "ai_openai_consent_required" { return .openAIConsent }
         if code == "pro_required" ||
             code == "payment_required" ||
             code == "plan_required" ||
@@ -166,7 +170,7 @@ struct QueuedRetryPresentation: Equatable {
         switch category {
         case .entitlement:
             .viewPlans
-        case .consent, .missingMedia, .terminal:
+        case .consent, .openAIConsent, .missingMedia, .terminal:
             nil
         case .connection, .service, .processing, .retryLimit, .unknown:
             isOnline && canRetryNow ? .retryNow : nil

@@ -12,6 +12,7 @@ enum BackgroundInferenceResponseDisposition: Equatable {
     case success
     case retry
     case consentRequired
+    case openAIConsentRequired
     case needsAttention
     case terminal
 }
@@ -19,6 +20,9 @@ enum BackgroundInferenceResponseDisposition: Equatable {
 enum BackgroundInferencePolicy {
     static let requiredConsentAttentionMessage =
         "Complete the required age, Terms, and Google Gemini consent step. Naturebook will automatically resume the eligible saved scan; if it stays paused, you can retry it from Scans."
+
+    static let openAIConsentAttentionMessage =
+        "This scan needs permission for OpenAI processing. It remains saved and paused."
 
     static func shouldRetryBackgroundInferenceRouteFailure(
         statusCode: Int?,
@@ -64,6 +68,11 @@ enum BackgroundInferencePolicy {
         if statusCode >= 500
             || [401, 408, 409, 425, 429].contains(statusCode) {
             return .retry
+        }
+        if statusCode == 403,
+           EdgeFunctionErrorPolicy.stableCode(responseData: responseData)
+            == "ai_openai_consent_required" {
+            return .openAIConsentRequired
         }
         if statusCode == 403,
            EdgeFunctionErrorPolicy.stableCode(responseData: responseData)

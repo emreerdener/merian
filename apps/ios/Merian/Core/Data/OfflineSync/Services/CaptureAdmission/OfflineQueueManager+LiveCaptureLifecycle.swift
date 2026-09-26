@@ -19,6 +19,10 @@ extension OfflineQueueManager {
                 return
             }
         }
+        if let generation = foregroundInferenceGenerations[scanId],
+           foregroundInferenceRetirementTasks.isOwned(scanId, by: generation) {
+            return
+        }
         guard deferredLiveUploadScanIds.remove(scanId) != nil else { return }
         MerianLog.data.debug(
             "releaseDeferredLiveUpload: scanId=\(scanId, privacy: .public) reason=\(reason, privacy: .public)"
@@ -28,8 +32,12 @@ extension OfflineQueueManager {
 
     func releaseAllDeferredLiveUploads(reason: String) {
         guard !deferredLiveUploadScanIds.isEmpty else { return }
-        let scanIds = deferredLiveUploadScanIds
-        deferredLiveUploadScanIds.removeAll()
+        let scanIds = deferredLiveUploadScanIds.filter { scanId in
+            guard let generation = foregroundInferenceGenerations[scanId] else { return true }
+            return !foregroundInferenceRetirementTasks.isOwned(scanId, by: generation)
+        }
+        guard !scanIds.isEmpty else { return }
+        deferredLiveUploadScanIds.subtract(scanIds)
         MerianLog.data.debug(
             "releaseAllDeferredLiveUploads: count=\(scanIds.count, privacy: .public) reason=\(reason, privacy: .public)"
         )
@@ -113,7 +121,8 @@ extension OfflineQueueManager {
         scanId: String,
         generation: UUID,
         resumeBackground: Bool,
-        reason: String
+        reason: String,
+        consentPauseErrorCode: String? = nil
     ) {
         guard foregroundInferenceGenerations[scanId] == generation,
               !foregroundInferenceRetirementTasks.isOwned(
@@ -146,10 +155,9 @@ extension OfflineQueueManager {
                       self.foregroundInferenceGenerations[scanId]
                         == generation {
                     let didEnd = await self.endForegroundInference(
-                        scanId: scanId,
-                        generation: generation,
-                        resumeBackground: resumeBackground,
-                        reason: reason
+                        scanId: scanId, generation: generation,
+                        resumeBackground: resumeBackground, reason: reason,
+                        consentPauseErrorCode: consentPauseErrorCode
                     )
                     guard !didEnd,
                           self.foregroundInferenceRetirementTasks.isCurrent(
@@ -181,7 +189,8 @@ extension OfflineQueueManager {
         scanId: String,
         generation: UUID,
         resumeBackground: Bool,
-        reason: String
+        reason: String,
+        consentPauseErrorCode: String? = nil
     ) async -> Bool {
         await ScanInferencePersistenceCoordinator.shared.acquire(scanId: scanId)
         guard foregroundInferenceGenerations[scanId] == generation else {
@@ -198,6 +207,33 @@ extension OfflineQueueManager {
                         generation,
                         in: job.metadataJSON
                     ) {
+                        if let consentPauseErrorCode {
+                            let descriptor = FetchDescriptor<OfflineQueuedScan>(
+                                predicate: #Predicate { $0.id == scanId }
+                            )
+                            guard let scan = try context.fetch(descriptor).first else {
+                                await ScanInferencePersistenceCoordinator.shared.release(scanId: scanId)
+                                return false
+                            }
+                            let now = Date()
+                            scan.scanStateRaw = ScanQueueState.failed.rawValue
+                            scan.queueLastAttemptAt = now
+                            scan.queueNextRetryAt = nil
+                            scan.queueLastErrorCode = consentPauseErrorCode
+                            scan.queueLastErrorMessage = reason
+                            scan.queueLastHTTPStatus = 403
+                            scan.queueNeedsAttention = true
+                            scan.queueUpdatedAt = now
+                            job.status = .needsAttention
+                            job.nextRunAt = nil
+                            job.lastErrorCode = consentPauseErrorCode
+                            job.lastErrorMessage = reason
+                            job.lastHTTPStatus = 403
+                            context.insert(OfflineQueueEvent(
+                                jobId: jobId, scanId: scanId, kind: .needsAttention,
+                                message: reason, errorCode: consentPauseErrorCode, httpStatus: 403
+                            ))
+                        }
                         job.metadataJSON =
                             InferenceGenerationMetadataContract.removing(
                                 generation,
@@ -213,13 +249,15 @@ extension OfflineQueueManager {
                                 "endForegroundInference: durable handoff failed scanId=\(scanId, privacy: .public) error=\(error, privacy: .private)"
                             )
                         }
-                    } else if InferenceGenerationMetadataContract.generation(
+                    } else if consentPauseErrorCode != nil || InferenceGenerationMetadataContract.generation(
                         in: job.metadataJSON
                     ) != nil {
                         didClearDurableOwner = false
                     }
                     // A different durable generation has already replaced this
                     // owner. Never clear its metadata.
+                } else if consentPauseErrorCode != nil {
+                    didClearDurableOwner = false
                 }
             } catch {
                 didClearDurableOwner = false
@@ -232,6 +270,9 @@ extension OfflineQueueManager {
         }
 
         if didClearDurableOwner {
+            if foregroundInferenceRetirementTasks.isOwned(scanId, by: generation) {
+                deferredLiveUploadScanIds.remove(scanId)
+            }
             foregroundInferenceGenerations[scanId] = nil
             if startedForegroundInferenceGenerations[scanId] == generation {
                 startedForegroundInferenceGenerations[scanId] = nil
@@ -243,7 +284,10 @@ extension OfflineQueueManager {
         MerianLog.data.debug(
             "endForegroundInference: scanId=\(scanId, privacy: .public) resume=\(resumeBackground, privacy: .public) reason=\(reason, privacy: .public)"
         )
-        if resumeBackground {
+        if consentPauseErrorCode != nil {
+            updateUnsyncedItemCount()
+            OfflineJobScheduler.shared.scheduleNextPersistedWake(using: self)
+        } else if resumeBackground {
             syncPendingScans()
             replayInferenceForUploadedScans()
         }

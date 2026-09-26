@@ -122,12 +122,28 @@ final class InferenceLiveFailureCoordinator {
         }
 
         guard stillOwnsAttempt else { return }
-        releaseForRecovery(
-            scanId: scanId,
-            attemptGeneration: attemptGeneration,
-            foregroundGeneration: foregroundGeneration,
-            reason: mode.failureReason
-        )
+        let failure = InferenceLiveFailurePolicy.failure(for: error, mode: mode)
+        if failure == .openAIConsentRequired,
+           let scanId, let foregroundGeneration {
+            // Transfer this exact owner to durable pause recovery. Its local
+            // persistence retries must not release runnable work to inference.
+            _ = attemptCoordinator.pauseQueuedScan(
+                scanId: scanId, attemptGeneration: attemptGeneration,
+                foregroundGeneration: foregroundGeneration,
+                reason: BackgroundInferencePolicy.openAIConsentAttentionMessage,
+                errorCode: "ai_openai_consent_required"
+            )
+            guard attemptCoordinator.isLocalAttemptCurrent(
+                scanId: scanId, attemptGeneration: attemptGeneration
+            ) else { return }
+        } else {
+            releaseForRecovery(
+                scanId: scanId,
+                attemptGeneration: attemptGeneration,
+                foregroundGeneration: foregroundGeneration,
+                reason: mode.failureReason
+            )
+        }
         // Queue effects are synchronous and may re-enter with a replacement
         // attempt. Do not let the displaced failure publish over that owner.
         guard attemptCoordinator.isLocalAttemptCurrent(
@@ -141,7 +157,7 @@ final class InferenceLiveFailureCoordinator {
         }
 
         publishTerminalFailure(
-            InferenceLiveFailurePolicy.failure(for: error, mode: mode),
+            failure,
             error: error,
             mode: mode,
             scanId: resolvedClientScanId,

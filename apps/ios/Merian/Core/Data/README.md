@@ -485,6 +485,18 @@ retry becomes meaningful only after Ready records fresh head-anchored evidence
 and `ConsentManager` completes another authoritative cloud proof under the same
 account; the stable scan UUID is retained throughout.
 
+Exact `403 ai_openai_consent_required` has a separate disposition. It persists
+needs-attention under that code, retains media and funding, and does not invoke
+the Gemini consent fence. A saved OpenAI pause has no automatic retry deadline
+and is excluded from `resumeMostRecentConsentBlockedScan`, including when it is
+the newest owned/funded scan. Live inference writes this pause before release
+through `InferenceLiveQueueService`; background completion uses its existing
+generation claim and completion lock. Scans explains the missing OpenAI
+processing permission without offering provider choice or directing people to
+the disabled permission UI. The canonical recipient and activation contract is
+in
+[API contracts](../../../../../docs/backend-and-data/05-api-contracts.md#independent-openai-consent-evidence).
+
 After foreground or background result persistence, inference-driven queue
 deletion writes the scan job's `.complete` status, clears transient errors,
 inserts the completed event, and removes the exact guarded queue row in one

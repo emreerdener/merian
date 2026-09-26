@@ -49,6 +49,7 @@ private final class InferenceLiveAttemptQueueHarness {
                 }
                 return deleteResult
             },
+            pauseQueuedScan: { _, _, _, _ in true },
             rejectQueuedScan: { _, _, _ in true }
         ))
     }

@@ -7,6 +7,18 @@ import Testing
 
 @MainActor
 struct InsightQueuedRetryPresentationTests {
+    @Test(arguments: [true, false])
+    func openAIConsentPauseOffersNoRetryOrProviderChoice(isOnline: Bool) throws {
+        let value = try #require(QueuedRetryPresentation.resolve(
+            queueState: .failed, nextRetryAt: nil,
+            errorCode: "ai_openai_consent_required", needsAttention: true,
+            canRetryNow: true, isOnline: isOnline, now: Date()
+        ))
+        #expect(value.message.contains("OpenAI processing"))
+        #expect(value.message.contains("saved and paused"))
+        #expect(value.action == nil)
+    }
+
     @Test func queuedRetryPresentationExplainsScheduledRetryWithoutRawErrors() throws {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let presentation = try #require(QueuedRetryPresentation.resolve(

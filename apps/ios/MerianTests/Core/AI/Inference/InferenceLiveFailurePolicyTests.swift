@@ -22,7 +22,7 @@ struct InferenceLiveFailurePolicyTests {
     @Test func taskCancellationTakesPrecedenceOverReturnedErrors() {
         let errors: [Error] = [
             CancellationError(), URLError(.cancelled), URLError(.timedOut),
-            MerianError.decodingFailed, MerianError.aiConsentRequired,
+            MerianError.decodingFailed, MerianError.aiConsentRequired, MerianError.openAIConsentRequired,
             httpError(429, code: "ai_quota_daily_exceeded")
         ]
         for error in errors {
@@ -121,6 +121,7 @@ struct InferenceLiveFailurePolicyTests {
         let cases: [SpecialPolicyCase] = [
             .init(failure: .recoverableConflict, event: "InferenceCompletionRecovery", triggersFeedback: false),
             .init(failure: .consentRequired, event: "InferenceConsentRequired", triggersFeedback: true),
+            .init(failure: .openAIConsentRequired, event: "InferenceOpenAIConsentRequired", triggersFeedback: true),
             .init(failure: .proRequired, event: "InferenceProRequired", triggersFeedback: true),
             .init(failure: .dailyQuotaExceeded, event: "InferenceDailyQuotaExceeded", triggersFeedback: false),
             .init(failure: .rateLimited(.user), event: "InferenceRateLimited", triggersFeedback: true),
@@ -130,6 +131,7 @@ struct InferenceLiveFailurePolicyTests {
         ]
         for mode in modes {
             #expect(Policy.failure(for: MerianError.aiConsentRequired, mode: mode) == .consentRequired)
+            #expect(Policy.failure(for: MerianError.openAIConsentRequired, mode: mode) == .openAIConsentRequired)
             for testCase in cases {
                 #expect(!testCase.failure.recordsCircuitFailure)
                 #expect(testCase.failure.triggersErrorFeedback == testCase.triggersFeedback)

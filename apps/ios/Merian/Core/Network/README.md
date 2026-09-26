@@ -2618,8 +2618,12 @@ mutation or deployment is authorized by this refactor.
 - Maps only handler-owned HTTP `403` with stable code `ai_consent_required` to
   `MerianError.aiConsentRequired`. That is a disclosure transition—not quota
   exhaustion or generic authorization—and foreground callers must preserve the
-  queued scan while the account returns to Ready. `402 pro_required` and the
-  `429` quota/rate codes remain separate.
+  queued scan while the account returns to Ready. Exact
+  `403 ai_openai_consent_required` instead maps to
+  `MerianError.openAIConsentRequired`, with no Gemini reapproval callback,
+  grant, provider selection or automatic retry. Unknown codes retain generic
+  HTTP handling. `402 pro_required` and the `429` quota/rate codes remain
+  separate.
 - Treats shared-auth `401 auth_session_missing` and `401 invalid_session_token`
   as refresh-first transitions. The pinned Supabase SDK refreshes the current
   session through its single-flight session manager, then the client rebuilds

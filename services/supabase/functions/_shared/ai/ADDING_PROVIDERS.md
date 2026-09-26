@@ -52,11 +52,14 @@ observation jobs retain user authority even when a service invokes the worker.
    block its disclosure but never select another provider. The
    [consent infrastructure](../../../../../docs/rfcs/identification-provider-openai-consent-2026-09-26.md)
    is implemented with collection disabled. Adding a catalog row alone cannot
-   admit another provider; complete qualified model admission,
-   recipient-specific client consent-denial/recovery and profile-scoped
-   compatible-client gating before activation. The evaluation OpenAI binding
-   supports only primary multimodal photo/text; compatibility and snapshot
-   profiles are not qualified. Before activation, extend the versioned
+   admit another provider. Recipient-specific denial and saved-scan pause are
+   implemented in the
+   [client recovery contract](../../../../../docs/backend-and-data/05-api-contracts.md#independent-openai-consent-evidence).
+   Complete qualified model admission, recipient-aware preflight, explicit
+   permission collection and profile-scoped compatible-client gating before
+   activation. The evaluation OpenAI binding supports only primary multimodal
+   photo/text; compatibility and snapshot profiles are not qualified. Before
+   activation, extend the versioned
    [durable result provenance](../../../../../docs/rfcs/identification-provider-result-provenance-2026-09-26.md)
    to cover the qualified adapter's generation settings and confidence profile.
    Gemini scans now retain this server configuration independently of the quota
