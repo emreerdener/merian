@@ -177,7 +177,12 @@ Deno.test("every public paid-model route declares a server quota operation", asy
     const source = await Deno.readTextFile(new URL(path, import.meta.url));
     assertStringIncludes(
       source,
-      "reserveAIProviderCall",
+      operations.every((operation) =>
+          operation === "scan_identification" ||
+          operation === "scan_audio_identification"
+        )
+        ? "reserveIdentificationProviderCall"
+        : "reserveAIProviderCall",
       `${path} does not import the authoritative quota boundary`,
     );
     for (const operation of operations) {
@@ -440,7 +445,7 @@ Deno.test("every scan-producing route coalesces quota replays into an owner-scop
       "await fetchCompletedIdentifyResponse(",
     );
     const quotaReservation = source.indexOf(
-      "await reserveAIProviderCall(",
+      "await reserveIdentificationProviderCall(",
     );
 
     assertStringIncludes(source, "resolveAIRequestId(req, client_scan_id)");

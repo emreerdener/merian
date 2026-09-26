@@ -329,9 +329,16 @@ qualify production use.
 
 ## Later production assignment
 
-A favorable comparison is the decision point for another slice: provider-aware
-user consent, model/quota admission, confidence/persistence compatibility,
-safety, rollout and rollback. Follow the
+Production integration is a separate milestone. The first admission slice now
+records an exact Gemini provider/binding/permission assignment per metered
+identification attempt and rejects unqualified recipients before dispatch. See
+its
+[implementation record](../rfcs/identification-provider-production-admission-2026-09-26.md).
+This prepares the server boundary while keeping OpenAI disabled. The next slice
+must implement OpenAI-specific disclosure, consent and account-lifecycle
+behavior; confidence/persistence compatibility, safety, qualification and
+controlled activation remain separate requirements. The optional concise-prompt
+screen is closed and is not required to implement these boundaries. Follow the
 [provider onboarding contract](../../services/supabase/functions/_shared/ai/ADDING_PROVIDERS.md).
 Photo/text could then receive one provider and audio-containing observations
 another, using complete-task capability checks. This slice enables that work

@@ -42,7 +42,7 @@ import { isFlashFallbackEligible } from "../_shared/complimentaryScans.ts";
 import {
   AIQuotaError,
   deriveAIRequestId,
-  reserveAIProviderCall,
+  reserveIdentificationProviderCall,
   resolveAIRequestId,
 } from "../_shared/aiQuota.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
@@ -806,7 +806,7 @@ export async function handleIdentifyMultimodalRequest(
     );
   let quotaLease;
   try {
-    quotaLease = await reserveAIProviderCall(req, supabaseAdmin, {
+    quotaLease = await reserveIdentificationProviderCall(req, supabaseAdmin, {
       userId: user.id,
       operation: "scan_identification",
       requestId: quotaRequestId,
@@ -1057,7 +1057,7 @@ export async function handleIdentifyMultimodalRequest(
     const execution = prepare(aiRequest, {
       kind: "user_request",
       userId: user.id,
-      permission: "google_gemini",
+      permission: quotaLease.reservation.assignment.permission,
       operation: "scan_identification",
       reservation: quotaLease.reservation,
       ...(audioPromptComparison

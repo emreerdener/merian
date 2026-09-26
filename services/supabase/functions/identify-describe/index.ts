@@ -17,7 +17,7 @@ import {
 import { isFlashFallbackEligible } from "../_shared/complimentaryScans.ts";
 import {
   AIQuotaError,
-  reserveAIProviderCall,
+  reserveIdentificationProviderCall,
   resolveAIRequestId,
 } from "../_shared/aiQuota.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
@@ -218,7 +218,7 @@ export function createDescribeHandler(prepare = prepareAIExecution) {
 
     let quotaLease;
     try {
-      quotaLease = await reserveAIProviderCall(req, supabaseAdmin, {
+      quotaLease = await reserveIdentificationProviderCall(req, supabaseAdmin, {
         userId: user.id,
         operation: "scan_identification",
         requestId: generatedScanId,
@@ -341,7 +341,7 @@ export function createDescribeHandler(prepare = prepareAIExecution) {
       const execution = prepare(aiRequest, {
         kind: "user_request",
         userId: user.id,
-        permission: "google_gemini",
+        permission: quotaLease.reservation.assignment.permission,
         operation: "scan_identification",
         reservation: quotaLease.reservation,
       });

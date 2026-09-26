@@ -41,11 +41,20 @@ observation jobs retain user authority even when a service invokes the worker.
    `identify/contract.ts` for common validation and add a provider-specific
    schema projection alongside the existing Google projection when necessary.
 3. Extend authoritative database model/operation admission and the Edge registry
-   together. Public jobs require an approved task/model assignment in their
-   service path as well. Do not let the registry override a quota-selected
-   model, accept client-selected providers/URLs, or widen the allowlist
-   speculatively. Snapshot each admitted attempt; only existing
-   recovery/admission can authorize a later attempt under a changed policy.
+   together. Identification now has a Gemini-only exact binding catalog and
+   immutable quota-attempt snapshots, accessed through
+   `reserve_identification_quota`; see the
+   [admission contract](../../../../../docs/backend-and-data/05-api-contracts.md#provider-bound-identification-reservations).
+   Its legacy admission delegate and recipient helper still require Gemini
+   consent. Adding a catalog row alone cannot admit another provider; revise the
+   underlying recipient-aware admission with the new consent flow. Before
+   activation, extend durable scan/recovery provenance and the full generation
+   snapshot beyond this quota-attempt record. Public jobs require an approved
+   task/model assignment in their service path as well. Do not let the registry
+   override a quota-selected model, accept client-selected providers/URLs, or
+   widen the allowlist speculatively. Snapshot each admitted attempt; only
+   existing recovery/admission can authorize a later attempt under a changed
+   policy.
 4. Update `production.ts` only when qualification and disclosure prerequisites
    below are met. Keep deterministic adapters test-only. Add the new
    SDK/dispatch owner to the reviewed inventory in

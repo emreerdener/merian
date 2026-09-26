@@ -13,6 +13,7 @@ import {
   deriveAIRequestId,
   hmacClientAddress,
   quotaErrorForDatabaseMessage,
+  reserveIdentificationProviderCall,
   resolveAIRequestId,
   resolveQuotaIpHashSecret,
 } from "./aiQuota.ts";
@@ -256,4 +257,159 @@ Deno.test("failed provider attempts transition committed leases without refundin
   assertEquals(await lease.fail(), true);
   assertEquals(await lease.refund(), false);
   assertEquals(states, ["committed", "failed"]);
+});
+
+Deno.test("identification admission requires database assignment and preserves non-dispatchable legacy replay", async (test) => {
+  const previous = Deno.env.get("AI_QUOTA_IP_HASH_SECRET");
+  Deno.env.set("AI_QUOTA_IP_HASH_SECRET", SECRET);
+  try {
+    const valid = {
+      reservation_id: "00000000-0000-0000-0000-000000000321",
+      request_id: REQUEST_ID,
+      lease_token: "00000000-0000-0000-0000-000000000654",
+      lease_expires_at: "2099-01-01T00:00:00Z",
+      reservation_state: "reserved",
+      is_replay: false,
+      attempt_count: 1,
+      model: "gemini-2.5-flash",
+      effective_plan: "free",
+      effective_tier: "free",
+      subscription_tier: "free",
+      trial_active: false,
+      entitlement_version: 1,
+      policy_version: 1,
+      daily_limit: 10,
+      daily_remaining: 9,
+      original_analysis_id: null,
+      complimentary_client_scan_id: null,
+      flash_fallback_used: false,
+      scans_remaining: 0,
+      scans_available_to_start: 0,
+      in_flight_count: 0,
+      provider: "gemini",
+      binding: "gemini_baseline_v1",
+      processor_permission: "google_gemini",
+    };
+    for (
+      const [name, changes, code] of [
+        ["valid", {}, null],
+        ["missing provider", { provider: undefined }, "ai_quota_unavailable"],
+        ["missing binding", { binding: undefined }, "ai_quota_unavailable"],
+        [
+          "missing permission",
+          { processor_permission: undefined },
+          "ai_quota_unavailable",
+        ],
+        ["unknown provider", { provider: "openai" }, "ai_quota_unavailable"],
+        [
+          "wrong binding",
+          { binding: "openai_photo_text_v1" },
+          "ai_quota_unavailable",
+        ],
+        [
+          "wrong permission",
+          { processor_permission: "openai" },
+          "ai_quota_unavailable",
+        ],
+        ["wrong model", { model: "gpt-6-sol" }, "ai_quota_unavailable"],
+        ["legacy active replay", {
+          is_replay: true,
+          provider: null,
+          binding: null,
+          processor_permission: null,
+        }, "ai_request_in_progress"],
+        ["legacy completion replay", {
+          is_replay: true,
+          reservation_state: "committed",
+          provider: null,
+          binding: null,
+          processor_permission: null,
+        }, "ai_request_already_completed"],
+      ] as const
+    ) {
+      await test.step(name, async () => {
+        const calls: string[] = [];
+        const client = {
+          rpc: (rpc: string, args: Record<string, unknown>) => {
+            calls.push(rpc);
+            assertEquals(rpc, "reserve_identification_quota");
+            assertEquals(
+              Object.keys(args).sort(),
+              [
+                "p_user_id",
+                "p_operation",
+                "p_request_id",
+                "p_ip_hash",
+                "p_original_analysis_id",
+                "p_flash_fallback_eligible",
+                "p_client_protocol",
+                "p_internal_replay",
+              ].sort(),
+            );
+            return {
+              abortSignal: () =>
+                Promise.resolve({
+                  data: { ...valid, ...changes },
+                  error: null,
+                }),
+            };
+          },
+        };
+        const call = () =>
+          reserveIdentificationProviderCall(
+            new Request("https://example.invalid"),
+            client as never,
+            {
+              userId: "synthetic-owner",
+              operation: "scan_identification",
+              requestId: REQUEST_ID,
+            },
+          );
+        if (code) {
+          const error = await assertRejects(call, AIQuotaError);
+          assertEquals(error.code, code);
+        } else {
+          const lease = await call();
+          assertEquals(lease.reservation.assignment, {
+            provider: "gemini",
+            binding: "gemini_baseline_v1",
+            permission: "google_gemini",
+          });
+          assert(Object.isFrozen(lease.reservation.assignment));
+        }
+        assertEquals(calls, ["reserve_identification_quota"]);
+      });
+    }
+    await test.step("content operation never reaches the identification RPC", async () => {
+      const error = await assertRejects(
+        () =>
+          reserveIdentificationProviderCall(
+            new Request("https://example.invalid"),
+            {
+              rpc: () => {
+                throw new Error("must not call RPC");
+              },
+            } as never,
+            {
+              userId: "synthetic-owner",
+              operation: "species_overview" as never,
+            },
+          ),
+        AIQuotaError,
+      );
+      assertEquals(error.code, "ai_quota_unavailable");
+    });
+  } finally {
+    if (previous === undefined) Deno.env.delete("AI_QUOTA_IP_HASH_SECRET");
+    else Deno.env.set("AI_QUOTA_IP_HASH_SECRET", previous);
+  }
+});
+
+Deno.test("missing database assignment has a stable content-free failure", () => {
+  const error = quotaErrorForDatabaseMessage(
+    "ai_provider_assignment_unavailable",
+  );
+  assertEquals(error.status, 503);
+  assertEquals(error.code, "ai_quota_unavailable");
+  assertEquals(error.message, "AI service is temporarily unavailable.");
 });

@@ -93,7 +93,7 @@ function database(
           return response({ outcome: "job_not_found" });
         case "ensure_scan_user_profile":
           return response(null);
-        case "reserve_ai_quota":
+        case "reserve_identification_quota":
           events.push("reserve");
           assertEquals(args.p_user_id, user.id);
           assertEquals(args.p_request_id, scanId);
@@ -102,6 +102,9 @@ function database(
             return response(null, { message: "ai_consent_required" });
           }
           return response({
+            provider: "gemini",
+            binding: "gemini_baseline_v1",
+            processor_permission: "google_gemini",
             reservation_id: "00000000-0000-4000-8000-000000000301",
             request_id: scanId,
             lease_token: "00000000-0000-4000-8000-000000000401",

@@ -1,5 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  type IdentificationProviderAssignment,
+  isIdentificationProviderAssignment,
+} from "./ai/admission.ts";
+import {
   clientAddressFromHeaders,
   ClientAddressHashError,
   hmacClientAddressForPurpose,
@@ -36,6 +40,9 @@ export type AIQuotaOperation =
   | "species_discovery_search";
 
 interface AIQuotaReservationRow {
+  provider?: unknown;
+  binding?: unknown;
+  processor_permission?: unknown;
   reservation_id: string;
   request_id: string;
   lease_token: string;
@@ -65,6 +72,8 @@ interface AIQuotaReservationRow {
 }
 
 export interface AIQuotaReservation {
+  /** Required by the identification RPC; absent for legacy/content admission. */
+  assignment?: IdentificationProviderAssignment;
   id: string;
   requestId: string;
   leaseToken: string;
@@ -80,8 +89,10 @@ export interface AIQuotaReservation {
   flashFallbackUsed: boolean;
 }
 
-export interface AIProviderQuotaLease {
-  reservation: AIQuotaReservation;
+export interface AIProviderQuotaLease<
+  Reservation extends AIQuotaReservation = AIQuotaReservation,
+> {
+  reservation: Reservation;
   commit(): Promise<void>;
   refund(): Promise<boolean>;
   fail(): Promise<boolean>;
@@ -231,6 +242,13 @@ async function quotaIpHash(req: Request): Promise<string> {
 export function quotaErrorForDatabaseMessage(
   databaseMessage: string,
 ): AIQuotaError {
+  if (databaseMessage.includes("ai_provider_assignment_unavailable")) {
+    return new AIQuotaError(
+      503,
+      "ai_quota_unavailable",
+      "AI service is temporarily unavailable.",
+    );
+  }
   if (databaseMessage.includes("ai_consent_required")) {
     return new AIQuotaError(
       403,
@@ -294,24 +312,46 @@ function singleReservationRow(data: unknown): AIQuotaReservationRow | null {
   return value as AIQuotaReservationRow;
 }
 
-export async function reserveAIQuota(
+interface AIQuotaInput {
+  userId: string;
+  operation: AIQuotaOperation;
+  requestId?: unknown;
+  originalAnalysisId?: string | null;
+  flashFallbackEligible?: boolean;
+  clientProtocol?: number | null;
+  internalReplay?: boolean;
+}
+
+export function reserveAIQuota(
   req: Request,
   supabaseAdmin: SupabaseClient,
-  input: {
-    userId: string;
-    operation: AIQuotaOperation;
-    requestId?: unknown;
-    originalAnalysisId?: string | null;
-    flashFallbackEligible?: boolean;
-    clientProtocol?: number | null;
-    internalReplay?: boolean;
-  },
+  input: AIQuotaInput,
 ): Promise<AIQuotaReservation> {
+  return reserveQuota(req, supabaseAdmin, input, "reserve_ai_quota");
+}
+
+async function reserveQuota(
+  req: Request,
+  supabaseAdmin: SupabaseClient,
+  input: AIQuotaInput,
+  rpcName: "reserve_ai_quota" | "reserve_identification_quota",
+): Promise<AIQuotaReservation> {
+  if (
+    rpcName === "reserve_identification_quota" &&
+    input.operation !== "scan_identification" &&
+    input.operation !== "scan_audio_identification"
+  ) {
+    throw new AIQuotaError(
+      503,
+      "ai_quota_unavailable",
+      "AI service is temporarily unavailable.",
+    );
+  }
   const requestId = resolveAIRequestId(req, input.requestId);
   const ipHash = await quotaIpHash(req);
   const { data, error } = await (async () => {
     try {
-      return await supabaseAdmin.rpc("reserve_ai_quota", {
+      return await supabaseAdmin.rpc(rpcName, {
         p_user_id: input.userId,
         p_operation: input.operation,
         p_request_id: requestId,
@@ -454,7 +494,27 @@ export async function reserveAIQuota(
     );
   }
 
+  // Old workers can own a legacy replay with no assignment snapshot. Such a
+  // result has already exited above as 409; it can never reach provider work.
+  let assignment: IdentificationProviderAssignment | undefined;
+  if (rpcName === "reserve_identification_quota") {
+    const candidate = {
+      provider: row.provider,
+      binding: row.binding,
+      permission: row.processor_permission,
+    };
+    if (!isIdentificationProviderAssignment(candidate)) {
+      throw new AIQuotaError(
+        503,
+        "ai_quota_unavailable",
+        "AI service is temporarily unavailable.",
+      );
+    }
+    assignment = Object.freeze(candidate);
+  }
+
   return {
+    ...(assignment ? { assignment } : {}),
     id: row.reservation_id,
     requestId: row.request_id,
     leaseToken: row.lease_token,
@@ -522,11 +582,13 @@ async function finalizeReservation(
   return true;
 }
 
-export function createAIProviderQuotaLease(
+export function createAIProviderQuotaLease<
+  Reservation extends AIQuotaReservation,
+>(
   supabaseAdmin: SupabaseClient,
   userId: string,
-  reservation: AIQuotaReservation,
-): AIProviderQuotaLease {
+  reservation: Reservation,
+): AIProviderQuotaLease<Reservation> {
   let finalState: "committed" | "failed" | "refunded" | null = null;
 
   return {
@@ -600,4 +662,37 @@ export async function reserveAIProviderCall(
     input.userId,
     reservation,
   );
+}
+
+/** Identification requires explicit database recipient/binding evidence. */
+export async function reserveIdentificationProviderCall(
+  req: Request,
+  supabaseAdmin: SupabaseClient,
+  input: AIQuotaInput & {
+    operation: "scan_identification" | "scan_audio_identification";
+  },
+): Promise<
+  AIProviderQuotaLease<
+    AIQuotaReservation & {
+      assignment: IdentificationProviderAssignment;
+    }
+  >
+> {
+  const reservation = await reserveQuota(
+    req,
+    supabaseAdmin,
+    input,
+    "reserve_identification_quota",
+  );
+  if (!reservation.assignment) {
+    throw new AIQuotaError(
+      503,
+      "ai_quota_unavailable",
+      "AI service is temporarily unavailable.",
+    );
+  }
+  return createAIProviderQuotaLease(supabaseAdmin, input.userId, {
+    ...reservation,
+    assignment: reservation.assignment,
+  });
 }

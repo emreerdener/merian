@@ -4105,8 +4105,8 @@ authorized anonymization context.
 
 Migration `20260723160229_enforce_server_ai_quotas.sql` adds four private
 tables. `PUBLIC`, `anon`, `authenticated`, and `service_role` have no direct
-table privileges; Edge code reaches them only through the two reviewed
-service-role definer RPCs.
+table privileges; Edge code reaches them only through reviewed service-role
+definer RPCs.
 
 - `internal.ai_quota_policies`: one row per `(operation, effective_plan)`.
   Stores enabled/allowed state, allowlisted model, policy version, daily bucket
@@ -4127,6 +4127,33 @@ service-role definer RPCs.
   reservation to each counter it consumed. Refund locks the reservation,
   decrements these counters once in the same daily/user/IP lock order used by
   reservation, removes zero rows, then removes the links.
+
+Migration `20260926142824_bind_identification_quota_to_provider.sql` adds two
+private, RLS-enabled tables with no direct API-role grants:
+
+- `internal.identification_provider_bindings`: one reviewed assignment per exact
+  `(operation, effective_plan, model, policy_version)`. Only enabled, allowed
+  existing identification policies seed Gemini/baseline/Gemini-permission rows.
+  A new policy version or assignment requires an explicit matching catalog row;
+  the catalog and quota model constraints still reject OpenAI.
+- `internal.identification_provider_attempts`: one insert-only application
+  snapshot per `(reservation_id, attempt_count)`, including operation, plan,
+  model, policy version, provider, binding and processor permission. A fresh
+  metered retry adds a generation instead of rewriting previous evidence. The
+  reservation foreign key cascades deletion under its existing retention and
+  account-cleanup rules. This is quota-attempt evidence, not permanent scan
+  provenance or a complete prompt/generation fingerprint.
+
+`reserve_identification_quota` is the service-only identification wrapper around
+existing eight-argument admission. It saves the exact assignment in the same
+transaction as quota/hold reservation; missing bindings or mismatches roll back
+all admission effects. The recipient-aware
+`internal.require_current_ai_consent(uuid,text)` accepts only `google_gemini`
+and delegates to the unchanged causal stream-head gate. A legacy in-progress or
+committed reservation with no snapshot returns replay plus null assignment
+fields, which cannot dispatch. Existing snapshots replay without consulting a
+new catalog binding; fresh attempts require a current exact match. All existing
+quota RPC signatures and user receipts remain compatible.
 
 Migration `20260809155517_add_scan_admission_preview.sql` exposes one narrow
 authenticated RPC, `public.get_my_scan_admission_preview(boolean)`, over this

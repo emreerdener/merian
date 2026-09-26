@@ -106,6 +106,7 @@ function database(
     requestId?: string;
     commitDenied?: boolean;
     consentDenied?: boolean;
+    wrongProvider?: boolean;
     setupFailed?: boolean;
     unknownInsert?: boolean;
     retired?: boolean;
@@ -142,7 +143,7 @@ function database(
             null,
             options.retired ? { message: "scan_user_identity_retired" } : null,
           );
-        case "reserve_ai_quota":
+        case "reserve_identification_quota":
           events.push("reserve");
           assertEquals(args.p_user_id, user.id);
           assertEquals(args.p_request_id, options.requestId ?? acceptedScanId);
@@ -151,6 +152,9 @@ function database(
             return response(null, { message: "ai_consent_required" });
           }
           return response({
+            provider: options.wrongProvider ? "openai" : "gemini",
+            binding: "gemini_baseline_v1",
+            processor_permission: "google_gemini",
             reservation_id: "00000000-0000-4000-8000-000000000301",
             request_id: options.requestId ?? acceptedScanId,
             lease_token: "00000000-0000-4000-8000-000000000401",
@@ -1100,6 +1104,18 @@ Deno.test("multimodal handler preserves admission, evidence and recovery through
         assertEquals(result.headers.get("X-Merian-Identification"), null);
         assertEquals(await result.json(), envelope);
         assertEquals(db.events, []);
+      },
+    );
+    await t.step(
+      "unapproved recipient stops before preparation or commitment",
+      async () => {
+        const db = database({ wrongProvider: true });
+        await assertRejects(
+          () => run(db, new Error("Must not invoke")),
+          Error,
+          "AI service is temporarily unavailable",
+        );
+        assertEquals(db.events, ["reserve"]);
       },
     );
     await t.step("consent denial has no provider preparation", async () => {

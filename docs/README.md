@@ -216,6 +216,10 @@ production submission or public release.
   No runtime blockers identified for the evaluation-only OpenAI adapter and
   controlled evaluator. Corrects original-phase documentation scope and records
   the remaining production admission, permission, confidence and rollout work.
+  The subsequent
+  [provider-bound admission slice](./rfcs/identification-provider-production-admission-2026-09-26.md)
+  adds exact database assignment and per-attempt evidence while production stays
+  on Gemini; OpenAI disclosure and permission are still pending.
 - **[Identification provider optimization plan](./rfcs/identification-provider-optimization-plan.md):**
   Shared measurement repairs are implemented with versioned mapping, reports and
   descriptive comparisons. Versioned baseline profiles and experiment-wide

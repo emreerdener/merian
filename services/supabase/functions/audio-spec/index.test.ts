@@ -40,7 +40,7 @@ Deno.test("audio-spec repairs prerequisites and returns success only after durab
     recovery,
   );
   const quota = source.indexOf(
-    "quotaLease = await reserveAIProviderCall(",
+    "quotaLease = await reserveIdentificationProviderCall(",
     profile,
   );
   const ingestion = source.indexOf("const runBackgroundIngestion = async");

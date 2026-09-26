@@ -2319,6 +2319,39 @@ only while the corresponding owner/scan job is unresolved
 states retain ordinary retention, and successful recovery or explicit operator
 resolution ends the exception.
 
+### Provider-bound identification reservations
+
+The four identification routes call `reserveIdentificationProviderCall` in
+`_shared/aiQuota.ts`, backed by service-only `reserve_identification_quota`.
+Other AI operations keep `reserve_ai_quota`. The new RPC accepts the same eight
+server-supplied parameters as existing admission and adds `provider`, `binding`
+and `processor_permission` to its result. There is no client provider, model,
+URL or binding selector, and the public Identify payload is unchanged.
+
+Admission records an exact database-owned assignment per reservation attempt.
+Only Gemini, `gemini_baseline_v1` and `google_gemini` are accepted. The Edge
+parser requires these values for fresh work; the AI registry independently
+checks the assignment and matching recipient permission before preparation.
+Missing, unknown or mismatched metadata fails closed with
+`503 ai_quota_unavailable` before commitment or dispatch. A missing catalog
+binding rolls back SQL reservation/counter/hold changes atomically. A malformed
+transport result cannot authorize inference; any uncommitted lease retains its
+existing expiry/refund recovery.
+
+An old worker's live or committed reservation can have no assignment record. The
+wrapper preserves that replay with null assignment fields and Edge returns its
+existing 409 before metadata validation. It never creates historical provider
+evidence or uses legacy metadata absence to dispatch. A newly metered retry gets
+a separate snapshot; completed scans still replay before admission. The
+[database schema](./04-database-schema.md#internalai_quota_policies-counters-and-reservations)
+owns the private catalog, recipient gate and retention contract.
+
+Apply migration `20260926142824_bind_identification_quota_to_provider.sql`
+before deploying the new Edge callers through the existing exact-SHA release
+procedure. A missing RPC has no fallback to legacy admission. Existing workers
+remain compatible with the additive migration. This source change neither
+collects OpenAI consent nor enables OpenAI production traffic.
+
 ### Scan response replay
 
 The `identify-multimodal`, `identify-describe`, `identify`, and `audio-spec`

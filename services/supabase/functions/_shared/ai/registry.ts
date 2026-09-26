@@ -3,6 +3,7 @@ import type {
   AIExecutionAuthority,
   AIRequest,
 } from "./contracts.ts";
+import { isIdentificationProviderAssignment } from "./admission.ts";
 import { diagnosticTriggerForTier } from "../identify/thresholds.ts";
 import { resolveContentClaim } from "./contentRegistry.ts";
 
@@ -82,7 +83,10 @@ export function resolveAIClaim(
   if (
     authority.kind !== "user_request" ||
     authority.operation !== operation ||
-    authority.permission !== "google_gemini" || !authority.userId ||
+    authority.permission !== "google_gemini" ||
+    !isIdentificationProviderAssignment(authority.reservation.assignment) ||
+    authority.permission !== authority.reservation.assignment.permission ||
+    !authority.userId ||
     !authority.reservation.id || !authority.reservation.requestId ||
     !Number.isSafeInteger(authority.reservation.attemptCount) ||
     authority.reservation.attemptCount < 1 ||

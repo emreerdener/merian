@@ -4,6 +4,8 @@ import type {
   VisualMediaDescriptor,
 } from "../../identify-multimodal/capturedMedia.ts";
 
+import type { IdentificationProviderAssignment } from "./admission.ts";
+
 export type AITask =
   | "identify"
   | "species_overview"
@@ -19,6 +21,8 @@ export interface UserRequestAuthority {
   readonly permission: "google_gemini";
   readonly operation: string;
   readonly reservation: {
+    /** Identification requires this; content keeps its existing admission. */
+    readonly assignment?: IdentificationProviderAssignment;
     readonly id: string;
     readonly requestId: string;
     readonly attemptCount: number;

@@ -21,7 +21,7 @@ Deno.test("describe repairs prerequisites and acknowledges only durable scans", 
     recovery,
   );
   const quota = source.indexOf(
-    "quotaLease = await reserveAIProviderCall(",
+    "quotaLease = await reserveIdentificationProviderCall(",
     profile,
   );
   const ingestion = source.indexOf("const runDurableIngestion = async");

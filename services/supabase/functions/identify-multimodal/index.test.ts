@@ -352,7 +352,7 @@ Deno.test("payload guard runs before complimentary reservation and ignores empty
   );
   const guard = source.indexOf("resolvedImageBase64s.length === 0");
   const reservation = source.indexOf(
-    "quotaLease = await reserveAIProviderCall(",
+    "quotaLease = await reserveIdentificationProviderCall(",
   );
   assert(guard >= 0 && reservation > guard);
   assert(source.includes("descriptionCount: observationEvidenceTexts.length"));
@@ -761,7 +761,7 @@ Deno.test("completed scan retries replay before staging or AI provider work", as
     generatedScanId,
   );
   const quotaReservation = source.indexOf(
-    "quotaLease = await reserveAIProviderCall(",
+    "quotaLease = await reserveIdentificationProviderCall(",
     generatedScanId,
   );
 
@@ -808,7 +808,7 @@ Deno.test("scan profile prerequisite fails before quota or provider work and rec
     "await upsertGhostUserIfMissing(user.id, supabaseAdmin);",
   );
   const quotaReservation = source.indexOf(
-    "quotaLease = await reserveAIProviderCall(",
+    "quotaLease = await reserveIdentificationProviderCall(",
   );
   const ingestionClaim = source.indexOf(
     "const atomicIngestion = await beginScanIngestion(",
@@ -844,7 +844,7 @@ Deno.test("concurrent AI retries wait for the exact owner completion instead of 
     new URL("./index.ts", import.meta.url),
   );
   const quotaReservation = source.indexOf(
-    "quotaLease = await reserveAIProviderCall(",
+    "quotaLease = await reserveIdentificationProviderCall(",
   );
   const completionWait = source.indexOf(
     "const replay = await waitForCompletedIdentifyResponse(",
@@ -880,7 +880,7 @@ Deno.test("main identification uses one admitted shared-provider invocation", as
       "prepare = prepareAIExecution",
       "const execution = prepare(aiRequest, {",
       'kind: "user_request"',
-      'permission: "google_gemini"',
+      "permission: quotaLease.reservation.assignment.permission",
       'operation: "scan_identification"',
       "reservation: quotaLease.reservation",
       "await quotaLease.commit();",

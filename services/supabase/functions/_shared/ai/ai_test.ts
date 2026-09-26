@@ -42,6 +42,11 @@ function authority(model = "gemini-2.5-flash"): UserRequestAuthority {
     permission: "google_gemini",
     operation: "scan_identification",
     reservation: {
+      assignment: {
+        provider: "gemini",
+        binding: "gemini_baseline_v1",
+        permission: "google_gemini",
+      },
       id: "synthetic-reservation",
       requestId: "synthetic-request",
       attemptCount: 1,
@@ -931,5 +936,37 @@ Deno.test("AI Gemini adapter preserves dispatch, usage, finish and timeout behav
       if (value == null) Deno.env.delete(name);
       else Deno.env.set(name, value);
     }
+  }
+});
+
+Deno.test("identification registry rejects missing or mismatched database recipient assignments", () => {
+  for (
+    const assignment of [undefined, {
+      provider: "openai",
+      binding: "gemini_baseline_v1",
+      permission: "google_gemini",
+    }, {
+      provider: "gemini",
+      binding: "unapproved",
+      permission: "google_gemini",
+    }, {
+      provider: "gemini",
+      binding: "gemini_baseline_v1",
+      permission: "openai",
+    }]
+  ) {
+    const admitted = authority();
+    assertThrows(
+      () =>
+        prepareAIExecution(request, {
+          ...admitted,
+          reservation: {
+            ...admitted.reservation,
+            assignment: assignment as never,
+          },
+        }),
+      Error,
+      "ai_authority_mismatch",
+    );
   }
 });

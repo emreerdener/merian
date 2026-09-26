@@ -17,11 +17,18 @@ still use Gemini; see the
   appropriate. `service_job` supports claimed public-fact work and is rejected
   for identification. These types carry existing admission decisions; they do
   not authenticate callers or validate job claims.
-- `registry.ts` resolves the fixed `gemini_baseline_v1` binding from the
-  quota-selected model and, where applicable, the admitted tier. It checks task,
-  representation, operation, Gemini permission dependency, and reservation
-  metadata before commitment. No client field, environment variable, provider
-  name, or URL can select another adapter.
+- `admission.ts` defines the closed identification assignment returned by the
+  service-only `reserve_identification_quota` RPC. The four identification
+  callers require its database-owned provider, binding and recipient permission;
+  missing or unknown assignment metadata cannot authorize fresh work. Durable
+  quota-attempt snapshots preserve each metered generation. See the
+  [admission contract](../../../../../docs/backend-and-data/05-api-contracts.md#provider-bound-identification-reservations).
+- `registry.ts` independently checks that identification assignment and resolves
+  the fixed `gemini_baseline_v1` binding from the quota-selected model and,
+  where applicable, the admitted tier. It checks task, representation,
+  operation, Gemini permission dependency, and reservation metadata before
+  commitment. No client field, environment variable, provider name, or URL can
+  select another adapter.
 - `contentRegistry.ts` binds the three content tasks to their existing quota
   operations and generation settings. User authority carries its admitted model,
   permission, and reservation. Service authority carries a claimed job, matching
