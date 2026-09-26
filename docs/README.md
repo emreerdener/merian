@@ -217,9 +217,12 @@ production submission or public release.
   descriptive comparisons. Versioned baseline profiles and experiment-wide
   budgets/stops are implemented. The first candidate is concise OpenAI
   explanations, with implemented delegated AI review, optional owner review and
-  uncached profiles for a 16-request comparison. The real packet is prepared;
-  execution approval and the paid comparison remain pending. Includes the later
-  production qualification path; production remains Gemini.
+  uncached profiles for a 16-request comparison. The
+  [26 September screen](./rfcs/identification-openai-concise-screen-2026-09-26.md)
+  stopped after one reference-matching control result because explanation facts
+  did not cover lookalike comparisons; 15 assignments remain unattempted and the
+  concise candidate is deferred. Includes the later production qualification
+  path; production remains Gemini.
 - **Identification evaluation readiness:**
   [PRD](./product/04-identification-evaluation-prd.md) and
   [SRD](./rfcs/identification-evaluation-srd.md) plan the next milestone: an

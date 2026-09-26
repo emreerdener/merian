@@ -3,8 +3,8 @@
 Date: 25 September 2026; implementation updated 26 September 2026\
 Status: Shared measurement, experiment controls, uncached OpenAI
 control/candidate profiles and the private explanation reviewer implemented
-locally; real packet prepared, delegated AI review implemented, paid comparison
-pending\
+locally; delegated AI review implemented; first paid screen closed inconclusive
+after one control result, concise candidate deferred\
 Scope: Shared identification foundation, OpenAI photo/text tuning, and Gemini
 photo/text tuning, with a later path to qualified production use
 
@@ -16,10 +16,12 @@ preparation, result interpretation and measurement. Each adapter owns the
 settings needed to use its model effectively. Measure improvements for each
 provider; a beneficial change does not automatically transfer to another model.
 
-The next goal is a fair, bounded comparison that identifies worthwhile
-photo/text improvements. Production continues to use Gemini. This plan does not
-activate OpenAI, alter production Gemini settings, authorize another paid run,
-or qualify a provider for production.
+The first bounded brevity screen is
+[closed as inconclusive](./identification-openai-concise-screen-2026-09-26.md)
+after one control result exposed incomplete explanation references. Retain the
+existing profile and defer this optional optimization. Production continues to
+use Gemini. This plan does not activate OpenAI, alter production Gemini
+settings, authorize another paid run, or qualify a provider for production.
 
 The
 [alternative-provider guide](../development-guides/22-alternative-identification-provider.md)
@@ -718,15 +720,14 @@ support and pricing when preparing a candidate:
   Use the documentation for the deployed SDK/API; examples for a different API
   do not establish compatibility with the current `generateContent` adapter.
 
-Next step after the offline gates pass: prepare and review the real eight-case,
-16-request packet, its taxonomy/fact cards, current pricing and bounded budget.
-Use the delegated assistant review mode for this development screen; owner
-practice is not a prerequisite. Freeze the delegation, fact cards and review
-method with live readiness. A human-selected v2 comparison still requires its
-own actual-owner calibration. Dispatch follows only after approval of that exact
-paid comparison. Different-provider costs remain descriptive totals until paired
-rate-card comparability is explicitly reviewed. No new paid comparison or
-production activation has been performed.
+The real eight-case packet, taxonomy, fact cards, pricing and USD 86 ceiling
+were reviewed and frozen with delegated AI review. The authorized run completed
+one control request before the reference-coverage stop documented below. There
+is no automatic next paid comparison. A future brevity test needs prospective
+facts covering all assessed explanation fields, frozen before dispatch, while
+preserving this result unchanged. Owner practice is not a prerequisite for the
+delegated path. Different-provider costs remain descriptive totals until paired
+rate-card comparability is explicitly reviewed.
 
 ## Single-session execution — 26 September 2026
 
@@ -740,3 +741,22 @@ assistant performs the delegated assessment; no further owner practice is
 required. Actual dispatch still requires the private readiness records and
 matching key. The private packet retains the exact approval and execution
 window; this document does not substitute for those records.
+
+## Recorded outcome — 26 September 2026
+
+The
+[bounded outcome record](./identification-openai-concise-screen-2026-09-26.md)
+closes this screen as inconclusive: one saguaro control result agreed with the
+provisional reference, took 7.067 seconds at the provider boundary and has a
+rate-aware estimated cost of USD 0.024711. The assistant could not assess
+lookalike-species claims from the frozen reference card; grounding is
+`not_assessable / insufficient_reference`, while decision reason and uncertainty
+pass. The controller's broader `explanation_quality_failed` stop code must be
+interpreted with those ratings. The other 15 assignments remain unattempted;
+there was no retry or concise-candidate call.
+
+Retain the existing OpenAI profile and defer the brevity optimization. Review
+and package the modular provider implementation on its own evidence. Any later
+production assignment still requires its existing qualification and release
+controls. No claim about a prompt winner, a provider winner or independently
+validated explanation quality follows from this screen.

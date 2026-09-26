@@ -317,10 +317,15 @@ Only candidate live runs add loopback and fixed macOS opener permissions. Any
 cache anomaly or missing/failed review stops remaining calls while preserving
 completed results and cost. Reports apply the frozen latency/quality gates and
 remain unqualified. Standalone candidate dispatch is blocked. Offline synthetic
-validation establishes mechanics only. A real eight-case draft has been
-prepared, and the owner approved its 16-request/$86 maximum on 26 September
-2026. Secure key entry, live cache support and the actual paid comparison remain
-pending. Delegation does not authorize spending or production activation.
+validation establishes mechanics only. The owner approved the real eight-case,
+16-request/$86 comparison on 26 September 2026. Its
+[outcome record](../rfcs/identification-openai-concise-screen-2026-09-26.md)
+closes the screen as inconclusive after one control result: identification
+matched the provisional reference and observed cache counters were zero, but
+lookalike claims could not be assessed against the frozen facts. Fifteen
+assignments remain unattempted; retain the existing profile and defer the
+concise candidate. The single result does not establish general cache support or
+qualify production use.
 
 ## Later production assignment
 
