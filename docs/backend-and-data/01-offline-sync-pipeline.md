@@ -1002,6 +1002,16 @@ as needs-attention on the first attempt. That code deliberately shares the
 completed-result prefix, so relaunch, orphan reconciliation, and manual retry
 continue to treat the scan as server-owned and can never redispatch Identify.
 
+An exact PostgREST `PT426` / `client_update_required` response produces a
+separate `clientUpdateRequired` outcome after the account-lease check. It skips
+full-history fallback and records `server_result_local_recovery_update_required`
+as needs-attention. The shared update coordinator pauses subsequent history
+reads for that account and installed build. Same-build manual retry reopens the
+update prompt without claiming funding or resetting attempts. A changed
+installed release/build lets history retry automatically; saved identification
+scans require explicit retry from Scans. Completed-result retries retain server
+ownership throughout.
+
 **`ScanQueueState` enum (SchemaV33)**: `OfflineQueuedScan` uses a single
 `scanStateRaw: Int` column (added in V32→V33 custom migration, replacing the old
 `isUploaded: Bool` + `isDeleted: Bool` pair) to encode all pipeline states:

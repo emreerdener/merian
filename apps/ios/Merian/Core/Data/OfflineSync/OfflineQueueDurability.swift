@@ -285,6 +285,8 @@ extension OfflineQueueManager {
         }
         guard let scan else { return false }
         guard scan.queueState != .externalImport else { return false }
+        guard appUpdateCoordinator?.blocksRetry(errorCode: scan.queueLastErrorCode) != true,
+              appUpdateCoordinator?.blocksRetry(errorCode: job?.lastErrorCode) != true else { return false }
 
         let snapshot = scan.capturedMediaSnapshot
         var newlyClaimedFunding: ScanFundingReservation?

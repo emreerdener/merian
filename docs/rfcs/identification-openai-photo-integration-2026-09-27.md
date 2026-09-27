@@ -205,6 +205,24 @@ is no SwiftData migration or rewrite of existing provider/confidence facts. The
 [API contract](../backend-and-data/05-api-contracts.md#identification-result-readers)
 owns the exact request and error semantics.
 
+## Update-required UX slice
+
+The native app now has one **Update Naturebook** prompt for exact identification
+and history compatibility denials. **Update app** opens the verified Naturebook
+App Store listing; **Not now** retains local access and the pause. The
+account/build-scoped record prevents repeat history reads and same-build manual
+retry loops, including completed-result recovery. Opening the store is not an
+update acknowledgement. After a changed installed release/build, history retries
+automatically and saved scans can be retried explicitly without losing their
+completed-result ownership. The shared root defers behind deletion recovery,
+Apple cleanup, and onboarding.
+
+This adds no provider activation, database migration, quota change, or automatic
+paid rerun. Public availability of a compatible release and the previous-build
+upgrade check remain release prerequisites. Already installed old binaries
+cannot gain this prompt remotely. See the
+[presentation contract](../system-architecture/10-event-and-presentation-routing.md#update-required-presentation).
+
 ## Video snapshots as an additional visual route
 
 The product captures about five seconds and sends five ordered image snapshots,

@@ -18,14 +18,17 @@ final class ScanRepository {
     // MARK: - Dependencies
 
     private let offlineQueue = OfflineQueueManager.shared
-    private let historicalCloudClient = HistoricalSyncCloudClient.live
+    private let historicalCloudClient: HistoricalSyncCloudClient
+    var appUpdateCoordinator: AppUpdateCoordinator?
     private let mediaRecoveryRegistrationService =
         ScanMediaRecoveryRegistrationService()
     private var mediaRecoveryRegistrationTask: Task<Void, Never>?
 
     // MARK: - Lifecycle
 
-    private init() {}
+    init(historicalCloudClient: HistoricalSyncCloudClient = .live) {
+        self.historicalCloudClient = historicalCloudClient
+    }
 
     /// Injects the SwiftData context and seeds the default "Favorites" collection if absent.
     ///
@@ -149,6 +152,7 @@ final class ScanRepository {
             historicalCloudClient.finishAccountWork(accountWorkLease)
         }
         let userId = accountWorkLease.session.userID.uuidString
+        guard appUpdateCoordinator?.requiresUpdate(.history, accountID: accountWorkLease.session.userID) != true else { return }
         var didChangeExploreShareState = false
 
         do {
@@ -272,6 +276,7 @@ final class ScanRepository {
             if totalNewRecords > 0 {
                 MerianLog.data.debug("✅ Merian Sync: Restored \(totalNewRecords, privacy: .public) new historical records.")
             }
+            appUpdateCoordinator?.historySucceeded(accountID: accountWorkLease.session.userID)
             Task { @MainActor in
                 AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged)
             }
@@ -294,6 +299,10 @@ final class ScanRepository {
                     .exploreShareStateReconciled
                 )
             }
+            if historicalCloudClient.isAccountWorkCurrent(accountWorkLease),
+               ClientUpdateRequiredPolicy.matches(error) {
+                appUpdateCoordinator?.record(.history, accountID: accountWorkLease.session.userID)
+            }
             MerianLog.data.error("🚨 Failed reconciling historical scans from Supabase: \(error, privacy: .private)")
         }
     }
@@ -311,6 +320,7 @@ final class ScanRepository {
             historicalCloudClient.finishAccountWork(accountWorkLease)
         }
         let userId = accountWorkLease.session.userID.uuidString
+        guard appUpdateCoordinator?.requiresUpdate(.history, accountID: accountWorkLease.session.userID) != true else { return .clientUpdateRequired }
         let exploreShareStateSnapshot = ExploreShareStateStore
             .makeReconciliationSnapshot()
 
@@ -325,6 +335,11 @@ final class ScanRepository {
         } catch is CancellationError {
             return .transientFailure
         } catch {
+            guard historicalCloudClient.isAccountWorkCurrent(accountWorkLease) else { return .transientFailure }
+            if ClientUpdateRequiredPolicy.matches(error) {
+                appUpdateCoordinator?.record(.history, accountID: accountWorkLease.session.userID)
+                return .clientUpdateRequired
+            }
             MerianLog.data.error(
                 "syncHistoricalScanDown: targeted fetch failed scanId=\(scanId, privacy: .public)"
             )

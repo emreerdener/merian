@@ -425,6 +425,7 @@ struct CoreDataIntegrationArchitectureTests {
         "HistoricalScanIngestionTests.swift",
         "HistoricalScanReconciliationTests.swift",
         "HistoricalSyncPolicyTests.swift",
-        "HistoricalSyncCloudClientTests.swift"
+        "HistoricalSyncCloudClientTests.swift",
+        "HistoricalSyncUpdateRequiredTests.swift"
     ]
 }

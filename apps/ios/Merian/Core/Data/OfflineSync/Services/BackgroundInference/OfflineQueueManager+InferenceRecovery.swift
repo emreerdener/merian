@@ -5,6 +5,7 @@ private enum CompletedServerResultHydrationOutcome: Equatable, Sendable {
     case recovered
     case retryable
     case contractMismatch
+    case clientUpdateRequired
 }
 
 extension OfflineQueueManager {
@@ -259,9 +260,16 @@ extension OfflineQueueManager {
                     expectedGeneration: expectedGeneration,
                     serverPollToken: serverPollToken
                 )
-            case .contractMismatch:
-                let didPause = markCompletedServerResultContractMismatch(
-                    scanId: scanId
+            case .contractMismatch, .clientUpdateRequired:
+                let message = hydrationOutcome == .clientUpdateRequired
+                    ? BackgroundInferencePolicy.clientUpdateAttentionMessage
+                    : Self.completedServerResultContractMismatchMessage
+                let didPause = markQueuedScanNeedsAttention(
+                    scanId: scanId,
+                    code: hydrationOutcome == .clientUpdateRequired
+                        ? "server_result_local_recovery_update_required"
+                        : Self.completedServerResultContractMismatchCode,
+                    message: message
                 )
                 guard didPause else {
                     return await deferCompletedServerResultRecovery(
@@ -274,9 +282,7 @@ extension OfflineQueueManager {
                     scanId: scanId,
                     preservingPollToken: serverPollToken
                 )
-                return .terminalFailure(
-                    Self.completedServerResultContractMismatchMessage
-                )
+                return .terminalFailure(message)
             }
         case .waitForServer(let delay):
             scheduleServerIngestionPoll(
@@ -365,6 +371,7 @@ extension OfflineQueueManager {
             return .retryable
         }
 
+        if targetedSyncOutcome == .clientUpdateRequired { return .clientUpdateRequired }
         guard targetedSyncOutcome != .contractMismatch else {
             MerianLog.data.error(
                 "recoverCompletedInferenceFromServer: completed cloud row violates the captured-media contract scanId=\(scanId, privacy: .public)"

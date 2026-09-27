@@ -7,6 +7,7 @@ struct AccountScopedPreferencesTests {
     @Test func purgeInventoryClassifiesEveryDirectAccountCache() {
         #expect(AccountScopedPreferences.cacheKeyPrefixes == [
             UserDefaultsKeys.captureGoalContextPrefix,
+        UserDefaultsKeys.clientUpdateRequirementPrefix,
             UserDefaultsKeys.firstFieldTripAchievementProgressPrefix,
             UserDefaultsKeys.dismissedUnavailableMediaOverviewSignaturePrefix,
             UserDefaultsKeys

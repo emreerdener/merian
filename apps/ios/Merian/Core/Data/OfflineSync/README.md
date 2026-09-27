@@ -596,3 +596,12 @@ examples; it is not integration evidence. Focused policy and source-architecture
 tests supplement rather than replace the integrated suites. Run the
 [canonical live inference and offline-queue matrix](../../../../../../docs/development-guides/08-testing-strategy.md#live-inference-requestresult-verification)
 against freshly built products, then run the complete `merianTests` target.
+
+Exact `client_update_required` denials retain queued media and present the
+shared app update prompt. Manual retry on the same blocked build reopens that
+prompt without resetting attempts or claiming funding. Completed-result
+hydration uses `server_result_local_recovery_update_required`, preserving the
+completed-owner prefix and stopping the full-history fallback and recovery
+polling. Updating the app permits an explicit retry from Scans; it does not
+automatically start paid identifications. See the
+[compatibility recovery contract](../../../../../docs/backend-and-data/01-offline-sync-pipeline.md).

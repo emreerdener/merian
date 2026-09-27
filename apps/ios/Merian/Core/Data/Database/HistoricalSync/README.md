@@ -86,3 +86,12 @@ must update to hydrate newer cloud results. This is separate from malformed-row
 quarantine and does not hide rows or rewrite metadata. The
 [result-reader contract](../../../../../../../docs/backend-and-data/05-api-contracts.md#identification-result-readers)
 owns rollout and rollback requirements.
+
+`ScanRepository` recognizes only exact PostgREST `PT426` /
+`client_update_required` failures after rechecking the account lease. It records
+the shared update requirement and skips further history reads on that installed
+build. A targeted read returns `clientUpdateRequired`, separately from transient
+transport or row-decoding failures. `HistoricalSyncUpdateRequiredTests` covers
+lease fencing, repeat-read suppression, retained local work, and server-owned
+retry pauses. History resumes after a different installed release/build; paused
+identification scans remain available for explicit retry.

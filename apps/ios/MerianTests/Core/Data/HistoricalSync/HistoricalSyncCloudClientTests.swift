@@ -28,6 +28,26 @@ struct HistoricalSyncCloudClientTests {
         #expect(record == Data("[]".utf8))
     }
 
+    @Test func sdkCompatibilityFailureMatchesTheNativeClassifier() async throws {
+        let transport = ScopedMockTransport()
+        let session = transport.makeSession()
+        defer { session.invalidateAndCancel() }
+        transport.register(path: "/rest/v1/scans") { request in
+            let url = try #require(request.url)
+            return (
+                try #require(HTTPURLResponse(url: url, statusCode: 426, httpVersion: nil, headerFields: nil)),
+                Data(#"{"code":"PT426","message":"client_update_required","details":null,"hint":"Update the app"}"#.utf8)
+            )
+        }
+        let client = MerianSupabaseClientFactory.makeClient(session: session)
+        do {
+            _ = try await client.from("scans").select("id").execute().data
+            Issue.record("Expected the SDK to surface the compatibility denial")
+        } catch {
+            #expect(ClientUpdateRequiredPolicy.matches(error))
+        }
+    }
+
     @Test func forwardsLeaseAndRequestValuesThroughInjectedHandlers() async throws {
         let lease = AccountBoundWorkLease(
             id: UUID(),

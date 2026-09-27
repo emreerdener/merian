@@ -166,6 +166,17 @@ struct MerianApp: App {
         }
     }
 
+    private var rootAlertRequest: AppRootAlert? {
+        AppRootAlertPolicy.next(
+            hasUsableStore: container != nil,
+            isAccountDeletionPending: isAccountDeletionRecoveryPending,
+            needsAppleRevocation: isShowingManualAppleRevocationNotice,
+            isWorkspaceReady: diContainer.appSettings.hasCompletedOnboarding
+                && diContainer.consentManager.hasCurrentRequiredConsent,
+            needsAppUpdate: diContainer.appUpdateCoordinator.showsPrompt
+        )
+    }
+
     // MARK: - Scene Hierarchy
     var body: some Scene {
         WindowGroup {
@@ -232,6 +243,7 @@ struct MerianApp: App {
             )
             .onAppear {
                 applyTheme(appSettings.themeMode)
+                diContainer.appUpdateCoordinator.refresh()
                 isShowingManualAppleRevocationNotice =
                     ManualAppleRevocationNoticeStore.isPending()
                 guard !TestExecutionCoordinator.isRunningTests,
@@ -285,24 +297,27 @@ struct MerianApp: App {
                     retryIndex += 1
                 }
             }
-            .alert(
-                "Finish Sign in with Apple Cleanup",
-                isPresented: $isShowingManualAppleRevocationNotice
-            ) {
-                Button("Open Apple Instructions") {
-                    guard let url = URL(
-                        string: "https://support.apple.com/102571"
-                    ) else { return }
-                    UIApplication.shared.open(url)
-                }
-                Button("I Revoked Access") {
-                    ManualAppleRevocationNoticeStore.resolve()
-                }
-            } message: {
-                Text(
-                    "Your Naturebook deletion is already continuing. Because this Apple-linked account predates automatic token revocation, open Settings > [your name] > Sign in with Apple > Naturebook, then choose Delete or Stop Using. You can also follow Apple’s web instructions."
-                )
+            .onChange(of: diContainer.supabaseManager.currentUser?.id) { _, _ in
+                diContainer.appUpdateCoordinator.refresh()
             }
+            .modifier(AppRootAlertHost(
+                request: rootAlertRequest,
+                openAppleInstructions: {
+                    isShowingManualAppleRevocationNotice = false
+                    if let url = URL(string: "https://support.apple.com/102571") {
+                        UIApplication.shared.open(url)
+                    }
+                },
+                resolveAppleRevocation: {
+                    ManualAppleRevocationNoticeStore.resolve()
+                    isShowingManualAppleRevocationNotice = false
+                },
+                updateApp: {
+                    diContainer.appUpdateCoordinator.dismiss()
+                    UIApplication.shared.open(AppUpdatePresentation.appStoreURL)
+                },
+                dismissUpdate: { diContainer.appUpdateCoordinator.dismiss() }
+            ))
             .onOpenURL { url in
                 switch MerianOpenURLRoute.classify(
                     url,

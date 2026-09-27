@@ -83,3 +83,10 @@ presentation switch. Profile, Settings, and explicit purchase-continuity
 recovery invoke the `showSignOutConfirmation` environment callback only after
 success; the shared top toast remains mounted when consent onboarding replaces
 the workspace. The callback does not alter Auth or consent state.
+
+`Lifecycle/AppUpdateCoordinator` owns the account/build-scoped compatibility
+pause and prompt dismissal state. The root uses `Presentation/AppRootAlertHost`
+and one `AppRootAlertPolicy` to defer the update prompt behind account-deletion
+recovery, Apple-revocation cleanup, and onboarding. The App Store action does
+not clear the pause; see the
+[update-required UX contract](../../../../docs/system-architecture/10-event-and-presentation-routing.md#update-required-presentation).
