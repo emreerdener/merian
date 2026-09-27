@@ -2605,27 +2605,35 @@ API visibility; they contain no evidence or owner/attempt identifiers. Client
 exact server-owned backup, and legacy/no-backup results remain null. Fresh
 Identify envelopes now include optional `data.identification_provenance` from
 that same admitted execution snapshot. The executable contract and generated
-Swift DTO own its closed version-1 shape: bounded provider/binding/model,
+Swift DTO own its closed versioned shape: bounded provider/binding/model,
 variant/operation/policy, prompt/schema/confidence references, nullable
 diagnostic and safety settings, timeout, and generation settings. The value
-contains no observation or personal data and never enters the model-output
-schema. Omission means legacy; an explicitly null or malformed Identify field is
-rejected. Required nullable settings retain explicit null when decoded and
-re-encoded. Stored envelopes retain their original metadata or original
-omission. Older completed jobs reconstruct from the immutable owner scan column;
-null/missing columns omit the field, while damaged present metadata fails
-validation. Neither path consults today's provider assignment or makes an
-inference request.
+preserves the exact five-field Gemini generation object in version 1. Version 2
+uses provider `openai` and an exact three-field generation object:
+`max_output_tokens`, `reasoning_effort`, `image_detail`. The generated decoder
+selects the version before decoding its generation object; unknown versions,
+mixed settings and extra keys fail. V2 is preparation only: all deployed
+assignments remain Gemini, and future admission must require a new supported
+client protocol before emitting V2. No current client protocol is promoted by
+this decoder change. The value contains no observation or personal data and
+never enters the model-output schema. Omission means legacy; an explicitly null
+or malformed Identify field is rejected. Required nullable settings retain
+explicit null when decoded and re-encoded. Stored envelopes retain their
+original metadata or original omission. Older completed jobs reconstruct from
+the immutable owner scan column; null/missing columns omit the field, while
+damaged present metadata fails validation. Neither path consults today's
+provider assignment or makes an inference request.
 
 Owner history selects the same column. SwiftData V52 stores its content-free
 JSON bytes in optional `LocalScanRecord.identificationProvenanceData`; V51 rows
 migrate to nil. Missing legacy cloud metadata cannot erase an existing value.
-Malformed history rows remain quarantined with raw-row pagination intact.
-Recognized exact Gemini profiles retain the existing confidence presentation;
-unknown or damaged present profiles use neutral review guidance. Absence keeps
-legacy behavior. This compatibility rule is not empirical calibration, and
-public Explore suggestion projections still require separate qualification
-before another provider is enabled. See the
+Malformed history rows remain quarantined with raw-row pagination intact. Both
+versions use the existing V52 opaque JSON storage; this adds no SwiftData schema
+version or data migration. Recognized exact V1 Gemini profiles retain the
+existing confidence presentation; unknown or damaged present profiles use
+neutral review guidance. Absence keeps legacy behavior. This compatibility rule
+is not empirical calibration, and public Explore suggestion projections still
+require separate qualification before another provider is enabled. See the
 [server provenance record](../rfcs/identification-provider-result-provenance-2026-09-26.md)
 and
 [client integration record](../rfcs/identification-client-result-provenance-2026-09-26.md)

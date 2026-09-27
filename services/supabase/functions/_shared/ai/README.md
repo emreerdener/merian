@@ -88,8 +88,10 @@ their distinct terminal/retryable responses.
 versioned value saved with the scan by all four identification producers. It
 records the requested model, binding, prompt/schema/confidence references,
 policy version, variant, operation, thresholds, safety profile, timeout and
-generation settings. Unset settings are explicit nulls. It never serializes
-model output, returned model text, observation context, media, owner/attempt
+generation settings. V1 preserves Gemini's five generation fields and explicit
+nulls. V2 records OpenAI `max_output_tokens`, `reasoning_effort` and
+`image_detail`, without manufacturing Gemini settings. It never serializes model
+output, returned model text, observation context, media, owner/attempt
 identifiers or timing.
 
 Migration `20260926160249_persist_identification_result_provenance.sql`
@@ -114,6 +116,14 @@ and
 [client record](../../../../../docs/rfcs/identification-client-result-provenance-2026-09-26.md)
 for rollout order, compatibility and remaining activation work.
 
+Migration `20260927165545_accept_openai_identification_provenance_v2.sql`
+extends only the pure bounded validator. V1, recovery/immutability triggers,
+privileges and existing rows remain unchanged. Generated Swift decodes by
+version, rejects cross-version settings and preserves both versions in the
+existing opaque V52 storage. V2 receives no Gemini confidence or metric bands.
+Future admission must require a client protocol that can decode V2 before any
+OpenAI production result is emitted.
+
 ## Alternative-provider evaluation
 
 `openaiRequest.ts` and `openai.ts` implement an evaluation-only `gpt-6-sol`
@@ -127,6 +137,15 @@ and never inherits Gemini bands. No deployed entrypoint imports this adapter.
 See the
 [alternative-provider guide](../../../../../docs/development-guides/22-alternative-identification-provider.md)
 for permissions, pricing/usage mapping, offline demo and live comparison scope.
+
+`openaiPhoto.ts` separately prepares the dormant `openai_photo_v1` profile.
+`createOpenAIPhotoAdapter` reuses the bounded transport, adding pinned inline
+input/output moderation to one request and releasing a draft only after its
+native safety policy allows it. Moderation rejection remains a refusal even if
+generated JSON is invalid. Missing evidence cannot become Gemini safety ratings.
+No registry/admission entry or deployed composition selects this binding; see
+the
+[safety contract](../../../../../docs/development-guides/10-safety-and-moderation.md#dormant-openai-photo-policy).
 
 ## Scoped audio prompt authority
 

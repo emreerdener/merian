@@ -610,9 +610,11 @@ Deno.test("OpenAI dispatch stays outside production composition and its offline 
     if (/(?:_test|[.]test)[.]ts$/.test(file.pathname)) continue;
     const source = await Deno.readTextFile(file);
     if (/from ["'][^"']*openai(?:Request)?[.]ts["']/.test(source)) {
-      assertEquals(
-        file.pathname,
-        new URL("_shared/ai/openai.ts", root).pathname,
+      assert(
+        ["_shared/ai/openai.ts", "_shared/ai/openaiPhoto.ts"].some((path) =>
+          file.pathname === new URL(path, root).pathname
+        ),
+        "Only dormant OpenAI adapters may import the provider request builder",
       );
     }
   }
@@ -626,5 +628,9 @@ Deno.test("OpenAI dispatch stays outside production composition and its offline 
   assertStringIncludes(
     workflow,
     "supabase/functions/_shared/ai/openai_test.ts",
+  );
+  assertStringIncludes(
+    workflow,
+    "supabase/functions/_shared/ai/openaiPhoto_test.ts",
   );
 });

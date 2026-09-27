@@ -114,7 +114,10 @@ adapter/binding cannot bypass that boundary. OpenAI's evaluation score is
 unqualified, and absent Gemini ratings provide no OpenAI media-safety verdict.
 See the
 [photo integration plan](../../../../../docs/rfcs/identification-openai-photo-integration-2026-09-27.md)
-for the next result, safety, provenance and dormant-runtime slices.
+for slice status. The dormant OpenAI photo adapter now requires pinned inline
+moderation and has V2 provenance readers. Its production result policy,
+admission and promotion composition remain disabled; these helpers do not
+activate a lane.
 
 ## Complete disclosure, result, and accounting work
 

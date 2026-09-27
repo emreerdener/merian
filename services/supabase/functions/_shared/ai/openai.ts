@@ -12,6 +12,11 @@ import {
   decodeOpenAIDraft,
   type OpenAIEvaluationSnapshot,
 } from "./openaiRequest.ts";
+import {
+  buildOpenAIPhotoRequestParameters,
+  openAIPhotoSafety,
+  type OpenAIPhotoSnapshot,
+} from "./openaiPhoto.ts";
 
 export const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 export const OPENAI_RESPONSE_LIMIT = 512 * 1024;
@@ -126,15 +131,75 @@ export function createOpenAIEvaluationAdapter(
   credential: string,
   fetcher: typeof fetch = fetch,
 ): AIAdapter<OpenAIEvaluationSnapshot> {
+  return createOpenAIAdapter(credential, fetcher, (request, snapshot) => ({
+    parameters: buildOpenAIRequestParameters(request, snapshot),
+    decode,
+  }));
+}
+
+/** Dormant: runtime registration and result-policy admission remain Gemini-only. */
+export function createOpenAIPhotoAdapter(
+  credential: string,
+  fetcher: typeof fetch = fetch,
+): AIAdapter<OpenAIPhotoSnapshot> {
+  return createOpenAIAdapter(credential, fetcher, (request, snapshot) => {
+    const parameters = buildOpenAIPhotoRequestParameters(request, snapshot);
+    const hasText = parameters.input[0].content.some((part) =>
+      part.type === "input_text"
+    );
+    return {
+      parameters,
+      decode(value, timing) {
+        const outcome = decode(value, timing);
+        const mediaSafety = openAIPhotoSafety(
+          object(value)?.moderation,
+          hasText,
+        );
+        if (mediaSafety.disposition === "rejected") {
+          const { kind: _kind, draft: _draft, reason: _reason, ...facts } = {
+            draft: undefined,
+            reason: undefined,
+            ...outcome,
+          };
+          // A native denial stays terminal even if generated JSON is malformed.
+          return { ...facts, mediaSafety, kind: "refusal" };
+        }
+        if (outcome.kind !== "draft") return { ...outcome, mediaSafety };
+        const { draft, kind: _kind, ...facts } = outcome;
+        if (
+          mediaSafety.disposition !== "allowed" || facts.returnedModel === null
+        ) {
+          return {
+            ...facts,
+            mediaSafety,
+            kind: "invalid_output",
+            reason: "safety",
+          };
+        }
+        return { ...facts, mediaSafety, kind: "draft", draft };
+      },
+    };
+  });
+}
+
+function createOpenAIAdapter<Snapshot extends { readonly timeoutMs: number }>(
+  credential: string,
+  fetcher: typeof fetch,
+  prepare: (request: AIRequest, snapshot: Snapshot) => {
+    parameters: unknown;
+    decode: typeof decode;
+  },
+): AIAdapter<Snapshot> {
   if (!credential || credential.length > 512 || /\s/.test(credential)) {
     throw new Error("openai_credential_invalid");
   }
   return Object.freeze({
     provider: "openai",
-    prepare(request: AIRequest, snapshot: OpenAIEvaluationSnapshot) {
+    prepare(request: AIRequest, snapshot: Snapshot) {
+      const prepared = prepare(request, snapshot);
       // Capture serialized evidence now; later caller mutation cannot change dispatch.
       const body = JSON.stringify(
-        buildOpenAIRequestParameters(request, snapshot),
+        prepared.parameters,
       );
       if (new TextEncoder().encode(body).length > 8 * 1024 * 1024) {
         throw new Error("openai_input_unsupported");
@@ -178,7 +243,7 @@ export function createOpenAIEvaluationAdapter(
             response,
             OPENAI_RESPONSE_LIMIT,
           );
-          return decode(value, timing());
+          return prepared.decode(value, timing());
         } catch {
           // Timeout, disconnect, oversized/malformed envelope or 5xx may have executed.
           // No response body, provider diagnostic, key or evidence escapes this adapter.

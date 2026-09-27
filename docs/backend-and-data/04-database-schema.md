@@ -1293,7 +1293,7 @@ The transaction log for every successful identification.
 - `species_id` (UUID - Foreign Key nullable)
 - `ai_confidence_score` (Float): 0.0 to 1.0. Bounded explicitly within the
   Gemini schema description ruleset.
-- `identification_provenance` (JSONB, nullable): Immutable, version-1
+- `identification_provenance` (JSONB, nullable): Immutable, versioned
   configuration projected only from the admitted successful server execution.
   Contains provider, binding, requested model, variant, operation, policy,
   prompt/schema/confidence references, diagnostic thresholds, safety profile,
@@ -1307,6 +1307,12 @@ The transaction log for every successful identification.
   matching ingestion job. Existing rows remain null; updates, including guessed
   legacy backfills, are rejected. See the
   [provenance record](../rfcs/identification-provider-result-provenance-2026-09-26.md).
+  Forward migration
+  `20260927165545_accept_openai_identification_provenance_v2.sql` preserves the
+  exact V1 validator and adds V2 OpenAI settings (`max_output_tokens`,
+  `reasoning_effort`, `image_detail`). The 2 KiB bound, existing columns,
+  triggers, privileges and rows remain unchanged. V2 receives no Gemini metric
+  interpretation and enables no provider assignment.
 - Metric interpretation: the service-only pure helper
   `internal.identification_metrics_are_gemini_compatible(jsonb,text)` recognizes
   the exact existing profiles, including Pro audio comparison B. This is a

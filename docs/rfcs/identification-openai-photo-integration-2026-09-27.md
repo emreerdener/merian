@@ -1,8 +1,8 @@
 # OpenAI photo integration
 
 Date: 27 September 2026\
-Status: first result-policy slice implemented locally; production remains
-Gemini.
+Status: result-policy boundary, dormant photo safety adapter and V2 metadata
+readers implemented; production remains Gemini.
 
 ## Decision
 
@@ -62,15 +62,7 @@ retains its original source and hash.
 
 ## Remaining slices
 
-1. **OpenAI safety and result contract.** Choose and document the actual
-   photo-media safety mechanism before composing OpenAI in production. A
-   successful identification or lack of refusal is insufficient evidence to copy
-   Gemini's moderation meaning. Define allowed, rejected and unavailable
-   dispositions, any extra call/cost, and behavior before promotion. Extend
-   versioned provenance for reasoning effort and image detail; preserve old
-   Gemini values and neutral OpenAI confidence. Exercise candidate output,
-   refusal, malformed output, safety denial/unavailability and replay offline.
-2. **Dormant runtime and admission.** Reuse the adapter behind an exact
+1. **Dormant runtime and admission.** Reuse the adapter behind an exact
    photo-only binding, complete-input checks, server-owned assignment and the
    existing atomic lease. Coordinate accepted client protocol, native/public
    readers, disclosure collection, usage units and reviewed pricing. Prepare
@@ -78,7 +70,7 @@ retains its original source and hash.
    workflow; never retrieve the GitHub secret locally. Keep the assignment
    disabled until its release conditions are satisfied. Neither a secret nor a
    consent grant activates it.
-3. **Qualification and controlled activation.** Freeze the precise supported
+2. **Qualification and controlled activation.** Freeze the precise supported
    photo envelope, quality/safety/failure/latency/cost acceptance limits and a
    separately budgeted held-out comparison. Existing exploratory cases remain
    development evidence. Validate the released client and full persistence path,
@@ -96,6 +88,47 @@ own the cross-surface and release requirements. Wider iOS distribution
 separately requires archive/upload and genuine released-build install-over
 verification. Development-build use on the owner's phone does not complete those
 checks.
+
+## Photo safety and metadata slice
+
+The disabled `openai_photo_v1` adapter now requests pinned inline input/output
+moderation in the same Responses request. It reuses the measured model, prompt,
+low reasoning effort and high image detail. Completed benchmark profiles and
+their request hashes stay frozen. Still photos retain all optional observation
+text; unsupported audio, description-only and sampled-video observations fail
+before dispatch.
+
+The
+[canonical safety policy](../development-guides/10-safety-and-moderation.md#dormant-openai-photo-policy)
+defines allowed, rejected and unavailable decisions. Rejection discards the
+draft, including malformed generated JSON; unavailable moderation never produces
+an approvable draft. No native result is translated into invented Gemini ratings
+or an account strike. Tests use synthetic responses and no provider credential.
+No separate moderation request is added; actual latency, billing and safety
+effectiveness still require qualification of this precise binding.
+
+Version 2 provenance records native `max_output_tokens`, `reasoning_effort` and
+`image_detail`. Version 1 retains its exact stored shape. The executable
+contract owns the version dispatch, strict key sets and generated Swift
+decoders; the forward database migration extends only the bounded pure
+validator. Immutable scan/job copies, recovery authority and privileges are
+unchanged. Existing V52 opaque JSON storage preserves either version without a
+SwiftData migration.
+
+Provenance describes configuration; it does not approve a runtime profile or
+media promotion. Bounded future configuration identifiers within the existing
+scan operation and variant vocabulary remain readable and unqualified. Exact
+production-profile matching remains the responsibility of admission and result
+policy. V2 can never receive Gemini confidence bands or score-based rewards.
+Current native protocol 3, permission collection and all server assignments are
+unchanged. Future routing must enforce a client minimum that actually reads V2
+before producing OpenAI results.
+
+This slice does not yet connect the new adapter to production admission or media
+promotion. The next slice must compose the safety disposition before side
+effects, settle each failure through the existing attempt owner, preserve native
+usage/accounting and gate compatible clients. Recording metadata or constructing
+a snapshot is not authority to invoke a provider.
 
 ## Activation and return to Gemini
 
@@ -122,13 +155,35 @@ evaluation snapshot before commitment/invocation/promotion. This is offline
 source evidence; it neither calls a provider nor qualifies OpenAI safety or
 biological accuracy.
 
-Local verification passed: **2,129 Edge tests plus 278 steps**, with the six
-existing disposable-database tests ignored in this local run; **444 standard
-tooling tests plus 34 steps**, **60 isolated evaluator tests plus 29 steps**,
-the DTO/media contracts and all ten shell suites. The exact recursive formatter,
-lint, function-entrypoint type check, 101 generated function configs, dependency
-graphs, generated runtime fingerprint, Markdown and diff checks also passed. The
-source-contract tests were updated to retain the latency boundary through the
-new safety-signal owner. Independent read-only review found no actionable
-runtime or contract issue. Hosted candidate validation and deployment are
-separate evidence; this record claims neither.
+First-slice local verification passed: **2,129 Edge tests plus 278 steps**, with
+the six existing disposable-database tests ignored in this local run; **444
+standard tooling tests plus 34 steps**, **60 isolated evaluator tests plus 29
+steps**, the DTO/media contracts and all ten shell suites. The exact recursive
+formatter, lint, function-entrypoint type check, 101 generated function configs,
+dependency graphs, generated runtime fingerprint, Markdown and diff checks also
+passed. The source-contract tests were updated to retain the latency boundary
+through the new safety-signal owner. Independent read-only review found no
+actionable runtime or contract issue. PR #84's first-slice hosted checks,
+including the disposable database candidate gate, also passed at `744cd89eb`.
+That is source validation, not deployment or activation evidence.
+
+The photo-safety/metadata slice passed **2,141 Edge tests plus 280 steps**,
+including the disposable-database cases; a complete migration replay and **406
+database assertions across 63 files**; and **13 native tests in two suites**
+covering live decoding, local save/reopen, historical sync and confidence
+interpretation. Database lint and the security/performance advisor error gates
+passed; their existing warnings remain outside this change. Standard tooling and
+isolated evaluator counts remain 444 plus 34 steps and 60 plus 29 steps,
+respectively, with DTO/media checks and all ten shell suites passing.
+
+The candidate workflow now explicitly includes photo safety in its offline,
+network/credential-denied adapter step. The exact recursive formatter and lint,
+354 migration-contract tests, generated DTO validation, 101 function configs and
+dependency graphs, entrypoint type check and runtime fingerprint check passed.
+XcodeGen 2.45.4 regenerated the project without a source diff, and iOS project,
+Markdown and diff checks passed. The focused native run used the checkout-local
+build wrapper and retained its result bundle outside the build cache.
+Independent safety and contract review verified rejection precedence and aligned
+V2 identifier patterns and task vocabulary across Deno, SQL and Swift. Hosted
+checks for this new slice are separate evidence; no live provider requests or
+hosted mutations were performed.

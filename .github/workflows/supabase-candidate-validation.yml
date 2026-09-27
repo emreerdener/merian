@@ -337,7 +337,8 @@ jobs:
         run: |
           deno test --frozen --no-prompt --deny-net --deny-env \
             --config supabase/functions/deno.json \
-            supabase/functions/_shared/ai/openai_test.ts
+            supabase/functions/_shared/ai/openai_test.ts \
+            supabase/functions/_shared/ai/openaiPhoto_test.ts
 
       - name: Test internal service credential boundary
         run: |

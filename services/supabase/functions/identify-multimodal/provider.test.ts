@@ -1537,8 +1537,8 @@ Deno.test("multimodal handler preserves admission, evidence and recovery through
         assertEquals(provenance.prompt, "identify_text_v1");
         assertEquals(provenance.confidence, "gemini_identify_v1");
         assertEquals(provenance.variant, "multimodal");
+        assert(provenance.version === 1);
         assertEquals(provenance.generation.temperature, 0.1);
-        assertEquals(provenance.version, 1);
         assertEquals(data.identification_provenance, provenance);
         assertEquals([
           row.llm_prompt_tokens,

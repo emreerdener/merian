@@ -1,6 +1,8 @@
 import type { IdentificationInputProfile } from "./identificationInput.ts";
 import { assert, assertEquals, assertThrows } from "@std/assert";
 import { identificationProvenance } from "./provenance.ts";
+import { openAIPhotoSnapshot } from "./openaiPhoto.ts";
+import { openAITextFixture } from "./testing/openaiFixtures.ts";
 import { resolveAIClaim } from "./registry.ts";
 import type {
   AIAttemptSnapshot,
@@ -47,6 +49,35 @@ const description: AIRequest = {
     },
   ],
 };
+
+Deno.test("OpenAI provenance v2 records native settings without invented Gemini equivalents", () => {
+  const request = openAITextFixture();
+  const snapshot = openAIPhotoSnapshot({
+    ...request,
+    evidence: [{
+      kind: "image",
+      order: 0,
+      inputIndex: 0,
+      lineage: null,
+      data: "AQID",
+      mimeType: "image/png",
+    }],
+  }, 2);
+  const value = identificationProvenance(snapshot);
+  assertEquals(value.version, 2);
+  assertEquals(value.provider, "openai");
+  assertEquals(value.safety, "openai_photo_moderation_v1");
+  assertEquals(value.confidence, "openai_unqualified_v1");
+  assertEquals(value.diagnostic_trigger, null);
+  assertEquals(value.prompt_diagnostic_trigger, null);
+  assertEquals(value.generation, {
+    max_output_tokens: 8192,
+    reasoning_effort: "low",
+    image_detail: "high",
+  });
+  assert(Object.isFrozen(value) && Object.isFrozen(value.generation));
+  assert(!JSON.stringify(value).includes("AQID"));
+});
 
 Deno.test("provenance preserves the prepared model, prompt, generation and confidence independently of tier", () => {
   for (const model of ["gemini-2.5-flash", "gemini-2.5-pro"]) {

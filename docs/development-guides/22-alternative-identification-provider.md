@@ -5,6 +5,12 @@ adapter is implemented for local evaluation; **production continues to assign
 every identification and enrichment task to Gemini**. No client, environment
 setting or quota reservation can activate OpenAI in a deployed endpoint.
 
+The separate dormant `openai_photo_v1` integration binding now adds pinned
+inline moderation and V2 result metadata. It is not an evaluation profile and
+does not alter the completed baseline requests or their hashes. Its safety and
+end-to-end qualification remain pending; see the
+[integration plan](../rfcs/identification-openai-photo-integration-2026-09-27.md).
+
 The purpose of this slice is to use the existing examples and evaluation harness
 to compare a second provider. It does not require another Gemini-only benchmark
 campaign. Earlier app measurements remain useful reference evidence; a direct
