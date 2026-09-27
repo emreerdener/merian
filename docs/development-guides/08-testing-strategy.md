@@ -9160,6 +9160,16 @@ configuration is missing. Database atomicity and ACL behavior belong in
 `tests/ai_quota_security.sql` and `tests/complimentary_pro_scans_security.sql`,
 not a mocked TypeScript client.
 
+Reproduce the candidate workflow's **Validate authoritative AI quota coverage**
+step with its exact permissions from `services/`. Its environment allowlist
+covers `AI_QUOTA_IP_HASH_SECRET` and the five supported Supabase server-key
+variables read by `serverApiKeyOptionsFromEnvironment`. The admission tests
+install and restore a synthetic HMAC value and mock the database calls. The
+source-read allowlist includes both `deploy.yml` and
+`supabase-candidate-validation.yml` because the coverage tests inspect those
+workflow contracts. No production secret or network access is needed. A broad
+local `--allow-env` or `--allow-read` run cannot verify these CI permissions.
+
 ## Explore emoji-reaction verification
 
 The
