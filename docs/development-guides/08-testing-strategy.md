@@ -3376,16 +3376,17 @@ functional, format changed Markdown with `deno fmt`, and finish with
 
 The production contract is in
 [Describe mode](../features-and-hardware/11-describe-and-voice-dictation.md).
-Ordinary capture limits remain unchanged; reanalysis permits two evidence items
-plus one supplementary description. The supplementary marker stays local to
-staging and is absent from HTTP and durable payloads.
+Free permits one physical item plus one note; Pro permits two physical items
+plus one note. Reanalysis also preserves historical text separately from its
+current supplement. The supplementary marker stays local to staging and is
+absent from HTTP and durable payloads.
 
-| Coverage                   | Owner and assertions                                                                                                                                                                                                                                                                                                                                                               |
-| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Draft and session behavior | `CaptureWorkspaceRefinementDescriptionTests.swift`, under `CaptureWorkspaceViewModelRefinementTests`: direct Analyze, **+** then Analyze, updates without duplication/reordering, both image/audio insertion orders, blank/rejected drafts, busy submission, historical descriptions, tray edits/removal, and starting replacement reanalysis with only the new target's evidence. |
-| Capacity and controls      | `CaptureStagingToolbarPresentationTests` and `CaptureControlBarPresentationTests`: reserved description allowance, no third physical-media slot, Describe **+** remains usable at evidence capacity, and chronological three-item presentation.                                                                                                                                    |
-| Queue and request body     | `CaptureRefinementReplayTests.swift`, under the same workspace selector: original + image/audio + description persists three entries, replay matches the staged projection, and the actual HTTP body builder emits the expected media arrays, one text context, and exact owner-timeline indexes. This constructs JSON without contacting a provider.                              |
-| Speech lifecycle           | Existing `DescribeInputViewModelTests` cover cancellation and stale-session callbacks. The mounted transcript binding additionally ignores callbacks after the request ends; simulator checks must exercise successful **+**/**Analyze**, tray-editor entry, and replacement routing while dictation is active.                                                                    |
+| Coverage                   | Owner and assertions                                                                                                                                                                                                                                                                                                                                                                             |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Draft and session behavior | `CaptureWorkspaceRefinementDescriptionTests.swift`, under `CaptureWorkspaceViewModelRefinementTests`: direct Analyze, shared-text staging then Analyze, updates without duplication/reordering, both image/audio insertion orders, blank/rejected drafts, busy submission, historical descriptions, tray edits/removal, and starting replacement reanalysis with only the new target's evidence. |
+| Capacity and controls      | `CaptureStagingToolbarPresentationTests` and `CaptureControlBarPresentationTests`: reserved description allowance, no third physical-media slot, shared Describe remains usable at physical capacity, and chronological evidence presentation.                                                                                                                                                   |
+| Queue and request body     | `CaptureRefinementReplayTests.swift`, under the same workspace selector: original + image/audio + description persists three entries, replay matches the staged projection, and the actual HTTP body builder emits the expected media arrays, one text context, and exact owner-timeline indexes. This constructs JSON without contacting a provider.                                            |
+| Speech lifecycle           | Existing `DescribeInputViewModelTests` cover cancellation and stale-session callbacks. The mounted transcript binding additionally ignores callbacks after the request ends; simulator checks must exercise submission, historical-editor entry, and replacement routing while dictation is active.                                                                                              |
 
 After `make xcodegen` and `make validate-ios-project`, run the focused matrix on
 an available simulator through the checkout-local build wrapper. Replace
@@ -3396,12 +3397,12 @@ make ios-local-build ARGS='simulator -- test -configuration Debug -destination "
 ```
 
 Manual acceptance must cover typing on Describe, switching to Scan/Record, and
-tapping Analyze; adding text before and after an extra image/audio item; **+**
-followed by Analyze; editing/removing the supplement with a pending editor
-draft; and opening a different scan's reanalysis. Repeat the submission and
+tapping Analyze; adding text before and after an extra image/audio item;
+editing/clearing the shared supplement and independently editing historical
+text; and opening a different scan's reanalysis. Repeat the submission and
 tray-edit steps with dictation active to ensure late transcripts do not restore
 cleared text. On a narrow screen and with larger text, confirm the media row
-scrolls only when needed and Cancel/Analyze and all media review actions remain
+scrolls only when needed and Discard/Analyze and all media review actions remain
 reachable.
 
 **Local handoff evidence (2026-09-12):** Swift parsing, changed-source

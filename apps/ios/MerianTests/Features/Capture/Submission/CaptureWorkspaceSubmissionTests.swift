@@ -8,6 +8,91 @@ import XCTest
 @testable import Merian
 
 extension CaptureWorkspaceViewModelRefinementTests {
+    func testDiscardedDraftIgnoresLateAdmissionDenial() async throws {
+        let vm = CaptureWorkspaceViewModel(
+            diContainer: .preview, preparedImageLoader: { _ in nil }, prewarmHeadersOnInit: false
+        )
+        vm.updateDescriptionDraft(ObservationContext(freeText: "Existing context"))
+        vm.isReviewActive = true
+        vm.synchronizeSharedDescription()
+        _ = try XCTUnwrap(vm.beginDraftOperation())
+        let queue = OfflineQueueManager.shared
+        let wasOnline = queue.isOnline
+        queue.isOnline = true
+        ScanAdmissionManager.shared.overridingPreview = { _ in
+            vm.requestDraftDiscard()
+            if let generation = vm.discardConfirmationGeneration {
+                XCTAssertTrue(vm.confirmDraftDiscard(generation: generation))
+            } else {
+                XCTFail("An in-progress capture must allow confirmed discard")
+            }
+            return ScanAdmissionPreview(
+                decision: .dailyQuotaExhausted, effectivePlan: "free", dailyLimit: 1, dailyRemaining: 0
+            )
+        }
+        defer {
+            queue.isOnline = wasOnline
+            ScanAdmissionManager.shared.resetForTesting()
+        }
+        let route = await vm.requestScanAdmission(flashFallbackEligible: true)
+        XCTAssertNil(route)
+        XCTAssertNil(vm.activeSheet)
+        XCTAssertNil(vm.offlineToastMessage)
+        XCTAssertTrue(vm.stagedCapture.isEmpty)
+        XCTAssertFalse(vm.draftSession.hasUnresolvedWork)
+    }
+
+    func testOnlyFreshAutomaticGallerySelectionIsLimitedToOnePhoto() {
+        let vm = CaptureWorkspaceViewModel(
+            diContainer: .preview, preparedImageLoader: { _ in nil }, prewarmHeadersOnInit: false
+        )
+        XCTAssertEqual(vm.photoPickerSelectionLimit, 2)
+        vm.diContainer.appSettings.autoSubmitScans = true
+        XCTAssertEqual(vm.photoPickerSelectionLimit, 1)
+        vm.updateDescriptionDraft(ObservationContext(freeText: "Pending context"))
+        XCTAssertTrue(vm.stagedCapture.isEmpty)
+        XCTAssertEqual(vm.photoPickerSelectionLimit, 2)
+        vm.updateDescriptionDraft(ObservationContext())
+        XCTAssertEqual(vm.photoPickerSelectionLimit, 1)
+    }
+
+    func testGalleryEntryUsesFreeFallbackButValidatesActualSelection() async throws {
+        let queue = OfflineQueueManager.shared
+        let wasOnline = queue.isOnline
+        queue.isOnline = true
+        var eligibilityRequests: [Bool] = []
+        ScanAdmissionManager.shared.overridingPreview = { eligible in
+            eligibilityRequests.append(eligible)
+            return ScanAdmissionPreview(
+                decision: eligible ? .allowed : .dailyQuotaExhausted,
+                effectivePlan: "pro_paid", dailyLimit: 1, dailyRemaining: eligible ? 1 : 0
+            )
+        }
+        defer {
+            queue.isOnline = wasOnline
+            ScanAdmissionManager.shared.resetForTesting()
+        }
+        for noteFirst in [false, true] {
+            let vm = CaptureWorkspaceViewModel(
+                diContainer: .preview, preparedImageLoader: { _ in nil }, prewarmHeadersOnInit: false
+            )
+            if noteFirst { vm.updateDescriptionDraft(ObservationContext(freeText: "On a leaf")) }
+            XCTAssertEqual(vm.availableStagedCaptureSlots, 2)
+            let canOpen = await vm.requestPhotoPickerEntryAdmission(maximumSelectionCount: 2)
+            XCTAssertTrue(canOpen)
+            let operation = try XCTUnwrap(vm.beginDraftOperation())
+            let canImportOne = await vm.admitSelectedImageImport(imageCount: 1, operation: operation)
+            XCTAssertTrue(canImportOne)
+            let canImportTwo = await vm.admitSelectedImageImport(imageCount: 2, operation: operation)
+            XCTAssertFalse(canImportTwo)
+            vm.completeDraftOperation(operation, succeeded: false)
+            XCTAssertFalse(vm.draftSession.hasUnresolvedWork)
+            XCTAssertEqual(vm.descriptionDraft.freeText, noteFirst ? "On a leaf" : "")
+            XCTAssertTrue(vm.stagedCapture.isEmpty)
+        }
+        XCTAssertEqual(eligibilityRequests, [true, true, false, true, true, false])
+    }
+
     func testExhaustedQuotaPreviewShowsPaywallBeforeVisualProcessing() async throws {
         enableUnlimitedFreeScansForTest()
         ScanAdmissionManager.shared.overridingPreview = { _ in

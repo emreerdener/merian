@@ -1113,14 +1113,14 @@ A dedicated `PHPhotoLibrary` handler.
 - **Mixed-Media AI Context Appending**: Ordinary Free scans have one photo/audio
   slot and one optional note; Pro scans have two media slots and one optional
   note. Video remains Pro-only. Reanalysis reserves one supplementary
-  description beyond its two-item evidence budget, as detailed below. Standard
-  combinations include a macro leaf photo plus a short text note, a short video,
-  or two photos. `CaptureWorkspaceViewModel` handles `PhotosPickerItem`
-  interactions via `handlePhotoPickerSelection`, constructing a `StagedImage`
-  (compressed inference copy, 2048 px display copy, bounded `UIImage` thumbnail,
-  and crop/metadata bundle) and appending it to `stagedCapture.images`,
-  supporting mixed optical captures and library imports. Video capture records a
-  high-quality temporary `.mp4` with
+  description independently of its two-physical-item budget, as detailed below.
+  Standard combinations include a macro leaf photo plus a short text note, a
+  short video, or two photos. `CaptureWorkspaceViewModel` handles
+  `PhotosPickerItem` interactions via `handlePhotoPickerSelection`, constructing
+  a `StagedImage` (compressed inference copy, 2048 px display copy, bounded
+  `UIImage` thumbnail, and crop/metadata bundle) and appending it to
+  `stagedCapture.images`, supporting mixed optical captures and library imports.
+  Video capture records a high-quality temporary `.mp4` with
   `AVCaptureMovieFileOutput.maxRecordedFileSize` capped at the existing 12 MB
   hard upload limit, requests native AVFoundation `.auto` stabilization for the
   active recording when the connection supports it, samples five ordered
@@ -1243,25 +1243,19 @@ A dedicated `PHPhotoLibrary` handler.
   image rather than suppressing reanalysis. `cancelRefinementStaging()` cancels
   pending image download or audio preparation, deletes an uncommitted audio
   sidecar, and clears the refinement context.
-- **Reanalysis Description Capacity**: Reanalysis retains the two-item evidence
-  budget and permits one supplementary description beyond it. Original media,
-  one added image/audio/video, and the description can be staged in either
-  order. Camera/import/recording admission and completion, picker counts, and
-  controls share that evidence limit; physical media cannot use the description
-  slot. **+** and **Analyze** stage or update the same supplementary
-  description, and Analyze includes current nonempty text even after switching
-  capture modes. Historical description evidence stays separate. Failed draft
-  staging retains the editor and aborts submission with the existing error
-  toast. Explicit supplementary tray edits/removal clear the associated pending
-  editor draft so Analyze cannot undo them; historical edits retain the pending
-  supplement. Successful submission/staging and tray-editor entry stop
-  dictation, with late transcripts ignored after the request ends. A replacement
-  refinement cancels prior preparation and clears the previous staged media,
-  pending picker selection, and environment lookup before loading its own
-  original. The tray retains existing styling; its media row scrolls when needed
-  to keep the action buttons visible. The local supplement marker never enters
-  the queue or network payload. See the
-  [Describe contract](11-describe-and-voice-dictation.md).
+- **Reanalysis Description Capacity**: Reanalysis permits two physical items,
+  preserves historical descriptions in their original order, and permits one
+  current supplementary description independently of media capacity. Root
+  Describe is the current supplement editor; Analyze submits the latest shared
+  text after any mode switch. Historical descriptions alone use the separate
+  staged sheet. Failed staging retains the editor and aborts submission.
+  Historical edits retain the pending supplement. Submission and historical
+  editor entry stop dictation; late transcripts are fenced by request and draft
+  generation. Replacement refinement cancels prior preparation and clears its
+  staging, picker selection, and environment lookup before loading the new
+  original. The glass tray's media row scrolls to keep Discard and Analyze
+  visible. No local supplement marker enters the queue or network payload. See
+  the [Describe contract](11-describe-and-voice-dictation.md).
 - **Pinned Connection + Auth Pre-warm (`CaptureWorkspaceDependencies`)**: The
   live Shell service adapter refreshes auth and calls
   `MerianNetworkClient.prewarmInferenceEndpoint()` before the user composes a

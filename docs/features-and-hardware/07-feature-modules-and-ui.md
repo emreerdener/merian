@@ -511,11 +511,11 @@ production Shell and Library file remains below the 600-line review guard.
   `CaptureWorkspaceViewModel.startRefinementScan`. If the user adds live
   Describe notes and submits from the active scan toolbar, those notes are
   automatically included as the reserved supplementary description, including
-  when original media and an added image/audio already occupy both evidence
-  slots. **+** and **Analyze** update the same supplement. The editor clears
-  only after successful staging; rejected nonempty text stays editable and
-  blocks submission. See the
-  [Describe contract](11-describe-and-voice-dictation.md). The original
+  when original media and an added image/audio already occupy both physical
+  slots. Root Describe edits the shared supplement; Analyze submits its latest
+  value. Clearing the editor removes the current note while preserving
+  historical text. Rejected nonempty text stays editable and blocks submission.
+  See the [Describe contract](11-describe-and-voice-dictation.md). The original
   non-biological record remains unchanged until the existing replacement
   pipeline produces a successful new result; only then are notes, tags, and
   collections transferred and the old scan removed. This scoped correction entry

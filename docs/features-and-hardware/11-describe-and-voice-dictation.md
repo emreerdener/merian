@@ -88,27 +88,22 @@ preserves historical descriptions and its separate current supplement. No
 placeholder enters the payload. See the
 [complete capture contract](../rfcs/staged-review-shared-describe-2026-09-26.md).
 
-In reanalysis, the root editor updates the supplementary description, and
-**Analyze** automatically stages any nonempty current draft before sending,
-including after switching capture modes. Both actions update the same supplement
-and preserve its original timeline position; historical description evidence
-remains separate. Saving or removing the supplementary item in the tray clears
-its pending editor draft, preventing Analyze from overwriting that edit or
-recreating a removed item. Historical evidence edits leave the supplementary
-draft intact. Empty drafts preserve staged descriptions. Removing the staged
-supplement or ending/replacing the refinement session clears its association.
-Starting another reanalysis also discards the previous session’s staged media
-before loading the replacement original. Rejected nonempty drafts remain in the
-editor and abort submission with the existing error toast: “Your description
-couldn’t be added. Please try again.” Successful **+**/**Analyze** actions and
-opening the tray's description editor stop dictation; transcript callbacks are
-ignored once the dictation request ends so late results cannot restore consumed
-text.
+In reanalysis, root Describe edits one supplementary description and Analyze
+submits its latest value after any mode switch. Updates preserve its insertion
+time; historical descriptions remain separate. Clearing shared text removes the
+current supplement. Historical evidence uses the local-copy sheet: Done saves,
+swipe-dismiss discards pending edits, and Remove commits removal. Starting a new
+reanalysis clears the previous draft before loading the new original.
 
-Labels, capture-mode selection, and control styling and positioning stay the
-same. The refinement tray keeps the existing media row and uses horizontal
-scrolling when its items would otherwise crowd Cancel/Analyze on narrow screens.
-Automated coverage and the outstanding simulator acceptance checklist are in
+Before ordinary review exists, plus stages text or the arrow explicitly submits
+with Auto-submit enabled. Once the tray exists there is no central Describe
+action. Keyboard-toolbar Done dismisses editing without losing text. Submission
+and historical-editor entry stop dictation, and request/draft-generation checks
+reject late callbacks. Admission failure retains shared text and media for
+manual retry.
+
+The glass tray scrolls its media row while keeping Discard and Identify/Analyze
+visible. Automated coverage and remaining manual acceptance are in
 [reanalysis description verification](../development-guides/08-testing-strategy.md#reanalysis-description-verification).
 
 ---

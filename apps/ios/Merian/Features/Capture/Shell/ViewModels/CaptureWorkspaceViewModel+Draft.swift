@@ -17,6 +17,12 @@ extension CaptureWorkspaceViewModel {
         isDraftReadyForSubmission && !isCheckingScanAdmission && !stagedCapture.isEmpty
     }
 
+    var photoPickerSelectionLimit: Int {
+        let freshAutomaticCapture = diContainer.appSettings.autoSubmitScans
+            && stagedCapture.isEmpty && descriptionDraft.isEmpty && baseRefinementContext == nil
+        return freshAutomaticCapture ? 1 : max(1, availableStagedCaptureSlots)
+    }
+
     func beginDraftOperation() -> CaptureDraftSession.Operation? {
         guard !isDraftMutationLocked, !draftSession.hasUnresolvedWork else { return nil }
         automaticPreferenceRevision = diContainer.appSettings.autoSubmitRevision

@@ -143,11 +143,11 @@ struct CaptureControlBar: View {
             PhotoLibraryButton(
                 selectedPhotoItems: $viewModel.selectedPhotoItems,
                 latestThumbnail: photoLibraryManager.latestThumbnail,
-                maxSelectionCount: appSettings.autoSubmitScans && viewModel.stagedCapture.isEmpty ? 1 : presentation.photoSelectionCount,
+                maxSelectionCount: viewModel.photoPickerSelectionLimit,
                 isAvailable: presentation.isPhotoLibraryAvailable,
                 onRequestPickerPresentation: {
-                    await viewModel.requestImageImportEntryAdmission(
-                        prospectiveImageCount: appSettings.autoSubmitScans && viewModel.stagedCapture.isEmpty ? 1 : presentation.photoSelectionCount
+                    await viewModel.requestPhotoPickerEntryAdmission(
+                        maximumSelectionCount: viewModel.photoPickerSelectionLimit
                     )
                 }
             )

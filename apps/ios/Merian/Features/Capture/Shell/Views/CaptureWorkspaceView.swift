@@ -359,8 +359,8 @@ struct CaptureWorkspaceView: View {
                             onNoteTap: editSharedNote,
                             selectedPhotoItems: $viewModel.selectedPhotoItems,
                             onRequestPhotoPickerPresentation: { selectionCount in
-                                await viewModel.requestImageImportEntryAdmission(
-                                    prospectiveImageCount: selectionCount
+                                await viewModel.requestPhotoPickerEntryAdmission(
+                                    maximumSelectionCount: selectionCount
                                 )
                             },
                             onThumbnailTap: { index in viewModel.presentCrop(for: index) },

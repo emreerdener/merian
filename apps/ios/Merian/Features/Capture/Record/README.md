@@ -45,11 +45,11 @@ for lifecycle, fallback, and preference semantics.
 
 Shell checks the same evidence capacity at audio admission and
 completed-recording handoff. Refinement always stages confirmed audio instead of
-launching a separate solo analysis. Its two-item evidence budget can include the
-original and one new audio clip while a supplementary description uses a
-reserved third slot. A clip that loses capacity returns to review. Analyze
-includes pending Describe text even while Record is selected; Record itself owns
-neither the text nor dispatch. See the
+launching a separate solo analysis. Its two-physical-item budget can include the
+original and one new audio clip. Historical descriptions and the shared current
+supplement have separate text budgets. A clip that loses capacity returns to
+review. Analyze includes pending Describe text even while Record is selected;
+Record itself owns neither the text nor dispatch. See the
 [Describe handoff](../Describe/README.md#reanalysis-description-handoff) and
 [canonical audio guide](../../../../../../docs/features-and-hardware/12-audio-listen-mode.md).
 

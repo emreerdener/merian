@@ -118,15 +118,14 @@ Describe submissions retain their established analyzing copy.
 ## Submission Contract
 
 Before toolbar submission, synchronous draft preparation stages nonempty
-Describe text and reports empty, staged, or rejected input. Reanalysis reserves
-one supplementary description beyond its two-item evidence budget, so original
-media, one added image/audio/video, and the current text share one ordered
-submission. Both **+** and **Analyze** update that same supplement without
-duplicating it or replacing historical description evidence. A rejection
-preserves the editor and staging buffers, presents the existing error toast, and
-aborts submission. An admitted draft remains staged if the later scan-admission
-check denies dispatch. The local supplement marker does not enter the payload or
-durable queue.
+Describe text and reports empty, staged, or rejected input. Reanalysis permits
+two physical items plus historical descriptions and one current supplement. Root
+Describe edits that supplement directly, and **Analyze** submits its latest
+value without duplicating it or replacing historical description evidence. A
+rejection preserves the editor and staging buffers, presents the existing error
+toast, and aborts submission. An admitted draft remains staged if the later
+scan-admission check denies dispatch. The local supplement marker does not enter
+the payload or durable queue.
 
 `CaptureRefinementReplayTests` runs under the stable
 `CaptureWorkspaceViewModelRefinementTests` selector. It builds the actual
@@ -441,3 +440,10 @@ draft sources. Subsequent recovery uses the original scan and durable owner.
 Provider permission, version, account, assignment, and provenance contracts are
 unchanged. See the
 [capture integration contract](../../../../../../docs/rfcs/staged-review-shared-describe-2026-09-26.md).
+
+Photo-picker entry admits the minimum one-photo addition, independently of the
+picker's maximum selection count. Selection-time preflight checks the actual
+chosen count before file loading, using the already-registered draft operation.
+This preserves exhausted-Pro/remaining-Free access to one photo with an optional
+note while rejecting an unfunded second photo. Final submission still rechecks
+its serialized composition and durable admission.

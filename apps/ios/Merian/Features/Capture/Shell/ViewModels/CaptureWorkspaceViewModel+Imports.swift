@@ -29,7 +29,7 @@ extension CaptureWorkspaceViewModel {
         }
 
         guard let draftOperation = beginDraftOperation() else { return }
-        let limit = diContainer.appSettings.autoSubmitScans && stagedCapture.isEmpty ? 1 : importBudget.availableSlots
+        let limit = min(photoPickerSelectionLimit, importBudget.availableSlots)
         let itemsToProcess = Array(newItems.prefix(limit))
 
         DetachedWork.fireAndForget(
@@ -37,6 +37,10 @@ extension CaptureWorkspaceViewModel {
             category: .imagePreparation
         ) { [weak self, isPro, itemsToProcess] in
             guard let self = self else { return }
+            guard await self.admitSelectedImageImport(imageCount: itemsToProcess.count, operation: draftOperation) else {
+                await self.completeDraftOperation(draftOperation, succeeded: false)
+                return
+            }
 
             var preparedImports: [PreparedStagedImage] = []
             preparedImports.reserveCapacity(itemsToProcess.count)

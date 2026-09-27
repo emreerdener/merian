@@ -245,3 +245,16 @@ crop while retaining the receipt, capacity blocks retain the import, and both
 online and offline submission complete. Also confirm Naturebook is not required
 to appear for a multi-photo selection and that `Payload/Merian.app/PlugIns/`
 contains no Photos Share Extension.
+
+### Gallery admission and Free fallback
+
+Opening the photo picker checks whether one photo can be added, rather than
+assuming every available slot will be selected. After selection, the registered
+draft operation checks the actual selected count before loading media. This
+allows an exhausted Pro allowance to fall back to the remaining Free allowance
+for one photo plus an optional note. Two selected photos still require eligible
+Pro funding; final submission and durable admission recheck the finished draft.
+
+The one-photo Auto-submit selection limit applies only to an empty composition,
+including pending Describe text. A note typed before opening the picker makes
+the composition manual and retains the normal physical-media selection budget.

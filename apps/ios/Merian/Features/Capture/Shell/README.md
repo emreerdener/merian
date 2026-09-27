@@ -118,22 +118,19 @@ completion, imports, audio admission/completion, and picker counts share that
 policy. Ordinary Free scans allow one physical photo/audio item plus one note;
 Pro allows two media items plus one note.
 
-`submitActiveStagedCapture` snapshots the editor synchronously through
-Submission's `prepareActiveStagedSubmission(descriptionDraft:)`. Empty input
-preserves staged text; successful staging retains the shared editor; rejection
-retains text, presents the existing error toast, and prevents dispatch. **+**
-uses the same refinement supplement rather than adding another description.
-Shell's `saveStagedDescription` and `removeStagedDescription` reconcile
-supplementary tray changes with the live draft while preserving historical
-evidence and insertion times.
+`submitActiveStagedCapture` synchronizes shared text through Submission's
+`prepareActiveStagedSubmission(descriptionDraft:)`. Rejection retains text,
+presents the existing error toast, and prevents dispatch. Ordinary typing and
+reanalysis supplements use root Describe; only historical text uses the staged
+sheet. Clearing the shared editor removes the current note without changing
+historical descriptions.
 
-Starting a refinement cancels previous preparation and discards the prior staged
-media, picker selection, and environment prefetch before installing the new
-context. Successful **+**/**Analyze**, tray-editor entry, and routed
-capture-mode changes stop dictation; Describe's binding rejects late transcripts
-after the request ends. The ordinary mode selector, labels, and media sizes are
-retained. Staging supplies horizontal media overflow only when the refinement
-tray cannot fit beside its action buttons.
+Starting refinement cancels previous preparation and clears the prior draft,
+picker selection, and environment lookup. Submission, historical-editor entry,
+and capture-mode changes stop dictation; request and draft-generation checks
+reject late transcripts. Staging supplies horizontal media overflow while
+Discard and Identify/Analyze remain visible. Removing all ordinary content
+returns Describe to its initial unstaged entry state.
 
 ## Verification
 

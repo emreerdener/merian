@@ -170,15 +170,15 @@ older-iOS/reduced-effect visual review. Server eligibility must be released
 through the existing exact-SHA gates before client distribution; no deployment
 or publication is included in this change.
 
-### Native validation status at handoff
+### Initial native validation status at handoff
 
-The full native gate is **not green**. The initial complete run executed 1,366
-XCTest tests and 3,006 Swift Testing tests. It reported an authentication facade
-failure, an architecture line-budget violation, and two obsolete replay
-file-ownership assertions. The latter three assertions were corrected and their
-focused suites passed. The authentication facade passed unchanged on a fresh
-simulator; it failed on the earlier simulator with accumulated durable fixture
-state.
+At the initial handoff, the full native gate was **not green**. The initial
+complete run executed 1,366 XCTest tests and 3,006 Swift Testing tests. It
+reported an authentication facade failure, an architecture line-budget
+violation, and two obsolete replay file-ownership assertions. The latter three
+assertions were corrected and their focused suites passed. The authentication
+facade passed unchanged on a fresh simulator; it failed on the earlier simulator
+with accumulated durable fixture state.
 
 The latest focused run passed all 118 Swift Testing tests in 11 suites and 91 of
 92 XCTest tests, including the new historical-note ordering and full-media
@@ -206,3 +206,26 @@ then rerun the two new UI selectors after any further UI changes. Use the
 wrapper's normal checkout-local cache; do not bypass its concurrency guard. This
 native gate is required before merge/distribution, in addition to the dependency
 release evidence listed above.
+
+### Follow-up review (2026-09-27)
+
+The follow-up review corrected three gallery/admission cases. Picker entry now
+admits the minimum one-photo addition, preserving exhausted-Pro/remaining-Free
+access to one photo with an optional note. After selection, admission checks the
+actual count before loading files. The one-photo automatic picker limit applies
+only to an empty composition, including pending Describe text. A discarded
+draft's late admission response is ignored before it can present a paywall or
+error on the next draft. Regression tests cover both note input orders, actual
+selection counts, pending text, and discard during admission.
+
+An independent read-only review found no further admission or durable-ownership
+defect. Current feature documentation was reconciled with the single shared
+Describe editor and separate physical/text budgets; historical validation
+records remain intact.
+
+The first complete review run passed 1,370 XCTest cases and 3,008 Swift Testing
+cases in 465 suites on a fresh iOS 27 simulator. It includes the gallery
+entry/selection fix. The later pending-text picker-limit and stale-admission
+guards are undergoing a final complete native run, followed by the four
+Describe/staging UI selectors. Final results and implementation SHA will be
+recorded here before handoff.
