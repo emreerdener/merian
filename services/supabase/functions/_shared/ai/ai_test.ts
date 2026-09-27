@@ -39,7 +39,7 @@ const request = buildDescribeAIRequest("Synthetic striped organism.", {
 function authority(
   model = "gemini-2.5-flash",
   input: AIRequest = request,
-): UserRequestAuthority {
+): UserRequestAuthority & { readonly permission: "google_gemini" } {
   return {
     kind: "user_request",
     userId: "synthetic-owner",

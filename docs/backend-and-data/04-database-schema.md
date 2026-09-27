@@ -1293,7 +1293,7 @@ The transaction log for every successful identification.
 - `species_id` (UUID - Foreign Key nullable)
 - `ai_confidence_score` (Float): 0.0 to 1.0. Bounded explicitly within the
   Gemini schema description ruleset.
-- `identification_provenance` (JSONB, nullable): Immutable, version-1
+- `identification_provenance` (JSONB, nullable): Immutable, versioned
   configuration projected only from the admitted successful server execution.
   Contains provider, binding, requested model, variant, operation, policy,
   prompt/schema/confidence references, diagnostic thresholds, safety profile,
@@ -1307,6 +1307,21 @@ The transaction log for every successful identification.
   matching ingestion job. Existing rows remain null; updates, including guessed
   legacy backfills, are rejected. See the
   [provenance record](../rfcs/identification-provider-result-provenance-2026-09-26.md).
+  Forward migration
+  `20260927165545_accept_openai_identification_provenance_v2.sql` preserves the
+  exact V1 validator and adds V2 OpenAI settings (`max_output_tokens`,
+  `reasoning_effort`, `image_detail`). The 2 KiB bound, existing columns,
+  triggers, privileges and rows remain unchanged. V2 receives no Gemini metric
+  interpretation and enables no provider assignment.
+- Result-reader compatibility: migration
+  `20260927185833_require_identification_result_reader.sql` adds an invoker
+  capability check inside the original owner/public SELECT policy predicates.
+  Visible V2 results require `X-Merian-Identification-Protocol: 4`; unsupported
+  readers receive `PT426` / `client_update_required` for the whole query.
+  Null/V1 reads, visibility predicates, service-role reads and write grants are
+  unchanged. No row, score or provenance is rewritten. See the
+  [reader contract](./05-api-contracts.md#identification-result-readers) for
+  current-request replay checks and the required reader-first release order.
 - Metric interpretation: the service-only pure helper
   `internal.identification_metrics_are_gemini_compatible(jsonb,text)` recognizes
   the exact existing profiles, including Pro audio comparison B. This is a
@@ -4201,11 +4216,12 @@ private, RLS-enabled tables with no direct API-role grants:
   migration `20260926174645_add_identification_input_routing.sql`. Only enabled,
   allowed existing identification policies seed
   Gemini/baseline/Gemini-permission rows. A new policy version or assignment
-  requires an explicit matching catalog row; the catalog and quota model
-  constraints still reject OpenAI. Migration
-  `20260926200227_add_identification_client_compatibility.sql` adds a bounded
-  `minimum_client_protocol`, defaulting to zero for every current Gemini row.
-  Zero adds no route-specific cutoff to the existing global entitlement gate.
+  requires an explicit matching catalog row. The quota-model constraints remain
+  Gemini-only; the dormant connection adds a separately constrained execution
+  model. Migration `20260926200227_add_identification_client_compatibility.sql`
+  adds a bounded `minimum_client_protocol`, defaulting to zero for every current
+  Gemini row. Zero adds no route-specific cutoff to the existing global
+  entitlement gate.
 - `internal.identification_provider_attempts`: one insert-only application
   snapshot per `(reservation_id, attempt_count)`, including operation, plan,
   model, policy version, provider, binding and processor permission. The later
@@ -4232,6 +4248,32 @@ and return shapes are preserved. Every current route is Gemini. Legacy catalog
 rows use `legacy_v1`; new rows distinguish the three compatibility
 representations plus six primary text/photo/audio/video combinations. No API
 role can read or write either table directly.
+
+Migration `20260927175708_prepare_openai_photo_routing.sql` adds nullable
+`provider_model` to bindings and attempts. NULL is valid only for the exact
+Gemini tuple and uses that saved quota `model`. The exact OpenAI photo tuple
+requires `gpt-6-sol`, its OpenAI recipient and identification capability 4.
+Binding keys, quota policies and current assignments remain unchanged.
+Photo-only model selection therefore does not change audio/video/content quota
+policy.
+
+The same migration adds binding `minimum_identification_protocol` (0 or 4), and
+attempt minimum/accepted capability snapshots (historical NULL remains unknown).
+The new eleven-argument service reservation snapshots the selected execution
+model and capability atomically, returns the saved execution model, and retains
+all quota-model/policy invariants. The new six-argument authenticated preflight
+returns the separate capability minimum. Old ABIs cannot freshly admit an
+alternate provider. Private `require_identification_capability` scopes internal
+replay proof to the original owner/operation/observation/profile/current
+attempt; worker headers cannot upgrade missing proof. Entitlement protocol stays
+1–3.
+
+The scan usage trigger remains the single successful primary ledger writer.
+OpenAI uses `openai_responses_tokens_v1` and retains bounded native output and
+cache-write counts in event metadata from `llm_usage_metadata`. Reported cached
+counts are stored in `llm_cached_tokens`; absent units remain NULL. Even
+entirely missing OpenAI usage creates one unpriced event. No new tariff,
+historical rewrite, or failed-attempt ledger owner is introduced.
 
 The routing migration extracts the established four- and eight-argument quota
 algorithms into ungranted `internal.reserve_ai_quota_core` invoker overloads.
@@ -4299,8 +4341,12 @@ held/consumed funding for that exact scan. It reports recipient, compatibility
 and permission readiness; it never creates or modifies admission, consent or
 usage state. It is not a quota-availability check. Profile/Flash hints are not
 trusted dispatch evidence. The final Edge request independently derives its
-shape, and its optional expectation chooses only the denial-capable ten-argument
-ABI. The native preflight caller is not included in this backend slice. The
+shape. An expectation alone uses the denial-capable ten-argument reservation;
+capability-aware requests and internal retries use the eleven-argument ABI.
+Headerless internal retries supply no capability claim or recipient expectation;
+only the original saved attempt can establish capability. The native preflight
+caller uses the capability-aware six-argument overload; legacy clients retain
+this five-argument contract. The
 [API contract](./05-api-contracts.md#assigned-recipient-preflight) defines the
 closed result and header shapes.
 

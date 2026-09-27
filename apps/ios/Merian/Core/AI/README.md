@@ -461,7 +461,11 @@ This README maps that contract to native source and test ownership.
   or logs.
 - The marked Identify wire block in `InferenceEdgeDTOs.swift` is generated from
   the server's executable contract. It owns explicit `CodingKeys` and
-  `init(from:)` implementations; do not hand-edit or extend those DTOs.
+  `init(from:)` implementations; do not hand-edit or extend those DTOs. The
+  generated V1/V2 decoders exceed the ordinary 600-line review ceiling, so both
+  architecture inventories name this specific generator-owned file. The DTO
+  generation/validation gate remains authoritative; other source files keep
+  their existing ceiling.
 
 ## First-Result Critical Path
 
@@ -1344,9 +1348,15 @@ profiles at qualified policy version 1 and returns no bands for unknown or
 damaged present values; absence retains legacy interpretation. Generated
 provenance decoders enforce the executable contract's rejection of unknown
 fields, including generation settings, before DTO encoding can erase them. The
-saved scan factory, V52 local model, history DTO/query and historical projection
-retain the same metadata. Confidence labels, diagnostics/candidates, score-based
-upsell, collection suggestions, prompt actions and perfect-scan rewards gate
-their score interpretation on this compatibility decision. These rules preserve
-existing Gemini behavior; they do not establish calibrated probabilities for any
-model.
+generated `IdentificationProvenanceDTO` enum reads exact V1 Gemini and V2 OpenAI
+generation shapes, rejects unsupported versions, and re-encodes the original
+flat JSON object. V2 settings survive live parsing, local persistence and owner
+history but never receive Gemini confidence bands. The existing V52 opaque
+`Data` field needs no new schema version. Runtime protocol and OpenAI permission
+collection remain unchanged; V2 routing requires later coordinated admission.
+The saved scan factory, V52 local model, history DTO/query and historical
+projection retain the same metadata. Confidence labels, diagnostics/candidates,
+score-based upsell, collection suggestions, prompt actions and perfect-scan
+rewards gate their score interpretation on this compatibility decision. These
+rules preserve existing Gemini behavior; they do not establish calibrated
+probabilities for any model.

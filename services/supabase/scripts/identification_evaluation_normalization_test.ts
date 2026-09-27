@@ -49,7 +49,10 @@ Deno.test({
             hasVisualEvidence,
             hasAudioEvidence,
             hasInvasiveLocationContext: false,
-            inferenceTier: profile === "gemini_pro" ? "pro" : "flash",
+            confidencePolicy: {
+              kind: "diagnostic_threshold",
+              threshold: 0.99,
+            },
           }),
         );
         assertEquals(result.clientCandidates, null);

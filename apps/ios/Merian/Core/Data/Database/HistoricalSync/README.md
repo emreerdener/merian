@@ -57,7 +57,8 @@ and
 - `HistoricalScanReconciliationTests` owns update, media-repair, cancellation,
   and collection reconciliation behavior.
 - `HistoricalSyncCloudClientTests` owns injected account-lease and request-value
-  forwarding through the service seam.
+  forwarding through the service seam, plus real SDK request-header coverage
+  through an isolated URLSession transport.
 - `HistoricalSyncPolicyTests` freezes the exact page and checkpoint values.
 - `CoreDataIntegrationArchitectureTests` freezes the production/test inventory,
   imports, dependency direction, sole query ownership, and file-size ceilings.
@@ -76,3 +77,12 @@ malformed present metadata quarantines that row rather than becoming legacy.
 Raw-row pagination and account/save fences are unchanged. Unknown but decodable
 profiles remain present and receive neutral review guidance instead of Gemini
 confidence bands. `IdentificationResultProvenanceTests` verifies these paths.
+
+`MerianSupabaseClientFactory` advertises result-reader capability 4 on SDK
+requests. The backend checks that capability before returning visible V2 rows,
+including a single-scan projection or a page that mixes old and new results.
+Older readers receive a query error; they retain existing local observations and
+must update to hydrate newer cloud results. This is separate from malformed-row
+quarantine and does not hide rows or rewrite metadata. The
+[result-reader contract](../../../../../../../docs/backend-and-data/05-api-contracts.md#identification-result-readers)
+owns rollout and rollback requirements.

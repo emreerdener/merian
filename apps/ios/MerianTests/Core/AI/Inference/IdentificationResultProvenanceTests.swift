@@ -24,6 +24,21 @@ struct IdentificationResultProvenanceTests {
         return IdentificationResultProvenance(dto: dto)
     }
 
+    private func openAIMetadata() -> [String: Any] {
+        var value = metadata()
+        value["version"] = 2
+        value["provider"] = "openai"
+        value["binding"] = "openai_photo_v1"
+        value["model"] = "gpt-6-sol"
+        value["prompt"] = "openai_identify_vision_v1"
+        value["schema"] = "merian_openai_identify_v1"
+        value["confidence"] = "openai_unqualified_v1"
+        value["diagnostic_trigger"] = NSNull()
+        value["safety"] = "openai_photo_moderation_v1"
+        value["generation"] = ["max_output_tokens": 8_192, "reasoning_effort": "low", "image_detail": "high"]
+        return value
+    }
+
     private func envelope(metadata: Any?) throws -> Data {
         var data: [String: Any] = ["scan_id": "00000000-0000-4000-8000-000000000052",
             "scientific_name": "Turdus migratorius", "common_name": "American Robin",
@@ -92,7 +107,7 @@ struct IdentificationResultProvenanceTests {
         let changes: [(String, Any)] = [("provider", "openai"), ("model", "future-model"),
             ("binding", "future_binding_v1"), ("prompt", "future_prompt_v1"),
             ("schema", "future_schema_v1"), ("confidence", "future_confidence_v1"),
-            ("operation", "unknown"), ("variant", "unknown"), ("version", 2),
+            ("operation", "unknown"), ("variant", "unknown"),
             ("policy_version", 2),
             ("diagnostic_trigger", 0.5)]
         for (key, value) in changes {
@@ -105,9 +120,10 @@ struct IdentificationResultProvenanceTests {
         #expect(InferenceConfidencePolicy.bands(forInferenceTier: "pro", provenance: nil) == InferenceConfidencePolicy.pro)
     }
 
-    @Test func wirePreparationLocalPersistenceAndReopenShareProvenance() async throws {
+    @Test(arguments: [false, true])
+    func wirePreparationLocalPersistenceAndReopenShareProvenance(openAI: Bool) async throws {
         let prepared = try await InferenceResponsePreparationService.live.prepare(
-            resultData: envelope(metadata: metadata()), telemetry: nil,
+            resultData: envelope(metadata: openAI ? openAIMetadata() : metadata()), telemetry: nil,
             audioFilePaths: nil, videoFilePaths: nil, expectedScanId: nil)
         let original = try #require(prepared.mappedData.identificationProvenance)
         let record = LocalScanRecordFactory.makeRecord(from: prepared.mappedData,
@@ -116,7 +132,43 @@ struct IdentificationResultProvenanceTests {
         #expect(record.identificationProvenanceData == original.data)
         let projection = InferenceHistoricalRecordProjection(record: record, resetLocalLookalikes: false)
         #expect(projection.speciesData.identificationProvenance == original)
-        #expect(projection.speciesData.identificationConfidenceBands == InferenceConfidencePolicy.flash)
+        #expect(projection.speciesData.identificationConfidenceBands == (openAI ? nil : InferenceConfidencePolicy.flash))
+        let context = try ScanRepositoryTestSupport.makeContext()
+        context.insert(record)
+        try context.save()
+        let reopened = ModelContext(context.container)
+        #expect(try reopened.fetch(FetchDescriptor<LocalScanRecord>()).first?.identificationProvenanceData == original.data)
+    }
+
+    @Test func versionedMetadataRejectsMixedGenerationShapesAndUnknownVersions() throws {
+        let openai = openAIMetadata()
+        let roundTrip = try provenance(openai)
+        let encoded = try #require(JSONSerialization.jsonObject(with: roundTrip.data) as? NSDictionary)
+        #expect(encoded == openai as NSDictionary)
+        #expect(!roundTrip.supportsGeminiBands(forInferenceTier: "pro"))
+        var wrongV1 = openai; wrongV1["version"] = 1
+        var wrongV2 = metadata(); wrongV2["version"] = 2
+        var future = openai; future["version"] = 3
+        var unknownKey = openai
+        unknownKey["generation"] = ["max_output_tokens": 8_192, "reasoning_effort": "low", "image_detail": "high", "seed": 42]
+        var invalidBound = openai
+        invalidBound["generation"] = ["max_output_tokens": 0, "reasoning_effort": "low", "image_detail": "high"]
+        var freeText = openai
+        freeText["generation"] = ["max_output_tokens": 8_192, "reasoning_effort": "free text", "image_detail": "high"]
+        var trailingNewline = openai
+        trailingNewline["generation"] = ["max_output_tokens": 8_192, "reasoning_effort": "low", "image_detail": "high\n"]
+        let invalidIdentifiers = ["binding", "model", "variant", "operation", "prompt", "schema", "confidence", "safety"].flatMap { key in
+            ["free text", "token\n"].map { value in
+                var object = openai; object[key] = value; return object
+            }
+        }
+        var unknownVariant = openai; unknownVariant["variant"] = "future_variant"
+        var unknownOperation = openai; unknownOperation["operation"] = "future_operation"
+        for value in [wrongV1, wrongV2, future, unknownKey, invalidBound, freeText, trailingNewline, unknownVariant, unknownOperation] + invalidIdentifiers {
+            let data = try JSONSerialization.data(withJSONObject: value)
+            #expect(throws: (any Error).self) { try JSONDecoder().decode(IdentificationProvenanceDTO.self, from: data) }
+            #expect(!IdentificationResultProvenance(storedData: data).supportsGeminiBands(forInferenceTier: "flash"))
+        }
     }
 
     @Test func explicitNullOrMalformedWireMetadataIsRejectedWhileOmissionWorks() async throws {
@@ -167,20 +219,21 @@ struct IdentificationResultProvenanceTests {
         #expect(detail?.contributions.map(\.scanID) == ["legacy"])
     }
 
-    @Test func historicalSyncKeepsPresentProvenanceAcrossOmissionAndQuarantinesMalformedRows() async throws {
+    @Test(arguments: [false, true])
+    func historicalSyncKeepsPresentProvenanceAcrossOmissionAndQuarantinesMalformedRows(openAI: Bool) async throws {
         let context = try ScanRepositoryTestSupport.makeContext()
         let actor = HistoricalDatabaseActor(modelContainer: context.container)
         var row: [String: Any] = ["id": "00000000-0000-4000-8000-000000000052",
             "timestamp": "2026-09-26T12:00:00.000Z", "inference_tier": "flash",
             "ai_confidence_score": 0.999, "is_biological_subject": true,
-            "explore_posts": NSNull(), "identification_provenance": metadata()]
+            "explore_posts": NSNull(), "identification_provenance": openAI ? openAIMetadata() : metadata()]
         let response = try JSONDecoder().decode(HistoricalScanResponse.self,
             from: JSONSerialization.data(withJSONObject: row))
         #expect(try await actor.reconcileScanPage(responses: [response]) == 1)
         let verification = ModelContext(context.container)
         let record = try #require(verification.fetch(FetchDescriptor<LocalScanRecord>()).first)
         let stored = try #require(record.identificationProvenanceData)
-        #expect(stored == (try provenance(metadata())).data)
+        #expect(stored == (try provenance(openAI ? openAIMetadata() : metadata())).data)
         row.removeValue(forKey: "identification_provenance")
         let omitted = try JSONDecoder().decode(HistoricalScanResponse.self,
             from: JSONSerialization.data(withJSONObject: row))

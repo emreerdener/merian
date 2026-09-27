@@ -713,8 +713,8 @@ Deno.test("compatibility handlers preserve paid work, media durability and repla
             provenance.variant,
             audio ? "audio_compat" : "vision_compat",
           );
+          assert(provenance.version === 1);
           assertEquals(provenance.generation.temperature, 0.1);
-          assertEquals(provenance.version, 1);
           assertEquals(data.identification_provenance, provenance);
           assertEquals([
             row.llm_prompt_tokens,

@@ -128,7 +128,10 @@ function fixtures(): { name: string; request: AIRequest }[] {
   ];
 }
 
-function authority(request: AIRequest, model: string): UserRequestAuthority {
+function authority(
+  request: AIRequest,
+  model: string,
+): UserRequestAuthority & { readonly permission: "google_gemini" } {
   const operations = {
     species_overview: "scan_overview_enrichment",
     lookalikes: "scan_lookalike_enrichment",

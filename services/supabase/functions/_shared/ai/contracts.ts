@@ -5,6 +5,7 @@ import type {
 } from "../../identify-multimodal/capturedMedia.ts";
 
 import type { IdentificationProviderAssignment } from "./admission.ts";
+import type { OpenAIPhotoSafety, OpenAIPhotoSnapshot } from "./openaiPhoto.ts";
 
 export type AITask =
   | "identify"
@@ -18,7 +19,7 @@ export interface UserRequestAuthority {
   readonly audioPromptComparison?: "A" | "B";
   readonly kind: "user_request";
   readonly userId: string;
-  readonly permission: "google_gemini";
+  readonly permission: "google_gemini" | "openai";
   readonly operation: string;
   readonly reservation: {
     /** Identification requires this; content keeps its existing admission. */
@@ -133,7 +134,9 @@ export type SpeciesContentAIRequest =
     | { readonly task: "group_tags" }
   );
 
-export interface AIAttemptSnapshot {
+export type AIAttemptSnapshot = GeminiAttemptSnapshot | OpenAIPhotoSnapshot;
+
+export interface GeminiAttemptSnapshot {
   readonly provider: "gemini";
   readonly binding: "gemini_baseline_v1";
   readonly task: AITask;
@@ -188,6 +191,8 @@ export interface AIAttemptSnapshot {
 }
 
 export interface AIUsage {
+  /** Responses output includes reasoning; retain it even when the split is unknown. */
+  readonly outputTokens?: number | null;
   readonly promptTokens: number | null;
   readonly candidateTokens: number | null;
   readonly totalTokens: number | null;
@@ -207,9 +212,9 @@ export interface AIResponseFacts {
   readonly usage: AIUsage | null;
   readonly finishReason: string | null;
   readonly responseCharacters: number;
-  // Only the probability consumed by the existing moderation boundary. Other
-  // providers must translate their safety signals before using this contract.
+  // Native Gemini probabilities only; never fabricate these for another provider.
   readonly safetyRatings?: readonly { readonly probability?: string }[];
+  readonly mediaSafety?: OpenAIPhotoSafety;
 }
 
 export type AIProviderOutcome =
@@ -217,7 +222,10 @@ export type AIProviderOutcome =
   & (
     | { readonly kind: "draft"; readonly draft: unknown }
     | { readonly kind: "refusal" }
-    | { readonly kind: "invalid_output"; readonly reason: "json" | "finish" }
+    | {
+      readonly kind: "invalid_output";
+      readonly reason: "json" | "finish" | "safety";
+    }
     | { readonly kind: "operational_failure" | "unknown_execution" }
   );
 

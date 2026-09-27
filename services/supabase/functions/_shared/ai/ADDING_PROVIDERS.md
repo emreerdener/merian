@@ -34,16 +34,17 @@ observation jobs retain user authority even when a service invokes the worker.
    recovery.
 2. For production assignment, extend the production attempt/model unions in
    `contracts.ts` and approved profiles in `registry.ts` / `contentRegistry.ts`
-   for the qualified variants. Those production unions and bindings currently
-   contain only Gemini values. The separate `OpenAIEvaluationSnapshot` and local
-   evaluator profiles do not create production authority. Keep the
-   evidence/result contracts independent of the new SDK. Reuse
-   `identify/contract.ts` for common validation and add a provider-specific
-   schema projection alongside the existing Google projection when necessary.
+   for the qualified variants. The unions and registry include the exact dormant
+   OpenAI photo binding; actual production dispatch and catalog rows remain
+   Gemini. The separate `OpenAIEvaluationSnapshot` and local evaluator profiles
+   do not create production authority. Keep the evidence/result contracts
+   independent of the new SDK. Reuse `identify/contract.ts` for common
+   validation and add a provider-specific schema projection alongside the
+   existing Google projection when necessary.
 3. Extend authoritative database model/operation admission and the Edge registry
-   together. Identification now has a Gemini-only exact binding catalog and
-   immutable quota-attempt snapshots, accessed through
-   `reserve_identification_quota`; see the
+   together. Identification has an exact per-input binding catalog, currently
+   assigned only to Gemini, and immutable quota-attempt snapshots, accessed
+   through `reserve_identification_quota`; see the
    [admission contract](../../../../../docs/backend-and-data/05-api-contracts.md#provider-bound-identification-reservations).
    The new complete-input admission path derives a profile from normalized
    evidence and uses a processor-neutral private quota core before checking the
@@ -69,15 +70,19 @@ observation jobs retain user authority even when a service invokes the worker.
    preserve observations on drift, and recheck current local permission and
    account ownership immediately before dispatch. Complete that integration,
    qualified model admission and explicit permission collection before
-   activation. Future admission changes must review all three identification
-   overloads; do not patch only the older ones. Ship a qualified client
-   capability only after coordinating accepted maxima in Edge, SQL and snapshot
-   constraints (currently 3); preserve the global required minimum for
-   older-client recovery, then set the exact qualified binding's minimum.
-   Marketing app versions and consent grants cannot substitute for capability
-   evidence. The evaluation OpenAI binding supports only primary multimodal
-   photo/text; compatibility and snapshot profiles are not qualified. Before
-   activation, extend the versioned
+   activation. Future admission changes must review all four identification
+   overloads; do not patch only the older ones. The new six-argument preflight
+   and eleven-argument reservation carry identification capability 4 separately
+   from entitlement protocol 3. Preserve original-attempt proof and the global
+   minimum for older-client recovery. The separate
+   [result-reader boundary](../../../../../docs/backend-and-data/05-api-contracts.md#identification-result-readers)
+   now checks the current capability on direct history/public reads and every
+   completed-response emission. Release and verify that reader before
+   activation, and retain it during rollback while V2 results exist. Marketing
+   app versions and consent grants cannot substitute for capability evidence.
+   The evaluation OpenAI binding supports only primary multimodal photo/text;
+   compatibility and snapshot profiles are not qualified. Before activation,
+   extend the versioned
    [durable result provenance](../../../../../docs/rfcs/identification-provider-result-provenance-2026-09-26.md)
    to cover the qualified adapter's generation settings and confidence profile.
    Gemini scans retain this server configuration independently of the quota
@@ -101,11 +106,27 @@ observation jobs retain user authority even when a service invokes the worker.
    client-selected providers/URLs, or widen the allowlist speculatively.
    Snapshot each admitted attempt; only existing recovery/admission can
    authorize a later attempt under a changed policy.
-4. Update `production.ts` only when qualification and disclosure prerequisites
-   below are met. Keep deterministic adapters test-only. Add the new
-   SDK/dispatch owner to the reviewed inventory in
-   `_tests/aiQuotaCoverage.test.ts`, update dependency pins and graphs, and keep
-   deferred consumers explicit.
+4. Enable dispatch in `production.ts` only when qualification and disclosure
+   prerequisites below are met. The OpenAI photo branch is source-disabled
+   before credential lookup and cannot be enabled by an environment variable.
+   Keep deterministic adapters test-only. Add the new SDK/dispatch owner to the
+   reviewed inventory in `_tests/aiQuotaCoverage.test.ts`, update dependency
+   pins and graphs, and keep deferred consumers explicit.
+
+The primary handler also requires a qualified `multimodalResultPolicy.ts`
+profile before commitment. It binds Gemini candidate thresholds and native
+media-safety signals to the admitted snapshot, and accepts the exact dormant
+OpenAI photo profile with unqualified confidence and native moderation. A new
+adapter/binding cannot bypass that boundary. OpenAI's evaluation score is
+unqualified, and absent Gemini ratings provide no OpenAI media-safety verdict.
+See the
+[photo integration plan](../../../../../docs/rfcs/identification-openai-photo-integration-2026-09-27.md)
+for slice status. The dormant OpenAI photo adapter now requires pinned inline
+moderation and has V2 provenance readers. Its exact result policy,
+capability-aware admission and promotion are connected behind the false
+composition gate. No assignment row enables it; these helpers do not activate a
+lane. The quota-policy model is independent of the immutable provider execution
+model, so assigning photos cannot reroute audio or frames.
 
 ## Complete disclosure, result, and accounting work
 

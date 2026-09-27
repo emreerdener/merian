@@ -82,11 +82,18 @@ import {
 } from "../_shared/identify/db.ts";
 import { fetchIdentificationDictionaryHydration } from "../_shared/identify/latencyDb.ts";
 import {
-  type CompletedIdentifyResponse,
   fetchCompletedIdentifyResponse,
   waitForCompletedIdentifyResponse,
 } from "../_shared/identify/completedResponse.ts";
+import {
+  completedIdentifyResponse,
+  identifyResultResponse,
+} from "../_shared/identify/resultResponse.ts";
 import { normalizeIdentification } from "../_shared/identify/normalizeIdentification.ts";
+import {
+  type MultimodalResultPolicy,
+  prepareMultimodalResultPolicy,
+} from "../_shared/ai/multimodalResultPolicy.ts";
 import { isWavContainer, processMultimodalWAV } from "./audio.ts";
 import { WavProcessingBudgetError } from "../_shared/audioProcessing.ts";
 import {
@@ -341,14 +348,6 @@ function serverTimingValue(metrics: ServerTimingMetric[]): string {
     .join(", ");
 }
 
-function completedReplayResponse(
-  replay: CompletedIdentifyResponse,
-): Response {
-  return jsonResponse(replay.envelope, 200, {
-    "X-Merian-Idempotent-Replay": replay.source,
-  });
-}
-
 export async function handleIdentifyMultimodalRequest(
   req: Request,
   user: User,
@@ -529,7 +528,7 @@ export async function handleIdentifyMultimodalRequest(
   // A successful first invocation may already have promoted its staging keys,
   // and the quota ledger intentionally refuses a second provider call. Replaying
   // the completed response here turns an ambiguous/lost HTTP response into the
-  // same successful Identify result for old and current iOS clients.
+  // same successful Identify result for clients capable of reading its metadata.
   const existingCompletion = await fetchCompletedIdentifyResponse(
     generatedScanId,
     user.id,
@@ -542,7 +541,11 @@ export async function handleIdentifyMultimodalRequest(
       source: existingCompletion.source,
       ts: new Date().toISOString(),
     }));
-    return completedReplayResponse(existingCompletion);
+    return completedIdentifyResponse(
+      req,
+      existingCompletion,
+      internalReplayAttempt != null,
+    );
   }
 
   const updateIngestionJobBestEffort = async (
@@ -875,7 +878,11 @@ export async function handleIdentifyMultimodalRequest(
           source: replay.source,
           ts: new Date().toISOString(),
         }));
-        return completedReplayResponse(replay);
+        return completedIdentifyResponse(
+          req,
+          replay,
+          internalReplayAttempt != null,
+        );
       }
     }
     throw error;
@@ -1006,7 +1013,11 @@ export async function handleIdentifyMultimodalRequest(
           source: replay.source,
           ts: new Date().toISOString(),
         }));
-        return completedReplayResponse(replay);
+        return completedIdentifyResponse(
+          req,
+          replay,
+          internalReplayAttempt != null,
+        );
       }
       return publicErrorResponse(
         req,
@@ -1038,13 +1049,16 @@ export async function handleIdentifyMultimodalRequest(
   // 4. Invocation
   const geminiStart = Date.now();
   let result: AIExecutionOutcome;
+  let resultPolicy: MultimodalResultPolicy;
   let finishReason: string | undefined;
   let safetyRatings: AIExecutionOutcome["safetyRatings"];
+  let mediaSafety: AIExecutionOutcome["mediaSafety"];
 
   let llmPromptTokens: number | null = null;
   let llmCandidateTokens: number | null = null;
   let llmThinkingTokens: number | null = null;
   let llmTotalTokens: number | null = null;
+  let llmCachedTokens: number | null = null;
   let llmUsageMetadata: Record<string, unknown> = {};
   let geminiLatencyMs = 0;
   let quotaCommitMs = 0;
@@ -1067,6 +1081,7 @@ export async function handleIdentifyMultimodalRequest(
         ? { audioPromptComparison: audioPromptComparison.assignment.arm }
         : {}),
     });
+    resultPolicy = prepareMultimodalResultPolicy(execution.snapshot);
     if (audioPromptComparison) {
       await verifyPromptComparisonExecution(
         audioPromptComparison,
@@ -1101,15 +1116,23 @@ export async function handleIdentifyMultimodalRequest(
       throw new Error(`ai_${result.kind}`);
     }
 
-    finishReason = result.finishReason ?? undefined;
-    safetyRatings = result.safetyRatings;
+    ({ finishReason, safetyRatings, mediaSafety } = resultPolicy.safetySignals(
+      result,
+    ));
     const usage = result.usage;
     if (usage) {
-      llmUsageMetadata = usage.modalityBreakdown;
+      llmUsageMetadata = result.execution.provider === "openai"
+        ? {
+          // Native counters are not modality counts or Gemini pricing inputs.
+          output_tokens: usage.outputTokens ?? null,
+          cache_write_tokens: usage.cacheWriteTokens ?? null,
+        }
+        : usage.modalityBreakdown;
       llmPromptTokens = usage.promptTokens;
       llmCandidateTokens = usage.candidateTokens;
       llmThinkingTokens = usage.thinkingTokens;
       llmTotalTokens = usage.totalTokens;
+      llmCachedTokens = usage.cachedTokens;
     }
   } catch (genErr) {
     if (providerAttempted) {
@@ -1179,7 +1202,7 @@ export async function handleIdentifyMultimodalRequest(
       hasInvasiveLocationContext: (safeGpsLat != null && safeGpsLon != null) ||
         (typeof semanticLocation === "string" &&
           semanticLocation.trim().length > 0),
-      inferenceTier,
+      confidencePolicy: resultPolicy.confidence,
     });
   } catch {
     await quotaLease.fail();
@@ -1434,15 +1457,37 @@ export async function handleIdentifyMultimodalRequest(
           "moderation_started",
           { leaseSeconds: requireDurableVideo ? 300 : 600 },
         );
-        modResult = await evaluateAndProcessPayload(
-          user.id,
-          stagedImageKeys,
-          imageBase64s,
-          finishReason,
-          safetyRatings,
-          userTier,
-          videoR2ObjectKeys,
-        );
+        if (result.execution.provider === "openai") {
+          // Result-policy acceptance is required before reaching ingestion.
+          // Never route another provider through Gemini's rating/strike policy.
+          if (
+            mediaSafety?.provider !== "openai" ||
+            mediaSafety.policy !== result.execution.safety ||
+            mediaSafety.disposition !== "allowed"
+          ) {
+            throw new Error("ai_identification_safety_unavailable");
+          }
+          modResult = {
+            status: "PROMOTED",
+            publicUrls: await promoteSafeMedia({
+              userId: user.id,
+              r2ObjectKeys: stagedImageKeys,
+              imageBase64s,
+              userTier,
+              r2Config: getR2Config(),
+            }),
+          };
+        } else {
+          modResult = await evaluateAndProcessPayload(
+            user.id,
+            stagedImageKeys,
+            imageBase64s,
+            finishReason,
+            safetyRatings,
+            userTier,
+            videoR2ObjectKeys,
+          );
+        }
         if (modResult.status === "ERROR") {
           console.error(
             "Multimodal moderation pipeline returned ERROR. Halting durable scan finalization.",
@@ -1689,7 +1734,7 @@ export async function handleIdentifyMultimodalRequest(
           llm_prompt_tokens: llmPromptTokens,
           llm_candidate_tokens: llmCandidateTokens,
           llm_thinking_tokens: llmThinkingTokens,
-          llm_cached_tokens: null,
+          llm_cached_tokens: llmCachedTokens,
           llm_total_tokens: llmTotalTokens,
           llm_usage_metadata: llmUsageMetadata,
           image_storage_urls: modResult?.publicUrls ?? [],
@@ -2135,9 +2180,9 @@ export async function handleIdentifyMultimodalRequest(
     ts: new Date().toISOString(),
   }));
 
-  return jsonResponse(
+  return identifyResultResponse(
+    req,
     responseEnvelope,
-    200,
     {
       ...identificationDiagnosticHeaders(
         result,
@@ -2160,6 +2205,7 @@ export async function handleIdentifyMultimodalRequest(
       ]),
       "X-Merian-Edge-Region": edgeRegion,
     },
+    internalReplayAttempt != null,
   );
 }
 

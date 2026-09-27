@@ -81,6 +81,7 @@ Deno.test("OpenAI executes the frozen complete photo/text projection once, with 
     result.usage,
     {
       promptTokens: 100,
+      outputTokens: 40,
       candidateTokens: 30,
       thinkingTokens: 10,
       totalTokens: 140,

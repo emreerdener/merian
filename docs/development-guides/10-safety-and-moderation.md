@@ -187,6 +187,44 @@ moderated against the canonical original recording.
                 └─ Return PROMOTED { publicUrls[] }  → continue to insertScan
 ```
 
+## Dormant OpenAI photo policy
+
+`_shared/ai/openaiPhoto.ts` defines the disabled `openai_photo_v1` binding and
+`openai_photo_moderation_v1` policy. It accepts still photos with their optional
+observation text; description-only, audio and sampled video remain excluded. The
+measured identification prompt and generation settings are retained. Only this
+new binding adds `moderation.model = omni-moderation-2024-09-26` to its one
+Responses request. Existing evaluation profiles remain unchanged.
+
+OpenAI documents inline input/output moderation and typed moderation failures in
+its [moderation guide](https://developers.openai.com/api/docs/guides/moderation)
+and
+[Responses reference](https://developers.openai.com/api/reference/cli/resources/responses/methods/create).
+The candidate requires both results, the pinned model, consistent flags, finite
+scores, all known categories and supported input coverage. Six categories cover
+images; text-only categories provide no image assurance. Output requires text
+coverage. No score threshold is borrowed from Gemini.
+
+- **Allowed:** both native results pass validation without a flagged category; a
+  valid identification draft may leave the adapter.
+- **Rejected:** complete native evidence flags input or output. Return a refusal
+  and discard any draft, even if its generated JSON is malformed. This cannot
+  increment the existing Gemini abuse-strike counter.
+- **Unavailable:** missing, failed, malformed, incomplete or unreviewed safety
+  evidence withholds the draft. It is never permission to publish media.
+
+The adapter exposes only the policy and disposition, not moderation scores,
+diagnostics or content. It makes no separate moderation request and performs no
+automatic retry. Added latency, actual billing and safety effectiveness remain
+unqualified. Offline fixtures establish control flow only. Production still
+rejects this binding before commitment through a constant-false composition gate
+and refunds the unused lease. The dormant admission/result path is connected:
+only a matching allowed native disposition can reach media promotion, without
+Gemini ratings or strikes. Historical-reader compatibility, end-to-end
+qualification, accounting completeness and explicit activation remain pending.
+Video-frame support is planned as a separate visual binding; moderation of five
+submitted snapshots cannot assert safety of every instant of the playback clip.
+
 ## Gemini Safety Ratings Evaluation
 
 Before scan media is published or the final scan row is persisted, the Edge

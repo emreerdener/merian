@@ -39,6 +39,75 @@ const capture = {
   declaredVideoFrameCount: 0,
   videoInferenceFrameCount: 0,
 };
+
+Deno.test("app assignment resolves only the exact photo OpenAI tuple and never ignores another medium", () => {
+  const request = main([image, text]);
+  const authority: UserRequestAuthority = {
+    kind: "user_request",
+    userId: "synthetic-owner",
+    permission: "openai",
+    operation: "scan_identification",
+    reservation: {
+      id: "synthetic-reservation",
+      requestId: "synthetic-request",
+      attemptCount: 1,
+      policyVersion: 1,
+      model: "gpt-6-sol",
+      tier: { effective_tier: "pro" },
+      assignment: {
+        provider: "openai",
+        binding: "openai_photo_v1",
+        permission: "openai",
+        inputProfile: "multimodal_photo_v1",
+      },
+    },
+  };
+  assertEquals(resolveAIClaim(request, authority).provider, "openai");
+  for (
+    const input of [
+      main([text]),
+      main([audio]),
+      main([image, audio]),
+      main([image], true),
+      main([image, audio], true),
+    ]
+  ) {
+    assertThrows(() => resolveAIClaim(input, authority));
+  }
+  for (
+    const change of [
+      { model: "gemini-2.5-pro" },
+      {
+        assignment: {
+          ...authority.reservation.assignment!,
+          binding: "gemini_baseline_v1",
+        },
+      },
+      {
+        assignment: {
+          ...authority.reservation.assignment!,
+          permission: "google_gemini",
+        },
+      },
+      {
+        assignment: {
+          ...authority.reservation.assignment!,
+          inputProfile: "multimodal_video_frames_v1",
+        },
+      },
+    ]
+  ) {
+    assertThrows(() =>
+      resolveAIClaim(
+        request,
+        {
+          ...authority,
+          reservation: { ...authority.reservation, ...change },
+        } as UserRequestAuthority,
+      )
+    );
+  }
+});
 function main(
   evidence: MultimodalAIRequest["evidence"],
   video = false,

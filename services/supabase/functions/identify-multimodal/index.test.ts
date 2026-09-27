@@ -769,7 +769,7 @@ Deno.test("completed scan retries replay before staging or AI provider work", as
   assert(earlyReplay > generatedScanId);
   assert(imageResolution > earlyReplay);
   assert(quotaReservation > imageResolution);
-  assert(source.includes('"X-Merian-Idempotent-Replay": replay.source'));
+  assert(source.includes("return completedIdentifyResponse("));
 });
 
 Deno.test("identity-merge recovery precedes staging access and never grants old-key ownership", async () => {
@@ -925,9 +925,8 @@ Deno.test("identify success waits for durable scan persistence for every media t
   );
   assert(source.includes('"scan_persistence_failed"'));
   assert(
-    source.includes(
-      "evaluateAndProcessPayload(\n          user.id,\n          stagedImageKeys,\n          imageBase64s,",
-    ),
+    /evaluateAndProcessPayload\(\s*user\.id,\s*stagedImageKeys,\s*imageBase64s,/
+      .test(source),
     "inline destination hints must not influence public object naming",
   );
   assert(
@@ -1014,7 +1013,7 @@ Deno.test("latency telemetry is privacy-safe and keeps the Gemini boundary exact
     generationCall,
   );
   const responseExtraction = source.indexOf(
-    "finishReason = result.finishReason",
+    "resultPolicy.safetySignals(",
     generationCall,
   );
   assert(generationCall >= 0);
@@ -1038,6 +1037,7 @@ Deno.test("latency phase spans isolate quota, provider, promotion, enrichment, a
     }
   }
   assertOrdered(
+    "resultPolicy = prepareMultimodalResultPolicy(execution.snapshot);",
     "const quotaCommitStart = performance.now();",
     "await quotaLease.commit();",
     "const providerStart = performance.now();",
@@ -1045,7 +1045,7 @@ Deno.test("latency phase spans isolate quota, provider, promotion, enrichment, a
     "providerMs = result.providerDurationMs;",
     "quotaCommitMs = providerStart - quotaCommitStart;",
     "geminiLatencyMs = result.providerCompletedAt - geminiStart;",
-    "finishReason = result.finishReason",
+    "resultPolicy.safetySignals(",
   );
   assertOrdered(
     '"video_promotion_started"',

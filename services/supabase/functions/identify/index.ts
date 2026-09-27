@@ -56,6 +56,7 @@ import {
   fetchCompletedIdentifyResponse,
   waitForCompletedIdentifyResponse,
 } from "../_shared/identify/completedResponse.ts";
+import { completedIdentifyResponse } from "../_shared/identify/resultResponse.ts";
 import { diagnosticTriggerForTier } from "../_shared/identify/thresholds.ts";
 import {
   resolveImagePayloads,
@@ -229,9 +230,7 @@ export function createIdentifyHandler(prepare = prepareAIExecution) {
       supabaseAdmin,
     );
     if (existingCompletion) {
-      return jsonResponse(existingCompletion.envelope, 200, {
-        "X-Merian-Idempotent-Replay": existingCompletion.source,
-      });
+      return completedIdentifyResponse(req, existingCompletion);
     }
 
     const keyValidationError = validateImageR2ObjectKeys(
@@ -333,9 +332,7 @@ export function createIdentifyHandler(prepare = prepareAIExecution) {
           supabaseAdmin,
         );
         if (replay) {
-          return jsonResponse(replay.envelope, 200, {
-            "X-Merian-Idempotent-Replay": replay.source,
-          });
+          return completedIdentifyResponse(req, replay);
         }
       }
       throw error;
@@ -393,9 +390,7 @@ export function createIdentifyHandler(prepare = prepareAIExecution) {
           supabaseAdmin,
         );
         if (replay) {
-          return jsonResponse(replay.envelope, 200, {
-            "X-Merian-Idempotent-Replay": replay.source,
-          });
+          return completedIdentifyResponse(req, replay);
         }
       }
       throw error;

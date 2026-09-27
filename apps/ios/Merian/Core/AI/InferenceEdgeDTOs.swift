@@ -53,6 +53,12 @@ private enum GenerationCodingKeys: String, CodingKey {
     case thinking_budget
 }
 
+private enum OpenAIGenerationCodingKeys: String, CodingKey {
+    case max_output_tokens
+    case reasoning_effort
+    case image_detail
+}
+
 struct EdgeResponseWrapper: Codable {
     let success: Bool?
     let data: EdgeResponse
@@ -378,7 +384,7 @@ struct EdgeResponse: Codable {
     }
 }
 
-struct IdentificationProvenanceDTO: Codable {
+struct IdentificationProvenanceV1DTO: Codable {
     struct Generation: Codable {
         let temperature: Double
         let seed: Int?
@@ -398,6 +404,27 @@ struct IdentificationProvenanceDTO: Codable {
             top_k = try container.decode(Int?.self, forKey: .top_k)
             max_output_tokens = try container.decode(Int.self, forKey: .max_output_tokens)
             thinking_budget = try container.decode(Int?.self, forKey: .thinking_budget)
+            guard temperature >= 0 && temperature <= 2 else {
+                throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+            }
+            if let seed {
+                guard seed >= 0 && seed <= 999999999 else {
+                    throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+                }
+            }
+            if let top_k {
+                guard top_k >= 1 && top_k <= 999999999 else {
+                    throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+                }
+            }
+            guard max_output_tokens >= 1 && max_output_tokens <= 999999999 else {
+                throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+            }
+            if let thinking_budget {
+                guard thinking_budget >= 0 && thinking_budget <= 999999999 else {
+                    throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+                }
+            }
         }
 
         func encode(to encoder: Encoder) throws {
@@ -466,6 +493,54 @@ struct IdentificationProvenanceDTO: Codable {
         safety = try container.decode(String?.self, forKey: .safety)
         timeout_ms = try container.decode(Int.self, forKey: .timeout_ms)
         generation = try container.decode(Generation.self, forKey: .generation)
+        guard version >= 1 && version <= 1 else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+        }
+        guard provider.utf16.count >= 1 && provider.utf16.count <= 80 else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+        }
+        guard binding.utf16.count >= 1 && binding.utf16.count <= 80 else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+        }
+        guard model.utf16.count >= 1 && model.utf16.count <= 80 else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+        }
+        guard variant.utf16.count >= 1 && variant.utf16.count <= 80 else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+        }
+        guard operation.utf16.count >= 1 && operation.utf16.count <= 80 else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+        }
+        guard policy_version >= 1 && policy_version <= 999999999 else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+        }
+        guard prompt.utf16.count >= 1 && prompt.utf16.count <= 80 else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+        }
+        guard schema.utf16.count >= 1 && schema.utf16.count <= 80 else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+        }
+        guard confidence.utf16.count >= 1 && confidence.utf16.count <= 80 else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+        }
+        if let diagnostic_trigger {
+            guard diagnostic_trigger >= 0 && diagnostic_trigger <= 1 else {
+                throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+            }
+        }
+        if let prompt_diagnostic_trigger {
+            guard prompt_diagnostic_trigger >= 0 && prompt_diagnostic_trigger <= 1 else {
+                throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+            }
+        }
+        if let safety {
+            guard safety.utf16.count >= 1 && safety.utf16.count <= 80 else {
+                throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+            }
+        }
+        guard timeout_ms >= 1 && timeout_ms <= 999999 else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+        }
     }
 
     func encode(to encoder: Encoder) throws {
@@ -485,6 +560,189 @@ struct IdentificationProvenanceDTO: Codable {
         try container.encode(safety, forKey: .safety)
         try container.encode(timeout_ms, forKey: .timeout_ms)
         try container.encode(generation, forKey: .generation)
+    }
+}
+
+struct IdentificationProvenanceV2DTO: Codable {
+    struct OpenAIGeneration: Codable {
+        let max_output_tokens: Int
+        let reasoning_effort: String
+        let image_detail: String
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: OpenAIGenerationCodingKeys.self)
+            let rawContainer = try decoder.container(keyedBy: IdentifyWireCodingKey.self)
+            let allowedKeys: Set<String> = ["max_output_tokens", "reasoning_effort", "image_detail"]
+            guard rawContainer.allKeys.allSatisfy({ allowedKeys.contains($0.stringValue) }) else {
+                throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unexpected field in strict identification metadata."))
+            }
+            max_output_tokens = try container.decode(Int.self, forKey: .max_output_tokens)
+            reasoning_effort = try container.decode(String.self, forKey: .reasoning_effort)
+            image_detail = try container.decode(String.self, forKey: .image_detail)
+            guard max_output_tokens >= 1 && max_output_tokens <= 999999999 else {
+                throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+            }
+            guard reasoning_effort.utf16.count >= 1 && reasoning_effort.utf16.count <= 80 && reasoning_effort.range(of: "^[a-z][a-z0-9_.-]{0,79}$", options: .regularExpression) == (reasoning_effort.startIndex..<reasoning_effort.endIndex) else {
+                throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+            }
+            guard image_detail.utf16.count >= 1 && image_detail.utf16.count <= 80 && image_detail.range(of: "^[a-z][a-z0-9_.-]{0,79}$", options: .regularExpression) == (image_detail.startIndex..<image_detail.endIndex) else {
+                throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+            }
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: OpenAIGenerationCodingKeys.self)
+            try container.encode(max_output_tokens, forKey: .max_output_tokens)
+            try container.encode(reasoning_effort, forKey: .reasoning_effort)
+            try container.encode(image_detail, forKey: .image_detail)
+        }
+    }
+
+    let version: Int
+    let provider: String
+    let binding: String
+    let model: String
+    let variant: String
+    let operation: String
+    let policy_version: Int
+    let prompt: String
+    let schema: String
+    let confidence: String
+    let diagnostic_trigger: Double?
+    let prompt_diagnostic_trigger: Double?
+    let safety: String?
+    let timeout_ms: Int
+    let generation: OpenAIGeneration
+
+    enum CodingKeys: String, CodingKey {
+        case version
+        case provider
+        case binding
+        case model
+        case variant
+        case operation
+        case policy_version
+        case prompt
+        case schema
+        case confidence
+        case diagnostic_trigger
+        case prompt_diagnostic_trigger
+        case safety
+        case timeout_ms
+        case generation
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let rawContainer = try decoder.container(keyedBy: IdentifyWireCodingKey.self)
+        let allowedKeys: Set<String> = ["version", "provider", "binding", "model", "variant", "operation", "policy_version", "prompt", "schema", "confidence", "diagnostic_trigger", "prompt_diagnostic_trigger", "safety", "timeout_ms", "generation"]
+        guard rawContainer.allKeys.allSatisfy({ allowedKeys.contains($0.stringValue) }) else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unexpected field in strict identification metadata."))
+        }
+        version = try container.decode(Int.self, forKey: .version)
+        provider = try container.decode(String.self, forKey: .provider)
+        binding = try container.decode(String.self, forKey: .binding)
+        model = try container.decode(String.self, forKey: .model)
+        variant = try container.decode(String.self, forKey: .variant)
+        operation = try container.decode(String.self, forKey: .operation)
+        policy_version = try container.decode(Int.self, forKey: .policy_version)
+        prompt = try container.decode(String.self, forKey: .prompt)
+        schema = try container.decode(String.self, forKey: .schema)
+        confidence = try container.decode(String.self, forKey: .confidence)
+        diagnostic_trigger = try container.decode(Double?.self, forKey: .diagnostic_trigger)
+        prompt_diagnostic_trigger = try container.decode(Double?.self, forKey: .prompt_diagnostic_trigger)
+        safety = try container.decode(String?.self, forKey: .safety)
+        timeout_ms = try container.decode(Int.self, forKey: .timeout_ms)
+        generation = try container.decode(OpenAIGeneration.self, forKey: .generation)
+        guard version >= 2 && version <= 2 else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+        }
+        guard provider.utf16.count <= 80 && ["openai"].contains(provider) else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+        }
+        guard binding.utf16.count >= 1 && binding.utf16.count <= 80 && binding.range(of: "^[a-z][a-z0-9_.-]{0,79}$", options: .regularExpression) == (binding.startIndex..<binding.endIndex) else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+        }
+        guard model.utf16.count >= 1 && model.utf16.count <= 80 && model.range(of: "^[a-z][a-z0-9_.-]{0,79}$", options: .regularExpression) == (model.startIndex..<model.endIndex) else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+        }
+        guard variant.utf16.count >= 1 && variant.utf16.count <= 80 && ["multimodal", "description_compat", "vision_compat", "audio_compat"].contains(variant) && variant.range(of: "^[a-z][a-z0-9_.-]{0,79}$", options: .regularExpression) == (variant.startIndex..<variant.endIndex) else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+        }
+        guard operation.utf16.count >= 1 && operation.utf16.count <= 80 && ["scan_identification", "scan_audio_identification"].contains(operation) && operation.range(of: "^[a-z][a-z0-9_.-]{0,79}$", options: .regularExpression) == (operation.startIndex..<operation.endIndex) else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+        }
+        guard policy_version >= 1 && policy_version <= 999999999 else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+        }
+        guard prompt.utf16.count >= 1 && prompt.utf16.count <= 80 && prompt.range(of: "^[a-z][a-z0-9_.-]{0,79}$", options: .regularExpression) == (prompt.startIndex..<prompt.endIndex) else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+        }
+        guard schema.utf16.count >= 1 && schema.utf16.count <= 80 && schema.range(of: "^[a-z][a-z0-9_.-]{0,79}$", options: .regularExpression) == (schema.startIndex..<schema.endIndex) else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+        }
+        guard confidence.utf16.count >= 1 && confidence.utf16.count <= 80 && confidence.range(of: "^[a-z][a-z0-9_.-]{0,79}$", options: .regularExpression) == (confidence.startIndex..<confidence.endIndex) else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+        }
+        if let diagnostic_trigger {
+            guard diagnostic_trigger >= 0 && diagnostic_trigger <= 1 else {
+                throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+            }
+        }
+        if let prompt_diagnostic_trigger {
+            guard prompt_diagnostic_trigger >= 0 && prompt_diagnostic_trigger <= 1 else {
+                throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+            }
+        }
+        if let safety {
+            guard safety.utf16.count >= 1 && safety.utf16.count <= 80 && safety.range(of: "^[a-z][a-z0-9_.-]{0,79}$", options: .regularExpression) == (safety.startIndex..<safety.endIndex) else {
+                throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+            }
+        }
+        guard timeout_ms >= 1 && timeout_ms <= 999999 else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(version, forKey: .version)
+        try container.encode(provider, forKey: .provider)
+        try container.encode(binding, forKey: .binding)
+        try container.encode(model, forKey: .model)
+        try container.encode(variant, forKey: .variant)
+        try container.encode(operation, forKey: .operation)
+        try container.encode(policy_version, forKey: .policy_version)
+        try container.encode(prompt, forKey: .prompt)
+        try container.encode(schema, forKey: .schema)
+        try container.encode(confidence, forKey: .confidence)
+        try container.encode(diagnostic_trigger, forKey: .diagnostic_trigger)
+        try container.encode(prompt_diagnostic_trigger, forKey: .prompt_diagnostic_trigger)
+        try container.encode(safety, forKey: .safety)
+        try container.encode(timeout_ms, forKey: .timeout_ms)
+        try container.encode(generation, forKey: .generation)
+    }
+}
+
+enum IdentificationProvenanceDTO: Codable {
+    case v1(IdentificationProvenanceV1DTO)
+    case v2(IdentificationProvenanceV2DTO)
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: IdentifyWireCodingKey.self)
+        let version = try container.decode(Int.self, forKey: IdentifyWireCodingKey(stringValue: "version")!)
+        switch version {
+        case 1: self = .v1(try IdentificationProvenanceV1DTO(from: decoder))
+        case 2: self = .v2(try IdentificationProvenanceV2DTO(from: decoder))
+        default: throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unsupported identification metadata version."))
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        switch self {
+        case .v1(let value): try value.encode(to: encoder)
+        case .v2(let value): try value.encode(to: encoder)
+        }
     }
 }
 // END GENERATED: Identify wire DTOs

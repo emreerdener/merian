@@ -85,7 +85,9 @@ Deno.test("every Identify route validates provider and final wire values before 
       `${route.path} must expose only the stable final-contract error code`,
     );
     assert(
-      /jsonResponse\s*\(\s*responseEnvelope/.test(finalValidationTail),
+      (route.path === "../identify-multimodal/index.ts"
+        ? /identifyResultResponse\s*\(\s*req,\s*responseEnvelope/
+        : /jsonResponse\s*\(\s*responseEnvelope/).test(finalValidationTail),
       `${route.path} must return the parsed envelope rather than the source object`,
     );
     assert(

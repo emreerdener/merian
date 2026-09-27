@@ -22,6 +22,8 @@ export const openAITextFixture = (): MultimodalAIRequest => ({
 });
 function minimal(node: ContractNode): unknown {
   switch (node.kind) {
+    case "union":
+      throw new Error("Wire-only contract cannot be an OpenAI output fixture.");
     case "object":
       return Object.fromEntries(
         Object.entries(node.fields).map((
