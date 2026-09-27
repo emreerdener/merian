@@ -9,12 +9,12 @@ struct InferenceConfidencePolicyTests {
             forInferenceTier: "flash"
         )
 
-        #expect(proBands.strong == 0.85)
-        #expect(proBands.possible == 0.65)
-        #expect(proBands.diagnosticTrigger == 0.99)
-        #expect(flashBands.strong == 0.95)
-        #expect(flashBands.possible == 0.75)
-        #expect(flashBands.diagnosticTrigger == 0.99)
+        #expect(proBands?.strong == 0.85)
+        #expect(proBands?.possible == 0.65)
+        #expect(proBands?.diagnosticTrigger == 0.99)
+        #expect(flashBands?.strong == 0.95)
+        #expect(flashBands?.possible == 0.75)
+        #expect(flashBands?.diagnosticTrigger == 0.99)
     }
 
     @Test func unknownAndMissingTiersUseFlashBands() {

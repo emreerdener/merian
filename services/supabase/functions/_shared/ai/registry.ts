@@ -3,6 +3,8 @@ import type {
   AIExecutionAuthority,
   AIRequest,
 } from "./contracts.ts";
+import { isIdentificationProviderAssignment } from "./admission.ts";
+import { identificationInputProfile } from "./identificationInput.ts";
 import { diagnosticTriggerForTier } from "../identify/thresholds.ts";
 import { resolveContentClaim } from "./contentRegistry.ts";
 
@@ -32,49 +34,7 @@ export function resolveAIClaim(
   if (request.task !== "identify") {
     return resolveContentClaim(request, authority);
   }
-  if (
-    request.task !== "identify" ||
-    (request.variant !== "description_compat" &&
-      request.variant !== "multimodal" && request.variant !== "vision_compat" &&
-      request.variant !== "audio_compat")
-  ) throw new Error("ai_unsupported_input");
-  if (
-    request.variant === "description_compat" && (
-      request.evidence.length !== 1 ||
-      request.evidence[0].kind !== "text" ||
-      request.evidence[0].source !== "description" ||
-      request.evidence[0].order !== 0 ||
-      typeof request.evidence[0].text !== "string" ||
-      !request.evidence[0].text.trim()
-    )
-  ) throw new Error("ai_unsupported_input");
-  if (
-    request.variant !== "description_compat" && (
-      !request.evidence.some((item) =>
-        item.kind !== "text" || item.source === "observation_context"
-      ) ||
-      request.evidence.some((item, index) =>
-        item.order !== index || (
-          item.kind === "text"
-            ? typeof item.text !== "string"
-            : item.kind === "image" || item.kind === "audio"
-            ? typeof item.data !== "string" ||
-              typeof item.mimeType !== "string" ||
-              (item.kind === "audio" && item.mimeType !== "audio/wav")
-            : true
-        )
-      )
-    )
-  ) throw new Error("ai_unsupported_input");
-
-  if (
-    (request.variant === "vision_compat" &&
-      (!request.evidence.some((item) => item.kind === "image") ||
-        request.evidence.some((item) => item.kind === "audio"))) ||
-    (request.variant === "audio_compat" &&
-      (request.evidence.filter((item) => item.kind === "audio").length !== 1 ||
-        request.evidence.some((item) => item.kind === "image")))
-  ) throw new Error("ai_unsupported_input");
+  const inputProfile = identificationInputProfile(request);
 
   const operation = request.variant === "audio_compat"
     ? "scan_audio_identification"
@@ -82,7 +42,11 @@ export function resolveAIClaim(
   if (
     authority.kind !== "user_request" ||
     authority.operation !== operation ||
-    authority.permission !== "google_gemini" || !authority.userId ||
+    authority.permission !== "google_gemini" ||
+    !isIdentificationProviderAssignment(authority.reservation.assignment) ||
+    authority.permission !== authority.reservation.assignment.permission ||
+    authority.reservation.assignment.inputProfile !== inputProfile ||
+    !authority.userId ||
     !authority.reservation.id || !authority.reservation.requestId ||
     !Number.isSafeInteger(authority.reservation.attemptCount) ||
     authority.reservation.attemptCount < 1 ||

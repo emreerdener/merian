@@ -1,3 +1,4 @@
+import type { IdentificationProvenance } from "../_shared/ai/provenance.ts";
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createDescribeHandler } from "./index.ts";
@@ -109,15 +110,20 @@ function database(
           return response({ outcome: "job_not_found" });
         case "ensure_scan_user_profile":
           return response(null);
-        case "reserve_ai_quota":
+        case "reserve_identification_quota":
           events.push("reserve");
           assertEquals(args.p_user_id, user.id);
           assertEquals(args.p_request_id, scanId);
           assertEquals(args.p_operation, "scan_identification");
+          assertEquals(args.p_input_profile, "description_compat_v1");
           if (options.consentDenied) {
             return response(null, { message: "ai_consent_required" });
           }
           return response({
+            provider: "gemini",
+            binding: "gemini_baseline_v1",
+            processor_permission: "google_gemini",
+            input_profile: args.p_input_profile,
             reservation_id: "00000000-0000-4000-8000-000000000301",
             request_id: scanId,
             lease_token: "00000000-0000-4000-8000-000000000401",
@@ -412,7 +418,10 @@ Deno.test("describe handler executes the shared boundary and preserves recovery"
           },
         });
         assertEquals(result.status, 200);
-        assertEquals(await result.json(), envelope);
+        const actualEnvelope = await result.json();
+        const { identification_provenance, ...legacyData } =
+          actualEnvelope.data;
+        assertEquals({ ...actualEnvelope, data: legacyData }, envelope);
         assertEquals(db.events, [
           "reserve",
           "ledger",
@@ -424,6 +433,17 @@ Deno.test("describe handler executes the shared boundary and preserves recovery"
           "complete",
         ]);
         const row = db.inserted()!;
+        const provenance = row
+          .identification_provenance as IdentificationProvenance;
+        assertEquals(provenance.provider, "gemini");
+        assertEquals(provenance.binding, "gemini_baseline_v1");
+        assertEquals(provenance.model, "gemini-2.5-flash");
+        assertEquals(provenance.prompt, "identify_describe_v1");
+        assertEquals(provenance.confidence, "gemini_describe_v1");
+        assertEquals(provenance.variant, "description_compat");
+        assertEquals(provenance.generation.temperature, 0.15);
+        assertEquals(provenance.version, 1);
+        assertEquals(identification_provenance, provenance);
         assertEquals([
           row.llm_prompt_tokens,
           row.llm_candidate_tokens,

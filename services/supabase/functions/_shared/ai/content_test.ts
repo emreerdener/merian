@@ -134,7 +134,7 @@ function database(
                   reservation_state: "reserved",
                   is_replay: false,
                   attempt_count: 1,
-                  model: "gemini-2.5-pro",
+                  model: "gemini-2.5-flash",
                   effective_plan: "pro_paid",
                   effective_tier: "pro",
                   subscription_tier: "pro",
@@ -197,6 +197,7 @@ function database(
 
 function preparation(db: ReturnType<typeof database>, options: {
   setupFailed?: boolean;
+  snapshotChange?: Record<string, unknown>;
   outcome?: AIProviderOutcome;
   beforeInvoke?: () => Promise<void>;
   inspect?: (
@@ -207,7 +208,10 @@ function preparation(db: ReturnType<typeof database>, options: {
   return (request, authority) => {
     assert(request.variant === "species_content");
     options.inspect?.(request, authority);
-    const snapshot = resolveAIClaim(request, authority);
+    const snapshot = {
+      ...resolveAIClaim(request, authority),
+      ...options.snapshotChange,
+    } as ReturnType<typeof resolveAIClaim>;
     const adapter: AIAdapter = {
       provider: "test_only",
       prepare() {
@@ -407,6 +411,23 @@ Deno.test("content callers preserve user quotas, caches and public job lifecycle
           assertEquals(db.events, ["reserve"]);
         },
       );
+      for (
+        const snapshotChange of [{ provider: "other-provider" }, {
+          prompt: "new_unqualified_prompt",
+        }, { model: "gemini-2.5-pro" }]
+      ) {
+        await step(
+          `${task}: unqualified shared profile refunds without inference or content writes`,
+          async () => {
+            const db = database();
+            const response = await run(db, preparation(db, { snapshotChange }));
+            if (response instanceof Response) {
+              assertEquals(response.status, 500);
+            } else assertEquals(response, null);
+            assertEquals(db.events, ["reserve", "prepare", "refunded"]);
+          },
+        );
+      }
       for (const setupFailed of [true, false]) {
         await step(
           `${task}: ${
@@ -466,7 +487,7 @@ Deno.test("content callers preserve user quotas, caches and public job lifecycle
                 assert(authority.kind === "user_request");
                 assertEquals(authority.permission, "google_gemini");
                 assertEquals(authority.operation, operations[task]);
-                assertEquals(authority.reservation.model, "gemini-2.5-pro");
+                assertEquals(authority.reservation.model, "gemini-2.5-flash");
               },
             }),
           );
@@ -489,7 +510,7 @@ Deno.test("content callers preserve user quotas, caches and public job lifecycle
           assertEquals(usage.length, 1);
           assertEquals(usage[0].args.p_operation, operations[task]);
           assertEquals(usage[0].args.p_user_id, user.id);
-          assertEquals(usage[0].args.p_model, "gemini-2.5-pro");
+          assertEquals(usage[0].args.p_model, "gemini-2.5-flash");
           assertEquals(usage[0].args.p_metadata, {
             ai_task: task,
             ai_provider: "gemini",
@@ -670,6 +691,28 @@ Deno.test("content callers preserve user quotas, caches and public job lifecycle
           if (content_group === "group_tags") {
             assertEquals(db.row.group_tags, ["animal", "insect"]);
           }
+        },
+      );
+    }
+    for (
+      const content_group of ["habitat", "lookalikes", "group_tags"] as const
+    ) {
+      await step(
+        `${content_group}: unqualified public profile cannot invoke or write canonical content`,
+        async () => {
+          const db = database({ jobs: [{ ...job, content_group }] });
+          const result = await runSpeciesModelContentRefresh(
+            serviceRequest,
+            db.client,
+            {
+              prepareAI: preparation(db, {
+                snapshotChange: { provider: "other-provider" },
+              }),
+            },
+          );
+          assertEquals(result.failed_count, 1);
+          assertEquals(db.events, ["claim", "prepare", "complete"]);
+          assertEquals(db.calls.at(-1)?.args.succeeded, false);
         },
       );
     }

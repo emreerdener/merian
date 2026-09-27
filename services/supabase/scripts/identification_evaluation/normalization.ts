@@ -1,3 +1,4 @@
+import { isOpenAIProfile } from "../../functions/_shared/ai/openaiRequest.ts";
 import {
   type NormalizedIdentification,
   normalizeIdentification,
@@ -16,7 +17,10 @@ export function normalizeEvaluationDraft(
   inputValue: unknown,
   profile: Profile,
 ): NormalizedIdentification {
-  if (profile !== "gemini_flash_free" && profile !== "gemini_pro") {
+  if (
+    profile !== "gemini_flash_free" && profile !== "gemini_pro" &&
+    !isOpenAIProfile(profile)
+  ) {
     throw new Error("evaluation_profile_invalid");
   }
   const input = parseEvaluationInput(inputValue);
@@ -30,6 +34,10 @@ export function normalizeEvaluationDraft(
     // Current corpus context is deviceRegion/month only. Production's invasive
     // rule needs GPS or semanticLocation; a device region is not either one.
     hasInvasiveLocationContext: false,
-    inferenceTier: profile === "gemini_pro" ? "pro" : "flash",
+    inferenceTier: isOpenAIProfile(profile)
+      ? null
+      : profile === "gemini_pro"
+      ? "pro"
+      : "flash",
   });
 }

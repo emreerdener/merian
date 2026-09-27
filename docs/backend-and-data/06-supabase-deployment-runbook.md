@@ -6666,24 +6666,34 @@ This section is the GitHub Actions control-plane contract, not a Vercel
 application environment template. Never copy the complete GitHub `Production`
 secret set into either Vercel project.
 
-| GitHub secret                              | Runtime destination                                           |
-| ------------------------------------------ | ------------------------------------------------------------- |
-| `APPLE_SIGN_IN_TEAM_ID`                    | Required; synchronized by the workflow to Supabase Edge only  |
-| `APPLE_SIGN_IN_KEY_ID`                     | Required; synchronized by the workflow to Supabase Edge only  |
-| `APPLE_SIGN_IN_PRIVATE_KEY`                | Required `.p8`; synchronized to Supabase Edge only            |
-| `DWCA_PSEUDONYM_HMAC_KEY_V1`               | Synchronized by the workflow to Supabase Edge only            |
-| `GEMINI_PAID_API_KEY`                      | Required; synchronized by the workflow to Supabase Edge only  |
-| `REVENUECAT_SECRET_API_KEY`                | Synchronized by the workflow to Supabase Edge only            |
-| `REVENUECAT_WEBHOOK_SECRET`                | Synchronized by the workflow to Supabase Edge only            |
-| `REVENUECAT_WEBHOOK_SIGNING_SECRET`        | Synchronized by the workflow to Supabase Edge only            |
-| `R2_READ_ACCESS_KEY_ID`                    | Synchronized by the workflow to Supabase Edge only            |
-| `R2_READ_SECRET_ACCESS_KEY`                | Synchronized by the workflow to Supabase Edge only            |
-| `R2_EVENT_WEBHOOK_SECRET`                  | Optional; synchronized to Supabase Edge for R2 event hints    |
-| `MERIAN_GITHUB_RELEASE_AUDIT_TOKEN`        | Protected read-only GitHub control/evidence audit token       |
-| `MERIAN_PRODUCTION_RELEASE_CLEARANCE_JSON` | Legacy optional audit input; not used by automatic deploy     |
-| `SUPABASE_ACCESS_TOKEN`                    | Used by the GitHub runner to operate the Supabase CLI         |
-| `SUPABASE_DB_URL`                          | Used by the GitHub runner for database migration/audit access |
-| `SUPABASE_DB_PASSWORD`                     | Used only by the runner's alternative pooler connection path  |
+| GitHub secret                              | Runtime destination                                                                 |
+| ------------------------------------------ | ----------------------------------------------------------------------------------- |
+| `APPLE_SIGN_IN_TEAM_ID`                    | Required; synchronized by the workflow to Supabase Edge only                        |
+| `APPLE_SIGN_IN_KEY_ID`                     | Required; synchronized by the workflow to Supabase Edge only                        |
+| `APPLE_SIGN_IN_PRIVATE_KEY`                | Required `.p8`; synchronized to Supabase Edge only                                  |
+| `DWCA_PSEUDONYM_HMAC_KEY_V1`               | Synchronized by the workflow to Supabase Edge only                                  |
+| `GEMINI_PAID_API_KEY`                      | Required; synchronized by the workflow to Supabase Edge only                        |
+| `NATUREBOOK_OPENAI_API_KEY`                | Optional future provider credential in `Production`; no current deployment consumer |
+| `REVENUECAT_SECRET_API_KEY`                | Synchronized by the workflow to Supabase Edge only                                  |
+| `REVENUECAT_WEBHOOK_SECRET`                | Synchronized by the workflow to Supabase Edge only                                  |
+| `REVENUECAT_WEBHOOK_SIGNING_SECRET`        | Synchronized by the workflow to Supabase Edge only                                  |
+| `R2_READ_ACCESS_KEY_ID`                    | Synchronized by the workflow to Supabase Edge only                                  |
+| `R2_READ_SECRET_ACCESS_KEY`                | Synchronized by the workflow to Supabase Edge only                                  |
+| `R2_EVENT_WEBHOOK_SECRET`                  | Optional; synchronized to Supabase Edge for R2 event hints                          |
+| `MERIAN_GITHUB_RELEASE_AUDIT_TOKEN`        | Protected read-only GitHub control/evidence audit token                             |
+| `MERIAN_PRODUCTION_RELEASE_CLEARANCE_JSON` | Legacy optional audit input; not used by automatic deploy                           |
+| `SUPABASE_ACCESS_TOKEN`                    | Used by the GitHub runner to operate the Supabase CLI                               |
+| `SUPABASE_DB_URL`                          | Used by the GitHub runner for database migration/audit access                       |
+| `SUPABASE_DB_PASSWORD`                     | Used only by the runner's alternative pooler connection path                        |
+
+`NATUREBOOK_OPENAI_API_KEY` is reserved for Naturebook identification,
+separately from the repository-level `OPENAI_API_KEY` used by Agent Quality.
+Storing it in `Production` does not enable OpenAI or synchronize it to Supabase.
+The
+[alternative-provider guide](../development-guides/22-alternative-identification-provider.md#credential-storage-and-future-deployment)
+owns evaluation injection and the future production wiring. The current local
+evaluator reads only `OPENAI_EVALUATION_API_KEY`; no GitHub comparison job
+currently consumes the stored Naturebook key.
 
 None of these values belongs in Vercel. The public-web Vercel contract is the
 explicit table in **Public Web Waitlist Release** above and

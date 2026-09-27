@@ -10,6 +10,7 @@ import type {
 } from "./ai/contracts.ts";
 import { trackPostHogEvent } from "./posthog.ts";
 import { aiExecutionMetadata } from "./ai/execution.ts";
+import { assertSharedSpeciesContentSnapshot } from "./ai/sharedContent.ts";
 
 // Compatibility projection for existing usage ledgers and helper consumers.
 type UsageMetadata = GeminiUsageMetadata;
@@ -63,6 +64,7 @@ function assertTask(
   if (execution.snapshot.task !== task) {
     throw new Error("ai_content_task_mismatch");
   }
+  assertSharedSpeciesContentSnapshot(execution.snapshot, task);
 }
 
 // --- ENCYCLOPEDIC DATA LOGIC --- //

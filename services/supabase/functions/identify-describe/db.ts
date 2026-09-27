@@ -1,3 +1,4 @@
+import type { IdentificationProvenance } from "../_shared/ai/provenance.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   CachedSpeciesRow,
@@ -31,6 +32,7 @@ export type { CachedSpeciesRow };
 // ---------------------------------------------------------------------------
 
 export interface DescribeScanInsertRow {
+  identification_provenance?: IdentificationProvenance;
   id: string;
   user_id: string;
   species_id: string | null;

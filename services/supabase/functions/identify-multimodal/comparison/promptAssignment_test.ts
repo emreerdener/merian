@@ -211,7 +211,7 @@ Deno.test("trusted prompt authority matches the offline native bytes exactly and
   });
   for (const [i, arm] of (["A", "B"] as const).entries()) {
     const authority = {
-      ...fixtureAuthority("gemini_pro"),
+      ...fixtureAuthority("gemini_pro", request),
       audioPromptComparison: arm,
     };
     const policy = resolveAIClaim(request, authority);
@@ -261,13 +261,13 @@ Deno.test("trusted prompt authority matches the offline native bytes exactly and
     );
     assertThrows(() =>
       resolveAIClaim(request, {
-        ...fixtureAuthority("gemini_flash_free"),
+        ...fixtureAuthority("gemini_flash_free", request),
         audioPromptComparison: arm,
       })
     );
   }
   assertEquals(
-    resolveAIClaim(request, fixtureAuthority("gemini_pro")).prompt,
+    resolveAIClaim(request, fixtureAuthority("gemini_pro", request)).prompt,
     "identify_audio_v2",
   );
 });

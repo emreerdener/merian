@@ -134,7 +134,8 @@ struct CorePolicyOwnershipArchitectureTests {
         ),
         PolicyOwner(
             "enum InferenceConfidencePolicy",
-            path: "Core/AI/Inference/Result/InferenceConfidencePolicy.swift"
+            path: "Core/AI/Inference/Result/InferenceConfidencePolicy.swift",
+            imports: ["import Foundation"]
         ),
         PolicyOwner(
             "enum ScanningPhrasePolicy",

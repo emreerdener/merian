@@ -115,3 +115,32 @@ export function normalizeCommunityBoolean(
   if (typeof value === "boolean") return value;
   throw makeHttpError(400, `${fieldName} must be a boolean.`);
 }
+
+/** SQL owns qualification. Do not synthesize it from a tier or raw score. */
+export function assertCommunityConfidenceProjection(
+  value: unknown,
+): asserts value is Record<string, unknown> & {
+  ai_confidence_qualified: boolean;
+  author_user_id: string;
+  post_id: string;
+} {
+  if (value === null || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("community_confidence_projection_invalid");
+  }
+  const row = value as Record<string, unknown>;
+  if (
+    typeof row.ai_confidence_qualified !== "boolean" ||
+    typeof row.author_user_id !== "string" || typeof row.post_id !== "string" ||
+    !Array.isArray(row.suggested_taxa) || row.suggested_taxa.length > 6 ||
+    "identification_provenance" in row
+  ) {
+    throw new Error("community_confidence_projection_invalid");
+  }
+  if (
+    !row.ai_confidence_qualified &&
+    row.suggested_taxa.some((item: unknown) =>
+      item === null || typeof item !== "object" || Array.isArray(item) ||
+      (item as Record<string, unknown>).confidence_score !== null
+    )
+  ) throw new Error("community_confidence_projection_invalid");
+}

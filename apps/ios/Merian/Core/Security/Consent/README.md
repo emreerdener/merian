@@ -2,8 +2,9 @@
 
 This package owns the value, deterministic policy, focused local-persistence,
 and cloud boundaries for Merian's versioned adult, Terms, Google Gemini, and
-optional PostHog consent system. It is part of [Core Security](../README.md),
-not a feature-owned presentation layer.
+optional PostHog consent system, plus independent, source-disabled OpenAI
+consent collection. It is part of [Core Security](../README.md), not a
+feature-owned presentation layer.
 
 ## Boundaries
 
@@ -17,7 +18,8 @@ not a feature-owned presentation layer.
 - `Models/ConsentErrors.swift` owns the existing storage and ghost-handoff error
   values without acquiring dependencies.
 - `Policies/ConsentAuthorityPolicy.swift` selects all-version provider heads and
-  decides whether fetched Gemini or PostHog evidence is authoritative.
+  selects Gemini/OpenAI streams independently and decides whether fetched Gemini
+  required evidence or PostHog evidence is authoritative.
 - `Policies/ConsentLedgerOwnershipPolicy.swift` performs value-only account
   activation and ghost-to-permanent ledger or withdrawal-journal rebinding.
 - `Policies/ConsentRetryPolicy.swift` owns bounded retry delays and the
@@ -29,6 +31,12 @@ not a feature-owned presentation layer.
   owner, required-consent and cloud-readiness gates, pending-upload count,
   reapproval state, and fail-closed analytics SDK permission. It has no live
   effects.
+- `Coordinators/AIProcessingConsentCoordinator.swift` owns optional OpenAI
+  Settings choices, account/SDK/cancellation checks and process-local failed
+  withdrawal state. It requires verified persistence before publishing a grant,
+  permits withdrawal of any-version grant when collection is closed, and
+  schedules the existing synchronization owner. Its choice is not an inference
+  authorization.
 - `Coordinators/ConsentManagerRuntime.swift` is the package composition root. It
   constructs the repository, mutation service, and coordinators, then connects
   their narrow callbacks to the observable facade without resolving live
@@ -74,22 +82,26 @@ not a feature-owned presentation layer.
   verified durable transition.
 - `Services/ConsentRemoteModels.swift` owns the exact PostgREST insert, causal
   RPC, response, and selected-row wire values plus their column projections.
-- `Services/ConsentRemoteService.swift` maps between wire and durable consent
-  values, validates causal append results, performs receipt read-back recovery,
-  and requires exact immutable receipt and causal-event matches before accepting
-  successful or ambiguous read-back evidence. Timestamp checks compare decoded
-  instants against the decoded timestamp sent on the wire, without a tolerance;
-  reformatting a decoded `Date` can truncate another millisecond. A truly empty
-  successful query is absence; a present row that cannot map is
-  `invalidResponse`, never absence. Its narrow closure dependencies keep these
-  rules deterministic and independently testable.
+- `Services/ConsentRemoteMapping.swift` owns pure wire-to-ledger mapping,
+  immutable-payload comparison and exact timestamp conversion.
+- `Services/ConsentRemoteService.swift` routes known AI providers to fixed
+  append dependencies, validates causal append results, performs receipt
+  read-back recovery, and requires exact immutable receipt and causal-event
+  matches before accepting successful or ambiguous read-back evidence. Timestamp
+  checks compare decoded instants against the decoded timestamp sent on the
+  wire, without a tolerance; reformatting a decoded `Date` can truncate another
+  millisecond. A truly empty successful query is absence; a present row that
+  cannot map is `invalidResponse`, never absence. Its narrow closure
+  dependencies keep these rules deterministic and independently testable.
 - `Services/ConsentRemoteService+Live.swift` is the sole direct PostgREST/RPC
-  owner. It preserves the two receipt inserts, two causal append RPCs, four
-  ID-scoped read-backs, and six concurrent authoritative reads.
-- `Services/ConsentMutationService.swift` constructs adult, Terms, Gemini, and
-  PostHog evidence and owns the privacy-sensitive local write ordering. Its
-  injected clock, UUID, and app metadata make mutation behavior deterministic;
-  it has no network, task, singleton, provider-SDK, or logging dependency.
+  owner. It has two receipt inserts, three causal append RPCs, four ID-scoped
+  read-backs, and seven concurrent authoritative reads, including the
+  independent all-version OpenAI head.
+- `Services/ConsentMutationService.swift` constructs adult, Terms, Gemini,
+  OpenAI and PostHog evidence and owns the privacy-sensitive local write
+  ordering. Its injected clock, UUID, and app metadata make mutation behavior
+  deterministic; it has no network, task, singleton, provider-SDK, or logging
+  dependency.
 - `Services/ConsentMutationService+Live.swift` is the sole adapter from those
   mutation dependencies to the process clock, UUID generation, and `Bundle.main`
   app metadata.
@@ -181,11 +193,11 @@ another account's persisted evidence. They also prove that an invalidated
 inference generation returns an account-change failure without persisting
 reapproval state, and cover Ghost rebinding through the runtime's actual
 repository with final-session verification. `ConsentArchitectureTests` freezes
-the exact twenty-one-file inventory, declaration and storage-call relocation,
+the exact twenty-three-file inventory, declaration and storage-call relocation,
 dependency exclusions, runtime composition, mutation/state/cloud owner
 boundaries, PostgREST/RPC, Auth-session, app-metadata, and analytics-consent
 Realtime confinement to their respective live adapters, `ConsentRemoteWire`
-confinement to the three remote-service files, and the 600-line review ceiling
+confinement to the four remote-service files, and the 600-line review ceiling
 for every extracted owner and the facade.
 
 The product and presentation contract is documented in
@@ -196,3 +208,22 @@ The wire contract is documented in
 [`05-api-contracts.md`](../../../../../../docs/backend-and-data/05-api-contracts.md#causal-consent-append-rpc-contract).
 Release readiness remains governed separately by
 [`production-consent-readiness-2026-08-03.md`](../../../../../../docs/legal/production-consent-readiness-2026-08-03.md).
+
+## Optional OpenAI permission
+
+`ConsentPolicy.openAIConsentCollectionEnabled` remains `false`. Onboarding and
+all current inference still require Gemini. `AIProcessingPrivacySection` is
+hidden without OpenAI history, but any-version historic grant remains visible
+for withdrawal. Opening the disclosure captures the expected owner; account
+replacement, SDK mismatch, transition or cancellation rejects the action.
+Successful offline actions persist in the existing ledger and later synchronize
+in causal order. Failed writes show an unsaved error; failed withdrawal closes
+the local choice for this process and stays retryable, without claiming durable
+revocation across restart. The existing separate Keychain withdrawal journal
+remains PostHog-only. OpenAI evidence never becomes Gemini required proof.
+
+`AIProcessingConsentCoordinatorTests` covers independent choices and parents,
+closed collection, historic withdrawal, account/dialog cancellation, persistence
+failures and ownership rebinding. The remote tests cover fixed OpenAI dispatch,
+cross-provider ambiguous-write rejection and owner-scoped head mapping. See the
+[implementation and remaining rollout work](../../../../../../docs/rfcs/identification-provider-openai-consent-2026-09-26.md).

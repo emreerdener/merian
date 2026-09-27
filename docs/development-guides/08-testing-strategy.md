@@ -213,15 +213,15 @@ pin tests to historical versioned schemas — a pinned schema silently drops new
 model fields (e.g. `similarSpecies` added in `MerianSchemaV26`), causing
 persistence tests to pass against the wrong shape.
 
-The current persisted schema is V51. Two released-V50 fixtures are required
+The current persisted schema is V52. Two released-V50 fixtures are required
 because builds emitted distinct model checksums under the same schema version.
 The original fixture creates `ScanCollection.isDeleted` and opens through
 `MerianRecentV50MigrationPlan`; the later processed-release fixture creates
 `isPendingDeletion` with `@Attribute(originalName: "isDeleted")` and opens
 through `MerianReleasedActiveV50MigrationPlan`. Both assert the active
-`isPendingDeletion` value after the V50→V51 preference migration. Keep each
-fixture's exact property shape frozen; production tests should use the active
-property name and predicate.
+`isPendingDeletion` value after the V50→V51 preference migration and V51→V52
+provenance stage. Keep each fixture's exact property shape frozen; production
+tests should use the active property name and predicate.
 
 An in-memory container is not sufficient evidence for a stored-property rename,
 schema migration, restart guarantee, or property-name collision with
@@ -405,7 +405,7 @@ here cover only selector ownership and build/tooling contracts.
 | Durable claims, recovery, duplicate records and restart              | `InferenceLifecyclePersistenceTests`, `LiveCaptureLifecycleTests`, `BackgroundInferenceCompletionTests`, `InferenceReplayTests`, `DiskBackedInferenceAcceptanceTests`                             |
 | Insight restoration, media continuity and dismissal                  | `InsightQueuedHandoffTests`, `InsightShellLifecycleTests`, new disk-backed acceptance; five exact UI cases in the manifest                                                                        |
 | Resource admission and task ownership                                | `MediaStagingBudgetTests`, `AsyncPermitPoolTests`, `InferenceEngineTests` (including backlog cap and Auth hydration/write drains)                                                                 |
-| Startup and V50/V51 compatibility                                    | `ModelContainerBootstrapperTests`, `ModelStoreRecoveryCoordinatorTests`, `MigrationPlanTests`                                                                                                     |
+| Startup and V50/V51/V52 compatibility                                | `ModelContainerBootstrapperTests`, `ModelStoreRecoveryCoordinatorTests`, `MigrationPlanTests`                                                                                                     |
 | Secondary product and account transitions                            | `OnboardingViewModelTests`, `OnboardingConsentRecoveryTests`, `ExploreFeedViewModelTests`, `AuthLocalSignOutCoordinatorTests`, `AuthSessionLifecycleCoordinatorTests`, `OfflineJobSchedulerTests` |
 
 The new disk-backed test closes and reopens a private SQLite store, reconciles
@@ -1649,16 +1649,17 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
     must reuse the V45 checksum representative for unchanged local-scan,
     captured-media, and collection models, while V45 and V46 recent plans must
     keep those sources isolated from each other and route directly to V49 before
-    the shared V49→V50→V51 tail. The full historical plan must remain a single
-    linear chain through V42→V49→frozen V50→V51; V43...V48 belong only to
-    source-isolated plans. V49 must select a dedicated `[V49, frozen V50, V51]`
-    plan. V50 must select either `[released-active V50, V51]` or
-    `[frozen V50, V51]` from an allowlisted store checksum, and an unknown V50
-    graph must not be guessed. The source guardrail must preserve retry order as
-    current store, released-active V50, frozen V50, V49, V48, then V47 through
-    V42; checking only that every label exists is insufficient. It must also
-    keep the V35...V48 `UserSpeciesPreference` aliases chained to the immutable
-    V34 model; pointing any retired schema at the active V51 type rewrites that
+    the shared V49→V50→V51→V52 tail. The full historical plan must remain a
+    single linear chain through V42→V49→frozen V50→frozen V51→V52; V43...V48
+    belong only to source-isolated plans. V49 must select a dedicated
+    `[V49, frozen V50, V51, V52]` plan. V50 must select either
+    `[released-active V50, V51, V52]` or `[frozen V50, V51, V52]` from an
+    allowlisted store checksum, and an unknown V50 graph must not be guessed.
+    The source guardrail must preserve retry order as current store, V51,
+    released-active V50, frozen V50, V49, V48, then V47 through V42; checking
+    only that every label exists is insufficient. It must also keep the
+    V35...V48 `UserSpeciesPreference` aliases chained to the immutable V34
+    model; pointing any retired schema at a mutable active type rewrites that
     source schema's checksum. Disk-backed SwiftData migration tests should use
     unique temporary store URLs and must not unlink the `.sqlite`,
     `.sqlite-shm`, or `.sqlite-wal` files during the test process. Core Data may
@@ -2512,7 +2513,7 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   600-line ceiling.
 - **`Models/ModelsIntegrationArchitectureTests.swift`**: Audits the complete
   Models boundary after the Species and Captured Media slices. It freezes the
-  root and V51 active-schema inventories, rejects filesystem/network/task and
+  root and V52 active-schema inventories, rejects filesystem/network/task and
   `ModelContext` workflow ownership there, verifies the queued-row projection,
   queued-byte, queued-media-presentation, and cloud-deletion persistence
   adapters have one owner each, requires the live queued-row projection to stay
@@ -3090,7 +3091,7 @@ prove visual parity, live Auth/provider behavior, or migration execution.
   creation, membership mutation, explicit pre-mutation restoration before
   rollback for every mutation kind, and exact
   save-before-invalidation-before-sync ordering. The
-  `testDeleteUsesDurableSyncBoundary` case verifies the active V51
+  `testDeleteUsesDurableSyncBoundary` case verifies the active V52
   `ScanCollection.isPendingDeletion` save-first tombstone boundary and must
   remain enabled; it is a release-blocking regression if it fails.
 - **`CollectionsViewModelTests.swift`**
@@ -5054,15 +5055,15 @@ Generated-project membership must include every Swift file below both mirrored
 Collections directories, and each production Collections file must remain under
 the feature's 600-line review guard.
 
-The V51 matrix keeps the durable-delete regression enabled. It verifies that the
+The V52 matrix keeps the durable-delete regression enabled. It verifies that the
 renamed application tombstone survives `ModelContext.save()`, refetch, disk
-migration from V49, both released-V50 graphs migrating into V51, and a second
-context, while both V50 fixture graphs remain frozen. Run the complete
-`MigrationPlanTests` suite with the disk-backed V49→V50→V51 and both V50→V51
-fixtures, the focused Collections suites without exclusions, startup recovery
-coverage, and the full `merianTests` target. Any duplicate-checksum
-initialization failure remains a release blocker and must be fixed in the
-migration plan rather than bypassed.
+migration from V49, both released-V50 graphs migrating through frozen V51 into
+V52, and a second context, while both V50 fixture graphs remain frozen. Run the
+complete `MigrationPlanTests` suite with the disk-backed V49→V50→V51→V52, both
+V50→V51→V52 and direct V51→V52 fixtures, the focused Collections suites without
+exclusions, startup recovery coverage, and the full `merianTests` target. Any
+duplicate-checksum initialization failure remains a release blocker and must be
+fixed in the migration plan rather than bypassed.
 
 ### Scans Non-Biological
 
@@ -5638,10 +5639,11 @@ observations/supporting runs older than 30 days, and prevent artifact reuse
 across criteria. The manual evidence workflow passes `${{ inputs.* }}` through
 step environment variables before Bash consumes them; direct expression
 interpolation in a `run` script is a workflow-security regression. The
-historical genuine released-binary V49→V50 baseline, the current V50→V51
-physical install-over, and the canonical external consent/App Store/billing/DPA
-evidence must also pass. Artifact integrity does not authenticate an
-off-platform issuer or establish independent secret administration; follow the
+historical genuine released-binary V49→V50 baseline, the V50 source-variant
+physical install-over to current V52, the released-V51→V52 install-over, and the
+canonical external consent/App Store/billing/DPA evidence must also pass.
+Artifact integrity does not authenticate an off-platform issuer or establish
+independent secret administration; follow the
 [release-evidence operations guide](../release-evidence/README.md). These remain
 full-release checklist items; the beta exception does not certify them or
 reinstate the source hold automatically.
@@ -6896,6 +6898,74 @@ exercises the actual `demo-exploratory`, `preflight`, `report` and rejected
 adds no calls, and saved reports regenerate without media. Both suites deny
 network and environment; their evidence establishes mechanics, not biological
 accuracy.
+
+`run_openai_evaluation_cli_test.sh` exercises the local OpenAI launcher with a
+pseudo-terminal and a local fake executable. It verifies hidden input, private
+exclusive fingerprint creation, refusal without a terminal, preflight before key
+entry, narrow child permissions, removal of unrelated credentials/overrides, and
+suppression of private child output on failure. The single-session cases verify
+one hidden prompt across both ordered OpenAI profiles, real Deno admission,
+rejection of mixed providers and invalid run IDs, and stopping after a nonzero
+exit, exit-zero controller stop, missing completion/state, plan mutation or
+interruption. No key is persisted and no failed invocation is retried. The
+tooling gate discovers this shell test; it makes no provider calls.
+
+Alternative-provider evaluation adds `_shared/ai/openai_test.ts` to the
+candidate workflow with network/environment denied, plus the root-discovered
+`identification_evaluation_openai_test.ts` and a provider demo in the isolated
+runner suite. These cover fixed-origin single-call transport, ordered photo/text
+projection, whole-observation rejection, strict common schema decoding,
+refusals, partial/oversized output, usage accounting, provider-specific approval
+and unqualified confidence. The existing Gemini and handler suites preserve
+production parity. The
+[provider guide](./22-alternative-identification-provider.md) separates these
+synthetic checks from an authorized live comparison and later production
+rollout.
+
+Provider optimization Slice 1 adds the root-discovered
+`identification_evaluation_measurement_test.ts` and isolated
+`identification_evaluation/testing/measurementRunnerTests.ts`. They cover v1
+compatibility, canonical/synonym ambiguity, unmapped subject assessment,
+unsupported specificity, cache-read/write and reasoning accounting, fixed-case
+cost totals, arithmetic medians, missing measurements, versioned crash recovery,
+immutable taxonomy and the actual `demo-measurement` / `compare-exploratory`
+commands. Native OpenAI tests cover absent/invalid cache-write counters. These
+checks use synthetic records and denied network/environment access; they do not
+establish biological accuracy, explanation quality, cache isolation or a
+production qualification verdict.
+
+Provider optimization Slice 2 adds isolated
+`identification_evaluation/testing/experimentRunnerTests.ts`. It verifies frozen
+profile fingerprints and native request parity, complete-input rejection,
+standalone/forged-control rejection, allocation bounds, all reservation/claim/
+result/settlement crash points, settlement idempotence, sticky stops across
+runs/restarts, configuration drift, journal tampering, deadline settlement and
+parallel-controller exclusion. Controlled reports are exercised with synthetic
+live-shaped records under denied network/environment access, including
+regeneration without media and distinct-provider cost eligibility. The actual
+`demo-experiment` / `experiment-preflight` / `experiment-report` commands are
+covered. The local OpenAI launcher suite additionally checks controlled-run
+selection, pre-key provider rejection and real Deno permission admission with a
+fake transport. These checks perform no paid provider requests.
+
+The concise candidate adds `identification_evaluation_explanation_test.ts` and
+isolated `identification_evaluation/testing/candidateRunnerTests.ts`. These
+verify baseline/control/candidate native parity, distinct prompt versions,
+complete-input rejection, bounded ratings and calibration, local capability and
+origin checks, escaped text and no cached response, v1/v2 rejection of new
+identities, cache/read/write stops, missing/failed review, durable settlement
+before review interruption and report regeneration without private content. The
+v3 delegated-review checks additionally prove null human calibration, explicit
+delegation and assistant provenance, rejection of owner/synthetic substitution,
+unchanged stop rules, and AI-specific reports that never claim independent human
+validation. The actual `demo-candidate` workflow and per-run reports are
+exercised. Screening tests require complete assessments, latency/cost thresholds
+and no new quality fault even when the baseline already has a different fault.
+Launcher tests verify candidate-only loopback/opener grants with synthetic keys
+and no provider requests. Actual loopback lifecycle checks cover saving,
+cancellation, opener failure and timeout without aborting an already closed
+server. These tests do not establish AI assessor accuracy, actual owner
+calibration, live account cache behavior or production qualification.
 
 Authoritative AI quota and entitlement security has four complementary base
 checks:
@@ -9090,6 +9160,16 @@ configuration is missing. Database atomicity and ACL behavior belong in
 `tests/ai_quota_security.sql` and `tests/complimentary_pro_scans_security.sql`,
 not a mocked TypeScript client.
 
+Reproduce the candidate workflow's **Validate authoritative AI quota coverage**
+step with its exact permissions from `services/`. Its environment allowlist
+covers `AI_QUOTA_IP_HASH_SECRET` and the five supported Supabase server-key
+variables read by `serverApiKeyOptionsFromEnvironment`. The admission tests
+install and restore a synthetic HMAC value and mock the database calls. The
+source-read allowlist includes both `deploy.yml` and
+`supabase-candidate-validation.yml` because the coverage tests inspect those
+workflow contracts. No production secret or network access is needed. A broad
+local `--allow-env` or `--allow-read` run cannot verify these CI permissions.
+
 ## Explore emoji-reaction verification
 
 The
@@ -9315,3 +9395,50 @@ private helper ACLs and the atomic trigger boundary. Run these against a
 disposable database replayed from the complete migration history. Fixture
 success does not establish acoustic accuracy or calibration; a new live
 comparison must have its own frozen V2 input/settings plan.
+
+## Independent OpenAI consent infrastructure
+
+The source-disabled optional OpenAI flow uses the existing consent lifecycle and
+local simulator gate; no provider key or paid inference is required.
+`AIProcessingConsentCoordinatorTests` covers closed collection, independent
+Gemini/OpenAI parents, withdrawal of current and older grants, stale dialogs,
+SDK mismatch, transitions, cancellation, durable save failure and account
+rebinding. `ConsentRemoteOpenAITests.swift` extends `ConsentRemoteServiceTests`
+with fixed-recipient dispatch, cross-provider ambiguous-write rejection and
+owner-scoped head mapping. Run the complete `merianTests` target through
+`make ios-local-build`, plus generated project/privacy validation, after
+changes.
+
+`openAIConsentMigrationContract.test.ts` is discovered by the migration gate.
+The disposable `openai_consent_security.sql` catalog covers role ACLs,
+provider/version/adult/Terms proof, immutable replay, stale grant rejection,
+independent withdrawal, merge preconditions/reparenting and account deletion.
+`legalConsentConcurrencyDb.test.ts` includes overlapping OpenAI grants and
+revocations and same-ID Gemini/OpenAI collisions in both arrival orders. Set
+`SUPABASE_DB_TEST_URL` to the task-owned disposable database; never use
+production for these fixtures. The complete Supabase candidate gate runs these
+tests.
+
+These checks prove consent mechanics, not public legal approval, model quality,
+production OpenAI authorization or a live provider rollout. Retain source and
+validation status in the
+[implementation record](../rfcs/identification-provider-openai-consent-2026-09-26.md).
+
+## Identification Result Provenance Compatibility
+
+`IdentificationResultProvenanceTests` covers required nullable configuration
+keys, known Gemini profiles, unknown/malformed present metadata, legacy absence,
+confidence/review presentation, live persistence and historical reconciliation.
+The generated DTO and executable contract gates verify optional non-null
+Identify metadata separately from model-output schemas. The four producer/replay
+suites verify that the client receives the same immutable snapshot saved with
+the scan.
+
+For V52,
+`MigrationPlanTests.v51StoreMigratesWithAllSavedStateAndLegacyProvenance`
+creates a complete frozen V51 store, checks the production metadata decision,
+uses the immediate-predecessor plan, preserves all entity types and
+relationships, and reopens saved provenance. Run migration/startup suites on
+installed supported runtimes and record unavailable runtimes. Physical
+released-binary install-over remains a release gate in the startup recovery
+runbook, not evidence implied by these synthetic fixtures.

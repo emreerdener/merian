@@ -21,6 +21,8 @@ struct InferenceLiveQueueService {
             @MainActor @Sendable (String) -> UUID?
         let deleteQueuedScan:
             @MainActor @Sendable (String, [String], UUID) async -> Bool
+        let pauseQueuedScan:
+            @MainActor @Sendable (String, UUID, String, String) -> Bool
         let rejectQueuedScan:
             @MainActor @Sendable (String, String, String) -> Bool
         var isForegroundInferenceProFunded:
@@ -91,6 +93,12 @@ struct InferenceLiveQueueService {
             explicitlyAdoptedMediaPaths,
             foregroundGeneration
         )
+    }
+
+    func pauseQueuedScan(
+        scanId: String, generation: UUID, reason: String, errorCode: String
+    ) -> Bool {
+        dependencies.pauseQueuedScan(scanId, generation, reason, errorCode)
     }
 
     @discardableResult

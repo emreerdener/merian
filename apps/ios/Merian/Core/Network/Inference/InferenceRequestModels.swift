@@ -16,6 +16,19 @@ struct InferencePayloadContext: Sendable {
 struct AuthenticatedInferenceRequest: Sendable {
     let request: URLRequest
     let expectedAuthUserID: UUID
+    let identificationAuthorization: IdentificationDispatchAuthorization?
+
+    init(request: URLRequest, expectedAuthUserID: UUID,
+         identificationAuthorization: IdentificationDispatchAuthorization? = nil) {
+        self.request = request
+        self.expectedAuthUserID = expectedAuthUserID
+        self.identificationAuthorization = identificationAuthorization
+    }
+
+    @MainActor
+    func validateForDispatch() throws {
+        try identificationAuthorization?.validate()
+    }
 
     /// Keeps the serialized inference body, JWT, and eventual transport lease
     /// attached to the same Auth account across suspensions.

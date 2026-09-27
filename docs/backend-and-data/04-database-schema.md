@@ -192,10 +192,10 @@ provider-wide greatest revision the mandatory first authorization decision:
   `terms_version`, device `accepted_at`, exact `acceptance_text`, platform, app
   version/build, and server-controlled `recorded_at`;
 - `public.user_ai_consent_events`: UUID primary key, `user_id`, constrained
-  provider, `disclosure_version`, `event_kind` (`granted` or `revoked`), device
-  `occurred_at`, exact disclosure/action text, platform, app version/build, and
-  server-controlled `recorded_at`, server-only monotonic `consent_revision`, and
-  the accepted event's `causal_parent_id`;
+  provider (`google_gemini` or `openai`), `disclosure_version`, `event_kind`
+  (`granted` or `revoked`), device `occurred_at`, exact disclosure/action text,
+  platform, app version/build, and server-controlled `recorded_at`, server-only
+  monotonic `consent_revision`, and the accepted event's `causal_parent_id`;
 - `public.user_analytics_consent_events`: UUID primary key, `user_id`, PostHog
   disclosure version, `granted` / `revoked` event kind, device action time,
   exact disclosure/action text, platform, app version/build, and
@@ -205,17 +205,19 @@ provider-wide greatest revision the mandatory first authorization decision:
 Authenticated users may select only their own rows under RLS. Adult and Terms
 receipts retain narrow column-level insert ACLs. AI and analytics event tables
 deny direct client insertion and sequence access; callers use
-`append_user_ai_consent_event(...)` or
+`append_user_ai_consent_event(...)`, `append_user_openai_consent_event(...)` or
 `append_user_analytics_consent_event(...)`. Each `SECURITY DEFINER` routine
 authenticates with `auth.uid()`, locks the caller's `public.users` row
 `FOR KEY SHARE` to serialize against ghost-profile merge, then takes a
-transaction-scoped advisory lock for the caller/provider stream. Under that
+transaction-scoped advisory lock. Both AI recipients share the caller-level AI
+lock to serialize global event IDs in the shared table; their head queries
+remain provider-specific. PostHog keeps its separate account lock. Under that
 lock, a grant whose supplied parent is not current returns `accepted = false`
 with the authoritative head. A revocation always appends and stores that current
 head as its accepted parent, so a stale device cannot preserve a grant. Every
 accepted response returns the stored parent and the only authoritative server
 revision. No table grants client insert, update, delete, or sequence access.
-Reusing an event ID with different immutable content raises
+Reusing an event ID with a different owner, provider or immutable content raises
 `consent_event_id_conflict`. An exact revocation retry may repeat its originally
 observed parent after server rebasing; the existing stored parent is returned.
 Exact `(user_id, provider, consent_revision DESC)` stream-head indexes and
@@ -1176,6 +1178,13 @@ dictionary fields, reference-image-backed content, group tags, or durable
 lookalike rows. Provenance write failures are logged and do not fail the
 user-facing scan or dictionary response.
 
+The public row is a source/freshness record, not private execution provenance or
+a store for competing provider candidates. Shared species-content generation now
+requires the existing Gemini profiles at the Edge preparation boundary. Existing
+rows are neither relabeled with invented model identities nor invalidated. A
+future content provider needs reviewed private candidate storage and promotion
+semantics before replacing canonical fields, lookalike relations or group tags.
+
 **Backfill**: the migration inserts low-confidence provenance rows for existing
 dictionary data, reference images, and lookalikes with
 `source_detail = 'legacy backfill; original freshness unknown'` and a 30-day
@@ -1284,6 +1293,31 @@ The transaction log for every successful identification.
 - `species_id` (UUID - Foreign Key nullable)
 - `ai_confidence_score` (Float): 0.0 to 1.0. Bounded explicitly within the
   Gemini schema description ruleset.
+- `identification_provenance` (JSONB, nullable): Immutable, version-1
+  configuration projected only from the admitted successful server execution.
+  Contains provider, binding, requested model, variant, operation, policy,
+  prompt/schema/confidence references, diagnostic thresholds, safety profile,
+  timeout and explicit generation settings. It contains no evidence, returned
+  model text, account/request/reservation IDs or timing. These fixed facts
+  intentionally share the scan's existing public/owner Data API visibility;
+  curated Explore responses omit the full value. Identify responses include the
+  optional non-null value, and owner history preserves it in native V52 storage.
+  Migration `20260926160249_persist_identification_result_provenance.sql`
+  enforces an exact bounded shape and atomically stores a recovery copy in the
+  matching ingestion job. Existing rows remain null; updates, including guessed
+  legacy backfills, are rejected. See the
+  [provenance record](../rfcs/identification-provider-result-provenance-2026-09-26.md).
+- Metric interpretation: the service-only pure helper
+  `internal.identification_metrics_are_gemini_compatible(jsonb,text)` recognizes
+  the exact existing profiles, including Pro audio comparison B. This is a
+  compatibility rule, not an empirical calibration claim. Migration
+  `20260927004054_qualify_identification_metrics_by_provenance.sql` gates public
+  suggestion scores, Field Trip score credit, Perfect Lens, and both confidence
+  and quality use in automatic reference promotion. Field Trip receipts include
+  the derived flag; the migration reconciles newly ineligible credit and retains
+  explicit confirmation independently of confidence. Existing source scores and
+  immutable provenance are never rewritten. See the
+  [public metric record](../rfcs/identification-public-metric-compatibility-2026-09-26.md).
 - `blur_score` (Float): 0.0 to 1.0. Mathematically derived natively in the Edge
   orchestrator from Gemini's `image_quality.sharpness` score to reduce
   generation latency.
@@ -1510,9 +1544,10 @@ version contains both RPC call sites.
   persisted here. A `CHECK (image_quality_score BETWEEN 0 AND 100)` constraint
   is enforced at the database level. Added in migration
   `20260330150000_add_image_quality_score_to_scans.sql`. `NULL` for all scans
-  captured before this migration — no backfill is performed. Feature is "collect
-  now, use later": scores are gathered for future community reference-photo
-  curation use cases.
+  captured before this migration — no backfill is performed. Automatic reference
+  curation uses this scale only when the recorded execution is compatible with
+  its established Gemini interpretation, or provenance is historically absent.
+  Species confirmation cannot qualify an unfamiliar photographic-quality score.
 - `user_observation_context` (JSONB, nullable): Structured observation context
   staged by the user before submission. On the active multimodal path this is
   the first serialized iOS `ObservationContext` object, currently
@@ -2071,7 +2106,11 @@ replaces that representation with source snapshot version 2:
   table has RLS and no API-role grants.
 - `internal.dwca_export_snapshot_source`: a private projection used once to
   create the DTOs and later only to recompute live eligibility. Its taxonomy
-  join uses `COALESCE(confirmed_species_id, species_id)`.
+  join uses `COALESCE(confirmed_species_id, species_id)`. New occurrence DTOs
+  freeze `ai_confidence_qualified` from the private Gemini metric compatibility
+  predicate, without exposing full execution provenance. Existing immutable job
+  rows are not rewritten. The matching export worker suppresses unqualified
+  confidence-derived verification status and preserves legacy omitted-flag rows.
 
 An insertion trigger materializes membership, both immutable DTOs, source
 statistics, and eligibility hashes in one MVCC statement before the webhook can
@@ -2254,6 +2293,15 @@ all table privileges are revoked from `PUBLIC`, `anon`, `authenticated`, and
 `service_role`; only owner-executing private proof code reads it.
 
 ### `scan_ingestion_jobs`
+
+`identification_provenance` is the immutable server recovery copy of the same
+scan configuration, populated in the scan-insert transaction. It is independent
+of the expiring quota-attempt tables. Missing scan inserts restore it only by
+exact owner/scan lookup, including the existing `recover_missing_owned_scan`
+path; supplied client provenance is ignored. Old jobs remain null. Provenance
+survives ordinary retries and owner merge without changing its contents. The
+backup follows the job's existing access and Auth-owner cascade; retained
+scientific scan tombstones keep their content-free value.
 
 Durable server-side lifecycle ledger for accepted scan ingestion requests. Added
 in migration `20260705120000_add_scan_ingestion_jobs.sql`.
@@ -3525,12 +3573,15 @@ coordinates to the client contract.
 - `public.refresh_merian_reference_images(p_quality_threshold INTEGER DEFAULT 80, p_per_species_limit INTEGER DEFAULT 8, p_dry_run BOOLEAN DEFAULT FALSE, p_species_confidence_threshold DOUBLE PRECISION DEFAULT 0.95)`:
   Internal service-role helper used by `/refresh-merian-reference-images`. It
   selects currently visible Explore posts, unnests all non-empty
-  `scans.image_storage_urls`, requires `image_quality_score >= 80` by default,
-  requires `ai_confidence_score >= 0.95` unless `confirmed_species_id` is
-  present, resolves species via `COALESCE(confirmed_species_id, species_id)`,
-  dedupes by `(species_id, image_url)`, promotes up to 8 Merian images per
-  species, and removes Merian public rows whose source content is no longer
-  visible. Public video clips are excluded from Dictionary/reference galleries.
+  `scans.image_storage_urls`, requires compatible recorded Gemini metrics (or
+  historical SQL-null provenance), and requires `image_quality_score >= 80` by
+  default. It requires `ai_confidence_score >= 0.95` unless
+  `confirmed_species_id` is present; confirmation cannot bypass image-quality
+  compatibility. It resolves species via
+  `COALESCE(confirmed_species_id, species_id)`, dedupes by
+  `(species_id, image_url)`, promotes up to 8 Merian images per species, and
+  removes Merian public rows whose source content is no longer visible. Public
+  video clips are excluded from Dictionary/reference galleries.
 - `public.can_view_explore_author_profile(self_id UUID, target_author_user_id UUID)`:
   Returns whether the target author has a visible Explore profile for the
   requester through either a currently visible Explore post or a visible Field
@@ -3787,14 +3838,19 @@ coordinates to the client contract.
 - `public.field_trip_scan_evidence_is_eligible(candidate public.scans)`: Private
   stable invoker used by both progress wrappers. Requires a non-tombstoned,
   non-explicitly-non-biological scan with resolved effective taxonomy, excludes
-  Human taxonomy/overrides and unresolved names, then applies the unchanged
-  scalar confidence helper. Confirmation cannot override the subject guard.
-  Execute is denied to all API roles. Migration
-  `20260924062640_gate_field_trip_progress_by_subject.sql` adds the override to
-  the atomic revision/update trigger and repairs affected historical
+  Human taxonomy/overrides and unresolved names. Automatic score credit also
+  requires `internal.identification_metrics_are_gemini_compatible`; explicit
+  confirmation bypasses that metric gate and the scalar confidence threshold,
+  but cannot override the subject guard. Execute is denied to all API roles.
+  Migration `20260924062640_gate_field_trip_progress_by_subject.sql` adds the
+  override to the atomic revision/update trigger and repairs affected historical
   credit/receipts using the existing reconciliation helpers with ten-second lock
   and five-minute statement timeouts. Valid receipts and selected-goal
-  preferences are preserved.
+  preferences are preserved. The later
+  `20260927004054_qualify_identification_metrics_by_provenance.sql` migration
+  adds provenance-aware eligibility, includes provenance changes in the update
+  trigger, and reconciles newly ineligible credit and receipts through the same
+  locked atomic path with five-second lock and five-minute statement timeouts.
 - `public.remove_ineligible_field_trip_scan_progress(self_id UUID, target_scan_id UUID)`
   and
   `public.remove_ineligible_field_trip_challenge_scan_progress(self_id UUID, target_scan_id UUID)`:
@@ -3811,10 +3867,11 @@ coordinates to the client contract.
   outing and joined Event progress, persists the validated preference, evaluates
   the first Field trip achievement, and writes the receipt in the same
   transaction. Confidence, inference tier, and explicit confirmation are part of
-  the scan revision, along with `user_identification_override`. Any error rolls
-  back every component. Scan-ingestion and evidence-changing correction triggers
-  call this function; the Edge progress action calls it again to retrieve the
-  response for notifications.
+  the scan revision, along with `user_identification_override` and the derived
+  metric-compatibility decision. Any error rolls back every component.
+  Scan-ingestion and evidence-changing correction triggers call this function;
+  the Edge progress action calls it again to retrieve the response for
+  notifications.
 - `public.get_first_field_trip_achievement_progress(self_id UUID)`: Private
   `SECURITY INVOKER` achievement projection executable only by `service_role`.
   The repair migration adds that role's missing read access to
@@ -4088,7 +4145,15 @@ normalized modality breakdown:
 ```
 
 Missing Gemini detail arrays normalize to empty objects; no prompt or response
-content belongs in this field.
+content belongs in this field. New primary scan events copy model/provider and
+bounded execution references from saved `identification_provenance` into the
+existing model/metadata fields; only absent legacy provenance infers Gemini from
+tier. `ai_attribution` distinguishes recorded provenance from that fallback.
+Historical rows remain unchanged. The pricing writer requires the Gemini usage
+contract, a known modality, prompt/candidate counts and consistent cached
+counts. An unsupported provider (even with a Gemini model name), usage mapping
+or tariff retains a null estimate/version. Provider attribution survives account
+anonymization without identifying linkage.
 
 The unique key `(source_type, source_id, operation)` makes durable retries and
 backfills idempotent. Indexes cover event time, operation/time, scan, and
@@ -4105,8 +4170,8 @@ authorized anonymization context.
 
 Migration `20260723160229_enforce_server_ai_quotas.sql` adds four private
 tables. `PUBLIC`, `anon`, `authenticated`, and `service_role` have no direct
-table privileges; Edge code reaches them only through the two reviewed
-service-role definer RPCs.
+table privileges; Edge code reaches them only through reviewed service-role
+definer RPCs.
 
 - `internal.ai_quota_policies`: one row per `(operation, effective_plan)`.
   Stores enabled/allowed state, allowlisted model, policy version, daily bucket
@@ -4128,6 +4193,93 @@ service-role definer RPCs.
   decrements these counters once in the same daily/user/IP lock order used by
   reservation, removes zero rows, then removes the links.
 
+Migration `20260926142824_bind_identification_quota_to_provider.sql` adds two
+private, RLS-enabled tables with no direct API-role grants:
+
+- `internal.identification_provider_bindings`: one reviewed assignment per exact
+  `(operation, effective_plan, model, policy_version, input_profile)` after
+  migration `20260926174645_add_identification_input_routing.sql`. Only enabled,
+  allowed existing identification policies seed
+  Gemini/baseline/Gemini-permission rows. A new policy version or assignment
+  requires an explicit matching catalog row; the catalog and quota model
+  constraints still reject OpenAI. Migration
+  `20260926200227_add_identification_client_compatibility.sql` adds a bounded
+  `minimum_client_protocol`, defaulting to zero for every current Gemini row.
+  Zero adds no route-specific cutoff to the existing global entitlement gate.
+- `internal.identification_provider_attempts`: one insert-only application
+  snapshot per `(reservation_id, attempt_count)`, including operation, plan,
+  model, policy version, provider, binding and processor permission. The later
+  routing migration adds a nullable complete-input profile; historical snapshots
+  stay null. The compatibility migration adds nullable `minimum_client_protocol`
+  and `accepted_client_protocol` snapshots; historical values remain unknown.
+  Recognized original-client protocols are currently limited to 1–3. A fresh
+  metered retry adds a generation instead of rewriting previous evidence. The
+  reservation foreign key cascades deletion under its existing retention and
+  account-cleanup rules. This is quota-attempt evidence, not permanent scan
+  provenance or a complete prompt/generation fingerprint.
+
+`reserve_identification_quota` has compatible eight-argument legacy admission,
+nine-argument complete-input admission, and a ten-argument recipient-expectation
+overload added by `20260926213316_add_identification_recipient_preflight.sql`.
+The complete-input paths choose the private profile binding and save its
+assignment in the quota transaction. The tenth argument can only deny a fresh
+assignment that differs from the expected recipient; `recovery_only` always
+denies fresh inference. A mismatch raises `ai_identification_preflight_changed`
+and rolls back the complete transaction. Live/committed duplicates remain
+non-dispatchable and do not apply the expectation to a new catalog row. All
+three overloads are allowlisted only to `service_role`; the earlier signatures
+and return shapes are preserved. Every current route is Gemini. Legacy catalog
+rows use `legacy_v1`; new rows distinguish the three compatibility
+representations plus six primary text/photo/audio/video combinations. No API
+role can read or write either table directly.
+
+The routing migration extracts the established four- and eight-argument quota
+algorithms into ungranted `internal.reserve_ai_quota_core` invoker overloads.
+They retain service-role guards, entitlement/user/reservation/counter locking,
+lease fencing and accounting; they do not choose a processor or grant consent.
+Both public `reserve_ai_quota` signatures remain service-only, preserve their
+Gemini gate and delegate to these cores. The new identification overload selects
+an exact binding, checks its client compatibility, and calls
+`internal.require_identification_processor_consent(uuid,text)` in the same
+transaction. The recipient wrapper delegates to the consent ledger and preserves
+OpenAI's distinct denial code. Missing binding, incompatible client or denied
+recipient rolls back all quota and complimentary-hold effects. Consent never
+changes the selected assignment.
+
+The ungranted invoker `internal.require_identification_client_protocol` accepts
+only recognized original-client capability claims as evidence. A nonzero binding
+minimum rejects missing, older or unsupported proof with
+`client_update_required`. An internal worker header is never proof: fresh
+internal replay requires the original reservation for the same owner, operation,
+request/original-analysis UUID and current attempt, with the same saved input
+profile. Its immutable accepted protocol must satisfy the new binding. The
+reservation-level `client_protocol` field cannot substitute for this attempt
+evidence. Unknown legacy proof remains admissible only where the binding minimum
+is zero. This gate neither authenticates a binary nor grants processing
+permission.
+
+The recipient helper preserves Gemini's causal stream-head behavior. Since
+`20260926150509_add_independent_openai_consent_stream.sql`, OpenAI proof
+requires its all-version latest event to grant disclosure `2026-09-26`, with
+adult and Terms `2026-08-03` receipts. It ignores Gemini grants and legacy
+rollout compatibility, and denies unknown recipients. This helper does not widen
+the Gemini-only model or binding constraints.
+
+A live or committed replay keeps its saved assignment and never consults a new
+binding. If the old reservation has no snapshot, assignment fields remain null
+and Edge returns the existing non-dispatchable replay. New metered attempts may
+use current model/policy but cannot change an already recorded complete-input
+profile under the same reservation. Missing historical profiles are never
+backfilled. Live/committed quota replays do not apply a new compatibility
+minimum; completed result and status recovery remain outside fresh admission.
+Old workers remain compatible through their legacy routing lane. Future protocol
+expansion must coordinate accepted maxima in Edge, SQL and the attempt
+constraint before a new app advertises it. Do not raise the global entitlement
+minimum to activate a provider; doing so could block older clients'
+completed-result replay. See the
+[compatibility implementation record](../rfcs/identification-provider-client-compatibility-2026-09-26.md)
+for the remaining activation requirements.
+
 Migration `20260809155517_add_scan_admission_preview.sql` exposes one narrow
 authenticated RPC, `public.get_my_scan_admission_preview(boolean)`, over this
 private state. It binds the lookup to `auth.uid()`, resolves the prospective
@@ -4136,6 +4288,21 @@ paid → complimentary → Flash plan, and returns `allowed`,
 remaining count. It is intentionally read-only and does not create a hold,
 counter increment, or reservation. Only `authenticated` has execute privilege;
 the later service-only reservation remains authoritative.
+
+Migration `20260926213316_add_identification_recipient_preflight.sql` adds
+`get_my_identification_preflight(text,text,boolean,uuid,integer)`, executable
+only by `authenticated`. It uses `auth.uid()` with no target-account argument.
+This separate read-only recipient preview first applies the global protocol
+gate, then identifies caller-owned live/committed recovery. For fresh work it
+resolves the complete-input binding using the prospective plan, including
+held/consumed funding for that exact scan. It reports recipient, compatibility
+and permission readiness; it never creates or modifies admission, consent or
+usage state. It is not a quota-availability check. Profile/Flash hints are not
+trusted dispatch evidence. The final Edge request independently derives its
+shape, and its optional expectation chooses only the denial-capable ten-argument
+ABI. The native preflight caller is not included in this backend slice. The
+[API contract](./05-api-contracts.md#assigned-recipient-preflight) defines the
+closed result and header shapes.
 
 The database shape is intentionally independent from iOS reachability. The
 client gives this advisory read a two-second, no-wait/no-retry transport bound.
@@ -5036,8 +5203,10 @@ changes must close the old row and insert a new version in one migration.
 
 `admin_aggregate_cache` stores a private JSON payload by cache key and
 `created_at`. Overview and AI summary RPCs accept cache entries only for five
-minutes after authorization. Raw review/feedback/user/audit results never use
-this cache.
+minutes after authorization. Provider-coverage payloads use versioned keys;
+totals and daily rows carry priced/unpriced event counts beside partial cost
+sums. AI Usage adds at most 50 provider/model/attribution groups plus a
+truncation flag. Raw review/feedback/user/audit results never use this cache.
 
 ### Moderation and durable usage columns
 
@@ -5104,12 +5273,17 @@ the original goal-hint companion and `ScanCollection.isDeleted` property;
 `SchemaV50ReleasedActiveSnapshots.swift` retains the processed release's
 `isPendingDeletion` property with its original-name mapping. Each graph has a
 source-exact V50→V51 stage, and startup selects it by allowlisted model
-checksum. The source guardrail rejects regressions and pins all three recent
+checksum. The source guardrail rejects regressions and pins all four recent
 snapshot SHA-256 values, so a property, annotation, default, relationship,
 initializer, or helper edit requires an explicit historical-shape review.
-`MerianSchemaV51` owns the active global models. Disk migration suites create
-source stores from the frozen snapshots, migrate V49 through V50 into V51, and
-migrate both V50 graphs through their source-isolated custom plans. That proves
+`SchemaV51Snapshots.swift` freezes all eight `MerianSchemaV51` model classes and
+their relationships; the unchanged goal-hint companion retains its V50 owner.
+`MerianSchemaV52` owns the active global models. Disk migration suites create
+source stores from the frozen snapshots, migrate V49 through V50 and V51 into
+V52, and migrate both V50 graphs through their source-isolated custom plans. The
+V51 fixture verifies production metadata selection and preserves scan, media,
+collection, preference, queue, event, deletion and goal-hint state while adding
+nullable provenance, then verifies a current-schema reopen. That proves
 candidate self-consistency; genuine released-binary physical install-over and
 second-launch gates remain separate release evidence.
 
@@ -5136,7 +5310,7 @@ each new row into the migration `ModelContext` before assigning the
 relationship; relationship assignment alone is not a durable insert path while
 SwiftData is inside staged store migration.
 
-The current active schema is `MerianSchemaV51`. Recent milestones:
+The current active schema is `MerianSchemaV52`. Recent milestones:
 
 - V38 added single-value audio/context storage (`audioFilePath`,
   `observationContextJSON`) to both local and offline scan models.
@@ -5176,21 +5350,21 @@ The current active schema is `MerianSchemaV51`. Recent milestones:
   directly to V49 from source-isolated V44→V49, V45→V49, and V46→V49 plans so
   SwiftData never migrates unchanged entities across duplicate-prone recent
   representatives. App startup reads store metadata before creating
-  `ModelContainer`: fresh/current V51 stores open without a migration plan,
+  `ModelContainer`: fresh/current V52 stores open without a migration plan,
   known recent stores use the source-isolated
-  V50/V49/V48/V47/V46/V45/V44/V43/V42 plans, and only unknown older stores use
-  the full historical plan. The V50 plan contains the custom V50→V51
-  preference-ownership stage; the V49 plan prepends the required lightweight
-  V49→V50 hop. Immediate predecessors therefore never validate unrelated
-  history. The V42 and V43 recent plans jump directly to V49 to avoid validating
-  older full-historical custom stages and to keep V42 off the older V42→V43
-  bridge that still failed on real TestFlight stores, while V45 and V46
-  deliberately use one matching source representative each before the V49 repair
-  target. Stores that still hit SwiftData's duplicate-checksum validator during
-  plan construction retry with the same source-isolated recent plans before
-  legacy rescue or safe mode. Safe mode itself creates an empty in-memory V51
-  container without any migration plan; it does not validate this historical
-  ladder again.
+  V51/V50/V49/V48/V47/V46/V45/V44/V43/V42 plans, and only unknown older stores
+  use the full historical plan. V51 needs only lightweight V51→V52. Each V50
+  plan contains its custom V50→V51 preference-ownership stage followed by
+  V51→V52; the V49 plan prepends the required lightweight V49→V50 hop. Immediate
+  predecessors therefore never validate unrelated history. The V42 and V43
+  recent plans jump directly to V49 to avoid validating older full-historical
+  custom stages and to keep V42 off the older V42→V43 bridge that still failed
+  on real TestFlight stores, while V45 and V46 deliberately use one matching
+  source representative each before the V49 repair target. Stores that still hit
+  SwiftData's duplicate-checksum validator during plan construction retry with
+  the same source-isolated recent plans before legacy rescue or safe mode. Safe
+  mode itself creates an empty in-memory V52 container without any migration
+  plan; it does not validate this historical ladder again.
 - V47 added `OfflineQueuedScan.inferenceImagePaths` and `visualMediaItemsJSON`
   so queued video replay can keep sampled inference frames separate from the
   user-visible playback video timeline.
@@ -5223,7 +5397,8 @@ The current active schema is `MerianSchemaV51`. Recent milestones:
   stored checksum and selects either `MerianSchemaV50` or
   `MerianReleasedActiveSchemaV50`; unknown V50 checksums fail closed. Separate
   disk fixtures verify both graphs, tombstone true/false values, relationships,
-  and the goal-hint companion through their V50→V51 plans.
+  and the goal-hint companion through their source-exact V50→V51 stages and the
+  shared V51→V52 tail.
 - V51 makes `UserSpeciesPreference` account-scoped. Its stable unique ID
   combines the owner UUID and normalized scientific name, while `ownerUserId`
   supports bounded account queries. The custom V50→V51 stage discards
@@ -5235,6 +5410,14 @@ The current active schema is `MerianSchemaV51`. Recent milestones:
   `MerianRecentV50MigrationPlan` and `MerianReleasedActiveV50MigrationPlan`
   variants handle the two immediate-predecessor graphs, and all older recent
   plans append the same custom stage after reaching frozen V50.
+
+- V52 adds optional `LocalScanRecord.identificationProvenanceData` through a
+  lightweight V51→V52 migration. It stores the bounded, content-free execution
+  metadata from Identify and owner history. Nil preserves legacy semantics;
+  present unknown or malformed metadata cannot use Gemini confidence bands. All
+  existing plans append this stage and the immediate-predecessor
+  `MerianRecentV51MigrationPlan` validates only V51 and V52. No other stored
+  property changes; outgoing V51 was frozen and compiled before active edits.
 
 **Edge DTO Layer** (`apps/ios/Merian/Core/AI/InferenceEdgeDTOs.swift`): The
 marked Identify `EdgeResponseWrapper` / `EdgeResponse` graph is generated from
@@ -5471,7 +5654,7 @@ with non-optional defaults (`queueAttemptCount = 0`, `queueUpdatedAt = now`,
 ### `OfflineQueuedScanGoalHint`
 
 Added in released `MerianSchemaV50` and retained through the
-`ActiveOfflineQueuedScanGoalHint` alias in current V51 source. This optional
+`ActiveOfflineQueuedScanGoalHint` alias in current V52 source. This optional
 companion exists only for a queued scan submitted from an eligible live Capture
 goal selection.
 
@@ -5804,7 +5987,7 @@ A top-level album type associated with `LocalScanRecord` nodes, added in
 - `createdAt`: Date
 - `scans`: [LocalScanRecord]? (Inverse `@Relationship` using IDs rather than
   encoded objects, reducing memory pressure.)
-- `isPendingDeletion`: Bool (Active V51 application tombstone, mapped to the
+- `isPendingDeletion`: Bool (Active V52 application tombstone, mapped to the
   released `isDeleted` column with `@Attribute(originalName:)`; the value is
   explicitly projected to the unchanged `is_deleted` Edge field for safe cloud
   erasure instead of destructive state-diffs.)
@@ -5815,7 +5998,7 @@ schema identifier. The original graph is retained in
 `isDeleted` property. The processed later-release graph is retained separately
 in `apps/ios/Merian/Models/Schema/SchemaV50ReleasedActiveSnapshots.swift`; it
 has the exact `isPendingDeletion` Swift property and
-`@Attribute(originalName: "isDeleted")` mapping emitted by that binary. The V51
+`@Attribute(originalName: "isDeleted")` mapping emitted by that binary. The V52
 active model retains the same unambiguous name and wire contract.
 
 `MerianActiveSchemaV50` bridges the original V50 graph, while
@@ -5825,12 +6008,13 @@ selects only the matching allowlisted graph before the custom V50→V51
 preferred-name migration; an unknown V50 signature is preserved through rescue
 instead of guessed. Neither stage alters collection state. The V49
 source-isolated plan contains V49→V50 and V50→V51 hops through the original
-bridge; older recent lanes use the same tail after their source-specific repair.
+bridge, followed by V51→V52; older recent lanes use the same tail after their
+source-specific repair.
 
 Disk-backed fixtures create both V50 graphs and verify metadata-based
 `.recentSource(.v50)` selection plus checksum-variant selection, true and false
 tombstones, relationship retention, the V50 goal-hint companion,
-unowned-preference removal, and a V51 relaunch. Collection mutation and
+unowned-preference removal, and a V52 relaunch. Collection mutation and
 database-actor tests cover save/refetch persistence, exact `is_deleted`
 projection, inbound tombstone shielding, and acknowledgement-only purge. The
 source-only rename does not invent delete intent for assignments that were never

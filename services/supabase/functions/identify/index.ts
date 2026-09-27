@@ -1,3 +1,4 @@
+import { identificationProvenance } from "../_shared/ai/provenance.ts";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import type { AIExecutionOutcome } from "../_shared/ai/contracts.ts";
 import { prepareAIExecution } from "../_shared/ai/production.ts";
@@ -19,7 +20,7 @@ import {
 import { isFlashFallbackEligible } from "../_shared/complimentaryScans.ts";
 import {
   AIQuotaError,
-  reserveAIProviderCall,
+  reserveIdentificationProviderCall,
   resolveAIRequestId,
 } from "../_shared/aiQuota.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
@@ -278,9 +279,32 @@ export function createIdentifyHandler(prepare = prepareAIExecution) {
 
     console.log(`[⏱ BENCH] payload_resolved: ${Date.now() - fnStart}ms`);
 
+    const aiRequest = buildVisionAIRequest({
+      imageBase64s: base64Payloads,
+      mimeType,
+      description,
+      telemetry: {
+        safeGpsLat,
+        safeGpsLon,
+        gpsElevation,
+        depthScaleText,
+        zoomFactor,
+        estimatedSizeCm: estimated_size_cm,
+        semanticLocation,
+        weatherCondition,
+        weatherTemperatureF,
+        deviceLocale,
+        deviceTimeZone,
+        deviceRegion,
+        currentMonth: normalizedCurrentMonth,
+        timeOfDay,
+      },
+    });
+
     let quotaLease;
     try {
-      quotaLease = await reserveAIProviderCall(req, supabaseAdmin, {
+      quotaLease = await reserveIdentificationProviderCall(req, supabaseAdmin, {
+        request: aiRequest,
         userId: user.id,
         operation: "scan_identification",
         requestId: generatedScanId,
@@ -377,28 +401,6 @@ export function createIdentifyHandler(prepare = prepareAIExecution) {
       throw error;
     }
 
-    const aiRequest = buildVisionAIRequest({
-      imageBase64s: base64Payloads,
-      mimeType,
-      description,
-      telemetry: {
-        safeGpsLat,
-        safeGpsLon,
-        gpsElevation,
-        depthScaleText,
-        zoomFactor,
-        estimatedSizeCm: estimated_size_cm,
-        semanticLocation,
-        weatherCondition,
-        weatherTemperatureF,
-        deviceLocale,
-        deviceTimeZone,
-        deviceRegion,
-        currentMonth: normalizedCurrentMonth,
-        timeOfDay,
-      },
-    });
-
     console.log(`[⏱ BENCH] pre_gemini: ${Date.now() - fnStart}ms`);
     const geminiStart = Date.now();
 
@@ -417,7 +419,7 @@ export function createIdentifyHandler(prepare = prepareAIExecution) {
       const execution = prepare(aiRequest, {
         kind: "user_request",
         userId: user.id,
-        permission: "google_gemini",
+        permission: quotaLease.reservation.assignment.permission,
         operation: "scan_identification",
         reservation: quotaLease.reservation,
       });
@@ -821,6 +823,10 @@ export function createIdentifyHandler(prepare = prepareAIExecution) {
 
     let responseEnvelope: IdentifySuccessEnvelope;
     try {
+      payloadReadyForClient.identification_provenance =
+        identificationProvenance(
+          result.execution,
+        );
       responseEnvelope = parseIdentifySuccessEnvelope({
         success: true,
         data: payloadReadyForClient,
@@ -1014,6 +1020,9 @@ export function createIdentifyHandler(prepare = prepareAIExecution) {
           {
             id: generatedScanId,
             user_id: user.id,
+            identification_provenance: identificationProvenance(
+              result.execution,
+            ),
             species_id: speciesId,
             timestamp: timestamp ?? undefined,
             gps_lat_exact: safeGpsLat,

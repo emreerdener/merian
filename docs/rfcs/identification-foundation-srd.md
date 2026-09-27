@@ -1,25 +1,35 @@
 # Naturebook AI Provider Flexibility — SRD
 
 Document ID: NB-SRD-IDENTIFICATION-001\
-Version: 1.1\
-Date: 21 September 2026\
-Status: Gemini-only backend deployed; owner verification confirmed\
+Version: 1.2\
+Date: 26 September 2026\
+Status: Gemini-only foundation deployed; separate OpenAI evaluator implemented
+locally\
 Suggested owners: Backend and Product, with iOS contract review\
 Product authority:
 [Provider Flexibility PRD](../product/03-identification-foundation-prd.md)
 
 ## 1. Scope and current implementation
 
-Create the shared interfaces, explicit Gemini task bindings, execution metadata,
-and verification needed for a later provider change. **All identification and
-scoped content-generation requests remain on their current approved Gemini
-models.** An OpenAI or other live-provider integration is future work.
+**Scope clarification — 26 September 2026:** This SRD preserves the original
+Gemini-only foundation and its dated implementation history. A subsequent
+[OpenAI photo/text evaluator](../development-guides/22-alternative-identification-provider.md)
+uses the shared boundary locally; its paid exploratory evidence does not grant
+production authority. The
+[implementation review](./identification-provider-flexibility-review-2026-09-26.md)
+records the current source boundary and later activation work.
 
-The current milestone preserves prompts, sampling, media encoding, confidence,
-permissions, subscription policy, response contracts, and recovery behavior. It
-does not require another SDK, vendor credentials, new processor disclosures,
-confidence recalibration, or live multi-provider evaluation. BioCLIP, training,
-model cascades, and family plans remain deferred.
+Create the shared interfaces, explicit Gemini task bindings, execution metadata,
+and verification needed for a later provider change. **All production
+identification and scoped content-generation requests remain on their approved
+Gemini models.** Production integration of OpenAI or another provider remains
+future work.
+
+The original milestone preserves prompts, sampling, media encoding, confidence,
+permissions, subscription policy, response contracts, and recovery behavior.
+Completing it required no second SDK, vendor credentials, new processor
+disclosures, confidence recalibration or live multi-provider evaluation.
+BioCLIP, training, model cascades, and family plans remain deferred.
 
 This revision supersedes the earlier plan to add OpenAI during the initial
 milestone. Repository contracts were reviewed on 2 September 2026, with timeout,
@@ -122,6 +132,14 @@ callers. Exercise the interface using a deterministic, network-free test adapter
 in the test suite. Do not bundle or register that adapter as a production route,
 add a live alternative-provider SDK, or accept arbitrary endpoint/provider names
 from clients or environment overrides.
+
+The subsequent
+[input-routing implementation](./identification-provider-input-routing-2026-09-26.md)
+adds private complete-input policy rows and recipient-aware identification
+admission. It preserves the original milestone's historical requirements below.
+Assignment is backend policy, not an end-user setting; permission never selects
+an alternative provider. Client recovery for a future recipient remains separate
+activation work.
 
 ## 3. Gemini-only routing and authoritative admission
 
@@ -790,3 +808,27 @@ The tracker and linked baseline distinguish checks already run from future
 implementation and release requirements. The
 [earlier combined SRD](./family-plans-and-ai-platform-srd.md) remains deferred
 background.
+
+## Subsequent native integration — 26 September 2026
+
+The
+[native recipient preflight](./identification-native-recipient-preflight-2026-09-26.md)
+carries the backend's app-owned assignment through foreground and saved-scan
+identification. It stops on changed assignments, missing recipient permission or
+incompatible clients while preserving the observation. Existing Gemini
+assignments, required onboarding and disabled OpenAI collection remain
+unchanged. This extends the later-provider foundation; the original completed
+Gemini-only phase and its historical release evidence above are unchanged.
+Matched candidate qualification and deliberate provider activation remain
+separate milestones.
+
+## Subsequent result compatibility — 26 September 2026
+
+[Client result provenance](./identification-client-result-provenance-2026-09-26.md)
+extends the later-provider foundation with optional immutable execution metadata
+in Identify and owner history, V52 local persistence, and confidence
+presentation that distinguishes recognized Gemini profiles from unknown present
+profiles. Existing results without metadata retain legacy behavior. The app owns
+assignment; no provider chooser or second-provider activation is introduced.
+This is compatibility infrastructure, not benchmark qualification or a change to
+the original phase's historical acceptance evidence.

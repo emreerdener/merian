@@ -1,4 +1,9 @@
-import { assertEquals, assertExists, assertRejects } from "@std/assert";
+import {
+  assertEquals,
+  assertExists,
+  assertRejects,
+  assertThrows,
+} from "@std/assert";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   buildCompletedIdentifyEnvelope,
@@ -592,4 +597,48 @@ Deno.test("completed Identify lookup reconstructs when optional response storage
 
   assertEquals(replay?.source, "reconstructed");
   assertEquals(replay?.envelope.data.scan_id, scan.id);
+});
+
+Deno.test("completed replay preserves saved provenance and refuses damaged metadata", () => {
+  const provenance = {
+    version: 1,
+    provider: "gemini",
+    binding: "gemini_baseline_v1",
+    model: "gemini-2.5-pro",
+    variant: "multimodal",
+    operation: "scan_identification",
+    policy_version: 1,
+    prompt: "identify_vision_v1",
+    schema: "merian_identify_v1",
+    confidence: "gemini_identify_v1",
+    diagnostic_trigger: 0.99,
+    prompt_diagnostic_trigger: null,
+    safety: null,
+    timeout_ms: 90_000,
+    generation: {
+      temperature: 0.1,
+      seed: 42,
+      top_k: null,
+      max_output_tokens: 8192,
+      thinking_budget: 5000,
+    },
+  };
+  const envelope = buildCompletedIdentifyEnvelope({
+    ...scan,
+    identification_provenance: provenance,
+  }, species);
+  assertEquals(envelope.data.identification_provenance, provenance);
+  assertEquals(
+    buildCompletedIdentifyEnvelope(
+      { ...scan, identification_provenance: null },
+      species,
+    ).data.identification_provenance,
+    undefined,
+  );
+  assertThrows(() =>
+    buildCompletedIdentifyEnvelope(
+      { ...scan, identification_provenance: {} },
+      species,
+    )
+  );
 });

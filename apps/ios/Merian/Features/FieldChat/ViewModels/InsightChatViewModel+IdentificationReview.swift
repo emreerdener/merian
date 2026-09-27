@@ -2,7 +2,7 @@ import Foundation
 
 extension InsightChatViewModel {
     static func shouldOfferConfidenceReview(for speciesData: SpeciesData) -> Bool {
-        let bands = InferenceConfidencePolicy.bands(forInferenceTier: speciesData.inferenceTier)
+        guard let bands = speciesData.identificationConfidenceBands else { return true }
         return speciesData.confidenceScore < bands.strong || hasLookalikeContext(speciesData)
     }
 

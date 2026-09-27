@@ -1,3 +1,5 @@
+import { registerCandidateTests } from "./identification_evaluation/testing/candidateRunnerTests.ts";
+import { registerExperimentTests } from "./identification_evaluation/testing/experimentRunnerTests.ts";
 /** Isolated filesystem suite: requires only the disposable directory argument,
  * repository source reads and a Deno child for the cross-process lock test.
  * No network or environment permission, and no provider is invoked.
@@ -50,8 +52,13 @@ import { registerAudioPromptExecutionTests } from "./identification_evaluation/t
 import { registerAudioPromptContinuationTests } from "./identification_evaluation/testing/audioPromptContinuationTests.ts";
 import { registerAudioPromptSuccessorTests } from "./identification_evaluation/testing/audioPromptSuccessorTests.ts";
 
+import { registerMeasurementTests } from "./identification_evaluation/testing/measurementRunnerTests.ts";
+
 const scratch = Deno.args[0];
 if (!scratch) throw new Error("evaluation_test_directory_required");
+registerMeasurementTests(scratch);
+registerCandidateTests(scratch);
+registerExperimentTests(scratch);
 registerAudioPromptPacketTests(scratch);
 registerAudioPromptExecutionTests(scratch);
 registerAudioPromptContinuationTests(scratch);
@@ -518,6 +525,7 @@ Deno.test("comparison rejects incomplete, source/input/model drift and undeclare
       )
     );
     const changedTaxonomy = structuredClone(inputs.taxonomy);
+    assert(changedTaxonomy.version === "evaluation_taxonomy_v1");
     changedTaxonomy.taxa[0].names.push("Changed synonym");
     await assertRejects(() =>
       generateReport(inputs.corpus, manifest, rows, changedTaxonomy)
@@ -678,5 +686,67 @@ Deno.test("prompt admission writes private new evidence and refuses upgrades or 
     );
   } finally {
     await Deno.remove(dir, { recursive: true });
+  }
+});
+
+Deno.test("provider demo exercises Gemini/OpenAI assignments, reporting and immutable resume without network", async () => {
+  const parent = await Deno.makeTempDir({
+    dir: scratch,
+    prefix: "provider-demo-",
+  });
+  const root = join(parent, "demo");
+  try {
+    await main(["demo-providers", root]);
+    const inputs = await prepareRun(root, source, "offline");
+    assertEquals(inputs.manifest.spec.profiles, [
+      "gemini_pro",
+      "openai_gpt_6_sol",
+    ]);
+    assertEquals(inputs.manifest.order.length, 8);
+    assertEquals(inputs.manifest.transports, {
+      gemini: "npm:@google/genai@2.23.0",
+      openai: "openai_responses_https_v1",
+    });
+    const directory = join(root, "runs", inputs.manifest.spec.runId);
+    const manifest = await readJson(join(directory, "manifest.json"));
+    const summary = await readJson(join(directory, "summary.json"));
+    const entries = await readRecords(directory, manifest);
+    assertEquals(
+      entries.filter((r) => r.version === "evaluation_openai_attempt_v1")
+        .length,
+      4,
+    );
+    assert(entries.some((r) => r.band === "unqualified"));
+    await main(["offline", root]);
+    assertEquals(await readJson(join(directory, "summary.json")), summary);
+    await main(["preflight", root]);
+    const preflight = await readJson(join(root, "preflight.json")) as {
+      dispatchAuthorized: boolean;
+      plannedCalls: number;
+    };
+    assertEquals(preflight.dispatchAuthorized, false);
+    assertEquals(preflight.plannedCalls, 8);
+    await main([
+      "compare",
+      root,
+      inputs.manifest.spec.runId,
+      inputs.manifest.spec.runId,
+      "gemini_pro",
+      "openai_gpt_6_sol",
+    ]);
+    const invalid = {
+      ...inputs.manifest.spec,
+      runId: "unsupported-audio",
+      caseIds: ["c0003"],
+    };
+    await atomicJson(join(root, "spec.json"), invalid);
+    await assertRejects(
+      () => prepareRun(root, source, "offline"),
+      Error,
+      "openai_input_unsupported",
+    );
+    assertEquals(await exists(join(root, "runs", "unsupported-audio")), false);
+  } finally {
+    await Deno.remove(parent, { recursive: true });
   }
 });

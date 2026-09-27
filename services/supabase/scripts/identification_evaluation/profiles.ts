@@ -1,3 +1,9 @@
+import { identificationInputProfile } from "../../functions/_shared/ai/identificationInput.ts";
+import { isOpenAIProfile } from "../../functions/_shared/ai/openaiRequest.ts";
+import {
+  buildOpenAIRequestParameters,
+  openAIEvaluationSnapshot,
+} from "../../functions/_shared/ai/openaiRequest.ts";
 import type {
   MultimodalAIRequest,
   UserRequestAuthority,
@@ -5,18 +11,31 @@ import type {
 import { buildGeminiRequestParameters } from "../../functions/_shared/ai/geminiRequest.ts";
 import { resolveAIClaim } from "../../functions/_shared/ai/registry.ts";
 import * as thresholds from "../../functions/_shared/identify/thresholds.ts";
-import type { EvaluationInput, Profile } from "./contracts.ts";
+import type { EvaluationInput, GeminiProfile, Profile } from "./contracts.ts";
 import { fingerprintEvidence, fingerprintJson } from "./evidence.ts";
-import type { Assignment, Pricing, StoredUsage } from "./runContracts.ts";
+import type {
+  Assignment,
+  EvaluationPricing,
+  StoredUsage,
+} from "./runContracts.ts";
 
 /** Scripts-only test authority. Never admission, consent or quota evidence. */
-export function fixtureAuthority(profile: Profile): UserRequestAuthority {
+export function fixtureAuthority(
+  profile: GeminiProfile,
+  request: MultimodalAIRequest,
+): UserRequestAuthority {
   return {
     kind: "user_request",
     userId: "synthetic-evaluation",
     permission: "google_gemini",
     operation: "scan_identification",
     reservation: {
+      assignment: {
+        inputProfile: identificationInputProfile(request),
+        provider: "gemini",
+        binding: "gemini_baseline_v1",
+        permission: "google_gemini",
+      },
       id: "synthetic-reservation",
       requestId: "synthetic-request",
       attemptCount: 1,
@@ -26,7 +45,15 @@ export function fixtureAuthority(profile: Profile): UserRequestAuthority {
     },
   };
 }
-export function confidencePolicy(profile: Profile) {
+type ConfidencePolicy = {
+  possible: number;
+  strong: number;
+  diagnostic: number;
+};
+export function confidencePolicy(profile: GeminiProfile): ConfidencePolicy;
+export function confidencePolicy(profile: Profile): ConfidencePolicy | null;
+export function confidencePolicy(profile: Profile): ConfidencePolicy | null {
+  if (isOpenAIProfile(profile)) return null;
   return profile === "gemini_pro"
     ? {
       possible: thresholds.PRO_POSSIBLE,
@@ -39,13 +66,13 @@ export function confidencePolicy(profile: Profile) {
       diagnostic: thresholds.FLASH_DIAGNOSTIC_TRIGGER,
     };
 }
-export function modelPricing(pricing: Pricing, model: string) {
+export function modelPricing(pricing: EvaluationPricing, model: string) {
   const value = pricing.models.find((p) => p.model === model);
   if (!value) throw new Error("evaluation_price_missing");
   return value;
 }
 /** Worst-case reviewed model ceilings, not a heuristic bytes-to-tokens guess. */
-export function reserveCost(pricing: Pricing, model: string): number {
+export function reserveCost(pricing: EvaluationPricing, model: string): number {
   const p = modelPricing(pricing, model);
   return (p.maxInputTokens * Math.max(...Object.values(p.inputPerMillion)) +
     p.maxBillableOutputTokens *
@@ -55,7 +82,7 @@ export function reserveCost(pricing: Pricing, model: string): number {
  * Explicit thoughts are included; absent/contradictory billable usage stays unknown.
  */
 export function estimateCost(
-  pricing: Pricing,
+  pricing: EvaluationPricing,
   model: string,
   u: StoredUsage | null,
 ): number | null {
@@ -84,9 +111,35 @@ export async function assignmentFor(
   request: MultimodalAIRequest,
   profile: Profile,
   attempt: number,
-  pricing: Pricing | null,
+  pricing: EvaluationPricing | null,
 ): Promise<Assignment> {
-  const snapshot = resolveAIClaim(request, fixtureAuthority(profile));
+  if (isOpenAIProfile(profile)) {
+    if (input.inputGroup !== "photos" && input.inputGroup !== "description") {
+      throw new Error("openai_input_unsupported");
+    }
+    const snapshot = openAIEvaluationSnapshot(request, profile);
+    const native = buildOpenAIRequestParameters(request, snapshot);
+    return {
+      key: `${input.caseId}-${profile}-${attempt}`,
+      caseId: input.caseId,
+      profile,
+      attempt,
+      inputDigest: await fingerprintEvidence(input),
+      requestDigest: await fingerprintJson(native),
+      policyDigest: await fingerprintJson(snapshot),
+      promptDigest: await fingerprintJson(native.instructions),
+      schemaDigest: await fingerprintJson(native.text.format.schema),
+      confidenceDigest: await fingerprintJson(confidencePolicy(profile)),
+      model: snapshot.model,
+      prompt: snapshot.prompt,
+      schema: snapshot.schema,
+      confidence: snapshot.confidence,
+      timeoutMs: snapshot.timeoutMs,
+      generation: snapshot.generation,
+      reservedUsd: pricing ? reserveCost(pricing, snapshot.model) : 0,
+    };
+  }
+  const snapshot = resolveAIClaim(request, fixtureAuthority(profile, request));
   const native = buildGeminiRequestParameters(request, snapshot);
   return {
     key: `${input.caseId}-${profile}-${attempt}`,

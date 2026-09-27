@@ -28,13 +28,16 @@ router readable:
 - **`index.ts`** The HTTP orchestrator validates the scoped request, evaluates
   its cache path, and reserves quota before provider work on a miss. It prepares
   the matching task through `../_shared/ai/production.ts` with the admitted
-  model, permission, and reservation before committing and invoking. Separate
-  in-flight maps deduplicate same-species work within each scope on a warm
-  isolate. `formatEnrichmentOnlyPayload` and `formatLookalikesOnlyPayload`
-  return only the selected scope's fields; there is no combined generation
-  branch. Cache writes finish before waiters are released. Rejected in-flight
-  promises have an observer even without waiters; waiters still receive the
-  rejection and need fresh quota admission before another attempt.
+  model, permission, and reservation before committing and invoking.
+  `sharedContent.ts` independently rejects unqualified provider/profile settings
+  before quota commitment. Separate in-flight maps use the baseline cache
+  contract, canonical species identity, input name, locale and taxonomy evidence
+  to deduplicate compatible work within each scope on a warm isolate.
+  `formatEnrichmentOnlyPayload` and `formatLookalikesOnlyPayload` return only
+  the selected scope's fields; there is no combined generation branch. Cache
+  writes finish before waiters are released. Rejected in-flight promises have an
+  observer even without waiters; waiters still receive the rejection and need
+  fresh quota admission before another attempt.
 - **`types.ts`** Strict interfaces mapping the `CachedSpeciesData` from
   Postgres, removing dangerous `as any` type-casting from the orchestrator.
 - **`db.ts`** Encapsulated database procedures. Safely manages the

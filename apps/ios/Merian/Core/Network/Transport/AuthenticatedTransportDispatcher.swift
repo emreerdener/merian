@@ -46,7 +46,8 @@ final class AuthenticatedTransportDispatcher {
         bodyData: Data,
         timeoutInterval: TimeInterval = 90,
         idempotencyKey: String? = nil,
-        expectedAuthUserID: UUID? = nil
+        expectedAuthUserID: UUID? = nil,
+        identificationAuthorization: IdentificationDispatchAuthorization? = nil
     ) async throws -> URLRequest {
         var request = URLRequest(
             url: url,
@@ -68,6 +69,10 @@ final class AuthenticatedTransportDispatcher {
                 forHTTPHeaderField: "Idempotency-Key"
             )
         }
+        if let authorization = identificationAuthorization {
+            request.setValue(authorization.recipient.rawValue,
+                             forHTTPHeaderField: IdentificationRecipientExpectation.header)
+        }
         request.httpBody = bodyData
 
         let accountWorkLease = try await acquireAccountWorkLeaseIfRequired(
@@ -88,6 +93,7 @@ final class AuthenticatedTransportDispatcher {
                 expectedAuthUserID: expectedAuthUserID
             )
             #endif
+            try await identificationAuthorization?.validate()
             try await finishAndValidate(accountWorkLease)
             return request
         } catch {
@@ -137,6 +143,7 @@ final class AuthenticatedTransportDispatcher {
                 constrainedNetwork ? "true" : "false",
                 forHTTPHeaderField: "X-Merian-Constrained-Network"
             )
+            try await attempt.identificationAuthorization?.validate()
             let authCompletedAt = CFAbsoluteTimeGetCurrent()
 
             let transportResult = try await dispatch(

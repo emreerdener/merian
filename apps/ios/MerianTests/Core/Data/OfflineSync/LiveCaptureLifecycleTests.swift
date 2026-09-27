@@ -10,6 +10,106 @@ import Testing
 )
 @MainActor
 struct LiveCaptureLifecycleTests {
+    @Test func consentPauseRetriesOnlyLocalPersistenceBeforeRetiring() async throws {
+        let manager = OfflineQueueManager.shared
+        let originalContext = manager.modelContext
+        let originalIsOnline = manager.isOnline
+        let context = try OfflineSyncTestSupport.makeIsolatedContext()
+        let scanId = UUID().uuidString.lowercased(), generation = UUID()
+        let funding = ScanFundingReservation(accountId: UUID(), scanId: scanId, source: .complimentaryPro)
+        let scan = OfflineQueuedScan(
+            id: scanId, scanState: .staged, inferenceImagePaths: ["synthetic-pause.webp"]
+        )
+        let job = OfflineJobRecord(
+            id: OfflineQueueManager.scanIngestionJobId(scanId: scanId),
+            kind: .scanIngestion, subjectId: scanId, status: .running,
+            metadataJSON: OfflineScanJobMetadataContract.json(generation: generation, funding: funding)
+        )
+        context.insert(scan)
+        context.insert(job)
+        try context.save()
+        manager.isOnline = false
+        manager.modelContext = nil // Force local persistence failure, not a network failure.
+        manager.foregroundInferenceGenerations[scanId] = generation
+        manager.startedForegroundInferenceGenerations[scanId] = generation
+        manager.deferredLiveUploadScanIds.insert(scanId)
+        defer {
+            manager.foregroundInferenceRetirementTasks.cancel(scanId)
+            manager.foregroundInferenceGenerations[scanId] = nil
+            manager.startedForegroundInferenceGenerations[scanId] = nil
+            manager.deferredLiveUploadScanIds.remove(scanId)
+            manager.modelContext = originalContext
+            manager.isOnline = originalIsOnline
+        }
+        #expect(InferenceLiveQueueService.live.pauseQueuedScan(
+            scanId: scanId, generation: generation,
+            reason: BackgroundInferencePolicy.openAIConsentAttentionMessage,
+            errorCode: "ai_openai_consent_required"
+        ))
+        // A later generic defer cannot change the pause owner's recovery policy.
+        manager.retireForegroundInference(
+            scanId: scanId, generation: generation, resumeBackground: true, reason: "late_defer"
+        )
+        manager.releaseDeferredLiveUpload(
+            scanId: scanId, foregroundInferenceGeneration: generation, reason: "late_body_sent"
+        )
+        manager.releaseAllDeferredLiveUploads(reason: "scene_background_or_disconnect")
+        try await Task.sleep(for: .milliseconds(300))
+        #expect(manager.foregroundInferenceRetirementTasks.isOwned(scanId, by: generation))
+        #expect(manager.foregroundInferenceGenerations[scanId] == generation)
+        #expect(manager.deferredLiveUploadScanIds.contains(scanId))
+        #expect(!manager.isForegroundInferenceAttemptCurrent(scanId: scanId, generation: generation))
+        #expect(!manager.canStartForegroundInference(scanId: scanId, generation: generation))
+        #expect(scan.queueState == .staged)
+        manager.modelContext = context
+        for _ in 0..<40 {
+            if manager.foregroundInferenceGenerations[scanId] == nil { break }
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        #expect(scan.queueState == .failed)
+        #expect(scan.queueNeedsAttention)
+        #expect(scan.queueLastErrorCode == "ai_openai_consent_required")
+        #expect(scan.inferenceImagePaths == ["synthetic-pause.webp"])
+        #expect(scan.queueNextRetryAt == nil)
+        #expect(job.status == .needsAttention)
+        #expect(job.nextRunAt == nil)
+        #expect(OfflineScanJobMetadataContract.funding(in: job.metadataJSON) == funding)
+        #expect(manager.foregroundInferenceGenerations[scanId] == nil)
+        #expect(!manager.deferredLiveUploadScanIds.contains(scanId))
+    }
+
+    @Test func consentPauseCannotOverwriteDurableReplacement() async throws {
+        let manager = OfflineQueueManager.shared
+        let originalContext = manager.modelContext
+        let context = try OfflineSyncTestSupport.makeIsolatedContext()
+        let scanId = UUID().uuidString.lowercased(), stale = UUID(), replacement = UUID()
+        let scan = OfflineQueuedScan(id: scanId, scanState: .staged)
+        let metadata = InferenceGenerationMetadataContract.json(for: replacement)
+        let job = OfflineJobRecord(
+            id: OfflineQueueManager.scanIngestionJobId(scanId: scanId), kind: .scanIngestion,
+            subjectId: scanId, status: .running, metadataJSON: metadata
+        )
+        context.insert(scan)
+        context.insert(job)
+        try context.save()
+        manager.modelContext = context
+        manager.foregroundInferenceGenerations[scanId] = stale
+        defer {
+            manager.foregroundInferenceGenerations[scanId] = nil
+            manager.modelContext = originalContext
+        }
+        let didEnd = await manager.endForegroundInference(
+            scanId: scanId, generation: stale, resumeBackground: false,
+            reason: BackgroundInferencePolicy.openAIConsentAttentionMessage,
+            consentPauseErrorCode: "ai_openai_consent_required"
+        )
+        #expect(!didEnd)
+        #expect(scan.queueState == .staged)
+        #expect(!scan.queueNeedsAttention)
+        #expect(job.status == .running)
+        #expect(job.metadataJSON == metadata)
+    }
+
     @Test(arguments: [ScanFundingSource.paidPro, .complimentaryPro, .immediateFlash, .deferredFlash])
     func proTimeoutRequiresExactDurableFunding(source: ScanFundingSource) throws {
         let manager = OfflineQueueManager.shared

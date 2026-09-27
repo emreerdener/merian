@@ -371,23 +371,27 @@ synchronous function with no side effects. It accepts any
 projection structs instead of full SwiftData models. It iterates all records
 once, maintaining running canonical-species accumulators per award criterion:
 
-| Award title            | Type key          | Criterion                                   | Target |
-| ---------------------- | ----------------- | ------------------------------------------- | ------ |
-| New Observer           | `first_scan`      | Any scan exists                             | 1      |
-| The Naturalist         | `explorer`        | Unique species count                        | 5      |
-| The Botanist           | `plantae`         | Unique Plantae kingdom species              | 10     |
-| The Zoologist          | `insecta`         | Unique Insecta or Arachnida class species   | 10     |
-| The Mycologist         | `fungi`           | Unique Fungi kingdom species                | 10     |
-| The Urban Ecologist    | `urban`           | Unique urban/domesticated ecology scans     | 10     |
-| The Frost Walker       | `frost_walker`    | Unique scans at temp < 32°F                 | 5      |
-| The Alpine Naturalist  | `alpine`          | Unique scans at elevation > 2500m           | 5      |
-| The Nocturnal Observer | `nocturnal`       | Unique scans between hour 22–05 (inclusive) | 10     |
-| The Guardian           | `guardian`        | Unique invasive species scans               | 5      |
-| The Conservationist    | `conservationist` | Any IUCN status that is not LC, NE, or DD   | 1      |
-| The Toxicologist       | `toxicologist`    | Unique poisonous species scans              | 5      |
-| The Perfect Lens       | `perfect_lens`    | Unique scans with confidence ≥ 0.98         | 25     |
-| The Feline Friend      | `domestic_cat`    | First domestic cat scan                     | 1      |
-| The Canine Companion   | `domestic_dog`    | First domestic dog scan                     | 1      |
+| Award title            | Type key          | Criterion                                             | Target |
+| ---------------------- | ----------------- | ----------------------------------------------------- | ------ |
+| New Observer           | `first_scan`      | Any scan exists                                       | 1      |
+| The Naturalist         | `explorer`        | Unique species count                                  | 5      |
+| The Botanist           | `plantae`         | Unique Plantae kingdom species                        | 10     |
+| The Zoologist          | `insecta`         | Unique Insecta or Arachnida class species             | 10     |
+| The Mycologist         | `fungi`           | Unique Fungi kingdom species                          | 10     |
+| The Urban Ecologist    | `urban`           | Unique urban/domesticated ecology scans               | 10     |
+| The Frost Walker       | `frost_walker`    | Unique scans at temp < 32°F                           | 5      |
+| The Alpine Naturalist  | `alpine`          | Unique scans at elevation > 2500m                     | 5      |
+| The Nocturnal Observer | `nocturnal`       | Unique scans between hour 22–05 (inclusive)           | 10     |
+| The Guardian           | `guardian`        | Unique invasive species scans                         | 5      |
+| The Conservationist    | `conservationist` | Any IUCN status that is not LC, NE, or DD             | 1      |
+| The Toxicologist       | `toxicologist`    | Unique poisonous species scans                        | 5      |
+| The Perfect Lens       | `perfect_lens`    | Unique scans with compatible Gemini confidence ≥ 0.98 | 25     |
+| The Feline Friend      | `domestic_cat`    | First domestic cat scan                               | 1      |
+| The Canine Companion   | `domestic_dog`    | First domestic dog scan                               | 1      |
+
+Perfect Lens accepts historical scans without recorded provenance and exact
+qualified Gemini configurations. Unknown present profiles do not inherit that
+score meaning in either native or public-profile projections.
 
 All species-based criteria de-duplicate by canonical species key
 (`confirmedSpeciesId`, then `speciesId`, then display scientific name) —

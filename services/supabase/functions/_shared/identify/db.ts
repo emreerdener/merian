@@ -1,3 +1,4 @@
+import type { IdentificationProvenance } from "../ai/provenance.ts";
 import { SupabaseClient } from "@supabase/supabase-js";
 import {
   legacyReferenceImageUrls,
@@ -259,6 +260,7 @@ export async function updateGroupTags(
 }
 
 export interface ScanInsertRow {
+  identification_provenance?: IdentificationProvenance;
   id: string;
   user_id: string;
   species_id: string | null;

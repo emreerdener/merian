@@ -85,6 +85,7 @@ final class InferenceLivePipelineHarness {
                 events.append(.delete(scanId, generation))
                 return true
             },
+            pauseQueuedScan: { _, _, _, _ in true },
             rejectQueuedScan: { _, _, _ in true },
             isForegroundInferenceProFunded: { [self] _, _ in isProFunded }
         ))

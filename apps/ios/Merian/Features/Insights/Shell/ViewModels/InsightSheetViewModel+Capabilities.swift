@@ -122,7 +122,7 @@ extension InsightSheetViewModel {
               !speciesData.isHumanSubject else {
             return false
         }
-        let bands = InferenceConfidencePolicy.bands(forInferenceTier: speciesData.inferenceTier)
+        guard let bands = speciesData.identificationConfidenceBands else { return false }
         return speciesData.confidenceScore >= bands.strong
     }
 }

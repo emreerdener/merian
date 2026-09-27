@@ -57,6 +57,7 @@ private final class InferenceLiveCompletionHarness {
                     }
                     return queueDeleteResult
                 },
+                pauseQueuedScan: { _, _, _, _ in true },
                 rejectQueuedScan: { _, _, _ in true }
             )
         )

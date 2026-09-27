@@ -1,3 +1,4 @@
+import { identificationProvenance } from "../_shared/ai/provenance.ts";
 import {
   AUDIO_PROMPT_COMPARISON_CONFIG_ENV,
   AudioPromptComparisonError,
@@ -42,7 +43,7 @@ import { isFlashFallbackEligible } from "../_shared/complimentaryScans.ts";
 import {
   AIQuotaError,
   deriveAIRequestId,
-  reserveAIProviderCall,
+  reserveIdentificationProviderCall,
   resolveAIRequestId,
 } from "../_shared/aiQuota.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
@@ -804,9 +805,43 @@ export async function handleIdentifyMultimodalRequest(
       generatedScanId,
       `scan-ingestion-replay:${internalReplayAttempt}`,
     );
+  const aiRequest = buildMultimodalAIRequest({
+    observationEvidenceTexts,
+    visualMediaItems: normalizedVisualMediaItems,
+    imageBase64s: resolvedImageBase64s,
+    imageMimeType: mimeType,
+    processedAudios,
+    audioMediaItems: processedAudioMediaItems,
+    processedAudioInputIndexes,
+    hasVideoAudio,
+    capture: {
+      hasVideo: mediaTelemetry.hasVideo,
+      videoClipCount: mediaTelemetry.videoClipCount,
+      declaredVideoFrameCount: mediaTelemetry.declaredVideoFrameCount,
+      videoInferenceFrameCount: mediaTelemetry.videoInferenceFrameCount,
+    },
+    telemetry: {
+      safeGpsLat,
+      safeGpsLon,
+      gpsElevation,
+      depthScaleText,
+      zoomFactor,
+      estimatedSizeCm,
+      semanticLocation,
+      weatherCondition,
+      weatherTemperatureF,
+      deviceLocale,
+      deviceTimeZone,
+      deviceRegion,
+      currentMonth,
+      timeOfDay,
+    },
+  });
+
   let quotaLease;
   try {
-    quotaLease = await reserveAIProviderCall(req, supabaseAdmin, {
+    quotaLease = await reserveIdentificationProviderCall(req, supabaseAdmin, {
+      request: aiRequest,
       userId: user.id,
       operation: "scan_identification",
       requestId: quotaRequestId,
@@ -877,38 +912,6 @@ export async function handleIdentifyMultimodalRequest(
   const targetModel = quotaLease.reservation.model;
 
   const hasObservationContextText = observationEvidenceTexts.length > 0;
-  const aiRequest = buildMultimodalAIRequest({
-    observationEvidenceTexts,
-    visualMediaItems: normalizedVisualMediaItems,
-    imageBase64s: resolvedImageBase64s,
-    imageMimeType: mimeType,
-    processedAudios,
-    audioMediaItems: processedAudioMediaItems,
-    processedAudioInputIndexes,
-    hasVideoAudio,
-    capture: {
-      hasVideo: mediaTelemetry.hasVideo,
-      videoClipCount: mediaTelemetry.videoClipCount,
-      declaredVideoFrameCount: mediaTelemetry.declaredVideoFrameCount,
-      videoInferenceFrameCount: mediaTelemetry.videoInferenceFrameCount,
-    },
-    telemetry: {
-      safeGpsLat,
-      safeGpsLon,
-      gpsElevation,
-      depthScaleText,
-      zoomFactor,
-      estimatedSizeCm,
-      semanticLocation,
-      weatherCondition,
-      weatherTemperatureF,
-      deviceLocale,
-      deviceTimeZone,
-      deviceRegion,
-      currentMonth,
-      timeOfDay,
-    },
-  });
 
   const mediaCounts = {
     image_count: mediaTelemetry.imageCount,
@@ -1057,7 +1060,7 @@ export async function handleIdentifyMultimodalRequest(
     const execution = prepare(aiRequest, {
       kind: "user_request",
       userId: user.id,
-      permission: "google_gemini",
+      permission: quotaLease.reservation.assignment.permission,
       operation: "scan_identification",
       reservation: quotaLease.reservation,
       ...(audioPromptComparison
@@ -1346,6 +1349,9 @@ export async function handleIdentifyMultimodalRequest(
 
   let responseEnvelope: IdentifySuccessEnvelope;
   try {
+    payloadReadyForClient.identification_provenance = identificationProvenance(
+      result.execution,
+    );
     responseEnvelope = parseIdentifySuccessEnvelope({
       success: true,
       data: payloadReadyForClient,
@@ -1653,6 +1659,7 @@ export async function handleIdentifyMultimodalRequest(
         {
           id: generatedScanId,
           user_id: user.id,
+          identification_provenance: identificationProvenance(result.execution),
           species_id: speciesId,
           timestamp: timestamp ?? undefined,
           gps_lat_exact: safeGpsLat,

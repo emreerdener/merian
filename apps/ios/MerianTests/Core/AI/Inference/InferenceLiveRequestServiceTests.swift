@@ -49,6 +49,7 @@ private final class LiveRequestDependencyRecorder {
             identify: { [self] request, onRequestBodySent in
                 providerRequests.append(request)
                 requestBodyCallbackWasPresent = onRequestBodySent != nil
+                request.onProviderDispatchReady?()
                 onIdentify()
                 onRequestBodySent?()
                 return resultData

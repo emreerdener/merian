@@ -4,6 +4,8 @@ import type {
   VisualMediaDescriptor,
 } from "../../identify-multimodal/capturedMedia.ts";
 
+import type { IdentificationProviderAssignment } from "./admission.ts";
+
 export type AITask =
   | "identify"
   | "species_overview"
@@ -19,6 +21,8 @@ export interface UserRequestAuthority {
   readonly permission: "google_gemini";
   readonly operation: string;
   readonly reservation: {
+    /** Identification requires this; content keeps its existing admission. */
+    readonly assignment?: IdentificationProviderAssignment;
     readonly id: string;
     readonly requestId: string;
     readonly attemptCount: number;
@@ -189,6 +193,8 @@ export interface AIUsage {
   readonly totalTokens: number | null;
   readonly thinkingTokens: number | null;
   readonly cachedTokens: number | null;
+  /** Native write category, when reported. Absence is unknown, never zero. */
+  readonly cacheWriteTokens?: number | null;
   readonly toolTokens?: number | null;
   readonly modalityBreakdown: Record<string, unknown>;
 }
@@ -215,20 +221,22 @@ export type AIProviderOutcome =
     | { readonly kind: "operational_failure" | "unknown_execution" }
   );
 
-export type AIExecutionOutcome = AIProviderOutcome & {
-  readonly execution: AIAttemptSnapshot & { readonly durationMs: number };
-};
+export type AIExecutionOutcome<Snapshot = AIAttemptSnapshot> =
+  & AIProviderOutcome
+  & {
+    readonly execution: Snapshot & { readonly durationMs: number };
+  };
 
-export interface AIAdapter {
+export interface AIAdapter<Snapshot = AIAttemptSnapshot> {
   readonly provider: string;
   // Prepare must not dispatch. Local configuration failure precedes commitment.
   prepare(
     request: AIRequest,
-    snapshot: AIAttemptSnapshot,
+    snapshot: Snapshot,
   ): () => Promise<AIProviderOutcome>;
 }
 
-export interface PreparedAIExecution {
-  readonly snapshot: AIAttemptSnapshot;
-  invoke(): Promise<AIExecutionOutcome>;
+export interface PreparedAIExecution<Snapshot = AIAttemptSnapshot> {
+  readonly snapshot: Snapshot;
+  invoke(): Promise<AIExecutionOutcome<Snapshot>>;
 }

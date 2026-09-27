@@ -3997,6 +3997,7 @@ struct CoreNetworkIntegrationArchitectureTests {
             "apps/ios/Merian/Core/Security/ScanAdmissionManager.swift"
         )
         let client = try networkSource("MerianNetworkClient.swift")
+        let admissionPolicy = try networkSource("Transport/AdmissionRPCRequestPolicy.swift")
         let pinnedTransport = try networkSource(
             "Transport/PinnedNetworkTransport.swift"
         )
@@ -4011,16 +4012,17 @@ struct CoreNetworkIntegrationArchitectureTests {
         let lease = try #require(admission.range(of: ".beginUnownedAccountBoundWork()"))
         #expect(preparation.lowerBound < lease.lowerBound)
         #expect(
-            client.contains(
-                ".appendingPathComponent(\"get_my_scan_admission_preview\")"
-            )
+            client.contains("AdmissionRPCRequestPolicy.validateAllowanceRequest(request, baseURL: supabaseUrl)")
         )
         #expect(
-            client.contains(
+            admissionPolicy.contains("case allowance = \"get_my_scan_admission_preview\"")
+        )
+        #expect(
+            admissionPolicy.contains(
                 "request.value(forHTTPHeaderField: \"Authorization\")"
             )
         )
-        #expect(client.contains("request.httpMethod == \"POST\""))
+        #expect(admissionPolicy.contains("request.httpMethod == \"POST\""))
         #expect(!pinnedTransport.contains("withThrowingTaskGroup("))
         #expect(
             pinnedTransport.contains(
@@ -4139,6 +4141,7 @@ struct CoreNetworkIntegrationArchitectureTests {
             in: sources,
             equal: [
                 "Endpoints/MerianNetworkClient+Inference.swift",
+                "Endpoints/MerianNetworkClient+IdentificationPreflight.swift",
                 "Transport/AuthenticatedRequestExecutor.swift",
                 "SupabaseManager.swift"
             ]
@@ -4256,6 +4259,7 @@ struct CoreNetworkIntegrationArchitectureTests {
             }
         )
         #expect(unauthorizedRecoveryOptOutOwners == [
+            "MerianNetworkClient.swift",
             "Endpoints/MerianNetworkClient+Collections.swift",
             "Endpoints/MerianNetworkClient+ScanLifecycle.swift"
         ])
@@ -4449,6 +4453,7 @@ struct CoreNetworkIntegrationArchitectureTests {
         "MerianNetworkClient+FieldChat.swift",
         "MerianNetworkClient+FieldTrips.swift",
         "MerianNetworkClient+Inference.swift",
+        "MerianNetworkClient+IdentificationPreflight.swift",
         "MerianNetworkClient+MediaStorage.swift",
         "MerianNetworkClient+Notifications.swift",
         "MerianNetworkClient+ProductFeedback.swift",
@@ -4461,6 +4466,7 @@ struct CoreNetworkIntegrationArchitectureTests {
     ]
 
     private static let transportOwnerFilenames: Set<String> = [
+        "AdmissionRPCRequestPolicy.swift",
         "AuthenticatedRequestExecutor.swift",
         "AuthenticatedRequestRetryPolicy.swift",
         "AuthenticatedTransportDispatcher.swift",

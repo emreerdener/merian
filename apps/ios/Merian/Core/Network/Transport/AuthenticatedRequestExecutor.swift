@@ -27,6 +27,7 @@ struct AuthenticatedRequestExecutor {
         let authTransitionOwner: AuthTransitionToken?
         let expectedAuthUserID: UUID?
         var measurementContext: IdentificationMeasurementContext?
+        var identificationAuthorization: IdentificationDispatchAuthorization?
     }
 
     struct TransportAttempt {
@@ -35,6 +36,7 @@ struct AuthenticatedRequestExecutor {
         let onRequestBodySent: (@Sendable () -> Void)?
         let authTransitionOwner: AuthTransitionToken?
         let expectedAuthUserID: UUID?
+        var identificationAuthorization: IdentificationDispatchAuthorization?
     }
 
     struct UnauthorizedRecoveryState {
@@ -205,6 +207,10 @@ struct AuthenticatedRequestExecutor {
                 forHTTPHeaderField: "Idempotency-Key"
             )
         }
+        if let authorization = request.identificationAuthorization {
+            urlRequest.setValue(authorization.recipient.rawValue,
+                                forHTTPHeaderField: IdentificationRecipientExpectation.header)
+        }
         urlRequest.httpBody = request.body
 
         let transport: TransportResult
@@ -215,7 +221,8 @@ struct AuthenticatedRequestExecutor {
                     body: request.body,
                     onRequestBodySent: request.onRequestBodySent,
                     authTransitionOwner: request.authTransitionOwner,
-                    expectedAuthUserID: retryChainAuthUserID
+                    expectedAuthUserID: retryChainAuthUserID,
+                    identificationAuthorization: request.identificationAuthorization
                 )
             )
         } catch let urlError as URLError {
@@ -340,6 +347,13 @@ struct AuthenticatedRequestExecutor {
             await dependencies.handlePaymentRequired()
         }
 
+        if response.statusCode == 403,
+           EdgeFunctionErrorPolicy.stableCode(responseData: data)
+            == "ai_openai_consent_required" {
+            // The app's recipient assignment is authoritative. This denial
+            // neither opens Gemini onboarding nor grants another permission.
+            throw MerianError.openAIConsentRequired
+        }
         if response.statusCode == 403,
            EdgeFunctionErrorPolicy.stableCode(responseData: data)
             == "ai_consent_required" {

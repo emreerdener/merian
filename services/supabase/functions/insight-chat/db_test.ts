@@ -20,6 +20,8 @@ for (const withoutZoom of [false, true]) {
           assertEquals(url.searchParams.get("id"), `eq.${scanId}`);
           const selected = url.searchParams.get("select")?.split(",") ?? [];
           assertEquals(selected.includes("extracted_visual_traits"), true);
+          assertEquals(selected.includes("inference_tier"), true);
+          assertEquals(selected.includes("identification_provenance"), true);
           assertEquals(selected.includes("zoom_factor"), requests === 1);
           if (withoutZoom && requests === 1) {
             return Promise.resolve(Response.json({
@@ -31,12 +33,16 @@ for (const withoutZoom of [false, true]) {
             id: scanId,
             user_id: ownerId,
             extracted_visual_traits: ["White border spots"],
+            inference_tier: "flash",
+            identification_provenance: null,
           }));
         },
       },
     });
     const scan = await fetchOwnedScan(ownerId, scanId, client);
     assertEquals(scan?.extracted_visual_traits, ["White border spots"]);
+    assertEquals(scan?.identification_provenance, null);
+    assertEquals(scan?.inference_tier, "flash");
     assertEquals(requests, withoutZoom ? 2 : 1);
   });
 }

@@ -33,6 +33,7 @@ struct InferenceAudioComparisonPipelineTests {
             isForegroundInferenceAttemptCurrent: { _, _ in true },
             foregroundInferenceGeneration: { _ in nil },
             deleteQueuedScan: { _, _, _ in queueFinalizations += 1; return scenario != "queue_failed" },
+            pauseQueuedScan: { _, _, _, _ in true },
             rejectQueuedScan: { _, _, _ in true }, isForegroundInferenceProFunded: { _, _ in true }
         ))
         let service = InferenceLiveRequestService(dependencies: .init(

@@ -36,6 +36,11 @@ struct ConsentRemoteService {
         let fetchRemoteRows: @MainActor (
             UUID
         ) async throws -> ConsentRemoteWire.RemoteRows
+        var appendOpenAIConsentEvent: @MainActor (
+            ConsentRemoteWire.AIConsentEventAppend
+        ) async throws -> [ConsentRemoteWire.ConsentAppendResult] = { _ in
+            throw MerianError.aiConsentRequired
+        }
     }
 
     private let dependencies: Dependencies
@@ -53,7 +58,7 @@ struct ConsentRemoteService {
             id: receipt.id,
             user_id: userId,
             policy_version: receipt.policyVersion,
-            confirmed_at: Self.timestamp(receipt.confirmedAt),
+            confirmed_at: ConsentRemoteMapping.timestamp(receipt.confirmedAt),
             confirmation_method: receipt.confirmationMethod.rawValue,
             confirmation_text: receipt.confirmationText,
             platform: receipt.platform,
@@ -72,7 +77,7 @@ struct ConsentRemoteService {
             )
             try validateSynchronization()
             guard let existingReceipt,
-                  Self.matchesAdultEligibilityReceipt(
+                  ConsentRemoteMapping.matchesAdultEligibilityReceipt(
                       existingReceipt,
                       requested: receipt,
                       userId: userId
@@ -90,7 +95,7 @@ struct ConsentRemoteService {
         guard let insertedReceipt else {
             throw MerianError.aiConsentRequired
         }
-        guard Self.matchesAdultEligibilityReceipt(
+        guard ConsentRemoteMapping.matchesAdultEligibilityReceipt(
             insertedReceipt,
             requested: receipt,
             userId: userId
@@ -109,7 +114,7 @@ struct ConsentRemoteService {
             id: receipt.id,
             user_id: userId,
             terms_version: receipt.termsVersion,
-            accepted_at: Self.timestamp(receipt.acceptedAt),
+            accepted_at: ConsentRemoteMapping.timestamp(receipt.acceptedAt),
             acceptance_text: receipt.acceptanceText,
             platform: receipt.platform,
             app_version: receipt.appVersion,
@@ -127,7 +132,7 @@ struct ConsentRemoteService {
             )
             try validateSynchronization()
             guard let existingReceipt,
-                  Self.matchesTermsReceipt(
+                  ConsentRemoteMapping.matchesTermsReceipt(
                       existingReceipt,
                       requested: receipt,
                       userId: userId
@@ -145,7 +150,7 @@ struct ConsentRemoteService {
         guard let insertedReceipt else {
             throw MerianError.aiConsentRequired
         }
-        guard Self.matchesTermsReceipt(
+        guard ConsentRemoteMapping.matchesTermsReceipt(
             insertedReceipt,
             requested: receipt,
             userId: userId
@@ -160,11 +165,15 @@ struct ConsentRemoteService {
         for userId: UUID,
         validateSynchronization: SynchronizationValidator
     ) async throws -> ConsentManager.AIConsentEvent {
+        guard let processor = AIConsentProcessor(rawValue: event.provider),
+              event.ownerUserId == userId else {
+            throw MerianError.invalidResponse
+        }
         let parameters = ConsentRemoteWire.AIConsentEventAppend(
             p_id: event.id,
             p_disclosure_version: event.disclosureVersion,
             p_event_kind: event.eventKind.rawValue,
-            p_occurred_at: Self.timestamp(event.occurredAt),
+            p_occurred_at: ConsentRemoteMapping.timestamp(event.occurredAt),
             p_disclosure_text: event.disclosureText,
             p_action_text: event.actionText,
             p_platform: event.platform,
@@ -174,7 +183,13 @@ struct ConsentRemoteService {
         )
 
         do {
-            let results = try await dependencies.appendAIConsentEvent(parameters)
+            let results: [ConsentRemoteWire.ConsentAppendResult]
+            switch processor {
+            case .gemini:
+                results = try await dependencies.appendAIConsentEvent(parameters)
+            case .openAI:
+                results = try await dependencies.appendOpenAIConsentEvent(parameters)
+            }
             try validateSynchronization()
 
             guard results.count == 1 else {
@@ -192,7 +207,7 @@ struct ConsentRemoteService {
 
             guard let eventRevision = result.event_revision,
                   let recordedAtString = result.recorded_at,
-                  let recordedAt = Self.date(recordedAtString) else {
+                  let recordedAt = ConsentRemoteMapping.date(recordedAtString) else {
                 throw MerianError.invalidResponse
             }
             var synchronizedEvent = event
@@ -211,7 +226,7 @@ struct ConsentRemoteService {
             )
             try validateSynchronization()
             guard let existingEvent,
-                  Self.matchesAIConsentAppendRetry(
+                  ConsentRemoteMapping.matchesAIConsentAppendRetry(
                       existingEvent,
                       requested: event,
                       userId: userId
@@ -231,7 +246,7 @@ struct ConsentRemoteService {
             p_id: event.id,
             p_disclosure_version: event.disclosureVersion,
             p_event_kind: event.eventKind.rawValue,
-            p_occurred_at: Self.timestamp(event.occurredAt),
+            p_occurred_at: ConsentRemoteMapping.timestamp(event.occurredAt),
             p_disclosure_text: event.disclosureText,
             p_action_text: event.actionText,
             p_platform: event.platform,
@@ -261,7 +276,7 @@ struct ConsentRemoteService {
 
             guard let eventRevision = result.event_revision,
                   let recordedAtString = result.recorded_at,
-                  let recordedAt = Self.date(recordedAtString) else {
+                  let recordedAt = ConsentRemoteMapping.date(recordedAtString) else {
                 throw MerianError.invalidResponse
             }
             var synchronizedEvent = event
@@ -280,7 +295,7 @@ struct ConsentRemoteService {
             )
             try validateSynchronization()
             guard let existingEvent,
-                  Self.matchesAnalyticsConsentAppendRetry(
+                  ConsentRemoteMapping.matchesAnalyticsConsentAppendRetry(
                       existingEvent,
                       requested: event,
                       userId: userId
@@ -298,30 +313,38 @@ struct ConsentRemoteService {
         let rows = try await dependencies.fetchRemoteRows(userId)
         try validateSynchronization()
         return ConsentManager.RemoteState(
-            adultEligibilityReceipt: try Self.firstMappedRemoteRow(
+            adultEligibilityReceipt: try ConsentRemoteMapping.firstMappedRemoteRow(
                 rows.adultEligibilityReceipts,
-                using: Self.localAdultEligibilityReceipt
+                using: ConsentRemoteMapping.localAdultEligibilityReceipt
             ),
-            termsReceipt: try Self.firstMappedRemoteRow(
+            termsReceipt: try ConsentRemoteMapping.firstMappedRemoteRow(
                 rows.termsReceipts,
-                using: Self.localTermsReceipt
+                using: ConsentRemoteMapping.localTermsReceipt
             ),
-            aiConsentEvent: try Self.firstMappedRemoteRow(
+            aiConsentEvent: try ConsentRemoteMapping.firstMappedRemoteRow(
                 rows.aiConsentEvents,
-                using: Self.localAIConsentEvent
+                using: ConsentRemoteMapping.localAIConsentEvent
             ),
-            analyticsConsentEvent: try Self.firstMappedRemoteRow(
+            analyticsConsentEvent: try ConsentRemoteMapping.firstMappedRemoteRow(
                 rows.analyticsConsentEvents,
-                using: Self.localAnalyticsConsentEvent
+                using: ConsentRemoteMapping.localAnalyticsConsentEvent
             ),
-            aiConsentStreamHead: try Self.firstMappedRemoteRow(
+            aiConsentStreamHead: try ConsentRemoteMapping.firstMappedRemoteRow(
                 rows.aiConsentStreamHeads,
-                using: Self.localAIConsentEvent
+                using: ConsentRemoteMapping.localAIConsentEvent
             ),
-            analyticsConsentStreamHead: try Self.firstMappedRemoteRow(
+            analyticsConsentStreamHead: try ConsentRemoteMapping.firstMappedRemoteRow(
                 rows.analyticsConsentStreamHeads,
-                using: Self.localAnalyticsConsentEvent
+                using: ConsentRemoteMapping.localAnalyticsConsentEvent
             ),
+            openAIConsentStreamHead: try ConsentRemoteMapping.firstMappedRemoteRow(
+                rows.openAIConsentStreamHeads,
+                using: { row in
+                    guard row.user_id == userId,
+                          row.provider == ConsentPolicy.openAIProvider else { return nil }
+                    return ConsentRemoteMapping.localAIConsentEvent(row)
+                }
+            )
         )
     }
 
@@ -330,9 +353,9 @@ struct ConsentRemoteService {
         userId: UUID
     ) async throws -> ConsentManager.AdultEligibilityReceipt? {
         let rows = try await dependencies.fetchAdultEligibilityReceipt(id, userId)
-        return try Self.firstMappedRemoteRow(
+        return try ConsentRemoteMapping.firstMappedRemoteRow(
             rows,
-            using: Self.localAdultEligibilityReceipt
+            using: ConsentRemoteMapping.localAdultEligibilityReceipt
         )
     }
 
@@ -341,9 +364,9 @@ struct ConsentRemoteService {
         userId: UUID
     ) async throws -> ConsentManager.TermsAcceptanceReceipt? {
         let rows = try await dependencies.fetchTermsReceipt(id, userId)
-        return try Self.firstMappedRemoteRow(
+        return try ConsentRemoteMapping.firstMappedRemoteRow(
             rows,
-            using: Self.localTermsReceipt
+            using: ConsentRemoteMapping.localTermsReceipt
         )
     }
 
@@ -352,9 +375,9 @@ struct ConsentRemoteService {
         userId: UUID
     ) async throws -> ConsentManager.AIConsentEvent? {
         let rows = try await dependencies.fetchAIConsentEvent(id, userId)
-        return try Self.firstMappedRemoteRow(
+        return try ConsentRemoteMapping.firstMappedRemoteRow(
             rows,
-            using: Self.localAIConsentEvent
+            using: ConsentRemoteMapping.localAIConsentEvent
         )
     }
 
@@ -363,237 +386,10 @@ struct ConsentRemoteService {
         userId: UUID
     ) async throws -> ConsentManager.AnalyticsConsentEvent? {
         let rows = try await dependencies.fetchAnalyticsConsentEvent(id, userId)
-        return try Self.firstMappedRemoteRow(
+        return try ConsentRemoteMapping.firstMappedRemoteRow(
             rows,
-            using: Self.localAnalyticsConsentEvent
+            using: ConsentRemoteMapping.localAnalyticsConsentEvent
         )
     }
 
-    /// An empty successful query is authoritative absence. A present row that
-    /// cannot map is malformed evidence and must not be collapsed into absence.
-    private static func firstMappedRemoteRow<RemoteRow, LocalValue>(
-        _ rows: [RemoteRow],
-        using transform: (RemoteRow) -> LocalValue?
-    ) throws -> LocalValue? {
-        guard let row = rows.first else {
-            return nil
-        }
-        guard let value = transform(row) else {
-            throw MerianError.invalidResponse
-        }
-        return value
-    }
-
-    private static func localAdultEligibilityReceipt(
-        _ row: ConsentRemoteWire.AdultEligibilityReceipt
-    ) -> ConsentManager.AdultEligibilityReceipt? {
-        guard let method = ConsentManager.AdultConfirmationMethod(
-            rawValue: row.confirmation_method
-        ), let confirmedAt = date(row.confirmed_at),
-           let recordedAt = date(row.recorded_at) else {
-            return nil
-        }
-        return ConsentManager.AdultEligibilityReceipt(
-            id: row.id,
-            ownerUserId: row.user_id,
-            syncedUserId: row.user_id,
-            policyVersion: row.policy_version,
-            confirmedAt: confirmedAt,
-            confirmationMethod: method,
-            confirmationText: row.confirmation_text,
-            platform: row.platform,
-            appVersion: row.app_version,
-            appBuild: row.app_build,
-            recordedAt: recordedAt
-        )
-    }
-
-    private static func localTermsReceipt(
-        _ row: ConsentRemoteWire.TermsReceipt
-    ) -> ConsentManager.TermsAcceptanceReceipt? {
-        guard let acceptedAt = date(row.accepted_at),
-              let recordedAt = date(row.recorded_at) else {
-            return nil
-        }
-        return ConsentManager.TermsAcceptanceReceipt(
-            id: row.id,
-            ownerUserId: row.user_id,
-            syncedUserId: row.user_id,
-            termsVersion: row.terms_version,
-            acceptedAt: acceptedAt,
-            acceptanceText: row.acceptance_text,
-            platform: row.platform,
-            appVersion: row.app_version,
-            appBuild: row.app_build,
-            recordedAt: recordedAt
-        )
-    }
-
-    private static func localAIConsentEvent(
-        _ row: ConsentRemoteWire.AIConsentEvent
-    ) -> ConsentManager.AIConsentEvent? {
-        guard let eventKind = ConsentManager.AIConsentEventKind(
-            rawValue: row.event_kind
-        ), let occurredAt = date(row.occurred_at),
-           let recordedAt = date(row.recorded_at) else {
-            return nil
-        }
-        return ConsentManager.AIConsentEvent(
-            id: row.id,
-            ownerUserId: row.user_id,
-            syncedUserId: row.user_id,
-            provider: row.provider,
-            disclosureVersion: row.disclosure_version,
-            eventKind: eventKind,
-            occurredAt: occurredAt,
-            disclosureText: row.disclosure_text,
-            actionText: row.action_text,
-            platform: row.platform,
-            appVersion: row.app_version,
-            appBuild: row.app_build,
-            recordedAt: recordedAt,
-            causalParentId: row.causal_parent_id,
-            consentRevision: row.consent_revision
-        )
-    }
-
-    private static func localAnalyticsConsentEvent(
-        _ row: ConsentRemoteWire.AnalyticsConsentEvent
-    ) -> ConsentManager.AnalyticsConsentEvent? {
-        guard let eventKind = ConsentManager.AnalyticsConsentEventKind(
-            rawValue: row.event_kind
-        ), let occurredAt = date(row.occurred_at),
-           let recordedAt = date(row.recorded_at) else {
-            return nil
-        }
-        return ConsentManager.AnalyticsConsentEvent(
-            id: row.id,
-            ownerUserId: row.user_id,
-            syncedUserId: row.user_id,
-            provider: row.provider,
-            disclosureVersion: row.disclosure_version,
-            eventKind: eventKind,
-            occurredAt: occurredAt,
-            disclosureText: row.disclosure_text,
-            actionText: row.action_text,
-            platform: row.platform,
-            appVersion: row.app_version,
-            appBuild: row.app_build,
-            recordedAt: recordedAt,
-            causalParentId: row.causal_parent_id,
-            consentRevision: row.consent_revision
-        )
-    }
-
-    // Compare decoded wire instants; reformatting can truncate another millisecond.
-    private static func matchesAdultEligibilityReceipt(
-        _ existing: ConsentManager.AdultEligibilityReceipt,
-        requested: ConsentManager.AdultEligibilityReceipt,
-        userId: UUID
-    ) -> Bool {
-        existing.id == requested.id
-            && existing.ownerUserId == userId
-            && existing.syncedUserId == userId
-            && existing.policyVersion == requested.policyVersion
-            && existing.confirmedAt == date(timestamp(requested.confirmedAt))
-            && existing.confirmationMethod == requested.confirmationMethod
-            && existing.confirmationText == requested.confirmationText
-            && existing.platform == requested.platform
-            && existing.appVersion == requested.appVersion
-            && existing.appBuild == requested.appBuild
-            && existing.recordedAt != nil
-    }
-
-    private static func matchesTermsReceipt(
-        _ existing: ConsentManager.TermsAcceptanceReceipt,
-        requested: ConsentManager.TermsAcceptanceReceipt,
-        userId: UUID
-    ) -> Bool {
-        existing.id == requested.id
-            && existing.ownerUserId == userId
-            && existing.syncedUserId == userId
-            && existing.termsVersion == requested.termsVersion
-            && existing.acceptedAt == date(timestamp(requested.acceptedAt))
-            && existing.acceptanceText == requested.acceptanceText
-            && existing.platform == requested.platform
-            && existing.appVersion == requested.appVersion
-            && existing.appBuild == requested.appBuild
-            && existing.recordedAt != nil
-    }
-
-    /// A fetch-after-error is only a retry recovery path when the server row
-    /// matches the immutable action that was sent. Revocations intentionally
-    /// ignore the requested parent because the RPC may have rebased it.
-    private static func matchesAIConsentAppendRetry(
-        _ existing: ConsentManager.AIConsentEvent,
-        requested: ConsentManager.AIConsentEvent,
-        userId: UUID
-    ) -> Bool {
-        existing.id == requested.id
-            && existing.ownerUserId == userId
-            && existing.syncedUserId == userId
-            && existing.provider == requested.provider
-            && existing.disclosureVersion == requested.disclosureVersion
-            && existing.eventKind == requested.eventKind
-            && existing.occurredAt == date(timestamp(requested.occurredAt))
-            && existing.disclosureText == requested.disclosureText
-            && existing.actionText == requested.actionText
-            && existing.platform == requested.platform
-            && existing.appVersion == requested.appVersion
-            && existing.appBuild == requested.appBuild
-            && existing.recordedAt != nil
-            && existing.consentRevision != nil
-            && (
-                requested.eventKind == .revoked
-                    || existing.causalParentId == requested.causalParentId
-            )
-    }
-
-    private static func matchesAnalyticsConsentAppendRetry(
-        _ existing: ConsentManager.AnalyticsConsentEvent,
-        requested: ConsentManager.AnalyticsConsentEvent,
-        userId: UUID
-    ) -> Bool {
-        existing.id == requested.id
-            && existing.ownerUserId == userId
-            && existing.syncedUserId == userId
-            && existing.provider == requested.provider
-            && existing.disclosureVersion == requested.disclosureVersion
-            && existing.eventKind == requested.eventKind
-            && existing.occurredAt == date(timestamp(requested.occurredAt))
-            && existing.disclosureText == requested.disclosureText
-            && existing.actionText == requested.actionText
-            && existing.platform == requested.platform
-            && existing.appVersion == requested.appVersion
-            && existing.appBuild == requested.appBuild
-            && existing.recordedAt != nil
-            && existing.consentRevision != nil
-            && (
-                requested.eventKind == .revoked
-                    || existing.causalParentId == requested.causalParentId
-            )
-    }
-
-    private static func timestamp(_ date: Date) -> String {
-        date.formatted(
-            Date.ISO8601FormatStyle(includingFractionalSeconds: true)
-        )
-    }
-
-    private static func date(_ timestamp: String) -> Date? {
-        if let date = try? Date(
-            timestamp,
-            strategy: Date.ISO8601FormatStyle(
-                includingFractionalSeconds: true
-            )
-        ) {
-            return date
-        }
-        return try? Date(
-            timestamp,
-            strategy: Date.ISO8601FormatStyle(
-                includingFractionalSeconds: false
-            )
-        )
-    }
 }

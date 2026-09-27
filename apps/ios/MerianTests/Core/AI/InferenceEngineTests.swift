@@ -151,7 +151,9 @@ struct InferenceEngineTests {
     }
     
     init() {
-        MockURLProtocol.mockEndpoints = [:]
+        MockURLProtocol.mockEndpoints = [
+                "/get_my_identification_preflight": NetworkEndpointTestSupport.readyGeminiPreflight
+            ]
         let config = URLSessionConfiguration.ephemeral
         config.protocolClasses = [MockURLProtocol.self]
         MerianNetworkClient.shared.overridingSession = URLSession(configuration: config)
@@ -1802,7 +1804,9 @@ struct InferenceEngineTests {
         manager.isOnline = true
         circuitBreaker.recordSuccess()
         defer {
-            MockURLProtocol.mockEndpoints = [:]
+            MockURLProtocol.mockEndpoints = [
+                "/get_my_identification_preflight": NetworkEndpointTestSupport.readyGeminiPreflight
+            ]
             client.overridingInferenceConsentCheck = {}
             manager.modelContext = originalContext
             manager.isOnline = originalIsOnline
@@ -2043,7 +2047,9 @@ struct InferenceEngineTests {
         defer {
             transport.releaseFirstResponse()
             clearQueueBackedInferenceAttempt(scanId: scanId)
-            MockURLProtocol.mockEndpoints = [:]
+            MockURLProtocol.mockEndpoints = [
+                "/get_my_identification_preflight": NetworkEndpointTestSupport.readyGeminiPreflight
+            ]
             client.overridingInferenceConsentCheck = {}
             manager.modelContext = originalContext
             manager.isOnline = originalIsOnline
@@ -2160,7 +2166,9 @@ struct InferenceEngineTests {
         client.overridingInferenceConsentCheck = {}
         circuitBreaker.recordSuccess()
         defer {
-            MockURLProtocol.mockEndpoints = [:]
+            MockURLProtocol.mockEndpoints = [
+                "/get_my_identification_preflight": NetworkEndpointTestSupport.readyGeminiPreflight
+            ]
             client.overridingInferenceConsentCheck = {}
             circuitBreaker.recordSuccess()
         }

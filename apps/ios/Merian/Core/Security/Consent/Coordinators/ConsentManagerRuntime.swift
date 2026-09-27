@@ -18,6 +18,7 @@ final class ConsentManagerRuntime {
     let realtimeCoordinator: ConsentRealtimeCoordinator
     let cloudSessionCoordinator: ConsentCloudSessionCoordinator
     let mutationService: ConsentMutationService
+    let aiProcessingPermissions: AIProcessingConsentCoordinator
     let currentSDKUserIdProvider: @MainActor () -> UUID?
     let analyticsPermissionApplier: @MainActor (Bool, String?) -> Void
 
@@ -63,12 +64,33 @@ final class ConsentManagerRuntime {
         mutationService = ConsentMutationService(
             ledgerRepository: ledgerRepository
         )
+        aiProcessingPermissions = AIProcessingConsentCoordinator(
+            repository: ledgerRepository, mutationService: mutationService
+        )
         self.currentSDKUserIdProvider = currentSDKUserIdProvider
         self.analyticsPermissionApplier = analyticsPermissionApplier
         self.restorationFailureReporter = restorationFailureReporter
     }
 
     func connect(to manager: ConsentManager) {
+        aiProcessingPermissions.setHandlers(
+            contextProvider: { [weak manager, weak self] in
+                guard let manager, let self else { return nil }
+                return .init(
+                    observedUserId: manager.currentSessionUserId,
+                    sdkUserId: self.currentSDKUserIdProvider(),
+                    isAccountTransitionInProgress:
+                        manager.isAnalyticsSuppressedForAccountTransition
+                            || manager.isAnalyticsSuppressedForGhostHandoff
+                )
+            },
+            synchronize: { [weak manager, weak self] in
+                guard let manager, let self else { return }
+                self.cloudSessionCoordinator.scheduleSynchronization(
+                    manager: manager, createAnonymousSessionIfNeeded: false
+                )
+            }
+        )
         ledgerRepository.setStateChangeHandler { [weak manager] in
             manager?.handleConsentLedgerStateChange()
         }

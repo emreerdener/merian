@@ -1,3 +1,4 @@
+import { buildDescribeAIRequest } from "../identify-describe/provider.ts";
 import {
   assert,
   assertEquals,
@@ -13,6 +14,7 @@ import {
   deriveAIRequestId,
   hmacClientAddress,
   quotaErrorForDatabaseMessage,
+  reserveIdentificationProviderCall,
   resolveAIRequestId,
   resolveQuotaIpHashSecret,
 } from "./aiQuota.ts";
@@ -256,4 +258,393 @@ Deno.test("failed provider attempts transition committed leases without refundin
   assertEquals(await lease.fail(), true);
   assertEquals(await lease.refund(), false);
   assertEquals(states, ["committed", "failed"]);
+});
+
+Deno.test("identification admission requires database assignment and preserves non-dispatchable legacy replay", async (test) => {
+  const previous = Deno.env.get("AI_QUOTA_IP_HASH_SECRET");
+  Deno.env.set("AI_QUOTA_IP_HASH_SECRET", SECRET);
+  try {
+    const valid = {
+      reservation_id: "00000000-0000-0000-0000-000000000321",
+      request_id: REQUEST_ID,
+      lease_token: "00000000-0000-0000-0000-000000000654",
+      lease_expires_at: "2099-01-01T00:00:00Z",
+      reservation_state: "reserved",
+      is_replay: false,
+      attempt_count: 1,
+      model: "gemini-2.5-flash",
+      effective_plan: "free",
+      effective_tier: "free",
+      subscription_tier: "free",
+      trial_active: false,
+      entitlement_version: 1,
+      policy_version: 1,
+      daily_limit: 10,
+      daily_remaining: 9,
+      original_analysis_id: null,
+      complimentary_client_scan_id: null,
+      flash_fallback_used: false,
+      scans_remaining: 0,
+      scans_available_to_start: 0,
+      in_flight_count: 0,
+      provider: "gemini",
+      binding: "gemini_baseline_v1",
+      processor_permission: "google_gemini",
+      input_profile: "description_compat_v1",
+    };
+    for (
+      const [name, changes, code] of [
+        ["valid", {}, null],
+        [
+          "missing input profile",
+          { input_profile: undefined },
+          "ai_quota_unavailable",
+        ],
+        [
+          "unknown input profile",
+          { input_profile: "user_choice" },
+          "ai_quota_unavailable",
+        ],
+        [
+          "mismatched complete input",
+          { input_profile: "multimodal_audio_v1" },
+          "ai_quota_unavailable",
+        ],
+        ["missing provider", { provider: undefined }, "ai_quota_unavailable"],
+        ["missing binding", { binding: undefined }, "ai_quota_unavailable"],
+        [
+          "missing permission",
+          { processor_permission: undefined },
+          "ai_quota_unavailable",
+        ],
+        ["unknown provider", { provider: "openai" }, "ai_quota_unavailable"],
+        [
+          "wrong binding",
+          { binding: "openai_photo_text_v1" },
+          "ai_quota_unavailable",
+        ],
+        [
+          "wrong permission",
+          { processor_permission: "openai" },
+          "ai_quota_unavailable",
+        ],
+        ["wrong model", { model: "gpt-6-sol" }, "ai_quota_unavailable"],
+        ["legacy active replay", {
+          is_replay: true,
+          provider: null,
+          binding: null,
+          processor_permission: null,
+        }, "ai_request_in_progress"],
+        ["legacy completion replay", {
+          is_replay: true,
+          reservation_state: "committed",
+          provider: null,
+          binding: null,
+          processor_permission: null,
+        }, "ai_request_already_completed"],
+      ] as const
+    ) {
+      await test.step(name, async () => {
+        const calls: string[] = [];
+        const client = {
+          rpc: (rpc: string, args: Record<string, unknown>) => {
+            calls.push(rpc);
+            assertEquals(rpc, "reserve_identification_quota");
+            assertEquals(
+              Object.keys(args).sort(),
+              [
+                "p_user_id",
+                "p_operation",
+                "p_request_id",
+                "p_ip_hash",
+                "p_original_analysis_id",
+                "p_flash_fallback_eligible",
+                "p_client_protocol",
+                "p_internal_replay",
+                "p_input_profile",
+              ].sort(),
+            );
+            return {
+              abortSignal: () =>
+                Promise.resolve({
+                  data: { ...valid, ...changes },
+                  error: null,
+                }),
+            };
+          },
+        };
+        const call = () =>
+          reserveIdentificationProviderCall(
+            new Request("https://example.invalid"),
+            client as never,
+            {
+              request: buildDescribeAIRequest("Synthetic observation", {
+                safeGpsLat: null,
+                safeGpsLon: null,
+              }),
+              userId: "synthetic-owner",
+              operation: "scan_identification",
+              requestId: REQUEST_ID,
+            },
+          );
+        if (code) {
+          const error = await assertRejects(call, AIQuotaError);
+          assertEquals(error.code, code);
+        } else {
+          const lease = await call();
+          assertEquals(lease.reservation.assignment, {
+            provider: "gemini",
+            binding: "gemini_baseline_v1",
+            permission: "google_gemini",
+            inputProfile: "description_compat_v1",
+          });
+          assert(Object.isFrozen(lease.reservation.assignment));
+        }
+        assertEquals(calls, ["reserve_identification_quota"]);
+      });
+    }
+    await test.step("content operation never reaches the identification RPC", async () => {
+      const error = await assertRejects(
+        () =>
+          reserveIdentificationProviderCall(
+            new Request("https://example.invalid"),
+            {
+              rpc: () => {
+                throw new Error("must not call RPC");
+              },
+            } as never,
+            {
+              request: buildDescribeAIRequest("Synthetic observation", {
+                safeGpsLat: null,
+                safeGpsLon: null,
+              }),
+              userId: "synthetic-owner",
+              operation: "species_overview" as never,
+            },
+          ),
+        AIQuotaError,
+      );
+      assertEquals(error.code, "ai_quota_unavailable");
+    });
+  } finally {
+    if (previous === undefined) Deno.env.delete("AI_QUOTA_IP_HASH_SECRET");
+    else Deno.env.set("AI_QUOTA_IP_HASH_SECRET", previous);
+  }
+});
+
+Deno.test("missing database assignment has a stable content-free failure", () => {
+  const error = quotaErrorForDatabaseMessage(
+    "ai_provider_assignment_unavailable",
+  );
+  assertEquals(error.status, 503);
+  assertEquals(error.code, "ai_quota_unavailable");
+  assertEquals(error.message, "AI service is temporarily unavailable.");
+});
+
+Deno.test("identification compatibility denial returns 426 without another reservation or provider lease", async (test) => {
+  const previous = Deno.env.get("AI_QUOTA_IP_HASH_SECRET");
+  Deno.env.set("AI_QUOTA_IP_HASH_SECRET", SECRET);
+  try {
+    for (
+      const [header, expected] of [
+        [null, null],
+        ["2", 2],
+        ["3", 3],
+        ["999", 999],
+        ["3.0", null],
+        ["03", null],
+        ["3junk", null],
+      ] as const
+    ) {
+      await test.step(String(header), async () => {
+        let calls = 0;
+        const error = await assertRejects(
+          () =>
+            reserveIdentificationProviderCall(
+              new Request("https://example.invalid", {
+                headers: header == null
+                  ? {}
+                  : { "X-Merian-Entitlement-Protocol": header },
+              }),
+              {
+                rpc: (name: string, args: Record<string, unknown>) => {
+                  calls++;
+                  assertEquals(name, "reserve_identification_quota");
+                  assertEquals(args.p_client_protocol, expected);
+                  return {
+                    abortSignal: () =>
+                      Promise.resolve({
+                        data: null,
+                        error: {
+                          message: "client_update_required",
+                          code: "P0001",
+                        },
+                      }),
+                  };
+                },
+              } as never,
+              {
+                request: buildDescribeAIRequest("Synthetic observation", {
+                  safeGpsLat: null,
+                  safeGpsLon: null,
+                }),
+                userId: "synthetic-owner",
+                operation: "scan_identification",
+                requestId: REQUEST_ID,
+              },
+            ),
+          AIQuotaError,
+        );
+        assertEquals(calls, 1);
+        assertEquals(error.status, 426);
+        assertEquals(error.code, "client_update_required");
+        assertEquals(
+          error.message,
+          "Please update Naturebook to continue identifying.",
+        );
+      });
+    }
+  } finally {
+    if (previous === undefined) Deno.env.delete("AI_QUOTA_IP_HASH_SECRET");
+    else Deno.env.set("AI_QUOTA_IP_HASH_SECRET", previous);
+  }
+});
+
+Deno.test("OpenAI denial has a distinct bounded recipient code", () => {
+  const error = quotaErrorForDatabaseMessage("ai_openai_consent_required");
+  assertEquals(error.status, 403);
+  assertEquals(error.code, "ai_openai_consent_required");
+  assertEquals(
+    error.message,
+    "OpenAI processing permission is required before identifying this observation.",
+  );
+  for (
+    const message of [
+      "ai_openai_consent_required_unknown",
+      "private detail: ai_openai_consent_required",
+    ]
+  ) {
+    const unknown = quotaErrorForDatabaseMessage(message);
+    assertEquals(unknown.status, 503);
+    assertEquals(unknown.code, "ai_entitlement_unavailable");
+    assertEquals(unknown.message.includes("private detail"), false);
+  }
+});
+
+Deno.test("recipient expectations only select the guarded admission overload and never a provider", async (test) => {
+  const previous = Deno.env.get("AI_QUOTA_IP_HASH_SECRET");
+  Deno.env.set("AI_QUOTA_IP_HASH_SECRET", SECRET);
+  try {
+    for (const recipient of ["google_gemini", "openai", "recovery_only"]) {
+      await test.step(recipient, async () => {
+        let calls = 0;
+        const error = await assertRejects(
+          () =>
+            reserveIdentificationProviderCall(
+              new Request("https://example.invalid", {
+                headers: { "X-Merian-Identification-Recipient": recipient },
+              }),
+              {
+                rpc: (name: string, args: Record<string, unknown>) => {
+                  calls++;
+                  assertEquals(name, "reserve_identification_quota");
+                  assertEquals(args.p_expected_processor_permission, recipient);
+                  assertEquals(args.p_input_profile, "description_compat_v1");
+                  assertEquals("p_provider" in args, false);
+                  assertEquals("p_model" in args, false);
+                  return {
+                    abortSignal: () =>
+                      Promise.resolve({
+                        data: null,
+                        error: {
+                          code: "P0001",
+                          message: "ai_identification_preflight_changed",
+                        },
+                      }),
+                  };
+                },
+              } as never,
+              {
+                request: buildDescribeAIRequest("Synthetic observation", {
+                  safeGpsLat: null,
+                  safeGpsLon: null,
+                }),
+                userId: "synthetic-owner",
+                operation: "scan_identification",
+                requestId: REQUEST_ID,
+              },
+            ),
+          AIQuotaError,
+        );
+        assertEquals(calls, 1);
+        assertEquals(error.status, 409);
+        assertEquals(error.code, "ai_identification_preflight_changed");
+        assertEquals(
+          error.message,
+          "Identification requirements changed. Please check again before retrying.",
+        );
+      });
+    }
+    for (
+      const recipient of [
+        "",
+        "gemini",
+        "OpenAI",
+        "google_gemini, openai",
+        "unknown-recipient",
+      ]
+    ) {
+      await test.step(`invalid: ${recipient}`, async () => {
+        let calls = 0;
+        const error = await assertRejects(
+          () =>
+            reserveIdentificationProviderCall(
+              new Request("https://example.invalid", {
+                headers: { "X-Merian-Identification-Recipient": recipient },
+              }),
+              {
+                rpc: () => {
+                  calls++;
+                  throw new Error("must not reserve");
+                },
+              } as never,
+              {
+                request: buildDescribeAIRequest("Synthetic observation", {
+                  safeGpsLat: null,
+                  safeGpsLon: null,
+                }),
+                userId: "synthetic-owner",
+                operation: "scan_identification",
+                requestId: REQUEST_ID,
+              },
+            ),
+          AIQuotaError,
+        );
+        assertEquals(calls, 0);
+        assertEquals(error.status, 400);
+        assertEquals(error.code, "ai_identification_preflight_invalid");
+        assertEquals(
+          error.message,
+          "Invalid identification preflight expectation.",
+        );
+      });
+    }
+  } finally {
+    if (previous === undefined) Deno.env.delete("AI_QUOTA_IP_HASH_SECRET");
+    else Deno.env.set("AI_QUOTA_IP_HASH_SECRET", previous);
+  }
+});
+
+Deno.test("recipient drift mapping is exact and does not expose database details", () => {
+  for (
+    const message of [
+      "ai_identification_preflight_changed_extra",
+      "private detail: ai_identification_preflight_changed",
+    ]
+  ) {
+    const error = quotaErrorForDatabaseMessage(message);
+    assertEquals(error.status, 503);
+    assertEquals(error.code, "ai_entitlement_unavailable");
+    assertEquals(error.message.includes("private detail"), false);
+  }
 });

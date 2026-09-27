@@ -511,38 +511,48 @@ proxy or clear a newer highlight.
   level while the outing remains unfinished, then reset the outing to its
   earliest incomplete level. Completed outings are immutable for normal
   identification corrections. Evidence-policy invalidation is stricter: if a
-  confidence, inference-tier, or review revision makes the contributing scan
-  weak and unconfirmed, its credit is removed even from a completed outing.
+  confidence, inference-tier, metric-compatibility, or review revision makes the
+  contributing scan ineligible and unconfirmed, its credit is removed even from
+  a completed outing.
 
 ### Identification Evidence Policy
 
 The database applies this policy before standard-outing or Event goal matching.
-The boundaries are inclusive and mirror the tier-specific **Possible match**
-presentation thresholds:
+Automatic credit first requires a recorded Gemini configuration qualified by
+`internal.identification_metrics_are_gemini_compatible`, or historical SQL-null
+provenance. Unknown present configurations remain pending review regardless of
+score. For compatible metrics, the inclusive boundaries mirror the tier-specific
+**Possible match** presentation thresholds:
 
-| Inference tier     | Automatic-credit minimum | Below the boundary                     |
-| ------------------ | -----------------------: | -------------------------------------- |
-| Flash              |             `0.75` (75%) | Pending review; no automatic credit    |
-| Pro                |             `0.65` (65%) | Pending review; no automatic credit    |
-| Missing or unknown |             `0.75` (75%) | Fail closed to the stricter Flash rule |
+| Inference tier                 | Automatic-credit minimum | Below the boundary                  |
+| ------------------------------ | -----------------------: | ----------------------------------- |
+| Flash                          |             `0.75` (75%) | Pending review; no automatic credit |
+| Pro                            |             `0.65` (65%) | Pending review; no automatic credit |
+| Legacy missing or unknown tier |             `0.75` (75%) | Uses the stricter Flash rule        |
 
-A null or out-of-range model score never auto-qualifies. The score is bypassed
-only when `user_confirmed_identification` is true or `confirmed_species_id` is
-populated by a correction or community resolution. The scan must still be
-caller-owned, saved, resolved and non-Human, biological, not tombstoned, and
-match all timing, current-level, and checklist criteria.
+A null or out-of-range model score never auto-qualifies. The metric
+compatibility and score gates are bypassed only when
+`user_confirmed_identification` is true or `confirmed_species_id` is populated
+by a correction or community resolution. The scan must still be caller-owned,
+saved, resolved and non-Human, biological, not tombstoned, and match all timing,
+current-level, and checklist criteria.
 
 Unresolved wildlife presence, Human identity, and non-biological classification
 scores never establish a qualifying taxon. The database checks effective
 selected taxonomy and normalized Human overrides, including speech/breathing
 aliases, before both standard and Event matching. Confirmation bypasses only the
-score requirement. Legacy nullable biological flags retain their previous
-meaning when taxonomy resolves. `user_identification_override` participates in
-the update trigger and atomic receipt revision. Subject invalidation withdraws
-credit even after completion, retaining selected-goal preferences and repairing
-derived badges/publications like a confidence downgrade. Migration
+metric compatibility and score requirements. Legacy nullable biological flags
+retain their previous meaning when taxonomy resolves.
+`user_identification_override` participates in the update trigger and atomic
+receipt revision. Subject invalidation withdraws credit even after completion,
+retaining selected-goal preferences and repairing derived badges/publications
+like a confidence downgrade. Migration
 `20260924062640_gate_field_trip_progress_by_subject.sql` applies the same
-bounded repair to existing affected credit and receipts.
+bounded repair to existing affected credit and receipts. The later
+`20260927004054_qualify_identification_metrics_by_provenance.sql` migration adds
+provenance-triggered reconciliation and the compatibility decision to receipt
+revisions, repairing newly ineligible historical credit while preserving
+selected goals. Stored scores and source provenance remain unchanged.
 
 `preferred_goal` is only a ranking hint. For a weak unreviewed scan, the atomic
 receipt retains the complete hint but returns empty standard/Event updates. A

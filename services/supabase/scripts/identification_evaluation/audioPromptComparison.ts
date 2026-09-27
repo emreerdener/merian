@@ -81,7 +81,10 @@ export async function buildOfflineAudioPromptPair(bytes: Uint8Array) {
     },
     telemetry: AUDIO_PROMPT_CONTEXT,
   });
-  const snapshot = resolveAIClaim(request, fixtureAuthority("gemini_pro"));
+  const snapshot = resolveAIClaim(
+    request,
+    fixtureAuthority("gemini_pro", request),
+  );
   const baseline = buildGeminiRequestParameters(request, snapshot);
   const rules = design.invariants;
   check(

@@ -1,25 +1,45 @@
 # Naturebook AI Provider Flexibility — PRD
 
 Document ID: NB-PRD-IDENTIFICATION-001\
-Version: 0.6\
-Date: 21 September 2026\
-Status: Gemini-only backend deployed; owner verification confirmed\
+Version: 0.7\
+Date: 26 September 2026\
+Status: Gemini-only foundation deployed; separate OpenAI evaluator implemented
+locally\
 Suggested owners: Backend and Product, with iOS contract review\
 Companion: [Provider Flexibility SRD](../rfcs/identification-foundation-srd.md)
+
+**Scope clarification — 26 September 2026:** This PRD records the completed
+Gemini-only production foundation. The original-phase requirements below remain
+its acceptance contract. A later, separately scoped
+[OpenAI photo/text evaluator](../development-guides/22-alternative-identification-provider.md)
+is implemented locally and has paid exploratory evidence. It cannot receive
+production scan assignments. The
+[implementation review](../rfcs/identification-provider-flexibility-review-2026-09-26.md)
+separates source readiness from future provider activation.
 
 All six implementation slices have local source and verification evidence in the
 [completion record](../rfcs/identification-foundation-verification.md). The
 [21 September deployment record](../release-evidence/provider-flexibility-deployment-2026-09-21.md)
 records the merged candidate, successful production rollout, owner-reported
-manual verification, and the remaining post-merge iOS CI observation. Another
-provider is not integrated; formal production measurements and broader release
-requirements retain their separate evidence boundaries.
+manual verification, and the remaining post-merge iOS CI observation at that
+checkpoint. No alternate provider was integrated in that release; formal
+production measurements and broader release requirements retain their separate
+evidence boundaries.
 
-The next milestone is
-[identification evaluation readiness](./04-identification-evaluation-prd.md):
-establish a reviewed Gemini quality, time, and cost baseline before choosing a
-model or provider improvement. Its scope and implementation slices are separate
-from this completed infrastructure work.
+The following milestone was
+[identification evaluation readiness](./04-identification-evaluation-prd.md),
+with scope and implementation slices separate from this completed foundation.
+The current provider guide above records the later evaluation implementation,
+exploratory results and remaining qualification limits.
+
+The later
+[app-controlled routing slice](../rfcs/identification-provider-input-routing-2026-09-26.md)
+makes assignment authority explicit: the app owner configures backend
+provider/model policy; end users never choose or approve a provider assignment.
+Consent permits data processing by the assigned recipient. Declining it blocks
+that processing without choosing a different provider. Every current route
+remains Gemini; OpenAI consent collection and runtime assignments remain
+disabled.
 
 ## 1. Goal and benefit
 
@@ -34,9 +54,11 @@ is reducing the amount of identification code that a future provider change must
 touch. It does not promise better accuracy, lower cost, or faster answers by
 itself.
 
-OpenAI is an example of a provider we might add later, not an implementation,
-evaluation, or rollout commitment in this phase. No alternate-provider SDK,
-credentials, paid requests, or live shadow calls are needed to complete it.
+In the original Gemini-only phase, OpenAI was an example rather than an
+implementation, evaluation or rollout commitment. That phase required no
+alternate-provider SDK, credentials, paid requests or live shadow calls. The
+later evaluation work in the dated scope note does not change these original
+acceptance conditions or enable a production assignment.
 
 ## 2. Scope and actual identification inputs
 
@@ -179,3 +201,27 @@ and release procedures remain authoritative. This is a planning document; it
 changes no implementation or deployed configuration. The
 [earlier combined PRD](./02-family-plans-and-ai-platform-prd.md) remains
 deferred background.
+
+## Subsequent native integration — 26 September 2026
+
+The
+[native recipient preflight](../rfcs/identification-native-recipient-preflight-2026-09-26.md)
+carries the backend's app-owned assignment through foreground and saved-scan
+identification. It stops on changed assignments, missing recipient permission or
+incompatible clients while preserving the observation. Existing Gemini
+assignments, required onboarding and disabled OpenAI collection remain
+unchanged. This extends the later-provider foundation; the original completed
+Gemini-only phase and its historical release evidence above are unchanged.
+Matched candidate qualification and deliberate provider activation remain
+separate milestones.
+
+## Subsequent result compatibility — 26 September 2026
+
+[Client result provenance](../rfcs/identification-client-result-provenance-2026-09-26.md)
+extends the later-provider foundation with optional immutable execution metadata
+in Identify and owner history, V52 local persistence, and confidence
+presentation that distinguishes recognized Gemini profiles from unknown present
+profiles. Existing results without metadata retain legacy behavior. The app owns
+assignment; no provider chooser or second-provider activation is introduced.
+This is compatibility infrastructure, not benchmark qualification or a change to
+the original phase's historical acceptance evidence.

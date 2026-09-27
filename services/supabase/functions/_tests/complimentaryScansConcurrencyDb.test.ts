@@ -398,3 +398,104 @@ Deno.test("Complimentary scans concurrency DB - three overlapping holds serializ
     await Promise.all(clients.map((client) => client.end().catch(() => {})));
   }
 });
+
+Deno.test("Identification provider admission DB - overlapping duplicates keep one immutable assignment", async () => {
+  const clients = await connectClients("identificationProviderAdmissionDb", 4);
+  if (!clients) return;
+  const [observer, ...callers] = clients;
+  const userId = crypto.randomUUID(), requestId = crypto.randomUUID();
+  const suffix = crypto.randomUUID().slice(0, 8);
+  const names = callers.map((_, index) =>
+    `provider-admission-${suffix}-${index}`
+  );
+  type Attempt = {
+    reservation_id: string;
+    attempt_count: number;
+    is_replay: boolean;
+    provider: string;
+    binding: string;
+    processor_permission: string;
+  };
+  let blocked = false;
+  let pending: Promise<Attempt>[] = [];
+  try {
+    const installed = await observer.queryObject<{ installed: boolean }>(
+      `SELECT pg_catalog.TO_REGPROCEDURE('public.reserve_identification_quota(uuid,text,uuid,text,uuid,boolean,integer,boolean)') IS NOT NULL AS installed`,
+    );
+    if (!installed.rows[0]?.installed) {
+      if (CONFIGURED_DB_URL) {
+        throw new Error(
+          "configured database lacks provider admission migration",
+        );
+      }
+      console.warn(
+        "Skipping identification provider admission DB test: migration absent",
+      );
+      return;
+    }
+    await insertUser(observer, userId, `Provider Admission ${suffix}`);
+    await grantCurrentAIConsent(observer, userId);
+    await observer.queryArray(
+      "UPDATE public.user_ai_consent_events SET disclosure_version = '2026-08-04.1' WHERE user_id = $1::UUID",
+      [userId],
+    );
+    await observer.queryArray(
+      "UPDATE public.users SET subscription_tier = 'pro', subscription_expires_at = NULL WHERE id = $1::UUID",
+      [userId],
+    );
+    await Promise.all(
+      callers.map((client, index) => setApplicationName(client, names[index])),
+    );
+    await observer.queryArray("BEGIN");
+    blocked = true;
+    await observer.queryArray(
+      "SELECT id FROM public.users WHERE id = $1::UUID FOR UPDATE",
+      [userId],
+    );
+    pending = callers.map(async (client) => {
+      const result = await client.queryObject<Attempt>(
+        `
+        SELECT reservation_id::TEXT, attempt_count, is_replay, provider, binding, processor_permission
+        FROM public.reserve_identification_quota($1::UUID,'scan_identification',$2::UUID,pg_catalog.REPEAT('d',64),$2::UUID,FALSE,3,FALSE)
+      `,
+        [userId, requestId],
+      );
+      assertEquals(result.rows.length, 1);
+      return result.rows[0];
+    });
+    // Observe rejections immediately while the observer proves real overlap.
+    for (const promise of pending) promise.catch(() => {});
+    await waitUntilAllCallersBlocked(observer, names);
+    await observer.queryArray("COMMIT");
+    blocked = false;
+    const rows = await Promise.all(pending);
+    assertEquals(rows.filter((row) => !row.is_replay).length, 1);
+    assertEquals(new Set(rows.map((row) => row.reservation_id)).size, 1);
+    for (const row of rows) {
+      assertEquals(row.attempt_count, 1);
+      assertEquals(row.provider, "gemini");
+      assertEquals(row.binding, "gemini_baseline_v1");
+      assertEquals(row.processor_permission, "google_gemini");
+    }
+    const counts = await observer.queryObject<
+      { snapshots: number; reservations: number }
+    >(
+      `
+      SELECT (SELECT pg_catalog.COUNT(*)::INTEGER FROM internal.identification_provider_attempts WHERE reservation_id = $1::UUID) AS snapshots,
+      (SELECT pg_catalog.COUNT(*)::INTEGER FROM internal.ai_quota_reservations WHERE user_id = $2::UUID AND request_id = $3::UUID) AS reservations
+    `,
+      [rows[0].reservation_id, userId, requestId],
+    );
+    assertEquals(counts.rows[0], { snapshots: 1, reservations: 1 });
+  } finally {
+    if (blocked) await observer.queryArray("ROLLBACK");
+    await Promise.allSettled(pending);
+    await observer.queryArray("DELETE FROM public.users WHERE id = $1::UUID", [
+      userId,
+    ]);
+    await observer.queryArray("DELETE FROM auth.users WHERE id = $1::UUID", [
+      userId,
+    ]);
+    await Promise.all(clients.map((client) => client.end()));
+  }
+});

@@ -1,3 +1,5 @@
+import Foundation
+
 struct ExploreCommunityRequestRoute: Hashable {
     let requestId: String
 }
@@ -194,4 +196,19 @@ struct CommunityIdentificationSubmissionRequest {
 
 struct CommunityIdentificationPostReportRequest {
     let postId: String
+}
+
+/// Presentation of the server-derived interpretation flag. It grants no choice
+/// of provider and does not claim that a score is empirically calibrated.
+enum CommunityAIIdentificationPresentation {
+    static func confidenceLabel(score: Double?, qualified: Bool?) -> String? {
+        guard qualified != false, let score, score.isFinite else { return nil }
+        return "\(Int((min(max(score, 0), 1) * 100).rounded()))% confident"
+    }
+
+    static func modelLabel(tier: String?, qualified: Bool?) -> String {
+        guard qualified != false else { return "AI suggestion" }
+        return tier?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == "pro"
+            ? "Naturebook Pro" : "Naturebook Flash"
+    }
 }

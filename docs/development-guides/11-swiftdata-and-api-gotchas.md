@@ -13,11 +13,12 @@ avoid repeating them.
 SwiftData staged migration plans cannot contain two schema versions with the
 same model checksum. Merian shipped V46 as a no-op after V45, so the primary
 `MerianMigrationPlan` keeps the duplicate-prone V44/V45/V46 recent cluster out
-of `schemas` and jumps older unknown stores from V43→V49. Source-isolated recent
+of `schemas` and jumps older unknown stores from V42→V49. Source-isolated recent
 plans still handle V44, V45, and V46 stores directly; V44, V45, and V46 stores
 jump through separate direct V44→V49, V45→V49, and V46→V49 plans. Those repairs
 are intermediate targets: every selected plan then applies the lightweight
-V49→V50 stage and custom V50→V51 preference-ownership stage.
+V49→V50 stage, custom V50→V51 preference-ownership stage and lightweight V51→V52
+provenance stage.
 
 One extra wrinkle: a user may already have a local store stamped as V46.
 SwiftData can validate that on-disk source model alongside the primary plan's
@@ -29,14 +30,16 @@ use the actual source stamp as the only recent representative in the plan, then
 jump directly to V49. Startup reads the store metadata before creating
 `ModelContainer`. Fresh stores and stores already stamped at the current schema
 open without a migration plan; known recent sources open with the matching
-source-isolated plan (V50 through V42); only unknown or older existing stores
-use the linear full historical plan. V50 has a one-stage custom V50→V51 plan;
-V49 has a two-stage V49→V50→V51 plan. If SwiftData still throws
-`Duplicate version checksums across stages detected`, startup falls back through
-the same source-isolated plans before legacy rescue or safe mode. These plans
-avoid forcing SwiftData to validate unrelated older retired schemas or adjacent
-checksum-equivalent representatives while a recent store only needs to advance
-to the current version.
+source-isolated plan (V51 through V42); only unknown or older existing stores
+use the linear full historical plan. V51 uses only lightweight V51→V52; V50 uses
+its source-exact custom V50→V51 stage and that additive tail, while V49 prepends
+V49→V50. V51 snapshots and relationship endpoints are frozen independently of
+active V52 models, including the unchanged V50-owned goal-hint companion. If
+SwiftData still throws `Duplicate version checksums across stages detected`,
+startup falls back through the same source-isolated plans before legacy rescue
+or safe mode. These plans avoid forcing SwiftData to validate unrelated older
+retired schemas or adjacent checksum-equivalent representatives while a recent
+store only needs to advance to the current version.
 
 Do not encode recent sources as an integer range followed by a generic app
 fallback. Keep a finite recent-source enum, convert actual store metadata into
@@ -1752,12 +1755,12 @@ For Merian, both checksum-distinct V50 graphs are frozen:
 `SchemaV50Snapshots.swift` retains the original `isDeleted` source property,
 while `SchemaV50ReleasedActiveSnapshots.swift` retains the processed release's
 `isPendingDeletion` property and `@Attribute(originalName: "isDeleted")`
-mapping. The V51 active `ScanCollection` keeps the same mapping, preserving the
+mapping. The V52 active `ScanCollection` keeps the same mapping, preserving the
 persisted column and existing `is_deleted` JSON contract. A private DTO in
 `MerianNetworkClient+Collections.swift` maps `isPendingDeletion` to
 `is_deleted`; SwiftData code does not own wire naming. Disk-backed fixtures pass
-through checksum-based production selection and their separate V50→V51 plans,
-then prove save, refetch, restart, offline retention, exact payload mapping,
-inbound reconciliation fencing, and acknowledgement-only purge. The custom
-stages change only preferred-name ownership and do not invent or infer
-historical collection delete intent.
+through checksum-based production selection, their separate V50→V51 stages and
+the shared V51→V52 tail, then prove save, refetch, restart, offline retention,
+exact payload mapping, inbound reconciliation fencing, and acknowledgement-only
+purge. The custom stages change only preferred-name ownership and do not invent
+or infer historical collection delete intent.

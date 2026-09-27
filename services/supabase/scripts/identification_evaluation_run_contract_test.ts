@@ -147,7 +147,9 @@ Deno.test({
       b = await assignmentFor(input, request, "gemini_pro", 1, null);
     assertEquals(a.model, "gemini-2.5-flash");
     assertEquals(b.model, "gemini-2.5-pro");
+    assert("thinkingBudget" in a.generation);
     assertEquals(a.generation.thinkingBudget, null);
+    assert("thinkingBudget" in b.generation);
     assertEquals(b.generation.thinkingBudget, 5000);
     assert(a.requestDigest !== b.requestDigest);
     assertEquals(

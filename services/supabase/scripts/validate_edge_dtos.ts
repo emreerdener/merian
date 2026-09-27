@@ -382,21 +382,60 @@ function renderSwiftStruct(
       indentation(level + 2)
     }let container = try decoder.container(keyedBy: ${codingKeysType}.self)`,
   );
+  if (node.unknownKeys === "reject") {
+    const allowedKeys = Object.keys(node.fields).map((key) =>
+      JSON.stringify(key)
+    ).join(", ");
+    const bodyIndent = indentation(level + 2);
+    lines.push(
+      `${bodyIndent}let rawContainer = try decoder.container(keyedBy: IdentifyWireCodingKey.self)`,
+      `${bodyIndent}let allowedKeys: Set<String> = [${allowedKeys}]`,
+      `${bodyIndent}guard rawContainer.allKeys.allSatisfy({ allowedKeys.contains($0.stringValue) }) else {`,
+      `${
+        indentation(level + 3)
+      }throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unexpected field in strict identification metadata."))`,
+      `${bodyIndent}}`,
+    );
+  }
   for (const [jsonName, definition] of properties) {
     const identifier = swiftIdentifier(jsonName, definition);
     const baseType = swiftBaseType(definition.contract);
-    const decodeMethod = isSwiftPropertyOptional(node, definition)
-      ? "decodeIfPresent"
-      : "decode";
-    lines.push(
-      `${
-        indentation(level + 2)
-      }${identifier} = try container.${decodeMethod}(${baseType}.self, forKey: .${identifier})`,
-    );
+    const requiredNull = node.swift.preserveRequiredNulls &&
+      definition.required &&
+      definition.contract.nullable === true;
+    const decodeType = requiredNull ? `${baseType}?` : baseType;
+    const decodeMethod =
+      !requiredNull && isSwiftPropertyOptional(node, definition)
+        ? "decodeIfPresent"
+        : "decode";
+    if (definition.swift && definition.swift.rejectExplicitNull) {
+      if (
+        definition.required || definition.contract.nullable ||
+        !isSwiftPropertyOptional(node, definition)
+      ) {
+        throw new ContractValidationError(
+          "rejectExplicitNull requires an optional non-nullable field.",
+        );
+      }
+      lines.push(
+        `${
+          indentation(level + 2)
+        }${identifier} = container.contains(.${identifier})`,
+        `${
+          indentation(level + 3)
+        }? try container.decode(${baseType}.self, forKey: .${identifier}) : nil`,
+      );
+    } else {
+      lines.push(
+        `${
+          indentation(level + 2)
+        }${identifier} = try container.${decodeMethod}(${decodeType}.self, forKey: .${identifier})`,
+      );
+    }
   }
   lines.push(`${childIndent}}`);
 
-  if (node.swift.parent) {
+  if (node.swift.parent || node.swift.preserveRequiredNulls) {
     lines.push(
       "",
       `${childIndent}func encode(to encoder: Encoder) throws {`,
@@ -406,9 +445,12 @@ function renderSwiftStruct(
     );
     for (const [jsonName, definition] of properties) {
       const identifier = swiftIdentifier(jsonName, definition);
-      const encodeMethod = isSwiftPropertyOptional(node, definition)
-        ? "encodeIfPresent"
-        : "encode";
+      const preserveNull = node.swift.preserveRequiredNulls &&
+        definition.required;
+      const encodeMethod =
+        !preserveNull && isSwiftPropertyOptional(node, definition)
+          ? "encodeIfPresent"
+          : "encode";
       lines.push(
         `${
           indentation(level + 2)
@@ -441,6 +483,13 @@ export function renderGeneratedSwiftDTOBlock(): string {
     GENERATED_SWIFT_BEGIN,
     "// Generated from services/supabase/functions/_shared/identify/contract.ts.",
     "// Do not edit this block by hand; run make generate-edge-dto-contract.",
+    "",
+    "private struct IdentifyWireCodingKey: CodingKey {",
+    "    let stringValue: String",
+    "    var intValue: Int? { nil }",
+    "    init?(stringValue: String) { self.stringValue = stringValue }",
+    "    init?(intValue: Int) { return nil }",
+    "}",
     "",
     ...nested.flatMap((node) => [
       renderSwiftCodingKeys(

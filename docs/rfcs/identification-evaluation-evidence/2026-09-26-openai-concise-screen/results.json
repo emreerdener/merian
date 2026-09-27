@@ -1,0 +1,90 @@
+{
+  "version": "openai_concise_screen_outcome_v1",
+  "date": "2026-09-26",
+  "status": "closed_inconclusive",
+  "source": {
+    "commit": "546c839b33c5bae0850106cdee14c164d45fd852",
+    "dirty": false,
+    "digest": "0a8b923fa98d9f00938051e918b7385d1aea5ee5799e911eacd3b0b048c9c48b",
+    "sdk": "npm:@google/genai@2.23.0"
+  },
+  "scheduledCalls": 16,
+  "attemptedCalls": 1,
+  "unattemptedCalls": 15,
+  "completedControlCalls": 1,
+  "completedCandidateCalls": 0,
+  "retries": 0,
+  "unknownExecutions": 0,
+  "stopCode": "explanation_quality_failed",
+  "stopInterpretation": "reference_coverage_insufficient_for_explanation_comparisons",
+  "screeningDecision": "inconclusive",
+  "disposition": "retain_existing_profile_defer_concise_candidate",
+  "productionQualified": false,
+  "case": {
+    "caseId": "c0007",
+    "profileId": "openai_photo_text_uncached_v1",
+    "outcome": "normalized",
+    "taxon": {
+      "id": "species-carnegiea-gigantea",
+      "rank": "species"
+    },
+    "subjectAssessment": "agreement",
+    "identityAssessment": "agreement",
+    "providerMs": 7066.6272500000005,
+    "normalizationMs": 2.976749999999811,
+    "estimatedUsd": 0.024711,
+    "conservativeAccountedUsd": 0.02946,
+    "usage": {
+      "promptTokens": 4749,
+      "candidateTokens": 348,
+      "totalTokens": 5130,
+      "thinkingTokens": 33,
+      "cachedTokens": 0,
+      "toolTokens": 0,
+      "modalities": null,
+      "cacheWriteTokens": 0
+    },
+    "explanationRatings": {
+      "grounding": {
+        "status": "not_assessable",
+        "reason": "insufficient_reference"
+      },
+      "requiredInformation": {
+        "status": "pass",
+        "reason": "supported"
+      },
+      "uncertainty": {
+        "status": "pass",
+        "reason": "supported"
+      }
+    }
+  },
+  "review": {
+    "method": "assistant_local_v1",
+    "independentHumanValidation": false,
+    "additionalJudgeCalls": 0,
+    "limitation": "ai_assessment_can_share_model_errors"
+  },
+  "spending": {
+    "approvedMaximumUsd": 86,
+    "perProfileMaximumUsd": 43,
+    "knownRateAwareEstimatedUsd": 0.024711,
+    "conservativeAccountedUsd": 0.02946,
+    "retainedUnknownReservationsUsd": 0,
+    "invoiceVerified": false
+  },
+  "evidenceSha256": {
+    "plan": "febbb6d3cafe261feff0e8d2ae1554e6622606836130fc259ae18f0336e56ffb",
+    "report": "df63d0d0f99a4afcff922b63f12c61417217a40f9d06976a90232a5611a40042",
+    "state": "0e280b91b6020a6c628c206f174f8b3b3d0c45c08517f483d3333c9d0ebf8706",
+    "result": "a6aea48f21735cbdbae6ade81397fe471857f297ee603e51309b6f1ff571c151"
+  },
+  "limitations": [
+    "one_control_result_only",
+    "candidate_unattempted",
+    "provisional_reference",
+    "ai_review_without_independent_human_validation",
+    "lookalike_comparison_claims_not_covered_by_frozen_facts",
+    "not_a_paired_provider_or_prompt_comparison"
+  ]
+}

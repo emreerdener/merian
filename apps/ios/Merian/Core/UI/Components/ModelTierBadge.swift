@@ -6,6 +6,7 @@ struct ModelTierBadgePresentation: Equatable {
     static func resolve(
         confidenceScore: Double?,
         inferenceTier: String?,
+        provenance: IdentificationResultProvenance? = nil,
         label: String = "Upgrade for advanced analysis",
         isSubscribed: Bool,
         isProActive: Bool,
@@ -27,9 +28,9 @@ struct ModelTierBadgePresentation: Equatable {
         }
 
         if !isProActive, let confidenceScore {
-            let bands = InferenceConfidencePolicy.bands(
-                forInferenceTier: inferenceTier
-            )
+            guard let bands = InferenceConfidencePolicy.bands(
+                forInferenceTier: inferenceTier, provenance: provenance
+            ) else { return nil }
             if confidenceScore >= bands.possible,
                confidenceScore < bands.strong {
                 return Self(text: label)

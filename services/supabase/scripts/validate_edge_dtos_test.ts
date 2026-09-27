@@ -60,7 +60,9 @@ Deno.test("contract definitions fail closed through bounded numeric coverage", (
     "EdgeResponse",
     "EdgeResponseWrapper",
     "EntitlementSnapshotDTO",
+    "Generation",
     "IdentificationCandidate",
+    "IdentificationProvenanceDTO",
     "ImageQuality",
     "Insight",
     "PetIdentificationDTO",
@@ -80,7 +82,30 @@ Deno.test("Swift generation owns nested structure, types, keys, and decoders", (
   assert.match(generated, /let userID: String/);
   assert.match(generated, /case userID = "user_id"/);
   assert.match(generated, /struct EdgeResponse: Codable/);
+  assert.match(
+    generated,
+    /top_k = try container\.decode\(Int\?\.self, forKey: \.top_k\)/,
+  );
+  assert.match(generated, /try container\.encode\(top_k, forKey: \.top_k\)/);
+  assert.match(
+    generated,
+    /safety = try container\.decode\(String\?\.self, forKey: \.safety\)/,
+  );
+  assert.match(generated, /try container\.encode\(safety, forKey: \.safety\)/);
+  assert.match(
+    generated,
+    /identification_provenance = container\.contains\(\.identification_provenance\)/,
+  );
+  assert.match(
+    generated,
+    /\? try container\.decode\(IdentificationProvenanceDTO\.self, forKey: \.identification_provenance\) : nil/,
+  );
   assert.match(generated, /struct IdentificationCandidate: Codable/);
+  assert.strictEqual(
+    generated.match(/rawContainer\.allKeys\.allSatisfy/g)?.length,
+    2,
+    "Only the two strict provenance objects reject unknown wire keys",
+  );
   assert.match(
     generated,
     /private enum TaxonomyCodingKeys: String, CodingKey/,

@@ -228,7 +228,7 @@ Deno.test("biology helpers preserve their Gemini requests and results", async (t
     await step(
       "lookalikes forward the selected model and normalize the result",
       async () => {
-        selectedModel = "gemini-2.5-pro";
+        selectedModel = "gemini-2.5-flash";
         inspect = (body) => {
           const instruction = inspectTask(body, 300, ["similar_species"]);
           assert(instruction.includes("Kingdom: Animalia, Order: Lepidoptera"));
@@ -394,6 +394,21 @@ Deno.test("biology helpers preserve their Gemini requests and results", async (t
     for (const model of ["gemini-2.5-flash", "gemini-2.5-pro"]) {
       selectedModel = model;
       for (const caller of callers) {
+        if (model === "gemini-2.5-pro") {
+          await t.step(
+            `${caller.name} rejects unqualified Pro before provider invocation`,
+            async () => {
+              const before = requests;
+              await assertRejects(
+                caller.call,
+                Error,
+                "ai_shared_content_profile_unqualified",
+              );
+              assertEquals(requests, before);
+            },
+          );
+          continue;
+        }
         await step(
           `${caller.name} preserves the complete ${model} generation options`,
           async () => {
@@ -411,6 +426,7 @@ Deno.test("biology helpers preserve their Gemini requests and results", async (t
         );
       }
     }
+    selectedModel = "gemini-2.5-flash";
     // Expected synthetic failures are asserted, not logged as diagnostics.
     console.error = () => {};
     for (const caller of callers) {

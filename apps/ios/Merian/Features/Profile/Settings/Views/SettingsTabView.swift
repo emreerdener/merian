@@ -53,6 +53,8 @@ struct SettingsTabView: View {
                     )
                 }
 
+                AIProcessingPrivacySection()
+
                 Community(
                     changelogActive: $changelogActive,
                     safariUrl: $safariUrl,

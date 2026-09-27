@@ -22,6 +22,8 @@ actor ProfileDatabaseActor {
         let iucnRedListStatus: String?
         let hazardType: String
         let confidenceScore: Double?
+        let inferenceTier: String?
+        let identificationProvenanceData: Data?
     }
 
     private struct ProfileAchievementDetailProjection:
@@ -43,6 +45,8 @@ actor ProfileDatabaseActor {
         let iucnRedListStatus: String?
         let hazardType: String
         let confidenceScore: Double?
+        let inferenceTier: String?
+        let identificationProvenanceData: Data?
         let commonName: String?
         let locationName: String?
         let imagePath: String?
@@ -187,7 +191,7 @@ actor ProfileDatabaseActor {
             \.id, \.speciesId, \.scientificName, \.userIdentificationOverride, \.confirmedSpeciesId, \.captureDate,
             \.taxonomyKingdom, \.taxonomyClass, \.ecologyType, \.weatherTemperatureF,
             \.gpsElevation, \.timestamp, \.isBiological, \.isInvasive, \.iucnRedListStatus, \.hazardType,
-            \.confidenceScore
+            \.confidenceScore, \.inferenceTier, \.identificationProvenanceData
         ]
 
         guard let records = try? modelContext.fetch(descriptor) else { return [] }
@@ -209,7 +213,9 @@ actor ProfileDatabaseActor {
                 isInvasive: $0.isInvasive,
                 iucnRedListStatus: $0.iucnRedListStatus,
                 hazardType: $0.hazardType,
-                confidenceScore: $0.confidenceScore
+                confidenceScore: $0.confidenceScore,
+                inferenceTier: $0.inferenceTier,
+                identificationProvenanceData: $0.identificationProvenanceData
             )
         }
     }
@@ -226,7 +232,7 @@ actor ProfileDatabaseActor {
             \.timestamp, \.captureDate, \.taxonomyKingdom, \.taxonomyClass, \.ecologyType, \.weatherTemperatureF,
             \.gpsElevation, \.isInvasive, \.iucnRedListStatus, \.hazardType, \.confidenceScore,
             \.commonName, \.locationName, \.coverImagePath, \.capturedMediaJSON, \.referenceImageUrl,
-            \.isBiological, \.isLocallyArchived
+            \.isBiological, \.isLocallyArchived, \.inferenceTier, \.identificationProvenanceData
         ]
 
         guard let records = try? modelContext.fetch(descriptor) else { return [] }
@@ -250,6 +256,8 @@ actor ProfileDatabaseActor {
                 iucnRedListStatus: record.iucnRedListStatus,
                 hazardType: record.hazardType,
                 confidenceScore: record.confidenceScore,
+                inferenceTier: record.inferenceTier,
+                identificationProvenanceData: record.identificationProvenanceData,
                 commonName: record.commonName,
                 locationName: record.locationName,
                 imagePath: thumbnail.imagePath,

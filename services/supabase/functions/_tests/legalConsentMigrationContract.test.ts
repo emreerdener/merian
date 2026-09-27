@@ -213,6 +213,9 @@ Deno.test("consent appends are atomically causal and server-revisioned", async (
   const remoteService = normalized(
     await iosConsentSource("Consent/Services/ConsentRemoteService.swift"),
   );
+  const remoteMapping = normalized(
+    await iosConsentSource("Consent/Services/ConsentRemoteMapping.swift"),
+  );
   const liveRemoteService = normalized(
     await iosConsentSource("Consent/Services/ConsentRemoteService+Live.swift"),
   );
@@ -224,6 +227,14 @@ Deno.test("consent appends are atomically causal and server-revisioned", async (
     liveRemoteService,
     'rpc( "append_user_analytics_consent_event"',
   );
+  assertStringIncludes(
+    liveRemoteService,
+    '.rpc("append_user_openai_consent_event", params: parameters)',
+  );
+  assertStringIncludes(
+    liveRemoteService,
+    '.eq("provider", value: ConsentPolicy.openAIProvider) .order("consent_revision", ascending: false) .limit(1)',
+  );
   assertStringIncludes(remoteService, "causalParentId");
   assertStringIncludes(remoteService, "consentRevision");
   assertStringIncludes(remoteService, "supersededByEventId");
@@ -234,8 +245,9 @@ Deno.test("consent appends are atomically causal and server-revisioned", async (
   assertStringIncludes(remoteService, "matchesAnalyticsConsentAppendRetry");
   assertStringIncludes(remoteService, "firstMappedRemoteRow");
   assertEquals(
-    remoteService.match(/try Self\.firstMappedRemoteRow\(/g)?.length,
-    10,
+    remoteService.match(/try ConsentRemoteMapping\.firstMappedRemoteRow\(/g)
+      ?.length,
+    11,
   );
   assert(
     !remoteService.includes(".first.flatMap("),
@@ -275,11 +287,11 @@ Deno.test("consent appends are atomically causal and server-revisioned", async (
     'static let consentEventColumns = "id,user_id,provider,disclosure_version,event_kind,occurred_at," + "disclosure_text,action_text,platform,app_version,app_build," + "recorded_at,causal_parent_id,consent_revision"',
   );
   assertEquals(
-    remoteService.match(/causalParentId: row\.causal_parent_id/g)?.length,
+    remoteMapping.match(/causalParentId: row\.causal_parent_id/g)?.length,
     2,
   );
   assertEquals(
-    remoteService.match(/consentRevision: row\.consent_revision/g)?.length,
+    remoteMapping.match(/consentRevision: row\.consent_revision/g)?.length,
     2,
   );
   assertEquals(sql.match(/FOR KEY SHARE/g)?.length, 2);
@@ -313,17 +325,20 @@ Deno.test("consent appends are atomically causal and server-revisioned", async (
       "user_analytics_consent_events",
     ]
   ) {
-    assertEquals(liveRemoteService.split(table).length - 1, 3);
+    assertEquals(
+      liveRemoteService.split(table).length - 1,
+      table === "user_ai_consent_events" ? 4 : 3,
+    );
   }
-  assertEquals(liveRemoteService.match(/async let/g)?.length, 6);
-  assertEquals(liveRemoteService.match(/\.limit\(1\)/g)?.length, 10);
+  assertEquals(liveRemoteService.match(/async let/g)?.length, 7);
+  assertEquals(liveRemoteService.match(/\.limit\(1\)/g)?.length, 11);
   assertEquals(
     liveRemoteService.match(/\.eq\("id", value: id\)/g)?.length,
     4,
   );
   assertEquals(
     liveRemoteService.match(/\.eq\("user_id", value: userId\)/g)?.length,
-    10,
+    11,
   );
   assertEquals(
     liveRemoteService.match(
@@ -341,7 +356,7 @@ Deno.test("consent appends are atomically causal and server-revisioned", async (
     liveRemoteService.match(
       /\.select\(ConsentRemoteWire\.consentEventColumns\)/g,
     )?.length,
-    6,
+    7,
   );
   assertStringIncludes(
     liveRemoteService,
@@ -371,11 +386,11 @@ Deno.test("consent appends are atomically causal and server-revisioned", async (
     liveRemoteService.match(
       /\.order\("consent_revision", ascending: false\)/g,
     )?.length,
-    4,
+    5,
   );
   assertStringIncludes(
     liveRemoteService,
-    "let rows = try await ( adultRows, termsRows, aiRows, analyticsRows, aiStreamHeadRows, analyticsStreamHeadRows )",
+    "let rows = try await ( adultRows, termsRows, aiRows, analyticsRows, aiStreamHeadRows, analyticsStreamHeadRows, openAIHeadRows )",
   );
   assert(
     !liveRemoteService.includes('.from("user_ai_consent_events") .insert'),
@@ -520,7 +535,7 @@ Deno.test("Swift and backend consent versions cannot drift", async () => {
   );
   assertStringIncludes(
     quota,
-    'databaseMessage.includes("ai_consent_required")',
+    'databaseMessage === "ai_consent_required"',
   );
   assertStringIncludes(quota, '"ai_consent_required"');
 });

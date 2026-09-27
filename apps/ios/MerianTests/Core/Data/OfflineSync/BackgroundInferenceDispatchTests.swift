@@ -97,7 +97,7 @@ struct BackgroundInferenceDispatchTests {
 
         #expect(normalized.components(
             separatedBy: "isInferencePreparationCurrent("
-        ).count == 6)
+        ).count == 9)
         #expect(!source.contains("activeInferenceGenerations["))
 
         let firstTaskSnapshot = try #require(normalized.range(

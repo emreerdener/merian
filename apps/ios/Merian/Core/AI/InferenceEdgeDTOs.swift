@@ -6,6 +6,13 @@ import Foundation
 // Generated from services/supabase/functions/_shared/identify/contract.ts.
 // Do not edit this block by hand; run make generate-edge-dto-contract.
 
+private struct IdentifyWireCodingKey: CodingKey {
+    let stringValue: String
+    var intValue: Int? { nil }
+    init?(stringValue: String) { self.stringValue = stringValue }
+    init?(intValue: Int) { return nil }
+}
+
 private enum TaxonomyCodingKeys: String, CodingKey {
     case kingdom
     case phylum
@@ -36,6 +43,14 @@ private enum ImageQualityCodingKeys: String, CodingKey {
     case framing
     case diagnostic_utility
     case overall_score
+}
+
+private enum GenerationCodingKeys: String, CodingKey {
+    case temperature
+    case seed
+    case top_k
+    case max_output_tokens
+    case thinking_budget
 }
 
 struct EdgeResponseWrapper: Codable {
@@ -243,6 +258,7 @@ struct EdgeResponse: Codable {
     }
 
     let scan_id: String?
+    let identification_provenance: IdentificationProvenanceDTO?
     let is_biological_subject: Bool?
     let is_live_capture: Bool?
     let ecology_type: String?
@@ -281,6 +297,7 @@ struct EdgeResponse: Codable {
 
     enum CodingKeys: String, CodingKey {
         case scan_id
+        case identification_provenance
         case is_biological_subject
         case is_live_capture
         case ecology_type
@@ -321,6 +338,8 @@ struct EdgeResponse: Codable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         scan_id = try container.decodeIfPresent(String.self, forKey: .scan_id)
+        identification_provenance = container.contains(.identification_provenance)
+            ? try container.decode(IdentificationProvenanceDTO.self, forKey: .identification_provenance) : nil
         is_biological_subject = try container.decodeIfPresent(Bool.self, forKey: .is_biological_subject)
         is_live_capture = try container.decodeIfPresent(Bool.self, forKey: .is_live_capture)
         ecology_type = try container.decodeIfPresent(String.self, forKey: .ecology_type)
@@ -356,6 +375,116 @@ struct EdgeResponse: Codable {
         pet_identification = try container.decodeIfPresent(PetIdentificationDTO.self, forKey: .pet_identification)
         candidates = try container.decodeIfPresent([IdentificationCandidate].self, forKey: .candidates)
         image_quality = try container.decodeIfPresent(ImageQuality.self, forKey: .image_quality)
+    }
+}
+
+struct IdentificationProvenanceDTO: Codable {
+    struct Generation: Codable {
+        let temperature: Double
+        let seed: Int?
+        let top_k: Int?
+        let max_output_tokens: Int
+        let thinking_budget: Int?
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: GenerationCodingKeys.self)
+            let rawContainer = try decoder.container(keyedBy: IdentifyWireCodingKey.self)
+            let allowedKeys: Set<String> = ["temperature", "seed", "top_k", "max_output_tokens", "thinking_budget"]
+            guard rawContainer.allKeys.allSatisfy({ allowedKeys.contains($0.stringValue) }) else {
+                throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unexpected field in strict identification metadata."))
+            }
+            temperature = try container.decode(Double.self, forKey: .temperature)
+            seed = try container.decode(Int?.self, forKey: .seed)
+            top_k = try container.decode(Int?.self, forKey: .top_k)
+            max_output_tokens = try container.decode(Int.self, forKey: .max_output_tokens)
+            thinking_budget = try container.decode(Int?.self, forKey: .thinking_budget)
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: GenerationCodingKeys.self)
+            try container.encode(temperature, forKey: .temperature)
+            try container.encode(seed, forKey: .seed)
+            try container.encode(top_k, forKey: .top_k)
+            try container.encode(max_output_tokens, forKey: .max_output_tokens)
+            try container.encode(thinking_budget, forKey: .thinking_budget)
+        }
+    }
+
+    let version: Int
+    let provider: String
+    let binding: String
+    let model: String
+    let variant: String
+    let operation: String
+    let policy_version: Int
+    let prompt: String
+    let schema: String
+    let confidence: String
+    let diagnostic_trigger: Double?
+    let prompt_diagnostic_trigger: Double?
+    let safety: String?
+    let timeout_ms: Int
+    let generation: Generation
+
+    enum CodingKeys: String, CodingKey {
+        case version
+        case provider
+        case binding
+        case model
+        case variant
+        case operation
+        case policy_version
+        case prompt
+        case schema
+        case confidence
+        case diagnostic_trigger
+        case prompt_diagnostic_trigger
+        case safety
+        case timeout_ms
+        case generation
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let rawContainer = try decoder.container(keyedBy: IdentifyWireCodingKey.self)
+        let allowedKeys: Set<String> = ["version", "provider", "binding", "model", "variant", "operation", "policy_version", "prompt", "schema", "confidence", "diagnostic_trigger", "prompt_diagnostic_trigger", "safety", "timeout_ms", "generation"]
+        guard rawContainer.allKeys.allSatisfy({ allowedKeys.contains($0.stringValue) }) else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unexpected field in strict identification metadata."))
+        }
+        version = try container.decode(Int.self, forKey: .version)
+        provider = try container.decode(String.self, forKey: .provider)
+        binding = try container.decode(String.self, forKey: .binding)
+        model = try container.decode(String.self, forKey: .model)
+        variant = try container.decode(String.self, forKey: .variant)
+        operation = try container.decode(String.self, forKey: .operation)
+        policy_version = try container.decode(Int.self, forKey: .policy_version)
+        prompt = try container.decode(String.self, forKey: .prompt)
+        schema = try container.decode(String.self, forKey: .schema)
+        confidence = try container.decode(String.self, forKey: .confidence)
+        diagnostic_trigger = try container.decode(Double?.self, forKey: .diagnostic_trigger)
+        prompt_diagnostic_trigger = try container.decode(Double?.self, forKey: .prompt_diagnostic_trigger)
+        safety = try container.decode(String?.self, forKey: .safety)
+        timeout_ms = try container.decode(Int.self, forKey: .timeout_ms)
+        generation = try container.decode(Generation.self, forKey: .generation)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(version, forKey: .version)
+        try container.encode(provider, forKey: .provider)
+        try container.encode(binding, forKey: .binding)
+        try container.encode(model, forKey: .model)
+        try container.encode(variant, forKey: .variant)
+        try container.encode(operation, forKey: .operation)
+        try container.encode(policy_version, forKey: .policy_version)
+        try container.encode(prompt, forKey: .prompt)
+        try container.encode(schema, forKey: .schema)
+        try container.encode(confidence, forKey: .confidence)
+        try container.encode(diagnostic_trigger, forKey: .diagnostic_trigger)
+        try container.encode(prompt_diagnostic_trigger, forKey: .prompt_diagnostic_trigger)
+        try container.encode(safety, forKey: .safety)
+        try container.encode(timeout_ms, forKey: .timeout_ms)
+        try container.encode(generation, forKey: .generation)
     }
 }
 // END GENERATED: Identify wire DTOs

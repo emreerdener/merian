@@ -721,6 +721,15 @@ function parseExportScanPayload(
       "The export media array",
     );
   } else {
+    if (
+      Object.hasOwn(payload, "ai_confidence_qualified") &&
+      typeof payload.ai_confidence_qualified !== "boolean"
+    ) {
+      throw databaseFailure(
+        "The export metric qualification was invalid.",
+        undefined,
+      );
+    }
     payload.ecological_interactions = parseBoundedStringArray(
       payload.ecological_interactions,
       MAXIMUM_DWCA_INTERACTIONS,

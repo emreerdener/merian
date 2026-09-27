@@ -52,6 +52,8 @@ export interface DBScanRow {
   individual_count?: number | null;
   ecological_interactions?: string[];
   ai_confidence_score?: number | null;
+  /** Omitted only by immutable snapshots created before qualification existed. */
+  ai_confidence_qualified?: boolean;
   species_dictionary?: {
     scientific_name?: string;
     kingdom?: string;

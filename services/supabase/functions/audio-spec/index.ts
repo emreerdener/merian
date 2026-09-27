@@ -1,3 +1,4 @@
+import { identificationProvenance } from "../_shared/ai/provenance.ts";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import type { AIExecutionOutcome } from "../_shared/ai/contracts.ts";
 import { prepareAIExecution } from "../_shared/ai/production.ts";
@@ -16,7 +17,7 @@ import {
 import { isFlashFallbackEligible } from "../_shared/complimentaryScans.ts";
 import {
   AIQuotaError,
-  reserveAIProviderCall,
+  reserveIdentificationProviderCall,
   resolveAIRequestId,
 } from "../_shared/aiQuota.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
@@ -271,9 +272,24 @@ export function createAudioHandler(prepare = prepareAIExecution) {
     }
 
     // 4. Atomically resolve entitlement and reserve quota before provider work.
+    const aiRequest = buildAudioAIRequest(base64Audio, {
+      safeGpsLat,
+      safeGpsLon,
+      gpsElevation: gps_elevation,
+      semanticLocation: semantic_location,
+      weatherCondition: weather_condition,
+      weatherTemperatureF: weather_temperature_f,
+      deviceLocale: device_locale,
+      deviceTimeZone: device_time_zone,
+      deviceRegion: device_region,
+      currentMonth: normalizedCurrentMonth,
+      timeOfDay: time_of_day,
+    });
+
     let quotaLease;
     try {
-      quotaLease = await reserveAIProviderCall(req, supabaseAdmin, {
+      quotaLease = await reserveIdentificationProviderCall(req, supabaseAdmin, {
+        request: aiRequest,
         userId: user.id,
         operation: "scan_audio_identification",
         requestId: generatedScanId,
@@ -359,20 +375,6 @@ export function createAudioHandler(prepare = prepareAIExecution) {
       throw error;
     }
 
-    const aiRequest = buildAudioAIRequest(base64Audio, {
-      safeGpsLat,
-      safeGpsLon,
-      gpsElevation: gps_elevation,
-      semanticLocation: semantic_location,
-      weatherCondition: weather_condition,
-      weatherTemperatureF: weather_temperature_f,
-      deviceLocale: device_locale,
-      deviceTimeZone: device_time_zone,
-      deviceRegion: device_region,
-      currentMonth: normalizedCurrentMonth,
-      timeOfDay: time_of_day,
-    });
-
     // 5. Invoke the admitted Gemini audio profile
     console.log(`[⏱ BENCH] pre_gemini: ${Date.now() - fnStart}ms`);
     const geminiStart = Date.now();
@@ -390,7 +392,7 @@ export function createAudioHandler(prepare = prepareAIExecution) {
       const execution = prepare(aiRequest, {
         kind: "user_request",
         userId: user.id,
-        permission: "google_gemini",
+        permission: quotaLease.reservation.assignment.permission,
         operation: "scan_audio_identification",
         reservation: quotaLease.reservation,
       });
@@ -629,6 +631,10 @@ export function createAudioHandler(prepare = prepareAIExecution) {
 
     let responseEnvelope: IdentifySuccessEnvelope;
     try {
+      payloadReadyForClient.identification_provenance =
+        identificationProvenance(
+          result.execution,
+        );
       responseEnvelope = parseIdentifySuccessEnvelope({
         success: true,
         data: payloadReadyForClient,
@@ -804,6 +810,9 @@ export function createAudioHandler(prepare = prepareAIExecution) {
           {
             id: generatedScanId,
             user_id: user.id,
+            identification_provenance: identificationProvenance(
+              result.execution,
+            ),
             species_id: speciesId,
             timestamp: timestamp ?? undefined,
             gps_lat_exact: safeGpsLat,

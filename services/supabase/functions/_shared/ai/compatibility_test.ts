@@ -1,3 +1,4 @@
+import type { IdentificationProvenance } from "./provenance.ts";
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createIdentifyHandler } from "../../identify/index.ts";
@@ -93,15 +94,26 @@ function database(
           return response({ outcome: "job_not_found" });
         case "ensure_scan_user_profile":
           return response(null);
-        case "reserve_ai_quota":
+        case "reserve_identification_quota":
           events.push("reserve");
           assertEquals(args.p_user_id, user.id);
           assertEquals(args.p_request_id, scanId);
           assertEquals(args.p_operation, options.operation);
+          assert(
+            (options.operation === "scan_audio_identification"
+              ? ["audio_compat_v1"]
+              : ["vision_compat_v1", "description_compat_v1"]).includes(
+                args.p_input_profile as string,
+              ),
+          );
           if (options.consentDenied) {
             return response(null, { message: "ai_consent_required" });
           }
           return response({
+            provider: "gemini",
+            binding: "gemini_baseline_v1",
+            processor_permission: "google_gemini",
+            input_profile: args.p_input_profile,
             reservation_id: "00000000-0000-4000-8000-000000000301",
             request_id: scanId,
             lease_token: "00000000-0000-4000-8000-000000000401",
@@ -684,6 +696,26 @@ Deno.test("compatibility handlers preserve paid work, media durability and repla
           );
           assertEquals(mediaEvents, ["PUT"]);
           const row = db.inserted()!;
+          const provenance = row
+            .identification_provenance as IdentificationProvenance;
+          assertEquals(provenance.provider, "gemini");
+          assertEquals(provenance.binding, "gemini_baseline_v1");
+          assertEquals(provenance.model, "gemini-2.5-flash");
+          assertEquals(
+            provenance.prompt,
+            audio ? "identify_audio_compat_v2" : "identify_vision_v1",
+          );
+          assertEquals(
+            provenance.confidence,
+            audio ? "gemini_audio_compat_v2" : "gemini_vision_compat_v1",
+          );
+          assertEquals(
+            provenance.variant,
+            audio ? "audio_compat" : "vision_compat",
+          );
+          assertEquals(provenance.generation.temperature, 0.1);
+          assertEquals(provenance.version, 1);
+          assertEquals(data.identification_provenance, provenance);
           assertEquals([
             row.llm_prompt_tokens,
             row.llm_candidate_tokens,

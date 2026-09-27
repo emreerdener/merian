@@ -61,7 +61,7 @@ Deno.test("offline prompt experiment changes only the system instruction from th
   });
   const actualPolicy = resolveAIClaim(
     actualRequest,
-    fixtureAuthority("gemini_pro"),
+    fixtureAuthority("gemini_pro", actualRequest),
   );
   const actual = buildGeminiRequestParameters(actualRequest, actualPolicy);
   const { variants, processedWav } = await buildOfflineAudioPromptPair(bytes);

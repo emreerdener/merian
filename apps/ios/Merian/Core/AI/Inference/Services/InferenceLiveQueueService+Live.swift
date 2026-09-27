@@ -46,6 +46,18 @@ extension InferenceLiveQueueService {
                         )
                 )
             },
+            pauseQueuedScan: { scanId, generation, reason, errorCode in
+                let manager = OfflineQueueManager.shared
+                guard manager.isForegroundInferenceAttemptCurrent(
+                    scanId: scanId, generation: generation
+                ) else { return false }
+                manager.retireForegroundInference(
+                    scanId: scanId, generation: generation,
+                    resumeBackground: false, reason: reason,
+                    consentPauseErrorCode: errorCode
+                )
+                return true
+            },
             rejectQueuedScan: { scanId, reason, errorCode in
                 OfflineQueueManager.shared.softDeleteQueuedScan(
                     scanId: scanId,

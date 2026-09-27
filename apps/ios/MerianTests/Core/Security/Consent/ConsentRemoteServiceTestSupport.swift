@@ -48,6 +48,11 @@ extension ConsentRemoteServiceTests {
             UUID
         ) async throws -> ConsentRemoteWire.RemoteRows = { _ in
             throw StubError.unexpected
+        },
+        appendOpenAI: @escaping @MainActor (
+            ConsentRemoteWire.AIConsentEventAppend
+        ) async throws -> [ConsentRemoteWire.ConsentAppendResult] = { _ in
+            throw StubError.unexpected
         }
     ) -> ConsentRemoteService {
         ConsentRemoteService(
@@ -60,7 +65,8 @@ extension ConsentRemoteServiceTests {
                 fetchTermsReceipt: fetchTerms,
                 fetchAIConsentEvent: fetchAI,
                 fetchAnalyticsConsentEvent: fetchAnalytics,
-                fetchRemoteRows: fetchRemoteRows
+                fetchRemoteRows: fetchRemoteRows,
+                appendOpenAIConsentEvent: appendOpenAI
             )
         )
     }
@@ -107,20 +113,21 @@ extension ConsentRemoteServiceTests {
         eventKind: ConsentManager.AIConsentEventKind,
         causalParentId: UUID?,
         occurredAt: Date = Date(timeIntervalSince1970: 1_786_000_002.375),
-        disclosureVersion: String = ConsentPolicy.geminiDisclosureVersion
+        disclosureVersion: String = ConsentPolicy.geminiDisclosureVersion,
+        processor: AIConsentProcessor = .gemini
     ) -> ConsentManager.AIConsentEvent {
         .init(
             id: UUID(),
             ownerUserId: userId,
             syncedUserId: nil,
-            provider: ConsentPolicy.geminiProvider,
+            provider: processor.rawValue,
             disclosureVersion: disclosureVersion,
             eventKind: eventKind,
             occurredAt: occurredAt,
-            disclosureText: ConsentPolicy.geminiDisclosureText,
+            disclosureText: processor.disclosureText,
             actionText: eventKind == .granted
-                ? ConsentPolicy.combinedAcceptanceText
-                : ConsentPolicy.geminiWithdrawalText,
+                ? processor.grantText
+                : processor.withdrawalText,
             platform: "ios",
             appVersion: "1.0.3",
             appBuild: "275",

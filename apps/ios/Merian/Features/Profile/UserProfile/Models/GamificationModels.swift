@@ -260,7 +260,13 @@ enum AchievementType: String, CaseIterable, Sendable, Identifiable {
                 tintToken: .azure,
                 difficultyLevel: 1,
                 contributionKind: .uniqueSpecies { record in
-                    guard let score = record.confidenceScore, score >= 0.98 else { return nil }
+                    guard InferenceConfidencePolicy.bands(
+                        forInferenceTier: record.inferenceTier,
+                        provenance: record.identificationProvenanceData.map {
+                            IdentificationResultProvenance(storedData: $0)
+                        }
+                    ) != nil,
+                    let score = record.confidenceScore, score >= 0.98 else { return nil }
                     return "\(Int((score * 100).rounded())) percent AI confidence"
                 }
             )
@@ -286,6 +292,8 @@ protocol AchievementRecordRepresentable {
     var iucnRedListStatus: String? { get }
     var hazardType: String { get }
     var confidenceScore: Double? { get }
+    var inferenceTier: String? { get }
+    var identificationProvenanceData: Data? { get }
     var commonName: String? { get }
     var locationName: String? { get }
     var imagePath: String? { get }

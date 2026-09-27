@@ -7,6 +7,7 @@ struct InsightHeader: View {
     let paragraphs: [String]
     let confidenceScore: Double?
     let inferenceTier: String?
+    var provenance: IdentificationResultProvenance? = nil
     var userIdentificationOverride: String?
     var userConfirmedIdentification: Bool = false
     var isFlagged: Bool = false
@@ -26,6 +27,7 @@ struct InsightHeader: View {
             ConfidenceBadge(
                     confidenceScore: confidenceScore,
                     inferenceTier: inferenceTier,
+                    provenance: provenance,
                     userIdentificationOverride: userIdentificationOverride,
                     userConfirmedIdentification: userConfirmedIdentification,
                     isFlagged: isFlagged,

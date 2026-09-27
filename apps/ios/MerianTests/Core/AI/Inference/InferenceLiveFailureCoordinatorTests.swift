@@ -9,6 +9,7 @@ private final class InferenceLiveFailureHarness {
         case release(String, UUID?, String)
         case retire(String, UUID, Bool, String)
         case reject(String, String, String)
+        case pause(String, UUID, String)
         case telemetry(String)
         case circuitFailure
         case paywall
@@ -28,6 +29,8 @@ private final class InferenceLiveFailureHarness {
     var onRelease: (@MainActor () -> Void)?
     var onRetire: (@MainActor () -> Void)?
     var onReject: (@MainActor () -> Void)?
+    var onPause: (@MainActor () -> Void)?
+    var pauseResult = true
     private(set) var events: [Event] = []
     private weak var attemptCoordinator: InferenceLiveAttemptCoordinator?
 
@@ -54,6 +57,11 @@ private final class InferenceLiveFailureHarness {
             },
             foregroundInferenceGeneration: { _ in nil },
             deleteQueuedScan: { _, _, _ in true },
+            pauseQueuedScan: { [self] scanId, generation, _, errorCode in
+                events.append(.pause(scanId, generation, errorCode))
+                onPause?()
+                return pauseResult
+            },
             rejectQueuedScan: { [self] scanId, reason, errorCode in
                 onReject?()
                 events.append(.reject(scanId, reason, errorCode))
@@ -134,6 +142,71 @@ private final class InferenceLiveFailureHarness {
 @MainActor
 @Suite("Inference Live Failure Coordinator")
 struct InferenceLiveFailureCoordinatorTests {
+    @Test func openAIConsentPausesBeforeReleasingTheExactAttempt() {
+        let harness = InferenceLiveFailureHarness()
+        let attempt = UUID(), foreground = UUID()
+        let subject = harness.makeSubject(
+            scanId: "scan-a", attemptGeneration: attempt, foregroundGeneration: foreground
+        )
+        subject.handle(
+            MerianError.openAIConsentRequired, mode: .visual, scanId: "scan-a",
+            resolvedClientScanId: "scan-a", attemptGeneration: attempt,
+            foregroundGeneration: foreground, telemetry: telemetry,
+            isTaskCancelled: false, applyPresentation: harness.record
+        )
+        #expect(harness.events == [
+            .pause("scan-a", foreground, "ai_openai_consent_required"),
+            .retainRecoverableScan("scan-a"),
+            .telemetry("InferenceOpenAIConsentRequired"),
+            .failureLog(.openAIConsentRequired, .visual, "scan-a"),
+            .errorFeedback,
+            .publishFailure("Permission needed", "Scan saved")
+        ])
+    }
+
+    @Test func openAIConsentCannotPauseAStaleAttemptOrPublishOverReplacement() {
+        for stale in [true, false] {
+            let harness = InferenceLiveFailureHarness()
+            let attempt = UUID(), foreground = UUID()
+            let subject = harness.makeSubject(
+                scanId: "scan-a", attemptGeneration: attempt, foregroundGeneration: foreground
+            )
+            if stale { harness.durableAttemptIsCurrent = false }
+            else {
+                harness.onPause = {
+                    harness.activateReplacement(
+                        scanId: "scan-a", attemptGeneration: UUID(), foregroundGeneration: UUID()
+                    )
+                }
+            }
+            subject.handle(
+                MerianError.openAIConsentRequired, mode: .visual, scanId: "scan-a",
+                resolvedClientScanId: "scan-a", attemptGeneration: attempt,
+                foregroundGeneration: foreground, telemetry: telemetry,
+                isTaskCancelled: false, applyPresentation: harness.record
+            )
+            #expect(harness.events == (stale ? [] : [.pause("scan-a", foreground, "ai_openai_consent_required")]))
+        }
+    }
+
+    @Test func unacceptedPauseNeverStartsAutomaticRecovery() {
+        let harness = InferenceLiveFailureHarness()
+        harness.pauseResult = false
+        let attempt = UUID(), foreground = UUID()
+        let subject = harness.makeSubject(
+            scanId: "scan-a", attemptGeneration: attempt, foregroundGeneration: foreground
+        )
+        subject.handle(
+            MerianError.openAIConsentRequired, mode: .nonVisual(hasAudio: false), scanId: "scan-a",
+            resolvedClientScanId: "scan-a", attemptGeneration: attempt,
+            foregroundGeneration: foreground, telemetry: telemetry,
+            isTaskCancelled: false, applyPresentation: harness.record
+        )
+        #expect(!harness.events.contains(.retire("scan-a", foreground, true, "live_nonvisual_failed")))
+        #expect(!harness.events.contains(.release("scan-a", foreground, "live_nonvisual_failed")))
+        #expect(!harness.events.contains(.circuitFailure))
+    }
+
     @Test func terminalFailurePreservesRetirementAndEffectOrder() {
         let harness = InferenceLiveFailureHarness()
         let attempt = UUID()

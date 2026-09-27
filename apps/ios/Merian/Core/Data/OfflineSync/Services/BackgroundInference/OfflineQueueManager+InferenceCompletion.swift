@@ -7,7 +7,7 @@ extension OfflineQueueManager {
     ///
     /// Mirrors the success/failure routing of the former `runInferencePipeline`:
     /// - exact handler-owned policy rejection → terminal tombstone
-    /// - consent rejection → preserve media and return to required disclosure
+    /// - consent rejection → preserve media; only Gemini returns to required disclosure
     /// - other handler-owned HTTP 4xx → preserve media for retry/cancel
     /// - Supabase platform route 404 / HTTP 5xx / missing data → durable retry
     /// - HTTP 200 → persist `LocalScanRecord`, delete `OfflineQueuedScan`, fire notifications
@@ -98,6 +98,17 @@ extension OfflineQueueManager {
                 scanId: scanId,
                 reason: BackgroundInferencePolicy.requiredConsentAttentionMessage,
                 errorCode: "ai_consent_required",
+                httpStatus: statusCode,
+                needsAttention: true
+            )
+            return
+        case .openAIConsentRequired:
+            // Recipient-specific denial must not mutate the required Gemini
+            // onboarding gate or restart after Gemini reapproval.
+            _ = softDeleteQueuedScan(
+                scanId: scanId,
+                reason: BackgroundInferencePolicy.openAIConsentAttentionMessage,
+                errorCode: "ai_openai_consent_required",
                 httpStatus: statusCode,
                 needsAttention: true
             )

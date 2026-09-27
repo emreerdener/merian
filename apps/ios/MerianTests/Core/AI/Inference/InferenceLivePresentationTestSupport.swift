@@ -208,6 +208,7 @@ final class LivePipelinePresentationHarness {
             isForegroundInferenceAttemptCurrent: { _, _ in true },
             foregroundInferenceGeneration: { _ in nil },
             deleteQueuedScan: { _, _, _ in true },
+            pauseQueuedScan: { _, _, _, _ in true },
             rejectQueuedScan: { _, _, _ in true }
         ))
         let attempt = InferenceLiveAttemptCoordinator(

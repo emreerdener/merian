@@ -362,6 +362,9 @@ enum SmartCollectionSuggester {
         return CandidateReviewVisibilityPolicy.shouldSurfaceForReviewCollection(
             primaryConfidence: scan.confidenceScore,
             inferenceTier: scan.inferenceTier,
+            provenance: scan.identificationProvenanceData.map {
+                IdentificationResultProvenance(storedData: $0)
+            },
             candidates: decodedCandidates(from: scan.candidatesData),
             isBiological: scan.isBiological,
             isUnknownSubject: scan.scientificName == LocalScanRecord.unresolvedBiologicalScientificName,

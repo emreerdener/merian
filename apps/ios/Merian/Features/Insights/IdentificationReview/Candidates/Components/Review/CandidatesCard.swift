@@ -47,7 +47,9 @@ struct CandidatesCard: View {
 
     private var isWeakMatch: Bool {
         let score = inferenceEngine.speciesData?.confidenceScore ?? 0.0
-        let bands = InferenceConfidencePolicy.bands(forInferenceTier: inferenceTier)
+        guard let bands = inferenceEngine.speciesData?.identificationConfidenceBands else {
+            return false
+        }
         return score < bands.possible
     }
 

@@ -1125,7 +1125,7 @@ assert_file_contains \
   "self.allowsAutomaticNetworkWorkOnCurrentPath else"
 assert_file_count \
   "$queue_inference_dispatch_source" \
-  5 \
+  6 \
   "allowsAutomaticNetworkWorkOnCurrentPath"
 assert_file_count \
   "$queue_inference_recovery_source" \
