@@ -65,6 +65,15 @@ The shared adapter's transitive dependencies now include `enrich-scan` and
 `refresh-species-model-content` in deployment selection for Identify-contract
 changes; the dependency graph test requires both.
 
+Primary identification separately prepares `ai/multimodalResultPolicy.ts` before
+quota commitment. It binds normalization thresholds and media-safety signals to
+supported execution profiles; adapter registration cannot authorize result
+interpretation or media promotion. Current Gemini profiles retain their
+behavior. OpenAI evaluation remains unqualified and cannot enter this production
+result path. The
+[photo integration plan](../rfcs/identification-openai-photo-integration-2026-09-27.md)
+owns the remaining safety, provenance, admission and activation slices.
+
 `identify-multimodal/comparison/` owns the default-off twelve-slot audio
 experiment: generated frozen bindings, strict assignment/configuration checks,
 bounded historical/current DSP and fresh durable proof projection. Evaluation

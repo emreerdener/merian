@@ -48,6 +48,13 @@ still use Gemini; see the
 - `production.ts` composes the registry and Gemini adapter. Tests inject their
   deterministic adapter through internal handler injection and the shared
   executor; its implementation is confined to a test file.
+- `multimodalResultPolicy.ts` independently qualifies primary result handling
+  before quota commitment. It derives the normalization threshold from the
+  admitted snapshot and exposes Gemini safety signals only for a matching
+  supported profile. Unknown policies, including OpenAI evaluation snapshots,
+  cannot invoke or reach durable media promotion. Adapter registration alone
+  cannot qualify confidence or safety; see the
+  [photo integration plan](../../../../../docs/rfcs/identification-openai-photo-integration-2026-09-27.md).
 - `execution.ts` permits one invocation per prepared attempt and records its
   duration. It owns no quota, persistence, retry, failover, or cancellation
   based on a disconnected foreground request.

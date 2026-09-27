@@ -87,6 +87,10 @@ import {
   waitForCompletedIdentifyResponse,
 } from "../_shared/identify/completedResponse.ts";
 import { normalizeIdentification } from "../_shared/identify/normalizeIdentification.ts";
+import {
+  type MultimodalResultPolicy,
+  prepareMultimodalResultPolicy,
+} from "../_shared/ai/multimodalResultPolicy.ts";
 import { isWavContainer, processMultimodalWAV } from "./audio.ts";
 import { WavProcessingBudgetError } from "../_shared/audioProcessing.ts";
 import {
@@ -1038,6 +1042,7 @@ export async function handleIdentifyMultimodalRequest(
   // 4. Invocation
   const geminiStart = Date.now();
   let result: AIExecutionOutcome;
+  let resultPolicy: MultimodalResultPolicy;
   let finishReason: string | undefined;
   let safetyRatings: AIExecutionOutcome["safetyRatings"];
 
@@ -1067,6 +1072,7 @@ export async function handleIdentifyMultimodalRequest(
         ? { audioPromptComparison: audioPromptComparison.assignment.arm }
         : {}),
     });
+    resultPolicy = prepareMultimodalResultPolicy(execution.snapshot);
     if (audioPromptComparison) {
       await verifyPromptComparisonExecution(
         audioPromptComparison,
@@ -1101,8 +1107,7 @@ export async function handleIdentifyMultimodalRequest(
       throw new Error(`ai_${result.kind}`);
     }
 
-    finishReason = result.finishReason ?? undefined;
-    safetyRatings = result.safetyRatings;
+    ({ finishReason, safetyRatings } = resultPolicy.safetySignals(result));
     const usage = result.usage;
     if (usage) {
       llmUsageMetadata = usage.modalityBreakdown;
@@ -1179,7 +1184,7 @@ export async function handleIdentifyMultimodalRequest(
       hasInvasiveLocationContext: (safeGpsLat != null && safeGpsLon != null) ||
         (typeof semanticLocation === "string" &&
           semanticLocation.trim().length > 0),
-      inferenceTier,
+      confidencePolicy: resultPolicy.confidence,
     });
   } catch {
     await quotaLease.fail();

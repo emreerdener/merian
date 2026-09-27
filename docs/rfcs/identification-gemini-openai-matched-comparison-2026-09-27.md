@@ -1,8 +1,11 @@
 # Matched Gemini/OpenAI identification comparison
 
 Date: 27 September 2026 (UTC)\
-Status: offline preparation; independent of the capture/note work. Existing
-benchmarks remain valid for their recorded inputs and configurations. Production
+Status: completed on 27 September; all 16 first attempts normalized. The
+[outcome record](./identification-gemini-openai-matched-results-2026-09-27.md)
+owns measurements and limitations. The preparation and execution plan below is
+preserved as history, not authorization to repeat the run. Existing benchmarks
+remain valid for their recorded inputs and configurations. Production
 qualification remains pending.
 
 ## Decision and scope

@@ -107,6 +107,15 @@ observation jobs retain user authority even when a service invokes the worker.
    `_tests/aiQuotaCoverage.test.ts`, update dependency pins and graphs, and keep
    deferred consumers explicit.
 
+The primary handler also requires a qualified `multimodalResultPolicy.ts`
+profile before commitment. It currently accepts only Gemini and binds candidate
+thresholds plus native media-safety signals to the admitted snapshot. A new
+adapter/binding cannot bypass that boundary. OpenAI's evaluation score is
+unqualified, and absent Gemini ratings provide no OpenAI media-safety verdict.
+See the
+[photo integration plan](../../../../../docs/rfcs/identification-openai-photo-integration-2026-09-27.md)
+for the next result, safety, provenance and dormant-runtime slices.
+
 ## Complete disclosure, result, and accounting work
 
 Before sending real observation data, complete processor/purpose permission,

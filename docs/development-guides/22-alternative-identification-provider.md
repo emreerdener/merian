@@ -336,12 +336,25 @@ qualify production use.
 
 ## Later production assignment
 
-The next development step is the
-[matched Gemini/OpenAI photo/text comparison](../rfcs/identification-gemini-openai-matched-comparison-2026-09-27.md):
-six existing photos and two descriptions, one attempt per provider on identical
-prepared inputs. Its private draft and offline input/profile checks do not
-authorize execution or establish held-out qualification. TestFlight archive and
-released-store upgrade verification remain separate iOS release work.
+The
+[matched Gemini/OpenAI photo/text comparison](../rfcs/identification-gemini-openai-matched-comparison-2026-09-27.md)
+completed all 16 first attempts on 27 September. Its
+[outcome record](../rfcs/identification-gemini-openai-matched-results-2026-09-27.md)
+preserves the source, measurements, description failures and cost limitations.
+Both configurations agreed with five provisional biological photo references and
+the mineral control. OpenAI's observed photo median was 7.10 seconds versus
+15.81 seconds for Gemini Pro; this small reused corpus remains unqualified.
+
+The next milestone is
+[photo integration](../rfcs/identification-openai-photo-integration-2026-09-27.md).
+The primary handler now independently prepares a result policy before quota
+commitment. Current Gemini profiles retain their diagnostic threshold and
+safety-signal behavior. OpenAI evaluation keeps unqualified confidence, and its
+absence of Gemini ratings cannot authorize production media promotion. A
+separate OpenAI safety contract, versioned provenance, dormant admission/runtime
+wiring and qualification precede activation. Description-only, audio and
+sampled-video assignments remain Gemini. TestFlight archive and released-store
+upgrade verification remain separate iOS release work.
 
 Production integration is a separate milestone. The first admission slice now
 records an exact Gemini provider/binding/permission assignment per metered
@@ -357,11 +370,15 @@ client inference admission and the underlying quota delegate still require
 Gemini. The
 [server provenance slice](../rfcs/identification-provider-result-provenance-2026-09-26.md)
 now retains successful Gemini provider/model and generation/confidence
-configuration with atomic recovery backups. Historical unknown values stay null;
-this does not yet add client DTO/local-store fields. Next, complete
-recipient-aware admission, client confidence and safety compatibility,
-qualification and controlled activation. The optional concise-prompt screen is
-closed and is not required to implement these boundaries. Follow the
+configuration with atomic recovery backups. Historical unknown values stay null.
+The
+[client provenance slice](../rfcs/identification-client-result-provenance-2026-09-26.md)
+adds DTO/V52 storage and neutral unknown-profile presentation; the
+[native preflight slice](../rfcs/identification-native-recipient-preflight-2026-09-26.md)
+carries app-assigned recipient expectations through dispatch and retries. These
+implemented controls do not qualify OpenAI's runtime safety or confidence. The
+optional concise-prompt screen is closed and is not required to implement these
+boundaries. Follow the
 [provider onboarding contract](../../services/supabase/functions/_shared/ai/ADDING_PROVIDERS.md).
 Photo/text could then receive one provider and audio-containing observations
 another, using complete-task capability checks. This slice enables that work

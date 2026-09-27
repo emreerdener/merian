@@ -195,12 +195,20 @@ or environment provider selector is introduced.
 post-provider parsing and normalization. It preserves name/pet sanitization,
 processed-material demotion, audio subject precedence, location-dependent
 invasive metadata, blur, and client candidate/life-stage projections. Its inputs
-are the unknown draft, actual visual/audio presence, the admitted inference
-tier, and a Boolean for existing invasive-location context; it accepts no
+are the unknown draft, actual visual/audio presence, an explicit confidence
+policy, and a Boolean for existing invasive-location context; it accepts no
 coordinates or user identity. The route handles returned diagnostics and
 performs dictionary hydration and final envelope validation afterward. Offline
 evaluation uses this same helper through its scripts-only bridge; it does not
 invoke admission or persistence.
+
+`_shared/ai/multimodalResultPolicy.ts` binds result handling to the prepared
+execution snapshot before quota commitment. It supplies the snapshot's existing
+Gemini diagnostic threshold and checks the outcome profile before exposing
+finish/rating signals to moderation. Missing or unsupported policies use the
+existing pre-invocation refund/failure path. OpenAI's evaluation policy remains
+unqualified and cannot reach provider invocation or media promotion through this
+route. Production composition and all current Gemini outcomes are unchanged.
 
 The route uses the modality-specific system instructions and retains temperature
 `0.1`, seed `42`, `maxOutputTokens: 8192`, Pro thinking budget `5000`,

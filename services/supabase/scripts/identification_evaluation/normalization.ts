@@ -4,6 +4,7 @@ import {
   normalizeIdentification,
 } from "../../functions/_shared/identify/normalizeIdentification.ts";
 import type { Profile } from "./contracts.ts";
+import { diagnosticTriggerForTier } from "../../functions/_shared/identify/thresholds.ts";
 import { parseEvaluationInput } from "./validation.ts";
 
 /**
@@ -34,10 +35,11 @@ export function normalizeEvaluationDraft(
     // Current corpus context is deviceRegion/month only. Production's invasive
     // rule needs GPS or semanticLocation; a device region is not either one.
     hasInvasiveLocationContext: false,
-    inferenceTier: isOpenAIProfile(profile)
-      ? null
-      : profile === "gemini_pro"
-      ? "pro"
-      : "flash",
+    confidencePolicy: isOpenAIProfile(profile) ? { kind: "unqualified" } : {
+      kind: "diagnostic_threshold",
+      threshold: diagnosticTriggerForTier(
+        profile === "gemini_pro" ? "pro" : "flash",
+      ),
+    },
   });
 }

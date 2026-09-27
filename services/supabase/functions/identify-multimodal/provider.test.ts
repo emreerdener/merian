@@ -22,9 +22,11 @@ import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { handleIdentifyMultimodalRequest } from "./index.ts";
 import type {
   AIAdapter,
+  AIAttemptSnapshot,
   AIProviderOutcome,
   AIRequest,
 } from "../_shared/ai/contracts.ts";
+import { openAIEvaluationSnapshot } from "../_shared/ai/openaiRequest.ts";
 import { createAIExecution } from "../_shared/ai/execution.ts";
 import { resolveAIClaim } from "../_shared/ai/registry.ts";
 import { decodeBase64, encodeBase64 } from "../_shared/encoding.ts";
@@ -1198,6 +1200,35 @@ Deno.test("multimodal handler preserves admission, evidence and recovery through
             });
             throw new Error("unreachable");
           },
+        );
+        assertEquals(result.status, 503);
+        assertEquals(db.events, [
+          "reserve",
+          "ledger",
+          "refunded",
+          "failed_retryable",
+        ]);
+      },
+    );
+    await t.step(
+      "unqualified OpenAI result policy refunds before commitment, inference or promotion",
+      async () => {
+        const db = database();
+        const result = await handleIdentifyMultimodalRequest(
+          request({ imageBase64s: ["AQ=="] }),
+          user,
+          db.client,
+          0,
+          undefined,
+          (input) => ({
+            snapshot: openAIEvaluationSnapshot(
+              input,
+            ) as unknown as AIAttemptSnapshot,
+            invoke: () => {
+              db.events.push("invoke");
+              throw new Error("unqualified provider must not invoke");
+            },
+          }),
         );
         assertEquals(result.status, 503);
         assertEquals(db.events, [

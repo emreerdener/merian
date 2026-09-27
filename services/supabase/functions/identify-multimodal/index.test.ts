@@ -1014,7 +1014,7 @@ Deno.test("latency telemetry is privacy-safe and keeps the Gemini boundary exact
     generationCall,
   );
   const responseExtraction = source.indexOf(
-    "finishReason = result.finishReason",
+    "resultPolicy.safetySignals(result)",
     generationCall,
   );
   assert(generationCall >= 0);
@@ -1038,6 +1038,7 @@ Deno.test("latency phase spans isolate quota, provider, promotion, enrichment, a
     }
   }
   assertOrdered(
+    "resultPolicy = prepareMultimodalResultPolicy(execution.snapshot);",
     "const quotaCommitStart = performance.now();",
     "await quotaLease.commit();",
     "const providerStart = performance.now();",
@@ -1045,7 +1046,7 @@ Deno.test("latency phase spans isolate quota, provider, promotion, enrichment, a
     "providerMs = result.providerDurationMs;",
     "quotaCommitMs = providerStart - quotaCommitStart;",
     "geminiLatencyMs = result.providerCompletedAt - geminiStart;",
-    "finishReason = result.finishReason",
+    "resultPolicy.safetySignals(result)",
   );
   assertOrdered(
     '"video_promotion_started"',

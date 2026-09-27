@@ -1,4 +1,5 @@
 import { assertEquals, assertThrows } from "@std/assert";
+import { diagnosticTriggerForTier } from "./thresholds.ts";
 import { ContractValueError } from "./contract.ts";
 import {
   type IdentificationNormalizationContext,
@@ -9,7 +10,10 @@ const context: IdentificationNormalizationContext = {
   hasVisualEvidence: true,
   hasAudioEvidence: false,
   hasInvasiveLocationContext: false,
-  inferenceTier: "flash",
+  confidencePolicy: {
+    kind: "diagnostic_threshold",
+    threshold: diagnosticTriggerForTier("flash"),
+  },
 };
 const candidate = {
   scientific_name: "cf. Danaus gilippus",
@@ -56,7 +60,10 @@ Deno.test("normalization preserves the complete pre-hydration result across both
       const before = structuredClone(input);
       const normalized = normalizeIdentification(input, {
         ...context,
-        inferenceTier,
+        confidencePolicy: {
+          kind: "diagnostic_threshold",
+          threshold: diagnosticTriggerForTier(inferenceTier),
+        },
         hasVisualEvidence: mode.visual,
         hasAudioEvidence: mode.audio,
       });
@@ -99,7 +106,10 @@ Deno.test("candidate suppression uses the diagnostic boundary, preserves empty a
     ) {
       const result = normalizeIdentification({ ...draft, confidence_score }, {
         ...context,
-        inferenceTier,
+        confidencePolicy: {
+          kind: "diagnostic_threshold",
+          threshold: diagnosticTriggerForTier(inferenceTier),
+        },
       });
       assertEquals(result.identification.candidates.length, 1);
       assertEquals(
@@ -110,9 +120,45 @@ Deno.test("candidate suppression uses the diagnostic boundary, preserves empty a
     assertEquals(
       normalizeIdentification({ ...draft, candidates: [] }, {
         ...context,
-        inferenceTier,
+        confidencePolicy: {
+          kind: "diagnostic_threshold",
+          threshold: diagnosticTriggerForTier(inferenceTier),
+        },
       }).clientCandidates,
       [],
+    );
+  }
+});
+
+Deno.test("unqualified scores retain alternatives even at maximum confidence", () => {
+  const result = normalizeIdentification({ ...draft, confidence_score: 1 }, {
+    ...context,
+    confidencePolicy: { kind: "unqualified" },
+  });
+  assertEquals(result.clientCandidates, result.identification.candidates);
+  assertEquals(result.clientCandidates?.length, 1);
+});
+
+Deno.test("missing and malformed confidence policies cannot inherit a threshold", () => {
+  for (
+    const confidencePolicy of [
+      undefined,
+      null,
+      { kind: "unknown" },
+      ...[undefined, NaN, Infinity, -1, 0, 1.1].map((threshold) => ({
+        kind: "diagnostic_threshold",
+        threshold,
+      })),
+    ]
+  ) {
+    assertThrows(
+      () =>
+        normalizeIdentification(draft, {
+          ...context,
+          confidencePolicy,
+        } as IdentificationNormalizationContext),
+      Error,
+      "identification_confidence_policy_invalid",
     );
   }
 });
@@ -438,7 +484,10 @@ Deno.test("audio taxon candidate thresholds never turn high presence confidence 
         const input = { ...draft, audio_subject_type, confidence_score };
         const result = normalizeIdentification(input, {
           ...context,
-          inferenceTier,
+          confidencePolicy: {
+            kind: "diagnostic_threshold",
+            threshold: diagnosticTriggerForTier(inferenceTier),
+          },
           hasVisualEvidence: false,
           hasAudioEvidence: true,
         });

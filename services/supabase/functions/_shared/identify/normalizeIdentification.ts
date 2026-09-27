@@ -16,20 +16,24 @@ import {
   sanitizeReproductiveCondition,
   sanitizeSex,
 } from "./context.ts";
-import { diagnosticTriggerForTier } from "./thresholds.ts";
 import {
   canonicalizeDomesticPetScientificName,
   sanitizePetIdentification,
   sanitizeScientificName,
 } from "../../identify/sanitize.ts";
 
+export type IdentificationConfidencePolicy =
+  | { readonly kind: "diagnostic_threshold"; readonly threshold: number }
+  | { readonly kind: "unqualified" };
+
 /** Facts about the evidence actually submitted, not capture or user identity. */
 export interface IdentificationNormalizationContext {
   readonly hasVisualEvidence: boolean;
   readonly hasAudioEvidence: boolean;
   readonly hasInvasiveLocationContext: boolean;
-  // null is evaluation-only: retain candidates without applying Gemini thresholds.
-  readonly inferenceTier: "flash" | "pro" | null;
+  // Supplied by the prepared result policy, never inferred from a paid tier.
+  // Evaluation uses unqualified for OpenAI; that grants no production authority.
+  readonly confidencePolicy: IdentificationConfidencePolicy;
 }
 
 /** In-memory diagnostics for the route's existing logger; never evaluation artifacts. */
@@ -68,6 +72,14 @@ export function normalizeIdentification(
   draft: unknown,
   context: IdentificationNormalizationContext,
 ): NormalizedIdentification {
+  const policy = context.confidencePolicy;
+  if (
+    !policy ||
+    (policy.kind !== "unqualified" &&
+      (policy.kind !== "diagnostic_threshold" ||
+        !Number.isFinite(policy.threshold) || policy.threshold <= 0 ||
+        policy.threshold > 1))
+  ) throw new Error("identification_confidence_policy_invalid");
   const parsedData = context.hasAudioEvidence && !context.hasVisualEvidence
     ? parseMerianAudioIdentification(draft)
     : parseMerianIdentification(draft);
@@ -225,11 +237,10 @@ export function normalizeIdentification(
   return {
     identification: { ...parsedData, blur_score: parsedData.blur_score },
     audioSubjectKind,
-    clientCandidates:
-      context.inferenceTier !== null && (parsedData.confidence_score ?? 0.0) >=
-          diagnosticTriggerForTier(context.inferenceTier)
-        ? null
-        : parsedData.candidates,
+    clientCandidates: policy.kind === "diagnostic_threshold" &&
+        (parsedData.confidence_score ?? 0.0) >= policy.threshold
+      ? null
+      : parsedData.candidates,
     clientLifeStage: parsedData.is_biological_subject &&
         audioSubjectKind !== "human" &&
         audioSubjectKind !== "unidentified_wildlife"
