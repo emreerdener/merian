@@ -223,9 +223,37 @@ defect. Current feature documentation was reconciled with the single shared
 Describe editor and separate physical/text budgets; historical validation
 records remain intact.
 
+Production review fixes are committed in
+`f643bdd8460ecaf1ce267e87757395a5eb52f18e`, following the original
+implementation `5c0f6b71a16a59b70789a085785b49c76849d09e` and initial evidence
+record `d125a6b8a4f0d3cd8fbeeb45ec868110f809cb38`.
+
 The first complete review run passed 1,370 XCTest cases and 3,008 Swift Testing
-cases in 465 suites on a fresh iOS 27 simulator. It includes the gallery
-entry/selection fix. The later pending-text picker-limit and stale-admission
-guards are undergoing a final complete native run, followed by the four
-Describe/staging UI selectors. Final results and implementation SHA will be
-recorded here before handoff.
+cases in 465 suites. The final complete run, including both later guards, passed
+**1,372 XCTest cases and 3,008 Swift Testing cases** on a fresh iOS 27
+simulator. Its result bundle is
+`.artifacts/local-ios/e5f6727393f14734913687d39381906c.xcresult`. This closes
+the initial native gate failure described above. No production code changed
+after that successful run.
+
+The first four-case UI run passed three cases and failed the existing lower-area
+focus test. Its recording confirmed that the lower-area tap focused the editor
+and opened the keyboard; the test had injected typing without waiting for
+keyboard readiness. The test now explicitly waits for the keyboard and verifies
+the entered value with a bounded expectation. That test-only change is committed
+in `aea6a8f5f58770f447b948026403efa47136ea49`. All four selectors then passed
+three consecutive iterations: **12 executions, zero failures**. The successful
+repeat result bundle is
+`.artifacts/local-ios/a18d4ce058114be0952b4e69365466b6.xcresult`. Shared-note
+and accessibility XXXL screenshots were visually inspected. The initial failure
+and successful repeat logs are retained alongside the final native log under
+`.artifacts/capture-staged-review/`.
+
+SwiftLint passed with existing warnings. Project membership, event routing,
+privacy, transport-security, migration source guards, Markdown formatting, and
+whitespace checks passed. The prior backend results remain applicable because
+this follow-up changed no backend or wire contract. The six database-dependent
+checks, iOS 17.2 coverage, actual released-V51 install-over/second-launch
+evidence, and physical-device VoiceOver/material/thermal checks remain open. No
+deployment or distribution was performed; server-before-client and
+infrastructure release gates remain in force.
