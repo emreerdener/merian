@@ -246,28 +246,29 @@ must not generate feedback.
 
 ## 4.2 Mixed-media submission model - Implemented
 
-An ordinary submission can contain up to two user-created timeline items across
-still photographs, eligible Pro video, audio clips, and descriptions, subject to
-single-capture settings. Reanalysis keeps that evidence budget and reserves one
-additional supplementary description. Original media, one additional image/audio
-clip or eligible video, and the description can therefore form a three-item
-submission. Adding description first must not consume the additional media slot;
-physical media cannot use the reserved description allowance.
+Free composition permits one photo or standalone audio item plus one optional
+note. Pro permits two physical media items plus one optional note; video remains
+Pro-only. Description-only scans remain supported. Review is the default, with
+an independent default-off Auto-submit preference. Multi-capture describes Pro's
+media capacity and is no longer a setting.
 
-During reanalysis, **+** explicitly stages the description and **Analyze**
-automatically includes any current nonempty draft, even after switching capture
-modes. Both actions update one supplementary description rather than appending
-duplicates. Historical description evidence remains separate. Explicit tray
-edits/removal supersede the pending supplementary draft; empty editor text
-leaves staged descriptions intact. Failed staging keeps the text and prevents an
-incomplete submission. Starting another reanalysis discards the previous
-session's staged evidence before loading the new original.
+Root Describe is the shared ordinary-note and reanalysis-supplement editor.
+Typing alone does not stage or submit. Before review, its plus stages text or
+its arrow explicitly submits when Auto-submit is enabled. During review the
+central action is absent; Identify/Analyze uses the latest shared text. Clearing
+text removes the note. Historical descriptions remain separate and alone use the
+local-copy editor sheet. Reanalysis has two physical slots, historical text, and
+one current supplement; it always submits manually.
 
-The mode selector, button labels, media sizes, and styling stay unchanged. On
-narrow screens, the refinement media row scrolls inside the existing tray to
-keep Cancel and Analyze visible. The
+The tray uses native Liquid Glass where supported, a text-only blue Identify, a
+red trash icon with discard confirmation, and horizontal media-row overflow
+beside fixed actions. Analyze retains its existing styling. Media preparation
+blocks submission, automatic eligibility belongs to the capture attempt, and
+queue rejection preserves the draft for manual retry. The
+[staged-review contract](../features-and-hardware/29-staged-capture-review.md)
+owns the complete state transitions and durable handoff. The
 [Describe guide](../features-and-hardware/11-describe-and-voice-dictation.md)
-owns the detailed behavior and lifecycle contract.
+owns prompts and dictation.
 
 Mixed-media submissions route through the active multimodal identification
 function. Older single-purpose functions remain compatibility paths and should
@@ -336,10 +337,13 @@ original recording.
 The iPhone Listen flow records up to 15 seconds of audio as PCM Int16 WAV,
 presents a live and review spectrogram, classifies clipping and the rolling
 ambient-noise floor, and preprocesses inference input to mono 16 kHz audio.
-Stopping early always opens review. At the 15-second maximum, the confirmation
-setting selects review or the established automatic submission handoff. Audio
-consumes one evidence item. Ordinary scans retain the two-item total cap;
-reanalysis can also carry its separately reserved supplementary description.
+Stopping early always opens review. At the 15-second maximum, the captured
+recording flag may hand audio to staging, but Shell still checks attempt-bound
+Auto-submit eligibility before submission. Setting changes or added context
+leave the composition manual. Audio uses one physical slot; Free permits one
+photo/audio item plus an optional note, Pro permits two media items plus an
+optional note, and reanalysis preserves historical text and its current
+supplement separately.
 
 The legacy `/audio-spec` route exists for compatibility; new mixed-media work
 should use `/identify-multimodal`.

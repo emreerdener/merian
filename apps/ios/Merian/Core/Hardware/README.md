@@ -5,11 +5,18 @@ the device's physical state.
 
 ## Purpose
 
-This area houses the `HardwareOrchestrator`, which monitors
-`ProcessInfo.thermalState` and `isLowPowerModeEnabled`. It dynamically manages
-resource intensity (such as capping framerates to 24fps or dropping heavy
-shaders) under thermal pressure to ensure the app remains stable during intense
-camera and AI usage.
+`HardwareOrchestrator` observes thermal and power-state notifications and
+reevaluates the existing frame-rate and effect constraints. Expedition reads
+`AppSettings.isExpeditionModeActive` directly, without entitlement or network
+access. Its saved preference keeps the existing default-off behavior and is
+persisted before Settings requests reconciliation. When enabled it applies the
+24fps/effect-reduction policy, shared haptic suppression, and ordinary
+background upload pause; disabling it returns to thermal evaluation and normal
+upload eligibility. An OS power-state notification does not enable the saved
+preference. See the
+[hardware contract](../../../../../docs/features-and-hardware/01-camera-and-hardware.md#hardwareorchestrator)
+and
+[Workspace settings](../../../../../docs/features-and-hardware/29-staged-capture-review.md).
 
 ## Speech recognition ownership
 

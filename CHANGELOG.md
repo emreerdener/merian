@@ -9,8 +9,8 @@ TestFlight, App Store, support, and QA.
 ### Review scans and add context
 
 - Review captures before identifying by default, with an optional shared note.
-  Free scans support one photo or recording plus a note; Pro supports two media
-  items plus a note. Auto-submit scans remains an optional convenience.
+  Free scans support one photo or audio recording plus a note; Pro supports two
+  media items plus a note. Auto-submit scans remains an optional convenience.
 - The staged tray uses adaptive Liquid Glass where supported, a blue Identify
   button, and confirmation before discarding your scan.
 - Expedition mode is now included for everyone in Workspace settings.

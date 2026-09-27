@@ -86,7 +86,7 @@ scan without making WeatherKit or geocoding a durability dependency.
 permits two media plus one optional note. Text-only remains valid. Reanalysis
 preserves historical descriptions and its separate current supplement. No
 placeholder enters the payload. See the
-[complete capture contract](../rfcs/staged-review-shared-describe-2026-09-26.md).
+[complete capture contract](./29-staged-capture-review.md).
 
 In reanalysis, root Describe edits one supplementary description and Analyze
 submits its latest value after any mode switch. Updates preserve its insertion

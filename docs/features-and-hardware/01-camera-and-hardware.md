@@ -947,17 +947,22 @@ Battery and thermal protection, monitoring device usage thresholds.
 - An `@Observable` class that decouples rendering overhead from device thermals.
 - Bridges `.thermalStateDidChangeNotification`, dropping graphic resolutions and
   Glassmorphism shaders on `.critical` or `.serious` states.
-- Monitors `isLowPowerModeEnabled` and engages a 24fps `isExpeditionModeActive`
-  pipeline on low-battery states.
-- **Expedition Mode Override**: Users can set
+- Thermal and power-state notifications trigger constraint reevaluation.
+  `isExpeditionModeActive` reads the saved app preference; an OS power-state
+  notification does not enable that preference.
+- **Expedition Mode Override**: All users can set
   `AppSettings.isExpeditionModeActive = true` via Settings. The Profile Shell
   injects a `SettingsPreferenceActions` value whose update persists that setting
   before asking the environment-owned `HardwareOrchestrator` to reevaluate
-  constraints. The orchestrator then applies a 24fps framerate cap while
-  dropping iOS glass materials, trading UI fidelity for maximum battery life
-  off-grid. `OfflineQueueManager` reads its injected `hardwareOrchestrator`
-  boundary before dispatching uploads, pausing background cellular uploads
-  without hard-coding the shared singleton in tests.
+  constraints. The unchanged preference key remains default-off and retains
+  saved choices. The orchestrator has no entitlement dependency, so Free,
+  expired, unverified, and offline users receive the same 24fps cap and reduced
+  visual effects. Haptics remain suppressed through the existing shared gate.
+  `OfflineQueueManager` reads its injected `hardwareOrchestrator` before
+  ordinary background upload dispatch. Disabling Expedition restores normal
+  constraint evaluation and upload eligibility without bypassing consent,
+  funding, or durable recovery. See the
+  [Workspace contract](./29-staged-capture-review.md).
 - **Animation Gate (`isAnimationEnabled`)**: A computed property that exposes
   the current UI motion budget to the view layer. Returns
   `isGlassmorphismEnabled`, which is already `false` under expedition mode and
@@ -1103,7 +1108,7 @@ A dedicated `PHPhotoLibrary` handler.
   recropping cannot arm an existing composition. UI and direct submission block
   unresolved draft work. Failed enqueue retains source files for manual retry;
   accepted scans retry through their durable owner. See the
-  [capture contract](../rfcs/staged-review-shared-describe-2026-09-26.md).
+  [capture contract](./29-staged-capture-review.md).
 - **Required Gallery Crop Cancellation**: The crop sheet's X button has
   source-aware behavior. During a required photo-library crop, X calls
   `cancelRequiredGalleryCrop(for:)`, removes that staged gallery image, clears
@@ -1170,17 +1175,19 @@ A dedicated `PHPhotoLibrary` handler.
   empty string and cause Gemini to reject the request with an opaque AI
   processing error. `CaptureScanStillMediaPreparer` and
   `CaptureScanVideoMediaPreparer` apply the matching camera/video-frame guard.
-  Cancel, remove, replace, and queue-rejection paths call the discard helper so
-  temporary playback `.mp4` files and companion WAV files are deleted through
-  `FileIOActor`; submit paths use reference-only clearing after queue acceptance
-  so durable queue/live persistence keeps ownership. All per-image copies inside
-  each `StagedImage` (compressed inference data, 2048 px display data, bounded
+  Confirmed discard, removal, and replacement delete draft-owned playback `.mp4`
+  files and companion WAV files through `FileIOActor`. Queue rejection before
+  durable acceptance preserves the draft and its source files for manual retry.
+  After acceptance, submission clears draft references and may delete source
+  files only after remapping the accepted timeline to queue-owned copies;
+  durable recovery retains those copies. All per-image copies inside each
+  `StagedImage` (compressed inference data, 2048 px display data, bounded
   `UIImage` thumbnail, and crop/metadata bundle) are released with the same
   value reset — index mismatches between parallel arrays are impossible because
   media stays co-located in typed staging models. `submitStagedCapture(...)`
   extracts `historicalContext` from `stagedCapture.images[0]` (via the
-  `StagedImage.original` bundle) before reference-only staging reset to preserve
-  EXIF location data from library uploads.
+  `StagedImage.original` bundle) before accepted draft cleanup to preserve EXIF
+  location data from library uploads.
 - **Video Upload Signing Shape**: One video scan signs five `image/webp`
   inference frames, one `video/mp4` playback clip, and an optional companion
   WAV. The eight-file total cap also permits one standalone audio clip; the

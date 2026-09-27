@@ -389,7 +389,7 @@ Free allows one standalone audio/photo item plus one note, in either order; Pro
 allows two media items plus one note. Recording and preparation block
 Identify/Analyze even when another item is staged. Cancellation and errors
 resolve the owning operation without erasing existing content. See the
-[capture contract](../rfcs/staged-review-shared-describe-2026-09-26.md).
+[capture contract](./29-staged-capture-review.md).
 
 When recording begins, `CaptureWorkspaceOrchestrationModifier` asks the
 workspace view model to `prepareNonVisualCaptureContext()`. This starts the same

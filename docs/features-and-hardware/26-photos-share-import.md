@@ -146,7 +146,7 @@ initial required crop. Turning Auto-submit on later, removing items, or
 recropping cannot arm the existing attempt. Every path uses the same durable
 queue and recipient-preflight contract; failure before durable acceptance
 preserves the source draft. See the
-[capture contract](../rfcs/staged-review-shared-describe-2026-09-26.md).
+[capture contract](./29-staged-capture-review.md).
 
 ## Metadata and Privacy
 

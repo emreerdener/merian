@@ -159,11 +159,13 @@ drifting apart.
   position set before playback becomes the next start position; explicit stop
   resets progress to zero.
 - **`audioFilePath: String?`** — set to the WAV filename when the user confirms
-  via review UI, or when a maximum-duration recording auto-confirms because
-  confirmation is disabled; consumed and cleared by
-  `CaptureWorkspaceOrchestrationModifier.onChange`, which either stages the clip
-  into `stagedCapture.audios` for the shared mixed-media toolbar flow or routes
-  it through `submitAudio` for the audio-only flow, then calls `reset()`.
+  via review UI, or when a maximum-duration recording uses its captured
+  `autoSubmitOnMaxDuration` flag.
+  `CaptureWorkspaceOrchestrationModifier.onChange` commits it to the draft and
+  resolves the owning operation. Shell then rechecks that attempt's automatic
+  eligibility; a settings change or added context can leave the clip in manual
+  staged review. The manager flag alone never authorizes enqueue. The handoff
+  finishes by resetting the audio manager.
 - **`requestMicrophonePermissionForRecording() async throws`**: called only from
   the explicit Audio red-button action, before camera handoff. This keeps the
   system prompt tied to the user action.
@@ -219,8 +221,9 @@ drifting apart.
   failed activation clears its operation token so an explicit retry is not
   poisoned.
 - **`stopRecordingEarly()`** — cancels the countdown and always routes the
-  partial clip to review. Only reaching the 15-second maximum may bypass review
-  when confirmation is disabled.
+  partial clip to review. The 15-second maximum may hand the clip to staging via
+  the captured `autoSubmitOnMaxDuration` flag; Shell still owns attempt-bound
+  automatic-submission eligibility.
 - **`seekPlayback(to:)`** — clamps and publishes `playbackProgress`; the
   playback controller also seeks the active player, while a not-yet-playing
   review can park that progress for its next start.
@@ -1391,12 +1394,14 @@ See the focused
   for the active account and stable scan ID. Observable entitlement booleans
   remain UI hints. The manager subtracts unresolved local complimentary/legacy
   blockers from verified server availability and records paid Pro, complimentary
-  Pro, immediate Flash, or deferred Flash. Only one image, standalone audio, or
-  description with no video is Flash-eligible; mixed/multi-item/video work
-  without Pro funding is rejected rather than queued. Immediate and deferred
-  Flash reserve the advisory daily token before SwiftData commit. Save failure
-  rolls back and refunds both local admissions before deleting staged files;
-  `AppTelemetry.trackOfflineQueued()` is not fired on rejection.
+  Pro, immediate Flash, or deferred Flash. `IdentificationEvidenceAllowance`
+  permits one non-video photo/audio plus one optional note, or text alone, for
+  Flash; additional physical media, multiple descriptions, video-derived
+  evidence, and refinement require Pro funding. Immediate and deferred Flash
+  reserve the advisory daily token before SwiftData commit. Save failure rolls
+  back and refunds local admissions, deleting provisional queue copies while
+  retaining caller-owned draft media; `AppTelemetry.trackOfflineQueued()` is not
+  fired on rejection.
 - **Durable funding lifecycle**: the scan job persists `funding_reservation`
   beside `inference_generation`. Relaunch restores active claims; legacy jobs
   without funding are conservative blockers. Proven pre-dispatch failure first

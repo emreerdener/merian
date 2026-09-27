@@ -148,8 +148,10 @@ creates one stable `scan_id` and persists the ordered media timeline to
 foreground route also creates one foreground inference UUID and persists it on
 the scan-ingestion job in the same queue transaction; a queue-only route does
 not. The live engine receives the same scan/generation pair. A failed queue
-acceptance is a hard failure: source files are cleaned up and the UI must not
-pretend that the scan is analyzing or safely queued.
+acceptance does not start analysis or report a safely queued scan. Provisional
+queue copies are cleaned up, while draft source files and text remain available
+for manual retry. Successful acceptance supplies the remapped queue-owned
+timeline; subsequent recovery uses that same scan ID.
 
 The context lookup captured from the shutter or recorder has one live consumer.
 Submission cancels it whenever queue acceptance fails or a pre-dispatch branch
@@ -222,18 +224,21 @@ not converted by this presentation layer.
 
 Capture never shows the complimentary countdown. It uses
 `RevenueCatManager.canStartProScan` only to expose modes that require a new
-Pro-funded analysis. Video, multiple or mixed evidence, refinement, and other
-Pro-only entry points open the soft paywall when unavailable.
+Pro-funded analysis. Video, additional physical media, multiple descriptions,
+refinement, and other Pro-only entry points open the soft paywall when
+unavailable. One photo/audio plus an optional note does not itself require Pro
+funding.
 
 Before a camera shutter, audio recorder, or staged submission can begin work,
 online Capture calls the authenticated, caller-scoped
 `get_my_scan_admission_preview(...)` RPC. A daily-allowance or Pro-access denial
 opens the existing root paywall immediately and leaves staged input untouched;
 Capture does not start hardware, create a queue row, open Insight, or invoke
-inference. Flash eligibility is true only for one ordinary image, standalone
-audio clip, or description; video, mixed/multiple evidence, and refinement
-preflight as Pro-only. The RPC is a short-lived, read-only UX preview, not a
-reservation.
+inference. `IdentificationEvidenceAllowance` permits one ordinary photo or
+standalone audio plus an optional note, or one description alone, for Flash.
+Additional physical media, video-derived evidence, multiple descriptions, and
+refinement preflight as Pro-only. The RPC is a short-lived, read-only UX
+preview, not a reservation.
 
 Before taking the preview's account-work lease, iOS joins or retries eligible
 first-launch session setup through the existing Auth bootstrap coordinator. A
@@ -272,16 +277,16 @@ authorize queue insertion. One remaining credit can therefore create only one
 local complimentary reservation. Its funding payload is saved on the durable
 scan-ingestion job in the same acceptance flow.
 
-An ordinary single-image, standalone-audio, or Describe submission can still
-start under the advisory daily meter. The local claim mirrors the server
-evidence shape: exactly one image, one standalone audio clip, or one description
-with no video may reserve immediate or deferred Flash. When an earlier local
-complimentary scan is unresolved, a later eligible scan is queued as deferred
-and cannot run foreground inference. The scheduler establishes earlier holds,
-performs one bulk funding-state read, and persists safe reclassification before
-dispatch. The server still automatically selects paid Pro, then complimentary
-Pro, then the independent daily Flash policy. The client cannot ask to preserve
-a complimentary credit or override server fallback.
+An ordinary photo/audio-plus-note or Describe-only submission can still start
+under the advisory daily meter. The local claim mirrors the server evidence
+rule: one non-video photo or standalone audio plus at most one note, or one
+description alone, may reserve immediate or deferred Flash. When an earlier
+local complimentary scan is unresolved, a later eligible scan is queued as
+deferred and cannot run foreground inference. The scheduler establishes earlier
+holds, performs one bulk funding-state read, and persists safe reclassification
+before dispatch. The server still automatically selects paid Pro, then
+complimentary Pro, then the independent daily Flash policy. The client cannot
+ask to preserve a complimentary credit or override server fallback.
 
 Complimentary-only modes stay locked until online entitlement verification
 succeeds on every launch. RevenueCat paid-offline behavior remains available,
@@ -439,7 +444,7 @@ returns the mapped queue-owned timeline, so live inference no longer depends on
 draft sources. Subsequent recovery uses the original scan and durable owner.
 Provider permission, version, account, assignment, and provenance contracts are
 unchanged. See the
-[capture integration contract](../../../../../../docs/rfcs/staged-review-shared-describe-2026-09-26.md).
+[staged-review contract](../../../../../../docs/features-and-hardware/29-staged-capture-review.md).
 
 Photo-picker entry admits the minimum one-photo addition, independently of the
 picker's maximum selection count. Selection-time preflight checks the actual

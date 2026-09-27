@@ -1,5 +1,14 @@
 # Staged review, shared Describe, and accessible settings
 
+This is the dated implementation and validation record. As of 27 September 2026,
+the
+[staged-review feature contract](../features-and-hardware/29-staged-capture-review.md)
+owns current UX and lifecycle behavior;
+[the testing matrix](../development-guides/08-testing-strategy.md#staged-review-and-shared-describe-validation)
+owns executable selectors. Initial validation limitations below are historical;
+the follow-up section records their later resolution and remaining release
+gates.
+
 ## Integration checkpoint
 
 Implementation is based on reviewed commit

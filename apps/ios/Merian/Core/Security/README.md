@@ -565,13 +565,16 @@ availability minus every unresolved local complimentary reservation and
 conservative pre-protocol-3 blocker. This is the concurrency boundary that
 prevents one stale remaining credit from admitting multiple offline Pro scans.
 
-Only exactly one image, one standalone audio clip, or one description—and no
-video—is eligible for Flash. Eligible later work becomes deferred when earlier
-complimentary assumptions are unresolved and cannot start foreground inference.
-The scheduler reads blocker funding state in one bulk status call, refreshes
-authoritative entitlement after released/absent terminal state and terminal
-consumption, and persists any paid, complimentary, or immediate-Flash
-reclassification before dispatch.
+`IdentificationEvidenceAllowance` permits one non-video photo or standalone
+audio plus one optional note, or one description alone, for Flash. Additional
+physical media, multiple descriptions, and video-derived evidence are
+ineligible; refinement remains Pro-only. See the
+[funding contract](../../../../../docs/backend-and-data/18-complimentary-pro-scans.md).
+Eligible later work becomes deferred when earlier complimentary assumptions are
+unresolved and cannot start foreground inference. The scheduler reads blocker
+funding state in one bulk status call, refreshes authoritative entitlement after
+released/absent terminal state and terminal consumption, and persists any paid,
+complimentary, or immediate-Flash reclassification before dispatch.
 
 Funding lives in `OfflineJobRecord.metadataJSON` beside `inference_generation`.
 A proven pre-dispatch failure is released only after a durable

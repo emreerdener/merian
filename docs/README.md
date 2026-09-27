@@ -509,6 +509,14 @@ production submission or public release.
 
 ### Features & Hardware
 
+- **[Staged capture review and shared Describe](./features-and-hardware/29-staged-capture-review.md)**
+  — Current capture lifecycle: default review, opt-in Auto-submit, separate
+  media/note budgets, the single Describe editor, protected discard, readiness,
+  durable ownership, and Expedition for everyone. The
+  [implementation record](./rfcs/staged-review-shared-describe-2026-09-26.md)
+  retains pinned dependencies, exact commits, local validation, and release
+  gaps.
+
 - **[`/features-and-hardware/01-camera-and-hardware.md`](./features-and-hardware/01-camera-and-hardware.md)**
   — AVFoundation bindings, LiDAR depth logic, Pro video stabilization
   boundaries, identity-fenced haptic feedback ownership, and
@@ -545,9 +553,10 @@ production submission or public release.
   deterministic prompt/text policy, generation-fenced subject and dictation
   lifecycle, serialized startup cancellation, Core `SpeechManager` AVAudioEngine
   and SFSpeechRecognizer pipeline, and Swift 6 concurrency guarantees. Also owns
-  reanalysis's supplementary description allowance, automatic Analyze inclusion,
-  tray-edit/removal precedence, replacement cleanup, and late-transcript
-  handling; runtime acceptance is tracked in the
+  shared root note/supplement editing, historical-only sheet behavior, Analyze
+  inclusion, replacement cleanup, and late-transcript handling. The
+  [staged-review contract](./features-and-hardware/29-staged-capture-review.md)
+  owns cross-mode lifecycle; runtime acceptance is tracked in the
   [reanalysis verification matrix](development-guides/08-testing-strategy.md#reanalysis-description-verification).
 - **[`/features-and-hardware/12-audio-listen-mode.md`](./features-and-hardware/12-audio-listen-mode.md)**
   — Audio Listen Mode: `SpectrogramActor` FFT/mel-scale DSP,

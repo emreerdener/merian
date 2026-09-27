@@ -302,10 +302,13 @@ RevenueCat's paid state:
   fresh funding claim removes the marker; an explicit retry of released work
   must make that claim synchronously from the persisted capture timeline before
   returning the job to automatic work.
-- Mirror Flash eligibility exactly: one image, standalone audio clip, or
-  description, with no video. Later eligible work blocked by an earlier local
-  complimentary claim is deferred without foreground inference until one bulk
-  status read proves every blocker `held` or `consumed`.
+- Mirror Flash eligibility exactly through `IdentificationEvidenceAllowance`:
+  one non-video photo or standalone audio plus at most one note, or one
+  description alone. Additional physical media, multiple descriptions, and
+  video-derived evidence are ineligible; refinement remains Pro-only. Later
+  eligible work blocked by an earlier local complimentary claim is deferred
+  without foreground inference until one bulk status read proves every blocker
+  `held` or `consumed`.
 - Dispatch local complimentary reservations before paid and immediate/deferred
   Flash work so the server establishes earlier holds first. One owner-scoped
   bulk status lookup per scheduler pass supplies blocker state; no per-scan read

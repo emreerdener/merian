@@ -509,6 +509,34 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
 
 ## Paywalls and Entitlements (`RevenueCatManager`)
 
+### Capture capacity and included Workspace settings
+
+Ordinary Free scans allow one photo or standalone audio recording plus one
+optional note; Pro scans allow two media items plus one optional note. Video
+remains Pro-only. Description-only scans remain supported. A note is shared
+Describe content, not a second physical capture or an upgrade trigger. Funding
+still follows the
+[complimentary/Free allowance contract](../backend-and-data/18-complimentary-pro-scans.md),
+including exhausted-Pro/remaining-Free fallback and authoritative server checks.
+
+Staged review is the default for everyone. Auto-submit is an opt-in convenience,
+not an entitlement. Expedition is also included for everyone, works without
+verified Pro access or connectivity, and does not change scan funding. Its saved
+preference survives subscription expiry. There is no multi-capture toggle or
+separate Pro settings section;
+[the capture contract](./29-staged-capture-review.md) owns the workflow and
+preference semantics.
+
+`ProPlanValueProps` in `PaywallPresentation.swift` supplies the current paywall:
+four slides, multi-capture copy explaining two media items plus an optional
+note, and a Media per scan comparison of `1 + optional note` /
+`2 + optional note`. Expedition reads **Included** for both tiers. Paid-plan
+summaries and carousel exclude it, and the former attributed Expedition
+testimonial is removed rather than rewritten. Other benefits, prices,
+purchase/restore behavior, and integrated provider claims remain unchanged.
+
+### Entitlement and identity ownership
+
 - Source ownership separates deterministic RevenueCat values and policies under
   `Core/Security/RevenueCat/{Models,Policies}` from the provider-neutral
   `Coordinators/RevenueCatIdentityCoordinator` and live

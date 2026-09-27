@@ -1503,13 +1503,15 @@ dependency composition.
   app root, camera hardware stays stopped while the initial sheet is visible,
   and explicit Photos/Files imports, deep links, and notification routes take
   precedence. The automatic presentation marks the Explore **New** chip as seen.
-- **Workspace settings group**: The former Capture section is labeled
-  **Workspace** without moving its Camera, Audio, **Reorder modes**, Field trip
-  goals, or confirmation controls.
-- **Expedition Mode**: Manually throttles the `HardwareOrchestrator` to 24fps
-  and disables intensive visual blurs to preserve battery. The Profile Shell
-  injects the hardware action; Settings persists the `AppSettings` value before
-  reevaluating constraints so the orchestrator reads the new mode.
+- **Workspace settings group**: Owns Camera, Audio, **Reorder modes**, Field
+  trip goals, **Expedition mode**, and default-off **Auto-submit scans**. Staged
+  review is the default. The separate Pro section and multi-capture toggle are
+  removed.
+- **Expedition Mode**: Available to everyone, with the saved preference and
+  default-off behavior preserved. It applies the existing 24fps cap, reduced
+  effects, haptic suppression, and background-upload pause. The Profile Shell
+  injects the hardware action; Settings persists `AppSettings` before hardware
+  reconciliation. `HardwareOrchestrator` no longer depends on entitlement.
 - **Camera Settings (`CameraSettingsView`)**: A dedicated sub-page pushed from
   the "Camera" row in Preferences (described as "Zoom controls, viewfinder
   hints, and capture preferences"). Navigation state
@@ -1634,7 +1636,7 @@ dependency composition.
   recropping cannot arm an existing composition. UI and direct submission block
   unresolved draft work. Failed enqueue retains source files for manual retry;
   accepted scans retry through their durable owner. See the
-  [capture contract](../rfcs/staged-review-shared-describe-2026-09-26.md).
+  [capture contract](./29-staged-capture-review.md).
 - **Photos Share Import**: Naturebook's Merian iOS target is an alternate
   `public.image` document viewer, not a Photos Share Extension. Sharing one
   photo opens the containing app, which copies the security-scoped file into
@@ -1931,40 +1933,47 @@ dependency composition.
   pending, uploading, staged, and inferencing queue states while none requires
   attention; ordinary queued scans animate only while inferencing. Its queued
   trash action fades into the existing trailing toolbar slot once durable
-  ownership is bound. The app enforces an automatic multi-capture rapid-capture
-  loop via `ActiveScanToolbar`. This isolated `.ultraThinMaterial` glassmorphic
-  capsule swaps views using
-  `.transition(.move(edge: .bottom).combined(with: .opacity))` when thumbnails
-  are generated. Video thumbnails carry a play badge and open
-  `StagedVideoPreviewModal`, a full-screen `VideoPlayer` preview with top-bar
-  close and remove actions; removal deletes the staged clip plus companion WAV.
-  Audio waveform badges now route their staged index into
-  `StagedAudioPreviewModal`, a full-screen spectrogram player with close and
-  remove actions. Closing preserves the mixed-media timeline, while removal
-  deletes the selected temporary recording through the shared file owner. When
-  the user reaches the 2-capture limit, `CaptureWorkspaceView`'s fixed overlays
-  hide `MediaModeToggle`, `CapturePrimaryActionButton`, `CaptureFlashButton`,
-  and `PhotoLibraryButton` to maximize the viewfinder. `ImageCropperView` bounds
-  individual processing sequences per image without keeping full 12 MP buffers
-  in background memory. Its close/delete controls use native leading/trailing
-  navigation-toolbar placements, letting UIKit clear the status bar, Dynamic
-  Island, rotation, and resized windows even when a full-screen cover reports a
-  zero geometry inset. Required-crop ownership also suppresses the bottom
-  capture controls before the cover animation begins. The crop cover remains the
-  sole full-screen owner; the workspace does not add a black transition canvas
-  that can become stranded across background/foreground scene changes. The
-  confirm action uses the app accent fill with an explicit white label for
-  reliable contrast. Cancel/remove/replace hooks call the staged-media discard
-  helper so temporary video/audio files are deleted, while submit uses
-  reference-only staging reset after queue acceptance so the durable owner
-  retains media; both paths clear pending crop state and keep
-  index-out-of-bounds drift impossible because data is co-located rather than
-  spread across parallel arrays. To preserve authentic `.environmentContext`
-  metadata from imported photos, `submitStagedCapture(...)` extracts the
-  `historicalContext` from `stagedCapture.images[0].original` _before_ clearing
-  staged capture state. If the user backgrounds the app during an active AI
-  lookup, `CaptureWorkspaceViewModel` does not explicitly nil out inference
-  state, ensuring the completed modal sheet presents correctly when the app is
+  ownership is bound. Before submission, `ActiveScanToolbar` presents staged
+  review by default. It uses native Liquid Glass on iOS 26+, material on earlier
+  systems, and an opaque adaptive fallback under Reduce Transparency or the
+  Expedition/thermal effect policy. The blue, text-only Identify action and
+  confirmed red-trash Discard stay fixed beside a horizontally scrolling media
+  row and shared note node; Analyze retains its existing styling. Video
+  thumbnails carry a play badge and open `StagedVideoPreviewModal`, a
+  full-screen `VideoPlayer` preview with top-bar close and remove actions;
+  removal deletes the staged clip plus companion WAV. Audio waveform badges now
+  route their staged index into `StagedAudioPreviewModal`, a full-screen
+  spectrogram player with close and remove actions. Closing preserves the
+  mixed-media timeline, while removal deletes the selected temporary recording
+  through the shared file owner. When the ordinary physical-media budget is full
+  (one for Free, two for Pro), `CaptureWorkspaceView` hides the physical capture
+  controls and ordinary mode selector. The note still opens root Describe at
+  capacity. Reanalysis keeps its mode selector and separate historical-text
+  review behavior. See the
+  [staged-review contract](./29-staged-capture-review.md). `ImageCropperView`
+  bounds individual processing sequences per image without keeping full 12 MP
+  buffers in background memory. Its close/delete controls use native
+  leading/trailing navigation-toolbar placements, letting UIKit clear the status
+  bar, Dynamic Island, rotation, and resized windows even when a full-screen
+  cover reports a zero geometry inset. Required-crop ownership also suppresses
+  the bottom capture controls before the cover animation begins. The crop cover
+  remains the sole full-screen owner; the workspace does not add a black
+  transition canvas that can become stranded across background/foreground scene
+  changes. The confirm action uses the app accent fill with an explicit white
+  label for reliable contrast. Confirmed discard, removal, and replacement
+  delete only draft-owned temporary media. Before durable queue acceptance,
+  enqueue failure preserves the draft and its source files. After acceptance,
+  submission clears draft references and may delete source files only after the
+  accepted timeline has been remapped to queue-owned copies; durable recovery
+  retains those copies. Accepted submission and confirmed discard clear pending
+  crop state and keep index-out-of-bounds drift impossible because data is
+  co-located rather than spread across parallel arrays. To preserve authentic
+  `.environmentContext` metadata from imported photos,
+  `submitStagedCapture(...)` extracts the `historicalContext` from
+  `stagedCapture.images[0].original` _before_ clearing staged capture state. If
+  the user backgrounds the app during an active AI lookup,
+  `CaptureWorkspaceViewModel` does not explicitly nil out inference state,
+  ensuring the completed modal sheet presents correctly when the app is
   foregrounded.
 - `Explore` uses product-area-first folders inside a single presented Explore
   navigation surface. `Shell/Models` owns root/initial navigation policy and

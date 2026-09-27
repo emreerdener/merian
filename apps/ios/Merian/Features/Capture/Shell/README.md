@@ -110,13 +110,13 @@ owns the full behavior.
 
 ## Reanalysis draft ownership
 
-`StagedCapturePolicy` defines two evidence slots plus one supplementary
-description for refinement; `availableStagedCaptureSlots` reports evidence
-capacity and `canUseCaptureControls(in:)` keeps Describe available to add or
-update its supplement even when physical-media slots are full. Camera/video
-completion, imports, audio admission/completion, and picker counts share that
-policy. Ordinary Free scans allow one physical photo/audio item plus one note;
-Pro allows two media items plus one note.
+`StagedCapturePolicy` defines two physical slots plus historical descriptions
+and one current supplement for refinement; `availableStagedCaptureSlots` reports
+physical capacity and `canUseCaptureControls(in:)` keeps Describe available to
+add or update its supplement even when physical-media slots are full.
+Camera/video completion, imports, audio admission/completion, and picker counts
+share that policy. Ordinary Free scans allow one physical photo/audio item plus
+one note; Pro allows two media items plus one note.
 
 `submitActiveStagedCapture` synchronizes shared text through Submission's
 `prepareActiveStagedSubmission(descriptionDraft:)`. Rejection retains text,
@@ -238,20 +238,22 @@ Active Scan toolbar intentionally returns as the user's retry path.
 
 Image imports also cross admission before expensive or user-visible import work.
 `PhotoLibraryButton` and the staged toolbar's add-photo action await
-`requestImageImportEntryAdmission` before presenting the system picker, and a
-pending external Photos/Files receipt runs the same check before metadata
-extraction, image preparation, or required crop. Known quota/entitlement denial
-therefore opens the paywall with no staged image or crop sheet; the durable
-external-import receipt remains available for retry. This preview is read-only,
-so crop confirmation and submission still perform the normal admission recheck
-to catch a concurrent account/quota change. Once an import is allowed,
-`shouldSuppressCaptureChromeForCrop` owns the visual handoff from the staged
-commit through the required crop's dismissal. Both the capture row and bottom
-navigation/Identify tray remain hidden while that fence is active.
-`CropSheetModifier` is the only full-screen presentation owner; the workspace
-does not add a transition canvas or input-blocking overlay during the handoff.
-This keeps background/foreground scene changes from stranding a cover above the
-app.
+`requestPhotoPickerEntryAdmission` before presenting the system picker; entry
+previews a one-photo addition and includes pending shared text. The selected
+count is admitted through a registered draft operation before file loading. A
+pending external Photos/Files receipt uses `requestImageImportEntryAdmission`
+before metadata extraction, image preparation, or required crop. Known
+quota/entitlement denial therefore opens the paywall with no staged image or
+crop sheet; the durable external-import receipt remains available for retry.
+This preview is read-only, so crop confirmation and submission still perform the
+normal admission recheck to catch a concurrent account/quota change. Once an
+import is allowed, `shouldSuppressCaptureChromeForCrop` owns the visual handoff
+from the staged commit through the required crop's dismissal. Both the capture
+row and bottom navigation/Identify tray remain hidden while that fence is
+active. `CropSheetModifier` is the only full-screen presentation owner; the
+workspace does not add a transition canvas or input-blocking overlay during the
+handoff. This keeps background/foreground scene changes from stranding a cover
+above the app.
 
 ## Fresh-launch presentation
 
@@ -450,5 +452,5 @@ confirmation and all capture/import/crop completions are fenced by
 eligibility is minted before asynchronous capture work, never inferred from
 later draft size. Auto-submit off/on cycles cannot rearm a capture. Recording
 failures release readiness without clearing existing content. The current
-[integration contract](../../../../../../docs/rfcs/staged-review-shared-describe-2026-09-26.md)
+[staged-review contract](../../../../../../docs/features-and-hardware/29-staged-capture-review.md)
 defines settings, provider dependencies, acceptance, and validation.

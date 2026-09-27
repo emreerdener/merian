@@ -266,12 +266,15 @@ Refinement staging must never retain the original full-size file bytes in
 
 Image-import admission happens before this preparation pipeline starts.
 `PhotoLibraryButton` and the staged toolbar's add-photo action await
-`requestImageImportEntryAdmission` before presenting the native picker, while
-the durable external-import path awaits it before metadata extraction or ImageIO
-decoding. The prospective count plus existing staging/refinement state determine
-the RPC's Flash-eligibility boolean. A known denial opens the paywall without
-allocating image buffers, staging media, or presenting crop; external receipts
-remain durable. Submission intentionally rechecks because this entry preview is
+`requestPhotoPickerEntryAdmission` before presenting the native picker. It
+previews the minimum one-photo addition, including any pending note. Selected
+imports register a draft operation and check the actual selected count before
+loading files. The durable external-import path uses
+`requestImageImportEntryAdmission` before metadata extraction or ImageIO
+decoding. The shared allowance and refinement state determine the
+Flash-eligibility hint. A known denial opens the paywall without allocating
+image buffers, staging media, or presenting crop; external receipts remain
+durable. Submission intentionally rechecks because this entry preview is
 advisory and non-reserving.
 
 `PreparedStagedImage` now also carries a sendable preview `CGImage`, so
@@ -286,11 +289,13 @@ WebP round-trip decode step (encode to `Data` → decode back to `UIImage`). The
 `CaptureWorkspaceView` watches to auto-trigger staged submission. The camera,
 video, and crop-confirmed commit paths first call
 `beginAutomaticStagedSubmissionIfEligible()` in the same MainActor mutation that
-adds or finalizes the media. That helper preserves the confirmation,
-multi-capture, refinement, audio, describe, and pending-gallery-crop guards and
-sets `isAutomaticStagedSubmissionPending` only for the eligible single-capture
-path. The observer consumes that explicit ownership instead of inferring intent
-one render later. `shouldPresentActiveScanToolbar` suppresses the manual
+adds or finalizes the media. That helper consumes attempt-bound eligibility
+created at capture entry, retaining preference-revision, full-composition,
+refinement, readiness, and required-crop checks. It cannot infer automatic
+intent from a later single-item draft or setting change. See the
+[staged-review contract](../features-and-hardware/29-staged-capture-review.md).
+The observer consumes that explicit ownership instead of inferring intent one
+render later. `shouldPresentActiveScanToolbar` suppresses the manual
 **Identify** tray while ownership is pending, preventing a staged-control flash;
 if admission fails, the attempt releases ownership but retains the staged media
 so the toolbar becomes the explicit retry path.

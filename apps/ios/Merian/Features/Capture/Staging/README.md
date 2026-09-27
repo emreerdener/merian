@@ -132,7 +132,7 @@ note. The tray scrolls its media row while keeping Identify and confirmed
 Discard visible. Native glass respects Expedition, thermal, and accessibility
 reductions. Identify alone is text-only blue; Analyze retains its existing
 treatment. See the
-[pinned capture contract](../../../../../../docs/rfcs/staged-review-shared-describe-2026-09-26.md).
+[staged-review contract](../../../../../../docs/features-and-hardware/29-staged-capture-review.md).
 
 Reanalysis keeps historical descriptions alongside its existing primary-media
 selection in original evidence order. Historical descriptions and the single

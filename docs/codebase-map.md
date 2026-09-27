@@ -429,6 +429,24 @@ modifier applied directly by native scrolling views, lists, and forms.
 `Core/Media/MediaExportService.swift` owns bounded export and share preparation
 for both Insight and Scans.
 
+Within Capture, `Staging/Models/CaptureDraftSession.swift` owns the draft
+identity, unresolved-operation tokens, and attempt-bound automatic eligibility.
+`Shell/ViewModels/CaptureWorkspaceViewModel+Draft.swift` coordinates shared
+text, readiness, confirmed discard, and gallery selection limits. Root Describe
+edits ordinary notes and reanalysis supplements; `StagedDescriptionSheet` is
+reserved for historical descriptions. `ActiveScanToolbar` presents a single note
+node and horizontal media overflow beside fixed actions.
+`Models/Media/IdentificationEvidenceAllowance.swift` owns the shared native Free
+media-plus-note predicate used by entry, queue, replay, and recipient preflight.
+`Core/Data/OfflineSync/Services/CaptureAdmission` retains durable ownership
+through unique media copies and accepted-timeline handoff. Settings owns the
+independent `autoSubmitScans` preference and included Expedition toggle;
+`HardwareOrchestrator` reads the saved Expedition preference without an
+entitlement dependency. See the
+[current capture contract](./features-and-hardware/29-staged-capture-review.md)
+and
+[verification matrix](./development-guides/08-testing-strategy.md#staged-review-and-shared-describe-validation).
+
 Within Capture, Scan's contained task owner generation-fences still shutters,
 video admission/start, recording, and progress work. Shell invalidates pending
 visual generations across scene, mode, presentation, teardown, and reset

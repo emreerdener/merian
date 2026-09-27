@@ -3840,11 +3840,11 @@ xcodebuild -quiet -scheme Merian -project Merian.xcodeproj \
   `event_source`.
 - **`HardwareOrchestratorTests.swift`**: Mocks
   `ProcessInfo.processInfo.thermalState` boundaries to verify the camera
-  throttles FPS dynamically without restarting instances. Verifies the
-  `UserDefaults` binding (`isExpeditionModeActive`) correctly overrides OS
-  thresholds to lock to 24fps and remove glass modifiers. To avoid Swift runtime
-  crashes in asynchronous CI containers, calls `AppTelemetry.initialize()` at
-  `HardwareOrchestratorTests.init()` using a stub `TEST_MOCK_ID` configuration.
+  throttles FPS dynamically without restarting instances. Verifies the injected
+  preference (`isExpeditionModeActive`) locks to 24fps and removes glass without
+  entitlement, and disabling it restores ordinary thermal evaluation. The suite
+  checks background-sync suppression and initializes `AppTelemetry` in its test
+  initializer.
 - **`SpeechManagerTests.swift`**: Lives under `Core/Hardware` and locks that
   preflight cleanup does not initialize the microphone plus cancellation resets
   recording and level state. Describe session fencing remains in the
@@ -9436,14 +9436,66 @@ runbook, not evidence implied by these synthetic fixtures.
 
 ## Staged review and shared Describe validation
 
-The pinned
-[capture contract](../rfcs/staged-review-shared-describe-2026-09-26.md) records
-the provider/provenance dependency and outstanding distribution evidence.
-`CaptureDraftSessionTests` exercises generation fencing, pre-entry auto
-eligibility, off/on revocation, shared-note review states, audio terminal
-failure, Free media-plus-note parity, copy ownership including video companions,
-new preference independence, and paywall copy. Existing admission, preflight,
-replay, hardware, settings, and migration suites remain required. Hardware/UI
-acceptance must also cover crop and recording preparation, VoiceOver, larger
-text, horizontal overflow, Liquid Glass and reduced effects, and confirmed
-discard of a composed draft.
+The
+[current capture contract](../features-and-hardware/29-staged-capture-review.md)
+owns behavior. The
+[dated implementation record](../rfcs/staged-review-shared-describe-2026-09-26.md)
+retains the exact provider/provenance dependency, implementation SHAs, completed
+local results, and outstanding distribution evidence.
+
+| Boundary                                                                                                                                       | Executable coverage                                                                                                     |
+| ---------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Draft generation, automatic attempts, readiness, shared text, copy ownership, preferences, paywall copy                                        | `CaptureDraftSessionTests`                                                                                              |
+| Both photo/audio and note input orders; exhausted-Pro/remaining-Free funding; enqueue and same-scan retry                                      | `CaptureAdmissionTests`, including `CaptureAdmissionNoteTests.swift`                                                    |
+| Gallery minimum-one entry vs actual selection, pending-text picker limit, stale admission after discard, refinement/historical text and replay | `CaptureWorkspaceViewModelRefinementTests`, including the submission, staging, refinement-description, and replay files |
+| Recipient evidence shape and video-derived classification                                                                                      | `IdentificationPreflightTests`, plus existing preflight transport, consent, provenance, and replay suites               |
+| Expedition preference persistence without entitlement, thermal restoration, background sync, haptic suppression                                | `HardwareOrchestratorTests`, `HapticManagerTests`, existing Settings preference tests                                   |
+| Toolbar/media capacity and action availability                                                                                                 | `CaptureStagingToolbarPresentationTests`, `CaptureControlBarPresentationTests`, `StagedCaptureTests`                    |
+
+Run focused selectors while iterating, then the complete native gate with the
+repository wrapper and checkout-local caches. Use an installed simulator UUID:
+
+```bash
+make ios-local-build ARGS='simulator test -configuration Debug -destination "platform=iOS Simulator,id=<SIMULATOR_UUID>" -only-testing:merianTests -parallel-testing-enabled NO -collect-test-diagnostics never'
+```
+
+The four mounted UI selectors are:
+
+- `merianUITests/merianUITests/testDescribeFirstLaunchRendersAndOpensPrompts`
+- `merianUITests/merianUITests/testDescribeTextAreaFocusesFromLowerRegion`
+- `merianUITests/merianUITests/testSharedDescribeReviewAndConfirmedDiscard`
+- `merianUITests/merianUITests/testNoteAtMediaCapacityWithLargerText`
+
+Run them with `make ios-local-build ARGS='simulator test ...'`, passing one
+`-only-testing:<selector>` for each and the same destination/diagnostics
+options. The lower-area test explicitly waits for keyboard readiness before
+typing. The capacity test verifies the fixed actions and note access at
+accessibility XXXL; the shared-text test verifies initial staging, retained
+edits, Keep editing, and confirmed discard. Captured screenshots supplement the
+assertions. They do not establish physical-device VoiceOver, older-iOS material
+rendering, or thermal behavior.
+
+Full native validation must retain admission, recipient-preflight, consent,
+provenance, migration, and durable same-scan recovery suites. Backend evidence
+requires the existing Supabase candidate gate, media/Edge DTO checks, and
+`complimentaryScans_test.ts`; do not substitute local native checks for the six
+database-dependent checks or exact-SHA hosted CI. Run project membership, event
+routing, privacy, transport, migration guards, SwiftLint, and Markdown
+formatting as applicable; regenerate the project if source membership changes.
+
+Manual acceptance still includes setting changes during photo/audio/video/import
+preparation and required crop, a second media item in progress,
+historical-editor isolation, permission/recipient/version recovery,
+Free/expired/unverified/offline Expedition access, and restoring normal upload
+eligibility without bypassing funding or consent. Check Light/Dark, Reduce
+Transparency, effect reduction, VoiceOver, narrow-screen overflow, and the
+four-slide paywall after removal of the Expedition slide. Actual released-V51
+install-over and second launch remain a separate distribution gate.
+
+**Local evidence (27 September 2026):** The final production-code run passed
+1,372 XCTest cases and 3,008 Swift Testing cases. After the UI
+keyboard-readiness fix, all four UI selectors passed three consecutive
+iterations (12 executions). Exact commits and retained result bundles are in the
+dated implementation record. These results do not imply server deployment, app
+distribution, or completion of the remaining physical-device and database
+checks.
