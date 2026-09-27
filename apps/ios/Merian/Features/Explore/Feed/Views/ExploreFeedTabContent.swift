@@ -4,6 +4,7 @@ import UIKit
 
 struct ExploreFeedTabContent: View {
     @Bindable var viewModel: ExploreFeedViewModel
+    @Environment(ExploreVideoPlaybackCoordinator.self) private var playbackCoordinator: ExploreVideoPlaybackCoordinator?
     @Environment(EnvironmentContextManager.self) private var environmentContextManager
     @Environment(SupabaseManager.self) private var supabase
     @Environment(RevenueCatManager.self) private var revenueCatManager
@@ -119,6 +120,7 @@ struct ExploreFeedTabContent: View {
                             { callback(post) }
                         },
                         onEditPost: { Task { await openPostEditor(for: post) } },
+                        onShare: { viewModel.share(post, playbackCoordinator: playbackCoordinator) },
                         onBlock: { Task { await viewModel.blockAuthor(of: post) } },
                         onReport: { Task { await viewModel.report(post) } },
                         onReaction: { emoji, selected in Task { await viewModel.setPostReaction(for: post, emoji: emoji, selected: selected) } },

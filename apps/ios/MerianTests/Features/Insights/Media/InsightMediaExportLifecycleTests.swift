@@ -6,6 +6,46 @@ import Testing
 @MainActor
 @Suite("Insight media export lifecycle")
 struct InsightMediaExportLifecycleTests {
+    @Test("Share maps audio, video, and AI summary before suspension")
+    func shareSnapshotsMediaAndReasoning() async throws {
+        var request: DiscoveryShareRequest?
+        let dependencies = InsightShellDependencies(
+            prepareMediaShare: { value in
+                request = value
+                return MediaSharePayload(items: [])
+            }
+        )
+        let (viewModel, engine, scanID) = makePresentedViewModel(dependencies: dependencies)
+        engine.activeMedia = ActiveScanMedia(items: [.audio("test.m4a"), .video("test.mp4")])
+        viewModel.beginPresentationSession()
+        viewModel.shareDiscovery(expectedScanId: scanID,
+                                 expectedGeneration: viewModel.scanBoundActionGeneration,
+                                 inferenceEngine: engine)
+        await viewModel.mediaShareTask?.value
+        let snapshot = try #require(request)
+        #expect(snapshot.files.map(\.kind) == [.audio, .video])
+        #expect(snapshot.imageSources.isEmpty)
+        #expect(snapshot.message.contains(engine.speciesData?.scientificName ?? "missing"))
+        #expect(!snapshot.message.contains(scanID))
+    }
+
+    @Test("Unavailable media reports an error without presenting a text-only share")
+    func unavailableMediaDoesNotPresent() async {
+        var presentationCount = 0
+        let dependencies = InsightShellDependencies(
+            prepareMediaShare: { _ in MediaSharePayload(items: [.text("summary")], hasUnavailableMedia: true) },
+            presentMediaShare: { _ in presentationCount += 1 }
+        )
+        let (viewModel, engine, scanID) = makePresentedViewModel(dependencies: dependencies)
+        viewModel.beginPresentationSession()
+        viewModel.shareDiscovery(expectedScanId: scanID,
+                                 expectedGeneration: viewModel.scanBoundActionGeneration,
+                                 inferenceEngine: engine)
+        await viewModel.mediaShareTask?.value
+        #expect(presentationCount == 0)
+        #expect(viewModel.state.toastMessage?.title == MediaSharePayload.unavailableMessage)
+    }
+
     @Test("Dismissal fences an uncooperative save completion")
     func dismissalFencesSaveCompletion() async {
         let gate = AsyncValueGate<MediaSaveResult>()

@@ -119,3 +119,16 @@ gamification suite claims its keyed shared-process-state trait.
 Repository and cloud-convergence tests live under
 `MerianTests/Core/Data/SpeciesPreferences/`; Preferences tests retain ownership
 of only legacy cleanup, the pending-delete store, and diagnostic persistence.
+
+## Map preferences
+
+`AppSettings.mapAppearance` is a device-level satellite/standard choice. Missing
+or invalid values default to satellite; cleanup retains the choice.
+`RecentPlaceStore` retains only the ten most recent selected place labels under
+versioned account-qualified keys. It stores no coordinates or raw queries.
+`AccountScopedPreferences.purgeAndVerify` removes every history partition and
+advances an identity-free reset generation so pending lookups cannot repopulate
+history. `AppSettings` observes that generation to retire active sheets.
+`MapPreferencesTests` covers restoration, bounds, deduplication, isolation,
+removal, payload fields, and cleanup. See the
+[shared map contract](../../../../../docs/features-and-hardware/24-explore-bottom-menu.md#shared-map-navigation).

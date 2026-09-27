@@ -72,8 +72,8 @@ contribution of submitted scans and links to `/privacy-choices`.
 
 ## Data Flow
 
-1. The iOS app shares `https://naturebook.earth/explore/post/{postId}` in the
-   message text.
+1. The iOS app shares `https://naturebook.earth/explore/post/{postId}` as a
+   typed URL. Descriptive copy lives in preview metadata and the mail subject.
 2. Next.js server-rendering handles `/explore/post/[postId]`.
 3. `apps/web/lib/explore.ts` imports `server-only` and creates the validated
    server client through `apps/web/lib/supabaseAdmin.ts`. The credential never
@@ -355,6 +355,18 @@ naturebook://species/{speciesId}
 Custom schemes are useful as an explicit button target, but they should not be
 the primary shared link. They do not unfurl well, they fail for recipients
 without the app, and they cannot serve public web previews.
+
+Explore and app-invitation UIKit shares use `LinkShareItemSource` so AirDrop,
+Copy, Messages, Mail, Notes, and third-party extensions receive a URL rather
+than a sentence or an extra text attachment. Species Dictionary already uses a
+URL-valued `ShareLink`. File exports intentionally continue sharing files.
+
+Physical-device acceptance must cover iPhone-to-Mac AirDrop, Copy into a
+browser, Messages link previews, Mail, Notes, and an installed third-party
+messaging app. Check image, audio, video, and mixed-media Explore posts,
+cancellation followed by playback resume, and revoked posts returning the normal
+unavailable page. Unit tests verify payload types; they cannot prove
+receiving-app behavior or AirDrop delivery.
 
 ## Theme Preference Bridge
 

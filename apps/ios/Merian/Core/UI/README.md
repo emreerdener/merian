@@ -43,6 +43,12 @@ overlay, playback, export, analytics, and task state. Do not move payload
 construction or feature lifecycle policy into the presenter, and do not add a
 second `UIApplication`-resolving share helper under Utilities.
 
+`Services/LinkShareItemSource.swift` supplies a typed URL for every destination,
+including AirDrop, Copy, Messages, Mail, Notes, and third-party extensions. Link
+titles live in Link Presentation metadata and the optional mail subject, not in
+a separate text attachment. Explore post and app-invitation shares use this
+source; file exports retain their file payloads.
+
 ## Capture ownership boundary
 
 Core UI owns only visual primitives reused across product areas. Capture's mode
@@ -322,3 +328,21 @@ preloads carry no revision, so a nonzero recovery revision requires reacquiring
 the image through the loader. The image loader separately versions cache and
 coalescing keys; details are in the
 [image pipeline](../../../../../docs/system-architecture/03-image-pipeline.md).
+
+## Map navigation presentation
+
+`Components/Maps` renders the shared glass toolbar, adaptive count/control row,
+place-search sheet, and sheet/alert presenter. These views consume injected
+values, actions, and search presentation state; MapKit requests, cancellation,
+and navigation lifetime belong to `Core/Maps`, and history/style storage belongs
+to `Core/Preferences`.
+
+`MapCountPillLabel` prefers the full discovery count and falls back to the short
+count on narrow layouts. Each candidate sizes its glass capsule to its text,
+keeps a 48-point minimum height, and exposes the full label to VoiceOver.
+
+Place-search rows use the primary text color for titles, secondary gray for
+addresses, and a trailing chevron. Results and suggestions have no leading pin;
+recent places retain their history icon. When no recent places exist, the
+initial search hint is plain secondary text directly below the search field,
+outside the grouped result list.

@@ -8,6 +8,27 @@ import Testing
 @Suite("Private Scan Map")
 @MainActor
 struct PrivateScanMapTests {
+    @Test func placeNavigationPreservesFiltersAndRetiresInitialLocation() {
+        let model = PrivateScanMapViewModel()
+        model.selectedCategories = [.birds]
+        model.selectedPointID = "previous"
+        let coordinate = CLLocationCoordinate2D(latitude: 1, longitude: 1)
+        let item = MKMapItem(placemark: MKPlacemark(coordinate: coordinate))
+        model.navigate(to: item)
+        #expect(model.cameraPosition.item === item)
+        #expect(model.selectedCategories == [.birds])
+        #expect(model.selectedPointID == nil)
+        #expect(model.didSetInitialCamera)
+        model.update(snapshot: PrivateScanMapSnapshot(records: [
+            makeRecord(id: "late-snapshot", latitude: 2, longitude: 2)
+        ]))
+        #expect(model.cameraPosition.item === item)
+        #expect(model.visibleRegion?.center.latitude == coordinate.latitude)
+        model.resetSensitiveState()
+        #expect(model.cameraPosition.item == nil)
+        #expect(!model.didSetInitialCamera)
+    }
+
     @Test("Collections search aliases find the private map card")
     func collectionSearchAliases() {
         for query in ["map", "private", "location", "your scans", "SCAN MAP"] {

@@ -13,6 +13,7 @@ struct ExplorePostCard: View {
     let onOpenHashtag: ((String) -> Void)?
     let onOpenInsight: (() -> Void)?
     let onEditPost: () -> Void
+    let onShare: () -> Void
     let onBlock: () -> Void
     let onReport: () -> Void
     var onReaction: (String, Bool) -> Void = { _, _ in }
@@ -229,6 +230,13 @@ struct ExplorePostCard: View {
 
     private var menuButton: some View {
         Menu {
+            Button(action: onShare) {
+                Label("Share", systemImage: "square.and.arrow.up")
+            }
+            .accessibilityLabel("Share post")
+
+            Divider()
+
             if hasStandalonePrimaryAudio {
                 Button(action: toggleAudioBoost) {
                     Label(

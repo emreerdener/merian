@@ -5,6 +5,7 @@ struct ExploreMapPreviewCard: View {
     let speciesDisplayName: String
     let mediaReloadGeneration: UInt64
     let onOpen: () -> Void
+    let onOpenAuthorProfile: () -> Void
     let onComments: () -> Void
     let onLike: () -> Void
     let onUnshare: () -> Void
@@ -81,6 +82,12 @@ struct ExploreMapPreviewCard: View {
 
     private var overflowMenu: some View {
         Menu {
+            Button(action: onOpenAuthorProfile) {
+                Label("View profile", systemImage: "person.crop.circle")
+            }
+
+            Divider()
+
             if post.isOwnedByViewer {
                 Button(role: .destructive) {
                     showUnpublishConfirmation = true

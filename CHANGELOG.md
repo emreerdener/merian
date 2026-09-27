@@ -6,6 +6,12 @@ TestFlight, App Store, support, and QA.
 
 ## Unreleased
 
+### First-launch reliability
+
+- Browsing and sign-in become available after account setup without waiting for
+  purchase synchronization. Explore and Identify retry initial loads interrupted
+  by setup, reducing the need to close and reopen a fresh installation.
+
 ### Review scans and add context
 
 - Review captures before identifying by default, with an optional shared note.

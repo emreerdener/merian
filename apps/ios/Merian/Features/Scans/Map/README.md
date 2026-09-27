@@ -78,9 +78,10 @@ during a failing attempt, the store drains that pending generation without an
 unbounded retry of an isolated failure. `PrivateScanMapStartupSequence` checks
 cancellation immediately after the awaited refresh and again around location
 lookup, so a departed destination cannot begin or publish one-shot location
-work. `PrivateScanMapLocationRequestSequence` applies the same
-current-generation check to an explicit **Locate me** request and distinguishes
-invalidated work from a current request whose location is merely unavailable.
+work. `MapNavigationModel` applies the same current-generation check to an
+explicit **Locate me** request through a caller-supplied store/owner validity
+check. Invalidated requests produce neither camera changes nor unavailable
+alerts.
 
 `PrivateScanMapViewportProjector` owns a one-degree spatial bucket index for the
 filtered dataset and computes exact viewport membership on an actor. Pan, zoom,
@@ -121,6 +122,11 @@ The pushed page owns no Explore tabs, bell, bottom navigation, offline API
 banner, social actions, or **Search this area** behavior. Map tiles degrade
 according to MapKit's normal offline behavior; the saved point projection
 remains local and available.
+
+The map layer extends beneath the transparent top navigation toolbar, with its
+top scroll-edge effect hidden, while overlay controls retain their safe-area
+positioning. The shared search sheet supplies the same title/address colors,
+trailing chevrons, plain initial hint, and hidden grabber as Explore Map.
 
 ## Thumbnail Fallbacks
 
@@ -196,3 +202,16 @@ newest-scan fallback, not a real authorized location or system user annotation.
 The complete automated commands, manual device matrix, and unresolved candidate
 findings are maintained in the canonical
 [Verification Contract](../../../../../../docs/features-and-hardware/28-private-scan-map.md#verification-contract).
+
+## Shared navigation controls
+
+The interactive map consumes Core Maps search/locate state and Core UI's glass
+controls under the
+[shared navigation contract](../../../../../../docs/features-and-hardware/24-explore-bottom-menu.md#shared-map-navigation).
+The map starts in satellite imagery unless the device preference selects
+standard. Search does not receive saved scan coordinates. Startup is suspended
+while search or a manual locate request is active and resumes if no camera was
+chosen. Place navigation and manual gestures retire late initial camera work;
+store resets dismiss search and invalidate pending navigation. The passive
+Collections snapshot retains its standard style and existing memory-only privacy
+boundary.

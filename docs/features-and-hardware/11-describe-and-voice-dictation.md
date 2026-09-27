@@ -122,13 +122,14 @@ question has a `prompt: String` and a `tags: [Tag]` array. A `Tag` carries:
 | `aiText`        | `String`  | Natural-language fragment appended to `freeText` when tapped                       |
 | `defaultWeight` | `Int`     | Sort priority within the question                                                  |
 | `imageName`     | `String?` | Asset catalog name for image-tile rendering (non-nil on the subject question only) |
+| `emoji`         | `String?` | Optional decorative chip emoji; defaults to nil and never enters composed text     |
 
 Tags with a non-nil `imageName` render as 96×112 pt
 `RoundedRectangle(cornerRadius: 16)` tiles (image above label). All others
-render as `Capsule` text chips. The subject question (index 0) uses image tiles
-for all 9 entries (Bird, Insect, Spider, Reptile, Plant, Mushroom, Mammal, Fish,
-Other). The `Other` tag has `aiText: ""` — selecting it appends nothing to
-`freeText`, leaving the AI prompt unchanged.
+render as `Capsule` chips, optionally with a leading emoji. The subject question
+(index 0) uses image tiles for all 9 entries (Bird, Insect, Spider, Reptile,
+Plant, Mushroom, Mammal, Fish, Other). The `Other` tag has `aiText: ""` —
+selecting it appends nothing to `freeText`, leaving the AI prompt unchanged.
 
 The global `guidedQuestions: [GuidedQuestion]` array has 10 entries:
 
@@ -265,7 +266,22 @@ The tag strip iterates `promptViewModel.activeQuestions` (not the static
   `.systemBackground` when selected as the active funnel subject; otherwise
   `.secondarySystemBackground` / `.primary`.
 - **Nil `imageName`** → standard `Capsule` chip. Same selection-state colour
-  logic applies.
+  logic applies. When every answer in the question has a nonempty `emoji` and
+  none has an illustration, each chip shows its emoji before the original label
+  with 6 pt spacing and the existing font and padding. Missing or
+  whitespace-only emoji metadata makes the entire question text-only. Emojis are
+  hidden from accessibility, and each button retains its original answer label
+  for VoiceOver.
+
+Emoji coverage includes shared environment, location, and behavior questions;
+bird type, size, and plumage; plant bloom/fruit; spider size; reptile/amphibian
+type and location; mushroom growing surface; mammal type, fur color, and
+activity time; and fish water environment. Mixed-color answers can use paired
+color emojis, such as 🖤🤍 for black and white. Symbols are representative cues
+(including 🟫 for soil), with the full answer label remaining authoritative.
+Other questions retain their existing presentation. Emoji metadata does not
+change identifiers, ranking, selection, auto-advance, or `aiText`; selecting a
+decorated chip adds only the existing natural-language fragment.
 
 `DescribeTagRanking` orders tags by persisted frequency, then default weight,
 then original source order. `DescribePresentationDependencies` performs the

@@ -89,6 +89,12 @@ import SwiftUI
     var photoLibraryManager = PhotoLibraryManager.shared
     var externalImageImportStore = ExternalImageImportStore.shared
     let privateScanMapStore = PrivateScanMapStore()
+    let mapPlaceSearchConfiguration: MapPlaceSearchConfiguration = {
+        #if DEBUG
+        if let fixture = UITestSeedCoordinator.mapPlaceSearchConfiguration() { return fixture }
+        #endif
+        return MapPlaceSearchConfiguration(dependencies: .live, history: RecentPlaceStore())
+    }()
     var activeCaptureGoalStore = ActiveCaptureGoalStore(
         provider: FieldTripCaptureGoalProvider()
     )
@@ -291,6 +297,7 @@ struct DIContainerModifier: ViewModifier {
             .environment(container.audioCaptureManager)
             .environment(container.activeCaptureGoalStore)
             .environment(container.privateScanMapStore)
+            .environment(\.mapPlaceSearchConfiguration, container.mapPlaceSearchConfiguration)
             .environment(container.appRouteCoordinator)
             .environment(container.milestoneToastPresenter)
             .environment(container.milestoneToastHostRegistry)

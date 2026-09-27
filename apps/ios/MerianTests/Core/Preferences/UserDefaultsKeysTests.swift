@@ -22,6 +22,9 @@ struct UserDefaultsKeysTests {
     }
 
     private static let expectedValues: [String: String] = [
+        "mapAppearance": "mapAppearance.v1",
+        "recentPlacesPrefix": "recentPlaces.v1.",
+        "recentPlacesResetGeneration": "recentPlacesResetGeneration.v1",
         "captureGoalContextPrefix": "captureGoalContext.v1.",
         "firstFieldTripAchievementProgressPrefix":
             "firstFieldTripAchievementProgress.v1.",

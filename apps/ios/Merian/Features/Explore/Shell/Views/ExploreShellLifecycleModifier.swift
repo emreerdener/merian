@@ -20,9 +20,9 @@ struct ExploreShellLifecycleModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .task {
+            .task(id: supabase.allowsUnownedAccountBoundWork) {
                 feedViewModel.bindSettings(appSettings)
-                await feedViewModel.loadInitialFeed()
+                await feedViewModel.resumeInitialFeed()
                 feedViewModel.refreshPreferredSpeciesNames(modelContext: modelContext)
             }
             .onChange(of: feedViewModel.store.changeVersion) { _, _ in

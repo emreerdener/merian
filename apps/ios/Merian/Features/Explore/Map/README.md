@@ -35,6 +35,16 @@ before changing either boundary.
 
 Views and components do not perform direct networking.
 
+The map layer extends through the top safe area beneath the transparent
+navigation toolbar, with its top scroll-edge effect hidden. Overlay controls
+keep their safe-area positioning so the map remains visible behind the toolbar.
+
+Preview-card overflow menus include **View profile** above the destructive
+actions. The discoveries-list sheet dismisses before handing the selected author
+to Shell's existing profile navigation callback. Both map previews and list
+cards retain **Block user** and **Report post** for other authors, and
+**Unpublish post** for the viewer's own posts.
+
 ## State and data flow
 
 `ExploreMapViewModel` accepts a small initializer-injected `Dependencies` value.
@@ -123,3 +133,22 @@ summary through the single-post endpoint and serializes that hydration with
 writes. Geometry, coordinates, and map-cache ownership are unchanged. The Map
 hydration/mutation regression lives in `ExploreReactionStateTests`; see the
 [reaction contract](../../../../../../docs/rfcs/explore-page.md#emoji-reactions-update-2026-09-18).
+
+## Shared navigation controls
+
+The horizontal glass toolbar and search sheet follow the
+[shared map navigation contract](../../../../../../docs/features-and-hardware/24-explore-bottom-menu.md#shared-map-navigation).
+Core Maps owns injected MapKit search and cancellable location admission; this
+feature owns camera framing and discovery loading after the camera settles. Both
+map styles preserve filters and selection. Place selection clears the preview.
+Selecting a place searches the first settled destination immediately, without
+the normal pan debounce or movement threshold. It uses the final visible bounds
+and current filters, with the existing cache and manual retry behavior. Pending
+responses from before navigation cannot replace destination results. Later pans
+retain the normal 1.5-second debounce.
+
+Destination loads retire prior request ownership and start without waiting for
+an older viewport request to finish. Older completions cannot clear the current
+loading state or drain its queued refresh. Repeated destination camera-settle
+callbacks reuse the pending search; revised destination bounds replace it
+immediately. User-positioned camera changes retain the normal pan debounce.

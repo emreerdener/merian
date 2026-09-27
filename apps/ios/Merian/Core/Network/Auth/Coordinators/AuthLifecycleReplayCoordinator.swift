@@ -32,9 +32,10 @@ final class AuthLifecycleReplayCoordinator {
 
     @discardableResult
     func scheduleIfNeeded(
+        force: Bool = false,
         operation: @escaping @MainActor () async -> Void
     ) -> Bool {
-        guard needsReconciliation else { return false }
+        guard needsReconciliation || force else { return false }
         needsReconciliation = false
         cancelTask()
         let taskID = UUID()

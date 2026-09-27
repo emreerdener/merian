@@ -45,11 +45,14 @@ final class ExploreMapViewModel {
     )
     @ObservationIgnored var responseCache = ExploreMapResponseCache()
     @ObservationIgnored var debounceSearchTask: Task<Void, Never>?
+    @ObservationIgnored var activeLoadID: UUID?
     @ObservationIgnored var needsRefreshAfterCurrentLoad = false
     @ObservationIgnored var needsForcedRefreshAfterCurrentLoad = false
     @ObservationIgnored var requestGeneration = 0
     @ObservationIgnored var focusedPost: ExploreMapPost?
     @ObservationIgnored var isAwaitingFocusedCameraCommit = false
+    @ObservationIgnored var searchesOnNextCameraSettle = false
+    @ObservationIgnored var immediateSearchRegion: MKCoordinateRegion?
     @ObservationIgnored let dependencies: Dependencies
 
     init(dependencies: Dependencies) {
@@ -147,7 +150,8 @@ final class ExploreMapViewModel {
     }
 
     func loadInitialData(using environmentContextManager: EnvironmentContextManager) async {
-        guard lastCommittedRegion == nil, !isLoading else { return }
+        guard lastCommittedRegion == nil, !isLoading,
+              !searchesOnNextCameraSettle, immediateSearchRegion == nil else { return }
 
         environmentContextManager.validatePermissions()
         let region = initialRegion(using: environmentContextManager)
@@ -156,7 +160,22 @@ final class ExploreMapViewModel {
         await fetchMapPoints(for: region)
     }
 
-    func markCameraChanged(region: MKCoordinateRegion) {
+    func markCameraChanged(region: MKCoordinateRegion, positionedByUser: Bool = false) {
+        let searchesImmediately = !positionedByUser
+            && (searchesOnNextCameraSettle || immediateSearchRegion != nil)
+        searchesOnNextCameraSettle = false
+        if let pendingRegion = immediateSearchRegion {
+            if !positionedByUser,
+               pendingRegion.center.latitude == region.center.latitude,
+               pendingRegion.center.longitude == region.center.longitude,
+               pendingRegion.span.latitudeDelta == region.span.latitudeDelta,
+               pendingRegion.span.longitudeDelta == region.span.longitudeDelta {
+                visibleRegion = region
+                return
+            }
+            // A revised destination owns a new request; it must not queue behind this one.
+            prepareForNavigation()
+        }
         if isAwaitingFocusedCameraCommit, let focusedPost {
             isAwaitingFocusedCameraCommit = false
             if region.containsForExploreMap(focusedPost.coordinate) {
@@ -168,7 +187,16 @@ final class ExploreMapViewModel {
         }
 
         visibleRegion = region
-        guard let lastCommittedRegion else { return }
+        if searchesImmediately {
+            needsSearchInArea = true
+            scheduleAutomaticSearch(debounced: false)
+            return
+        }
+        guard let lastCommittedRegion else {
+            needsSearchInArea = true
+            scheduleAutomaticSearch()
+            return
+        }
 
         if regionMeaningfullyDiffers(region, from: lastCommittedRegion) {
             invalidateFocusedPost()
@@ -179,6 +207,7 @@ final class ExploreMapViewModel {
     }
 
     func searchCurrentArea() async {
+        immediateSearchRegion = nil
         debounceSearchTask?.cancel()
         debounceSearchTask = nil
         guard let region = visibleRegion ?? lastCommittedRegion else { return }
@@ -186,6 +215,8 @@ final class ExploreMapViewModel {
     }
 
     func recenter(using environmentContextManager: EnvironmentContextManager) async {
+        searchesOnNextCameraSettle = false
+        immediateSearchRegion = nil
         debounceSearchTask?.cancel()
         debounceSearchTask = nil
         invalidateFocusedPost()
@@ -197,7 +228,40 @@ final class ExploreMapViewModel {
         await fetchMapPoints(for: region)
     }
 
+    /// Search the settled destination immediately, preserving the selected filters.
+    func navigate(to item: MKMapItem) {
+        prepareForNavigation()
+        searchesOnNextCameraSettle = true
+        cameraPosition = .item(item, allowsAutomaticPitch: false)
+    }
+
+    func navigate(to location: CLLocation) {
+        prepareForNavigation()
+        cameraPosition = .region(MKCoordinateRegion(
+            center: location.coordinate,
+            span: MKCoordinateSpan(latitudeDelta: 0.45, longitudeDelta: 0.45)
+        ))
+    }
+
+    private func prepareForNavigation() {
+        searchesOnNextCameraSettle = false
+        immediateSearchRegion = nil
+        debounceSearchTask?.cancel()
+        debounceSearchTask = nil
+        invalidateFocusedPost()
+        requestGeneration &+= 1
+        // The new destination must not wait for an obsolete viewport request.
+        activeLoadID = nil
+        isLoading = false
+        needsRefreshAfterCurrentLoad = false
+        needsForcedRefreshAfterCurrentLoad = false
+        needsSearchInArea = false
+        selectedPostId = nil
+    }
+
     func zoomIntoCluster(_ cluster: ExploreMapCluster) {
+        searchesOnNextCameraSettle = false
+        immediateSearchRegion = nil
         let currentSpan = visibleRegion?.span ?? lastCommittedRegion?.span ?? fallbackRegion.span
         let nextRegion = MKCoordinateRegion(
             center: cluster.coordinate,
@@ -215,15 +279,26 @@ final class ExploreMapViewModel {
         scheduleAutomaticSearch()
     }
 
-    private func scheduleAutomaticSearch() {
+    private func scheduleAutomaticSearch(debounced: Bool = true) {
         debounceSearchTask?.cancel()
+        immediateSearchRegion = debounced ? nil : visibleRegion
+        let searchGeneration = requestGeneration
         debounceSearchTask = Task { @MainActor [weak self] in
             guard let debounceCameraSearch = self?.dependencies.debounceCameraSearch else {
                 return
             }
-            try? await debounceCameraSearch()
-            guard !Task.isCancelled else { return }
-            await self?.searchCurrentArea()
+            if debounced {
+                try? await debounceCameraSearch()
+            }
+            guard !Task.isCancelled, let self,
+                  let region = visibleRegion ?? lastCommittedRegion else { return }
+            defer {
+                if !debounced, requestGeneration == searchGeneration {
+                    immediateSearchRegion = nil
+                }
+            }
+            // Calling searchCurrentArea here would cancel this task before the request starts.
+            await fetchMapPoints(for: region)
         }
     }
 

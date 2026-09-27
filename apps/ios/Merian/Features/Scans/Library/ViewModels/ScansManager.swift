@@ -175,7 +175,13 @@ final class ScansManager {
 
     func batchShare(scans: [LocalScanRecord]) async {
         guard !isDownloading, !scans.isEmpty else { return }
-        await dependencies.batchShare(scans)
+        do {
+            try await dependencies.batchShare(scans)
+        } catch {
+            guard !Task.isCancelled else { return }
+            toastMessage = .error(MediaSharePayload.unavailableMessage)
+            dependencies.triggerErrorFeedback()
+        }
     }
 
     func triggerSelectionFeedback() {

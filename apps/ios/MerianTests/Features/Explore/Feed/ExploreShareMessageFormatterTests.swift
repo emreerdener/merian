@@ -3,38 +3,41 @@ import XCTest
 @testable import Merian
 
 final class ExploreShareMessageFormatterTests: XCTestCase {
+    func testPostDestinationIsATypedCanonicalURL() {
+        let url = ExploreShareMessageFormatter.url(postId: "post-123")
+        XCTAssertEqual(url.absoluteString, "https://naturebook.earth/explore/post/post-123")
+        XCTAssertEqual(url.scheme, "https")
+    }
+
     func testImageAndVideoMessagesUseContentFirstCopy() {
         for mediaKind in [ExploreMediaKind.image, .video] {
             XCTAssertEqual(
-                ExploreShareMessageFormatter.message(
+                ExploreShareMessageFormatter.title(
                     commonName: "Northern Cardinal",
-                    postId: "post-123",
                     primaryMediaKind: mediaKind
                 ),
-                "Check out this Northern Cardinal\nhttps://naturebook.earth/explore/post/post-123"
+                "Check out this Northern Cardinal"
             )
         }
     }
 
     func testAudioMessageInvitesRecipientToListen() {
         XCTAssertEqual(
-            ExploreShareMessageFormatter.message(
+            ExploreShareMessageFormatter.title(
                 commonName: "Northern Cardinal",
-                postId: "post-123",
                 primaryMediaKind: .audio
             ),
-            "Listen to this Northern Cardinal\nhttps://naturebook.earth/explore/post/post-123"
+            "Listen to this Northern Cardinal"
         )
     }
 
     func testMissingMediaUsesCheckOutFallback() {
         XCTAssertEqual(
-            ExploreShareMessageFormatter.message(
+            ExploreShareMessageFormatter.title(
                 commonName: "Northern Cardinal",
-                postId: "post-123",
                 primaryMediaKind: nil
             ),
-            "Check out this Northern Cardinal\nhttps://naturebook.earth/explore/post/post-123"
+            "Check out this Northern Cardinal"
         )
     }
 
@@ -59,19 +62,17 @@ final class ExploreShareMessageFormatterTests: XCTestCase {
         ]
 
         XCTAssertEqual(
-            ExploreShareMessageFormatter.message(
+            ExploreShareMessageFormatter.title(
                 commonName: "Northern Cardinal",
-                postId: "post-123",
                 primaryMediaKind: mediaItems.first?.kind
             ),
-            "Check out this Northern Cardinal\nhttps://naturebook.earth/explore/post/post-123"
+            "Check out this Northern Cardinal"
         )
     }
 
     func testMessageExcludesAppScientificLocationAndAuthorCopy() {
-        let message = ExploreShareMessageFormatter.message(
+        let message = ExploreShareMessageFormatter.title(
             commonName: "Northern Cardinal",
-            postId: "post-123",
             primaryMediaKind: .image
         )
 

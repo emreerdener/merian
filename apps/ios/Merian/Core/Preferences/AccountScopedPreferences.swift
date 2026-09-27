@@ -7,6 +7,7 @@ import Foundation
 /// per-species values must not cross into the next authenticated account.
 enum AccountScopedPreferences {
     static let cacheKeyPrefixes: Set<String> = [
+        UserDefaultsKeys.recentPlacesPrefix,
         UserDefaultsKeys.captureGoalContextPrefix,
         UserDefaultsKeys.firstFieldTripAchievementProgressPrefix,
         UserDefaultsKeys.dismissedUnavailableMediaOverviewSignaturePrefix,
@@ -34,6 +35,10 @@ enum AccountScopedPreferences {
     static func purgeAndVerify(
         userDefaults: UserDefaults = .standard
     ) -> Bool {
+        userDefaults.set(
+            userDefaults.integer(forKey: UserDefaultsKeys.recentPlacesResetGeneration) &+ 1,
+            forKey: UserDefaultsKeys.recentPlacesResetGeneration
+        )
         ExploreShareStateStore.clearAll(userDefaults: userDefaults)
         FieldNotesStore.clearAll(userDefaults: userDefaults)
         SpeciesPreferredNameStore.clearAllAccountData(
