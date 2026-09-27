@@ -2072,9 +2072,20 @@ filtered out server-side. Identification timeline rows include a computed
 `role_label` such as `supporting`, `leading`, `maverick`, or `withdrawn` for
 internal consensus/audit behavior; clients should not expose these labels as
 user-facing copy. The response also includes additive `suggested_taxa` for the
-Suggest ID sheet and the detail header card. The top-level `inference_tier`
-mirrors `scans.inference_tier` so clients can label the card as Naturebook Pro
-or Naturebook Flash; missing or unknown tiers should display as Flash. The first
+Suggest ID sheet and the detail header card. The non-null server-derived
+`ai_confidence_qualified` flag says whether the recorded execution is compatible
+with the established Gemini metric interpretation. Legacy SQL-null provenance
+retains existing behavior; unfamiliar present metadata yields `false`. The
+public projection omits the full execution configuration. When false, every
+suggestion's `confidence_score` is null, candidates retain their recorded order,
+and current iOS shows **AI suggestion** without a percentage or Flash/Pro claim.
+When true, `inference_tier` selects the established Naturebook Pro/Flash label.
+Native omission support is only for the older Gemini-only endpoint. The updated
+Edge route rejects a missing/non-boolean flag or unsupported scores; deploy its
+migration first. Its invoker RPC is executable only by the authenticated Edge
+service caller. Before any alternate provider becomes visible publicly, enforce
+compatible supported public-detail clients or a minimum app version; gating new
+identification requests alone does not protect older readers. The first
 suggestion is the request's `ai_initial` taxon, hydrated from the backing scan's
 `ai_confidence_score` and `ai_reasoning` so clients can frame it as Merian's
 starting identification without borrowing human consensus or alternative
@@ -10796,10 +10807,13 @@ Manual service-role calls may also include:
    location, but private backing scans are not promoted into Merian reference
    imagery.
 3. It unnests all non-empty `scans.image_storage_urls`, requires
-   `image_quality_score >= 80` and `ai_confidence_score >= 0.95` by default
-   unless `confirmed_species_id` is present, dedupes by
-   `(species_id, image_url)`, and promotes up to 8 images per species. Public
-   videos are intentionally excluded from Dictionary/reference galleries.
+   `image_quality_score >= 80` and either `ai_confidence_score >= 0.95` or a
+   resolved `confirmed_species_id` by default. Both dry-run and live promotion
+   require compatible recorded Gemini metrics or legacy-null provenance.
+   Confirmation bypasses the species-confidence threshold, never an unfamiliar
+   image-quality scale. The worker dedupes by `(species_id, image_url)`, and
+   promotes up to 8 images per species. Public videos are intentionally excluded
+   from Dictionary/reference galleries.
 4. Public rows use the stable technical `source = "merian"`,
    `license = "Used with permission via Naturebook"`, and
    `attribution = users.public_author_name`. This intentionally preserves the

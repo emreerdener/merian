@@ -382,6 +382,21 @@ function renderSwiftStruct(
       indentation(level + 2)
     }let container = try decoder.container(keyedBy: ${codingKeysType}.self)`,
   );
+  if (node.unknownKeys === "reject") {
+    const allowedKeys = Object.keys(node.fields).map((key) =>
+      JSON.stringify(key)
+    ).join(", ");
+    const bodyIndent = indentation(level + 2);
+    lines.push(
+      `${bodyIndent}let rawContainer = try decoder.container(keyedBy: IdentifyWireCodingKey.self)`,
+      `${bodyIndent}let allowedKeys: Set<String> = [${allowedKeys}]`,
+      `${bodyIndent}guard rawContainer.allKeys.allSatisfy({ allowedKeys.contains($0.stringValue) }) else {`,
+      `${
+        indentation(level + 3)
+      }throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unexpected field in strict identification metadata."))`,
+      `${bodyIndent}}`,
+    );
+  }
   for (const [jsonName, definition] of properties) {
     const identifier = swiftIdentifier(jsonName, definition);
     const baseType = swiftBaseType(definition.contract);
@@ -468,6 +483,13 @@ export function renderGeneratedSwiftDTOBlock(): string {
     GENERATED_SWIFT_BEGIN,
     "// Generated from services/supabase/functions/_shared/identify/contract.ts.",
     "// Do not edit this block by hand; run make generate-edge-dto-contract.",
+    "",
+    "private struct IdentifyWireCodingKey: CodingKey {",
+    "    let stringValue: String",
+    "    var intValue: Int? { nil }",
+    "    init?(stringValue: String) { self.stringValue = stringValue }",
+    "    init?(intValue: Int) { return nil }",
+    "}",
     "",
     ...nested.flatMap((node) => [
       renderSwiftCodingKeys(

@@ -264,6 +264,14 @@ It grants no write operation and does not make the RPC executable by `anon` or
 `service_role` before invocation; an owner-context result is not valid evidence
 for this boundary.
 
+The Community detail projection now has an explicit service-only execute grant
+and remains `SECURITY INVOKER`. Its private metric-compatibility helper is also
+service-only, pure and fixed to an empty search path. Migration
+`20260927004054_qualify_identification_metrics_by_provenance.sql` adds only the
+missing service-role `SELECT` on `user_follows` needed by the existing invoker
+Explore author-profile read. It changes no browser-role grant, table RLS, or
+write privilege. Actual-role integration tests cover both public projections.
+
 ## Migration Execution Contract
 
 CI pins Supabase CLI `2.109.1`, which owns migration transaction and

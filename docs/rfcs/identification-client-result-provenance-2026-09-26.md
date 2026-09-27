@@ -35,9 +35,11 @@ guidance; candidate review stays available, score-only upsells and rewards are
 suppressed, and collection/prompt decisions cannot treat an unfamiliar score as
 qualified. User confirmation remains distinct from model confidence.
 
-Public Explore suggestion projections still lack execution metadata. They are a
-separate remaining activation prerequisite. This slice does not enable OpenAI,
-collect permission, change protocol 3, add pricing rules, or select a provider.
+The subsequent
+[public metric slice](identification-public-metric-compatibility-2026-09-26.md)
+extends these protections to public projections and SQL consumers. This slice
+does not enable OpenAI, collect permission, change protocol 3, add pricing
+rules, or select a provider.
 
 ## Release order and remaining gates
 

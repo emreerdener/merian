@@ -91,8 +91,9 @@ conditions, and citizen science impact:
   - **The Guardian**: Scans tagged with `isInvasive`.
   - **The Toxicologist**: Logging `isPoisonous` plants/fungi.
   - **The Conservationist**: Documenting species protected by the IUCN Red List.
-  - **The Perfect Lens**: Capturing imagery with a `0.98+` Vision Confidence
-    Score.
+  - **The Perfect Lens**: Capturing imagery with a `0.98+` confidence score from
+    a qualified recorded Gemini configuration or historical scan without
+    provenance. Unknown present profiles do not inherit this score meaning.
   - **The Feline Friend**: First domestic cat scan, including accepted
     scientific-name aliases.
   - **The Canine Companion**: First domestic dog scan, including accepted

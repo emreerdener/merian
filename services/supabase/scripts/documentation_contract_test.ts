@@ -4996,7 +4996,18 @@ Deno.test("Field Trip documentation preserves the confidence evidence policy", a
 
   assertStringIncludes(feature, "Flash | `0.75` (75%)");
   assertStringIncludes(feature, "Pro | `0.65` (65%)");
-  assertStringIncludes(feature, "Missing or unknown | `0.75` (75%)");
+  assertStringIncludes(
+    feature,
+    "Legacy missing or unknown tier | `0.75` (75%)",
+  );
+  assertStringIncludes(
+    feature,
+    "`internal.identification_metrics_are_gemini_compatible`",
+  );
+  assertStringIncludes(
+    feature,
+    "Unknown present configurations remain pending review regardless of score.",
+  );
   assertStringIncludes(feature, "`user_confirmed_identification` is true");
   assertStringIncludes(feature, "`confirmed_species_id` is populated");
   assertStringIncludes(feature, "selected-goal preference remains pending");

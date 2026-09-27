@@ -1300,6 +1300,17 @@ The transaction log for every successful identification.
   matching ingestion job. Existing rows remain null; updates, including guessed
   legacy backfills, are rejected. See the
   [provenance record](../rfcs/identification-provider-result-provenance-2026-09-26.md).
+- Metric interpretation: the service-only pure helper
+  `internal.identification_metrics_are_gemini_compatible(jsonb,text)` recognizes
+  the exact existing profiles, including Pro audio comparison B. This is a
+  compatibility rule, not an empirical calibration claim. Migration
+  `20260927004054_qualify_identification_metrics_by_provenance.sql` gates public
+  suggestion scores, Field Trip score credit, Perfect Lens, and both confidence
+  and quality use in automatic reference promotion. Field Trip receipts include
+  the derived flag; the migration reconciles newly ineligible credit and retains
+  explicit confirmation independently of confidence. Existing source scores and
+  immutable provenance are never rewritten. See the
+  [public metric record](../rfcs/identification-public-metric-compatibility-2026-09-26.md).
 - `blur_score` (Float): 0.0 to 1.0. Mathematically derived natively in the Edge
   orchestrator from Gemini's `image_quality.sharpness` score to reduce
   generation latency.
@@ -1526,9 +1537,10 @@ version contains both RPC call sites.
   persisted here. A `CHECK (image_quality_score BETWEEN 0 AND 100)` constraint
   is enforced at the database level. Added in migration
   `20260330150000_add_image_quality_score_to_scans.sql`. `NULL` for all scans
-  captured before this migration — no backfill is performed. Feature is "collect
-  now, use later": scores are gathered for future community reference-photo
-  curation use cases.
+  captured before this migration — no backfill is performed. Automatic reference
+  curation uses this scale only when the recorded execution is compatible with
+  its established Gemini interpretation, or provenance is historically absent.
+  Species confirmation cannot qualify an unfamiliar photographic-quality score.
 - `user_observation_context` (JSONB, nullable): Structured observation context
   staged by the user before submission. On the active multimodal path this is
   the first serialized iOS `ObservationContext` object, currently
@@ -3550,12 +3562,15 @@ coordinates to the client contract.
 - `public.refresh_merian_reference_images(p_quality_threshold INTEGER DEFAULT 80, p_per_species_limit INTEGER DEFAULT 8, p_dry_run BOOLEAN DEFAULT FALSE, p_species_confidence_threshold DOUBLE PRECISION DEFAULT 0.95)`:
   Internal service-role helper used by `/refresh-merian-reference-images`. It
   selects currently visible Explore posts, unnests all non-empty
-  `scans.image_storage_urls`, requires `image_quality_score >= 80` by default,
-  requires `ai_confidence_score >= 0.95` unless `confirmed_species_id` is
-  present, resolves species via `COALESCE(confirmed_species_id, species_id)`,
-  dedupes by `(species_id, image_url)`, promotes up to 8 Merian images per
-  species, and removes Merian public rows whose source content is no longer
-  visible. Public video clips are excluded from Dictionary/reference galleries.
+  `scans.image_storage_urls`, requires compatible recorded Gemini metrics (or
+  historical SQL-null provenance), and requires `image_quality_score >= 80` by
+  default. It requires `ai_confidence_score >= 0.95` unless
+  `confirmed_species_id` is present; confirmation cannot bypass image-quality
+  compatibility. It resolves species via
+  `COALESCE(confirmed_species_id, species_id)`, dedupes by
+  `(species_id, image_url)`, promotes up to 8 Merian images per species, and
+  removes Merian public rows whose source content is no longer visible. Public
+  video clips are excluded from Dictionary/reference galleries.
 - `public.can_view_explore_author_profile(self_id UUID, target_author_user_id UUID)`:
   Returns whether the target author has a visible Explore profile for the
   requester through either a currently visible Explore post or a visible Field
@@ -3812,14 +3827,19 @@ coordinates to the client contract.
 - `public.field_trip_scan_evidence_is_eligible(candidate public.scans)`: Private
   stable invoker used by both progress wrappers. Requires a non-tombstoned,
   non-explicitly-non-biological scan with resolved effective taxonomy, excludes
-  Human taxonomy/overrides and unresolved names, then applies the unchanged
-  scalar confidence helper. Confirmation cannot override the subject guard.
-  Execute is denied to all API roles. Migration
-  `20260924062640_gate_field_trip_progress_by_subject.sql` adds the override to
-  the atomic revision/update trigger and repairs affected historical
+  Human taxonomy/overrides and unresolved names. Automatic score credit also
+  requires `internal.identification_metrics_are_gemini_compatible`; explicit
+  confirmation bypasses that metric gate and the scalar confidence threshold,
+  but cannot override the subject guard. Execute is denied to all API roles.
+  Migration `20260924062640_gate_field_trip_progress_by_subject.sql` adds the
+  override to the atomic revision/update trigger and repairs affected historical
   credit/receipts using the existing reconciliation helpers with ten-second lock
   and five-minute statement timeouts. Valid receipts and selected-goal
-  preferences are preserved.
+  preferences are preserved. The later
+  `20260927004054_qualify_identification_metrics_by_provenance.sql` migration
+  adds provenance-aware eligibility, includes provenance changes in the update
+  trigger, and reconciles newly ineligible credit and receipts through the same
+  locked atomic path with five-second lock and five-minute statement timeouts.
 - `public.remove_ineligible_field_trip_scan_progress(self_id UUID, target_scan_id UUID)`
   and
   `public.remove_ineligible_field_trip_challenge_scan_progress(self_id UUID, target_scan_id UUID)`:
@@ -3836,10 +3856,11 @@ coordinates to the client contract.
   outing and joined Event progress, persists the validated preference, evaluates
   the first Field trip achievement, and writes the receipt in the same
   transaction. Confidence, inference tier, and explicit confirmation are part of
-  the scan revision, along with `user_identification_override`. Any error rolls
-  back every component. Scan-ingestion and evidence-changing correction triggers
-  call this function; the Edge progress action calls it again to retrieve the
-  response for notifications.
+  the scan revision, along with `user_identification_override` and the derived
+  metric-compatibility decision. Any error rolls back every component.
+  Scan-ingestion and evidence-changing correction triggers call this function;
+  the Edge progress action calls it again to retrieve the response for
+  notifications.
 - `public.get_first_field_trip_achievement_progress(self_id UUID)`: Private
   `SECURITY INVOKER` achievement projection executable only by `service_role`.
   The repair migration adds that role's missing read access to

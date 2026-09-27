@@ -6,6 +6,13 @@ import Foundation
 // Generated from services/supabase/functions/_shared/identify/contract.ts.
 // Do not edit this block by hand; run make generate-edge-dto-contract.
 
+private struct IdentifyWireCodingKey: CodingKey {
+    let stringValue: String
+    var intValue: Int? { nil }
+    init?(stringValue: String) { self.stringValue = stringValue }
+    init?(intValue: Int) { return nil }
+}
+
 private enum TaxonomyCodingKeys: String, CodingKey {
     case kingdom
     case phylum
@@ -381,6 +388,11 @@ struct IdentificationProvenanceDTO: Codable {
 
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: GenerationCodingKeys.self)
+            let rawContainer = try decoder.container(keyedBy: IdentifyWireCodingKey.self)
+            let allowedKeys: Set<String> = ["temperature", "seed", "top_k", "max_output_tokens", "thinking_budget"]
+            guard rawContainer.allKeys.allSatisfy({ allowedKeys.contains($0.stringValue) }) else {
+                throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unexpected field in strict identification metadata."))
+            }
             temperature = try container.decode(Double.self, forKey: .temperature)
             seed = try container.decode(Int?.self, forKey: .seed)
             top_k = try container.decode(Int?.self, forKey: .top_k)
@@ -434,6 +446,11 @@ struct IdentificationProvenanceDTO: Codable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        let rawContainer = try decoder.container(keyedBy: IdentifyWireCodingKey.self)
+        let allowedKeys: Set<String> = ["version", "provider", "binding", "model", "variant", "operation", "policy_version", "prompt", "schema", "confidence", "diagnostic_trigger", "prompt_diagnostic_trigger", "safety", "timeout_ms", "generation"]
+        guard rawContainer.allKeys.allSatisfy({ allowedKeys.contains($0.stringValue) }) else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unexpected field in strict identification metadata."))
+        }
         version = try container.decode(Int.self, forKey: .version)
         provider = try container.decode(String.self, forKey: .provider)
         binding = try container.decode(String.self, forKey: .binding)

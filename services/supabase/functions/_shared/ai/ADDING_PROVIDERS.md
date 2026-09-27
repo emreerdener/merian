@@ -83,8 +83,13 @@ observation jobs retain user authority even when a service invokes the worker.
    Gemini scans retain this server configuration independently of the quota
    record. The Identify DTO, owner history and V52 local store now retain it;
    unknown present profiles receive neutral native confidence guidance. Public
-   projections, SQL score decisions and candidate-specific qualification remain
-   separate activation requirements. See the
+   community suggestions now suppress unsupported scores, and SQL metric gates
+   cover Field Trip credit, public Perfect Lens and reference-image promotion.
+   These preserve Gemini meanings; they do not qualify an alternate profile.
+   Public readers need a compatible minimum app version before alternate results
+   become visible; an identification-only protocol gate is insufficient. See the
+   [public metric record](../../../../../docs/rfcs/identification-public-metric-compatibility-2026-09-26.md)
+   and the
    [client provenance record](../../../../../docs/rfcs/identification-client-result-provenance-2026-09-26.md).
    Public jobs require an approved task/model assignment in their service path
    as well. Do not let the registry override a quota-selected model, accept
