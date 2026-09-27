@@ -209,6 +209,9 @@ production submission or public release.
   [alternative-provider evaluation guide](./development-guides/22-alternative-identification-provider.md)
   documents the implemented, production-disabled OpenAI photo/text adapter and
   how to use the existing evaluator for a bounded comparison. The
+  [hosted comparison procedure](./development-guides/23-hosted-identification-comparison.md)
+  reuses GitHub environment secrets and the existing R2 bucket for approved
+  public tests, with conditional claims preventing duplicate paid runs. The
   [first OpenAI pilot](./rfcs/identification-openai-photo-text-pilot-2026-09-25.md)
   retains seven normalized results and one unknown across eight examples,
   including the unmatched-name scoring limitation; production remains Gemini.

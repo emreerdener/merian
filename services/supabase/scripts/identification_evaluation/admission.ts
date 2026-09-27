@@ -126,7 +126,7 @@ export async function validateLiveApproval(
     (pricing.version === "evaluation_openai_pricing_v1") === openai &&
       (readiness.version === "evaluation_openai_processor_v1") === openai,
   );
-  if (readiness.version === "evaluation_openai_processor_v1") {
+  if ("inputPermission" in readiness) {
     check(readiness.inputPermission.corpusDigest === spec.corpusDigest);
     check(
       await fingerprintJson(readiness.inputPermission.caseIds.toSorted()) ===

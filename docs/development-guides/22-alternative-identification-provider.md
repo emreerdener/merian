@@ -102,16 +102,17 @@ password manager. Do not put the key in source, app configuration or artifacts.
 
 The name is intentionally separate from the repository's `OPENAI_API_KEY`, which
 is consumed by the unrelated Agent Quality workflow. Storage alone does not run
-a comparison, synchronize a Supabase secret or enable the provider. No current
-comparison or deployment job reads `NATUREBOOK_OPENAI_API_KEY`; those consumers
-have not been implemented yet.
+a comparison, synchronize a Supabase secret or enable the provider. The manual
+**Compare identification providers** workflow now reads the Naturebook key in
+its protected evaluation steps. Production deployment does not consume it.
 
-The first comparison runs locally, using the existing private source packets and
-persistent run ledger. GitHub-hosted jobs cannot access those files or retain
-local claims across an interrupted job. Adding private packet delivery or a
-self-hosted runner would introduce a separate storage and execution boundary;
-neither is part of this slice. In particular, do not register the owner's Mac as
-a runner just to retrieve the key.
+The first pilot ran locally with a private packet and persistent run ledger. The
+subsequent
+[hosted comparison procedure](./23-hosted-identification-comparison.md) reuses
+the existing public `merian` bucket for owner-approved test exports and durable,
+one-shot experiment claims. It preserves provider-scoped credentials and
+prevents a fresh GitHub runner from repeating an admitted comparison. No
+self-hosted runner or local key retrieval is required for that path.
 
 The local runner requires the same key from the owner's password manager; GitHub
 does not provide a way to read a saved secret back. The terminal launcher below
@@ -210,7 +211,13 @@ The executable owners are `runContracts.ts` and `admission.ts`:
    The same reviewed OpenAI key may serve the app and these benchmarks; a
    separate test project/key is optional. Shared usage consumes the same project
    limits, and the runner's budget accounts only for its own calls. The legacy
-   Gemini readiness contract remains dedicated-project-only.
+   Gemini `evaluation_processor_v1` remains dedicated-project-only. New Gemini
+   runs may use `evaluation_gemini_processor_v1` with `provider: gemini`, an
+   explicit project-kind Boolean and the same exact corpus/case permission
+   structure naming Gemini. This permits the owner's existing paid application
+   project without asserting that it is dedicated; it never approves OpenAI. The
+   [Gemini procedure](../../services/supabase/scripts/identification_evaluation/README.md#future-explicitly-approved-gemini-live-use)
+   owns credential, review, expiry and execution requirements.
 3. Supply `evaluation_openai_pricing_v1`, `provider: openai`, with the model
    page above as `sourceUrl`, USD, `paid_standard_synchronous`, retrieval/review
    references and `includesReasoning: true`. Its single model is `gpt-6-sol`.
@@ -328,6 +335,13 @@ concise candidate. The single result does not establish general cache support or
 qualify production use.
 
 ## Later production assignment
+
+The next development step is the
+[matched Gemini/OpenAI photo/text comparison](../rfcs/identification-gemini-openai-matched-comparison-2026-09-27.md):
+six existing photos and two descriptions, one attempt per provider on identical
+prepared inputs. Its private draft and offline input/profile checks do not
+authorize execution or establish held-out qualification. TestFlight archive and
+released-store upgrade verification remain separate iOS release work.
 
 Production integration is a separate milestone. The first admission slice now
 records an exact Gemini provider/binding/permission assignment per metered

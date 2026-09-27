@@ -31,6 +31,7 @@ import {
   validateLiveApproval,
 } from "./identification_evaluation/admission.ts";
 import {
+  type GeminiReadiness,
   type OpenAIPricing,
   type OpenAIReadiness,
   parseEvaluationPricing,
@@ -399,5 +400,26 @@ Deno.test("OpenAI live approval binds the supplemental input permission independ
   const oldSpec = { ...spec, readinessDigest: await fingerprintJson(old) };
   await assertRejects(() =>
     validateLiveApproval(corpus, oldSpec, pricing, old, credential, now)
+  );
+  const gemini: GeminiReadiness = {
+    ...approved,
+    version: "evaluation_gemini_processor_v1",
+    provider: "gemini",
+    inputPermission: { ...approved.inputPermission, provider: "gemini" },
+  };
+  assertEquals(parseEvaluationReadiness(gemini), gemini);
+  const geminiSpec = {
+    ...spec,
+    readinessDigest: await fingerprintJson(gemini),
+  };
+  await assertRejects(() =>
+    validateLiveApproval(
+      corpus,
+      geminiSpec,
+      pricing,
+      gemini,
+      credential,
+      now,
+    )
   );
 });
