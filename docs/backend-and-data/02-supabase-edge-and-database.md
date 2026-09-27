@@ -1069,10 +1069,13 @@ Key rules:
   `{ "quality_threshold": 80, "species_confidence_threshold": 0.95, "per_species_limit": 8 }`.
 - Selection happens transactionally in
   `public.refresh_merian_reference_images(...)`: visible Explore posts only, all
-  non-empty image URLs from qualifying scans, `image_quality_score >= 80`,
+  non-empty image URLs from scans with compatible recorded Gemini metrics or
+  historical SQL-null provenance, `image_quality_score >= 80`,
   `ai_confidence_score >= 0.95` unless `confirmed_species_id` is present,
   species resolution through `COALESCE(confirmed_species_id, species_id)`, and
-  up to 8 promoted images per species.
+  up to 8 promoted images per species. Confirming a species does not qualify an
+  unknown provider's image-quality score. Dry-run and live selection use the
+  same compatibility gate.
 - Public rows store only `url`, the stable technical `source = "merian"`,
   `license = "Used with permission via Naturebook"`, and the public author label
   in `attribution`. This uses `public_author_name`, not the username handle

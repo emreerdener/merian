@@ -1,4 +1,5 @@
 import { Client } from "https://deno.land/x/postgres@v0.19.3/mod.ts";
+import type { IdentificationProvenance } from "../_shared/ai/provenance.ts";
 import type { PetIdentification } from "../_shared/identify/types.ts";
 
 const DEFAULT_DB_URL =
@@ -171,6 +172,7 @@ type InsertScanOptions = {
   imageUrl?: string;
   imageUrls?: string[];
   aiConfidenceScore?: number;
+  identificationProvenance?: IdentificationProvenance;
   aiReasoning?: string | null;
   inferenceTier?: string;
   imageQualityScore?: number | null;
@@ -186,6 +188,16 @@ export async function insertScan(
   client: Client,
   options: InsertScanOptions,
 ): Promise<void> {
+  if (options.identificationProvenance !== undefined) {
+    await client.queryArray(
+      "INSERT INTO public.scan_ingestion_jobs (scan_id, user_id, endpoint, identification_provenance) VALUES ($1, $2, 'identify-multimodal', $3::JSONB)",
+      [
+        options.id,
+        options.userId,
+        JSON.stringify(options.identificationProvenance),
+      ],
+    );
+  }
   await client.queryArray(
     `
       INSERT INTO public.scans (

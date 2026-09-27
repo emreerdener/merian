@@ -1,6 +1,10 @@
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { prepareAIExecution } from "../_shared/ai/production.ts";
 import {
+  prepareSharedSpeciesContent,
+  sharedSpeciesContentKey,
+} from "../_shared/ai/sharedContent.ts";
+import {
   jsonResponse,
   runBackground,
   withEdgeHandler,
@@ -134,6 +138,28 @@ export function createEnrichHandler(prepare = prepareAIExecution) {
       supabaseAdmin,
     );
     const speciesId = cachedSpecies?.id ?? null;
+    const contentRequest = scope === "enrichment"
+      ? {
+        task: "species_overview" as const,
+        variant: "species_content" as const,
+        scientificName: scientific_name,
+        locale: "en",
+      }
+      : {
+        task: "lookalikes" as const,
+        variant: "species_content" as const,
+        scientificName: scientific_name,
+        taxonomy: {
+          kingdom: cachedSpecies?.kingdom,
+          class: cachedSpecies?.class,
+          order: cachedSpecies?.order,
+          family: cachedSpecies?.family,
+        },
+      };
+    const inFlightKey = sharedSpeciesContentKey(
+      contentRequest,
+      speciesId ?? scientific_name,
+    );
 
     // ── ENRICHMENT SCOPE ──────────────────────────────────────────────────────
     if (scope === "enrichment") {
@@ -202,7 +228,7 @@ export function createEnrichHandler(prepare = prepareAIExecution) {
 
       // Singleflight guard — if another request is already enriching this species on this
       // isolate, wait for it to finish and return the now-cached result without a second call.
-      const inFlightEnrichment = _enrichmentInFlight.get(scientific_name);
+      const inFlightEnrichment = _enrichmentInFlight.get(inFlightKey);
       if (inFlightEnrichment) {
         try {
           await inFlightEnrichment;
@@ -244,22 +270,17 @@ export function createEnrichHandler(prepare = prepareAIExecution) {
       // The first caller can fail without a waiter. Observe that rejection
       // while preserving the rejected original promise for any waiting caller.
       void enrichmentInFlight.catch(() => {});
-      _enrichmentInFlight.set(scientific_name, enrichmentInFlight);
+      _enrichmentInFlight.set(inFlightKey, enrichmentInFlight);
       let providerAttempted = false;
 
       try {
-        const execution = prepare({
-          task: "species_overview",
-          variant: "species_content",
-          scientificName: scientific_name,
-          locale: "en",
-        }, {
+        const execution = prepareSharedSpeciesContent(contentRequest, {
           kind: "user_request",
           userId: _user.id,
           permission: "google_gemini",
           operation: "scan_overview_enrichment",
           reservation: quotaLease.reservation,
-        });
+        }, prepare);
         await quotaLease.commit();
         providerAttempted = true;
         const enrichmentResult = await fetchStaticEncyclopedicData(
@@ -331,7 +352,7 @@ export function createEnrichHandler(prepare = prepareAIExecution) {
           : "Failed to process enrichment.";
         return jsonResponse({ success: false, error: message }, 500);
       } finally {
-        _enrichmentInFlight.delete(scientific_name);
+        _enrichmentInFlight.delete(inFlightKey);
       }
     }
 
@@ -454,7 +475,7 @@ export function createEnrichHandler(prepare = prepareAIExecution) {
 
     // Singleflight guard — wait for any in-flight lookalikes Flash call on this isolate
     // and return the persisted result rather than firing a duplicate Gemini call.
-    const inFlightLookalikes = _lookalikesInFlight.get(scientific_name);
+    const inFlightLookalikes = _lookalikesInFlight.get(inFlightKey);
     if (inFlightLookalikes) {
       try {
         await inFlightLookalikes;
@@ -495,27 +516,17 @@ export function createEnrichHandler(prepare = prepareAIExecution) {
       rejectLookalikesInFlight = reject;
     });
     void lookalikesInFlight.catch(() => {});
-    _lookalikesInFlight.set(scientific_name, lookalikesInFlight);
+    _lookalikesInFlight.set(inFlightKey, lookalikesInFlight);
     let providerAttempted = false;
 
     try {
-      const execution = prepare({
-        task: "lookalikes",
-        variant: "species_content",
-        scientificName: scientific_name,
-        taxonomy: {
-          kingdom: cachedSpecies?.kingdom,
-          class: cachedSpecies?.class,
-          order: cachedSpecies?.order,
-          family: cachedSpecies?.family,
-        },
-      }, {
+      const execution = prepareSharedSpeciesContent(contentRequest, {
         kind: "user_request",
         userId: _user.id,
         permission: "google_gemini",
         operation: "scan_lookalike_enrichment",
         reservation: quotaLease.reservation,
-      });
+      }, prepare);
       await quotaLease.commit();
       providerAttempted = true;
       let validatedSimilarResult: {
@@ -627,7 +638,7 @@ export function createEnrichHandler(prepare = prepareAIExecution) {
         : "Failed to process lookalikes.";
       return jsonResponse({ success: false, error: message }, 500);
     } finally {
-      _lookalikesInFlight.delete(scientific_name);
+      _lookalikesInFlight.delete(inFlightKey);
     }
   };
 }

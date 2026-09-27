@@ -1,3 +1,7 @@
+import {
+  geminiMetricProvenance,
+  unqualifiedMetricProvenance,
+} from "../_tests/identificationMetricsTestFixtures.ts";
 import { assertEquals, assertStringIncludes } from "@std/assert";
 import {
   buildFieldNotesSummaryPrompt,
@@ -23,6 +27,8 @@ const scan: ChatScanContext = {
   time_of_day: "7:15 AM",
   depth_scale_text: "0.8 meters",
   ai_confidence_score: 0.91,
+  inference_tier: "flash",
+  identification_provenance: null,
   ai_reasoning:
     "Orange wings with black veins support the butterfly identification.",
   extracted_visual_traits: [
@@ -435,4 +441,72 @@ Deno.test("prompt suggestion prompt uses history and safety constraints", () => 
   assertStringIncludes(prompt, "Do not ask for edible certainty");
   assertStringIncludes(prompt, "exact GPS/location details");
   assertStringIncludes(prompt, "lookalike_compare");
+});
+
+Deno.test("chat keeps qualified or legacy metrics and preserves observations without unfamiliar scores", () => {
+  const observed = {
+    ...scan,
+    sex_confidence: 0.7321,
+    invasive_confidence: 0.8642,
+    ai_confidence_score: 0.9765,
+    image_quality_score: 93,
+    candidates: [{
+      scientific_name: "Danaus gilippus",
+      common_name: "Queen",
+      distinguishing_feature: "Fewer dark veins",
+      confidence_score: 0.5432,
+      future_nested: { confidence_score: 0.6543 },
+    }],
+    user_confirmed_identification: true,
+  };
+  for (const provenance of [null, geminiMetricProvenance()]) {
+    const block = buildScanContextBlock({
+      ...observed,
+      identification_provenance: provenance,
+    });
+    assertStringIncludes(block, "AI Confidence: 0.9765");
+    assertStringIncludes(block, "Image Quality Score: 93");
+    assertStringIncludes(block, "0.5432");
+  }
+  for (
+    const provenance of [undefined, {}, unqualifiedMetricProvenance(), {
+      ...geminiMetricProvenance(),
+      policy_version: 2,
+    }]
+  ) {
+    const block = buildScanContextBlock({
+      ...observed,
+      identification_provenance: provenance,
+    });
+    for (
+      const value of [
+        "0.9765",
+        "Image Quality Score: 93",
+        "0.7321",
+        "0.8642",
+        "0.5432",
+        "0.6543",
+        "confidence_score",
+        "future_nested",
+        "gemini_baseline_v1",
+        "future-provider",
+      ]
+    ) {
+      assertEquals(block.includes(value), false);
+    }
+    for (
+      const value of [
+        "AI Confidence: Unavailable",
+        "Image Quality Score: Unavailable",
+        "Danaus gilippus",
+        "Fewer dark veins",
+        "User Confirmed ID: Yes",
+        "Orange wings",
+        "Blur Score: 0.12",
+        "Zoom Factor: 2x",
+      ]
+    ) {
+      assertStringIncludes(block, value);
+    }
+  }
 });

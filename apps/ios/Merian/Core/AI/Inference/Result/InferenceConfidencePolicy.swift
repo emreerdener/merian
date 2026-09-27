@@ -48,7 +48,7 @@ extension IdentificationResultProvenance {
               value.version == 1,
               value.provider == "gemini",
               value.binding == "gemini_baseline_v1",
-              value.policy_version > 0,
+              value.policy_version == 1,
               value.timeout_ms == 90_000,
               tier == "flash" || tier == "pro",
               value.model == (tier == "pro" ? "gemini-2.5-pro" : "gemini-2.5-flash"),

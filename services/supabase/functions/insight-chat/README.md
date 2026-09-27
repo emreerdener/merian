@@ -73,6 +73,16 @@ access.
 Do not add raw image bytes, R2 object keys, cloud image URLs, Explore comments,
 public post metadata, or Darwin Core export payloads to the prompt.
 
+Saved inference tier and execution provenance are read only to qualify metric
+interpretation. Legacy SQL-null and exact known Gemini configurations at policy
+version 1 retain their existing scores. Missing or unknown metadata omits
+primary, candidate, sex/invasive confidence and model image-quality values from
+answers, suggestions and field-note context. Bounded candidate names/features
+and other saved evidence remain usable; confirmation does not qualify a model
+score. Full provider configuration never enters the prompt. Local blur and zoom
+values remain capture measurements. The shared predicate is tested against the
+SQL compatibility policy.
+
 ## Rollout and Limits
 
 - Apply `20260729163616_reserve_field_chat_sends_atomically.sql` before

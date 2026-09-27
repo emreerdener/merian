@@ -186,3 +186,30 @@ Deno.test("null taxonomy rows remain exportable", async () => {
   assertEquals(scientificName, "");
   assert(!result.occurrenceRow.includes("undefined"));
 });
+
+Deno.test("DwC-A renders frozen confidence only when its snapshot qualifies or predates the flag", async () => {
+  const userId = "00000000-0000-4000-8000-000000000402";
+  for (const scope of ["personal", "global"] as const) {
+    for (const qualified of [undefined, true, false]) {
+      const result = await generateDwcARow(
+        {
+          id: "synthetic-metric-scan",
+          user_id: userId,
+          ai_confidence_score: 0.987,
+          ...(qualified === undefined
+            ? {}
+            : { ai_confidence_qualified: qualified }),
+        },
+        scope,
+        false,
+        userId,
+        pseudonymizer,
+      );
+      const fields = splitCsvRow(result.occurrenceRow).map(unquote);
+      assertEquals(fields[19], qualified === false ? "" : "0.99");
+      assertEquals(fields[0], "synthetic-metric-scan");
+      assertEquals(fields.length, 20);
+      assertEquals(result.occurrenceRow.includes("qualified"), false);
+    }
+  }
+});

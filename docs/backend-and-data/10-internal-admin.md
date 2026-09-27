@@ -340,6 +340,32 @@ trigger. Deleting an account clears user, scan, conversation, message, source,
 and identifying metadata linkage while retaining anonymous cost and usage
 aggregates.
 
+New primary scan events use the model and bounded provider, binding, policy,
+prompt and schema references from immutable `identification_provenance`. Only
+SQL-null legacy provenance infers Gemini from the tier, with explicit
+`legacy_tier` attribution. The ledger operation stays `scan_identification` so
+existing primary-scan totals include compatibility routes. Historical entries
+are not rewritten; account anonymization preserves these content-free execution
+facts.
+
+Pricing is restricted to the Gemini token contract, a known input modality,
+present prompt/candidate counts, and cached counts no larger than prompt counts.
+An explicit different/unknown provider or unreviewed usage contract cannot
+inherit a Gemini tariff, even with an identical model name. Missing tariffs or
+incomplete usage leave both estimate and pricing version null. Omitted optional
+cached/thinking/tool counts retain the existing Gemini estimate semantics; this
+is not invoice reconciliation or a new provider's usage-unit mapping.
+
+Overview and AI Usage return `priced_events` and `unpriced_events` alongside
+total/daily numeric cost sums. Sums include only priced events; zero can mean no
+usage or no available prices. The admin UI displays pricing coverage beside
+every estimate and shows unavailable when no events are priced. Older payloads
+lacking coverage also show unavailable. AI Usage additionally returns up to 50
+aggregate provider/model/attribution groups and an explicit truncation flag; all
+groups remain in the totals. Recorded execution and inferred legacy attribution
+are labeled separately. Versioned five-minute cache keys prevent old payloads
+from hiding coverage, with authorization checked before every cache read.
+
 Pricing rows are effective-dated by exact model and modality. The initial Gemini
 2.5 Flash/Pro values mirror Google's Standard paid-tier table as checked on
 2026-07-19. Estimates charge non-cached input at prompt price, cached input at

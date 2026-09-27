@@ -6,6 +6,7 @@ import {
 } from "../_shared/biology.ts";
 import { recordAIUsageBestEffort } from "../_shared/aiUsage.ts";
 import { prepareAIExecution } from "../_shared/ai/production.ts";
+import { prepareSharedSpeciesContent } from "../_shared/ai/sharedContent.ts";
 import type { SpeciesContentAIRequest } from "../_shared/ai/contracts.ts";
 import { updateGroupTags } from "../_shared/identify/db.ts";
 import { hasUsableLookalikeTaxonomy } from "../_shared/taxonomy.ts";
@@ -217,7 +218,7 @@ function prepareClaimedContent(
   request: SpeciesContentAIRequest,
   dependencies: SpeciesModelContentDependencies,
 ) {
-  return (dependencies.prepareAI ?? prepareAIExecution)(request, {
+  return prepareSharedSpeciesContent(request, {
     kind: "service_job",
     task: job.content_group === "habitat"
       ? "species_overview"
@@ -227,7 +228,7 @@ function prepareClaimedContent(
     attemptCount: job.attempts,
     maxAttempts: job.max_attempts,
     model: "gemini-2.5-flash",
-  });
+  }, dependencies.prepareAI ?? prepareAIExecution);
 }
 
 async function refreshHabitat(

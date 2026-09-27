@@ -101,6 +101,11 @@ Deno.test("Swift generation owns nested structure, types, keys, and decoders", (
     /\? try container\.decode\(IdentificationProvenanceDTO\.self, forKey: \.identification_provenance\) : nil/,
   );
   assert.match(generated, /struct IdentificationCandidate: Codable/);
+  assert.strictEqual(
+    generated.match(/rawContainer\.allKeys\.allSatisfy/g)?.length,
+    2,
+    "Only the two strict provenance objects reject unknown wire keys",
+  );
   assert.match(
     generated,
     /private enum TaxonomyCodingKeys: String, CodingKey/,

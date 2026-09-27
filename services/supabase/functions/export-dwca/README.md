@@ -60,6 +60,14 @@ present and otherwise falls back to the original AI `species_id`. Exact GPS
 fields are persisted only for a personal job that explicitly requested them and
 whose snapshot taxonomy did not require protected-species redaction.
 
+New occurrence snapshots also freeze `ai_confidence_qualified` using the private
+identification metric predicate. The worker validates a present boolean and
+leaves the confidence-derived `identificationVerificationStatus` blank when it
+is false. Older immutable snapshots without the field retain legacy behavior; no
+queued/completed snapshot is rewritten. The flag and full model configuration
+are not exported as new columns. Deploy the matching worker before any alternate
+result can be exported; an older worker would ignore the new flag.
+
 All creation-time members have their scope-aware eligibility hash revalidated
 before assembly, staging, email, completion, and every download click. Durable
 scan/taxonomy triggers invalidate every affected unpurged snapshot without

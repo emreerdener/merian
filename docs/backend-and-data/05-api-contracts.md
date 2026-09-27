@@ -2080,9 +2080,20 @@ filtered out server-side. Identification timeline rows include a computed
 `role_label` such as `supporting`, `leading`, `maverick`, or `withdrawn` for
 internal consensus/audit behavior; clients should not expose these labels as
 user-facing copy. The response also includes additive `suggested_taxa` for the
-Suggest ID sheet and the detail header card. The top-level `inference_tier`
-mirrors `scans.inference_tier` so clients can label the card as Naturebook Pro
-or Naturebook Flash; missing or unknown tiers should display as Flash. The first
+Suggest ID sheet and the detail header card. The non-null server-derived
+`ai_confidence_qualified` flag says whether the recorded execution is compatible
+with the established Gemini metric interpretation. Legacy SQL-null provenance
+retains existing behavior; unfamiliar present metadata yields `false`. The
+public projection omits the full execution configuration. When false, every
+suggestion's `confidence_score` is null, candidates retain their recorded order,
+and current iOS shows **AI suggestion** without a percentage or Flash/Pro claim.
+When true, `inference_tier` selects the established Naturebook Pro/Flash label.
+Native omission support is only for the older Gemini-only endpoint. The updated
+Edge route rejects a missing/non-boolean flag or unsupported scores; deploy its
+migration first. Its invoker RPC is executable only by the authenticated Edge
+service caller. Before any alternate provider becomes visible publicly, enforce
+compatible supported public-detail clients or a minimum app version; gating new
+identification requests alone does not protect older readers. The first
 suggestion is the request's `ai_initial` taxon, hydrated from the backing scan's
 `ai_confidence_score` and `ai_reasoning` so clients can frame it as Merian's
 starting identification without borrowing human consensus or alternative
@@ -6977,7 +6988,13 @@ rejection reaches waiters and a new attempt requires fresh admission. An
 observer also handles failures when no waiter exists. Existing usage writes add
 bounded task/provider/version/duration/outcome metadata. Internal execution
 metadata is excluded by the public response formatters; no request or response
-field changes.
+field changes. The independent `sharedContent.ts` acceptance guard requires the
+retained Gemini content profiles before quota commitment; unsupported profiles
+refund without invocation. This guard covers foreground enrichment, optional
+group tags and claimed public refresh jobs. Existing canonical cache content is
+not relabeled or invalidated. Warm-isolate coalescing uses task/profile
+namespace, canonical species ID (or name fallback), exact input name, locale and
+taxonomy fields, so materially different inputs do not share a pending result.
 
 **Scoped Cache Hits**: Each request checks its own cache requirements and
 returns only that scope's fields without AI work when satisfied. A metadata
@@ -7382,6 +7399,14 @@ scan, including after an identification correction. They do not establish
 physical measurements without supporting scale evidence or imply fresh image
 inspection. This internal context addition requires no HTTP payload change, scan
 backfill, or extra AI call; Explore and Dictionary projections are unchanged.
+
+Private Field Chat also reads the saved inference tier and result provenance to
+qualify metric interpretation. Only historical SQL-null or exact qualified
+Gemini configurations at policy version 1 keep primary/candidate, sex/invasive
+confidence and model image-quality values. Unknown or missing metadata supplies
+unavailable metric values and bounded descriptive candidate names/features.
+Stored observations, reasoning, confirmation and local blur/zoom remain usable.
+Full execution configuration is not added to any prompt.
 
 Location-aware answers may use only the saved private location label, month,
 elevation, ecology type, and weather. The prompt explicitly forbids inferring,
@@ -10183,6 +10208,12 @@ This empty-body contract is also bounded by the shared small JSON reader.
   cardinality/URL size, interaction-array cardinality/element size, and selected
   taxonomy text in UTF-8 bytes. Failed jobs purge immutable source DTOs;
   completed DTOs remain only through their live grant and verified cleanup.
+- New immutable occurrence DTOs freeze the private `ai_confidence_qualified`
+  boolean beside the source score. The worker rejects malformed present flags,
+  leaves confidence-derived `identificationVerificationStatus` blank for false,
+  and preserves old snapshots whose flag is absent. It adds no public provider
+  metadata or new archive columns, and does not reinterpret existing jobs using
+  current routing. Deploy the matching worker before alternate results exist.
 - Opaque application capability URLs remain in API-inaccessible work state while
   processing. The final full-fence transaction publishes `file_url` and
   `completed` status atomically. The capability points to `download-dwca`, never
@@ -10806,10 +10837,13 @@ Manual service-role calls may also include:
    location, but private backing scans are not promoted into Merian reference
    imagery.
 3. It unnests all non-empty `scans.image_storage_urls`, requires
-   `image_quality_score >= 80` and `ai_confidence_score >= 0.95` by default
-   unless `confirmed_species_id` is present, dedupes by
-   `(species_id, image_url)`, and promotes up to 8 images per species. Public
-   videos are intentionally excluded from Dictionary/reference galleries.
+   `image_quality_score >= 80` and either `ai_confidence_score >= 0.95` or a
+   resolved `confirmed_species_id` by default. Both dry-run and live promotion
+   require compatible recorded Gemini metrics or legacy-null provenance.
+   Confirmation bypasses the species-confidence threshold, never an unfamiliar
+   image-quality scale. The worker dedupes by `(species_id, image_url)`, and
+   promotes up to 8 images per species. Public videos are intentionally excluded
+   from Dictionary/reference galleries.
 4. Public rows use the stable technical `source = "merian"`,
    `license = "Used with permission via Naturebook"`, and
    `attribution = users.public_author_name`. This intentionally preserves the
@@ -11085,6 +11119,21 @@ Every remaining RPC calls `internal.require_admin`, which verifies:
 the requested IANA timezone; AI summary daily rows currently use database time.
 `p_scan_scope` is `primary` or `all_scan_related`. Authorized results are cached
 for five minutes by the full filter key; `p_refresh = true` bypasses the cache.
+
+Both RPCs add `priced_events` and `unpriced_events` beside `events` and
+`estimated_cost_microusd` in each AI total and daily row; Overview includes the
+same fields in `previous_period`. The numeric sum includes only known prices.
+Consumers must distinguish zero events, zero priced events, and a partial sum;
+missing coverage fields must not imply full coverage. AI Usage adds
+`provider_usage`, at most 50 aggregate objects containing `provider`, `model`,
+`attribution`, `events`, `total_tokens`, both coverage counts and the cost sum.
+`provider_groups_truncated` signals omitted groups, which still count in totals.
+Attribution is `saved_result`, `legacy_tier`, `execution_metadata`,
+`legacy_model`, or `unknown`. Provider identity is a bounded configuration
+label, never an owner identifier. No raw ledger row or observation content is
+returned. New versioned cache keys retain the five-minute TTL and
+authorization-before-cache behavior. AI Usage encodes the complete filter tuple
+structurally, preserving delimiters and distinguishing null from a literal `*`.
 
 ### Review RPCs
 

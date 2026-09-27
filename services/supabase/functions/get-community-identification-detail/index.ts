@@ -1,3 +1,4 @@
+import { assertCommunityConfidenceProjection } from "../_shared/communityIdentification.ts";
 import { jsonResponse, withEdgeHandler } from "../_shared/edgeHandler.ts";
 import { parseJsonBody, requireParams } from "../_shared/http.ts";
 import {
@@ -35,6 +36,8 @@ Deno.serve((req: Request) =>
     if (!row) {
       return jsonResponse({ error: "Community request not found" }, 404);
     }
+
+    assertCommunityConfidenceProjection(row);
 
     const [withBadges] = await withExploreAuthorUsernames(
       await withExplorePostMediaItems(

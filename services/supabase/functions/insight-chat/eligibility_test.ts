@@ -37,6 +37,8 @@ function scan(
     current_month: null,
     time_of_day: null,
     depth_scale_text: null,
+    inference_tier: "flash",
+    identification_provenance: null,
     ai_confidence_score: null,
     ai_reasoning: null,
     extracted_visual_traits: null,

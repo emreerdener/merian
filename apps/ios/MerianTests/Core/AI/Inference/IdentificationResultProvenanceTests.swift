@@ -57,6 +57,27 @@ struct IdentificationResultProvenanceTests {
         #expect(!IdentificationResultProvenance(storedData: try JSONSerialization.data(withJSONObject: damaged)).supportsGeminiBands(forInferenceTier: "flash"))
     }
 
+    @Test(arguments: [false, true])
+    func unexpectedMetadataKeysCannotInheritGeminiConfidence(nested: Bool) async throws {
+        var object = metadata()
+        if nested {
+            var generation = try #require(object["generation"] as? [String: Any])
+            generation["future_setting"] = 1
+            object["generation"] = generation
+        } else {
+            object["future_setting"] = 1
+        }
+        let stored = IdentificationResultProvenance(storedData: try JSONSerialization.data(withJSONObject: object))
+        #expect(!stored.supportsGeminiBands(forInferenceTier: "flash"))
+        // Wire decoding must reject the extra field before DTO re-encoding could
+        // erase it and accidentally turn future metadata into a known profile.
+        await #expect(throws: MerianError.decodingFailed) {
+            try await InferenceResponsePreparationService.live.prepare(
+                resultData: envelope(metadata: object), telemetry: nil,
+                audioFilePaths: nil, videoFilePaths: nil, expectedScanId: nil)
+        }
+    }
+
     @Test func existingAdmittedAudioExperimentRetainsProBandsOnly() throws {
         var object = metadata(pro: true)
         object["prompt"] = "identify_audio_uncertainty_experiment_v1"
@@ -72,6 +93,7 @@ struct IdentificationResultProvenanceTests {
             ("binding", "future_binding_v1"), ("prompt", "future_prompt_v1"),
             ("schema", "future_schema_v1"), ("confidence", "future_confidence_v1"),
             ("operation", "unknown"), ("variant", "unknown"), ("version", 2),
+            ("policy_version", 2),
             ("diagnostic_trigger", 0.5)]
         for (key, value) in changes {
             var object = metadata(); object[key] = value

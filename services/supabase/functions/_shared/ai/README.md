@@ -250,10 +250,34 @@ records usage with a null owner. The registry checks supplied claim facts; it
 does not replace the authenticated claim RPC or authorize private observation
 work.
 
+## Shared content qualification
+
+`sharedContent.ts` owns the independent acceptance boundary for shared species
+content. Enrichment, optional group tags and claimed public jobs use its
+prepared execution wrapper before committing quota or invoking. The biology
+helpers also check the snapshot. Only existing Gemini
+task/binding/model/prompt/schema and exact generation profiles qualify; changed
+or unknown fields are rejected. Overview remains English. Updating the
+assignment registry alone cannot qualify an alternate profile for these
+canonical writers.
+
+Existing public dictionary content retains its baseline interpretation without
+invalidation or an invented historical execution identity. Warm-isolate keys
+include the baseline namespace, task, canonical species identity, input name,
+locale and lookalike taxonomy dimensions. These keys are not durable provenance.
+Private candidate storage and task-specific promotion remain necessary if
+another content provider is introduced; see the
+[shared-content record](../../../../../docs/rfcs/identification-shared-content-qualification-2026-09-26.md).
+
 ## Usage and diagnostics
 
 Returned token counts retain Gemini's existing interpretation, including null
-for missing counts; modality breakdown and scan-row accounting are unchanged.
+for missing counts; modality breakdown retains its existing meaning. New primary
+scan ledger entries use saved execution model/provider references; absent legacy
+provenance alone falls back to tier-derived Gemini attribution. Historical rows
+remain unchanged. Pricing eligibility is Gemini-contract-specific and unknown
+prices remain null. Admin aggregates expose priced/unpriced coverage; see the
+[accounting record](../../../../../docs/rfcs/identification-provider-usage-attribution-2026-09-26.md).
 The image compatibility route retains cached-token counts; legacy audio keeps
 its existing null cached-token scan field. Bounded execution/version fields are
 added to the existing optional `ScanCompleted` telemetry for image/description,
@@ -335,3 +359,16 @@ confidence, usage, cache, and activation work. The app owns a private
 complete-input routing catalog, currently seeded only with Gemini. There is no
 end-user provider selector or percentage-routing control. The OpenAI adapter is
 available only to explicitly gated local evaluation.
+
+## Metric interpretation
+
+`metricCompatibility.ts` is the pure exact-profile owner for existing Gemini
+metric meanings in private Insight Chat. It shares qualified policy version 1
+and profile semantics with SQL `identification_metrics_are_gemini_compatible`
+and native `InferenceConfidencePolicy`; database tests compare the TypeScript
+and SQL results against actual registry snapshots. Unknown metadata cannot
+inherit known score meanings. Field Chat removes unqualified numeric metrics
+while keeping descriptive evidence. New immutable export snapshots freeze the
+SQL predicate's boolean for the DwC-A worker. See the
+[chat/export record](../../../../../docs/rfcs/identification-chat-export-metrics-2026-09-26.md)
+for compatibility, rollout and verification.

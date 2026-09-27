@@ -445,6 +445,15 @@ corrections. A confidence, inference-tier, or confirmation downgrade that makes
 the evidence weak and unconfirmed removes its credit and can reopen a completed
 experience.
 
+Recorded unfamiliar AI profiles cannot qualify by score alone. The existing
+explicit confirmation/corrected-species path remains available only for a valid
+resolved non-human biological subject. The atomic receipt revision includes the
+server-derived compatibility flag, and the update trigger includes provenance.
+The metric-compatibility migration reconciles newly ineligible historical credit
+through that same atomic path before extending retained valid receipt revisions.
+Legacy-null provenance keeps its prior meaning. This does not activate a new
+provider or change the numeric Gemini thresholds.
+
 The two `first_field_trip_achievement*` response fields are additive and may be
 absent when the caller has no completed outing or challenge. The payload always
 describes the earliest qualifying completion. `newly_unlocked` is true only when

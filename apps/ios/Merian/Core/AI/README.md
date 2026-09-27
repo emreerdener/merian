@@ -1340,10 +1340,13 @@ into `SpeciesData` and owns DTO decoding. The shared
 `Models/Species/IdentificationResultProvenance.swift` value preserves
 content-free JSON without depending on generated DTOs.
 `InferenceConfidencePolicy` recognizes only exact known Gemini execution
-profiles and returns no bands for unknown or damaged present values; absence
-retains legacy interpretation. The saved scan factory, V52 local model, history
-DTO/query and historical projection retain the same metadata. Confidence labels,
-diagnostics/candidates, score-based upsell, collection suggestions, prompt
-actions and perfect-scan rewards gate their score interpretation on this
-compatibility decision. These rules preserve existing Gemini behavior; they do
-not establish calibrated probabilities for any model.
+profiles at qualified policy version 1 and returns no bands for unknown or
+damaged present values; absence retains legacy interpretation. Generated
+provenance decoders enforce the executable contract's rejection of unknown
+fields, including generation settings, before DTO encoding can erase them. The
+saved scan factory, V52 local model, history DTO/query and historical projection
+retain the same metadata. Confidence labels, diagnostics/candidates, score-based
+upsell, collection suggestions, prompt actions and perfect-scan rewards gate
+their score interpretation on this compatibility decision. These rules preserve
+existing Gemini behavior; they do not establish calibrated probabilities for any
+model.

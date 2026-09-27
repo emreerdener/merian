@@ -319,7 +319,13 @@ third-party analytics request occurs in browser network tools.
 - Generate one scan and one Field reply. Confirm ledger events include the
   expected token fields and no prompt/response content.
 - Refresh Overview/AI Usage and confirm five-minute cache separation by filter,
-  complete-coverage labeling, and estimated-cost pricing version.
+  complete-coverage labeling, and estimated-cost pricing version. Confirm priced
+  and unpriced event counts agree with totals/daily groups; the displayed priced
+  estimate is partial whenever unpriced events exist. New scan attribution must
+  use saved execution metadata, with only legacy rows labeled inferred. Verify
+  an unsupported provider/model remains unpriced, including a model-name
+  collision. AI Usage shows at most 50 provider groups and labels truncation
+  while retaining complete filtered totals.
 - Open `/complimentary-entitlements` as an AAL2 Analyst. Confirm the grant is
   exactly three; state totals, balance histogram, in-flight total, stale-hold
   ages, settlement reasons, Flash fallback, exhaustion, and paid-exhaustion
@@ -348,6 +354,18 @@ events have used it.
    before and at the cutover chooses the intended version.
 5. Do not recompute historical event estimates unless a documented correction
    migration explicitly requires it.
+
+Provider coverage is an additive migration/UI contract. Deploy the migration and
+updated admin pages before evaluating alternative production costs. Updated
+pages tolerate an older backend by showing unavailable; old pages do not explain
+partial sums. No historical estimate or price changes in this attribution slice.
+
+Adding another provider requires a reviewed native-unit mapping and explicit
+pricing eligibility, not just adding its model name to the price table. Review
+cached reads/writes, reasoning, tool and media units and effective dates
+together. The current production writer accepts only the Gemini token pricing
+contract; unsupported usage remains unpriced. Preserve one accounting owner per
+call and existing failed/uncertain-attempt coverage limits.
 
 When a model introduces pricing the schema cannot represent, extend the schema
 and tests before using that model in production. Do not force a long-context,
