@@ -51,6 +51,7 @@ queue_upload_dispatch_source="$repo_root/apps/ios/Merian/Core/Data/OfflineSync/S
 queue_inference_dispatch_source="$repo_root/apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundInference/OfflineQueueManager+InferenceDispatch.swift"
 queue_inference_watchdog_source="$repo_root/apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundInference/OfflineQueueManager+InferenceWatchdog.swift"
 queue_inference_recovery_source="$repo_root/apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundInference/OfflineQueueManager+InferenceRecovery.swift"
+queue_inference_hydration_source="$repo_root/apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundInference/OfflineQueueManager+InferenceHydration.swift"
 queue_inference_reconciliation_source="$repo_root/apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundInference/OfflineQueueManager+InferenceReconciliation.swift"
 queue_inference_retry_source="$repo_root/apps/ios/Merian/Core/Data/OfflineSync/Services/BackgroundInference/OfflineQueueManager+InferenceRetry.swift"
 background_database_upload_lifecycle_source="$repo_root/apps/ios/Merian/Core/Data/Database/BackgroundDatabaseActor+UploadLifecycle.swift"
@@ -1129,7 +1130,11 @@ assert_file_count \
   "allowsAutomaticNetworkWorkOnCurrentPath"
 assert_file_count \
   "$queue_inference_recovery_source" \
-  8 \
+  6 \
+  "allowsAutomaticNetworkWorkOnCurrentPath"
+assert_file_count \
+  "$queue_inference_hydration_source" \
+  2 \
   "allowsAutomaticNetworkWorkOnCurrentPath"
 assert_file_count \
   "$queue_inference_reconciliation_source" \
