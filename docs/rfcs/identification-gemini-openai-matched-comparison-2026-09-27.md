@@ -53,7 +53,40 @@ held-out count or establish general identification accuracy.
 
 Real inputs and detailed curation stay outside Git in private storage through
 the inherited retention date, 22 October 2026. Repository documentation contains
-only the plan and bounded verification facts.
+only the plan and bounded verification facts. This describes the original local
+packet; the subsequent public test-export decision below permits selected copies
+without publishing that packet wholesale.
+
+### 27 September update: reuse the existing public bucket
+
+The owner accepts public access to these test materials and selected the
+existing Cloudflare R2 `merian` bucket. Prepare an explicit test export under
+`benchmarks/identification/`. A separate bucket, a private prefix and changes to
+the app's public-media access rules are not prerequisites for this comparison.
+
+The export may contain the approved test images and descriptions, necessary
+source attribution, public-safe case/profile metadata and comparison results.
+Preserve the frozen provider inputs and existing benchmark records. All eight
+prepared cases already record rights approval and personal-data exclusion;
+include applicable attribution when preparing the public copies. Retain the
+existing 22 October expiry for exported case material.
+
+Do not upload the private working directory wholesale. Exclude credentials,
+account configuration, credential-review records, operator filesystem paths,
+personal data and raw diagnostic responses. Public access to test objects does
+not authorize public writes or paid execution. The hosted design still needs
+authenticated writes and durable run claims to prevent duplicate paid requests;
+those claims should contain only public-safe run identifiers and accounting
+facts.
+
+Use the existing `Production` environment's `GEMINI_PAID_API_KEY` and
+`NATUREBOOK_OPENAI_API_KEY` directly in the proposed GitHub Actions job. This
+supersedes the local key-entry direction below for the hosted comparison. The
+workflow and explicit export are implemented in the subsequent
+[hosted comparison slice](../development-guides/23-hosted-identification-comparison.md).
+Source implementation uploads no files, changes no bucket settings and makes no
+provider requests. Freeze the actual candidate, reviews and run window before
+exporting and dispatching.
 
 ## Measurements and interpretation
 

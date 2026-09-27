@@ -1,5 +1,6 @@
 import { registerCandidateTests } from "./identification_evaluation/testing/candidateRunnerTests.ts";
 import { registerExperimentTests } from "./identification_evaluation/testing/experimentRunnerTests.ts";
+import { registerHostedTests } from "./identification_evaluation/testing/hostedRunnerTests.ts";
 /** Isolated filesystem suite: requires only the disposable directory argument,
  * repository source reads and a Deno child for the cross-process lock test.
  * No network or environment permission, and no provider is invoked.
@@ -59,6 +60,7 @@ if (!scratch) throw new Error("evaluation_test_directory_required");
 registerMeasurementTests(scratch);
 registerCandidateTests(scratch);
 registerExperimentTests(scratch);
+registerHostedTests(scratch);
 registerAudioPromptPacketTests(scratch);
 registerAudioPromptExecutionTests(scratch);
 registerAudioPromptContinuationTests(scratch);

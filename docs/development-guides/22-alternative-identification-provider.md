@@ -102,16 +102,17 @@ password manager. Do not put the key in source, app configuration or artifacts.
 
 The name is intentionally separate from the repository's `OPENAI_API_KEY`, which
 is consumed by the unrelated Agent Quality workflow. Storage alone does not run
-a comparison, synchronize a Supabase secret or enable the provider. No current
-comparison or deployment job reads `NATUREBOOK_OPENAI_API_KEY`; those consumers
-have not been implemented yet.
+a comparison, synchronize a Supabase secret or enable the provider. The manual
+**Compare identification providers** workflow now reads the Naturebook key in
+its protected evaluation steps. Production deployment does not consume it.
 
-The first comparison runs locally, using the existing private source packets and
-persistent run ledger. GitHub-hosted jobs cannot access those files or retain
-local claims across an interrupted job. Adding private packet delivery or a
-self-hosted runner would introduce a separate storage and execution boundary;
-neither is part of this slice. In particular, do not register the owner's Mac as
-a runner just to retrieve the key.
+The first pilot ran locally with a private packet and persistent run ledger. The
+subsequent
+[hosted comparison procedure](./23-hosted-identification-comparison.md) reuses
+the existing public `merian` bucket for owner-approved test exports and durable,
+one-shot experiment claims. It preserves provider-scoped credentials and
+prevents a fresh GitHub runner from repeating an admitted comparison. No
+self-hosted runner or local key retrieval is required for that path.
 
 The local runner requires the same key from the owner's password manager; GitHub
 does not provide a way to read a saved secret back. The terminal launcher below

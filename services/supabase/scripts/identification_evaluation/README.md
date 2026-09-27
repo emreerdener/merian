@@ -64,6 +64,17 @@ provider guide. Historical Gemini specifications, corpus permissions and audio
 records remain unchanged. OpenAI raw confidence has no Gemini Strong/diagnostic
 interpretation.
 
+The manual **Compare identification providers** workflow can now use both
+existing GitHub Production secrets with a reviewed public test bundle in the
+existing `merian` R2 bucket. `hosted.ts`, `hostedStorage.ts`,
+[`host_identification_comparison.ts`](../host_identification_comparison.ts) and
+[`run_hosted_identification.sh`](../run_hosted_identification.sh) wrap this
+controller without changing provider assignment or measurement. The
+[hosted procedure](../../../../docs/development-guides/23-hosted-identification-comparison.md)
+owns public export, exact-source validation, per-provider credential binding,
+conditional remote claims, interruption behavior and summary publication. Source
+implementation does not establish that a hosted comparison has run.
+
 ## Shared measurement repair (optimization Slice 1)
 
 New exploratory packets may opt into `evaluation_taxonomy_v2`. Standalone live
