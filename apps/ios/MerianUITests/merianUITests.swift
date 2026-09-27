@@ -784,6 +784,75 @@ final class merianUITests: XCTestCase {
     }
 
     @MainActor
+    func testNoteAtMediaCapacityWithLargerText() throws {
+        let app = UITestAppLauncher.launchConfiguredApp(extraArguments: [
+            "-seedStagedAudioReviewFlow", "-autoSubmitScans", "NO",
+            "-hasShownCaptureNoteTip", "YES",
+            "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"
+        ])
+        let note = app.buttons["Add note"]
+        XCTAssertTrue(note.waitForExistence(timeout: 8))
+        XCTAssertTrue(app.buttons["Identify"].isHittable)
+        XCTAssertTrue(app.buttons["Discard scan"].isHittable)
+        if !note.isHittable { app.scrollViews["StagedMediaRowScroll"].swipeLeft() }
+        XCTAssertTrue(note.isHittable)
+        note.tap()
+        let input = app.descendants(matching: .any)["DescribeTextInput"]
+        XCTAssertTrue(input.waitForExistence(timeout: 4))
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 4))
+        input.typeText("Beside a pond")
+        app.buttons["DescribeKeyboardDone"].tap()
+        XCTAssertTrue(app.buttons["Edit note"].waitForExistence(timeout: 3))
+        XCTAssertTrue(app.buttons["Identify"].isHittable)
+        XCTAssertTrue(app.buttons["Discard scan"].isHittable)
+        XCTAssertFalse(app.buttons["CaptureShutter"].isHittable)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Note at capacity with accessibility text size"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+    }
+
+    @MainActor
+    func testSharedDescribeReviewAndConfirmedDiscard() throws {
+        let app = UITestAppLauncher.launchConfiguredApp(extraArguments: [
+            "-captureModeOrder", "describe,visual,audio", "-autoSubmitScans", "NO",
+            "-hasShownCaptureNoteTip", "YES"
+        ])
+        let input = app.descendants(matching: .any)["DescribeTextInput"]
+        XCTAssertTrue(input.waitForExistence(timeout: 8))
+        input.tap()
+        input.typeText("A small green beetle")
+        XCTAssertFalse(app.buttons["Discard scan"].exists)
+        app.buttons["DescribeKeyboardDone"].tap()
+        XCTAssertTrue(waitForDisappearance(app.keyboards.firstMatch))
+        let shutter = app.buttons["CaptureShutter"]
+        XCTAssertTrue(XCTWaiter.wait(for: [XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "isHittable == true"), object: shutter
+        )], timeout: 4) == .completed)
+        shutter.tap()
+        let note = app.buttons["Edit note"]
+        XCTAssertTrue(note.waitForExistence(timeout: 4))
+        XCTAssertFalse(app.buttons["CaptureShutter"].isHittable)
+        XCTAssertTrue(app.buttons["Identify"].isEnabled)
+        app.buttons["Discard scan"].tap()
+        XCTAssertTrue(app.alerts["Discard this scan?"].waitForExistence(timeout: 2))
+        app.alerts.buttons["Keep editing"].tap()
+        note.tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 2))
+        XCTAssertEqual(input.value as? String, "A small green beetle")
+        app.buttons["DescribeKeyboardDone"].tap()
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Shared Describe staged review"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        app.buttons["Discard scan"].tap()
+        app.alerts.buttons["Discard scan"].tap()
+        XCTAssertTrue(app.buttons["CaptureShutter"].waitForExistence(timeout: 3))
+        XCTAssertFalse(app.buttons["Edit note"].exists)
+        XCTAssertFalse((input.value as? String ?? "").contains("small green beetle"))
+    }
+
+    @MainActor
     func testDescribeTextAreaFocusesFromLowerRegion() throws {
         let app = UITestAppLauncher.launchConfiguredApp(
             extraArguments: ["-captureModeOrder", "describe,visual,audio"]

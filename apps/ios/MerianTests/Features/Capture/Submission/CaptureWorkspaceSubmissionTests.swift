@@ -41,6 +41,8 @@ extension CaptureWorkspaceViewModelRefinementTests {
             preparedImageLoader: { _ in nil },
             prewarmHeadersOnInit: false
         )
+        diContainer.appSettings.autoSubmitScans = true
+        let automaticAttempt = try XCTUnwrap(viewModel.beginDraftOperation())
         viewModel.stagedCapture.images = [
             StagedImage(
                 compressedData: makePNGData(),
@@ -49,7 +51,8 @@ extension CaptureWorkspaceViewModelRefinementTests {
                 original: IdentifiableImage(image: uiImage)
             )
         ]
-        XCTAssertTrue(viewModel.beginAutomaticStagedSubmissionIfEligible())
+        viewModel.completeDraftOperation(automaticAttempt, succeeded: true)
+        XCTAssertTrue(viewModel.isAutomaticStagedSubmissionPending)
         XCTAssertFalse(viewModel.shouldPresentActiveScanToolbar)
 
         await viewModel.submitStagedCapture(modelContext: modelContext)
@@ -64,6 +67,34 @@ extension CaptureWorkspaceViewModelRefinementTests {
             try modelContext.fetch(FetchDescriptor<OfflineQueuedScan>()).count,
             0
         )
+    }
+
+    func testTurningAutoSubmitOffDuringAdmissionPreservesManualDraft() async throws {
+        let container = AppDIContainer.preview
+        container.appSettings.autoSubmitScans = true
+        let vm = CaptureWorkspaceViewModel(diContainer: container, preparedImageLoader: { _ in nil }, prewarmHeadersOnInit: false)
+        let attempt = try XCTUnwrap(vm.beginDraftOperation())
+        vm.commitPreparedStagedImages([makePreparedStagedImage()], requiresCrop: false)
+        vm.completeDraftOperation(attempt, succeeded: true)
+        let queue = OfflineQueueManager.shared
+        let wasOnline = queue.isOnline
+        queue.isOnline = true
+        ScanAdmissionManager.shared.overridingPreview = { _ in
+            container.appSettings.autoSubmitScans = false
+            container.appSettings.autoSubmitScans = true
+            return ScanAdmissionPreview(decision: .allowed, effectivePlan: "pro_paid", dailyLimit: nil, dailyRemaining: nil)
+        }
+        defer {
+            queue.isOnline = wasOnline
+            ScanAdmissionManager.shared.resetForTesting()
+        }
+        let context = try makeModelContext()
+        await vm.submitStagedCapture(modelContext: context)
+        XCTAssertEqual(vm.stagedCapture.images.count, 1)
+        XCTAssertTrue(vm.canSubmitDraft)
+        XCTAssertTrue(vm.shouldPresentActiveScanToolbar)
+        XCTAssertFalse(vm.isAutomaticStagedSubmissionPending)
+        XCTAssertNil(vm.pendingAnalyzeScanId)
     }
 
     func testScanAdmissionPreviewUsesBoundedFailFastTransportPolicy() {
@@ -93,8 +124,7 @@ extension CaptureWorkspaceViewModelRefinementTests {
         appSettings.isExpeditionModeActive = true
         let queueOrchestrator = HardwareOrchestrator(
             appSettings: appSettings,
-            observeSystemChanges: false,
-            functionalProAccessProvider: { true }
+            observeSystemChanges: false
         )
         queueOrchestrator.evaluateConstraints(thermalState: .nominal)
         XCTAssertTrue(queueOrchestrator.isExpeditionModeActive)
@@ -128,6 +158,8 @@ extension CaptureWorkspaceViewModelRefinementTests {
         let contextTask = makePendingEnvironmentContextTask()
         viewModel.preFetchTask = contextTask
         defer { contextTask.cancel() }
+        diContainer.appSettings.autoSubmitScans = true
+        let automaticAttempt = try XCTUnwrap(viewModel.beginDraftOperation())
         viewModel.stagedCapture.images = [
             StagedImage(
                 compressedData: makePNGData(),
@@ -136,7 +168,8 @@ extension CaptureWorkspaceViewModelRefinementTests {
                 original: IdentifiableImage(image: uiImage)
             )
         ]
-        XCTAssertTrue(viewModel.beginAutomaticStagedSubmissionIfEligible())
+        viewModel.completeDraftOperation(automaticAttempt, succeeded: true)
+        XCTAssertTrue(viewModel.isAutomaticStagedSubmissionPending)
         XCTAssertFalse(viewModel.shouldPresentActiveScanToolbar)
 
         await viewModel.submitStagedCapture(modelContext: modelContext)
@@ -231,7 +264,7 @@ extension CaptureWorkspaceViewModelRefinementTests {
                 .image(index: 0)
             ])
         )
-        XCTAssertFalse(
+        XCTAssertTrue(
             CaptureSubmissionPolicy.isFlashFallbackEligible([
                 .image(index: 0),
                 .description(ObservationContext(freeText: "Nearby leaves"))
@@ -286,7 +319,7 @@ extension CaptureWorkspaceViewModelRefinementTests {
         XCTAssertNil(viewModel.activeSheet)
     }
 
-    func testOfflineVisualQueueFailureDiscardsFilesAndCancelsContext() async throws {
+    func testOfflineVisualQueueFailureRetainsDraftAndFilesUntilConfirmedDiscard() async throws {
         activatePaidEntitlementAccountForTest()
         defer { resetEntitlementAccountForTest() }
 
@@ -339,26 +372,24 @@ extension CaptureWorkspaceViewModelRefinementTests {
 
         await viewModel.submitStagedCapture(modelContext: modelContext)
 
-        // Capacity rejection reports failure synchronously; only file deletion
-        // is dispatched to the utility-priority FileIOActor task.
-        XCTAssertEqual(
-            viewModel.offlineToastMessage?.title,
-            "Unable to save capture. Please try again."
-        )
-        let mediaDeleted = XCTNSPredicateExpectation(
-            predicate: NSPredicate { _, _ in
-                !FileManager.default.fileExists(atPath: videoURL.path)
-                    && !FileManager.default.fileExists(atPath: audioURL.path)
-            },
-            object: nil
-        )
-        mediaDeleted.expectationDescription =
-            "Rejected capture deletes both temporary video and audio files"
-        await fulfillment(of: [mediaDeleted], timeout: 10)
-
+        XCTAssertEqual(viewModel.offlineToastMessage?.title, "Unable to save capture. Please try again.")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: videoURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: audioURL.path))
+        XCTAssertEqual(viewModel.stagedCapture.videos.count, 1)
+        XCTAssertTrue(viewModel.canSubmitDraft)
+        XCTAssertFalse(viewModel.isQueueingStagedCapture)
         XCTAssertFalse(diContainer.inferenceEngine.isProcessing)
         XCTAssertNil(viewModel.activeSheet)
         XCTAssertTrue(contextTask.isCancelled)
+        viewModel.draftOwnedFiles.formUnion([videoFilename, audioFilename])
+        viewModel.requestDraftDiscard()
+        let generation = try XCTUnwrap(viewModel.discardConfirmationGeneration)
+        XCTAssertTrue(viewModel.confirmDraftDiscard(generation: generation))
+        let mediaDeleted = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            !FileManager.default.fileExists(atPath: videoURL.path)
+                && !FileManager.default.fileExists(atPath: audioURL.path)
+        }, object: nil)
+        await fulfillment(of: [mediaDeleted], timeout: 5)
         XCTAssertTrue(viewModel.stagedCapture.isEmpty)
         XCTAssertEqual(try modelContext.fetch(FetchDescriptor<OfflineQueuedScan>()).count, 0)
     }
@@ -405,10 +436,9 @@ extension CaptureWorkspaceViewModelRefinementTests {
         XCTAssertEqual(queuedScans.first?.queueState, .pending)
     }
 
-    func testMultiCaptureDescribeStagesUntilIdentify() async throws {
+    func testSharedDescribeReplacesNoteUntilIdentify() async throws {
         let diContainer = AppDIContainer.preview
-        diContainer.appSettings.isMultiCaptureEnabled = true
-        diContainer.appSettings.requiresScanConfirmation = false
+        diContainer.appSettings.autoSubmitScans = false
         let viewModel = CaptureWorkspaceViewModel(
             diContainer: diContainer,
             preparedImageLoader: { _ in nil },
@@ -434,7 +464,7 @@ extension CaptureWorkspaceViewModelRefinementTests {
         )
         XCTAssertTrue(didStageSecondDescription)
 
-        XCTAssertEqual(viewModel.stagedCapture.observationContexts.count, 2)
+        XCTAssertEqual(viewModel.stagedCapture.observationContexts.count, 1)
         XCTAssertNil(viewModel.activeSheet)
     }
 }

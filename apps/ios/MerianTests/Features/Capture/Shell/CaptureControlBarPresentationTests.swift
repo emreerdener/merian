@@ -128,19 +128,14 @@ final class CaptureControlBarPresentationTests: XCTestCase {
             captureMode: .describe,
             hasStagedDescription: true
         )
-        let multiCapture = makePresentation(
-            captureMode: .describe,
-            isMultiCaptureEnabled: true
-        )
         let confirmation = makePresentation(
             captureMode: .describe,
-            requiresScanConfirmation: true
+            autoSubmitScans: false
         )
 
         XCTAssertTrue(stagedVisual.willStageOnly)
         XCTAssertTrue(stagedAudio.willStageOnly)
         XCTAssertTrue(stagedDescription.willStageOnly)
-        XCTAssertTrue(multiCapture.willStageOnly)
         XCTAssertTrue(confirmation.willStageOnly)
     }
 
@@ -215,8 +210,7 @@ final class CaptureControlBarPresentationTests: XCTestCase {
         hasStagedAudio: Bool = false,
         hasStagedDescription: Bool = false,
         isRefining: Bool = false,
-        isMultiCaptureEnabled: Bool = false,
-        requiresScanConfirmation: Bool = false,
+        autoSubmitScans: Bool = true,
         isVideoRecording: Bool = false,
         isAudioRecording: Bool = false,
         hasPendingAudio: Bool = false,
@@ -235,8 +229,7 @@ final class CaptureControlBarPresentationTests: XCTestCase {
             hasStagedAudio: hasStagedAudio,
             hasStagedDescription: hasStagedDescription,
             isRefining: isRefining,
-            isMultiCaptureEnabled: isMultiCaptureEnabled,
-            requiresScanConfirmation: requiresScanConfirmation,
+            autoSubmitScans: autoSubmitScans,
             isVideoRecording: isVideoRecording,
             isAudioRecording: isAudioRecording,
             hasPendingAudio: hasPendingAudio,

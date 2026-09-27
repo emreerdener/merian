@@ -49,7 +49,12 @@ struct CropSheetModifier: ViewModifier {
                             // Runs off the main thread; display data updates asynchronously
                             // before the user can tap Submit.
                             let cropSource = existing.original.image
+                            let preparation = viewModel.draftSession.beginRelatedWork()
                             viewModel.replaceActiveCropTask(with: Task {
+                                var succeeded = false
+                                defer {
+                                    viewModel.completeDraftOperation(preparation, succeeded: succeeded)
+                                }
                                 async let detectedFocusRegion = ImageFocusRegionDetector.detect(in: croppedData)
                                 async let displayCropped = Task.detached {
                                     return await ImageCropProcessor.generateCrop(
@@ -64,7 +69,7 @@ struct CropSheetModifier: ViewModifier {
                                     )
                                 }.value
                                 let (resolvedDisplayCrop, focusRegion) = await (displayCropped, detectedFocusRegion)
-                                guard !Task.isCancelled else { return }
+                                guard !Task.isCancelled, viewModel.draftSession.contains(preparation) else { return }
                                 if let resolvedIndex = viewModel.stagedCapture.images.firstIndex(where: { $0.original.id == targetId }) {
                                     let current = viewModel.stagedCapture.images[resolvedIndex]
                                     let resolvedDisplayData = resolvedDisplayCrop.isEmpty ? croppedData : resolvedDisplayCrop
@@ -73,12 +78,11 @@ struct CropSheetModifier: ViewModifier {
                                     ).replacingFocusRegion(focusRegion)
                                 }
 
+                                succeeded = true
                                 if isRequiredGalleryCrop {
                                     viewModel.editingCropIndex = nil
                                     viewModel.imageToCrop = nil
-                                    if viewModel.completeRequiredGalleryCrop(for: targetId) {
-                                        onRequiredCropReadyForSubmit()
-                                    }
+                                    viewModel.completeRequiredGalleryCrop(for: targetId)
                                 }
                             })
                         } else if isRequiredGalleryCrop {
@@ -107,6 +111,7 @@ struct CropSheetModifier: ViewModifier {
                             viewModel.cancelActiveCropTask()
                             if let editIndex = viewModel.stagedCapture.images.firstIndex(where: { $0.original.id == targetId }) {
                                 viewModel.stagedCapture.images.remove(at: editIndex)
+                                viewModel.resetReviewIfEmpty()
                             }
                             viewModel.editingCropIndex = nil
                             viewModel.imageToCrop = nil

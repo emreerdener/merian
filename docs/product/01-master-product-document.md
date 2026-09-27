@@ -542,12 +542,13 @@ Seasonal Challenges and Events are separate concepts. Events are generally
 available in the iOS client, while the server remains authoritative for
 challenge access, participation, ownership, timing, and publication.
 
-## 6.3 Expedition Mode - Implemented, Pro-gated
+## 6.3 Expedition Mode - Available to everyone
 
 Expedition Mode is a performance and field-resilience profile, not another name
 for a Field trip. It targets reduced camera load, disables glass effects, and
 pauses ordinary queue synchronization while active. It is intended for extended
-field use where battery and thermal stability matter.
+field use where battery and thermal stability matter. Its saved Workspace
+preference applies to Free, Pro, expired, unverified, and offline accounts.
 
 ## 6.4 Achievements and persona - Implemented
 
@@ -680,8 +681,9 @@ The database policy grants one free primary Flash scan per UTC day. It is
 separate from the staged grant of three lifetime complimentary Pro scans, so an
 account can receive three Pro-funded results plus one Flash-funded result on day
 one. Complimentary credits are selected automatically before Flash. After
-exhaustion, only compatible single-evidence observations fall back to the daily
-Flash policy; video, mixed/multi-item, and Pro-only actions require an upgrade.
+exhaustion, one photo or standalone audio item plus at most one note, or a
+description-only scan, can fall back to the daily Flash policy. Additional
+media, video, multiple descriptions, and Pro-only actions require Pro funding.
 
 The iOS local meter previews free usage but is not authoritative. Unlimited
 local-meter bypasses are DEBUG-only; Release and TestFlight still reach the
@@ -722,12 +724,12 @@ claim and subtracts unresolved local claims from verified server capacity.
 ## 8.3 Pro capability set
 
 Paid Pro removes the ordinary one-scan product cap and includes the Gemini Pro
-path, short video scans, follow-up AI chat, mixed multi-capture, Expedition
-Mode, offline queue benefits, group-event hosting, and Apple Watch logging. A
-verified complimentary balance can fund three primary Pro analyses and keeps the
-former trial's fair-use caps for non-scan Pro AI actions while at least one
-credit or active hold remains. An active hold is functional access but cannot
-fund a fourth analysis. High database fair-use and rate ceilings bound
+path, short video scans, follow-up AI chat, multi-capture (two media items plus
+an optional note), offline queue benefits, group-event hosting, and Apple Watch
+logging. A verified complimentary balance can fund three primary Pro analyses
+and keeps the former trial's fair-use caps for non-scan Pro AI actions while at
+least one credit or active hold remains. An active hold is functional access but
+cannot fund a fourth analysis. High database fair-use and rate ceilings bound
 automation and provider cost, so product copy must not promise technically
 unbounded model traffic.
 
@@ -1580,7 +1582,7 @@ numbers.
 | Identification always uses two model calls.               | One primary Gemini call is followed by optional asynchronous enrichment.                                                                                                                                                                 |
 | AI output is capped at 1,000 tokens.                      | Current configuration allows up to 8,192 output tokens, with a Pro thinking budget.                                                                                                                                                      |
 | Explore is future, video-feed-first, and reaction-only.   | Explore already includes multiple feeds, map/nearby, rich media, likes, comments, replies, follows, profiles, reports, and blocking.                                                                                                     |
-| Field trips are the same as Expedition Mode.              | Field trips organize observations; Expedition Mode is a separate Pro performance profile.                                                                                                                                                |
+| Field trips are the same as Expedition Mode.              | Field trips organize observations; Expedition Mode is a separate performance profile available to everyone.                                                                                                                              |
 | Watch capture is shipped end to end.                      | Watch recording and transfer exist, but the iPhone receiving path is incomplete.                                                                                                                                                         |
 | Free biological media expires after 90 days.              | Biological media is durable for free and Pro users unless deleted or moderated.                                                                                                                                                          |
 | Upgrading moves media from free to Pro storage.           | Existing objects remain in their original storage prefix.                                                                                                                                                                                |

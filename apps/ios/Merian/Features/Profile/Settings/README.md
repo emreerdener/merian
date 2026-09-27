@@ -362,8 +362,9 @@ The setting is opt-in. `opensExploreOnLaunch` registers a `false` default in
 running settings model.
 
 The section previously named **Capture** is now **Workspace**. It continues to
-own Camera, Audio, **Reorder modes**, Field trip goals, and confirmation
-preferences; the rename does not move those controls or change their behavior.
+own Camera, Audio, **Reorder modes**, Field trip goals, Expedition mode, and
+Auto-submit preferences; the rename does not move those controls or change their
+behavior.
 
 ### Reorder modes
 

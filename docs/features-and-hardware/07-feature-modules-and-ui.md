@@ -1625,24 +1625,16 @@ dependency composition.
   photo/video writes when their preferences are disabled. Haptic interactions
   overlay `.heavy` feedback on the Camera Shutter and `.medium` responses on
   hardware triggers like the Flash toggle.
-- **Instant Scan Mode vs Multi-Capture Mode (`isMultiCaptureEnabled` &
-  `requiresScanConfirmation`)**: Defaults to `false` (instant 1-capture mode).
-  When disabled, a single camera capture is submitted to the AI inference
-  pipeline immediately via an
-  `onChange(of: viewModel.stagedCapture.images.count)` observer in
-  `CaptureWorkspaceView`. Photo-library picks are staged first, marked as
-  required gallery crops, and routed through `ImageCropperView`; confirming the
-  final required crop re-evaluates `shouldAutoSubmitStagedCapture` and only then
-  submits in the default single-image flow. Setting "Confirm scan submission"
-  (`requiresScanConfirmation = true`) disables the auto-submit gatekeeper,
-  staging the cropped image in the `ActiveScanToolbar` and forcing the user to
-  physically tap "Identify". If "Multi-capture mode"
-  (`isMultiCaptureEnabled = true`) is enabled, gallery crops are reviewed
-  sequentially and the user returns to the toolbar after the final crop. Capture
-  surfaces read the injected `AppSettings` boundary
-  (`@Environment(AppSettings.self)` in views and `diContainer.appSettings` in
-  `CaptureWorkspaceViewModel`) and dynamically cap the `PhotoLibraryButton`'s
-  `maxSelectionCount` and the toolbar's secondary add button.
+- **Staged review and Auto-submit scans**: Review is the default for every
+  account using the new `autoSubmitScans = false` preference. Legacy settings do
+  not migrate into it. Free has one physical photo/audio slot plus one note; Pro
+  has two physical slots plus one note. Auto-submit is minted at an empty
+  draft's photo/audio/video/import entry and remains bound to that attempt
+  through initial required cropping. Setting changes, new context, removal, and
+  recropping cannot arm an existing composition. UI and direct submission block
+  unresolved draft work. Failed enqueue retains source files for manual retry;
+  accepted scans retry through their durable owner. See the
+  [capture contract](../rfcs/staged-review-shared-describe-2026-09-26.md).
 - **Photos Share Import**: Naturebook's Merian iOS target is an alternate
   `public.image` document viewer, not a Photos Share Extension. Sharing one
   photo opens the containing app, which copies the security-scoped file into

@@ -30,7 +30,7 @@ struct CaptureControlBar: View {
         let capacityLimit = viewModel.stagedCaptureLimit
         return CaptureControlBarPresentation(
             captureMode: captureMode,
-            totalStagedItems: viewModel.stagedCapture.totalItemCount,
+            totalStagedItems: viewModel.stagedCapture.physicalItemCount,
             availableStagedSlots: viewModel.availableStagedCaptureSlots,
             capacityLimit: capacityLimit,
             hasStagedVisualMedia: viewModel.stagedCapture.hasVisualMedia,
@@ -38,8 +38,7 @@ struct CaptureControlBar: View {
             hasStagedDescription:
                 !viewModel.stagedCapture.observationContexts.isEmpty,
             isRefining: isRefining,
-            isMultiCaptureEnabled: viewModel.isMultiCaptureFunctionallyEnabled,
-            requiresScanConfirmation: appSettings.requiresScanConfirmation,
+            autoSubmitScans: appSettings.autoSubmitScans,
             isVideoRecording: viewModel.isVideoRecording,
             isAudioRecording: audioCaptureManager.isRecording,
             hasPendingAudio: audioCaptureManager.pendingPlaybackPath != nil,
@@ -48,7 +47,8 @@ struct CaptureControlBar: View {
             isDescriptionEmpty: observationContext.isEmpty,
             canStageRefinementDescription: viewModel.stagedCapture.canStageRefinementDescription,
             isCapturing: viewModel.isCapturing,
-            isPreparingVideo: viewModel.isPreparingVideo
+            isPreparingVideo: viewModel.isPreparingVideo,
+            isDraftReadyForSubmission: viewModel.isDraftReadyForSubmission
         )
     }
 
@@ -143,11 +143,11 @@ struct CaptureControlBar: View {
             PhotoLibraryButton(
                 selectedPhotoItems: $viewModel.selectedPhotoItems,
                 latestThumbnail: photoLibraryManager.latestThumbnail,
-                maxSelectionCount: presentation.photoSelectionCount,
+                maxSelectionCount: appSettings.autoSubmitScans && viewModel.stagedCapture.isEmpty ? 1 : presentation.photoSelectionCount,
                 isAvailable: presentation.isPhotoLibraryAvailable,
                 onRequestPickerPresentation: {
                     await viewModel.requestImageImportEntryAdmission(
-                        prospectiveImageCount: presentation.photoSelectionCount
+                        prospectiveImageCount: appSettings.autoSubmitScans && viewModel.stagedCapture.isEmpty ? 1 : presentation.photoSelectionCount
                     )
                 }
             )
@@ -186,6 +186,10 @@ struct CaptureControlBar: View {
                           !audioCaptureManager.isRecording,
                           audioCaptureManager.pendingPlaybackPath == recordingPath
                     else { return }
+                    if let operation = viewModel.audioDraftOperation {
+                        viewModel.completeDraftOperation(operation, succeeded: false)
+                        viewModel.audioDraftOperation = nil
+                    }
                     audioCaptureManager.discardPending()
                 }
                 Button("Cancel", role: .cancel) {}
@@ -222,7 +226,9 @@ struct CaptureControlBar: View {
             onHapticFeedback: viewModel.performCaptureControlHapticFeedback
         )
         .animation(.easeInOut(duration: 0.2), value: captureMode)
-        .opacity(presentation.isPrimaryActionDisabled ? 0.5 : 1)
+        .opacity(captureMode == .describe && viewModel.shouldPresentActiveScanToolbar ? 0 : (presentation.isPrimaryActionDisabled ? 0.5 : 1))
+        .allowsHitTesting(!(captureMode == .describe && viewModel.shouldPresentActiveScanToolbar))
+        .accessibilityHidden(captureMode == .describe && viewModel.shouldPresentActiveScanToolbar)
         .disabled(presentation.isPrimaryActionDisabled)
     }
 
@@ -325,25 +331,35 @@ struct CaptureControlBar: View {
     }
 
     private func startAudioRecording() {
-        guard audioRecordingStartTask == nil else { return }
+        guard audioRecordingStartTask == nil,
+              let operation = viewModel.beginDraftOperation() else { return }
+        viewModel.audioDraftOperation = operation
         audioRecordingStartTask = Task {
-            defer { audioRecordingStartTask = nil }
+            var started = false
+            defer {
+                audioRecordingStartTask = nil
+                if !started {
+                    viewModel.completeDraftOperation(operation, succeeded: false)
+                    viewModel.audioDraftOperation = nil
+                }
+            }
             do {
                 guard await requestAudioScanAdmission() else { return }
-                guard scenePhase == .active else { return }
+                guard scenePhase == .active, viewModel.draftSession.contains(operation) else { return }
                 try await audioCaptureManager
                     .requestMicrophonePermissionForRecording()
                 try Task.checkCancellation()
 
                 await cameraManager.stopSessionAndWait()
                 try Task.checkCancellation()
-                guard scenePhase == .active else { return }
+                guard scenePhase == .active, viewModel.draftSession.contains(operation) else { return }
                 try await audioCaptureManager.startRecording(
                     autoSubmitOnMaxDuration:
-                        !appSettings.requiresScanConfirmation,
+                        viewModel.draftSession.automaticAttempt != nil && appSettings.autoSubmitScans,
                     boostRecordingPreview:
                         appSettings.boostRecordingPreviewsEnabled
                 )
+                started = true
             } catch is CancellationError {
                 // Expected when the user leaves audio mode during startup.
             } catch {
@@ -359,8 +375,7 @@ struct CaptureControlBar: View {
     private func requestAudioScanAdmission() async -> Bool {
         guard viewModel.hasAvailableStagedCaptureSlot else { return false }
         let route = await viewModel.requestScanAdmission(
-            flashFallbackEligible: viewModel.stagedCapture.isEmpty
-                && viewModel.baseRefinementContext == nil
+            flashFallbackEligible: viewModel.isProspectiveFreeMediaEligible(audio: 1)
         )
         return route != nil && viewModel.hasAvailableStagedCaptureSlot
     }
@@ -374,7 +389,6 @@ struct CaptureControlBar: View {
             )
             if didSubmit {
                 coordinator.isDictationRequested = false
-                observationContext = ObservationContext()
             }
         }
     }
@@ -398,6 +412,10 @@ struct CaptureControlBar: View {
             .mediumPulse(.audioCancel)
         )
         if audioCaptureManager.isRecording {
+            if let operation = viewModel.audioDraftOperation {
+                viewModel.completeDraftOperation(operation, succeeded: false)
+                viewModel.audioDraftOperation = nil
+            }
             audioCaptureManager.cancelRecording()
         } else {
             audioDiscardConfirmationPath = audioCaptureManager.pendingPlaybackPath

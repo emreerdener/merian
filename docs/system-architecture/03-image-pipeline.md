@@ -478,8 +478,8 @@ and display payloads to keep them in sync:
    auto-cropped 2048 px file.
 
 Without this sync, the scan library would show the original auto-crop while
-Gemini analyzed the user's manually-adjusted crop — a visual mismatch in
-multi-capture mode. `CropSheetModifier` updates staged images through
+Gemini analyzed the user's manually-adjusted crop — a visual mismatch in staged
+review. `CropSheetModifier` updates staged images through
 `StagedImage.replacing(...)`, which preserves the original `id` and `addedAt`
 timestamp while replacing bytes and crop metadata. That timestamp is part of the
 mixed-media timeline contract; resetting it during a crop would reorder images

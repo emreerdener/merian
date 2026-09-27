@@ -84,36 +84,13 @@ struct CaptureSubmissionPolicyTests {
         #expect(!CaptureSubmissionPolicy.isFlashFallbackEligible([
             .video("clip.mp4")
         ]))
-        #expect(!CaptureSubmissionPolicy.isFlashFallbackEligible([
+        #expect(CaptureSubmissionPolicy.isFlashFallbackEligible([
             .image(index: 0),
             .description(ObservationContext(freeText: "Nearby leaves"))
         ]))
         #expect(!CaptureSubmissionPolicy.isFlashFallbackEligible(
             [.image(index: 0)],
             targetEradicationScanId: "prior-scan"
-        ))
-    }
-
-    @Test func imageImportFallbackRequiresOneOrdinaryEmptyWorkspaceSlot() {
-        #expect(CaptureSubmissionPolicy.isImageImportFlashFallbackEligible(
-            existingItemCount: 0,
-            prospectiveImageCount: 1,
-            isRefining: false
-        ))
-        #expect(!CaptureSubmissionPolicy.isImageImportFlashFallbackEligible(
-            existingItemCount: 0,
-            prospectiveImageCount: 2,
-            isRefining: false
-        ))
-        #expect(!CaptureSubmissionPolicy.isImageImportFlashFallbackEligible(
-            existingItemCount: 1,
-            prospectiveImageCount: 1,
-            isRefining: false
-        ))
-        #expect(!CaptureSubmissionPolicy.isImageImportFlashFallbackEligible(
-            existingItemCount: 0,
-            prospectiveImageCount: 1,
-            isRefining: true
         ))
     }
 

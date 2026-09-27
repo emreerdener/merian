@@ -85,7 +85,10 @@ struct IdentificationPreflightInput: Encodable, Equatable, Sendable {
                         .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
                 }.count
         }
-        flashFallbackEligible = !visualVideo && images + audio + descriptions == 1
+        flashFallbackEligible = IdentificationEvidenceAllowance.permitsFreeScan(
+            images: images, audio: audio, descriptions: descriptions,
+            videos: visualVideo || audioVideo ? 1 : 0
+        )
         originalAnalysisID = scanID
     }
 }

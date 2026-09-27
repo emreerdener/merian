@@ -14,7 +14,7 @@ extension CaptureWorkspaceViewModel {
     // MARK: - User Intents
 
     func handlePhotoPickerSelection(newItems: [PhotosPickerItem], modelContext _: ModelContext) {
-        guard !newItems.isEmpty else { return }
+        guard !newItems.isEmpty, !isDraftMutationLocked else { return }
 
         let isPro = self.diContainer.revenueCatManager.canStartProScan
         let importBudget = prepareGalleryImportBudget(isPro: isPro)
@@ -28,7 +28,9 @@ extension CaptureWorkspaceViewModel {
             return
         }
 
-        let itemsToProcess = Array(newItems.prefix(importBudget.availableSlots))
+        guard let draftOperation = beginDraftOperation() else { return }
+        let limit = diContainer.appSettings.autoSubmitScans && stagedCapture.isEmpty ? 1 : importBudget.availableSlots
+        let itemsToProcess = Array(newItems.prefix(limit))
 
         DetachedWork.fireAndForget(
             priority: .userInitiated,
@@ -40,7 +42,7 @@ extension CaptureWorkspaceViewModel {
             preparedImports.reserveCapacity(itemsToProcess.count)
 
             for newItem in itemsToProcess {
-                if Task.isCancelled { return }
+                if Task.isCancelled { break }
                 guard let wrapper = try? await newItem.loadTransferable(type: ImageFileWrapper.self) else { continue }
                 let validUrl = wrapper.url
 
@@ -58,8 +60,7 @@ extension CaptureWorkspaceViewModel {
                 }
             }
 
-            guard !Task.isCancelled, !preparedImports.isEmpty else { return }
-            await self.commitPreparedStagedImages(preparedImports, requiresCrop: true)
+            await self.finishPreparedImports(preparedImports, operation: draftOperation)
         }
     }
 
@@ -114,6 +115,9 @@ extension CaptureWorkspaceViewModel {
             }
             return .temporarilyBlocked
         }
+        guard let draftOperation = beginDraftOperation() else { return .temporarilyBlocked }
+        var succeeded = false
+        defer { completeDraftOperation(draftOperation, succeeded: succeeded) }
         guard let fileURL = await importStore.fileURL(for: pendingImport) else {
             await failExternalImageImport(pendingImport, outcome: "failed_missing_file")
             return .terminalFailure
@@ -146,12 +150,14 @@ extension CaptureWorkspaceViewModel {
                 return .temporarilyBlocked
             }
 
+            guard draftSession.contains(draftOperation) else { return .temporarilyBlocked }
             let committedCount = commitPreparedStagedImages([preparedImport], requiresCrop: true)
             guard committedCount == 1 else {
                 presentExternalImportSlotBlock(for: pendingImport)
                 return .temporarilyBlocked
             }
 
+            succeeded = true
             await importStore.remove(pendingImport)
             operationState.clearExternalImportPresentationHistory(
                 for: pendingImport.id
@@ -167,6 +173,12 @@ extension CaptureWorkspaceViewModel {
             await failExternalImageImport(pendingImport, outcome: "failed_preparation")
             return .terminalFailure
         }
+    }
+
+    private func finishPreparedImports(_ imports: [PreparedStagedImage], operation: CaptureDraftSession.Operation) {
+        guard draftSession.contains(operation) else { return }
+        let count = commitPreparedStagedImages(imports, requiresCrop: true)
+        completeDraftOperation(operation, succeeded: count > 0)
     }
 
     private func prepareFileBackedStagedImage(
@@ -216,7 +228,7 @@ extension CaptureWorkspaceViewModel {
     private func prepareGalleryImportBudget(isPro: Bool) -> GalleryImportBudget {
         GalleryImportBudget(
             availableSlots: availableStagedCaptureSlots,
-            canPerformScan: diContainer.usageManager.canPerformScan(isProActive: isPro)
+            canPerformScan: dependencies.submission.admission.canStartLocally(isProspectiveFreeMediaEligible(images: 1))
         )
     }
 
@@ -293,10 +305,6 @@ extension CaptureWorkspaceViewModel {
                 focusRegion: preparedImport.focusRegion
             ))
             committedCount += 1
-        }
-
-        if committedCount > 0 {
-            beginAutomaticStagedSubmissionIfEligible()
         }
 
         if requiresCrop, committedCount > 0 {

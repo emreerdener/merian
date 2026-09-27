@@ -6,6 +6,15 @@ TestFlight, App Store, support, and QA.
 
 ## Unreleased
 
+### Review scans and add context
+
+- Review captures before identifying by default, with an optional shared note.
+  Free scans support one photo or recording plus a note; Pro supports two media
+  items plus a note. Auto-submit scans remains an optional convenience.
+- The staged tray uses adaptive Liquid Glass where supported, a blue Identify
+  button, and confirmation before discarding your scan.
+- Expedition mode is now included for everyone in Workspace settings.
+
 ### Species discovery search
 
 - Search by name or describe what you want to discover with **Search or ask

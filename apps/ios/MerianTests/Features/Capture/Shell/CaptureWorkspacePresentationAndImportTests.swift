@@ -23,8 +23,9 @@ extension CaptureWorkspaceViewModelRefinementTests {
     }
 
     func testViewfinderHintsHideAfterSingleScanContentIsStaged() {
+        RevenueCatManager.shared.isSubscribed = false
+        RevenueCatManager.shared.isProActive = false
         let diContainer = AppDIContainer.preview
-        diContainer.appSettings.isMultiCaptureEnabled = false
         let viewModel = CaptureWorkspaceViewModel(
             diContainer: diContainer,
             preparedImageLoader: { _ in nil },
@@ -47,7 +48,6 @@ extension CaptureWorkspaceViewModelRefinementTests {
 
     func testViewfinderHintsHideWhenMultiScanStagingIsFull() {
         let diContainer = AppDIContainer.preview
-        diContainer.appSettings.isMultiCaptureEnabled = true
         let viewModel = CaptureWorkspaceViewModel(
             diContainer: diContainer,
             preparedImageLoader: { _ in nil },
@@ -63,9 +63,7 @@ extension CaptureWorkspaceViewModelRefinementTests {
                 original: IdentifiableImage(image: uiImage)
             )
         ]
-        viewModel.stagedCapture.observationContexts = [
-            StagedObservationContext(context: ObservationContext(freeText: "Second staged note"))
-        ]
+        viewModel.stagedCapture.audios = [StagedAudio(filePath: "second.wav")]
 
         XCTAssertFalse(viewModel.hasAvailableStagedCaptureSlot)
         XCTAssertFalse(viewModel.shouldShowViewfinderHints)
@@ -265,9 +263,7 @@ extension CaptureWorkspaceViewModelRefinementTests {
             prewarmHeadersOnInit: false,
             externalImageImportStore: store
         )
-        viewModel.stagedCapture.observationContexts = [
-            StagedObservationContext(context: ObservationContext(freeText: "Existing capture"))
-        ]
+        viewModel.stagedCapture.audios = (0..<viewModel.stagedCaptureLimit).map { StagedAudio(filePath: "existing-\($0).wav") }
 
         viewModel.importPendingExternalImageIfPossible()
         try await waitUntil {
@@ -277,7 +273,7 @@ extension CaptureWorkspaceViewModelRefinementTests {
         let blockedImports = await store.pendingImports()
         XCTAssertEqual(blockedImports.count, 1)
 
-        viewModel.stagedCapture.observationContexts.removeAll()
+        viewModel.stagedCapture.audios.removeAll()
         viewModel.importPendingExternalImageIfPossible()
         try await waitUntil { viewModel.stagedCapture.images.count == 1 }
 
@@ -454,14 +450,15 @@ extension CaptureWorkspaceViewModelRefinementTests {
 
     func testCompletingRequiredGalleryCropAllowsAutoSubmitOnlyWhenExistingRulesAllow() {
         let autoSubmitContainer = AppDIContainer.preview
-        autoSubmitContainer.appSettings.requiresScanConfirmation = false
-        autoSubmitContainer.appSettings.isMultiCaptureEnabled = false
+        autoSubmitContainer.appSettings.autoSubmitScans = true
         let autoSubmitViewModel = CaptureWorkspaceViewModel(
             diContainer: autoSubmitContainer,
             preparedImageLoader: { _ in nil },
             prewarmHeadersOnInit: false
         )
+        let attempt = autoSubmitViewModel.beginDraftOperation()!
         autoSubmitViewModel.commitPreparedStagedImages([makePreparedStagedImage()], requiresCrop: true)
+        autoSubmitViewModel.completeDraftOperation(attempt, succeeded: true)
         let autoSubmitImageId = try! XCTUnwrap(autoSubmitViewModel.stagedCapture.images.first?.original.id)
 
         autoSubmitViewModel.imageToCrop = nil
@@ -471,8 +468,7 @@ extension CaptureWorkspaceViewModelRefinementTests {
         XCTAssertFalse(autoSubmitViewModel.shouldSuppressCaptureChromeForCrop)
 
         let confirmationContainer = AppDIContainer.preview
-        confirmationContainer.appSettings.requiresScanConfirmation = true
-        confirmationContainer.appSettings.isMultiCaptureEnabled = false
+        confirmationContainer.appSettings.autoSubmitScans = false
         let confirmationViewModel = CaptureWorkspaceViewModel(
             diContainer: confirmationContainer,
             preparedImageLoader: { _ in nil },

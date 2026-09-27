@@ -10,7 +10,8 @@ the invariants here.
 
 The repository contains the
 [forward schema migration](../../services/supabase/migrations/20260802235833_three_complimentary_pro_scans.sql),
-dual-mode backend, reservation-safe protocol-3 iOS client, admin telemetry, tests, and
+dual-mode backend, reservation-safe protocol-3 iOS client, admin telemetry,
+tests, and
 [owner-only cutover script](../../services/supabase/scripts/cutover_complimentary_entitlements.sql).
 Applying the migration does **not** activate the new offer: it creates
 `internal.entitlement_rollout_config` in `legacy_trial` mode with client
@@ -37,10 +38,13 @@ migration exists. The authoritative rollout procedure is
 - Selection is automatic: paid Pro wins first, then a complimentary Pro credit,
   then the free policy. A user cannot manually preserve a credit by choosing
   Flash while a credit is available.
-- A Flash-compatible, single-evidence observation falls back to the daily free
-  policy when no complimentary scan is available to start. Video,
-  multi-item/mixed observations, and Pro-only actions return an upgrade-required
-  outcome instead of being silently degraded.
+- A photo or standalone audio item with at most one optional note, or one
+  description alone, falls back to the daily Free policy when no complimentary
+  scan is available to start. Video (including sampled frames/companion audio),
+  additional physical media, multiple descriptions, and Pro-only actions require
+  Pro funding. Entry, enqueue, replay, recipient preflight, and server admission
+  use the same evidence rule. Expedition mode is available to everyone and does
+  not alter funding precedence or quotas.
 - A valid completed result consumes a credit even when the subject is
   non-biological. A stored Pro result remains fully viewable after the final
   credit is consumed.
@@ -116,8 +120,8 @@ accepts the original analysis UUID, server-derived Flash-fallback eligibility,
 client protocol, and an authenticated-internal-replay flag. It performs the
 following transactionally:
 
-1. Authenticate the service-only caller and require the active account's
-   current adult, Terms, and all-version Gemini-head grant.
+1. Authenticate the service-only caller and require the active account's current
+   adult, Terms, and all-version Gemini-head grant.
 2. Lock `public.users` for the authenticated owner.
 3. Read the rollout fence and resolve active paid state.
 4. Reuse the exact classification and ledger linkage of an active idempotent
@@ -282,14 +286,14 @@ RevenueCat's paid state:
   complimentary verification stays locked, while ordinary offline Flash queuing
   continues under the existing local meter and reconciliation flow.
 - Claim a stable, account-scoped funding reservation synchronously before file
-  writes or foreground inference. Subtract unresolved local complimentary
-  claims from the verified server availability—even after a state-only read
-  reports a hold—so one stale snapshot cannot admit the same credit twice.
+  writes or foreground inference. Subtract unresolved local complimentary claims
+  from the verified server availability—even after a state-only read reports a
+  hold—so one stale snapshot cannot admit the same credit twice.
 - Persist funding as `funding_reservation` beside `inference_generation` in the
   scan-ingestion job metadata object. Each helper removes only its own property,
   and relaunch restores every nonterminal reservation. Active legacy jobs
-  without funding metadata remain conservative blockers until their server
-  state is known.
+  without funding metadata remain conservative blockers until their server state
+  is known.
 - A proven pre-dispatch local failure must first durably remove
   `funding_reservation` and set `funding_reservation_released: true`, preserving
   unrelated metadata. Only after that save succeeds may the in-memory
@@ -313,8 +317,8 @@ RevenueCat's paid state:
   and reclassify.
 - After authoritative state is installed, all-`held`/`consumed` blockers select
   immediate Flash. Released capacity may promote the deferred scan to a new
-  complimentary reservation; current paid proof promotes it to paid Pro. The
-  new funding class must be persisted before dispatch, and paid/complimentary
+  complimentary reservation; current paid proof promotes it to paid Pro. The new
+  funding class must be persisted before dispatch, and paid/complimentary
   promotion refunds any optimistic advisory Flash token.
 - Ambiguous outcomes retain reservations. Only proven pre-dispatch local
   failures follow the durable release sequence. HTTP 402 invalidates local
@@ -395,9 +399,8 @@ durable or terminal before settling it.
 
 The ordered release is schema in legacy mode → protocol-3-compatible dual-mode
 Edge backend → verified protocol-3 TestFlight build → atomic mode/protocol-3
-cutover. Expiring an older
-TestFlight build is distribution cleanup only; server protocol enforcement is
-the compatibility boundary.
+cutover. Expiring an older TestFlight build is distribution cleanup only; server
+protocol enforcement is the compatibility boundary.
 
 Historical migrations are immutable. Fixes require a new forward migration.
 Before cutover, leave the singleton in legacy mode and repair forward. After

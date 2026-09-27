@@ -19,16 +19,20 @@ extension CaptureWorkspaceViewModel {
               hasAvailableStagedCaptureSlot,
               imageToCrop == nil else { return }
 
+        guard let draftOperation = beginDraftOperation() else { return }
         isCapturing = true
 
         let generation = scanOperationState.beginStillCapture()
         let captureTask = Task { @MainActor [weak self] in
             guard let self else { return }
-            defer { self.finishStillCaptureUI(for: generation) }
+            var succeeded = false
+            defer {
+                self.finishStillCaptureUI(for: generation)
+                self.completeDraftOperation(draftOperation, succeeded: succeeded)
+            }
 
             guard await self.requestScanAdmission(
-                flashFallbackEligible: self.stagedCapture.isEmpty
-                    && self.baseRefinementContext == nil
+                flashFallbackEligible: self.isProspectiveFreeMediaEligible(images: 1)
             ) != nil else { return }
 
             do {
@@ -65,7 +69,7 @@ extension CaptureWorkspaceViewModel {
                     ))
                 try self.requireCurrentStillCapture(generation)
 
-                guard self.hasAvailableStagedCaptureSlot else { return }
+                guard self.draftSession.contains(draftOperation), self.hasAvailableStagedCaptureSlot else { return }
                 if let preparedCapture {
                     let fetchDeferredContext = self.dependencies.scan.context
                         .fetchDeferredContext
@@ -91,7 +95,7 @@ extension CaptureWorkspaceViewModel {
                         original: identifiable,
                         focusRegion: preparedCapture.focusRegion
                     ))
-                    self.beginAutomaticStagedSubmissionIfEligible()
+                    succeeded = true
                 }
             } catch is CancellationError {
                 return

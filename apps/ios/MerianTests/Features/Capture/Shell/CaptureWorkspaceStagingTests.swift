@@ -48,21 +48,19 @@ struct CaptureWorkspaceStagingTests {
     @Test func automaticSingleCaptureFencesTheIdentifyTray() async {
         await MainActor.run {
             let diContainer = AppDIContainer.preview
-            let previousConfirmation = diContainer.appSettings.requiresScanConfirmation
-            let previousMultiCapture = diContainer.appSettings.isMultiCaptureEnabled
+            let previousConfirmation = diContainer.appSettings.autoSubmitScans
             defer {
-                diContainer.appSettings.requiresScanConfirmation = previousConfirmation
-                diContainer.appSettings.isMultiCaptureEnabled = previousMultiCapture
+                diContainer.appSettings.autoSubmitScans = previousConfirmation
             }
 
-            diContainer.appSettings.requiresScanConfirmation = false
-            diContainer.appSettings.isMultiCaptureEnabled = false
+            diContainer.appSettings.autoSubmitScans = true
 
             let viewModel = CaptureWorkspaceViewModel(
                 diContainer: diContainer,
                 preparedImageLoader: { _ in nil },
                 prewarmHeadersOnInit: false
             )
+            let attempt = viewModel.beginDraftOperation()!
             viewModel.stagedCapture.images = [StagedImage(
                 compressedData: Data([0x01]),
                 displayData: Data([0x02]),
@@ -70,7 +68,7 @@ struct CaptureWorkspaceStagingTests {
                 original: IdentifiableImage(image: UIImage())
             )]
 
-            #expect(viewModel.beginAutomaticStagedSubmissionIfEligible())
+            viewModel.completeDraftOperation(attempt, succeeded: true)
             #expect(viewModel.isAutomaticStagedSubmissionPending)
             #expect(!viewModel.shouldPresentActiveScanToolbar)
 
@@ -79,7 +77,7 @@ struct CaptureWorkspaceStagingTests {
             #expect(!viewModel.isAutomaticStagedSubmissionPending)
             #expect(viewModel.shouldPresentActiveScanToolbar)
 
-            diContainer.appSettings.requiresScanConfirmation = true
+            diContainer.appSettings.autoSubmitScans = false
             #expect(!viewModel.beginAutomaticStagedSubmissionIfEligible())
             #expect(viewModel.shouldPresentActiveScanToolbar)
 

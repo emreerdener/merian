@@ -7,7 +7,8 @@ extension CaptureWorkspaceViewModel {
     ) async -> Bool {
         guard prospectiveImageCount > 0,
               prospectiveImageCount <= availableStagedCaptureSlots,
-              !isCheckingScanAdmission,
+              !isDraftMutationLocked,
+              !draftSession.hasUnresolvedWork,
               activePresentation == nil,
               !isRootPresentationDismissing else {
             return false
@@ -18,12 +19,7 @@ extension CaptureWorkspaceViewModel {
         isCheckingScanAdmission = true
         defer { isCheckingScanAdmission = false }
 
-        let flashFallbackEligible = CaptureSubmissionPolicy
-            .isImageImportFlashFallbackEligible(
-                existingItemCount: existingItemCount,
-                prospectiveImageCount: prospectiveImageCount,
-                isRefining: isRefining
-            )
+        let flashFallbackEligible = isProspectiveFreeMediaEligible(images: prospectiveImageCount)
         let route = await requestScanAdmission(
             flashFallbackEligible: flashFallbackEligible
         )

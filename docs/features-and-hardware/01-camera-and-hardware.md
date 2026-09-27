@@ -1094,58 +1094,32 @@ A dedicated `PHPhotoLibrary` handler.
   files for retry. The implementation is not a Share Extension and requests no
   new Photo Library permission. See
   [Photos Share Import](./26-photos-share-import.md).
-- **Instant Scan Mode vs Multi-Capture Mode (`isMultiCaptureEnabled` &
-  `requiresScanConfirmation`)**: The default experience
-  (`isMultiCaptureEnabled = false`) auto-submits after a single camera capture
-  via an `onChange(of: viewModel.stagedCapture.images.count)` observer in
-  `CaptureWorkspaceView`. Camera, video, and crop-confirmed commits arm
-  `isAutomaticStagedSubmissionPending` in the same MainActor mutation that makes
-  the eligible media visible. `shouldPresentActiveScanToolbar` therefore keeps
-  the ordinary navigation chrome mounted instead of briefly presenting the
-  manual **Identify** tray while the observer starts admission. Successful
-  submission clears staging; failed admission clears only automatic ownership,
-  preserving the photo and intentionally revealing **Identify** as the retry
-  path. Before `PhotoLibraryButton` or the staged toolbar's add-photo action
-  presents the native picker, it awaits `requestImageImportEntryAdmission`; a
-  pending external Photos/Files receipt runs the same prospective-media check
-  before metadata extraction or image preparation. A known quota/entitlement
-  denial therefore opens the paywall before selection or crop and leaves any
-  durable external receipt intact. Because the preview reserves nothing, final
-  submission repeats admission and may still catch a concurrent account/quota
-  change. Allowed photo-library picks and shared Photos documents then pause at
-  the square crop editor before analysis starts: each prepared import commits
-  with `requiresCrop: true`, `CaptureWorkspaceViewModel` records the staged
-  image ID in `requiredGalleryCropImageIds`, and
-  `presentNextRequiredGalleryCrop()` opens `CropSheetModifier` immediately. The
-  required-crop ID and crop presentation jointly suppress both bottom chrome
-  layers during that handoff, so neither the staged thumbnail nor **Identify**
-  appears before the cover. Confirming the required crop clears that image ID
-  and re-evaluates the same automatic-submission policy; only the default
-  single-image path proceeds directly into analysis. Setting "Confirm scan
-  submission" (`requiresScanConfirmation = true`) disables the auto-submit
-  gatekeeper, staging the cropped image in the `ActiveScanToolbar` and forcing
-  the user to physically tap "Identify". If "Multi-capture mode"
-  (`isMultiCaptureEnabled = true`) is enabled, required gallery crops are
-  reviewed sequentially and the user returns to the toolbar after the final
-  crop. `CaptureWorkspaceView` reads `@AppStorage` toggles inline and
-  dynamically caps the `PhotoLibraryButton`'s `maxSelectionCount` and the
-  toolbar's secondary add button.
+- **Staged review and Auto-submit scans**: Review is the default for every
+  account using the new `autoSubmitScans = false` preference. Legacy settings do
+  not migrate into it. Free has one physical photo/audio slot plus one note; Pro
+  has two physical slots plus one note. Auto-submit is minted at an empty
+  draft's photo/audio/video/import entry and remains bound to that attempt
+  through initial required cropping. Setting changes, new context, removal, and
+  recropping cannot arm an existing composition. UI and direct submission block
+  unresolved draft work. Failed enqueue retains source files for manual retry;
+  accepted scans retry through their durable owner. See the
+  [capture contract](../rfcs/staged-review-shared-describe-2026-09-26.md).
 - **Required Gallery Crop Cancellation**: The crop sheet's X button has
   source-aware behavior. During a required photo-library crop, X calls
   `cancelRequiredGalleryCrop(for:)`, removes that staged gallery image, clears
   crop state, and opens the next required gallery crop if one remains. During a
   normal/manual thumbnail crop, X only dismisses the editor and preserves the
   staged image. The delete action removes the image in both paths.
-- **Mixed-Media AI Context Appending**: Ordinary scans can stage up to 2 total
-  user items across photos, short Pro video clips, audio clips, and
-  descriptions. Reanalysis reserves one supplementary description beyond its
-  two-item evidence budget, as detailed below. Standard combinations include a
-  macro leaf photo plus a short text note, a short video, or two photos.
-  `CaptureWorkspaceViewModel` handles `PhotosPickerItem` interactions via
-  `handlePhotoPickerSelection`, constructing a `StagedImage` (compressed
-  inference copy, 2048 px display copy, bounded `UIImage` thumbnail, and
-  crop/metadata bundle) and appending it to `stagedCapture.images`, supporting
-  mixed optical captures and library imports. Video capture records a
+- **Mixed-Media AI Context Appending**: Ordinary Free scans have one photo/audio
+  slot and one optional note; Pro scans have two media slots and one optional
+  note. Video remains Pro-only. Reanalysis reserves one supplementary
+  description beyond its two-item evidence budget, as detailed below. Standard
+  combinations include a macro leaf photo plus a short text note, a short video,
+  or two photos. `CaptureWorkspaceViewModel` handles `PhotosPickerItem`
+  interactions via `handlePhotoPickerSelection`, constructing a `StagedImage`
+  (compressed inference copy, 2048 px display copy, bounded `UIImage` thumbnail,
+  and crop/metadata bundle) and appending it to `stagedCapture.images`,
+  supporting mixed optical captures and library imports. Video capture records a
   high-quality temporary `.mp4` with
   `AVCaptureMovieFileOutput.maxRecordedFileSize` capped at the existing 12 MB
   hard upload limit, requests native AVFoundation `.auto` stabilization for the

@@ -40,7 +40,7 @@ struct IdentificationPreflightTests {
             (["imageBase64s": ["image"], "visualMediaItems": [["kind": "image"]], "videoFrameCount": 1], .photo, true),
             (["videoR2ObjectKeys": ["video"], "audioR2ObjectKeys": ["audio"]], .videoAudio, false),
             (["imageBase64s": ["image"], "audioR2ObjectKeys": ["audio"], "audioMediaItems": [["kind": "video_audio"]]], .videoAudio, false),
-            (["imageBase64s": ["image"], "observation_contexts": [["freeText": "description"]]], .photo, false)
+            (["imageBase64s": ["image"], "observation_contexts": [["freeText": "description"]]], .photo, true)
         ]
         for (payload, profile, flash) in cases {
             let input = try makeInput(payload)
@@ -50,7 +50,7 @@ struct IdentificationPreflightTests {
         let legacy = try makeInput(["imageBase64s": ["image"]], function: "identify")
         #expect(legacy.inputProfile == .vision)
         #expect(legacy.flashFallbackEligible)
-        #expect(!(try makeInput(["imageBase64s": ["image"], "description": "leaf"], function: "identify")).flashFallbackEligible)
+        #expect((try makeInput(["imageBase64s": ["image"], "description": "leaf"], function: "identify")).flashFallbackEligible)
     }
 
     @Test func malformedIdentityCannotStartPreflight() throws {

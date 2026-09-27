@@ -7311,8 +7311,8 @@ Offline Sync cases cover the pure route policy without mutating process-wide
 connectivity state. `automaticSingleCaptureFencesTheIdentifyTray` independently
 locks the adjacent Shell presentation boundary: automatic single-capture
 ownership hides `ActiveScanToolbar` before asynchronous admission begins,
-admission recovery can reveal the retained staged media, and
-confirmation-enabled capture continues to present **Identify** normally.
+admission recovery can reveal the retained staged media, and staged-review
+capture continues to present **Identify** normally.
 `requiredCropStateFencesCaptureChromeBeforePresentation` locks the distinct
 pre-crop boundary: a required crop suppresses capture chrome even before
 `imageToCrop` mounts the full-screen cover. The workflow source guard requires
@@ -9432,3 +9432,17 @@ relationships, and reopens saved provenance. Run migration/startup suites on
 installed supported runtimes and record unavailable runtimes. Physical
 released-binary install-over remains a release gate in the startup recovery
 runbook, not evidence implied by these synthetic fixtures.
+
+## Staged review and shared Describe validation
+
+The pinned
+[capture contract](../rfcs/staged-review-shared-describe-2026-09-26.md) records
+the provider/provenance dependency and outstanding distribution evidence.
+`CaptureDraftSessionTests` exercises generation fencing, pre-entry auto
+eligibility, off/on revocation, shared-note review states, audio terminal
+failure, Free media-plus-note parity, copy ownership including video companions,
+new preference independence, and paywall copy. Existing admission, preflight,
+replay, hardware, settings, and migration suites remain required. Hardware/UI
+acceptance must also cover crop and recording preparation, VoiceOver, larger
+text, horizontal overflow, Liquid Glass and reduced effects, and confirmed
+discard of a composed draft.

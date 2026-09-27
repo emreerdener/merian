@@ -13,6 +13,9 @@ struct CaptureStagingToolbarPresentation {
         stagedCaptureLimit: Int
     ) {
         visibleNodes = stagedCapture.orderedNodes.filter { node in
+            if case .description(_, let description) = node {
+                return isRefining && !description.isRefinementSupplement
+            }
             if case .video(_, let stagedVideo) = node {
                 return stagedVideo.coverImage != nil
             }
@@ -25,7 +28,7 @@ struct CaptureStagingToolbarPresentation {
                 isRefining: true
             )
             photoSelectionCount = slots > 0 ? slots : nil
-        } else if visibleNodes.count < stagedCaptureLimit {
+        } else if stagedCapture.physicalItemCount < stagedCaptureLimit {
             photoSelectionCount = max(
                 1,
                 stagedCapture.availableSlots(limit: stagedCaptureLimit)

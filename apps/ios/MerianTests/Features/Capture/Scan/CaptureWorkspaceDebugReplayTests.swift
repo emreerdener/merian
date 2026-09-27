@@ -103,13 +103,10 @@ extension CaptureWorkspaceViewModelRefinementTests {
 
     func testDebugVideoReplayStagesFiveFramesWithoutAutomaticSubmission() async throws {
         let viewModel = try await makeDebugReplayWorkspace()
-        let previousConfirmation = viewModel.diContainer.appSettings.requiresScanConfirmation
-        let previousMultiCapture = viewModel.diContainer.appSettings.isMultiCaptureEnabled
-        viewModel.diContainer.appSettings.requiresScanConfirmation = false
-        viewModel.diContainer.appSettings.isMultiCaptureEnabled = false
+        let previousConfirmation = viewModel.diContainer.appSettings.autoSubmitScans
+        viewModel.diContainer.appSettings.autoSubmitScans = true
         defer {
-            viewModel.diContainer.appSettings.requiresScanConfirmation = previousConfirmation
-            viewModel.diContainer.appSettings.isMultiCaptureEnabled = previousMultiCapture
+            viewModel.diContainer.appSettings.autoSubmitScans = previousConfirmation
         }
         let frame = PreparedCaptureScanStill(
             inferenceData: makePNGData(), displayData: makePNGData(),
@@ -126,7 +123,7 @@ extension CaptureWorkspaceViewModelRefinementTests {
         XCTAssertEqual(staged.sampledImages.count, 5)
         XCTAssertTrue(staged.sampledImages.allSatisfy { $0.original.isFromGallery })
         XCTAssertEqual(staged.audioFilePath, video.audioFilePath)
-        XCTAssertTrue(viewModel.shouldAutoSubmitStagedCapture)
+        XCTAssertFalse(viewModel.shouldAutoSubmitStagedCapture)
         XCTAssertFalse(viewModel.isAutomaticStagedSubmissionPending)
         XCTAssertTrue(viewModel.shouldPresentActiveScanToolbar)
         XCTAssertNil(viewModel.pendingAnalyzeScanId)

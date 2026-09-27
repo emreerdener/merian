@@ -203,7 +203,8 @@ struct OfflineQueueAdmissionArchitectureTests {
 
         #expect(fileStore.contains("enum OfflineCaptureFileStore"))
         #expect(fileStore.contains("private static func persistFile("))
-        #expect(fileStore.contains("FileManager.default.moveItem"))
+        #expect(fileStore.contains("FileManager.default.copyItem"))
+        #expect(!fileStore.contains("FileManager.default.moveItem"))
         #expect(!fileStore.contains("extension OfflineQueueManager"))
         #expect(!fileStore.contains("EntitlementManager"))
         let fileStoreConsumers = try swiftFiles(below: root).compactMap { file -> String? in

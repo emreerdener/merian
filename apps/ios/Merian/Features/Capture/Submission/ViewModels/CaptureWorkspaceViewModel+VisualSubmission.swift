@@ -13,7 +13,7 @@ extension CaptureWorkspaceViewModel {
     /// Call order:
     /// 1. Snapshot the staging buffers and run caller-scoped scan admission.
     /// 2. If admission is exhausted, preserve the buffers and present the paywall.
-    /// 3. Otherwise clear the buffers and generate one stable `scanId` shared by
+    /// 3. Otherwise freeze the draft and generate one stable `scanId` shared by
     ///    the queue record and live inference task.
     /// 4. **Enqueue immediately** (still in foreground) with a source-aware context
     ///    snapshot and the serialized observation context when present. Gallery media
@@ -35,6 +35,8 @@ extension CaptureWorkspaceViewModel {
         }
 
         let analysisTappedAt = CFAbsoluteTimeGetCurrent()
+        guard canSubmitDraft else { return }
+        let submittedGeneration = draftSession.generation
         let stagedNodes = stagedCapture.orderedNodes
         let admissionSnapshot = CaptureSubmissionAdmissionSnapshot(stagedCapture)
         guard !stagedNodes.isEmpty, !isCheckingScanAdmission else { return }
@@ -69,7 +71,9 @@ extension CaptureWorkspaceViewModel {
         }
         // The preview crosses a network boundary. Never clear or submit a
         // staging buffer the user changed while that caller-scoped read ran.
-        guard CaptureSubmissionAdmissionSnapshot(stagedCapture) ==
+        guard isDraftReadyForSubmission, draftSession.generation == submittedGeneration,
+              !shouldFinishAutomaticAttempt || shouldAutoSubmitStagedCapture,
+              CaptureSubmissionAdmissionSnapshot(stagedCapture) ==
                 admissionSnapshot else {
             return
         }
@@ -86,7 +90,7 @@ extension CaptureWorkspaceViewModel {
                 admissionRoute: admissionRoute
             )
             guard didEnqueue else { return }
-            clearStagedCaptureAndCropState()
+            clearStagedCaptureAndCropState(discardStagedMediaFiles: true)
             baseRefinementContext = nil
             refinementSubjectId = nil
             return
@@ -124,12 +128,8 @@ extension CaptureWorkspaceViewModel {
                 isGalleryPhoto: primaryImageIsGalleryPhoto
             )
 
-        // 3. Clear the staging buffers immediately so the UI resets behind the overlay.
-        clearStagedCaptureAndCropState()
-        baseRefinementContext = nil
-        refinementSubjectId = nil
-        preFetchTask = nil
-        diContainer.cameraManager.resetZoom()
+        // Freeze the draft until durable acceptance. A failure retains its source files.
+        isQueueingStagedCapture = true
 
         // 4. Generate a stable scanId shared by the queue record and live inference.
         let scanId = UUID().uuidString.lowercased()
@@ -146,7 +146,7 @@ extension CaptureWorkspaceViewModel {
                 for: scanId
             )
         }
-        let capturedMediaFilePaths = capturedMediaTimeline.discardableLocalMediaFilePaths
+        let capturedMediaFilePaths = Array(draftOwnedFiles)
 
         // 5. Enqueue immediately — in-foreground — so the scan reaches disk and SwiftData
         //    before any async boundary is crossed. Carries the observation context JSON so
@@ -178,11 +178,13 @@ extension CaptureWorkspaceViewModel {
                 foregroundInferenceGeneration,
             startSyncImmediately:
                 admissionRoute == .queued || !shouldOptimizeLiveImageAnalysis,
-            onQueued: { [weak self] didQueue in
+            onAdmission: { [weak self] acceptedTimeline in
+                let didQueue = acceptedTimeline != nil
                 guard let self else {
                     capturedPreFetchTask?.cancel()
                     return
                 }
+                self.isQueueingStagedCapture = false
                 let queueCommittedAt = CFAbsoluteTimeGetCurrent()
                 MerianLog.general.debug(
                     "[⏱ BENCH] Analyze tap to durable queue commit: \(String(format: "%.3f", queueCommittedAt - analysisTappedAt), privacy: .public)s"
@@ -207,8 +209,6 @@ extension CaptureWorkspaceViewModel {
                                         "live_scan_superseded_before_start"
                                 )
                         }
-                    } else {
-                        self.discardLocalMediaFiles(at: capturedMediaFilePaths)
                     }
                     return
                 }
@@ -218,8 +218,21 @@ extension CaptureWorkspaceViewModel {
                     self.pendingAnalyzeScanId = nil
                     self.activeSheet = nil
                     self.offlineToastMessage = .error("Unable to save capture. Please try again.")
-                    self.discardLocalMediaFiles(at: capturedMediaFilePaths)
+                    self.revokeAutomaticSubmission()
                     return
+                }
+
+                guard let acceptedTimeline else { return }
+                let acceptedAudio = acceptedTimeline.audioFilePaths
+                let acceptedVideo = acceptedTimeline.videoFilePaths
+                if self.draftSession.generation == submittedGeneration {
+                    self.clearStagedCaptureAndCropState(discardStagedMediaFiles: true)
+                    self.baseRefinementContext = nil
+                    self.refinementSubjectId = nil
+                    self.preFetchTask = nil
+                    self.diContainer.cameraManager.resetZoom()
+                } else {
+                    self.discardLocalMediaFiles(at: capturedMediaFilePaths)
                 }
 
                 guard self.diContainer.offlineQueueManager.isOnline else {
@@ -429,11 +442,11 @@ extension CaptureWorkspaceViewModel {
                                 foregroundInferenceGeneration,
                             imageDatas: capturedInferenceImages.map(\.compressedData),
                             displayDatas: capturedDisplayImages.map(\.displayData),
-                            audioFilePaths: capturedAudioFilePaths.isEmpty ? nil : capturedAudioFilePaths,
-                            videoFilePaths: capturedVideoFilePaths.isEmpty ? nil : capturedVideoFilePaths,
+                            audioFilePaths: acceptedAudio.isEmpty ? nil : acceptedAudio,
+                            videoFilePaths: acceptedVideo.isEmpty ? nil : acceptedVideo,
                             telemetry: telemetry,
                             observationContexts: capturedObservationContexts,
-                            mediaTimeline: capturedMediaTimeline,
+                            mediaTimeline: acceptedTimeline,
                             visualMediaItems: capturedVisualMediaItems,
                             preferredGoal: capturedPreferredGoal,
                             modelContext: modelContext,

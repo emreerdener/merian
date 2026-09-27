@@ -140,15 +140,13 @@ after preparation, and commits exactly one item with `requiresCrop: true`.
 Submission repeats the admission preview because the entry check is advisory and
 reserves no quota.
 
-After the required crop:
-
-- default single-capture mode auto-submits when "Confirm scan submission" is
-  disabled;
-- confirmation-enabled mode leaves the cropped photo in the Active Scan toolbar
-  until the user taps Identify;
-- multi-capture mode retains the normal staged-media behavior; and
-- online and offline submissions use the existing durable scan queue and
-  `/identify-multimodal` contract.
+After the required crop, staged review remains the default. An attempt started
+with Auto-submit enabled in an empty draft may submit after preparation and its
+initial required crop. Turning Auto-submit on later, removing items, or
+recropping cannot arm the existing attempt. Every path uses the same durable
+queue and recipient-preflight contract; failure before durable acceptance
+preserves the source draft. See the
+[capture contract](../rfcs/staged-review-shared-describe-2026-09-26.md).
 
 ## Metadata and Privacy
 

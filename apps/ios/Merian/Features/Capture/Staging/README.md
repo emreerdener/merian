@@ -83,10 +83,10 @@ does not reserve quota.
 
 An eligible automatic single capture suppresses the Identify tray from the same
 mutation that stages its media until submission consumes the draft or fails.
-Confirmation-enabled, multi-capture, mixed-media, and refinement flows retain
-manual tray behavior. Required crop has a separate chrome fence from commit
-through completion/cancellation so staged controls cannot flash beneath the
-full-screen cover.
+Staged review, additional context, and refinement retain manual tray behavior.
+Required crop has a separate chrome fence from commit through
+completion/cancellation so staged controls cannot flash beneath the full-screen
+cover.
 
 The shared image cropper has left/right 90-degree rotation controls that
 preserve zoom and rotate the selected area. Confirmed quarter-turns, scale, and
@@ -98,9 +98,11 @@ crop. See
 
 Every media replacement must retain its original `addedAt` value. Submission and
 persistence derive chronology from that value; changing it during a crop would
-reorder the user's evidence. Cancel, remove, replacement, timeout, and
-queue-rejection paths delete temporary audio/video files. Successful queue/live
-handoff clears references only because the durable owner has adopted them.
+reorder the user's evidence. Confirmed whole-draft discard deletes only
+draft-owned files and invalidates its generation. Queue rejection preserves the
+draft and its sources for manual retry. Queue admission copies media to unique
+durable files; accepted live inference uses that exact mapped timeline. Only
+after acceptance are staging sources released.
 
 The supplementary marker is local to the refinement session and does not alter
 `ObservationContext`, queue JSON, or the API. Supplement updates retain their
@@ -125,3 +127,20 @@ Models/Services/Views/Components boundary, Submission ownership of wire/replay
 declarations, the single toolbar ordering source, effect isolation, retired Core
 path, and 600-line production-file guard. Paired Shell and Submission suites
 cover admission/presentation fences and timeline/projection contracts.
+
+## Review and shared text
+
+The root Describe editor owns the one ordinary note. Note-node taps focus it
+even at physical capacity. Historical descriptions alone retain the local-copy
+sheet. Free has one physical slot plus a note; Pro has two physical slots plus a
+note. The tray scrolls its media row while keeping Identify and confirmed
+Discard visible. Native glass respects Expedition, thermal, and accessibility
+reductions. Identify alone is text-only blue; Analyze retains its existing
+treatment. See the
+[pinned capture contract](../../../../../../docs/rfcs/staged-review-shared-describe-2026-09-26.md).
+
+Reanalysis keeps historical descriptions alongside its existing primary-media
+selection in original evidence order. Historical descriptions and the single
+current supplement have separate text budgets; neither consumes a physical media
+slot. Historical audio preparation is fenced by draft generation, even when
+restarting reanalysis for the same original scan.

@@ -115,16 +115,17 @@ description for refinement; `availableStagedCaptureSlots` reports evidence
 capacity and `canUseCaptureControls(in:)` keeps Describe available to add or
 update its supplement even when physical-media slots are full. Camera/video
 completion, imports, audio admission/completion, and picker counts share that
-policy. Ordinary single- and multi-capture limits remain unchanged.
+policy. Ordinary Free scans allow one physical photo/audio item plus one note;
+Pro allows two media items plus one note.
 
 `submitActiveStagedCapture` snapshots the editor synchronously through
 Submission's `prepareActiveStagedSubmission(descriptionDraft:)`. Empty input
-preserves staged text; successful staging clears the editor; rejection retains
-text, presents the existing error toast, and prevents dispatch. **+** uses the
-same refinement supplement rather than adding another description. Shell's
-`saveStagedDescription` and `removeStagedDescription` reconcile supplementary
-tray changes with the live draft while preserving historical evidence and
-insertion times.
+preserves staged text; successful staging retains the shared editor; rejection
+retains text, presents the existing error toast, and prevents dispatch. **+**
+uses the same refinement supplement rather than adding another description.
+Shell's `saveStagedDescription` and `removeStagedDescription` reconcile
+supplementary tray changes with the live draft while preserving historical
+evidence and insertion times.
 
 Starting a refinement cancels previous preparation and discards the prior staged
 media, picker selection, and environment prefetch before installing the new
@@ -234,7 +235,7 @@ Camera, video, and crop-confirmed commits set
 the eligible staged media. While that ownership is active,
 `shouldPresentActiveScanToolbar` keeps the ordinary `MainTabBar` mounted and
 prevents the manual **Identify** tray from flashing before the asynchronous
-admission task begins. Successful submission clears the staged buffer; a failed
+admission task begins. Durable acceptance clears the staged buffer; a failed
 admission attempt releases automatic ownership while retaining the media, so the
 Active Scan toolbar intentionally returns as the user's retry path.
 
@@ -444,3 +445,13 @@ Share Extension or promise availability for multi-photo selections.
 
 The canonical routing, privacy, telemetry, and device-QA contract is
 `docs/features-and-hardware/26-photos-share-import.md`.
+
+Root Describe and the tray share `descriptionDraft`. Text updates do not reveal
+the tray until staged; once visible, edits update its single note. Discard
+confirmation and all capture/import/crop completions are fenced by
+`CaptureDraftSession`. Auto-submit is opt-in through `autoSubmitScans` and
+eligibility is minted before asynchronous capture work, never inferred from
+later draft size. Auto-submit off/on cycles cannot rearm a capture. Recording
+failures release readiness without clearing existing content. The current
+[integration contract](../../../../../../docs/rfcs/staged-review-shared-describe-2026-09-26.md)
+defines settings, provider dependencies, acceptance, and validation.

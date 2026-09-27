@@ -18,6 +18,7 @@ extension CaptureWorkspaceViewModel {
               imageToCrop == nil else { return }
         guard dependencies.scan.canStartProScan() else { return }
 
+        guard let draftOperation = beginDraftOperation() else { return }
         isCapturing = true
         videoRecordingProgress = 0
 
@@ -25,6 +26,7 @@ extension CaptureWorkspaceViewModel {
         let generation = scanOperationState.beginVideoRecording()
         let recordingTask = Task { @MainActor [weak self] in
             guard let self else { return }
+            var succeeded = false
             var recordedFileURL: URL?
             var cameraRollSaveTask: Task<Void, Never>?
             defer {
@@ -32,6 +34,7 @@ extension CaptureWorkspaceViewModel {
                     for: generation,
                     resetProgress: true
                 )
+                self.completeDraftOperation(draftOperation, succeeded: succeeded)
             }
 
             guard await self.requestScanAdmission(
@@ -60,6 +63,7 @@ extension CaptureWorkspaceViewModel {
                 recordedFileURL = recording.fileURL
                 guard !Task.isCancelled,
                       self.scanOperationState.isCurrent(generation),
+                      self.draftSession.contains(draftOperation),
                       self.hasAvailableStagedCaptureSlot else {
                     try? FileManager.default.removeItem(
                         at: recording.fileURL
@@ -103,7 +107,8 @@ extension CaptureWorkspaceViewModel {
                 self.preFetchTask = contextTask
                 let stagedVideo = Self.makeStagedVideo(preparedVideo)
                 self.stagedCapture.videos.append(stagedVideo)
-                self.beginAutomaticStagedSubmissionIfEligible()
+                self.draftOwnedFiles.formUnion([stagedVideo.filePath, stagedVideo.audioFilePath].compactMap { $0 })
+                succeeded = true
                 MerianLog.hardware.debug(
                     """
                     Video staged: frames=\(stagedVideo.sampledImages.count, privacy: .public), \

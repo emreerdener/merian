@@ -10,13 +10,24 @@ struct CaptureWorkspaceView: View {
     @Environment(SpeechManager.self) private var speechManager
     @Environment(AudioCaptureManager.self) private var audioCaptureManager
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.colorScheme) private var colorScheme
 
     // MARK: - View Model & State
     @State private var viewModel: CaptureWorkspaceViewModel
 
     @State private var coordinator = CaptureActionCoordinator()
     @State private var captureMode: CaptureMode
-    @State private var observationContext = ObservationContext()
+    private var observationContext: ObservationContext {
+        get { viewModel.descriptionDraft }
+        nonmutating set { viewModel.updateDescriptionDraft(newValue) }
+    }
+    private var descriptionBinding: Binding<ObservationContext> {
+        let generation = viewModel.draftSession.generation
+        return Binding(get: { viewModel.descriptionDraft }, set: {
+            guard viewModel.draftSession.generation == generation else { return }
+            viewModel.updateDescriptionDraft($0)
+        })
+    }
     @State private var describePromptViewModel = DescribePromptViewModel()
     @State private var isDescribeQuestionsSheetPresented = false
     @State private var isKeyboardVisible: Bool = false
@@ -94,7 +105,7 @@ struct CaptureWorkspaceView: View {
                 viewModel: viewModel,
                 coordinator: coordinator,
                 captureMode: $captureMode,
-                observationContext: $observationContext,
+                observationContext: descriptionBinding,
                 describePromptViewModel: describePromptViewModel,
                 isDescribeQuestionsSheetPresented: $isDescribeQuestionsSheetPresented,
                 isKeyboardVisible: $isKeyboardVisible,
@@ -165,8 +176,9 @@ struct CaptureWorkspaceView: View {
                                         // MARK: Describe page — Text input
                                         DescribeInputView(
                                             promptFlow: viewModel.describePromptFlow,
-                                            context: $observationContext,
-                                            promptViewModel: describePromptViewModel
+                                            context: descriptionBinding,
+                                            promptViewModel: describePromptViewModel,
+                                            focusRequest: viewModel.descriptionFocusRequest
                                         )
                                         .frame(width: proxy.size.width, height: proxy.size.height)
                                         .clipped()
@@ -180,7 +192,7 @@ struct CaptureWorkspaceView: View {
                         .transparentTopToolbar()
                         .scrollTargetBehavior(.paging)
                         .scrollPosition(id: $scrollPageMode)
-                        .scrollDisabled(isVerticalZooming || isToggleDragging)
+                        .scrollDisabled(isVerticalZooming || isToggleDragging || viewModel.isDraftMutationLocked)
                         .scrollDismissesKeyboard(.interactively)
                         .background(ScrollBounceDisabler())
                         .onChange(of: appSettings.captureModeOrderRaw, initial: true) { _, raw in
@@ -238,7 +250,7 @@ struct CaptureWorkspaceView: View {
                 DescribeInputLifecycleObserver(
                     captureMode: captureMode,
                     promptFlow: viewModel.describePromptFlow,
-                    context: $observationContext,
+                    context: descriptionBinding,
                     promptViewModel: describePromptViewModel,
                     isQuestionsSheetPresented: $isDescribeQuestionsSheetPresented,
                     coordinator: coordinator,
@@ -318,10 +330,11 @@ struct CaptureWorkspaceView: View {
                     CaptureControlBar(
                         viewModel: viewModel,
                         captureMode: captureMode,
-                        observationContext: $observationContext,
+                        observationContext: descriptionBinding,
                         isSuppressed: shouldHideBottomChrome,
                         coordinator: coordinator
                     )
+                    .disabled(viewModel.isDraftMutationLocked)
                 }
 
                 // MARK: Fixed Overlay — Navigation / scan toolbar (bottom, independent of capture bar)
@@ -341,6 +354,9 @@ struct CaptureWorkspaceView: View {
                             stagedCapture: viewModel.stagedCapture,
                             isRefining: viewModel.baseRefinementContext != nil,
                             stagedCaptureLimit: viewModel.stagedCaptureLimit,
+                            isSubmissionReady: viewModel.canSubmitDraft,
+                            isMutationLocked: viewModel.isDraftMutationLocked,
+                            onNoteTap: editSharedNote,
                             selectedPhotoItems: $viewModel.selectedPhotoItems,
                             onRequestPhotoPickerPresentation: { selectionCount in
                                 await viewModel.requestImageImportEntryAdmission(
@@ -348,26 +364,25 @@ struct CaptureWorkspaceView: View {
                                 )
                             },
                             onThumbnailTap: { index in viewModel.presentCrop(for: index) },
-                            onCancel: {
-                                let isCancelingRefinement = viewModel.baseRefinementContext != nil
-                                viewModel.restoreRefinementInsightAfterCancellation()
-                                viewModel.clearStagedCaptureAndCropState(discardStagedMediaFiles: true)
-                                viewModel.cancelRefinementStaging()
-                                if isCancelingRefinement {
-                                    observationContext = ObservationContext()
-                                }
-                            },
+                            onCancel: { viewModel.requestDraftDiscard() },
                             onSubmit: {
                                 submitActiveStagedCapture()
                             },
                             onDescriptionTap: { index in
                                 coordinator.isDictationRequested = false
-                                stagedDescriptionEditIndex = index
+                                speechManager.stopDictation()
+                                if viewModel.baseRefinementContext != nil,
+                                   !viewModel.stagedCapture.observationContexts[index].isRefinementSupplement {
+                                    stagedDescriptionEditIndex = index
+                                } else {
+                                    editSharedNote()
+                                }
                             },
                             onAudioTap: { index in stagedAudioReviewIndex = index },
                             onVideoTap: { index in stagedVideoReviewIndex = index },
                             dependencies: viewModel.dependencies.stagingToolbar
                         )
+                        .environment(\.colorScheme, captureMode == .describe ? colorScheme : .dark)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                 }
@@ -378,6 +393,29 @@ struct CaptureWorkspaceView: View {
                 .opacity(shouldHideBottomChrome ? 0 : 1)
                 .allowsHitTesting(!shouldHideBottomChrome)
         } // ZStack
+        .alert(viewModel.baseRefinementContext == nil ? "Discard this scan?" : "Discard reanalysis?",
+               isPresented: Binding(get: { viewModel.discardConfirmationGeneration != nil },
+                                    set: { if !$0 { viewModel.discardConfirmationGeneration = nil } }),
+               presenting: viewModel.discardConfirmationGeneration) { generation in
+            Button("Keep editing", role: .cancel) { viewModel.discardConfirmationGeneration = nil }
+            Button("Discard scan", role: .destructive) {
+                guard generation == viewModel.draftSession.generation,
+                      !viewModel.isQueueingStagedCapture, !viewModel.isCheckingScanAdmission else { return }
+                coordinator.isDictationRequested = false
+                speechManager.stopDictation()
+                audioCaptureManager.cancelRecording()
+                audioCaptureManager.discardPending()
+                _ = viewModel.confirmDraftDiscard(generation: generation)
+            }
+        } message: { _ in
+            Text("Your staged media and description will be removed.")
+        }
+    }
+
+    private func editSharedNote() {
+        guard !viewModel.isDraftMutationLocked else { return }
+        captureMode = .describe
+        viewModel.descriptionFocusRequest = UUID()
     }
 
     private func dismissCaptureKeyboardAndRestoreChrome() {

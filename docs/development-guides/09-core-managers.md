@@ -1710,9 +1710,9 @@ selected live image-policy consumer links, the retired aggregate paths, and the
 | `themeMode`                            | `"themeMode"`                             | `MerianApp`, theme bootstrap                                                                                                                                                                                                                                                                                          |
 | `opensExploreOnLaunch`                 | `"opensExploreOnLaunch"`                  | Default-off `AppSettings` preference sampled once by `MerianApp`; after onboarding and current required consent, an ordinary cold launch may initialize the Capture workspace with Explore presented. Registered during settings initialization and reloaded by `AppSettings.reloadFromDefaults()`.                   |
 | `isPushNotificationsEnabled`           | `"isPushNotificationsEnabled"`            | `AppSettings` typed property. Notification settings, inference completion, and offline failure/completion paths read/write through settings except low-level authorization mirrors.                                                                                                                                   |
-| `isMultiCaptureEnabled`                | `"isMultiCaptureEnabled"`                 | `CaptureWorkspaceViewModel`, `CaptureWorkspaceViewModel+DescribeSubmission`, onboarding migration                                                                                                                                                                                                                     |
+| `autoSubmitScans`                      | `"autoSubmitScans"`                       | Default-false opt-in to immediate submission, independent of legacy capture settings.                                                                                                                                                                                                                                 |
 | `showsCaptureGoalProgress`             | `"showsCaptureGoalProgress"`              | `AppSettings` typed property. The **Field trip goals** setting controls whether `CaptureWorkspaceView` presents the active outing target capsule and may forward its camera-only selected-goal hint; default `true`. Server progress remains enabled with deterministic fallback when off.                            |
-| `legacyMultiImageScanMode`             | `"multiImageScanMode"`                    | one-time migration in `MerianApp`                                                                                                                                                                                                                                                                                     |
+| `legacyMultiImageScanMode`             | `"multiImageScanMode"`                    | Retired key; does not determine the new staged-review default.                                                                                                                                                                                                                                                        |
 | `hasPromptedForNotificationsPostIdent` | `"hasPromptedForNotificationsPostIdent"`  | `AppSettings` typed property. `CameraSheetRouter` uses it to present the post-identification notification prompt only once.                                                                                                                                                                                           |
 | `hasSeenExploreOnboarding`             | `"hasSeenExploreOnboarding"`              | `AppSettings` typed property. `InsightSheetViewModel` uses it for the one-time Explore sharing prompt.                                                                                                                                                                                                                |
 | `hasUnseenExplorePost`                 | `"hasUnseenExplorePost"`                  | `AppSettings` typed property. Set after local share, cleared when the Recent Explore feed is loaded, and read by `MainTabBar`.                                                                                                                                                                                        |
@@ -1874,7 +1874,7 @@ consults that Keychain entry.
   `Core/Preferences/AppSettings.swift`; the exact key registry remains in
   `Core/Preferences/UserDefaultsKeys.swift`.
 - Owns the typed, in-memory representation of high-churn persisted settings such
-  as `themeMode`, `isMultiCaptureEnabled`, `requiresScanConfirmation`,
+  as `themeMode`, `autoSubmitScans`, `hasShownCaptureNoteTip`,
   `showsCaptureGoalProgress`, `gridColumns`, `saveToCameraRoll`, and
   notification toggles.
 - Writes through to `UserDefaults` on mutation, reloads from
@@ -1891,7 +1891,7 @@ consults that Keychain entry.
   preferred UI-facing boundary for global UI/preferences state.
 - `CaptureWorkspaceViewModel` and its modality extensions read capture
   preferences through `diContainer.appSettings`, not `AppSettings.shared`, so
-  preview/test containers can isolate multi-capture and confirmation behavior
+  preview/test containers can isolate staged-review and auto-submit behavior
   without mutating global defaults.
 - Core hardware/data managers that need settings (`HardwareOrchestrator`,
   `HapticManager`, `PhotoLibraryManager`) also accept `AppSettings` injection
