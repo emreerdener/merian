@@ -5,19 +5,19 @@ let subjectFunnels: [String: [GuidedQuestion]] = [
         GuidedQuestion(
             prompt: "What type of bird was it?",
             tags: [
-                .init(tagId: "bird_type_song", label: "Songbird", aiText: "a songbird", defaultWeight: 40),
-                .init(tagId: "bird_type_prey", label: "Bird of prey", aiText: "a bird of prey", defaultWeight: 30),
-                .init(tagId: "bird_type_wade", label: "Wading bird", aiText: "a wading bird", defaultWeight: 20),
-                .init(tagId: "bird_type_water", label: "Waterfowl", aiText: "a waterfowl", defaultWeight: 10)
+                .init(tagId: "bird_type_song", label: "Songbird", aiText: "a songbird", defaultWeight: 40, emoji: "🐦"),
+                .init(tagId: "bird_type_prey", label: "Bird of prey", aiText: "a bird of prey", defaultWeight: 30, emoji: "🦅"),
+                .init(tagId: "bird_type_wade", label: "Wading bird", aiText: "a wading bird", defaultWeight: 20, emoji: "🦩"),
+                .init(tagId: "bird_type_water", label: "Waterfowl", aiText: "a waterfowl", defaultWeight: 10, emoji: "🦆")
             ]
         ),
         GuidedQuestion(
             prompt: "About how large was the bird?",
             tags: [
-                .init(tagId: "bird_size_spar", label: "Sparrow-sized", aiText: "sparrow-sized", defaultWeight: 40),
-                .init(tagId: "bird_size_pig", label: "Pigeon-sized", aiText: "pigeon-sized", defaultWeight: 30),
-                .init(tagId: "bird_size_crow", label: "Crow-sized", aiText: "crow-sized", defaultWeight: 20),
-                .init(tagId: "bird_size_eagl", label: "Eagle-sized", aiText: "eagle-sized", defaultWeight: 10)
+                .init(tagId: "bird_size_spar", label: "Sparrow-sized", aiText: "sparrow-sized", defaultWeight: 40, emoji: "🐦"),
+                .init(tagId: "bird_size_pig", label: "Pigeon-sized", aiText: "pigeon-sized", defaultWeight: 30, emoji: "🕊️"),
+                .init(tagId: "bird_size_crow", label: "Crow-sized", aiText: "crow-sized", defaultWeight: 20, emoji: "🐦‍⬛"),
+                .init(tagId: "bird_size_eagl", label: "Eagle-sized", aiText: "eagle-sized", defaultWeight: 10, emoji: "🦅")
             ]
         ),
         GuidedQuestion(
@@ -32,10 +32,10 @@ let subjectFunnels: [String: [GuidedQuestion]] = [
         GuidedQuestion(
             prompt: "What did its feathers look like?",
             tags: [
-                .init(tagId: "bird_plum_brown", label: "Brown/streaked", aiText: "with brown or streaked plumage", defaultWeight: 40),
-                .init(tagId: "bird_plum_bw", label: "Black & white", aiText: "with black and white plumage", defaultWeight: 30),
-                .init(tagId: "bird_plum_vivid", label: "Vivid colors", aiText: "with vivid colors", defaultWeight: 20),
-                .init(tagId: "bird_plum_grey", label: "Grey/blue", aiText: "with grey or blue plumage", defaultWeight: 10)
+                .init(tagId: "bird_plum_brown", label: "Brown/streaked", aiText: "with brown or streaked plumage", defaultWeight: 40, emoji: "🤎"),
+                .init(tagId: "bird_plum_bw", label: "Black & white", aiText: "with black and white plumage", defaultWeight: 30, emoji: "🖤🤍"),
+                .init(tagId: "bird_plum_vivid", label: "Vivid colors", aiText: "with vivid colors", defaultWeight: 20, emoji: "🌈"),
+                .init(tagId: "bird_plum_grey", label: "Grey/blue", aiText: "with grey or blue plumage", defaultWeight: 10, emoji: "🩶💙")
             ]
         ),
         GuidedQuestion(
@@ -100,9 +100,9 @@ let subjectFunnels: [String: [GuidedQuestion]] = [
         GuidedQuestion(
             prompt: "Was it in bloom or showing any fruit?",
             tags: [
-                .init(tagId: "pln_rep_bloom", label: "In bloom", aiText: "in bloom", defaultWeight: 30),
-                .init(tagId: "pln_rep_seed", label: "Seed pods or fruit", aiText: "with seed pods or fruit", defaultWeight: 20),
-                .init(tagId: "pln_rep_leaves", label: "Leaves only", aiText: "showing leaves only", defaultWeight: 10)
+                .init(tagId: "pln_rep_bloom", label: "In bloom", aiText: "in bloom", defaultWeight: 30, emoji: "🌸"),
+                .init(tagId: "pln_rep_seed", label: "Seed pods or fruit", aiText: "with seed pods or fruit", defaultWeight: 20, emoji: "🍎"),
+                .init(tagId: "pln_rep_leaves", label: "Leaves only", aiText: "showing leaves only", defaultWeight: 10, emoji: "🍃")
             ]
         ),
         GuidedQuestion(
@@ -128,10 +128,10 @@ let subjectFunnels: [String: [GuidedQuestion]] = [
         GuidedQuestion(
             prompt: "About how big was it?",
             tags: [
-                .init(tagId: "spd_size_tiny", label: "Tiny", aiText: "tiny", defaultWeight: 40),
-                .init(tagId: "spd_size_pea", label: "Pea-sized", aiText: "pea-sized", defaultWeight: 30),
-                .init(tagId: "spd_size_coin", label: "Coin-sized", aiText: "coin-sized", defaultWeight: 20),
-                .init(tagId: "spd_size_palm", label: "Palm-sized", aiText: "palm-sized", defaultWeight: 10)
+                .init(tagId: "spd_size_tiny", label: "Tiny", aiText: "tiny", defaultWeight: 40, emoji: "🔎"),
+                .init(tagId: "spd_size_pea", label: "Pea-sized", aiText: "pea-sized", defaultWeight: 30, emoji: "🫛"),
+                .init(tagId: "spd_size_coin", label: "Coin-sized", aiText: "coin-sized", defaultWeight: 20, emoji: "🪙"),
+                .init(tagId: "spd_size_palm", label: "Palm-sized", aiText: "palm-sized", defaultWeight: 10, emoji: "✋")
             ]
         ),
         GuidedQuestion(
@@ -157,10 +157,10 @@ let subjectFunnels: [String: [GuidedQuestion]] = [
         GuidedQuestion(
             prompt: "What type of reptile or amphibian was it?",
             tags: [
-                .init(tagId: "rep_kind_snake", label: "Snake", aiText: "a snake", defaultWeight: 40),
-                .init(tagId: "rep_kind_lizard", label: "Lizard", aiText: "a lizard", defaultWeight: 30),
-                .init(tagId: "rep_kind_turtle", label: "Turtle or tortoise", aiText: "a turtle or tortoise", defaultWeight: 20),
-                .init(tagId: "rep_kind_frog", label: "Frog or toad", aiText: "a frog or toad", defaultWeight: 10)
+                .init(tagId: "rep_kind_snake", label: "Snake", aiText: "a snake", defaultWeight: 40, emoji: "🐍"),
+                .init(tagId: "rep_kind_lizard", label: "Lizard", aiText: "a lizard", defaultWeight: 30, emoji: "🦎"),
+                .init(tagId: "rep_kind_turtle", label: "Turtle or tortoise", aiText: "a turtle or tortoise", defaultWeight: 20, emoji: "🐢"),
+                .init(tagId: "rep_kind_frog", label: "Frog or toad", aiText: "a frog or toad", defaultWeight: 10, emoji: "🐸")
             ]
         ),
         GuidedQuestion(
@@ -184,10 +184,10 @@ let subjectFunnels: [String: [GuidedQuestion]] = [
         GuidedQuestion(
             prompt: "Where exactly was it resting or found?",
             tags: [
-                .init(tagId: "rep_loc_ground", label: "On the ground", aiText: "on the ground", defaultWeight: 40),
-                .init(tagId: "rep_loc_tree", label: "In trees or bushes", aiText: "in trees or bushes", defaultWeight: 30),
-                .init(tagId: "rep_loc_water", label: "Near or in water", aiText: "near or in water", defaultWeight: 20),
-                .init(tagId: "rep_loc_rock", label: "Under a rock", aiText: "under a rock", defaultWeight: 10)
+                .init(tagId: "rep_loc_ground", label: "On the ground", aiText: "on the ground", defaultWeight: 40, emoji: "🟫"),
+                .init(tagId: "rep_loc_tree", label: "In trees or bushes", aiText: "in trees or bushes", defaultWeight: 30, emoji: "🌳"),
+                .init(tagId: "rep_loc_water", label: "Near or in water", aiText: "near or in water", defaultWeight: 20, emoji: "💧"),
+                .init(tagId: "rep_loc_rock", label: "Under a rock", aiText: "under a rock", defaultWeight: 10, emoji: "🪨")
             ]
         )
     ],
@@ -222,10 +222,10 @@ let subjectFunnels: [String: [GuidedQuestion]] = [
         GuidedQuestion(
             prompt: "What was it growing out of?",
             tags: [
-                .init(tagId: "msh_grow_soil", label: "Soil", aiText: "growing in soil", defaultWeight: 40),
-                .init(tagId: "msh_grow_dead", label: "Dead wood", aiText: "growing on dead wood", defaultWeight: 30),
-                .init(tagId: "msh_grow_tree", label: "Living tree", aiText: "growing on a living tree", defaultWeight: 20),
-                .init(tagId: "msh_grow_grass", label: "Grass", aiText: "growing in grass", defaultWeight: 10)
+                .init(tagId: "msh_grow_soil", label: "Soil", aiText: "growing in soil", defaultWeight: 40, emoji: "🟫"),
+                .init(tagId: "msh_grow_dead", label: "Dead wood", aiText: "growing on dead wood", defaultWeight: 30, emoji: "🪵"),
+                .init(tagId: "msh_grow_tree", label: "Living tree", aiText: "growing on a living tree", defaultWeight: 20, emoji: "🌳"),
+                .init(tagId: "msh_grow_grass", label: "Grass", aiText: "growing in grass", defaultWeight: 10, emoji: "🌾")
             ]
         )
     ],
@@ -233,10 +233,10 @@ let subjectFunnels: [String: [GuidedQuestion]] = [
         GuidedQuestion(
             prompt: "What kind of mammal did you spot?",
             tags: [
-                .init(tagId: "mam_kind_rodent", label: "Rodent", aiText: "a rodent", defaultWeight: 40),
-                .init(tagId: "mam_kind_squirrel", label: "Squirrel", aiText: "a squirrel", defaultWeight: 30),
-                .init(tagId: "mam_kind_rabbit", label: "Rabbit or hare", aiText: "a rabbit or hare", defaultWeight: 20),
-                .init(tagId: "mam_kind_raccoon", label: "Raccoon/skunk/opossum", aiText: "a raccoon, skunk, or opossum", defaultWeight: 10)
+                .init(tagId: "mam_kind_rodent", label: "Rodent", aiText: "a rodent", defaultWeight: 40, emoji: "🐁"),
+                .init(tagId: "mam_kind_squirrel", label: "Squirrel", aiText: "a squirrel", defaultWeight: 30, emoji: "🐿️"),
+                .init(tagId: "mam_kind_rabbit", label: "Rabbit or hare", aiText: "a rabbit or hare", defaultWeight: 20, emoji: "🐇"),
+                .init(tagId: "mam_kind_raccoon", label: "Raccoon/skunk/opossum", aiText: "a raccoon, skunk, or opossum", defaultWeight: 10, emoji: "🦝")
             ]
         ),
         GuidedQuestion(
@@ -251,18 +251,18 @@ let subjectFunnels: [String: [GuidedQuestion]] = [
         GuidedQuestion(
             prompt: "What color was its fur?",
             tags: [
-                .init(tagId: "mam_fur_brown", label: "Brown or tan", aiText: "with brown or tan fur", defaultWeight: 40),
-                .init(tagId: "mam_fur_grey", label: "Grey", aiText: "with grey fur", defaultWeight: 30),
-                .init(tagId: "mam_fur_bw", label: "Black and white", aiText: "with black and white fur", defaultWeight: 20),
-                .init(tagId: "mam_fur_red", label: "Reddish", aiText: "with reddish fur", defaultWeight: 10)
+                .init(tagId: "mam_fur_brown", label: "Brown or tan", aiText: "with brown or tan fur", defaultWeight: 40, emoji: "🤎"),
+                .init(tagId: "mam_fur_grey", label: "Grey", aiText: "with grey fur", defaultWeight: 30, emoji: "🩶"),
+                .init(tagId: "mam_fur_bw", label: "Black and white", aiText: "with black and white fur", defaultWeight: 20, emoji: "🖤🤍"),
+                .init(tagId: "mam_fur_red", label: "Reddish", aiText: "with reddish fur", defaultWeight: 10, emoji: "🧡")
             ]
         ),
         GuidedQuestion(
             prompt: "What time of day was it active?",
             tags: [
-                .init(tagId: "mam_time_day", label: "Daytime", aiText: "active during the day", defaultWeight: 40),
-                .init(tagId: "mam_time_dusk", label: "Dusk or dawn", aiText: "active at dusk or dawn", defaultWeight: 30),
-                .init(tagId: "mam_time_night", label: "Nighttime", aiText: "active at night", defaultWeight: 20)
+                .init(tagId: "mam_time_day", label: "Daytime", aiText: "active during the day", defaultWeight: 40, emoji: "☀️"),
+                .init(tagId: "mam_time_dusk", label: "Dusk or dawn", aiText: "active at dusk or dawn", defaultWeight: 30, emoji: "🌅"),
+                .init(tagId: "mam_time_night", label: "Nighttime", aiText: "active at night", defaultWeight: 20, emoji: "🌙")
             ]
         )
     ],
@@ -279,10 +279,10 @@ let subjectFunnels: [String: [GuidedQuestion]] = [
         GuidedQuestion(
             prompt: "What type of water environment was it in?",
             tags: [
-                .init(tagId: "fsh_water_stream", label: "Freshwater stream", aiText: "in a freshwater stream", defaultWeight: 40),
-                .init(tagId: "fsh_water_lake", label: "Lake or pond", aiText: "in a lake or pond", defaultWeight: 30),
-                .init(tagId: "fsh_water_reef", label: "Saltwater reef", aiText: "in a saltwater reef", defaultWeight: 20),
-                .init(tagId: "fsh_water_ocean", label: "Open ocean", aiText: "in the open ocean", defaultWeight: 10)
+                .init(tagId: "fsh_water_stream", label: "Freshwater stream", aiText: "in a freshwater stream", defaultWeight: 40, emoji: "💧"),
+                .init(tagId: "fsh_water_lake", label: "Lake or pond", aiText: "in a lake or pond", defaultWeight: 30, emoji: "🏞️"),
+                .init(tagId: "fsh_water_reef", label: "Saltwater reef", aiText: "in a saltwater reef", defaultWeight: 20, emoji: "🪸"),
+                .init(tagId: "fsh_water_ocean", label: "Open ocean", aiText: "in the open ocean", defaultWeight: 10, emoji: "🌊")
             ]
         ),
         GuidedQuestion(

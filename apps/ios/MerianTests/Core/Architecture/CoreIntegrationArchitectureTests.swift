@@ -209,6 +209,7 @@ struct CoreIntegrationArchitectureTests {
         "Errors",
         "Hardware",
         "Intents",
+        "Maps",
         "Media",
         "Models",
         "Network",

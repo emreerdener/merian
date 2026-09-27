@@ -3,6 +3,68 @@ import XCTest
 
 @MainActor
 final class AuthSessionBootstrapCoordinatorTests: XCTestCase {
+    func testOwnerlessBootstrapOpensRequestsWithoutWaitingForPurchases() async {
+        for restoresSession in [false, true] {
+            let harness = AuthSessionBootstrapCoordinatorHarness()
+            let coordinator = AuthSessionBootstrapCoordinator()
+            let gate = AuthSessionBootstrapCoordinatorTestGate()
+            let completed = expectation(description: "Auth ready before purchases")
+            if restoresSession {
+                harness.loadedSession = harness.existing
+            } else {
+                harness.loadError = AuthSessionBootstrapCoordinatorTestError.missingSession
+            }
+            harness.readinessGate = gate
+            let attempt = Task { @MainActor in
+                let result = await coordinator.initialize(dependencies: harness.makeDependencies())
+                completed.fulfill()
+                return result
+            }
+
+            await fulfillment(of: [completed], timeout: 1)
+            // Always release the fixture, even if the old blocking behavior returns.
+            await gate.release()
+            let result = await attempt.value
+
+            XCTAssertEqual(result, restoresSession ? harness.existing : harness.anonymous)
+            XCTAssertNil(harness.activeTransition)
+            XCTAssertEqual(harness.transitionFinishCount, 1)
+            XCTAssertEqual(harness.readinessCount, 0)
+            XCTAssertTrue(AuthTransitionPolicy.allowsAuthenticatedRequest(
+                activeTransition: harness.activeTransition,
+                requestOwner: nil,
+                accountDeletionCleanupPending: false
+            ))
+        }
+    }
+
+    func testOwnedBootstrapKeepsRequestGateClosedUntilPurchaseReadiness() async {
+        let harness = AuthSessionBootstrapCoordinatorHarness()
+        let coordinator = AuthSessionBootstrapCoordinator()
+        let gate = AuthSessionBootstrapCoordinatorTestGate()
+        harness.activeTransition = harness.firstTransition
+        harness.loadError = AuthSessionBootstrapCoordinatorTestError.missingSession
+        harness.readinessGate = gate
+        let attempt = Task { @MainActor in
+            await coordinator.initialize(
+                ownedBy: harness.firstTransition,
+                dependencies: harness.makeDependencies()
+            )
+        }
+        await gate.waitUntilWaiterCount(1)
+        XCTAssertFalse(AuthTransitionPolicy.allowsAuthenticatedRequest(
+            activeTransition: harness.activeTransition,
+            requestOwner: nil,
+            accountDeletionCleanupPending: false
+        ))
+        XCTAssertEqual(harness.transitionFinishCount, 0)
+        await gate.release()
+        let result = await attempt.value
+        XCTAssertEqual(result, harness.anonymous)
+        XCTAssertEqual(harness.readinessCount, 1)
+        XCTAssertEqual(harness.activeTransition, harness.firstTransition)
+    }
+
     func testTestAndDeletionGatesStopBeforeSignOutOrSessionWork() async {
         let harness = AuthSessionBootstrapCoordinatorHarness()
         let coordinator = AuthSessionBootstrapCoordinator()
@@ -259,7 +321,7 @@ final class AuthSessionBootstrapCoordinatorTests: XCTestCase {
         XCTAssertEqual(harness.createCount, 1)
         XCTAssertEqual(harness.adoptionCount, 1)
         XCTAssertEqual(harness.publishCount, 1)
-        XCTAssertEqual(harness.readinessCount, 1)
+        XCTAssertEqual(harness.readinessCount, 0)
         XCTAssertEqual(harness.publicAuthorRefreshCount, 0)
         assertOrder(
             [
@@ -268,7 +330,6 @@ final class AuthSessionBootstrapCoordinatorTests: XCTestCase {
                 "adopt-",
                 "publish-",
                 "diagnose-anonymousSessionEstablished",
-                "ensure-purchase-identity",
                 "validate-published-session"
             ],
             in: harness.events
@@ -413,9 +474,11 @@ final class AuthSessionBootstrapCoordinatorTests: XCTestCase {
 
     func testResolvedSessionSchedulesRefreshBeforePurchaseReadiness() async {
         let harness = AuthSessionBootstrapCoordinatorHarness()
+        harness.activeTransition = harness.firstTransition
         harness.loadedSession = harness.existing
 
         let result = await AuthSessionBootstrapCoordinator().initialize(
+            ownedBy: harness.firstTransition,
             dependencies: harness.makeDependencies()
         )
 
@@ -436,6 +499,7 @@ final class AuthSessionBootstrapCoordinatorTests: XCTestCase {
     func testCancellationDuringExistingSessionReadinessRejectsCompletion()
         async {
         let harness = AuthSessionBootstrapCoordinatorHarness()
+        harness.activeTransition = harness.firstTransition
         let coordinator = AuthSessionBootstrapCoordinator()
         let gate = AuthSessionBootstrapCoordinatorTestGate()
         harness.loadedSession = harness.existing
@@ -443,6 +507,7 @@ final class AuthSessionBootstrapCoordinatorTests: XCTestCase {
 
         let attempt = Task { @MainActor in
             await coordinator.initialize(
+                ownedBy: harness.firstTransition,
                 dependencies: harness.makeDependencies()
             )
         }
@@ -461,6 +526,7 @@ final class AuthSessionBootstrapCoordinatorTests: XCTestCase {
 
     func testCancellationDuringAnonymousReadinessRejectsCompletion() async {
         let harness = AuthSessionBootstrapCoordinatorHarness()
+        harness.activeTransition = harness.firstTransition
         let coordinator = AuthSessionBootstrapCoordinator()
         let gate = AuthSessionBootstrapCoordinatorTestGate()
         harness.loadError =
@@ -469,6 +535,7 @@ final class AuthSessionBootstrapCoordinatorTests: XCTestCase {
 
         let attempt = Task { @MainActor in
             await coordinator.initialize(
+                ownedBy: harness.firstTransition,
                 dependencies: harness.makeDependencies()
             )
         }
@@ -488,10 +555,12 @@ final class AuthSessionBootstrapCoordinatorTests: XCTestCase {
 
     func testSessionReplacementDuringPurchaseReadinessRejectsCompletion() async {
         let harness = AuthSessionBootstrapCoordinatorHarness()
+        harness.activeTransition = harness.firstTransition
         harness.loadedSession = harness.existing
         harness.readinessReplacement = harness.replacement
 
         let result = await AuthSessionBootstrapCoordinator().initialize(
+            ownedBy: harness.firstTransition,
             dependencies: harness.makeDependencies()
         )
 

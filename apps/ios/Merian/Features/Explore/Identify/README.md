@@ -47,9 +47,11 @@ The dashboard layout is:
 
 Request and Activity previews start concurrently through `async let`. Each
 section keeps independent loading, empty, stale-content error, initial error,
-and Retry presentation. Pull-to-refresh and filter changes reload both. Activity
-temporary-service failures use Recent activity-specific copy; they must not show
-the generic “Explore is temporarily unavailable” message.
+and Retry presentation. Pull-to-refresh and filter changes reload both. An empty
+dashboard also retries when account-work readiness changes after first-launch
+Auth setup. Activity temporary-service failures use Recent activity-specific
+copy; they must not show the generic “Explore is temporarily unavailable”
+message.
 
 ## Complete feeds
 

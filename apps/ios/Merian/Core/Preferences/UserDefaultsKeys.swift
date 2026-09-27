@@ -5,6 +5,9 @@
 enum UserDefaultsKeys {
     /// Account-scoped installed builds that received a compatibility denial.
     static let clientUpdateRequirementPrefix = "clientUpdateRequirement.v1."
+    static let mapAppearance = "mapAppearance.v1"
+    static let recentPlacesResetGeneration = "recentPlacesResetGeneration.v1"
+    static let recentPlacesPrefix = "recentPlaces.v1."
     /// Versioned prefix for account-isolated, source-agnostic capture goal caches.
     static let captureGoalContextPrefix = "captureGoalContext.v1."
     /// Versioned prefix for account-isolated first Field trip achievement progress.

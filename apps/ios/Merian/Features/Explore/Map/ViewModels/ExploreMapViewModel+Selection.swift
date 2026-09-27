@@ -2,6 +2,8 @@ import MapKit
 
 extension ExploreMapViewModel {
     func focus(on target: ExploreMapFocusTarget) {
+        searchesOnNextCameraSettle = false
+        immediateSearchRegion = nil
         debounceSearchTask?.cancel()
         debounceSearchTask = nil
         requestGeneration &+= 1

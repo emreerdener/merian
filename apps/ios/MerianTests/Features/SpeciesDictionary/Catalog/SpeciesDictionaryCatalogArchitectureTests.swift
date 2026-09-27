@@ -168,6 +168,24 @@ struct SpeciesCatalogArchitectureTests {
         #expect(selectionRange.lowerBound < debounceRange.lowerBound)
     }
 
+    @Test func initialBrowsingLoadsObserveAccountReadiness() throws {
+        let repository = try repositoryRoot()
+        for path in [
+            "apps/ios/Merian/Features/Explore/Shell/Views/ExploreShellLifecycleModifier.swift",
+            "apps/ios/Merian/Features/Explore/Identify/Views/ExploreCommunityIdentificationView.swift"
+        ] {
+            let source = try String(contentsOf: repository.appendingPathComponent(path), encoding: .utf8)
+            #expect(source.contains(".task(id: supabase.allowsUnownedAccountBoundWork)"))
+        }
+        let overview = try String(
+            contentsOf: catalogSourceRoot().appendingPathComponent("Views/SpeciesDictionaryOverviewView.swift"),
+            encoding: .utf8
+        )
+        #expect(overview.contains(".task(id: SpeciesOverviewLoadKey("))
+        #expect(overview.contains("accountIsReady: supabase.allowsUnownedAccountBoundWork"))
+        #expect(overview.contains("await viewModel.loadIfNeeded(userRegion: userRegion)"))
+    }
+
     @Test func retiredTreeSurfaceStaysAbsent() throws {
         let repository = try repositoryRoot()
         let speciesDictionary = repository.appendingPathComponent(

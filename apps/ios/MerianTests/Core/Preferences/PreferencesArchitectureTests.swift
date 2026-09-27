@@ -88,6 +88,7 @@ struct PreferencesArchitectureTests {
         "Stores/ExploreShareStateStore.swift",
         "Stores/FirstFieldTripAchievementProgressStore.swift",
         "Stores/FieldNotesStore.swift",
+        "Stores/RecentPlaceStore.swift",
         "Stores/SpeciesPreferredNameStore.swift",
         "UserDefaultsKeys.swift"
     ]
@@ -104,6 +105,7 @@ struct PreferencesArchitectureTests {
         "Stores/ExploreShareStateStore.swift": ["import Foundation"],
         "Stores/FirstFieldTripAchievementProgressStore.swift": ["import Foundation"],
         "Stores/FieldNotesStore.swift": ["import Foundation"],
+        "Stores/RecentPlaceStore.swift": ["import Foundation"],
         "Stores/SpeciesPreferredNameStore.swift": ["import Foundation"],
         "UserDefaultsKeys.swift": []
     ]
@@ -123,6 +125,12 @@ struct PreferencesArchitectureTests {
             "apps/ios/Merian/Core/Preferences/Stores/FirstFieldTripAchievementProgressStore.swift",
         "enum FieldNotesStore":
             "apps/ios/Merian/Core/Preferences/Stores/FieldNotesStore.swift",
+        "struct RecentPlaceStore":
+            "apps/ios/Merian/Core/Preferences/Stores/RecentPlaceStore.swift",
+        "struct RecentPlace":
+            "apps/ios/Merian/Core/Preferences/Stores/RecentPlaceStore.swift",
+        "enum MapAppearance":
+            "apps/ios/Merian/Core/Preferences/Stores/RecentPlaceStore.swift",
         "struct SpeciesPreferredNameSyncDiagnostics":
             "apps/ios/Merian/Core/Preferences/Stores/SpeciesPreferredNameStore.swift",
         "enum SpeciesPreferredNameStore":

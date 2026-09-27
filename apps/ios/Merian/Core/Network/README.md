@@ -1072,7 +1072,7 @@ service/live adapter and diagnostics owner covers OAuth, recovery, and local
 sign-out. Separately, the guard freezes bootstrap and sign-out task ownership,
 missing-session-only creation, exact-session refresh, anonymous readiness,
 local-clear completion, and cancellation fences; the lifecycle event model,
-dependency boundaries, coordinator, and conditional deferred-event replay task;
+dependency boundaries, coordinator, and conditional current-session replay task;
 the OAuth model, identity-token policy, replacement/retry workflow, completion
 dependency package/coordinator, provider-admission dependency
 package/coordinator, and focused provider presentation/mapping Services; the
@@ -1289,7 +1289,13 @@ replay dependencies from strongly capturing `SupabaseManager`, preserving
 owner-teardown cancellation while a synthetic replay is suspended.
 `AuthLifecycleReplayCoordinatorTests` owns five cases covering replacement
 cancellation, transition carry-forward, stable-event obligation clearing, owner
-release during suspension, and the stable-transition no-op boundary.
+release during suspension, and the stable-transition no-op boundary when replay
+is not forced. `AuthSessionLifecycleLiveProviderTests` additionally covers
+forced bootstrap replay without a deferred SDK event, purchase/entitlement
+effects, and rejection of a newly admitted transition. Ownerless bootstrap
+request-admission coverage belongs to `AuthSessionBootstrapCoordinatorTests`;
+see the [Auth contract](Auth/README.md) and
+[first-launch verification matrix](../../../../../docs/development-guides/08-testing-strategy.md#first-launch-account-readiness-verification).
 `AuthSessionRecoveryCoordinatorTests` owns eighteen deterministic cases covering
 ordinary and transition-owned exact-session refresh, cancellation and session
 drift around suspension, anonymous purchase/entitlement/final-readback

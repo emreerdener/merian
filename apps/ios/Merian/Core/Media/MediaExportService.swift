@@ -170,22 +170,29 @@ struct DiscoveryShareRequest: Sendable, Equatable {
     let message: String
     let liveImageData: Data?
     let imageSources: [MediaExportSource]
+    var files: [MediaShareFileRequest] = []
+    var expectsImage = false
 
     static func make(
         commonName: String,
         scientificName: String,
         liveImageData: Data?,
         primaryImageReference: String?,
-        fallbackImageReference: String?
+        fallbackImageReference: String?,
+        audioPaths: [String] = [],
+        videoPaths: [String] = [],
+        summary: DiscoveryShareSummary = .init()
     ) -> Self {
         Self(
-            message: "Check out this \(commonName) (\(scientificName)) I discovered using Naturebook!",
+            message: summary.text(commonName: commonName, scientificName: scientificName),
             liveImageData: liveImageData,
             imageSources: MediaExportSourceResolver.sources(
                 from: primaryImageReference
             ) + MediaExportSourceResolver.approvedRemoteURLs(
                 from: fallbackImageReference
-            ).map(MediaExportSource.approvedRemote)
+            ).map(MediaExportSource.approvedRemote),
+            files: MediaShareFileRequest.make(audioPaths: audioPaths, videoPaths: videoPaths),
+            expectsImage: liveImageData != nil || primaryImageReference != nil || fallbackImageReference != nil
         )
     }
 }
@@ -195,15 +202,24 @@ struct BatchDiscoveryShareRequest: Sendable, Equatable {
         let commonName: String
         let scientificName: String
         let imageSources: [MediaExportSource]
+        let files: [MediaShareFileRequest]
+        let summary: DiscoveryShareSummary
+        let expectsImage: Bool
 
         init(
             commonName: String,
             scientificName: String,
             primaryImageReference: String?,
-            fallbackImageReference: String?
+            fallbackImageReference: String?,
+            audioPaths: [String] = [],
+            videoPaths: [String] = [],
+            summary: DiscoveryShareSummary = .init()
         ) {
             self.commonName = commonName
             self.scientificName = scientificName
+            self.files = MediaShareFileRequest.make(audioPaths: audioPaths, videoPaths: videoPaths)
+            self.summary = summary
+            self.expectsImage = primaryImageReference != nil || fallbackImageReference != nil
             self.imageSources = MediaExportSourceResolver.sources(
                 from: primaryImageReference
             ) + MediaExportSourceResolver.approvedRemoteURLs(
@@ -215,33 +231,25 @@ struct BatchDiscoveryShareRequest: Sendable, Equatable {
     let discoveries: [Discovery]
 
     var message: String {
-        guard discoveries.count != 1 else {
-            let discovery = discoveries[0]
-            return "Check out this \(discovery.commonName) (\(discovery.scientificName)) I discovered using Naturebook!\n\(PublicBrand.websiteURL.absoluteString)"
-        }
-
-        var result = "Check out these \(discoveries.count) discoveries I made using Naturebook!\n"
-        let displayLimit = 10
-        for (index, discovery) in discoveries.enumerated() {
-            if index < displayLimit {
-                result += "• \(discovery.commonName) (\(discovery.scientificName))\n"
-            } else if index == displayLimit {
-                result += "• ...and \(discoveries.count - displayLimit) more!\n"
-                break
-            }
-        }
-        result += "\n\(PublicBrand.websiteURL.absoluteString)"
-        return result
+        discoveries.enumerated().map { index, discovery in
+            "Discovery \(index + 1)\n\n" + discovery.summary.text(
+                commonName: discovery.commonName, scientificName: discovery.scientificName
+            )
+        }.joined(separator: "\n\n———\n\n")
     }
 }
 
 enum MediaShareItem: Sendable {
     case image(SendableCGImage)
     case text(String)
+    case file(MediaShareFile)
 }
 
 struct MediaSharePayload: Sendable {
     let items: [MediaShareItem]
+    var hasUnavailableMedia = false
+
+    static let unavailableMessage = "Some scan media couldn't be prepared. Please try again."
 
     @MainActor
     var activityItems: [Any] {
@@ -251,6 +259,8 @@ struct MediaSharePayload: Sendable {
                 UIImage(cgImage: image.image)
             case .text(let text):
                 text
+            case .file(let file):
+                MediaShareFileItemSource(file: file)
             }
         }
     }
@@ -333,21 +343,29 @@ private actor MediaExportProcessor {
     }
 
     func prepareShare(_ request: DiscoveryShareRequest) async -> MediaSharePayload {
+        var items: [MediaShareItem] = []
+        var hasUnavailableImage = false
         if let image = await firstImage(
             liveImageData: request.liveImageData,
             sources: request.imageSources,
             maxSize: MediaExportSizingPolicy.singleShareMaxPixelSize
         ) {
-            return MediaSharePayload(items: [.image(image), .text(request.message)])
+            items.append(.image(image))
+        } else {
+            hasUnavailableImage = request.expectsImage || request.liveImageData != nil || !request.imageSources.isEmpty
         }
-        return MediaSharePayload(items: [.text(request.message)])
+        let attachments = await shareFiles(request.files)
+        items += attachments.items
+        items.append(.text(request.message))
+        return MediaSharePayload(items: items, hasUnavailableMedia: hasUnavailableImage || attachments.hasUnavailableMedia)
     }
 
     func prepareBatchShare(
         _ request: BatchDiscoveryShareRequest
     ) async -> MediaSharePayload {
         var items: [MediaShareItem] = [.text(request.message)]
-        for discovery in request.discoveries {
+        var hasUnavailableMedia = false
+        for (index, discovery) in request.discoveries.enumerated() {
             guard !Task.isCancelled else { break }
             if let image = await firstImage(
                 liveImageData: nil,
@@ -355,9 +373,54 @@ private actor MediaExportProcessor {
                 maxSize: MediaExportSizingPolicy.batchShareMaxPixelSize
             ) {
                 items.append(.image(image))
+            } else if discovery.expectsImage {
+                hasUnavailableMedia = true
+            }
+            let attachments = await shareFiles(discovery.files, discoveryIndex: index + 1)
+            items += attachments.items
+            hasUnavailableMedia = hasUnavailableMedia || attachments.hasUnavailableMedia
+        }
+        return MediaSharePayload(items: items, hasUnavailableMedia: hasUnavailableMedia)
+    }
+
+    private func shareFiles(
+        _ requests: [MediaShareFileRequest], discoveryIndex: Int = 1
+    ) async -> MediaSharePayload {
+        var items: [MediaShareItem] = []
+        var hasUnavailableMedia = false
+        for (index, request) in requests.enumerated() {
+            guard !Task.isCancelled else { break }
+            do {
+                let file: MediaShareFile
+                guard let source = request.source else { throw CocoaError(.fileReadNoPermission) }
+                switch source {
+                case .local(let url):
+                    file = try MediaShareFile(copying: url, kind: request.kind, index: index + 1, discoveryIndex: discoveryIndex)
+                case .approvedRemote(let url):
+                    guard MediaExportSourceResolver.isApprovedRemoteURL(url) else {
+                        throw CocoaError(.fileReadNoPermission)
+                    }
+                    let (download, response) = try await mediaSession.download(from: url)
+                    defer { try? FileManager.default.removeItem(at: download) }
+                    guard !Task.isCancelled, let response = response as? HTTPURLResponse,
+                          (200...299).contains(response.statusCode),
+                          MediaExportSourceResolver.isApprovedRemoteURL(response.url) else {
+                        throw CocoaError(.fileReadUnknown)
+                    }
+                    // URLSession's temporary filename has no media extension.
+                    let namedDownload = download.appendingPathExtension(url.pathExtension)
+                    try FileManager.default.moveItem(at: download, to: namedDownload)
+                    defer { try? FileManager.default.removeItem(at: namedDownload) }
+                    file = try MediaShareFile(copying: namedDownload, kind: request.kind, index: index + 1, discoveryIndex: discoveryIndex)
+                }
+                items.append(.file(file))
+            } catch {
+                if !Task.isCancelled {
+                    hasUnavailableMedia = true
+                }
             }
         }
-        return MediaSharePayload(items: items)
+        return MediaSharePayload(items: items, hasUnavailableMedia: hasUnavailableMedia)
     }
 
     private func save(

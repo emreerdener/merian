@@ -4186,23 +4186,25 @@ import, and permission-denial UI require the physical-device checklist in
   account-work validity, ownerless sharing, transition isolation, true-missing
   anonymous creation and failure, identity preservation, cancellation/session
   drift, task replacement, cancellation during loaded and newly created purchase
-  readiness, and final readiness/publication admission. The bootstrap live-
-  service suite owns SDK identity/expiry and anonymous-fresh projection, SDK and
-  compatibility missing-session classification, unrelated-error rejection, and
-  SDK failure forwarding. The lifecycle suite owns deletion/transition deferral,
-  independent durable-store fail closure, session projection and cleanup order,
-  purchase/entitlement sequencing, post-suspension generation and transition
-  fences, deferred sign-out replay, signed-out postflight rejection, and
-  malformed events. The replay suite owns replacement-safe task cancellation,
-  transition carry-forward, stable-event obligation clearing, owner release
-  during suspension, and the no-deferred-event no-op boundary;
-  `SupabaseManagerTests` retains Supabase SDK/Auth effect assembly while focused
-  provider suites own provider-specific adapter classification. The source guard
-  rejects actor/async/global effects in stateless Transport policies, prevents
-  the executor from acquiring a session/client singleton, keeps session
-  construction in `PinnedNetworkTransport` and per-attempt Auth leasing in
-  `AuthenticatedTransportDispatcher`, and verifies both executor refresh
-  branches. Run the guard for every endpoint inventory, shared bridge,
+  readiness for caller-owned transitions, and final publication admission.
+  Ownerless restored/new-session cases prove request admission opens before
+  purchase readiness. The bootstrap live-service suite owns SDK identity/expiry
+  and anonymous-fresh projection, SDK and compatibility missing-session
+  classification, unrelated-error rejection, and SDK failure forwarding. The
+  lifecycle suite owns deletion/transition deferral, independent durable-store
+  fail closure, session projection and cleanup order, purchase/entitlement
+  sequencing, post-suspension generation and transition fences, deferred
+  sign-out replay, signed-out postflight rejection, and malformed events. The
+  replay suite owns replacement-safe task cancellation, transition
+  carry-forward, stable-event obligation clearing, owner release during
+  suspension, and the no-deferred-event no-op boundary when replay is not
+  forced; `SupabaseManagerTests` retains Supabase SDK/Auth effect assembly while
+  focused provider suites own provider-specific adapter classification. The
+  source guard rejects actor/async/global effects in stateless Transport
+  policies, prevents the executor from acquiring a session/client singleton,
+  keeps session construction in `PinnedNetworkTransport` and per-attempt Auth
+  leasing in `AuthenticatedTransportDispatcher`, and verifies both executor
+  refresh branches. Run the guard for every endpoint inventory, shared bridge,
   replay-policy, or live-dependency ownership change, followed by all affected
   endpoint matrices and the complete `merianTests` target. The backend
   `get-filtered-discovery-feed` route is deliberately absent from these iOS
@@ -4534,14 +4536,16 @@ import, and permission-denial UI require the physical-device checklist in
   owner cases: a replacement cancels stale replay, a newly admitted transition
   carries the obligation forward, a newer stable event clears it, owner release
   does not wait for a suspended operation, and a stable transition with no
-  deferred listener event schedules nothing. Run it with
+  deferred listener event schedules nothing unless replay is forced. Run it with
   `AuthSessionLifecycleCoordinatorTests`, `SupabaseManagerTests`, and
   `CoreNetworkIntegrationArchitectureTests`.
-- **`AuthSessionLifecycleLiveProviderTests.swift`**: Owns seven deterministic
+- **`AuthSessionLifecycleLiveProviderTests.swift`**: Owns nine deterministic
   live-boundary cases covering SDK-state projection, listener prelude order,
   deferred current-state replay, stale snapshot rejection, replacement-listener
   replay cleanup, canceled trailing-effect rejection, and provider release while
-  the SDK stream is suspended.
+  the SDK stream is suspended. Forced bootstrap reconciliation additionally
+  proves purchase/entitlement effects without a deferred SDK event and rejects a
+  newly admitted transition before replay.
 - **`AuthHistoricalSessionSyncLiveServiceTests.swift`**: Owns three
   deterministic retained-task cases covering stamp/preference/scan order,
   session drift after preferred-name synchronization, and teardown cancellation
@@ -4813,6 +4817,49 @@ import, and permission-denial UI require the physical-device checklist in
   policy using a fresh manager per XCTest case. It does not reset the production
   singleton shared by inference suites, whose Swift Testing process-state gate
   cannot serialize XCTest cases.
+
+### First-launch account readiness verification
+
+The [Auth startup contract](09-core-managers.md#supabasemanager) separates
+ordinary Auth availability from purchase readiness. The
+[first-launch incident](../incidents/2026-09-first-launch-auth-transition.md)
+records observed symptoms and candidate evidence; it does not establish device
+or release verification.
+
+| Boundary                          | Regression owner                                                                   | Required result                                                                                                                                                           |
+| --------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Internally owned bootstrap        | `AuthSessionBootstrapCoordinatorTests`                                             | Restored and newly created sessions admit ordinary requests while purchase readiness is suspended; explicit caller-owned transitions still await purchase readiness.      |
+| Transition completion and replay  | `CoreNetworkIntegrationArchitectureTests`, `AuthSessionLifecycleLiveProviderTests` | A validated successful anonymous-bootstrap finish schedules retained replay without requiring a deferred SDK event; a newer transition invalidates it before effects.     |
+| Explore initial feed              | `ExploreFeedViewModelTests`                                                        | A readiness-triggered retry recovers the initial error, preserves a successfully loaded page, and rejects a late cancelled predecessor.                                   |
+| Species and Community task wiring | `SpeciesDictionaryCatalogArchitectureTests`                                        | Initial browsing tasks observe account-work readiness; Species also includes region in its task identity. This source check does not replace SwiftUI device verification. |
+
+The initial request must still be allowed to start anonymous bootstrap while
+readiness is false. Other requests can briefly receive “Authentication is
+changing. Try again in a moment.” The recovery requirement is automatic reload
+when account work becomes available, without an app restart. A failed fresh
+bootstrap must not cause repeated automatic requests; the existing user retry
+remains available. Successful feed content and Species freshness are retained.
+
+For candidate QA on a dedicated test device:
+
+1. Record the exact candidate build, OS version, install state, and test time.
+   Use a fresh test installation; reinstalling alone can retain Keychain state,
+   so record whether this is first setup or restored-session startup. Do not
+   erase a user's installation or credentials for this check.
+2. On first launch, open Explore Observations, Identify → Species, the Community
+   dashboard, and Profile before setup completes. With network access working,
+   verify browsing recovers and provider sign-in becomes available without
+   closing the app. Confirm a successful initial page is not repeatedly reset.
+3. Repeat with temporarily unavailable connectivity, then restore it and use the
+   existing refresh/retry control. Verify there is no automatic retry loop while
+   fresh Auth setup is failing and no relaunch is needed after a successful
+   retry.
+4. Exercise delayed purchase readiness with the synthetic coordinator fixtures;
+   do not infer that a real provider delay occurred solely from a transition
+   error. Confirm paid operations still require their existing readiness checks.
+5. Record each outcome independently. The complete unit target, critical UI
+   smokes, Release archive, and authorized TestFlight fresh-install verification
+   remain separate evidence under the existing candidate/release gates.
 
 ### UI & shared image infrastructure
 
@@ -8861,7 +8908,10 @@ The identity test matrix now has two explicit lanes:
   exact-token single-flight, replaced-transition and different-owner isolation,
   true-missing anonymous creation and failure, network-error identity
   preservation, cancellation and transition drift, compare-before-clear
-  replacement, and final purchase/session fences.
+  replacement, and caller-owned final purchase/session fences. Ownerless
+  restored/new-session tests prove Auth admission opens before purchase
+  readiness; forced lifecycle replay and its newer-transition rejection belong
+  to `AuthSessionLifecycleLiveProviderTests.swift`.
   `AuthSessionBootstrapLiveServiceTests.swift` owns cached/loaded identity and
   expiry projection, newly anonymous fresh-session projection, exact SDK and
   compatibility missing-session classification, unrelated-error rejection, and
@@ -8884,13 +8934,14 @@ The identity test matrix now has two explicit lanes:
   post-suspension fences. `AuthLifecycleReplayCoordinatorTests.swift` owns
   replacement cancellation, transition carry-forward, stable-event obligation
   clearing, owner release during suspension, and no-op behavior when no listener
-  event was deferred. `AppleCredentialRevocationCoordinatorTests.swift` owns
-  transition deferral, overlap, generation/identity drift, exact terminal-clear
-  admission and stable-context replay, recovery deferral without immediate
-  retry, explicit stable resume, context-change replay without a lost wakeup,
-  cancellation, owner release during a suspended lookup, and fail-closed local
-  clear; `AppleCredentialRevocationLiveProviderTests.swift` owns the SDK-state
-  mapping and exact observer lifecycle. `SupabaseManagerTests.swift` retains
+  event was deferred and replay was not forced.
+  `AppleCredentialRevocationCoordinatorTests.swift` owns transition deferral,
+  overlap, generation/identity drift, exact terminal-clear admission and
+  stable-context replay, recovery deferral without immediate retry, explicit
+  stable resume, context-change replay without a lost wakeup, cancellation,
+  owner release during a suspended lookup, and fail-closed local clear;
+  `AppleCredentialRevocationLiveProviderTests.swift` owns the SDK-state mapping
+  and exact observer lifecycle. `SupabaseManagerTests.swift` retains
   account-work drain, consent-sync cancellation/await, deterministic Auth-header
   behavior, and facade-level state projection. The colocated
   `AuthLocalSignOutFacadeTests` suite owns sign-out request-gate ordering. The
@@ -9380,6 +9431,29 @@ Local test passes and inspected fixture attachments establish only local source
 validation. Live-provider behavior, manual VoiceOver/device navigation, and
 hosted deployment verification remain separate evidence; do not infer them from
 simulator fixtures or the existing Field Chat beta authorization.
+
+## Shared map navigation verification
+
+The
+[map navigation contract](../features-and-hardware/24-explore-bottom-menu.md#shared-map-navigation)
+is exercised by `merianTests/MapPreferencesTests` and
+`merianTests/MapNavigationTests`, plus `ExploreMapViewModelTests` and
+`PrivateScanMapTests`. Coverage includes style restoration and cleanup
+retention, account-isolated bounded label history, payload minimization,
+cancelled search, account purge during lookup, ambiguous recent results, offline
+errors, and location requests invalidated by newer navigation.
+
+The existing
+`merianUITests/testPrivateScanMapCollectionNavigationFiltersAndInsight` flow
+also toggles map style, opens search without a keyboard, types a query, and
+selects a synthetic result. Its existing Debug seed injects search dependencies
+and isolated history defaults; it never calls the live place-search provider. It
+does not prove real search quality, live permission handling, or satellite tile
+availability. Those remain manual checks alongside narrow-screen, light/dark,
+Dynamic Type, VoiceOver, Reduce Motion, and offline behavior on both maps.
+
+Use `make ios-local-build` for focused and complete-target simulator runs. Run
+XcodeGen/project validation and SwiftLint as part of the affected iOS gate.
 
 ## Audio confidence V2 verification
 

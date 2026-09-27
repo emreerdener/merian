@@ -1,13 +1,16 @@
 import Foundation
 
 enum ExploreShareMessageFormatter {
-    static func message(
+    static func title(
         commonName: String,
-        postId: String,
         primaryMediaKind: ExploreMediaKind?
     ) -> String {
         let introduction = primaryMediaKind == .audio ? "Listen to" : "Check out"
-        return "\(introduction) this \(commonName)\n\(PublicBrand.websiteURL(path: "explore/post/\(postId)").absoluteString)"
+        return "\(introduction) this \(commonName)"
+    }
+
+    static func url(postId: String) -> URL {
+        PublicBrand.websiteURL(path: "explore/post/\(postId)")
     }
 }
 
@@ -121,14 +124,17 @@ extension ExploreFeedViewModel {
     }
 
     func share(_ post: ExplorePost, playbackCoordinator: ExploreVideoPlaybackCoordinator? = nil) {
-        let shareText = ExploreShareMessageFormatter.message(
+        let title = ExploreShareMessageFormatter.title(
             commonName: resolvedSpeciesCommonName(for: post),
-            postId: post.id,
             primaryMediaKind: post.resolvedMediaItems.first?.kind
+        )
+        let item = LinkShareItemSource(
+            url: ExploreShareMessageFormatter.url(postId: post.id),
+            title: title
         )
 
         let overlayToken = playbackCoordinator?.beginOverlay(reason: "explore-share-sheet")
-        ShareSheetPresenter.present(items: [shareText]) {
+        ShareSheetPresenter.present(items: [item]) {
             guard let overlayToken else { return }
             playbackCoordinator?.endOverlay(overlayToken)
         }

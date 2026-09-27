@@ -192,14 +192,31 @@ PhotoKit transaction, and removes the download file in `defer` on success, HTTP
 failure, or PhotoKit failure. Remote videos are never materialized as `Data`.
 
 Single and batch shares use `DiscoveryShareRequest` and
-`BatchDiscoveryShareRequest`. Image candidates preserve the order
-`live → primary capture → approved reference`, including approved remote primary
-captures. Remote previews use temporary download files and ImageIO instead of
-buffering the complete response as `Data`. Single shares downsample to at most
-2,048 px; batch shares downsample to 1,024 px and retain at most the existing
-20-item Scans selection cap. Core returns text plus immutable `SendableCGImage`
-values; the feature adapter converts them to UIKit and presents the share sheet
-on the main actor.
+`BatchDiscoveryShareRequest`. They send the first captured photo, standalone
+audio recordings, and retained playback videos with a scan summary. They do not
+substitute reference photos or attach extracted video-audio companions and
+posters as additional captures. The summary includes names, scan date, AI
+confidence, and AI reasoning, excluding structured location, owner identifiers,
+private field notes, and raw Describe context. Description-only scans share the
+summary. This is an export, not Explore publication or private-link creation.
+
+Remote previews use temporary download files and ImageIO instead of buffering
+the complete response as `Data`. Single shares downsample to at most 2,048 px;
+batch shares downsample to 1,024 px and retain at most the existing 20-item
+Scans selection cap. Core returns text, immutable `SendableCGImage` values, and
+owned audio/video file copies. Those files preserve supported media extensions,
+enforce the existing audio/video byte limits, and use the same
+approved-host/redirect checks. Activity item sources retain the temporary copies
+until the share sheet releases them; cancelled or stale preparation also
+releases its copies. Original scan media is never deleted by sharing.
+
+Missing expected media prevents single or batch share presentation and reports
+`Some scan media couldn't be prepared. Please try again.` rather than silently
+sharing text alone. AirDrop can deliver the media and a separate text summary;
+recipient apps control their own presentation. Validate AirDrop to Mac,
+Messages, Mail, Notes, Save to Files, and third-party apps with photo, audio,
+video, mixed, description-only, and batch payloads on physical devices before
+release.
 
 ## Results and User Feedback
 

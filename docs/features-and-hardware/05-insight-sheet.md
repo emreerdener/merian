@@ -2324,16 +2324,33 @@ The service handles two export paths:
   batch toasts describe what was actually saved. See
   [Camera Roll and Captured-Media Export](./27-camera-roll-media-export.md) for
   URL approval, temporary-file ownership, and failure semantics.
-- **Share Sheet**: `DiscoveryShareRequest` preserves the species common name,
-  scientific name, and best available image order (live > historic > reference).
-  Core keeps local and remote preview decoding file-backed where possible,
+- **Share Sheet**: `DiscoveryShareRequest` exports the captured image (live or
+  historic), original audio recordings, and playback video files. Reference
+  photos are not substituted for captured media. Its summary includes common and
+  scientific names, scan date, finite AI confidence, and AI reasoning, but
+  excludes structured location, owner IDs, private notes, and raw Describe
+  context. Description-only scans intentionally share the summary alone. Core
+  keeps local and remote preview decoding file-backed where possible,
   downsamples the selected image to at most 2,048 px, and returns a Sendable
   payload. The injected Shell adapter converts it to UIKit values and delegates
   to `Core/UI/Services/ShareSheetPresenter`; that shared presenter performs the
   main-actor activity-controller presentation and delivers dismissal on the main
-  actor only after the task fences pass.
+  actor only after the task fences pass. Audio/video export copies retain their
+  supported extensions and remain alive through the share sheet; releasing the
+  last payload/activity owner removes only the temporary copy. Missing expected
+  media reports a retry error instead of silently presenting a text-only share.
+  AirDrop can deliver media files and a separate text summary; Messages, Mail,
+  Notes, Save to Files, and third-party apps decide how to display the supplied
+  media and text. No Explore publication or private-link creation occurs.
 
 Scans batch export uses the same request and service types, so URL approval,
-primary/fallback ordering, and partial-success copy cannot drift between Library
-and Insight. Its retained share images use the lower 1,024 px bound under the
-existing 20-selection cap.
+attachment preparation and failure behavior remain consistent between Library
+and Insight. Batch summaries and recordings are numbered by discovery. Its
+retained share images use the lower 1,024 px bound under the existing
+20-selection cap. Before release, verify image-only, audio-only, video,
+mixed-media, description-only, and multi-scan exports on a physical iPhone,
+including AirDrop to a Mac, Messages, Mail, Notes, and Save to Files. Verify
+unavailable media, cancellation, and switching scans during preparation as well
+as successful attachment delivery. The separate Messages extension still sends
+its established photo cards; it is distinct from the system share sheet's
+Messages destination.

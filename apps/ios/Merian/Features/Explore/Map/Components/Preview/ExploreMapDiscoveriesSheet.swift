@@ -6,6 +6,7 @@ struct ExploreMapDiscoveriesSheet: View {
     @Binding var isPresented: Bool
 
     let onOpen: (ExplorePost, Bool) -> Void
+    let onOpenAuthorProfile: (ExplorePost) -> Void
     let onLike: (ExplorePost) -> Void
     let onUnshare: (ExplorePost) -> Void
     let onBlock: (ExplorePost) -> Void
@@ -22,6 +23,10 @@ struct ExploreMapDiscoveriesSheet: View {
                             speciesDisplayName: feedViewModel.resolvedSpeciesCommonName(for: post),
                             mediaReloadGeneration: feedViewModel.mediaReloadGeneration,
                             onOpen: { open(post, focusCommentComposer: false) },
+                            onOpenAuthorProfile: {
+                                isPresented = false
+                                onOpenAuthorProfile(post)
+                            },
                             onComments: { open(post, focusCommentComposer: true) },
                             onLike: { onLike(post) },
                             onUnshare: { onUnshare(post) },

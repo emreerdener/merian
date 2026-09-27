@@ -30,6 +30,12 @@ struct DescribePromptTagsView: View {
     }
 
     var body: some View {
+        let tags = sortedTags
+        let showsEmojis = !tags.isEmpty && tags.allSatisfy { tag in
+            tag.imageName == nil
+                && !(tag.emoji?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+        }
+
         if promptViewModel.activeQuestions.indices.contains(
             promptViewModel.activeQuestionIndex
         ) {
@@ -44,7 +50,7 @@ struct DescribePromptTagsView: View {
 
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                ForEach(sortedTags, id: \.self) { tag in
+                ForEach(tags, id: \.self) { tag in
                     let isSelectedSubject =
                         promptViewModel.activeQuestionIndex == 0
                         && tag.tagId == promptViewModel.activeSubjectId
@@ -67,9 +73,11 @@ struct DescribePromptTagsView: View {
                     } label: {
                         DescribeTagView(
                             tag: tag,
+                            showsEmoji: showsEmojis,
                             isSelectedSubject: isSelectedSubject
                         )
                     }
+                    .accessibilityLabel(Text(tag.label))
                     .transition(.opacity)
                 }
             }
@@ -102,6 +110,7 @@ struct DescribePromptTagsView: View {
 
 private struct DescribeTagView: View {
     let tag: GuidedQuestion.Tag
+    let showsEmoji: Bool
     let isSelectedSubject: Bool
 
     var body: some View {
@@ -128,21 +137,27 @@ private struct DescribeTagView: View {
             )
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         } else {
-            Text(tag.label)
-                .font(.subheadline)
-                .foregroundStyle(
-                    isSelectedSubject
-                        ? Color(UIColor.systemBackground)
-                        : .primary
-                )
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(
-                    isSelectedSubject
-                        ? Color.primary
-                        : Color(UIColor.secondarySystemBackground)
-                )
-                .clipShape(Capsule())
+            HStack(spacing: 6) {
+                if showsEmoji, let emoji = tag.emoji {
+                    Text(emoji)
+                        .accessibilityHidden(true)
+                }
+                Text(tag.label)
+            }
+            .font(.subheadline)
+            .foregroundStyle(
+                isSelectedSubject
+                    ? Color(UIColor.systemBackground)
+                    : .primary
+            )
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(
+                isSelectedSubject
+                    ? Color.primary
+                    : Color(UIColor.secondarySystemBackground)
+            )
+            .clipShape(Capsule())
         }
     }
 }

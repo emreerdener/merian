@@ -129,7 +129,12 @@ struct ExplorePostReactionActions: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain).accessibilityLabel("Add reaction")
-                if !usesSecondRow { strip } else { Spacer(minLength: 0) }
+                if !usesSecondRow {
+                    // Match the fixed controls' 24-point label gap: 12 + 6 + 6.
+                    strip.padding(.leading, 6)
+                } else {
+                    Spacer(minLength: 0)
+                }
             }
             if usesSecondRow { strip }
         }

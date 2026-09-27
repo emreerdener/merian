@@ -121,15 +121,18 @@ Post action icons use 20-point symbols inside 44-point tap targets. Add reaction
 and the comment/heart labels each use 12-point horizontal hit padding with no
 additional stack spacing, giving adjacent labels equal 24-point gaps. The first
 label stays at the bar's leading inset while its hit padding extends into it.
-Add reaction forces outline smiley and plus-circle symbols, independent of
-inherited symbol variants. Comment and heart counts use Dynamic Type body text
-(17 points at the default size). Detail bars use 12-point horizontal insets;
-feed and hashtag cards use only a 12-point leading inset so chips reach the
-right edge. Bars use symmetric 6-point vertical insets around the 44-point
-default row, for a 56-point bar. Detail omits the bottom inset when the reaction
-summary is visible beneath it. Empty hashtag rows reserve no space. The shared
-strip still grows for Dynamic Type and moves beneath controls at the existing
-large-text threshold.
+The inline emoji strip adds 6 points of leading space to its chips' 6-point
+padding, matching that 24-point gap after Add reaction. This extra space is
+omitted when Dynamic Type moves the strip onto a second row. Add reaction forces
+outline smiley and plus-circle symbols, independent of inherited symbol
+variants. Comment and heart counts use Dynamic Type body text (17 points at the
+default size). Detail bars use 12-point horizontal insets; feed and hashtag
+cards use only a 12-point leading inset so chips reach the right edge. Bars use
+symmetric 6-point vertical insets around the 44-point default row, for a
+56-point bar. Detail omits the bottom inset when the reaction summary is visible
+beneath it. Empty hashtag rows reserve no space. The shared strip still grows
+for Dynamic Type and moves beneath controls at the existing large-text
+threshold.
 
 Post detail omits Share from the action row and presents it as a blue button at
 the bottom left, opposite Field chat. All feed, hashtag, and Map

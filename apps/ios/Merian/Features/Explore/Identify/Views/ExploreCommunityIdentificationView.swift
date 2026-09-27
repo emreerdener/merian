@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ExploreCommunityIdentificationView: View {
     @Environment(EnvironmentContextManager.self) private var environmentContextManager
+    @Environment(SupabaseManager.self) private var supabase
 
     let onOpenRequest: (ExploreCommunityRequestRoute) -> Void
     let onOpenRequestsFeed: (ExploreCommunityRequestsFeedRoute) -> Void
@@ -49,7 +50,7 @@ struct ExploreCommunityIdentificationView: View {
         }
         .navigationTitle("Identify")
         .navigationBarTitleDisplayMode(.inline)
-        .task {
+        .task(id: supabase.allowsUnownedAccountBoundWork) {
             guard viewModel.requestItems.isEmpty, viewModel.activityItems.isEmpty else { return }
             await reloadDashboard(clearExisting: false)
         }

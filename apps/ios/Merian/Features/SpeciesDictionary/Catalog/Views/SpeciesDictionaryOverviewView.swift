@@ -1,6 +1,12 @@
 import SwiftUI
 
+private struct SpeciesOverviewLoadKey: Hashable {
+    let userRegion: String?
+    let accountIsReady: Bool
+}
+
 struct SpeciesDictionaryOverviewView: View {
+    @Environment(SupabaseManager.self) private var supabase
     let userRegion: String?
 
     let viewModel: SpeciesDictionaryOverviewViewModel
@@ -25,7 +31,10 @@ struct SpeciesDictionaryOverviewView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(uiColor: .systemGroupedBackground))
-        .task(id: userRegion ?? "") {
+        .task(id: SpeciesOverviewLoadKey(
+            userRegion: userRegion,
+            accountIsReady: supabase.allowsUnownedAccountBoundWork
+        )) {
             await viewModel.loadIfNeeded(userRegion: userRegion)
         }
     }

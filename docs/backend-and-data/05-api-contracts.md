@@ -163,13 +163,15 @@ that boundary. See the
 [funding contract](./18-complimentary-pro-scans.md). No new wire field is
 introduced for the note.
 
-Before acquiring an account-work lease, iOS waits for eligible first-launch
-session setup through the existing single-flight Auth bootstrap coordinator.
-This joins background warmup or retries a failed anonymous setup. Prior OAuth
-recovery, purchase handoff, deletion, and other Auth transitions remain blocked;
-cancelled or identity-changed attempts cannot dispatch. The caller waits at most
-five seconds and returns promptly on cancellation without cancelling shared
-bootstrap work. This bound is separate from the RPC deadline below.
+Before acquiring an account-work lease, iOS waits for eligible first-launch Auth
+session setup through the existing single-flight bootstrap coordinator. Ordinary
+bootstrap does not await purchase linking; paid readiness remains a separate
+fail-closed boundary. This joins background warmup or retries a failed anonymous
+setup. Prior OAuth recovery, purchase handoff, deletion, and other Auth
+transitions remain blocked; cancelled or identity-changed attempts cannot
+dispatch. The caller waits at most five seconds and returns promptly on
+cancellation without cancelling shared bootstrap work. This bound is separate
+from the RPC deadline below.
 
 The iOS preflight uses an exact-route bridge over the shared certificate-pinned
 Supabase session. It admits only the configured

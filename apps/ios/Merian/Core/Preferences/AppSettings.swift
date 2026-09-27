@@ -14,6 +14,13 @@ final class AppSettings {
     var hasCompletedOnboarding: Bool {
         didSet { persistBool(hasCompletedOnboarding, oldValue: oldValue, key: UserDefaultsKeys.hasCompletedOnboarding) }
     }
+    private(set) var recentPlacesResetGeneration: Int
+
+    var mapAppearance: MapAppearance {
+        didSet {
+            persistString(mapAppearance.rawValue, oldValue: oldValue.rawValue, key: UserDefaultsKeys.mapAppearance)
+        }
+    }
     var themeMode: ThemeMode {
         didSet { persistString(themeMode.rawValue, oldValue: oldValue.rawValue, key: UserDefaultsKeys.themeMode) }
     }
@@ -193,6 +200,8 @@ final class AppSettings {
         ])
 
         hasCompletedOnboarding = userDefaults.bool(forKey: UserDefaultsKeys.hasCompletedOnboarding)
+        recentPlacesResetGeneration = userDefaults.integer(forKey: UserDefaultsKeys.recentPlacesResetGeneration)
+        mapAppearance = MapAppearance.saved(in: userDefaults)
         themeMode = ThemeMode(
             rawValue: userDefaults.string(forKey: UserDefaultsKeys.themeMode) ?? ThemeMode.system.rawValue
         ) ?? .system
@@ -263,6 +272,8 @@ final class AppSettings {
         defer { isReloadingFromDefaults = false }
 
         hasCompletedOnboarding = userDefaults.bool(forKey: UserDefaultsKeys.hasCompletedOnboarding)
+        recentPlacesResetGeneration = userDefaults.integer(forKey: UserDefaultsKeys.recentPlacesResetGeneration)
+        mapAppearance = MapAppearance.saved(in: userDefaults)
         themeMode = ThemeMode(
             rawValue: userDefaults.string(forKey: UserDefaultsKeys.themeMode) ?? ThemeMode.system.rawValue
         ) ?? .system

@@ -128,6 +128,7 @@ final class PrivateScanMapViewModel {
 
     func recenter(on location: CLLocation) {
         guard Self.isValidCurrentCoordinate(location.coordinate) else { return }
+        didSetInitialCamera = true
         selectedPointID = nil
         setCamera(
             region: PrivateScanMapRegion.centered(
@@ -135,6 +136,20 @@ final class PrivateScanMapViewModel {
                 span: 0.45
             )
         )
+    }
+
+    func userDidMoveCamera(region: MKCoordinateRegion) {
+        didSetInitialCamera = true
+        visibleRegion = region
+    }
+
+    func navigate(to item: MKMapItem) {
+        guard CLLocationCoordinate2DIsValid(item.placemark.coordinate) else { return }
+        didSetInitialCamera = true
+        selectedPointID = nil
+        // Protect the explicit destination from late snapshot fallback before MapKit settles.
+        visibleRegion = PrivateScanMapRegion.centered(on: item.placemark.coordinate, span: 0.02)
+        cameraPosition = .item(item, allowsAutomaticPitch: false)
     }
 
     func showAllFilteredScans() {

@@ -87,15 +87,22 @@ extension InsightSheetViewModel {
         let exportMedia = activeMedia
         let liveData = exportMedia.items.compactMap { if case .liveImage(let data) = $0 { return data } else { return nil } }.first
         let historicPath = exportMedia.items.compactMap { if case .image(let path) = $0 { return path } else { return nil } }.first
-            ?? toolbarRecordSnapshot?.coverImagePath
 
         let request = DiscoveryShareRequest.make(
             commonName: commonName,
             scientificName: scientificName,
             liveImageData: liveData,
             primaryImageReference: historicPath,
-            fallbackImageReference: exportReferenceImageUrl(
-                for: inferenceEngine
+            fallbackImageReference: nil,
+            audioPaths: exportMedia.items.compactMap {
+                if case .audio(let path) = $0 { return path }
+                return nil
+            },
+            videoPaths: exportMedia.videoPaths,
+            summary: DiscoveryShareSummary(
+                reasoning: inferenceEngine.speciesData?.insightData.aiReasoning,
+                confidence: inferenceEngine.speciesData?.presentationConfidenceScore,
+                scanDate: toolbarRecordSnapshot?.captureDate ?? toolbarRecordSnapshot?.timestamp
             )
         )
         let taskID = UUID()
@@ -115,6 +122,11 @@ extension InsightSheetViewModel {
             }
             self.mediaShareTask = nil
             self.mediaShareTaskID = nil
+            guard !payload.hasUnavailableMedia else {
+                self.state.toastMessage = .error(MediaSharePayload.unavailableMessage)
+                self.dependencies.errorFeedback()
+                return
+            }
             self.dependencies.presentMediaShare(payload)
         }
     }

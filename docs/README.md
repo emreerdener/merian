@@ -98,6 +98,10 @@ production submission or public release.
 
 ### Incidents
 
+- **[First-launch browsing blocked by account setup](./incidents/2026-09-first-launch-auth-transition.md)**
+  — Confirmed transition error across Explore and Identify, purchase-readiness
+  separation, and initial-load recovery.
+
 - **[Simulator signing and startup recovery loop](./incidents/2026-09-simulator-signing-recovery-loop.md)**
   — Unsigned local simulator builds, missing runtime Keychain entitlements, and
   verification of recovery through a corrected build.

@@ -20,6 +20,10 @@ The
 remains authoritative for shipped behavior, copy, routing, privacy, and backend
 semantics; this README documents the iOS ownership boundary.
 
+Initial feed recovery is driven by Explore Shell's account-readiness task.
+`resumeInitialFeed()` supersedes an unfinished initial request, including a
+cancelled transport that returns late, but preserves a successful page.
+
 ## Liked feed
 
 **Liked** appears after Nearby in the filter sheet and horizontal bar. It shows
@@ -370,6 +374,16 @@ the observer explicitly. Do not add a parallel NotificationCenter or KVO array
 inside feed/detail views.
 
 ## Overlay Ownership
+
+External post sharing passes one `LinkShareItemSource` containing the canonical
+HTTPS post URL. The media-aware “Listen to” or “Check out” copy is preview
+metadata and the mail subject. AirDrop and Copy receive the URL itself, without
+an extra text file. Sharing does not attach the underlying public media as
+separate files.
+
+Feed post options include Share for both the viewer's own posts and other
+authors' posts. This uses the same external sharing flow as detail, including
+video playback suspension until the system share sheet finishes.
 
 Any new sheet or UIKit share surface launched from Explore feed/detail that can
 cover a playing video must participate in the coordinator:

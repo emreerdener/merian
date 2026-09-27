@@ -147,10 +147,26 @@ PhotoKit saves and batch work stay sequential and cancellation-aware in one
 private actor-owned pipeline.
 
 The service returns `MediaSharePayload` values containing immutable
-`SendableCGImage` and text items. UIKit conversion and share-sheet presentation
-occur on the main actor at the feature dependency edge. Features own
-presentation-session and operation-generation fencing; Core owns no navigation,
-toast, or sheet state.
+`SendableCGImage`, text, and owned audio/video export files. Private scan shares
+include the captured image, recordings, and playback clips with a
+`DiscoveryShareSummary`: names, scan date, finite AI confidence, and AI
+reasoning. They do not substitute reference photos or include structured
+location, owner IDs, field notes, or raw Describe context. Description-only
+scans share the summary. No publication or new network write occurs.
+
+`MediaShareFile` copies supported recordings/clips into uniquely owned temporary
+directories with descriptive filenames, enforcing the existing audio/video byte
+limits. `MediaShareFileItemSource` retains each copy through the activity-sheet
+lifetime and supplies a file URL; releasing all payload/activity owners removes
+only the export directory, including after cancellation or stale preparation.
+Remote files use the same exact-host and redirect checks as image exports.
+Unavailable expected media prevents presentation and produces a retry message,
+rather than silently falling back to text alone. Batch exports number recordings
+and summaries by discovery and use the same failure behavior.
+
+UIKit conversion and share-sheet presentation occur on the main actor at the
+feature dependency edge. Features own presentation-session and
+operation-generation fencing; Core owns no navigation, toast, or sheet state.
 
 See
 [Event and Presentation Routing](../../../../../docs/system-architecture/10-event-and-presentation-routing.md#media-notification-lifetime)

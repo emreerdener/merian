@@ -15,14 +15,12 @@ struct AppShareContentTests {
         #expect(AppShareContent.destinationURL.path.isEmpty)
     }
 
-    @Test func sharePayloadIncludesCopyAndURL() {
+    @MainActor
+    @Test func sharePayloadUsesOneLinkWithPreviewCopy() throws {
         let items = AppShareContent.activityItems
-        let textItems = items.compactMap { $0 as? String }
-        let urlItems = items.compactMap { $0 as? URL }
-
-        #expect(textItems.count == 1)
-        #expect(urlItems == [AppShareContent.destinationURL])
-        #expect(textItems.first?.contains(AppShareContent.title) == true)
-        #expect(textItems.first?.contains(AppShareContent.message) == true)
+        let source = try #require(items.first as? LinkShareItemSource)
+        #expect(items.count == 1)
+        #expect(source.url == AppShareContent.destinationURL)
+        #expect(source.title == AppShareContent.title)
     }
 }

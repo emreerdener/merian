@@ -10,6 +10,14 @@ iOS share sheet (Messages, Mail, etc.) and handles the specialized flow for
 publishing a private scan to the public Naturebook `Explore` feed, including the
 attachment of public hashtags and common-name snapshots.
 
+“More ways to share” exports the captured image, audio/video recordings, and a
+scan summary through Core Media. The summary includes names, scan date, AI
+confidence, and AI reasoning, excluding structured location and private field
+notes. This path does not publish to Explore or create a private scan URL.
+AirDrop may deliver the summary as a text file alongside the actual media;
+description-only scans intentionally have only a summary. Missing expected media
+reports a retry error instead of silently sharing text alone.
+
 ## Ownership
 
 - `Models/` owns platform-neutral Share action and copy projection.

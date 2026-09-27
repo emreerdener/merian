@@ -231,6 +231,7 @@ extension ExploreMapView {
             speciesDisplayName: feedViewModel.resolvedSpeciesCommonName(for: post),
             mediaReloadGeneration: feedViewModel.mediaReloadGeneration,
             onOpen: { openPost(post, focusCommentComposer: false) },
+            onOpenAuthorProfile: { onOpenAuthorProfile(post) },
             onComments: { openPost(post, focusCommentComposer: true) },
             onLike: { Task { await toggleLike(for: post) } },
             onUnshare: { Task { await unshare(post) } },

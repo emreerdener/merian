@@ -56,10 +56,9 @@ struct InsightAudioBoostPreferenceStore {
 
 enum InsightAudioBoostAvailability {
     static func isAvailable(
-        hasPersistedScan: Bool,
-        isProcessing: Bool,
+        hasScanIdentity: Bool,
         hasStandaloneAudio: Bool
     ) -> Bool {
-        hasPersistedScan && !isProcessing && hasStandaloneAudio
+        hasScanIdentity && hasStandaloneAudio
     }
 }

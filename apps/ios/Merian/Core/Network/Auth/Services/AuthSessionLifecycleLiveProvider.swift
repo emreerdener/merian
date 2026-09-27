@@ -117,6 +117,7 @@ final class AuthSessionLifecycleLiveProvider {
     @discardableResult
     func scheduleCurrentSessionReconciliation(
         authGeneration: UInt64,
+        force: Bool = false,
         dependencies: AuthSessionLifecycleLiveDependencies
     ) -> Bool {
         let snapshot = currentStateOperation()
@@ -125,7 +126,7 @@ final class AuthSessionLifecycleLiveProvider {
             return false
         }
         let currentState = currentStateOperation
-        return replayCoordinator.scheduleIfNeeded {
+        return replayCoordinator.scheduleIfNeeded(force: force) {
             guard Self.snapshotIsCurrent(
                 snapshot,
                 authGeneration: authGeneration,

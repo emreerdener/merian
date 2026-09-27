@@ -80,3 +80,14 @@ was removed after validation.
 ## Runtime verification
 
 **Not performed.** The reported device's cause and recovery remain unconfirmed.
+
+## Follow-up — 2026-09-25
+
+The separate
+[first-launch browsing incident](2026-09-first-launch-auth-transition.md)
+identified a broader Auth-transition wait and missing initial-load recovery. Its
+source mitigation releases ordinary bootstrap before purchase setup and retains
+explicit caller-owned purchase fences. Scan admission continues to use its
+bounded session-readiness wait. That follow-up records a successful complete
+local unit run; it does not retroactively change the earlier validation results
+above or establish reported-device verification for this incident.

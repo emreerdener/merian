@@ -240,3 +240,8 @@ Dictionary Search is another typed destination in the shared stack.
 resets it on account changes. Search returns existing species/post routes and
 owns no parallel stack. See
 [Search ownership](../../SpeciesDictionary/Search/README.md).
+
+Initial feed loading observes account-work readiness. When startup becomes
+ready, an unfinished load is retried with a new request identity; a successful
+page is retained. A failed first anonymous bootstrap does not change readiness,
+so it does not automatically loop. Manual refresh remains available.

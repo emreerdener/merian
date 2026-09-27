@@ -1,9 +1,33 @@
 import Foundation
+import MapKit
 import SwiftData
 import UIKit
 
 #if DEBUG
 enum UITestSeedCoordinator {
+    @MainActor
+    static func mapPlaceSearchConfiguration() -> MapPlaceSearchConfiguration? {
+        guard TestExecutionCoordinator.isRunningUITests,
+              ProcessInfo.processInfo.arguments.contains(privateScanMapArgument),
+              let defaults = UserDefaults(suiteName: "merian.ui-tests.map-places") else { return nil }
+        defaults.removePersistentDomain(forName: "merian.ui-tests.map-places")
+        let label = RecentPlace(title: "Synthetic nature reserve", subtitle: "Test region")
+        let result: @MainActor () -> MapPlaceResult = {
+            // Non-personal ocean point; this fixture never contacts the search provider.
+            let coordinate = CLLocationCoordinate2D(latitude: 1, longitude: 1)
+            return MapPlaceResult(label: label, item: MKMapItem(placemark: MKPlacemark(coordinate: coordinate)))
+        }
+        return MapPlaceSearchConfiguration(
+            dependencies: MapPlaceSearchDependencies(
+                suggest: { _ in [MapPlaceSuggestion(label: label, completion: nil)] },
+                resolve: { _ in [result()] },
+                search: { _ in [result()] },
+                debounce: {}
+            ),
+            history: RecentPlaceStore(defaults: defaults)
+        )
+    }
+
     private struct PrivateScanMapFixture {
         let id: String
         let commonName: String

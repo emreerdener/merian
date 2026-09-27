@@ -16,6 +16,10 @@ struct ExploreMapView: View {
     @Bindable var postStore: ExplorePostStore
     @Environment(EnvironmentContextManager.self) var environmentContextManager
     @Environment(\.modelContext) var modelContext
+    @Environment(AppSettings.self) var appSettings
+    @Environment(SupabaseManager.self) var mapAuth
+    @Environment(\.accessibilityReduceMotion) var reduceMotion
+    @State var mapNavigation = MapNavigationModel()
     @State var ignoreNextBackgroundTap = false
     @State var isShowingDiscoveriesSheet = false
     @State var isShowingFilterSheet = false
@@ -28,6 +32,7 @@ struct ExploreMapView: View {
     @State var continuousZoomLevel: Double?
 
     let onOpenDetail: (ExplorePost, Bool) -> Void
+    let onOpenAuthorProfile: (ExplorePost) -> Void
 
     var body: some View {
         ZStack {
@@ -94,12 +99,18 @@ struct ExploreMapView: View {
             previewSwipeCommitGeneration += 1
             previewCarouselAnchorPostId = nil
         }
+        .modifier(MapNavigationPresentation(
+            navigation: mapNavigation,
+            owner: mapAuth.currentUser?.id,
+            onDestination: viewModel.navigate
+        ))
         .sheet(isPresented: $isShowingDiscoveriesSheet) {
             ExploreMapDiscoveriesSheet(
                 viewModel: viewModel,
                 feedViewModel: feedViewModel,
                 isPresented: $isShowingDiscoveriesSheet,
                 onOpen: openPost,
+                onOpenAuthorProfile: onOpenAuthorProfile,
                 onLike: { post in Task { await toggleLike(for: post) } },
                 onUnshare: { post in Task { await unshare(post) } },
                 onBlock: { post in Task { await blockAuthor(of: post) } },
@@ -116,6 +127,7 @@ struct ExploreMapView: View {
 
     private var mapLayer: some View {
         Map(position: $viewModel.cameraPosition) {
+            if environmentContextManager.isAuthorized { UserAnnotation() }
             if let selectedPost = viewModel.selectedPost,
                selectedPost.coordinateVisibility == .obscured {
                 MapCircle(
@@ -149,18 +161,25 @@ struct ExploreMapView: View {
                 waypointAnnotation(for: selectedPost)
             }
         }
-        .mapStyle(.standard)
+        .mapStyle(appSettings.mapAppearance == .satellite ? .imagery : .standard)
+        // Render map tiles behind the transparent navigation bar, not the container background.
+        .ignoresSafeArea(.container, edges: .top)
+        .transparentTopToolbar()
         .onTapGesture {
             dismissSelectedPostIfNeeded()
         }
         .onMapCameraChange(frequency: .continuous) { context in
+            if viewModel.cameraPosition.positionedByUser { mapNavigation.cancelNavigation() }
             let zoom = ExploreMapCameraPolicy.zoomLevel(for: context.region)
             if abs((continuousZoomLevel ?? 0) - zoom) > 0.05 {
                 continuousZoomLevel = zoom
             }
         }
         .onMapCameraChange(frequency: .onEnd) { context in
-            viewModel.markCameraChanged(region: context.region)
+            viewModel.markCameraChanged(
+                region: context.region,
+                positionedByUser: viewModel.cameraPosition.positionedByUser
+            )
             continuousZoomLevel = nil
         }
         .overlay {
@@ -228,12 +247,12 @@ struct ExploreMapView: View {
 
     private var bottomOverlayChrome: some View {
         VStack(spacing: 8) {
-            HStack(alignment: .center, spacing: 12) {
+            MapBottomControlRow {
                 infoChip
-                Spacer(minLength: 16)
-                recenterButton
+            } controls: {
+                navigationToolbar
             }
-            .padding(.horizontal, 30)
+            .padding(.horizontal, 16)
             .frame(maxWidth: .infinity, alignment: .center)
 
             if activePreviewCenterPost != nil {
@@ -293,33 +312,43 @@ struct ExploreMapView: View {
             HapticManager.shared.triggerSelectionPulse()
             isShowingDiscoveriesSheet = true
         } label: {
-            Text(label)
-                .font(.footnote)
-                .fontWeight(.semibold)
-                .foregroundStyle(.primary)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(.regularMaterial)
-                .clipShape(Capsule(style: .continuous))
+            MapCountPillLabel(
+                fullLabel: label,
+                compactLabel: "\(viewModel.visibleDiscoveryCount.formatted()) in view"
+            )
         }
         .buttonStyle(.plain)
     }
 
-    private var recenterButton: some View {
-        Button {
-            HapticManager.shared.triggerSelectionPulse()
-            AppTelemetry.trackExploreMapSearchTriggered(reason: "recenter")
-            Task { await viewModel.recenter(using: environmentContextManager) }
-        } label: {
-            Image(systemName: "location")
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(.primary)
-                .frame(width: 48, height: 48)
-                .background(.regularMaterial)
-                .clipShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Recenter map")
+    private var navigationToolbar: some View {
+        MapNavigationToolbar(
+            appearance: appSettings.mapAppearance,
+            isLocating: mapNavigation.isLocating,
+            identifierPrefix: "ExploreMap",
+            onToggleStyle: {
+                appSettings.mapAppearance = appSettings.mapAppearance == .satellite ? .standard : .satellite
+                HapticManager.shared.triggerSelectionPulse()
+            },
+            onSearch: {
+                let owner = mapAuth.currentUser?.id
+                mapNavigation.openSearch(owner: owner) { owner == mapAuth.currentUser?.id }
+            },
+            onLocate: {
+                HapticManager.shared.triggerSelectionPulse()
+                AppTelemetry.trackExploreMapSearchTriggered(reason: "recenter")
+                let owner = mapAuth.currentUser?.id
+                mapNavigation.locate(
+                    request: environmentContextManager.requestCurrentLocation,
+                    authorization: { environmentContextManager.locationAuthorizationStatus },
+                    isCurrent: { owner == mapAuth.currentUser?.id },
+                    onLocation: { location in
+                        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.3)) {
+                            viewModel.navigate(to: location)
+                        }
+                    }
+                )
+            }
+        )
     }
 
     private var effectiveZoomLevel: Double {

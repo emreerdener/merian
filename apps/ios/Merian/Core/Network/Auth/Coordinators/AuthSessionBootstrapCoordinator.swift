@@ -87,6 +87,7 @@ final class AuthSessionBootstrapCoordinator {
             }
             return await self.performBootstrap(
                 ownedBy: transition,
+                waitsForPurchaseIdentity: !finishesTransition,
                 dependencies: dependencies
             )
         }
@@ -108,6 +109,7 @@ final class AuthSessionBootstrapCoordinator {
 
     private func performBootstrap(
         ownedBy transition: AuthTransitionToken,
+        waitsForPurchaseIdentity: Bool,
         dependencies: AuthSessionBootstrapDependencies
     ) async -> AuthTransitionSession? {
         guard !Task.isCancelled,
@@ -118,58 +120,50 @@ final class AuthSessionBootstrapCoordinator {
             return nil
         }
 
+        let session: AuthSessionBootstrapSnapshot
+        let restoredSession: Bool
         do {
-            let session = try await dependencies.operations.loadSDKSession()
-            guard !Task.isCancelled,
-                  dependencies.transition.allows(transition),
-                  dependencies.transition.adopt(
-                      session.identity,
-                      transition
-                  ) else {
-                return nil
-            }
-            session.publish()
-            dependencies.diagnose(.existingSessionResolved, nil)
-            session.schedulePublicAuthorIdentityRefresh()
-            await session.ensurePurchaseIdentityReady(transition)
-            guard !Task.isCancelled,
-                  session.isCurrentPublishedSession(transition) else {
-                return nil
-            }
-            return session.identity
+            session = try await dependencies.operations.loadSDKSession()
+            restoredSession = true
         } catch {
             guard dependencies.operations.isSessionMissingError(error) else {
                 dependencies.diagnose(.existingIdentityPreserved, error)
                 return nil
             }
+            guard !Task.isCancelled,
+                  dependencies.transition.allows(transition) else {
+                return nil
+            }
+            do {
+                session = try await dependencies.operations.createAnonymousSession()
+                restoredSession = false
+            } catch {
+                dependencies.diagnose(.anonymousSessionCreationFailed, error)
+                return nil
+            }
         }
 
         guard !Task.isCancelled,
-              dependencies.transition.allows(transition) else {
+              dependencies.transition.allows(transition),
+              dependencies.transition.adopt(session.identity, transition) else {
             return nil
         }
-        do {
-            let session = try await dependencies.operations
-                .createAnonymousSession()
-            guard !Task.isCancelled,
-                  dependencies.transition.allows(transition),
-                  dependencies.transition.adopt(
-                      session.identity,
-                      transition
-                  ) else {
-                return nil
-            }
-            session.publish()
+        session.publish()
+        if restoredSession {
+            dependencies.diagnose(.existingSessionResolved, nil)
+            session.schedulePublicAuthorIdentityRefresh()
+        } else {
             dependencies.diagnose(.anonymousSessionEstablished, nil)
+        }
+        // Ordinary bootstrap releases Auth before purchase work. Its transition
+        // finish schedules lifecycle reconciliation; explicit owners retain the wait.
+        if waitsForPurchaseIdentity {
             await session.ensurePurchaseIdentityReady(transition)
-            guard !Task.isCancelled,
-                  session.isCurrentPublishedSession(transition) else {
-                return nil
-            }
-            return session.identity
-        } catch {
-            dependencies.diagnose(.anonymousSessionCreationFailed, error)
+        }
+        guard !Task.isCancelled,
+              session.isCurrentPublishedSession(transition) else {
             return nil
         }
+        return session.identity
     }
 }

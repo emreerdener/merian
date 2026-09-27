@@ -22,6 +22,13 @@ private struct ExploreFeedRequestContext {
 }
 
 extension ExploreFeedViewModel {
+    /// Auth completion retries an unfinished initial load, including a cancelled
+    /// request whose transport has not returned yet. Successful pages stay cached.
+    func resumeInitialFeed() async {
+        guard !hasLoadedFeedOnce else { return }
+        await loadInitialFeed(force: true)
+    }
+
     func selectFilter(
         _ filter: ExploreFeedFilter,
         latitude: Double? = nil,

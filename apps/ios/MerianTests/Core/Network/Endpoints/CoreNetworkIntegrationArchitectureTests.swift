@@ -696,16 +696,32 @@ struct CoreNetworkIntegrationArchitectureTests {
             bootstrapCoordinator.components(
                 separatedBy: """
                 await session.ensurePurchaseIdentityReady(transition)
-                            guard !Task.isCancelled,
-                                  session.isCurrentPublishedSession(transition) else {
+                        }
+                        guard !Task.isCancelled,
+                              session.isCurrentPublishedSession(transition) else {
                 """
-            ).count == 3,
-            "Every loaded or created session must reject cancellation after purchase readiness"
+            ).count == 2,
+            "Loaded and created sessions share cancellation and publication validation after optional purchase readiness"
         )
         #expect(
             aggregate.contains(
                 "authSessionBootstrapCoordinator.initialize("
             )
+        )
+        let bootstrapFinish = try sourceSection(
+            beginningWith: "    private func finishAuthTransition(",
+            endingBefore: "    private func analyticsGeneration(",
+            in: aggregate
+        )
+        try expectOrder(
+            [
+                "authRuntimeState.finishTransition(token)",
+                "currentUser?.id == sdkSession.user.id",
+                "finalUserID = sdkSession.user.id",
+                ".scheduleCurrentSessionReconciliation(",
+                "force: token.kind == .anonymousBootstrap && finalUserID != nil"
+            ],
+            in: bootstrapFinish
         )
         for token in [
             "authSessionBootstrapLiveService.currentSession()",
@@ -3790,7 +3806,7 @@ struct CoreNetworkIntegrationArchitectureTests {
         #expect(
             bootstrapCoordinator.components(
                 separatedBy: "isCurrentPublishedSession("
-            ).count == 3
+            ).count == 2
         )
         #expect(
             bootstrapCoordinator.components(

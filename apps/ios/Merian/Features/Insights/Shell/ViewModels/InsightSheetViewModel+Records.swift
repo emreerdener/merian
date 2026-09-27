@@ -208,7 +208,7 @@ extension InsightSheetViewModel {
         // Release queued routing before binding the completed record so local-record identity,
         // Field Notes handoff, share-state hydration, and viewed-state persistence all resolve
         // against the result presentation rather than the now-retired queue snapshot.
-        invalidateScanBoundPresentationState()
+        invalidateScanBoundPresentationState(preservingAudioBoostFor: scanId)
         queuedContext = nil
         inferenceEngine.load(from: record)
         bindPresentedRecord(record, modelContext: modelContext)
@@ -252,7 +252,7 @@ extension InsightSheetViewModel {
             return
         }
 
-        invalidateScanBoundPresentationState()
+        invalidateScanBoundPresentationState(preservingAudioBoostFor: context.id)
         queuedContext = context
         cachedActiveMedia = context.activeScanMedia
     }
@@ -281,7 +281,7 @@ extension InsightSheetViewModel {
             .caseInsensitiveCompare(expectedScanId) == .orderedSame else {
             return
         }
-        invalidateScanBoundPresentationState()
+        invalidateScanBoundPresentationState(preservingAudioBoostFor: expectedScanId)
         queuedContext = nil
     }
 
@@ -305,7 +305,14 @@ extension InsightSheetViewModel {
         invalidateScanBoundPresentationState()
     }
 
-    private func invalidateScanBoundPresentationState() {
+    private func invalidateScanBoundPresentationState(
+        preservingAudioBoostFor scanId: String? = nil
+    ) {
+        // Local listening intent survives a same-scan owner handoff. Action
+        // generations still advance, rejecting callbacks from the retired UI.
+        let preservesAudioBoost = scanId.map {
+            persistentScanId?.caseInsensitiveCompare($0) == .orderedSame
+        } ?? false
         invalidateScanBoundActions()
         clearFieldTripScanContributionPresentation()
         activeLocalRecord = nil
@@ -334,8 +341,10 @@ extension InsightSheetViewModel {
         state.safariPresentationScanId = nil
         state.safariPresentationGeneration = nil
         state.preferredCommonName = nil
-        state.isAudioBoostEnabled = false
-        state.audioBoostActionToken = nil
+        if !preservesAudioBoost {
+            state.isAudioBoostEnabled = false
+            state.audioBoostActionToken = nil
+        }
         state.isSharingToExplore = false
         state.isUpdatingExplorePostContent = false
         state.isUpdatingExploreFieldNotes = false

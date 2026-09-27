@@ -193,10 +193,8 @@ extension InsightSheetViewModel {
     }
 
     var audioBoostEligibleScanId: String? {
-        let hasPersistedScan = presentedLocalRecordScanId != nil
         guard InsightAudioBoostAvailability.isAvailable(
-            hasPersistedScan: hasPersistedScan,
-            isProcessing: isProcessing,
+            hasScanIdentity: persistentScanId != nil,
             hasStandaloneAudio: hasStandaloneAudio
         ) else { return nil }
         return persistentScanId
@@ -214,7 +212,7 @@ extension InsightSheetViewModel {
         Binding(
             get: { [weak self] in
                 guard let self,
-                      self.isPresentingLocalRecord(
+                      self.isPresentingMedia(
                           scanId: expectedScanId,
                           generation: expectedGeneration
                       ),
@@ -226,7 +224,7 @@ extension InsightSheetViewModel {
             },
             set: { [weak self] enabled in
                 guard let self,
-                      self.isPresentingLocalRecord(
+                      self.isPresentingMedia(
                           scanId: expectedScanId,
                           generation: expectedGeneration
                       ),
@@ -243,7 +241,7 @@ extension InsightSheetViewModel {
         expectedScanId: String,
         expectedGeneration: UInt64
     ) {
-        guard isPresentingLocalRecord(
+        guard isPresentingMedia(
             scanId: expectedScanId,
             generation: expectedGeneration
         ),

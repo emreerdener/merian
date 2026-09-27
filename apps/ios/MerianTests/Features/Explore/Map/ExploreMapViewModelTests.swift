@@ -6,6 +6,323 @@ import XCTest
 
 @MainActor
 final class ExploreMapViewModelTests: XCTestCase {
+    func testManualAreaSearchClearsPendingImmediateDestination() async {
+        var debounceCount = 0
+        let model = ExploreMapViewModel(dependencies: .init(
+            loadPoints: { _ in ExploreMapPointsResponse(mode: .posts, visibleCount: 0) },
+            now: { Date() },
+            debounceCameraSearch: { debounceCount += 1 }
+        ))
+        let destination = MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 1, longitude: 1),
+            span: MKCoordinateSpan(latitudeDelta: 1, longitudeDelta: 1)
+        )
+        model.navigate(to: MKMapItem(placemark: MKPlacemark(coordinate: destination.center)))
+        model.markCameraChanged(region: destination)
+        await model.searchCurrentArea()
+        XCTAssertNil(model.immediateSearchRegion)
+
+        var laterRegion = destination
+        laterRegion.center.latitude += 2
+        model.markCameraChanged(region: laterRegion)
+        await model.debounceSearchTask?.value
+        XCTAssertEqual(debounceCount, 1)
+    }
+
+    func testRepeatedDestinationSettleDoesNotCancelOrDebounceImmediateSearch() async {
+        var releaseDestination: CheckedContinuation<ExploreMapPointsResponse, Never>?
+        var requestCount = 0
+        var debounceCount = 0
+        let model = ExploreMapViewModel(dependencies: .init(
+            loadPoints: { _ in
+                requestCount += 1
+                let response: ExploreMapPointsResponse
+                if requestCount == 1 {
+                    response = await withCheckedContinuation { releaseDestination = $0 }
+                } else {
+                    response = ExploreMapPointsResponse(mode: .posts, visibleCount: 0)
+                }
+                try Task.checkCancellation()
+                return response
+            },
+            now: { Date() },
+            debounceCameraSearch: { debounceCount += 1 }
+        ))
+        let destination = MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 1, longitude: 1),
+            span: MKCoordinateSpan(latitudeDelta: 1, longitudeDelta: 1)
+        )
+        model.navigate(to: MKMapItem(placemark: MKPlacemark(coordinate: destination.center)))
+        model.markCameraChanged(region: destination)
+        model.markCameraChanged(region: destination)
+        while releaseDestination == nil { await Task.yield() }
+        model.markCameraChanged(region: destination)
+        releaseDestination?.resume(returning: ExploreMapPointsResponse(mode: .posts, visibleCount: 0))
+        await model.debounceSearchTask?.value
+
+        XCTAssertEqual(requestCount, 1)
+        XCTAssertEqual(debounceCount, 0)
+        XCTAssertNil(model.errorMessage)
+        XCTAssertFalse(model.isLoading)
+        XCTAssertEqual(model.lastCommittedRegion?.center.latitude, destination.center.latitude)
+    }
+
+    func testAdjustedDestinationSettleStartsImmediatelyWithFinalBounds() async {
+        var loadedRegion: MKCoordinateRegion?
+        let model = ExploreMapViewModel(dependencies: .init(
+            loadPoints: { request in
+                loadedRegion = request.region
+                return ExploreMapPointsResponse(mode: .posts, visibleCount: 0)
+            },
+            now: { Date() },
+            debounceCameraSearch: { XCTFail("Destination adjustments must not debounce") }
+        ))
+        let destination = MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 1, longitude: 1),
+            span: MKCoordinateSpan(latitudeDelta: 1, longitudeDelta: 1)
+        )
+        var finalRegion = destination
+        finalRegion.span.latitudeDelta = 0.8
+        model.navigate(to: MKMapItem(placemark: MKPlacemark(coordinate: destination.center)))
+        model.markCameraChanged(region: destination)
+        model.markCameraChanged(region: finalRegion)
+        await model.debounceSearchTask?.value
+        XCTAssertEqual(loadedRegion?.span.latitudeDelta, finalRegion.span.latitudeDelta)
+        XCTAssertEqual(model.lastCommittedRegion?.span.latitudeDelta, finalRegion.span.latitudeDelta)
+    }
+
+    func testPlaceSearchCommitsBeforeObsoleteRequestFinishes() async {
+        var releaseInitial: CheckedContinuation<ExploreMapPointsResponse, Never>?
+        var requestCount = 0
+        let model = ExploreMapViewModel(dependencies: .init(
+            loadPoints: { _ in
+                requestCount += 1
+                if requestCount == 1 {
+                    return await withCheckedContinuation { releaseInitial = $0 }
+                }
+                return ExploreMapPointsResponse(mode: .posts, visibleCount: 0)
+            },
+            now: { Date() },
+            debounceCameraSearch: { XCTFail("Place selection must not debounce") }
+        ))
+        let initial = MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 1, longitude: 1),
+            span: MKCoordinateSpan(latitudeDelta: 1, longitudeDelta: 1)
+        )
+        let destination = MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 2, longitude: 2),
+            span: initial.span
+        )
+        let initialLoad = Task { await model.fetchMapPoints(for: initial) }
+        while releaseInitial == nil { await Task.yield() }
+        model.visibleRegion = initial
+        await model.fetchMapPoints(for: initial, forceRefresh: true)
+
+        model.navigate(to: MKMapItem(placemark: MKPlacemark(coordinate: destination.center)))
+        model.markCameraChanged(region: destination)
+        await model.debounceSearchTask?.value
+
+        XCTAssertEqual(requestCount, 2, "The destination must start while the old request is suspended")
+        XCTAssertEqual(model.lastCommittedRegion?.center.latitude, destination.center.latitude)
+        XCTAssertFalse(model.isLoading)
+        XCTAssertFalse(model.needsSearchInArea)
+
+        releaseInitial?.resume(returning: ExploreMapPointsResponse(mode: .posts, visibleCount: 0))
+        await initialLoad.value
+        XCTAssertEqual(model.lastCommittedRegion?.center.latitude, destination.center.latitude)
+        XCTAssertFalse(model.isLoading)
+        XCTAssertEqual(requestCount, 2)
+    }
+
+    func testObsoleteFailureCannotClearDestinationLoadingOrDrainItsRefresh() async {
+        var releaseInitial: CheckedContinuation<ExploreMapPointsResponse, Error>?
+        var releaseDestination: CheckedContinuation<ExploreMapPointsResponse, Error>?
+        var requestCount = 0
+        let destinationStarted = expectation(description: "Destination starts before old request finishes")
+        let model = ExploreMapViewModel(dependencies: .init(
+            loadPoints: { _ in
+                requestCount += 1
+                if requestCount == 1 {
+                    return try await withCheckedThrowingContinuation { releaseInitial = $0 }
+                }
+                if requestCount == 2 {
+                    return try await withCheckedThrowingContinuation {
+                        releaseDestination = $0
+                        destinationStarted.fulfill()
+                    }
+                }
+                return ExploreMapPointsResponse(mode: .posts, visibleCount: 0)
+            },
+            now: { Date() },
+            debounceCameraSearch: { XCTFail("Place selection must not debounce") }
+        ))
+        let initial = MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 1, longitude: 1),
+            span: MKCoordinateSpan(latitudeDelta: 1, longitudeDelta: 1)
+        )
+        let destination = MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 2, longitude: 2),
+            span: initial.span
+        )
+        let initialLoad = Task { await model.fetchMapPoints(for: initial) }
+        while releaseInitial == nil { await Task.yield() }
+        model.navigate(to: MKMapItem(placemark: MKPlacemark(coordinate: destination.center)))
+        model.markCameraChanged(region: destination)
+        await fulfillment(of: [destinationStarted], timeout: 2)
+        await model.fetchMapPoints(for: destination, forceRefresh: true)
+
+        releaseInitial?.resume(throwing: URLError(.notConnectedToInternet))
+        await initialLoad.value
+        XCTAssertTrue(model.isLoading, "Old cleanup must not clear the current loading state")
+        XCTAssertTrue(model.needsRefreshAfterCurrentLoad)
+        XCTAssertTrue(model.needsForcedRefreshAfterCurrentLoad)
+        XCTAssertFalse(model.isOffline)
+        XCTAssertNil(model.errorMessage)
+        XCTAssertEqual(requestCount, 2)
+
+        for _ in 0..<100 where releaseDestination == nil { await Task.yield() }
+        releaseDestination?.resume(returning: ExploreMapPointsResponse(mode: .posts, visibleCount: 0))
+        await model.debounceSearchTask?.value
+        for _ in 0..<100 where requestCount < 3 { await Task.yield() }
+        XCTAssertEqual(requestCount, 3, "Only the destination's completion drains its queued refresh")
+        XCTAssertFalse(model.isLoading)
+        XCTAssertEqual(model.lastCommittedRegion?.center.latitude, destination.center.latitude)
+    }
+
+    func testSelectedPlaceSearchesSettledViewportImmediatelyBelowPanThreshold() async {
+        var loadedRequests: [ExploreMapPointsRequest] = []
+        var debounceCount = 0
+        let model = ExploreMapViewModel(dependencies: .init(
+            loadPoints: { request in
+                try Task.checkCancellation()
+                loadedRequests.append(request)
+                return ExploreMapPointsResponse(mode: .posts, visibleCount: 0)
+            },
+            now: { Date() },
+            debounceCameraSearch: { debounceCount += 1 }
+        ))
+        let initial = MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 1, longitude: 1),
+            span: MKCoordinateSpan(latitudeDelta: 1, longitudeDelta: 1)
+        )
+        var destination = initial
+        destination.center.latitude += 0.01
+        model.lastCommittedRegion = initial
+        model.visibleRegion = initial
+        model.selectedSpeciesCategories = [.birds]
+        model.selectedMediaTypes = [.audio]
+        model.needsSearchInArea = true
+
+        model.navigate(to: MKMapItem(placemark: MKPlacemark(coordinate: destination.center)))
+        XCTAssertTrue(loadedRequests.isEmpty)
+        XCTAssertFalse(model.needsSearchInArea, "The previous area's search button is hidden while moving")
+        model.markCameraChanged(region: destination)
+        await model.debounceSearchTask?.value
+
+        XCTAssertEqual(loadedRequests.count, 1)
+        XCTAssertEqual(loadedRequests.first?.region.center.latitude, destination.center.latitude)
+        XCTAssertEqual(loadedRequests.first?.speciesCategories, [.birds])
+        XCTAssertEqual(loadedRequests.first?.mediaTypes, [.audio])
+        XCTAssertEqual(debounceCount, 0)
+        XCTAssertFalse(model.needsSearchInArea)
+
+        var pannedRegion = destination
+        pannedRegion.center.latitude += 2
+        model.markCameraChanged(region: pannedRegion)
+        await model.debounceSearchTask?.value
+        XCTAssertEqual(debounceCount, 1, "Later pans retain the normal debounce")
+        XCTAssertEqual(loadedRequests.count, 2)
+    }
+
+    func testSettledDestinationDoesNotCancelItsOwnDiscoveryRequest() async {
+        let model = ExploreMapViewModel(dependencies: .init(
+            loadPoints: { _ in
+                try Task.checkCancellation()
+                return ExploreMapPointsResponse(mode: .posts, visibleCount: 0)
+            },
+            now: { Date() },
+            debounceCameraSearch: {}
+        ))
+        let destination = MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 1, longitude: 1),
+            span: MKCoordinateSpan(latitudeDelta: 1, longitudeDelta: 1)
+        )
+        model.navigate(to: MKMapItem(placemark: MKPlacemark(coordinate: destination.center)))
+        model.markCameraChanged(region: destination)
+        for _ in 0..<50 where model.lastCommittedRegion == nil { await Task.yield() }
+        XCTAssertNil(model.errorMessage)
+        XCTAssertEqual(model.lastCommittedRegion?.center.latitude, destination.center.latitude)
+    }
+
+    func testPlaceNavigationPreservesFiltersAndClearsSelection() {
+        let model = ExploreMapViewModel()
+        model.selectedSpeciesCategories = [.birds]
+        model.selectedPostId = "previous"
+        let coordinate = CLLocationCoordinate2D(latitude: 1, longitude: 1)
+        let item = MKMapItem(placemark: MKPlacemark(coordinate: coordinate))
+        model.navigate(to: item)
+        XCTAssertTrue(model.cameraPosition.item === item)
+        XCTAssertEqual(model.selectedSpeciesCategories, [.birds])
+        XCTAssertNil(model.selectedPostId)
+    }
+
+    func testFirstSettledDestinationLoadsAfterInitialRequestIsInvalidated() async {
+        var releaseInitial: CheckedContinuation<ExploreMapPointsResponse, Never>?
+        var loadedRegions: [MKCoordinateRegion] = []
+        let model = ExploreMapViewModel(dependencies: .init(
+            loadPoints: { request in
+                loadedRegions.append(request.region)
+                if loadedRegions.count == 1 {
+                    return await withCheckedContinuation { releaseInitial = $0 }
+                }
+                return ExploreMapPointsResponse(mode: .posts, visibleCount: 0)
+            },
+            now: { Date() },
+            debounceCameraSearch: {}
+        ))
+        let initial = MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 1, longitude: 1),
+            span: MKCoordinateSpan(latitudeDelta: 1, longitudeDelta: 1)
+        )
+        let destination = MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 2, longitude: 2),
+            span: initial.span
+        )
+        let firstLoad = Task { await model.fetchMapPoints(for: initial) }
+        while releaseInitial == nil { await Task.yield() }
+        model.visibleRegion = initial
+        await model.fetchMapPoints(for: initial, forceRefresh: true)
+        model.navigate(to: MKMapItem(placemark: MKPlacemark(coordinate: destination.center)))
+        releaseInitial?.resume(returning: ExploreMapPointsResponse(mode: .posts, visibleCount: 0))
+        await firstLoad.value
+        XCTAssertNil(model.lastCommittedRegion, "A pre-navigation response must not commit while moving")
+        XCTAssertFalse(model.needsRefreshAfterCurrentLoad)
+        XCTAssertFalse(model.needsForcedRefreshAfterCurrentLoad)
+        model.markCameraChanged(region: destination)
+        await model.debounceSearchTask?.value
+        XCTAssertEqual(loadedRegions.count, 2)
+        XCTAssertEqual(model.lastCommittedRegion?.center.latitude, destination.center.latitude)
+    }
+
+    func testPostFocusSupersedesPendingPlaceSearch() async {
+        var debounceCount = 0
+        let model = ExploreMapViewModel(dependencies: .init(
+            loadPoints: { _ in ExploreMapPointsResponse(mode: .posts, visibleCount: 0) },
+            now: { Date() },
+            debounceCameraSearch: { debounceCount += 1 }
+        ))
+        let destination = MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 1, longitude: 1),
+            span: MKCoordinateSpan(latitudeDelta: 1, longitudeDelta: 1)
+        )
+        model.navigate(to: MKMapItem(placemark: MKPlacemark(coordinate: destination.center)))
+        model.focus(on: ExploreMapFocusTarget(post: makeMapPost(id: "focus", latitude: 30)))
+        // A user pan can be the next callback if the focus camera move never settles.
+        model.markCameraChanged(region: destination)
+        await model.debounceSearchTask?.value
+        XCTAssertEqual(debounceCount, 1)
+    }
+
     private func makeMapPost(
         id: String,
         latitude: Double,

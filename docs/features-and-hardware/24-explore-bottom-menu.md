@@ -5,6 +5,18 @@ navigation. The menu uses native tab-bar chrome for exactly three items, in
 production order: Observations, Field trips, and Identify. Species is not a
 bottom-navigation item; it is the default root mode inside Identify.
 
+The root top toolbar has no full-width header background. Close, mode selection,
+and notifications retain their individual control backgrounds over the content;
+the Map also hides the top scroll-edge effect.
+
+First-launch Observations and Identify loading observes account-work readiness.
+An unfinished feed, empty Community dashboard, and failed Species overview retry
+when Auth becomes usable, preserving successful cached content and rejecting
+stale request completions. Ordinary anonymous bootstrap releases the Auth
+transition after publishing the session; purchase checks continue through the
+existing lifecycle reconciliation. See the
+[Auth bootstrap contract](../development-guides/09-core-managers.md#supabasemanager).
+
 ## Presentation entry points
 
 Capture remains the application root. After onboarding, the default-off **Open
@@ -97,6 +109,55 @@ seen.
   rows and species detail. There is no separate taxonomy visualization, feature
   flag, API mode, or Explore route.
 
+## Shared map navigation
+
+Explore Map and the private Scan Map share a horizontal **Map style → Search →
+Locate me** capsule to the right of the discoveries-count pill. Controls have
+48-point targets and use native Liquid Glass on iOS 26, with regular material on
+older supported versions. Narrow layouts shorten visible count text while the
+count capsule hugs the selected label instead of filling the remaining row
+width. The full **3 discoveries in view** wording is preferred when it fits;
+VoiceOver retains the full label. Accessibility text sizes put the count above
+the controls. Each feature retains its existing preview and bottom clearance.
+
+Both interactive maps default to satellite imagery without labels. A direct
+toggle switches to the standard street map. `AppSettings.mapAppearance` stores
+one device-level choice, loads it before rendering, and applies it across both
+maps. Missing or invalid preferences mean satellite. Sign-out, account changes,
+and account deletion preserve this presentation preference. The passive
+Collections map preview remains a standard-map snapshot.
+
+Search opens a medium/large sheet at medium height, with recent places and no
+keyboard. Focusing the field expands to large. MapKit autocomplete and full-text
+search support cities, states, addresses, and places without requiring location
+permission. Search uses Apple services; Merian does not upload scan points or
+use private scan coordinates as search hints. Queries debounce for 300 ms, and
+cancelled, dismissed, or superseded work cannot publish results.
+
+Selecting a resolved place dismisses search, clears a discovery preview,
+preserves filters, and frames the map item without automatic pitch. No
+destination marker or discovery is created. Explore automatically searches the
+destination as soon as the camera settles, using the final viewport and current
+filters without requiring **Search this area** or waiting for the normal pan
+debounce or an older viewport request. Repeated camera-settle callbacks do not
+restart the pan delay, and adjusted destination bounds search immediately. Even
+a nearby selected place triggers this search; subsequent manual pans retain
+their debounce. The private map projects its local points. Reduce Motion
+disables the transition. Locate me uses the existing one-shot location service
+and exposes progress, Settings for denied permission, and unavailable feedback
+without moving the map on failure. Newer navigation and user gestures invalidate
+older locate requests.
+
+Recent places store at most ten selected title/subtitle pairs per account,
+newest first with normalized-label deduplication. Both maps share the account's
+list. Typed queries and coordinates are never persisted in history. Tapping a
+recent label searches again: a single match moves the camera; ambiguous results
+require a selection. Offline/failure leaves the map unchanged and offers retry.
+Individual removal and **Clear recents** are available. Account changes hide the
+previous account's list; the established account-deletion cleanup clears all
+local account partitions and invalidates pending searches. The reset generation
+is identity-free. Search labels are excluded from logs and analytics.
+
 ## Navigation
 
 `ExploreView` owns the root section state through `ExploreTab` and owns pushed
@@ -133,17 +194,18 @@ select Identify/Community before pushing `ExploreCommunityRequestRoute`. This
 policy keeps canonical and legacy links compatible after removal of the
 Dictionary bottom tab.
 
-Author profiles opened from feed, detail, comments, notifications, Field trips,
-or profile libraries push into this same Explore navigation stack rather than
-presenting a second sheet over the active surface. Profile-library scans carry
-an author-profile depth so the app allows `profile -> scan` but blocks another
-author-profile hop from that nested detail. The visual Scan goal indicator
-initializes this stack with a typed `CaptureGoalDestination`. Explore converts
-the Field trip case through `ExploreFieldTripNavigationPolicy` into the
-FieldTrips-owned `FieldTripTemplateRoute`, carrying an optional focused
-checklist-item ID. The destination opens Tips and focuses the matching guide, or
-falls back to the Goals tile when no guide exists. Ordinary route callers omit
-the optional focus ID and keep their prior behavior.
+Author profiles opened from feed, map previews or discoveries-list menus,
+detail, comments, notifications, Field trips, or profile libraries push into
+this same Explore navigation stack rather than presenting a second sheet over
+the active surface. Profile-library scans carry an author-profile depth so the
+app allows `profile -> scan` but blocks another author-profile hop from that
+nested detail. The visual Scan goal indicator initializes this stack with a
+typed `CaptureGoalDestination`. Explore converts the Field trip case through
+`ExploreFieldTripNavigationPolicy` into the FieldTrips-owned
+`FieldTripTemplateRoute`, carrying an optional focused checklist-item ID. The
+destination opens Tips and focuses the matching guide, or falls back to the
+Goals tile when no guide exists. Ordinary route callers omit the optional focus
+ID and keep their prior behavior.
 
 Completed-goal navigation uses `ScanInsightRoute`. `ExploreShellNavigationView`
 resolves the private completion scan ID to a local record before appending the
