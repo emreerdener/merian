@@ -19,6 +19,7 @@ private final class ScansLibraryActionRecorder {
     var saveResult = MediaSaveResult()
     var explorePostID = "post-1"
     var shouldFailExploreShare = false
+    var shouldFailMediaShare = false
 }
 
 private enum ScansLibraryActionTestError: Error {
@@ -70,6 +71,35 @@ final class ScansLibraryActionsTests: XCTestCase {
 
         XCTAssertEqual(recorder.sharedScanIDs, [scan.id])
         XCTAssertFalse(manager.isDownloading)
+    }
+
+    func testUnavailableBatchMediaReportsRetryError() async throws {
+        let scan = try makeEligibleScan()
+        recorder.shouldFailMediaShare = true
+        await manager.batchShare(scans: [scan])
+        XCTAssertEqual(manager.toastMessage?.title, MediaSharePayload.unavailableMessage)
+        XCTAssertEqual(recorder.errorFeedbackCount, 1)
+    }
+
+    func testBatchRequestExportsStandaloneAudioAndVideoWithoutExtractedCompanions() throws {
+        let scan = try makeEligibleScan()
+        scan.aiReasoning = "Synthetic identification reasoning."
+        scan.locationName = "Synthetic private place"
+        scan.capturedMediaJSON = CapturedMediaSnapshot(items: [
+            .audio(.documents("recording.wav")),
+            .video(StoredVideoMediaReference(
+                video: .documents("clip.mp4"),
+                thumbnail: .documents("poster.webp"),
+                audio: .documents("extracted.wav")
+            ))
+        ]).jsonString
+        let request = ScansLibraryDependencies.batchShareRequest(for: [scan])
+        let discovery = try XCTUnwrap(request.discoveries.first)
+        XCTAssertEqual(discovery.files.map(\.kind), [.audio, .video])
+        XCTAssertTrue(discovery.imageSources.isEmpty)
+        XCTAssertTrue(request.message.contains("Synthetic identification reasoning."))
+        XCTAssertFalse(request.message.contains("Synthetic private place"))
+        XCTAssertFalse(request.message.contains(scan.id))
     }
 
     func testBatchSaveSuccessClearsSelectionAndReportsSavedMedia() async throws {
@@ -208,6 +238,9 @@ final class ScansLibraryActionsTests: XCTestCase {
             events: eventPublisher.publisher,
             sharedPostID: { _ in nil },
             batchShare: { [recorder] scans in
+                if recorder?.shouldFailMediaShare == true {
+                    throw ScansLibraryActionTestError.failed
+                }
                 recorder?.sharedScanIDs = scans.map(\.id)
             },
             batchSaveMedia: { [recorder] scans in

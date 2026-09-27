@@ -14,6 +14,8 @@ struct GuidedQuestion: Hashable {
         let defaultWeight: Int
         /// Optional image name in Assets for visual representation.
         var imageName: String?
+        /// Decorative chip emoji; never included in composed observation text.
+        var emoji: String?
     }
     let prompt: String
     let tags: [Tag]
@@ -45,11 +47,11 @@ let guidedQuestions: [GuidedQuestion] = [
     GuidedQuestion(
         prompt: "What was the surrounding environment like?",
         tags: [
-            .init(tagId: "env_sunny", label: "Sunny & dry", aiText: "in a sunny, dry environment", defaultWeight: 0),
-            .init(tagId: "env_damp", label: "Damp/after rain", aiText: "in a damp habitat after recent rain", defaultWeight: 0),
-            .init(tagId: "env_night", label: "At night", aiText: "observed at night or in low light", defaultWeight: 0),
-            .init(tagId: "env_forest", label: "Dense forest", aiText: "within dense forest or woodland", defaultWeight: 0),
-            .init(tagId: "env_dryland", label: "Open dry land", aiText: "in open, arid, or grassland habitat", defaultWeight: 0)
+            .init(tagId: "env_sunny", label: "Sunny & dry", aiText: "in a sunny, dry environment", defaultWeight: 0, emoji: "☀️"),
+            .init(tagId: "env_damp", label: "Damp/after rain", aiText: "in a damp habitat after recent rain", defaultWeight: 0, emoji: "🌧️"),
+            .init(tagId: "env_night", label: "At night", aiText: "observed at night or in low light", defaultWeight: 0, emoji: "🌙"),
+            .init(tagId: "env_forest", label: "Dense forest", aiText: "within dense forest or woodland", defaultWeight: 0, emoji: "🌲"),
+            .init(tagId: "env_dryland", label: "Open dry land", aiText: "in open, arid, or grassland habitat", defaultWeight: 0, emoji: "🏜️")
         ]
     ),
     
@@ -57,12 +59,12 @@ let guidedQuestions: [GuidedQuestion] = [
     GuidedQuestion(
         prompt: "Where exactly did you spot it?",
         tags: [
-            .init(tagId: "loc_wood", label: "On wood", aiText: "resting on wood or bark", defaultWeight: 0),
-            .init(tagId: "loc_water", label: "Near water", aiText: "found near or in water", defaultWeight: 0),
-            .init(tagId: "loc_rock", label: "Under a rock", aiText: "sheltering beneath a rock", defaultWeight: 0),
-            .init(tagId: "loc_leaf", label: "On a leaf", aiText: "perched on a leaf surface", defaultWeight: 0),
-            .init(tagId: "loc_soil", label: "In soil", aiText: "found in or on bare soil", defaultWeight: 0),
-            .init(tagId: "loc_tree", label: "High in tree", aiText: "observed high up in a tree canopy", defaultWeight: 0)
+            .init(tagId: "loc_wood", label: "On wood", aiText: "resting on wood or bark", defaultWeight: 0, emoji: "🪵"),
+            .init(tagId: "loc_water", label: "Near water", aiText: "found near or in water", defaultWeight: 0, emoji: "💧"),
+            .init(tagId: "loc_rock", label: "Under a rock", aiText: "sheltering beneath a rock", defaultWeight: 0, emoji: "🪨"),
+            .init(tagId: "loc_leaf", label: "On a leaf", aiText: "perched on a leaf surface", defaultWeight: 0, emoji: "🍃"),
+            .init(tagId: "loc_soil", label: "In soil", aiText: "found in or on bare soil", defaultWeight: 0, emoji: "🟫"),
+            .init(tagId: "loc_tree", label: "High in tree", aiText: "observed high up in a tree canopy", defaultWeight: 0, emoji: "🌳")
         ]
     ),
     
@@ -113,11 +115,11 @@ let guidedQuestions: [GuidedQuestion] = [
     GuidedQuestion(
         prompt: "What was it doing when you observed it?",
         tags: [
-            .init(tagId: "act_still", label: "Motionless", aiText: "completely still when observed", defaultWeight: 0),
-            .init(tagId: "act_fast", label: "Fast moving", aiText: "moving quickly when disturbed", defaultWeight: 0),
-            .init(tagId: "act_feed", label: "Feeding", aiText: "actively feeding", defaultWeight: 0),
-            .init(tagId: "act_burrow", label: "Burrowing", aiText: "burrowing into the substrate", defaultWeight: 0),
-            .init(tagId: "act_sound", label: "Making sounds", aiText: "producing audible sounds", defaultWeight: 0)
+            .init(tagId: "act_still", label: "Motionless", aiText: "completely still when observed", defaultWeight: 0, emoji: "⏸️"),
+            .init(tagId: "act_fast", label: "Fast moving", aiText: "moving quickly when disturbed", defaultWeight: 0, emoji: "💨"),
+            .init(tagId: "act_feed", label: "Feeding", aiText: "actively feeding", defaultWeight: 0, emoji: "🍽️"),
+            .init(tagId: "act_burrow", label: "Burrowing", aiText: "burrowing into the substrate", defaultWeight: 0, emoji: "🕳️"),
+            .init(tagId: "act_sound", label: "Making sounds", aiText: "producing audible sounds", defaultWeight: 0, emoji: "🔊")
         ]
     ),
     GuidedQuestion(

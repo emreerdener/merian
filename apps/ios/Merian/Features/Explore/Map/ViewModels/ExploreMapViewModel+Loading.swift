@@ -35,20 +35,28 @@ extension ExploreMapViewModel {
             }
         }
 
+        let loadID = UUID()
+        activeLoadID = loadID
         isLoading = true
         defer {
-            isLoading = false
+            // A superseded request cannot clear loading or drain the new destination's queue.
+            if activeLoadID == loadID {
+                activeLoadID = nil
+                isLoading = false
 
-            if needsRefreshAfterCurrentLoad {
-                needsRefreshAfterCurrentLoad = false
-                let forceQueuedRefresh = needsForcedRefreshAfterCurrentLoad
-                needsForcedRefreshAfterCurrentLoad = false
-                let refreshRegion = visibleRegion ?? region
-                Task { @MainActor [weak self] in
-                    await self?.fetchMapPoints(
-                        for: refreshRegion,
-                        forceRefresh: forceQueuedRefresh
-                    )
+                if needsRefreshAfterCurrentLoad {
+                    needsRefreshAfterCurrentLoad = false
+                    let forceQueuedRefresh = needsForcedRefreshAfterCurrentLoad
+                    needsForcedRefreshAfterCurrentLoad = false
+                    let refreshRegion = visibleRegion ?? region
+                    let refreshGeneration = requestGeneration
+                    Task { @MainActor [weak self] in
+                        guard let self, requestGeneration == refreshGeneration else { return }
+                        await fetchMapPoints(
+                            for: refreshRegion,
+                            forceRefresh: forceQueuedRefresh
+                        )
+                    }
                 }
             }
         }

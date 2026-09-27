@@ -4,7 +4,7 @@ import Foundation
 struct ScansLibraryDependencies {
     let events: AnyPublisher<AppEvent, Never>
     let sharedPostID: @MainActor (_ scanID: String) -> String?
-    let batchShare: @MainActor (_ scans: [LocalScanRecord]) async -> Void
+    let batchShare: @MainActor (_ scans: [LocalScanRecord]) async throws -> Void
     let batchSaveMedia: @MainActor (_ scans: [LocalScanRecord]) async -> MediaSaveResult
     let shareToExplore: @MainActor (_ scan: LocalScanRecord) async throws -> String
     let storeSharedPostID: @MainActor (_ postID: String, _ scanID: String) -> Void
@@ -29,25 +29,12 @@ struct ScansLibraryDependencies {
             events: events,
             sharedPostID: sharedPostID,
             batchShare: { scans in
-                let request = BatchDiscoveryShareRequest(
-                    discoveries: scans.map { scan in
-                        let petLabel = scan.petIdentification?.label
-                            .trimmingCharacters(in: .whitespacesAndNewlines)
-                        return BatchDiscoveryShareRequest.Discovery(
-                            commonName: petLabel?.isEmpty == false
-                                ? petLabel ?? scan.commonName
-                                : scan.commonName,
-                            scientificName: scan.scientificName,
-                            primaryImageReference: scan.capturedMediaSnapshot
-                                .primaryImagePath,
-                            fallbackImageReference: scan.referenceImageUrl
-                        )
-                    }
-                )
+                let request = batchShareRequest(for: scans)
                 let payload = await mediaExportService.prepareBatchShare(
                     request
                 )
                 guard !Task.isCancelled else { return }
+                guard !payload.hasUnavailableMedia else { throw CocoaError(.fileReadUnknown) }
                 ShareSheetPresenter.present(items: payload.activityItems)
             },
             batchSaveMedia: { scans in
@@ -92,6 +79,31 @@ struct ScansLibraryDependencies {
                 ExploreErrorFormatter.titledMessage("Couldn’t share to Explore", for: error)
             }
         )
+    }
+
+    @MainActor
+    static func batchShareRequest(for scans: [LocalScanRecord]) -> BatchDiscoveryShareRequest {
+        BatchDiscoveryShareRequest(discoveries: scans.map { scan in
+            let media = scan.capturedMediaSnapshot.activeScanMedia
+            let petLabel = scan.petIdentification?.label
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            return BatchDiscoveryShareRequest.Discovery(
+                commonName: petLabel?.isEmpty == false ? petLabel ?? scan.commonName : scan.commonName,
+                scientificName: scan.scientificName,
+                primaryImageReference: media.imagePathsForUpload.first,
+                fallbackImageReference: nil,
+                audioPaths: media.items.compactMap {
+                    if case .audio(let path) = $0 { return path }
+                    return nil
+                },
+                videoPaths: media.videoPaths,
+                summary: DiscoveryShareSummary(
+                    reasoning: scan.aiReasoning,
+                    confidence: scan.hasResolvedBiologicalIdentification ? scan.confidenceScore : nil,
+                    scanDate: scan.captureDate ?? scan.timestamp
+                )
+            )
+        })
     }
 
     static func liveSharedPostID(for scanID: String) -> String? {

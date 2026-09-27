@@ -423,9 +423,9 @@ import Supabase
            finalUser.id == finalUserID {
             schedulePublicAuthorIdentityRefreshIfNeeded(for: finalUser)
         }
-        guard authSessionLifecycleLiveProvider
-            .scheduleCurrentSessionReconciliation(
+        guard authSessionLifecycleLiveProvider.scheduleCurrentSessionReconciliation(
                 authGeneration: authSessionGeneration,
+                force: token.kind == .anonymousBootstrap && finalUserID != nil,
                 dependencies: authSessionLifecycleLiveDependencies()
             ) else {
             appleCredentialRevocationCoordinator.resumeDeferredIfNeeded(

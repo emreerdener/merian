@@ -77,9 +77,10 @@ private final class LifecycleLiveDependenciesHarness {
     var observedSession: AuthTransitionSession?
     var receivedUser: User?
 
-    init(userID: UUID) {
+    init(userID: UUID, isAnonymous: Bool = false) {
         coordinatorHarness = AuthSessionLifecycleCoordinatorHarness(
-            userID: userID
+            userID: userID,
+            isAnonymous: isAnonymous
         )
         coordinatorHarness.isTestExecution = true
     }
@@ -233,6 +234,55 @@ final class AuthSessionLifecycleLiveProviderTests: XCTestCase {
             dependencies.events.filter { $0 == "resume-revocation" }.count,
             2
         )
+        provider.cancel()
+    }
+
+    func testBootstrapReconciliationRunsWithoutDeferredSDKEvent() async {
+        let userID = UUID()
+        let state = AuthSessionLifecycleSDKState(
+            user: Self.user(id: userID, isAnonymous: true),
+            isExpired: false,
+            origin: .runtimeTransition
+        )
+        let stream = AuthSessionLifecycleLiveStreamHarness(currentState: state)
+        let dependencies = LifecycleLiveDependenciesHarness(userID: userID, isAnonymous: true)
+        dependencies.coordinatorHarness.isTestExecution = false
+        dependencies.coordinatorHarness.currentAuthGeneration = dependencies.generation
+        let provider = stream.makeProvider()
+        let scheduled = provider.scheduleCurrentSessionReconciliation(
+            authGeneration: dependencies.generation,
+            force: true,
+            dependencies: dependencies.dependencies()
+        )
+        await waitUntil {
+            dependencies.coordinatorHarness.diagnostics.last == .processed
+        }
+        XCTAssertTrue(scheduled)
+        XCTAssertEqual(dependencies.receivedUser?.id, userID)
+        XCTAssertTrue(dependencies.coordinatorHarness.events.contains("ensure-telemetry"))
+        XCTAssertTrue(dependencies.coordinatorHarness.events.contains("begin-entitlement"))
+        XCTAssertEqual(dependencies.coordinatorHarness.diagnostics, [.processed])
+        provider.cancel()
+    }
+
+    func testBootstrapReconciliationRejectsNewTransitionBeforeItRuns() async {
+        let userID = UUID()
+        let state = AuthSessionLifecycleSDKState(
+            user: Self.user(id: userID, isAnonymous: true),
+            isExpired: false,
+            origin: .runtimeTransition
+        )
+        let stream = AuthSessionLifecycleLiveStreamHarness(currentState: state)
+        let dependencies = LifecycleLiveDependenciesHarness(userID: userID, isAnonymous: true)
+        let provider = stream.makeProvider()
+        XCTAssertTrue(provider.scheduleCurrentSessionReconciliation(
+            authGeneration: dependencies.generation,
+            force: true,
+            dependencies: dependencies.dependencies()
+        ))
+        dependencies.hasActiveTransition = true
+        await waitUntil { dependencies.reconciliationCheckCount > 0 }
+        XCTAssertTrue(dependencies.coordinatorHarness.diagnostics.isEmpty)
         provider.cancel()
     }
 

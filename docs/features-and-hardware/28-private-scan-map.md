@@ -126,10 +126,21 @@ filters remove every point, it presents **Reset filters**. If the last eligible
 scan is deleted while the page is open, the page remains stable and shows its
 mapped-scans empty state.
 
-The count and locate controls sit directly above the bottom safe area, in the
-space normally occupied by the app's bottom navigation. `N discoveries in view`
-is the true number of filtered scan points in the current region; it is not the
-number of rendered annotations or clusters.
+The count and horizontal map-style/search/locate controls sit directly above the
+bottom safe area, in the space normally occupied by the app's bottom navigation.
+`N discoveries in view` is the true number of filtered scan points in the
+current region; it is not the number of rendered annotations or clusters.
+
+The
+[shared map navigation contract](./24-explore-bottom-menu.md#shared-map-navigation)
+defines satellite defaults, the device style preference, place search, and
+account-isolated recent labels. Place lookup contacts Apple's MapKit service
+only with user-entered or selected place text; it receives no scan-coordinate
+projection. Search presentation suspends startup location work; dismissal
+without a destination resumes startup if the camera is still uninitialized. An
+explicit place selection or user camera gesture prevents a late startup location
+from overwriting it. Sensitive resets dismiss search and retire pending
+navigation.
 
 ## Filters, Annotations, and Selection
 

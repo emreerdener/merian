@@ -748,7 +748,11 @@ Reading retained content does not extend its freshness. Expiry is checked when
 the view task runs; there is no periodic timer, scheduled off-screen refresh, or
 background app execution. Cancellation on departure cannot publish a late
 result, and returning can start another load without waiting for the cancelled
-one to end.
+one to end. The overview task also observes account-work readiness, so a
+first-launch Auth-transition failure retries when the session becomes usable.
+Successful retained content still follows the same freshness policy; an
+anonymous-bootstrap failure that leaves no usable session does not trigger a
+retry loop.
 
 Catalog implementation ownership is:
 

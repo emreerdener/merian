@@ -40,6 +40,13 @@ hardware owner.
 
 ## Layout and presentation invariants
 
+Answer chips can carry a decorative leading emoji, separated from the label by 6
+pt. A question shows emojis only when every answer supplies a nonempty emoji and
+none uses an illustration; partial coverage falls back to text for the whole
+question. Subject illustration tiles remain unchanged. VoiceOver reads the
+original answer label, and text composition uses only `aiText`, so chip emojis
+never enter the observation description.
+
 `DescribeInputView` remains render-only inside the horizontal capture pager.
 `DescribeInputLifecycleObserver`, `DescribePromptViewModel`, and questions-sheet
 presentation remain owned by `CaptureWorkspaceView` outside the pager. Previous

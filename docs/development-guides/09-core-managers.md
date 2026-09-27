@@ -2225,7 +2225,7 @@ consults that Keychain entry.
   sign-out; the bootstrap and local-sign-out keyed tasks, true-missing-only
   creation, exact-session refresh, anonymous readiness, terminal local clear,
   cancellation, and final-session fences; the lifecycle event model, dependency
-  boundaries, coordinator, and conditional deferred-event replay owner; the
+  boundaries, coordinator, and conditional current-session replay owner; the
   OAuth model, identity-token policy, workflow, completion dependency
   package/coordinator, provider-admission dependency package/coordinator,
   focused live-provider Services, and the Apple credential-registration
@@ -2513,10 +2513,11 @@ consults that Keychain entry.
   closure behind an accepted deletion barrier, post-suspension generation
   checks, signed-out postflight, and historical-sync admission.
   `AuthLifecycleReplayCoordinator` owns one replacement-safe task that replays
-  the exact current SDK state only when an event was deferred by an active
-  transition; a newer event or transition invalidates the snapshot. The live
-  lifecycle dependency assembly captures `SupabaseManager` weakly, preserving
-  facade teardown and coordinator cancellation while replay is suspended.
+  the exact current SDK state when an event was deferred by an active transition
+  or successful internally owned anonymous bootstrap forces reconciliation; a
+  newer event or transition invalidates the snapshot. The live lifecycle
+  dependency assembly captures `SupabaseManager` weakly, preserving facade
+  teardown and coordinator cancellation while replay is suspended.
   `AuthTransitionPolicy` decides recovery admission, request/listener fencing,
   provider-callback acceptance, OAuth cleanup and metadata guards, exact
   anonymous-to-permanent provider-link admission, cold-start adoption, and
@@ -2583,17 +2584,19 @@ consults that Keychain entry.
   anonymous-bootstrap token. Cancellation before admission or during sign-out
   waiting stops before lease, transition, or SDK-session work. It creates
   anonymously only when the injected classifier identifies a genuinely missing
-  session and revalidates the published session after purchase readiness. Its
-  dependency package carries only provider-neutral snapshots and closures. The
-  focused bootstrap service owns SDK identity/expiry projection and missing-
-  session classification; its `+Live` adapter alone performs cached/loaded
-  session reads and anonymous sign-in, while the facade retains publication,
-  purchase readiness, and its stable `User?` result.
-  `AuthSessionRecoveryCoordinator` owns ordinary and transition-owned
-  exact-session refresh, anonymous request-recovery replacement, and terminal
-  local cleanup. It snapshots the expected session before account-work
-  quiescence, repeats the expected/current-session check afterward, and reports
-  a typed cleared, rejected, or purchase-handoff-blocked outcome. Refresh and
+  session and revalidates the published session before return. Explicitly owned
+  bootstrap also waits for purchase readiness; ordinary bootstrap delegates that
+  work to forced transition-finish lifecycle reconciliation. Its dependency
+  package carries only provider-neutral snapshots and closures. The focused
+  bootstrap service owns SDK identity/expiry projection and missing- session
+  classification; its `+Live` adapter alone performs cached/loaded session reads
+  and anonymous sign-in, while the facade retains publication, purchase
+  readiness, and its stable `User?` result. `AuthSessionRecoveryCoordinator`
+  owns ordinary and transition-owned exact-session refresh, anonymous
+  request-recovery replacement, and terminal local cleanup. It snapshots the
+  expected session before account-work quiescence, repeats the
+  expected/current-session check afterward, and reports a typed cleared,
+  rejected, or purchase-handoff-blocked outcome. Refresh and
   anonymous-replacement paths recheck cancellation and transition/session
   identity after their suspended phases, and anonymous replay requires purchase,
   entitlement, generation, and final SDK-readback agreement. Terminal clear
@@ -2659,15 +2662,15 @@ consults that Keychain entry.
   expiry, and Auth generation after transition finish and applies it only while
   no replacement event or transition has invalidated that context. The bootstrap
   coordinator applies the same publication rule after session load or creation
-  and again after purchase readiness. The replaceable restored-session
-  public-author task is coordinator-owned and keyed by target account and UUID;
-  only that UUID may clear the live handle, and only successful exact-session
-  completion stamps the account as refreshed. Its dependencies inject Ghost
-  completion, the typed remote refresh, application event publication, and
-  diagnostics. Stale scheduling targets cannot cancel the current user's work,
-  and cancellation cannot admit a new lease, a remote refresh, a postflight
-  success, or a failure diagnostic; the manager remains only the live effect
-  assembler.
+  and, for caller-owned bootstrap, again after purchase readiness. The
+  replaceable restored-session public-author task is coordinator-owned and keyed
+  by target account and UUID; only that UUID may clear the live handle, and only
+  successful exact-session completion stamps the account as refreshed. Its
+  dependencies inject Ghost completion, the typed remote refresh, application
+  event publication, and diagnostics. Stale scheduling targets cannot cancel the
+  current user's work, and cancellation cannot admit a new lease, a remote
+  refresh, a postflight success, or a failure diagnostic; the manager remains
+  only the live effect assembler.
 - **Cancellation before identity mutation**: Account-deletion intake checks
   cancellation before its first durable marker, after the legacy marker, before
   and after non-destructive v2 preparation, and after the v2 prepared/intake
@@ -2711,7 +2714,14 @@ consults that Keychain entry.
   cancelled predecessor from clearing replacement state. The focused live
   service and its sole Supabase adapter own bootstrap SDK projection, reads,
   anonymous sign-in, and missing-session classification without acquiring task
-  or transition state.
+  or transition state. Ownerless bootstrap releases its transition after Auth
+  publication and final session validation. `finishAuthTransition` forces the
+  existing current-session lifecycle replay for a successfully published
+  anonymous-bootstrap session, including when no SDK event was deferred.
+  Purchase and entitlement readiness continue under that replay's
+  generation/session fences and account-work leases; purchase admission remains
+  fail-closed. Caller-owned bootstrap, including sign-out recovery, retains its
+  purchase wait.
 - **Auth-session recovery coordination**: `AuthSessionRecoveryCoordinator` owns
   ordinary and transition-owned refresh, anonymous replacement recovery, and
   terminal local clear without creating a task or acquiring a live SDK. It

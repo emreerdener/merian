@@ -68,12 +68,17 @@ fallback. `InsightMediaGalleryTests` owns mixed-media/fullscreen mapping, the
 Insight reuse-key projection, the Core page's ID-only default, and data-source
 reset when a reuse key changes. `InsightMediaFocusPresentationTests` owns focus
 and animation policy; `InsightAudioBoostPolicyTests` owns the Insight-specific
-availability and preference rules. Core `AudioPlaybackPresentationTests`,
-`AudioBoostRequestStateTests`, and `MediaExportServiceTests` own shared
-playback, overlap fencing, source mapping, and export request behavior.
-`InsightMediaExportLifecycleTests` proves an uncooperative save/share completion
-cannot publish after dismissal, while `InsightMediaCarouselArchitectureTests`
-and `InsightsIntegrationArchitectureTests` lock the folder boundary, private
+availability and preference rules, analyzing-stage toggles, same-scan handoff
+continuity, and stale callback rejection. Audio boost uses the current media
+scan identity during foreground/queued analysis and completed results; it does
+not require a completed local record. Same-scan handoffs retain the listening
+selection while advancing the callback generation. Core
+`AudioPlaybackPresentationTests`, `AudioBoostRequestStateTests`, and
+`MediaExportServiceTests` own shared playback, overlap fencing, source mapping,
+and export request behavior. `InsightMediaExportLifecycleTests` proves an
+uncooperative save/share completion cannot publish after dismissal, while
+`InsightMediaCarouselArchitectureTests` and
+`InsightsIntegrationArchitectureTests` lock the folder boundary, private
 playback state, Core extraction, and 600-line ceiling. Pair those suites with
 `FieldTripFeaturedMediaTests` whenever the shared pager or reuse contract
 changes. `AsyncLocalImageDependenciesTests` remains under Core UI because it
@@ -93,6 +98,14 @@ Photo-library work, approved `media.merian.app` downloads, bounded image
 downsampling, and batch request processing belong to `MediaExportService` in
 Core. The feature view model performs no PhotoKit, URLSession, share-sheet, or
 singleton work.
+
+External sharing sends the captured image and original audio/video files plus
+names, scan date, AI confidence, and AI reasoning. It excludes reference-photo
+fallbacks, structured location, and private field notes. Description-only scans
+send the summary. Missing expected media reports a retry error instead of
+opening a text-only share sheet. File ownership remains with Core through the
+share-sheet lifetime; stale or cancelled payloads release their temporary
+copies.
 
 External reference URLs are normalized through
 `ExternalReferenceImagePolicy.allowedURLStrings(from:)` before carousel pages
@@ -181,7 +194,9 @@ Audio pages expose a filename-scoped playback-control accessibility identifier
 only after the source has produced both a valid `AVAudioPlayer` and decoded
 spectrogram columns. The seeded queued-audio UI regression writes a real PCM WAV
 to Documents, waits for that control before completion, and requires the same
-readable control after the completed record replaces the queued presentation.
+readable control after the completed record replaces the queued presentation. It
+also enables boost while analyzing, waits for the prepared boosted control, and
+verifies that completion retains the selection and can return to original audio.
 The outer page identifier alone is not media-readiness evidence because it is
 also present while decoding and in the unavailable state.
 

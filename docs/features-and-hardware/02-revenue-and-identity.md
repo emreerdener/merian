@@ -34,9 +34,11 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
   contracts; no hardware ID selects a billing customer.
 - Anonymous session bootstrap is single-flight.
   `AuthSessionBootstrapCoordinator` stores the provider-neutral keyed task so
-  concurrent ownerless callers to `initializeGhostSession()` /
-  `getValidAuthHeaders()` await the same in-flight resolution instead of racing
-  multiple `signInAnonymously()` requests against the same empty state. Sharing
+  concurrent eligible ownerless callers to `initializeGhostSession()` await the
+  same in-flight resolution instead of racing multiple `signInAnonymously()`
+  requests against the same empty state. `getValidAuthHeaders()` can start
+  bootstrap when no transition is active; its ordinary-request guard rejects
+  requests during an active transition before they can join bootstrap. Sharing
   requires the task's complete transition token to remain the exact active
   anonymous-bootstrap owner; a differently owned or replacement transition
   cannot join it. A caller cancelled before admission or while waiting for
@@ -126,14 +128,19 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
   and the local server-verified entitlement projection, signed-out postflight
   after purchase cleanup, and historical-sync admission through narrow injected
   boundaries. `AuthLifecycleReplayCoordinator.swift` owns one replacement-safe
-  task that replays the exact current SDK state only when an event was deferred
-  by an active transition; newer events and transitions invalidate stale replay.
-  Its live lifecycle dependencies capture `SupabaseManager` weakly, so the
-  replay task cannot become an accidental facade lifetime owner.
-  `AuthSessionBootstrapCoordinator.swift` owns usable-session reuse, sign-out
-  and account-work quiescence, existing-session resolution, stable-missing-only
-  anonymous creation, task lifetime, transition adoption, publication, purchase
-  readiness, and final exact-session admission through SDK-free dependencies.
+  task that replays the exact current SDK state after a deferred event or forced
+  successful anonymous-bootstrap reconciliation; newer events and transitions
+  invalidate stale replay. Its live lifecycle dependencies capture
+  `SupabaseManager` weakly, so the replay task cannot become an accidental
+  facade lifetime owner. `AuthSessionBootstrapCoordinator.swift` owns
+  usable-session reuse, sign-out and account-work quiescence, existing-session
+  resolution, stable-missing-only anonymous creation, task lifetime, transition
+  adoption, publication, purchase readiness for caller-owned transitions, and
+  final exact-session admission through SDK-free dependencies. Ordinary
+  bootstrap releases its transition once Auth is published; forced
+  current-session lifecycle reconciliation then owns purchase and entitlement
+  readiness with the existing session/generation fences. Browsing does not wait
+  for purchase setup, while paid admission remains fail-closed.
   `Core/Security/PurchaseIdentity/Coordinators` owns the active binding,
   last-linked user, exact-context resolution single-flight, and foreground
   readiness repair. Every direct identity attempt re-reads the durable handoff

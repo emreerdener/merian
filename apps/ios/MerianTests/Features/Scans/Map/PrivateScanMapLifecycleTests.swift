@@ -184,26 +184,25 @@ struct PrivateScanMapLifecycleTests {
         let locationGate = MapTestContinuationGate()
         var isCurrent = true
 
-        let locationTask = Task { @MainActor in
-            await PrivateScanMapLocationRequestSequence.run(
-                isCurrent: { isCurrent },
-                requestCurrentLocation: {
-                    await locationGate.wait()
-                    return CLLocation(latitude: 12, longitude: 45)
-                }
-            )
-        }
+        let navigation = MapNavigationModel()
+        var didApplyLocation = false
+        navigation.locate(
+            request: {
+                await locationGate.wait()
+                return CLLocation(latitude: 1, longitude: 1)
+            },
+            authorization: { .authorizedWhenInUse },
+            isCurrent: { isCurrent },
+            onLocation: { _ in didApplyLocation = true }
+        )
 
         await locationGate.waitUntilEntered()
         isCurrent = false
         await locationGate.release()
-
-        switch await locationTask.value {
-        case .invalidated:
-            break
-        case .location, .unavailable:
-            Issue.record("Expected the stale location request to be invalidated")
-        }
+        for _ in 0..<50 where navigation.isLocating { await Task.yield() }
+        #expect(!navigation.isLocating)
+        #expect(!didApplyLocation)
+        #expect(navigation.locationAlert == nil)
     }
 
     @Test("A configured store can recover durable state after reset")

@@ -10,12 +10,15 @@ area, such as both `UserProfile` and `Settings`.
 ## Purpose
 
 Code belongs in `<Feature>/Shared` only when multiple Profile product areas use
-it and the type does not warrant promotion to app-wide `Core`.
-`ProfileViewModel` owns the active account's shared identity and cloud
-preference values, including the `defaultGeoprivacy` value displayed by
-Settings. It does not own the Settings interaction lifecycle: Settings-owned
-observable state coordinates serialized geoprivacy writes, export, notification,
-survey, plan, sign-out, and deletion presentation.
+it and the type does not warrant promotion to app-wide `Core`. `AppShareContent`
+supplies one typed website URL through `LinkShareItemSource`, with invitation
+copy in the preview title and mail subject. AirDrop and Copy receive the link
+without an additional text attachment. `ProfileViewModel` owns the active
+account's shared identity and cloud preference values, including the
+`defaultGeoprivacy` value displayed by Settings. It does not own the Settings
+interaction lifecycle: Settings-owned observable state coordinates serialized
+geoprivacy writes, export, notification, survey, plan, sign-out, and deletion
+presentation.
 
 `Profile/Shell` composes environment-owned dependencies. `UserProfile` and
 `Settings` consume the shared values but retain their own Services, ViewModels,

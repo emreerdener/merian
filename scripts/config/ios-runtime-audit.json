@@ -252,6 +252,22 @@
         "Capture Terminal Acceptance"
       ],
       "owner": "apps/ios/MerianTests/Core/Data/OfflineSync/CaptureTerminalAcceptanceTests.swift"
+    },
+    {
+      "selector": "merianTests/MapNavigationTests",
+      "suite_names": [
+        "MapNavigationTests",
+        "Map navigation"
+      ],
+      "owner": "apps/ios/MerianTests/Core/Maps/MapNavigationTests.swift"
+    },
+    {
+      "selector": "merianTests/MapPreferencesTests",
+      "suite_names": [
+        "MapPreferencesTests",
+        "Map preferences"
+      ],
+      "owner": "apps/ios/MerianTests/Core/Preferences/MapPreferencesTests.swift"
     }
   ],
   "ui": [
@@ -281,6 +297,12 @@
     },
     {
       "selector": "merianUITests/merianUITests/testBackgroundInterruptionPreservesQueuedAudioInsight",
+      "suite_names": [
+        "merianUITests"
+      ]
+    },
+    {
+      "selector": "merianUITests/merianUITests/testPrivateScanMapCollectionNavigationFiltersAndInsight",
       "suite_names": [
         "merianUITests"
       ]

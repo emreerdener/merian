@@ -1164,15 +1164,21 @@ does not perform denoising or AI restoration.
 
 ### Scan-Library Insight Audio Boost
 
-Completed persisted Insights containing standalone audio expose the same **Boost
-audio** action in the top ellipsis menu and as a direct bottom-left spectrogram
-control. A bottom-right badge shows elapsed and total playback time; both badges
-reuse the image-attribution inset and material treatment so the overlapping
-result card does not cover them. Insight preferences use a separate device-local
-namespace keyed by immutable `scanId`; they do not change the setting of an
-Explore post created from that scan. Entries retain the same 180-day and
-500-scan bounds. One scan setting applies to every standalone audio page in a
-mixed-media carousel.
+Insights containing standalone audio expose **Boost audio** as a direct
+bottom-left spectrogram control during foreground analysis, queued analysis, and
+after completion. Completed persisted Insights also offer the action in the top
+ellipsis menu. A bottom-right badge shows elapsed and total playback time; both
+badges reuse the image-attribution inset and material treatment so the
+overlapping result card does not cover them. Insight preferences use a separate
+device-local namespace keyed by immutable `scanId`; they do not change the
+setting of an Explore post created from that scan. Entries retain the same
+180-day and 500-scan bounds. One scan setting applies to every standalone audio
+page in a mixed-media carousel. The control requires the current scan identity
+and standalone audio, not a completed local record or an idle provider. Media
+callbacks retain the exact scan ID and presentation generation. Same-scan
+foreground/queue/result handoffs preserve boost selection while retiring old
+callbacks; switching scans clears the prior selection before restoring that
+scan's preference. Boost affects only local listening, never provider input.
 
 `AudioBoostProcessor` lives under `Core/Media` and accepts bounded local paths,
 `file://` URLs, or HTTPS media. Explore and Insight reuse its RMS/peak analysis,

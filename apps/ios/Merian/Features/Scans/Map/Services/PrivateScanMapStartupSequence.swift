@@ -26,22 +26,3 @@ enum PrivateScanMapStartupSequence {
         setInitialCamera(currentLocation)
     }
 }
-
-enum PrivateScanMapLocationRequestResult {
-    case location(CLLocation)
-    case unavailable
-    case invalidated
-}
-
-enum PrivateScanMapLocationRequestSequence {
-    @MainActor
-    static func run(
-        isCurrent: @MainActor () -> Bool,
-        requestCurrentLocation: @MainActor () async -> CLLocation?
-    ) async -> PrivateScanMapLocationRequestResult {
-        let location = await requestCurrentLocation()
-        guard !Task.isCancelled, isCurrent() else { return .invalidated }
-        guard let location else { return .unavailable }
-        return .location(location)
-    }
-}

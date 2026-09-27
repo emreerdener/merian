@@ -34,6 +34,12 @@ Production Library files remain below the pass's 600-line review guard. The
 existing `ScansManager` initializer signature and all production Shell/Library
 call sites remain unchanged.
 
+Batch sharing includes each scan's captured image, audio/video files, and a
+numbered summary with names, scan date, AI confidence, and AI reasoning. It does
+not attach reference photos or structured location/private field notes.
+Unavailable expected media throws through the injected batch-share adapter;
+`ScansManager` presents a retry toast without opening a text-only share sheet.
+
 ## Purpose
 
 This is the core browsing experience for a user's identified biological scans.

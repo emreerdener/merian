@@ -26,7 +26,7 @@ extension InsightShareButton {
                                     .multilineTextAlignment(.leading)
                                     .lineLimit(2)
 
-                                Text("Send via Messages, social media, or copy the link.")
+                                Text("Share media and scan details with other apps.")
                                     .font(.subheadline)
                                     .foregroundStyle(.secondary)
                                     .multilineTextAlignment(.leading)
@@ -40,14 +40,7 @@ extension InsightShareButton {
                         }
                         .padding(16)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(
-                            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                                .fill(Color(uiColor: .secondarySystemBackground))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                                .stroke(Color.primary.opacity(0.06), lineWidth: 1)
-                        )
+                        .background(sharePanelBackground)
                     }
                     .buttonStyle(.plain)
                 }
@@ -168,16 +161,18 @@ extension InsightShareButton {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            ZStack {
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
-                    .fill(.regularMaterial)
-                
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
-                    .fill(Color.primary.opacity(0.02))
-            }
-            .shadow(color: Color.black.opacity(0.06), radius: 16, x: 0, y: 6)
-        )
+        .background(sharePanelBackground)
+    }
+
+    private var sharePanelBackground: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(.regularMaterial)
+
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .fill(Color.primary.opacity(0.02))
+        }
+        .shadow(color: Color.black.opacity(0.06), radius: 16, x: 0, y: 6)
         .overlay(
             RoundedRectangle(cornerRadius: 28, style: .continuous)
                 .stroke(Color.primary.opacity(0.06), lineWidth: 1)

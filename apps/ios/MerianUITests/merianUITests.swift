@@ -101,6 +101,12 @@ final class merianUITests: XCTestCase {
             extraArguments: ["-seedPrivateScanMapFlow"]
         )
 
+        // Enter through the visible root when startup has not presented the seeded library.
+        let scansEntry = app.buttons["MainTabBar_Scans"]
+        if scansEntry.waitForExistence(timeout: 2), scansEntry.isHittable {
+            scansEntry.tap()
+        }
+
         let collectionsSegment = app.segmentedControls.buttons["Collections"]
         XCTAssertTrue(
             collectionsSegment.waitForExistence(timeout: 8.0),
@@ -154,6 +160,26 @@ final class merianUITests: XCTestCase {
         XCTAssertGreaterThan(visibleCount.frame.midY, app.frame.height * 0.75)
         XCTAssertEqual(visibleCount.frame.midY, locateButton.frame.midY, accuracy: 8)
         XCTAssertLessThan(locateButton.frame.maxY, app.frame.maxY)
+
+        let styleButton = app.buttons["PrivateScanMapStyle"]
+        let searchButton = app.buttons["PrivateScanMapSearch"]
+        XCTAssertTrue(styleButton.exists)
+        XCTAssertTrue(searchButton.exists)
+        let originalStyle = styleButton.value as? String
+        styleButton.tap()
+        XCTAssertNotEqual(styleButton.value as? String, originalStyle)
+        styleButton.tap()
+        searchButton.tap()
+        let searchField = app.textFields["MapPlaceSearchField"]
+        XCTAssertTrue(searchField.waitForExistence(timeout: 4))
+        XCTAssertFalse(app.keyboards.firstMatch.exists)
+        searchField.tap()
+        searchField.typeText("Synthetic")
+        let place = app.buttons.containing(.staticText, identifier: "Synthetic nature reserve").firstMatch
+        XCTAssertTrue(place.waitForExistence(timeout: 4))
+        place.tap()
+        XCTAssertTrue(searchField.waitForNonExistence(timeout: 4))
+        XCTAssertTrue(mapNavigationBar.exists)
 
         mapNavigationBar.buttons["Collections"].tap()
         XCTAssertTrue(collectionsSegment.waitForExistence(timeout: 5.0))
@@ -1312,6 +1338,15 @@ final class merianUITests: XCTestCase {
             "Seeded queued audio never became readable and playable"
         )
 
+        let boostButton = app.buttons["Boost audio"]
+        XCTAssertTrue(boostButton.waitForExistence(timeout: 8.0))
+        boostButton.tap()
+        let boostedButton = app.buttons["Turn off audio boost"]
+        XCTAssertTrue(
+            boostedButton.waitForExistence(timeout: 8.0),
+            "Boost did not prepare a playable source while the scan was analyzing"
+        )
+
         XCTAssertTrue(
             scanningStatusBadge.isHittable,
             "Shared scanning status badge was not available to trigger the deterministic handoff"
@@ -1332,6 +1367,15 @@ final class merianUITests: XCTestCase {
         XCTAssertTrue(
             playbackControl.waitForExistence(timeout: 8.0),
             "Readable audio did not survive the queued-to-result handoff"
+        )
+        XCTAssertTrue(
+            boostedButton.waitForExistence(timeout: 8.0),
+            "Boost selection did not survive analysis completion"
+        )
+        boostedButton.tap()
+        XCTAssertTrue(
+            boostButton.waitForExistence(timeout: 8.0),
+            "The completed scan could not return to original audio"
         )
         XCTAssertTrue(
             app.buttons["FieldChatToolbarButton"].waitForExistence(timeout: 8.0),

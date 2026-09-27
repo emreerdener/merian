@@ -71,8 +71,6 @@ extension CaptureWorkspaceViewModel {
             }
         }
         let resolvesLiveContext = debugReplayProfile == nil
-        #else
-        let resolvesLiveContext = true
         #endif
         let queuedMessage: (String) -> String = { message in
             #if DEBUG && targetEnvironment(simulator)
@@ -127,8 +125,12 @@ extension CaptureWorkspaceViewModel {
         let scanId = UUID().uuidString.lowercased()
         #endif
         pendingAnalyzeScanId = scanId
+        #if DEBUG && targetEnvironment(simulator)
         let cachedLocation = resolvesLiveContext
             ? dependencies.submission.context.lastKnownLocation() : nil
+        #else
+        let cachedLocation = dependencies.submission.context.lastKnownLocation()
+        #endif
         let immediateTelemetry: CaptureTelemetry = {
             #if DEBUG && targetEnvironment(simulator)
             if let debugReplayProfile { return debugReplayProfile.makeTelemetry() }
@@ -141,7 +143,9 @@ extension CaptureWorkspaceViewModel {
                 zoomFactor: nil
             )
         }()
+        #if DEBUG && targetEnvironment(simulator)
         if !resolvesLiveContext { capturedPreFetchTask?.cancel() }
+        #endif
 
         // Commit the capture before crossing any async boundary. Location names,
         // WeatherKit, and authentication are optional enrichment; none may decide
@@ -190,11 +194,14 @@ extension CaptureWorkspaceViewModel {
             return true
         }
 
-        let contextTask: Task<EnvironmentContext, Never>? = resolvesLiveContext
-            ? capturedPreFetchTask ?? Task {
+        let contextTask: Task<EnvironmentContext, Never>? = {
+            #if DEBUG && targetEnvironment(simulator)
+            guard resolvesLiveContext else { return nil }
+            #endif
+            return capturedPreFetchTask ?? Task {
                 await dependencies.submission.context.fetchDeferredContext(cachedLocation)
             }
-            : nil
+        }()
         Task { [weak self] in
             guard let self else {
                 contextTask?.cancel()

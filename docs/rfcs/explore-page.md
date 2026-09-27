@@ -873,6 +873,12 @@ map semantics.
 
 ## Explore Map Addendum
 
+**2026-09-23 navigation update:** Both interactive maps now implement the
+[shared map navigation contract](../features-and-hardware/24-explore-bottom-menu.md#shared-map-navigation),
+including satellite-by-default device preferences, a horizontal glass toolbar,
+place search, and account-isolated recent labels. The original recommendations
+below remain historical context.
+
 The Explore map should be a second discovery surface over the same
 `explore_posts` model, not a separate content system.
 
@@ -1874,6 +1880,13 @@ bottom actions hide and Options includes Share, independently of Field chat
 availability. The bottom actions return above the sticky-comment threshold once
 the composer is unfocused. Species Dictionary detail uses the same bottom-left
 Share placement after its canonical UUID loads.
+
+## Feed post options sharing update (2026-09-27)
+
+Feed post options include Share for both owned posts and other authors' posts.
+The action opens the existing system share sheet with the canonical post URL and
+suspends feed video playback until the share sheet finishes. The reaction row
+remains unchanged.
 
 ## Bare emoji reactions update (2026-09-21)
 

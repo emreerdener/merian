@@ -71,12 +71,13 @@ effects.
   suspension; a signed-out postflight fence after purchase cleanup; and
   historical-sync admission. It creates no task.
 - `Coordinators/AuthLifecycleReplayCoordinator.swift` owns the one
-  replacement-safe main-actor task that replays the current SDK Auth state only
-  when a listener event was deferred by an active transition. A newer SDK event
-  cancels the synthetic replay, a newly admitted transition retains the replay
-  obligation for its next stable finish boundary, and task cleanup compares its
-  UUID before clearing shared state. SDK snapshots and lifecycle effects remain
-  injected by the focused live provider.
+  replacement-safe main-actor task that replays the current SDK Auth state when
+  a listener event was deferred by an active transition or successful internally
+  owned anonymous bootstrap forces reconciliation. A newer SDK event cancels the
+  synthetic replay, a newly admitted transition retains the replay obligation
+  for its next stable finish boundary, and task cleanup compares its UUID before
+  clearing shared state. SDK snapshots and lifecycle effects remain injected by
+  the focused live provider.
 - `Services/AuthSessionLifecycleLiveProvider.swift` owns the retained listener
   handle, exact listener prelude order, SDK-state projection, current-state
   snapshot validation, and composition of conditional replay. Replacing the
@@ -128,11 +129,15 @@ effects.
   anonymous-bootstrap owner, while a differently owned or replaced transition is
   rejected. A caller cancelled before admission or while awaiting sign-out stops
   before account or SDK-session work. Existing and newly anonymous sessions are
-  adopted, published, made purchase-ready, and revalidated behind cancellation
-  and transition fences, including an explicit cancellation check immediately
-  after purchase readiness returns. Only the injected stable missing-session
-  classification may reach anonymous creation; network and expiry failures
-  preserve the existing identity.
+  adopted, published, and revalidated behind cancellation and transition fences.
+  An internally owned anonymous bootstrap then releases its transition without
+  waiting for purchase readiness. Transition finish forces the existing
+  current-session lifecycle reconciliation even when no SDK event was deferred;
+  that retained, generation-fenced replay owns purchase and entitlement work.
+  Caller-owned bootstrap still awaits purchase readiness and checks cancellation
+  immediately afterward, preserving sign-out recovery ordering. Only the
+  injected stable missing-session classification may reach anonymous creation;
+  network and expiry failures preserve the existing identity.
 - `Services/AuthSessionBootstrapLiveService.swift` projects cached, loaded, and
   newly anonymous Supabase sessions into the bootstrap identity/expiry value and
   owns the established SDK plus compatibility missing-session classification.
@@ -435,10 +440,11 @@ Auth transition after every suspending purchase or entitlement phase. Signed-out
 handling repeats that fence after purchase cleanup before clearing linked-user,
 public-author, Apple-revocation, or Ghost-merge state. When a listener event is
 deferred by a transition, `AuthLifecycleReplayCoordinator` replays one snapshot
-of the current SDK state after the transition finishes; a newer SDK event or
-transition invalidates that snapshot and retained task. The manager-owned
-deferred preferred-name and historical-scan task repeats the same exact-session
-fence before each account-leased synchronization step.
+of the current SDK state after the transition finishes. Successful internally
+owned anonymous bootstrap also forces this replay without a deferred event. A
+newer SDK event or transition invalidates that snapshot and retained task. The
+manager-owned deferred preferred-name and historical-scan task repeats the same
+exact-session fence before each account-leased synchronization step.
 
 A Google provider result checks cancellation both before presentation and after
 provider return. Shared OAuth completion checks cancellation before direct
@@ -478,10 +484,12 @@ reused only under an exact-session account-work lease. Caller cancellation is
 checked both before and after sign-out waiting, before any lease, transition, or
 SDK-session operation can begin. Every loaded or created session must be adopted
 by the active transition before publication and must still match the
-manager-published, nonexpired SDK session after purchase readiness completes.
-Cancellation is checked again at that post-readiness boundary before an identity
-can be returned. Cancelling bootstrap clears only its own keyed handle, so a
-late predecessor cannot clear replacement work.
+manager-published, nonexpired SDK session before return. For caller-owned
+bootstrap, this check follows purchase readiness and repeats cancellation.
+Ordinary bootstrap leaves purchase work to transition-finish reconciliation so
+browsing and provider sign-in do not remain disabled during purchase setup.
+Cancelling bootstrap clears only its own keyed handle, so a late predecessor
+cannot clear replacement work.
 
 The focused bootstrap service performs only cached/loaded SDK-session
 projection, anonymous sign-in, and missing-session classification.
@@ -563,16 +571,17 @@ generation invalidation. `AuthTransitionPolicyTests.swift` owns the adoption,
 transition admission, listener/request fence, provider callback, OAuth
 rollback/metadata, exact direct-link upgrade, purchase-handoff, and explicit
 nil-session and ownerless-request defaults across ten deterministic cases.
-`AuthSessionBootstrapCoordinatorTests.swift` owns twenty deterministic cases for
-test/deletion and caller-cancellation gates, cancellation during sign-out
+`AuthSessionBootstrapCoordinatorTests.swift` owns twenty-two deterministic cases
+for test/deletion and caller-cancellation gates, cancellation during sign-out
 waiting, sign-out and quiescence ordering, current-session reuse, stale
 account-work rejection, exact-token ownerless sharing, replaced-transition and
 different-owner isolation, true-missing anonymous creation and creation failure,
 network-failure identity preservation, cancellation and transition drift around
 session load, compare-before-clear task replacement, resolved-session
 publication order, cancellation during loaded and newly created purchase
-readiness, and session replacement during purchase readiness. The aggregate
-manager suite no longer owns bootstrap task serialization.
+readiness, session replacement during purchase readiness, ordinary Auth
+publication without a purchase wait, and explicit-owner request gating. The
+aggregate manager suite no longer owns bootstrap task serialization.
 `AuthSessionBootstrapLiveServiceTests.swift` owns five deterministic cases for
 cached/loaded identity and expiry projection, newly anonymous fresh-session
 projection, exact SDK and compatibility missing-session classification,
@@ -784,14 +793,16 @@ requires the local server-verified entitlement projection to close before
 recovery continues. `AuthLifecycleReplayCoordinatorTests.swift` owns five
 deterministic cases for replacement cancellation, carrying an obligation across
 a new transition, clearing it for a newer stable event, owner release during a
-suspended replay, and the no-deferred-event no-op boundary.
-`AuthSessionLifecycleLiveProviderTests.swift` owns seven deterministic cases for
-SDK-state projection, exact listener prelude order, deferred current-state
-replay, stale snapshot rejection, restart cleanup, canceled trailing-effect
-rejection, and listener teardown without self-retention.
-`AuthHistoricalSessionSyncLiveServiceTests.swift` owns three deterministic cases
-for timestamp/preference/scan order, the post-preference exact-session fence,
-and owner-release cancellation during suspended synchronization.
+suspended replay, and the no-deferred-event no-op boundary when replay is not
+forced. `AuthSessionLifecycleLiveProviderTests.swift` owns nine deterministic
+cases for SDK-state projection, exact listener prelude order, deferred
+current-state replay, stale snapshot rejection, restart cleanup, canceled
+trailing-effect rejection, forced bootstrap reconciliation without a deferred
+event, rejection of a new transition before forced replay, and listener teardown
+without self-retention. `AuthHistoricalSessionSyncLiveServiceTests.swift` owns
+three deterministic cases for timestamp/preference/scan order, the
+post-preference exact-session fence, and owner-release cancellation during
+suspended synchronization.
 
 The Edge client-source contracts deliberately read these extracted owners.
 `accountDeletionCoverage.test.ts` pins both deletion coordinators to

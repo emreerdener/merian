@@ -60,7 +60,9 @@ navigation mode.
   Explore presentation. Species receives that retained model, so switching to
   Requests or another page does not discard loaded content. Navigation reuses a
   successful overview for five minutes; stale content stays visible during a
-  same-region refresh. Pull-to-refresh and retry always fetch. A changed
+  same-region refresh. The overview task also observes account-work readiness,
+  retrying an initial startup failure when Auth becomes usable without bypassing
+  the freshness window. Pull-to-refresh and retry always fetch. A changed
   normalized country clears incompatible content, and closing Explore releases
   the in-memory overview. Catalog owns the category route value and emits
   species-detail routes without creating another navigation stack.

@@ -4,6 +4,50 @@ import XCTest
 
 @MainActor
 final class ExploreFeedViewModelTests: XCTestCase {
+    func testInitialFeedRetriesWhenAuthSettlesAndThenKeepsSuccessfulPage() async {
+        var attempts = 0
+        let post = ExploreFeedTestFixtures.post(id: "ready")
+        let viewModel = makeViewModel(loadPosts: { _, _, _, _, _, _, _ in
+            attempts += 1
+            if attempts == 1 { throw SupabaseAuthTransitionError.signOutInProgress }
+            return [post]
+        })
+        await viewModel.resumeInitialFeed()
+        XCTAssertNotNil(viewModel.errorMessage)
+        XCTAssertEqual(attempts, 1)
+        await viewModel.resumeInitialFeed()
+        XCTAssertEqual(viewModel.posts, [post])
+        XCTAssertNil(viewModel.errorMessage)
+        await viewModel.resumeInitialFeed()
+        XCTAssertEqual(attempts, 2)
+    }
+
+    func testAuthCompletionSupersedesCancelledInitialRequestBeforeItReturns() async {
+        let started = expectation(description: "Initial request suspended")
+        var pending: CheckedContinuation<[ExplorePost], any Error>?
+        let post = ExploreFeedTestFixtures.post(id: "ready")
+        var attempts = 0
+        let viewModel = makeViewModel(loadPosts: { _, _, _, _, _, _, _ in
+            attempts += 1
+            if attempts > 1 { return [post] }
+            return try await withCheckedThrowingContinuation {
+                pending = $0
+                started.fulfill()
+            }
+        })
+        let initial = Task {
+            await viewModel.resumeInitialFeed()
+        }
+        await fulfillment(of: [started], timeout: 1)
+        initial.cancel()
+        await viewModel.resumeInitialFeed()
+        pending?.resume(throwing: SupabaseAuthTransitionError.signOutInProgress)
+        await initial.value
+        XCTAssertEqual(viewModel.posts, [post])
+        XCTAssertNil(viewModel.errorMessage)
+        XCTAssertFalse(viewModel.isLoadingInitialFeed)
+    }
+
     func testLikedFeedForwardsFiltersAndPaginatesBySharedDate() async {
         let page = (0..<20).map {
             ExploreFeedTestFixtures.post(id: "liked-\($0)", viewerHasLiked: true)

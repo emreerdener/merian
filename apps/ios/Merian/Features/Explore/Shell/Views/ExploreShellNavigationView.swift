@@ -255,6 +255,7 @@ struct ExploreShellNavigationView: View {
                     .toolbar(.hidden, for: .tabBar)
             }
             .toolbar { exploreToolbar }
+            .toolbarBackground(.hidden, for: .navigationBar)
         }
     }
 
@@ -361,7 +362,8 @@ struct ExploreShellNavigationView: View {
                         focusCommentComposer: focusCommentComposer,
                         origin: .map
                     ))
-                }
+                },
+                onOpenAuthorProfile: openAuthorProfile
             )
         }
     }

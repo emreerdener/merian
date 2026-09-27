@@ -3,6 +3,12 @@ import MapKit
 import SwiftUI
 
 struct PrivateScanMapView: View {
+    private struct StartupIdentity: Equatable {
+        let resetGeneration: UInt64
+        let isSearching: Bool
+        let isLocating: Bool
+    }
+
     let onOpenInsight: (String) -> Void
 
     @Environment(EnvironmentContextManager.self)
@@ -10,17 +16,16 @@ struct PrivateScanMapView: View {
     @Environment(HapticManager.self) private var hapticManager
     @Environment(OfflineQueueManager.self) private var offlineQueueManager
     @Environment(PrivateScanMapStore.self) private var privateScanMapStore
-    @Environment(\.openURL) private var openURL
+    @Environment(AppSettings.self) private var appSettings
+    @Environment(SupabaseManager.self) private var mapAuth
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var mapNavigation = MapNavigationModel()
 
     @State private var viewModel = PrivateScanMapViewModel()
     @State private var isShowingFilterSheet = false
     @State private var isShowingScanList = false
     @State private var sheetPointIDs: [String]?
     @State private var pendingInsightScanID: String?
-    @State private var isResolvingLocation = false
-    @State private var isLocationSettingsAlertPresented = false
-    @State private var isLocationUnavailableAlertPresented = false
-    @State private var locationRequestGeneration: UInt64 = 0
 
     var body: some View {
         ZStack {
@@ -48,9 +53,15 @@ struct PrivateScanMapView: View {
         .onDisappear {
             viewModel.setViewportProjectionSuspended(true)
         }
-        .task(id: privateScanMapStore.sensitiveResetGeneration) {
+        .task(id: StartupIdentity(
+            resetGeneration: privateScanMapStore.sensitiveResetGeneration,
+            isSearching: mapNavigation.isSearchPresented,
+            isLocating: mapNavigation.isLocating
+        )) {
+            guard !mapNavigation.isSearchPresented, !mapNavigation.isLocating else { return }
             let resetGeneration =
                 privateScanMapStore.sensitiveResetGeneration
+            let navigationGeneration = mapNavigation.generation
             await PrivateScanMapStartupSequence.run(
                 refresh: privateScanMapStore.refresh,
                 updateSnapshot: {
@@ -61,8 +72,8 @@ struct PrivateScanMapView: View {
                 },
                 needsInitialCamera: { !viewModel.didSetInitialCamera },
                 isCurrent: {
-                    resetGeneration
-                        == privateScanMapStore.sensitiveResetGeneration
+                    resetGeneration == privateScanMapStore.sensitiveResetGeneration
+                        && navigationGeneration == mapNavigation.generation
                 },
                 requestCurrentLocation:
                     environmentContextManager.requestCurrentLocation,
@@ -80,10 +91,7 @@ struct PrivateScanMapView: View {
             pendingInsightScanID = nil
             isShowingFilterSheet = false
             isShowingScanList = false
-            locationRequestGeneration &+= 1
-            isResolvingLocation = false
-            isLocationSettingsAlertPresented = false
-            isLocationUnavailableAlertPresented = false
+            mapNavigation.reset()
         }
         .sheet(isPresented: $isShowingFilterSheet) {
             PrivateScanMapFilterSheet(
@@ -106,27 +114,11 @@ struct PrivateScanMapView: View {
                 isPresented: $isShowingScanList
             )
         }
-        .alert("Turn On Location", isPresented: $isLocationSettingsAlertPresented) {
-            Button("Not Now", role: .cancel) {}
-            Button("Settings") {
-                guard let settingsURL = URL(
-                    string: UIApplication.openSettingsURLString
-                ) else {
-                    return
-                }
-                openURL(settingsURL)
-            }
-        } message: {
-            Text("Location access lets Scan map center on your current position. Your saved scans remain available without it.")
-        }
-        .alert(
-            "Location Unavailable",
-            isPresented: $isLocationUnavailableAlertPresented
-        ) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text("We couldn’t determine your location right now. Your saved scan locations are still available.")
-        }
+        .modifier(MapNavigationPresentation(
+            navigation: mapNavigation,
+            owner: mapAuth.currentUser?.id,
+            onDestination: viewModel.navigate
+        ))
     }
 
     private var cameraPositionBinding: Binding<MapCameraPosition> {
@@ -172,14 +164,21 @@ struct PrivateScanMapView: View {
                     }
                 }
             }
-            .mapStyle(.standard)
+            .mapStyle(appSettings.mapAppearance == .satellite ? .imagery : .standard)
             .accessibilityIdentifier("PrivateScanMapCanvas")
-            .ignoresSafeArea(edges: .bottom)
+            .ignoresSafeArea(edges: .vertical)
+            .transparentTopToolbar()
             .onAppear {
                 viewModel.updateViewportSize(geometry.size)
             }
             .onChange(of: geometry.size) { _, size in
                 viewModel.updateViewportSize(size)
+            }
+            .onMapCameraChange(frequency: .continuous) { context in
+                if viewModel.cameraPosition.positionedByUser {
+                    viewModel.userDidMoveCamera(region: context.region)
+                    mapNavigation.cancelNavigation()
+                }
             }
             .onMapCameraChange(frequency: .onEnd) { context in
                 viewModel.updateVisibleRegion(context.region)
@@ -381,12 +380,12 @@ struct PrivateScanMapView: View {
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
 
-            HStack(spacing: 12) {
+            MapBottomControlRow {
                 countButton
-                Spacer(minLength: 16)
-                locateButton
+            } controls: {
+                navigationToolbar
             }
-            .padding(.horizontal, 30)
+            .padding(.horizontal, 16)
         }
         .padding(.bottom, 8)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
@@ -401,44 +400,51 @@ struct PrivateScanMapView: View {
             triggerSelectionFeedback()
             showScanList(pointIDs: nil)
         } label: {
-            Text(PrivateScanMapPresentation.discoveriesInViewLabel(
-                count: viewModel.visiblePoints.count
-            ))
-            .font(.footnote)
-            .fontWeight(.semibold)
-            .foregroundStyle(.primary)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .background(.regularMaterial)
-            .clipShape(Capsule(style: .continuous))
+            MapCountPillLabel(
+                fullLabel: PrivateScanMapPresentation.discoveriesInViewLabel(count: viewModel.visiblePoints.count),
+                compactLabel: "\(viewModel.visiblePoints.count.formatted()) in view"
+            )
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("PrivateScanMapVisibleCount")
     }
 
-    private var locateButton: some View {
-        Button {
-            triggerSelectionFeedback()
-            Task { await recenterOnCurrentLocation() }
-        } label: {
-            Group {
-                if isResolvingLocation {
-                    ProgressView()
-                        .controlSize(.small)
-                } else {
-                    Image(systemName: "location")
-                        .font(.system(size: 17, weight: .semibold))
+    private var navigationToolbar: some View {
+        MapNavigationToolbar(
+            appearance: appSettings.mapAppearance,
+            isLocating: mapNavigation.isLocating,
+            identifierPrefix: "PrivateScanMap",
+            onToggleStyle: {
+                appSettings.mapAppearance = appSettings.mapAppearance == .satellite ? .standard : .satellite
+                triggerSelectionFeedback()
+            },
+            onSearch: {
+                let owner = mapAuth.currentUser?.id
+                let resetGeneration = privateScanMapStore.sensitiveResetGeneration
+                mapNavigation.openSearch(owner: owner) {
+                    owner == mapAuth.currentUser?.id
+                        && resetGeneration == privateScanMapStore.sensitiveResetGeneration
                 }
+            },
+            onLocate: {
+                triggerSelectionFeedback()
+                let owner = mapAuth.currentUser?.id
+                let resetGeneration = privateScanMapStore.sensitiveResetGeneration
+                mapNavigation.locate(
+                    request: environmentContextManager.requestCurrentLocation,
+                    authorization: { environmentContextManager.locationAuthorizationStatus },
+                    isCurrent: {
+                        owner == mapAuth.currentUser?.id
+                            && resetGeneration == privateScanMapStore.sensitiveResetGeneration
+                    },
+                    onLocation: { location in
+                        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.3)) {
+                            viewModel.recenter(on: location)
+                        }
+                    }
+                )
             }
-            .foregroundStyle(.primary)
-            .frame(width: 48, height: 48)
-            .background(.regularMaterial)
-            .clipShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .disabled(isResolvingLocation)
-        .accessibilityLabel("Locate me")
-        .accessibilityIdentifier("PrivateScanMapLocate")
+        )
     }
 
     private var pointsPresentedInSheet: [PrivateScanMapPoint] {
@@ -475,45 +481,6 @@ struct PrivateScanMapView: View {
 
     private func requestReferenceImageFallback(for scanID: String) {
         privateScanMapStore.requestReferenceImageFallback(for: scanID)
-    }
-
-    private func recenterOnCurrentLocation() async {
-        guard !isResolvingLocation else { return }
-        locationRequestGeneration &+= 1
-        let requestGeneration = locationRequestGeneration
-        let resetGeneration = privateScanMapStore.sensitiveResetGeneration
-        isResolvingLocation = true
-        defer {
-            if requestGeneration == locationRequestGeneration {
-                isResolvingLocation = false
-            }
-        }
-
-        let result = await PrivateScanMapLocationRequestSequence.run(
-            isCurrent: {
-                requestGeneration == locationRequestGeneration
-                    && resetGeneration
-                        == privateScanMapStore.sensitiveResetGeneration
-            },
-            requestCurrentLocation:
-                environmentContextManager.requestCurrentLocation
-        )
-
-        switch result {
-        case .invalidated:
-            return
-        case .location(let location):
-            withAnimation(.easeInOut(duration: 0.25)) {
-                viewModel.recenter(on: location)
-            }
-        case .unavailable:
-            switch environmentContextManager.locationAuthorizationStatus {
-            case .denied:
-                isLocationSettingsAlertPresented = true
-            default:
-                isLocationUnavailableAlertPresented = true
-            }
-        }
     }
 
     private func triggerSelectionFeedback() {

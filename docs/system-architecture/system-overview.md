@@ -438,7 +438,10 @@ A structured schema built on native SwiftData migrations:
   offline-queue context and scan-repository composition. The coordinator owns
   complete-token exact-context single-flight, cancellation checks around
   sign-out/quiescence waiting, true-missing-only creation, transition adoption,
-  purchase readiness, and final exact-session validation. A separate task-free
+  purchase readiness for caller-owned transitions, and final exact-session
+  validation. Ordinary bootstrap finishes after Auth publication and forces
+  current-session lifecycle reconciliation for purchase/entitlement readiness,
+  so browsing can resume before purchase setup completes. A separate task-free
   recovery coordinator owns ordinary and transition-owned exact-session refresh,
   anonymous purchase/entitlement restoration, and terminal local cleanup. It
   captures the expected session before account-work quiescence, preserves

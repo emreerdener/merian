@@ -175,3 +175,9 @@ stateless policy boundaries and their exact documented local inputs,
 transport/persistence-free shared components, throwing SwiftData reads, and
 privacy-safe diagnostics. Domain suites remain authoritative for behavior; the
 Core-wide suite prevents ownership drift between those domains.
+
+## Shared map navigation
+
+`Maps/` owns neutral place search and cancellable navigation state consumed by
+Explore and Scans. It does not own either feature's points, filters, caches, or
+backend requests. See [Maps ownership](Maps/README.md).
