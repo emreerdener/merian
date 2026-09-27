@@ -25,8 +25,8 @@ struct PaywallReview: Identifiable {
 }
 
 enum ProPlanValueProps {
-    static let activePlanSummary = "You have high-volume field scans, Pro AI vision, video scans, AI chat, multi-capture, Apple Watch logging, and expedition mode unlocked."
-    static let upgradePlanSummary = "You have 1 free scan daily. Upgrade for high-volume field scans, Pro AI vision, video scans, AI chat, multi-capture, Apple Watch logging, and expedition mode."
+    static let activePlanSummary = "You have high-volume field scans, Pro AI vision, video scans, AI chat, multi-capture, and Apple Watch logging unlocked."
+    static let upgradePlanSummary = "You have 1 free scan daily. Upgrade for high-volume field scans, Pro AI vision, video scans, AI chat, multi-capture, and Apple Watch logging."
 
     static let featuredSlides = [
         PaywallHeroSlide(
@@ -50,14 +50,8 @@ enum ProPlanValueProps {
         PaywallHeroSlide(
             imageName: "blue-bird",
             title: "Multi-capture analysis",
-            subtitle: "Add multiple scans to a single analysis.",
+            subtitle: "Combine two media items plus an optional note in one scan.",
             glowColor: .cyan
-        ),
-        PaywallHeroSlide(
-            imageName: "bee",
-            title: "Expedition mode",
-            subtitle: "Maximize battery life and performance out in the field.",
-            glowColor: .green
         )
     ]
 
@@ -83,9 +77,9 @@ enum ProPlanValueProps {
             proValue: "Included"
         ),
         PaywallFeatureComparison(
-            title: "Multi-capture",
-            freeValue: "-",
-            proValue: "Included"
+            title: "Media per scan",
+            freeValue: "1 + optional note",
+            proValue: "2 + optional note"
         ),
         PaywallFeatureComparison(
             title: "Apple Watch logging",
@@ -99,18 +93,12 @@ enum ProPlanValueProps {
         ),
         PaywallFeatureComparison(
             title: "Expedition mode",
-            freeValue: "-",
+            freeValue: "Included",
             proValue: "Included"
         )
     ]
 
     static let reviews = [
-        PaywallReview(
-            title: "Essential field tool",
-            rating: 5,
-            body: "Naturebook Pro has completely transformed my weekend hikes. The expedition mode saves so much battery, and the Pro AI offline capabilities are insanely accurate.",
-            author: "ForestPathfinder"
-        ),
         PaywallReview(
             title: "Stunning UI & details",
             rating: 5,

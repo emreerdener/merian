@@ -947,17 +947,22 @@ Battery and thermal protection, monitoring device usage thresholds.
 - An `@Observable` class that decouples rendering overhead from device thermals.
 - Bridges `.thermalStateDidChangeNotification`, dropping graphic resolutions and
   Glassmorphism shaders on `.critical` or `.serious` states.
-- Monitors `isLowPowerModeEnabled` and engages a 24fps `isExpeditionModeActive`
-  pipeline on low-battery states.
-- **Expedition Mode Override**: Users can set
+- Thermal and power-state notifications trigger constraint reevaluation.
+  `isExpeditionModeActive` reads the saved app preference; an OS power-state
+  notification does not enable that preference.
+- **Expedition Mode Override**: All users can set
   `AppSettings.isExpeditionModeActive = true` via Settings. The Profile Shell
   injects a `SettingsPreferenceActions` value whose update persists that setting
   before asking the environment-owned `HardwareOrchestrator` to reevaluate
-  constraints. The orchestrator then applies a 24fps framerate cap while
-  dropping iOS glass materials, trading UI fidelity for maximum battery life
-  off-grid. `OfflineQueueManager` reads its injected `hardwareOrchestrator`
-  boundary before dispatching uploads, pausing background cellular uploads
-  without hard-coding the shared singleton in tests.
+  constraints. The unchanged preference key remains default-off and retains
+  saved choices. The orchestrator has no entitlement dependency, so Free,
+  expired, unverified, and offline users receive the same 24fps cap and reduced
+  visual effects. Haptics remain suppressed through the existing shared gate.
+  `OfflineQueueManager` reads its injected `hardwareOrchestrator` before
+  ordinary background upload dispatch. Disabling Expedition restores normal
+  constraint evaluation and upload eligibility without bypassing consent,
+  funding, or durable recovery. See the
+  [Workspace contract](./29-staged-capture-review.md).
 - **Animation Gate (`isAnimationEnabled`)**: A computed property that exposes
   the current UI motion budget to the view layer. Returns
   `isGlassmorphismEnabled`, which is already `false` under expedition mode and
@@ -1094,59 +1099,33 @@ A dedicated `PHPhotoLibrary` handler.
   files for retry. The implementation is not a Share Extension and requests no
   new Photo Library permission. See
   [Photos Share Import](./26-photos-share-import.md).
-- **Instant Scan Mode vs Multi-Capture Mode (`isMultiCaptureEnabled` &
-  `requiresScanConfirmation`)**: The default experience
-  (`isMultiCaptureEnabled = false`) auto-submits after a single camera capture
-  via an `onChange(of: viewModel.stagedCapture.images.count)` observer in
-  `CaptureWorkspaceView`. Camera, video, and crop-confirmed commits arm
-  `isAutomaticStagedSubmissionPending` in the same MainActor mutation that makes
-  the eligible media visible. `shouldPresentActiveScanToolbar` therefore keeps
-  the ordinary navigation chrome mounted instead of briefly presenting the
-  manual **Identify** tray while the observer starts admission. Successful
-  submission clears staging; failed admission clears only automatic ownership,
-  preserving the photo and intentionally revealing **Identify** as the retry
-  path. Before `PhotoLibraryButton` or the staged toolbar's add-photo action
-  presents the native picker, it awaits `requestImageImportEntryAdmission`; a
-  pending external Photos/Files receipt runs the same prospective-media check
-  before metadata extraction or image preparation. A known quota/entitlement
-  denial therefore opens the paywall before selection or crop and leaves any
-  durable external receipt intact. Because the preview reserves nothing, final
-  submission repeats admission and may still catch a concurrent account/quota
-  change. Allowed photo-library picks and shared Photos documents then pause at
-  the square crop editor before analysis starts: each prepared import commits
-  with `requiresCrop: true`, `CaptureWorkspaceViewModel` records the staged
-  image ID in `requiredGalleryCropImageIds`, and
-  `presentNextRequiredGalleryCrop()` opens `CropSheetModifier` immediately. The
-  required-crop ID and crop presentation jointly suppress both bottom chrome
-  layers during that handoff, so neither the staged thumbnail nor **Identify**
-  appears before the cover. Confirming the required crop clears that image ID
-  and re-evaluates the same automatic-submission policy; only the default
-  single-image path proceeds directly into analysis. Setting "Confirm scan
-  submission" (`requiresScanConfirmation = true`) disables the auto-submit
-  gatekeeper, staging the cropped image in the `ActiveScanToolbar` and forcing
-  the user to physically tap "Identify". If "Multi-capture mode"
-  (`isMultiCaptureEnabled = true`) is enabled, required gallery crops are
-  reviewed sequentially and the user returns to the toolbar after the final
-  crop. `CaptureWorkspaceView` reads `@AppStorage` toggles inline and
-  dynamically caps the `PhotoLibraryButton`'s `maxSelectionCount` and the
-  toolbar's secondary add button.
+- **Staged review and Auto-submit scans**: Review is the default for every
+  account using the new `autoSubmitScans = false` preference. Legacy settings do
+  not migrate into it. Free has one physical photo/audio slot plus one note; Pro
+  has two physical slots plus one note. Auto-submit is minted at an empty
+  draft's photo/audio/video/import entry and remains bound to that attempt
+  through initial required cropping. Setting changes, new context, removal, and
+  recropping cannot arm an existing composition. UI and direct submission block
+  unresolved draft work. Failed enqueue retains source files for manual retry;
+  accepted scans retry through their durable owner. See the
+  [capture contract](./29-staged-capture-review.md).
 - **Required Gallery Crop Cancellation**: The crop sheet's X button has
   source-aware behavior. During a required photo-library crop, X calls
   `cancelRequiredGalleryCrop(for:)`, removes that staged gallery image, clears
   crop state, and opens the next required gallery crop if one remains. During a
   normal/manual thumbnail crop, X only dismisses the editor and preserves the
   staged image. The delete action removes the image in both paths.
-- **Mixed-Media AI Context Appending**: Ordinary scans can stage up to 2 total
-  user items across photos, short Pro video clips, audio clips, and
-  descriptions. Reanalysis reserves one supplementary description beyond its
-  two-item evidence budget, as detailed below. Standard combinations include a
-  macro leaf photo plus a short text note, a short video, or two photos.
-  `CaptureWorkspaceViewModel` handles `PhotosPickerItem` interactions via
-  `handlePhotoPickerSelection`, constructing a `StagedImage` (compressed
-  inference copy, 2048 px display copy, bounded `UIImage` thumbnail, and
-  crop/metadata bundle) and appending it to `stagedCapture.images`, supporting
-  mixed optical captures and library imports. Video capture records a
-  high-quality temporary `.mp4` with
+- **Mixed-Media AI Context Appending**: Ordinary Free scans have one photo/audio
+  slot and one optional note; Pro scans have two media slots and one optional
+  note. Video remains Pro-only. Reanalysis reserves one supplementary
+  description independently of its two-physical-item budget, as detailed below.
+  Standard combinations include a macro leaf photo plus a short text note, a
+  short video, or two photos. `CaptureWorkspaceViewModel` handles
+  `PhotosPickerItem` interactions via `handlePhotoPickerSelection`, constructing
+  a `StagedImage` (compressed inference copy, 2048 px display copy, bounded
+  `UIImage` thumbnail, and crop/metadata bundle) and appending it to
+  `stagedCapture.images`, supporting mixed optical captures and library imports.
+  Video capture records a high-quality temporary `.mp4` with
   `AVCaptureMovieFileOutput.maxRecordedFileSize` capped at the existing 12 MB
   hard upload limit, requests native AVFoundation `.auto` stabilization for the
   active recording when the connection supports it, samples five ordered
@@ -1196,17 +1175,19 @@ A dedicated `PHPhotoLibrary` handler.
   empty string and cause Gemini to reject the request with an opaque AI
   processing error. `CaptureScanStillMediaPreparer` and
   `CaptureScanVideoMediaPreparer` apply the matching camera/video-frame guard.
-  Cancel, remove, replace, and queue-rejection paths call the discard helper so
-  temporary playback `.mp4` files and companion WAV files are deleted through
-  `FileIOActor`; submit paths use reference-only clearing after queue acceptance
-  so durable queue/live persistence keeps ownership. All per-image copies inside
-  each `StagedImage` (compressed inference data, 2048 px display data, bounded
+  Confirmed discard, removal, and replacement delete draft-owned playback `.mp4`
+  files and companion WAV files through `FileIOActor`. Queue rejection before
+  durable acceptance preserves the draft and its source files for manual retry.
+  After acceptance, submission clears draft references and may delete source
+  files only after remapping the accepted timeline to queue-owned copies;
+  durable recovery retains those copies. All per-image copies inside each
+  `StagedImage` (compressed inference data, 2048 px display data, bounded
   `UIImage` thumbnail, and crop/metadata bundle) are released with the same
   value reset — index mismatches between parallel arrays are impossible because
   media stays co-located in typed staging models. `submitStagedCapture(...)`
   extracts `historicalContext` from `stagedCapture.images[0]` (via the
-  `StagedImage.original` bundle) before reference-only staging reset to preserve
-  EXIF location data from library uploads.
+  `StagedImage.original` bundle) before accepted draft cleanup to preserve EXIF
+  location data from library uploads.
 - **Video Upload Signing Shape**: One video scan signs five `image/webp`
   inference frames, one `video/mp4` playback clip, and an optional companion
   WAV. The eight-file total cap also permits one standalone audio clip; the
@@ -1269,25 +1250,19 @@ A dedicated `PHPhotoLibrary` handler.
   image rather than suppressing reanalysis. `cancelRefinementStaging()` cancels
   pending image download or audio preparation, deletes an uncommitted audio
   sidecar, and clears the refinement context.
-- **Reanalysis Description Capacity**: Reanalysis retains the two-item evidence
-  budget and permits one supplementary description beyond it. Original media,
-  one added image/audio/video, and the description can be staged in either
-  order. Camera/import/recording admission and completion, picker counts, and
-  controls share that evidence limit; physical media cannot use the description
-  slot. **+** and **Analyze** stage or update the same supplementary
-  description, and Analyze includes current nonempty text even after switching
-  capture modes. Historical description evidence stays separate. Failed draft
-  staging retains the editor and aborts submission with the existing error
-  toast. Explicit supplementary tray edits/removal clear the associated pending
-  editor draft so Analyze cannot undo them; historical edits retain the pending
-  supplement. Successful submission/staging and tray-editor entry stop
-  dictation, with late transcripts ignored after the request ends. A replacement
-  refinement cancels prior preparation and clears the previous staged media,
-  pending picker selection, and environment lookup before loading its own
-  original. The tray retains existing styling; its media row scrolls when needed
-  to keep the action buttons visible. The local supplement marker never enters
-  the queue or network payload. See the
-  [Describe contract](11-describe-and-voice-dictation.md).
+- **Reanalysis Description Capacity**: Reanalysis permits two physical items,
+  preserves historical descriptions in their original order, and permits one
+  current supplementary description independently of media capacity. Root
+  Describe is the current supplement editor; Analyze submits the latest shared
+  text after any mode switch. Historical descriptions alone use the separate
+  staged sheet. Failed staging retains the editor and aborts submission.
+  Historical edits retain the pending supplement. Submission and historical
+  editor entry stop dictation; late transcripts are fenced by request and draft
+  generation. Replacement refinement cancels prior preparation and clears its
+  staging, picker selection, and environment lookup before loading the new
+  original. The glass tray's media row scrolls to keep Discard and Analyze
+  visible. No local supplement marker enters the queue or network payload. See
+  the [Describe contract](11-describe-and-voice-dictation.md).
 - **Pinned Connection + Auth Pre-warm (`CaptureWorkspaceDependencies`)**: The
   live Shell service adapter refreshes auth and calls
   `MerianNetworkClient.prewarmInferenceEndpoint()` before the user composes a

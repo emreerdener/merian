@@ -128,9 +128,12 @@ Before Capture starts camera/audio hardware or submits staged evidence, an
 online authenticated client calls
 `get_my_scan_admission_preview(p_flash_fallback_eligible boolean)`. The RPC has
 no user-ID input and derives the account from `auth.uid()`. It returns exactly
-one row. The current iOS caller sets the boolean only for one ordinary image,
-standalone audio clip, or description; video, mixed/multiple evidence, and
-refinement pass false.
+one row. The current iOS caller uses `IdentificationEvidenceAllowance`: one
+non-video photo or standalone audio item plus at most one note, or one
+description alone, is eligible. Additional physical media, multiple
+descriptions, video-derived evidence, and refinement pass false. This preserves
+the Free fallback when Pro funding is exhausted without changing funding
+precedence or quota limits.
 
 | Field             | Type              | Meaning                                                                                  |
 | ----------------- | ----------------- | ---------------------------------------------------------------------------------------- |
@@ -146,14 +149,19 @@ client opens the existing paywall and preserves staged input for either denial.
 `ai_quota_daily_exceeded` caused by a concurrent device or request must use the
 same paywall fallback.
 
-For image imports, iOS runs the preview before presenting the native photo
-picker and before reading/preparing a pending external Photos/Files receipt. The
-boolean reflects the prospective imported media shape: exactly one image with no
-existing evidence/refinement is Flash-eligible; multiple, mixed, or refinement
-evidence is not. A known denial therefore reaches the paywall before selection
-or crop work. Crop confirmation/submission rechecks admission because the
-preview is non-reserving; a concurrent account/quota change can still deny that
-later boundary.
+For image imports, `requestPhotoPickerEntryAdmission` previews the minimum
+one-photo addition before opening the native picker, independently of its
+maximum selection count. Pending shared text counts as the optional note. After
+selection, a synchronously registered draft operation checks the actual selected
+count before file loading/preparation. An external Photos/Files receipt previews
+its one-photo addition before metadata extraction or decoding. A known denial
+preserves the draft/receipt. A response from a discarded draft generation cannot
+present a paywall or error on its successor. Final submission rechecks because
+the preview is non-reserving; concurrent account/quota changes can still deny
+that boundary. See the
+[capture lifecycle](../features-and-hardware/29-staged-capture-review.md) and
+[funding contract](./18-complimentary-pro-scans.md). No new wire field is
+introduced for the note.
 
 Before acquiring an account-work lease, iOS waits for eligible first-launch
 session setup through the existing single-flight Auth bootstrap coordinator.
@@ -2727,8 +2735,10 @@ has succeeded and only when its version is not stale.
 
 Flash fallback is server-classified from the accepted evidence shape. It uses
 the independent daily free policy and returns `plan_used = "free"`; an exhausted
-balance does not authorize fallback for video, mixed/multi-item, or Pro-only
-work.
+balance permits a non-video photo or standalone audio plus at most one note, or
+one description alone, only while that daily allowance remains. Video-derived
+evidence, additional physical media, multiple descriptions, and Pro-only work
+remain ineligible.
 
 The normative balance equations, settlement rules, offline behavior, and rollout
 fence are in [`18-complimentary-pro-scans.md`](./18-complimentary-pro-scans.md).

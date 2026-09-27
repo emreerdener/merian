@@ -319,8 +319,8 @@ The Pro paywall comparison table is backed by `ProPlanValueProps.comparisons` in
 `apps/ios/Merian/Features/Profile/Settings/Plan/Models/PaywallPresentation.swift`.
 Keep docs, release notes, and Profile plan-card summaries aligned with that
 source. Current high-level Pro benefits are high-volume field scans, Gemini Pro
-model access, video scans, AI chat, multi-capture, Apple Watch logging,
-group-event hosting, and expedition mode.
+model access, video scans, AI chat, multi-capture, Apple Watch logging, and
+group-event hosting. Expedition mode is included for Free and Pro.
 
 ### `PostHogManager` & Edge Telemetry
 

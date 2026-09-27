@@ -7,24 +7,11 @@ extension OfflineQueueManager {
 
     // MARK: - Capture Enqueue
 
-    /// Writes image data to the Documents directory and inserts a new `OfflineQueuedScan` record.
-    ///
-    /// All disk I/O runs inside a `.userInitiated` `BackgroundTaskWrapper` so iOS grants extended
-    /// time and the cooperative scheduler cannot starve the write on rapid app suspension.
-    /// On success, `syncPendingScans()` is normally called immediately. A live
-    /// inference caller can defer that dispatch until its inline request body is sent.
-    ///
-    /// On any failure — disk write or context save — partial image files are cleaned up atomically.
-    ///
-    /// - Parameters:
-    ///   - imageDatas: Inference image data blobs pending staging constraints.
-    ///   - displayImageDatas: Optional display timeline images for `captured_media`.
-    ///   - telemetry: Core hardware and positional telemetry structured context payloads.
-    ///   - blurScore: CoreML generated variance logic scoring to gate upload priority.
-    ///   - scanId: A caller-supplied identifier that ties this queued record to a
-    ///   concurrent live inference request. Pass the same UUID to `analyze()` so the live
-    ///   path can cancel the upload if inference succeeds first. When `nil` a new UUID is
-    ///   generated (used by callers that do not run a parallel live inference).
+    /// Persists queue-owned media copies and the durable scan before acknowledging acceptance.
+    /// Source files remain caller-owned on failure. A successful `onAdmission` returns the
+    /// mapped timeline for foreground inference; recovery continues with the same scan ID.
+    /// Extended background time protects writes during app suspension. Live inference can
+    /// defer background dispatch until its inline request body has been sent.
     func enqueueCapture(
         imageDatas: [Data],
         displayImageDatas: [Data]? = nil,
@@ -40,8 +27,14 @@ extension OfflineQueueManager {
         captureDate: Date = Date(),
         foregroundInferenceGeneration: UUID? = nil,
         startSyncImmediately: Bool = true,
-        onQueued: (@MainActor @Sendable (Bool) -> Void)? = nil
+        onQueued: (@MainActor @Sendable (Bool) -> Void)? = nil,
+        onAdmission: (@MainActor @Sendable ([CaptureSubmissionMediaItem]?) -> Void)? = nil
     ) {
+        let legacyOnQueued = onQueued
+        let onQueued: (@MainActor @Sendable (Bool) -> Void)? = { accepted in
+            legacyOnQueued?(accepted)
+            if !accepted { onAdmission?(nil) }
+        }
         guard audioFilePaths.allSatisfy(
             InferenceAudioPreparer.isQueueEligibleInferenceAudioPath
         ) else {
@@ -152,6 +145,10 @@ extension OfflineQueueManager {
                     documentsDirectory: documentsDirectory
                 )
                 fileURLs.append(contentsOf: persistedVideoNamesBySourcePath.values.map { documentsDirectory.appendingPathComponent($0) })
+                let acceptedTimeline = try OfflineCaptureFileStore.acceptedTimeline(
+                    timeline, audio: persistedAudioNamesBySourcePath,
+                    video: persistedVideoNamesBySourcePath, documentsDirectory: documentsDirectory
+                )
                 let capturedMediaJSON = OfflineCaptureFileStore.makeCapturedMediaJSON(
                     mediaTimeline: timeline,
                     imageFileNames: displayFileNames,
@@ -181,8 +178,9 @@ extension OfflineQueueManager {
                     foregroundInferenceGeneration: admittedForegroundGeneration,
                     startSyncImmediately: startSyncImmediately
                 )
-                if let onQueued {
-                    await MainActor.run { onQueued(didQueue) }
+                await MainActor.run {
+                    if didQueue { onAdmission?(acceptedTimeline) }
+                    onQueued?(didQueue)
                 }
                 MerianLog.data.debug(
                     "enqueueCapture: insert complete scanId=\(resolvedScanId, privacy: .public) didQueue=\(didQueue, privacy: .public)"
@@ -242,13 +240,7 @@ extension OfflineQueueManager {
     private func isFlashFallbackEligible(
         _ timeline: [CaptureSubmissionMediaItem]
     ) -> Bool {
-        guard timeline.count == 1 else { return false }
-        switch timeline[0] {
-        case .image, .audio, .description:
-            return true
-        case .video:
-            return false
-        }
+        CaptureSubmissionPolicy.isFlashFallbackEligible(timeline)
     }
 
     private func cleanupPersistedCaptureFiles(_ urls: [URL]) async {
@@ -266,7 +258,8 @@ extension OfflineQueueManager {
         mediaTimeline: [CaptureSubmissionMediaItem]? = nil,
         telemetry: CaptureTelemetry,
         scanId: String? = nil,
-        foregroundInferenceGeneration: UUID? = nil
+        foregroundInferenceGeneration: UUID? = nil,
+        onAccepted: (([CaptureSubmissionMediaItem]) -> Void)? = nil
     ) -> Bool {
         let filteredAudioFileNames = audioFileNames.filter { !$0.isEmpty }
         let filteredVideoFilePaths = videoFilePaths.filter { !$0.isEmpty }
@@ -434,7 +427,12 @@ extension OfflineQueueManager {
             return false
         }
         do {
+            let acceptedTimeline = try OfflineCaptureFileStore.acceptedTimeline(
+                timeline, audio: persistedAudioNamesBySourcePath,
+                video: persistedVideoNamesBySourcePath, documentsDirectory: .documentsDirectory
+            )
             try modelContext.save()
+            onAccepted?(acceptedTimeline)
             if let admittedForegroundGeneration {
                 foregroundInferenceRetirementTasks.cancel(resolvedScanId)
                 startedForegroundInferenceGenerations[resolvedScanId] = nil

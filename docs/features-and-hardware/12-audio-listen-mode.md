@@ -218,17 +218,17 @@ speaker/headphone and microphone handoff verification remains required.
 
 ### Published State
 
-| Property              | Type                  | Description                                                                                                                                                                                                                                                                                                                                                   |
-| --------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `isRecording`         | `Bool`                | Whether a recording session is active (set `true` only after the recording controller starts its exact engine)                                                                                                                                                                                                                                                |
-| `isPaused`            | `Bool`                | Whether the engine is paused mid-recording (tap preserved, countdown halted)                                                                                                                                                                                                                                                                                  |
-| `recordingProgress`   | `Double`              | 0.0 → 1.0 over `maxDuration` (15 s)                                                                                                                                                                                                                                                                                                                           |
-| `spectrogramColumns`  | `[SpectrogramColumn]` | Rolling display buffer (360 columns ≈ 15 s)                                                                                                                                                                                                                                                                                                                   |
-| `snrLevel`            | `SNRLevel`            | Most recent noise level classification                                                                                                                                                                                                                                                                                                                        |
-| `pendingPlaybackPath` | `String?`             | Non-nil after recording finishes, before user confirms or discards. Drives the review UI state in `AudioRecordingView`.                                                                                                                                                                                                                                       |
-| `isPlaying`           | `Bool`                | Whether review playback is requested, including selected-boost preparation; Stop cancels that pending intent                                                                                                                                                                                                                                                  |
-| `playbackProgress`    | `Double`              | 0.0 → 1.0 playhead position during review playback; a position scrubbed before playback becomes the next start position, while explicit stop resets it to zero                                                                                                                                                                                                |
-| `audioFilePath`       | `String?`             | Non-nil after the user explicitly confirms in review, or after a maximum-duration recording auto-confirms when confirmation is disabled. Setting this triggers `onChange(of: audioFilePath)`, which either stages the clip into `stagedCapture.audios` (mixed-media / confirmation flows) or calls `submitAudio` directly for the standalone audio-only flow. |
+| Property              | Type                  | Description                                                                                                                                                                                                                                                                                                                                                                   |
+| --------------------- | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `isRecording`         | `Bool`                | Whether a recording session is active (set `true` only after the recording controller starts its exact engine)                                                                                                                                                                                                                                                                |
+| `isPaused`            | `Bool`                | Whether the engine is paused mid-recording (tap preserved, countdown halted)                                                                                                                                                                                                                                                                                                  |
+| `recordingProgress`   | `Double`              | 0.0 → 1.0 over `maxDuration` (15 s)                                                                                                                                                                                                                                                                                                                                           |
+| `spectrogramColumns`  | `[SpectrogramColumn]` | Rolling display buffer (360 columns ≈ 15 s)                                                                                                                                                                                                                                                                                                                                   |
+| `snrLevel`            | `SNRLevel`            | Most recent noise level classification                                                                                                                                                                                                                                                                                                                                        |
+| `pendingPlaybackPath` | `String?`             | Non-nil after recording finishes, before user confirms or discards. Drives the review UI state in `AudioRecordingView`.                                                                                                                                                                                                                                                       |
+| `isPlaying`           | `Bool`                | Whether review playback is requested, including selected-boost preparation; Stop cancels that pending intent                                                                                                                                                                                                                                                                  |
+| `playbackProgress`    | `Double`              | 0.0 → 1.0 playhead position during review playback; a position scrubbed before playback becomes the next start position, while explicit stop resets it to zero                                                                                                                                                                                                                |
+| `audioFilePath`       | `String?`             | Non-nil after the user explicitly confirms in review, or after a maximum-duration recording auto-confirms when its attempt was eligible for Auto-submit. Setting this triggers `onChange(of: audioFilePath)`, which either stages the clip into `stagedCapture.audios` (mixed-media / confirmation flows) or calls `submitAudio` directly for the standalone audio-only flow. |
 
 ### `startRecording() async throws`
 
@@ -333,22 +333,22 @@ actor ignores stale or already consumed leases.
 
 ### Recording Lifecycle
 
-| Method                                      | Effect                                                                                                                                                                                                                                                                                                            |
-| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `requestMicrophonePermissionForRecording()` | Requests permission only from the explicit red-button action; throws on denial before camera handoff                                                                                                                                                                                                              |
-| `startRecording()`                          | Guards with `!isRecording && !isStartingRecording`, fails closed unless permission is already granted, calls `discardPending()`, delegates exact recording startup, and starts the 15-second countdown. The caller selects whether reaching the cap enters review or auto-confirms when confirmation is disabled. |
-| `stopRecordingEarly()`                      | Cancels the countdown and always routes the partial clip to review; only a maximum-duration capture may auto-confirm when confirmation is disabled                                                                                                                                                                |
-| `pauseRecording()`                          | Invalidates transition work, cancels the countdown, delegates exact-engine pause to the recording controller, sets `isPaused = true`, and resets `snrLevel`                                                                                                                                                       |
-| `resumeRecording()`                         | Retains one manager-owned task and coalesces duplicate taps. The recording controller independently rejects a second pending resume before activation, then reacquires and identity-checks a fresh lease before starting the exact engine and rebuilding the countdown from `recordingProgress`.                  |
-| `cancelPendingRecordingTransition()`        | Invalidates and cancels pending startup/resume work without concurrently mutating an engine that its startup owner is still configuring                                                                                                                                                                           |
-| `cancelRecording()`                         | Cancels countdown state; the recording controller finishes the stream, removes the tap before engine stop, cancels DSP, releases its exact lease, and deletes the partial `tmp/` file; then the manager clears review state                                                                                       |
-| `finishRecording()` (private)               | Asks the recording controller to retain the completed WAV while tearing down its other resources. Early completion or confirmation-enabled capture enters review; a maximum-duration capture with confirmation disabled enters the established Shell submission handoff.                                          |
-| `playPendingRecording()`                    | Prepares the selected listening copy when needed, then passes its URL and scrubbed position to `AudioReviewPlaybackController`; playback intent includes preparation so Stop can cancel it                                                                                                                        |
-| `stopPlayback()`                            | Atomically clears controller ownership, cancels both playback tasks, stops the exact player, releases its lease, and clears `isPlaying` plus `playbackProgress`                                                                                                                                                   |
-| `seekPlayback(to:)`                         | Clamps and publishes the requested position; while a player is active, the controller also updates its `currentTime`, while a not-yet-playing review retains the parked manager progress for its next start                                                                                                       |
-| `confirmAndSubmit()`                        | Stops playback, sets `audioFilePath = pendingPlaybackPath`, clears `pendingPlaybackPath` — triggers `onChange` in `CaptureWorkspaceView`                                                                                                                                                                          |
-| `discardPending()`                          | Stops playback, deletes file from `tmp/` if `pendingPlaybackPath` is set, clears `pendingPlaybackPath`, **always** clears `spectrogramColumns`, `snrLevel`, `snrHoldTicks`                                                                                                                                        |
-| `reset()`                                   | Stops both focused controllers, cancels manager tasks, deletes any unsubmitted pending temp file, clears all published state including `pendingPlaybackPath`, and resets spectrogram analysis                                                                                                                     |
+| Method                                      | Effect                                                                                                                                                                                                                                                                                                                            |
+| ------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `requestMicrophonePermissionForRecording()` | Requests permission only from the explicit red-button action; throws on denial before camera handoff                                                                                                                                                                                                                              |
+| `startRecording()`                          | Guards with `!isRecording && !isStartingRecording`, fails closed unless permission is already granted, calls `discardPending()`, delegates exact recording startup, and starts the 15-second countdown. The caller selects whether reaching the cap enters review or auto-confirms when its attempt was eligible for Auto-submit. |
+| `stopRecordingEarly()`                      | Cancels the countdown and always routes the partial clip to review; only a maximum-duration capture may auto-confirm when its attempt was eligible for Auto-submit                                                                                                                                                                |
+| `pauseRecording()`                          | Invalidates transition work, cancels the countdown, delegates exact-engine pause to the recording controller, sets `isPaused = true`, and resets `snrLevel`                                                                                                                                                                       |
+| `resumeRecording()`                         | Retains one manager-owned task and coalesces duplicate taps. The recording controller independently rejects a second pending resume before activation, then reacquires and identity-checks a fresh lease before starting the exact engine and rebuilding the countdown from `recordingProgress`.                                  |
+| `cancelPendingRecordingTransition()`        | Invalidates and cancels pending startup/resume work without concurrently mutating an engine that its startup owner is still configuring                                                                                                                                                                                           |
+| `cancelRecording()`                         | Cancels countdown state; the recording controller finishes the stream, removes the tap before engine stop, cancels DSP, releases its exact lease, and deletes the partial `tmp/` file; then the manager clears review state                                                                                                       |
+| `finishRecording()` (private)               | Asks the recording controller to retain the completed WAV while tearing down its other resources. Early completion or staged-review capture enters review; a maximum-duration capture with an eligible automatic attempt enters the established Shell submission handoff.                                                         |
+| `playPendingRecording()`                    | Prepares the selected listening copy when needed, then passes its URL and scrubbed position to `AudioReviewPlaybackController`; playback intent includes preparation so Stop can cancel it                                                                                                                                        |
+| `stopPlayback()`                            | Atomically clears controller ownership, cancels both playback tasks, stops the exact player, releases its lease, and clears `isPlaying` plus `playbackProgress`                                                                                                                                                                   |
+| `seekPlayback(to:)`                         | Clamps and publishes the requested position; while a player is active, the controller also updates its `currentTime`, while a not-yet-playing review retains the parked manager progress for its next start                                                                                                                       |
+| `confirmAndSubmit()`                        | Stops playback, sets `audioFilePath = pendingPlaybackPath`, clears `pendingPlaybackPath` — triggers `onChange` in `CaptureWorkspaceView`                                                                                                                                                                                          |
+| `discardPending()`                          | Stops playback, deletes file from `tmp/` if `pendingPlaybackPath` is set, clears `pendingPlaybackPath`, **always** clears `spectrogramColumns`, `snrLevel`, `snrHoldTicks`                                                                                                                                                        |
+| `reset()`                                   | Stops both focused controllers, cancels manager tasks, deletes any unsubmitted pending temp file, clears all published state including `pendingPlaybackPath`, and resets spectrogram analysis                                                                                                                                     |
 
 **`discardPending()` clears display state unconditionally**: The spectrogram
 column and noise-guidance reset run outside the `if let pendingPlaybackPath`
@@ -367,8 +367,8 @@ startRecording() → [recording] ───────────────�
                        ├─ stopRecordingEarly() ─────────────────────────→ [review]
                        │                                                        ↓ confirmAndSubmit()
                        └─ 15-second maximum                                     │
-                            ├─ confirmation enabled ───────────────────────→ [review]
-                            └─ confirmation disabled ─────────────────────→ [submitted]
+                            ├─ staged review ───────────────────────→ [review]
+                            └─ eligible auto-submit ─────────────────────→ [submitted]
                                                                                  ↓
                                                CaptureWorkspaceOrchestrationModifier.onChange
                                                                                  ↓
@@ -379,24 +379,17 @@ startRecording() → [recording] ───────────────�
 
 `CaptureWorkspaceOrchestrationModifier.onChange(of:
 audioCaptureManager.audioFilePath)`
-fires after the user explicitly confirms a reviewed clip, or after a recording
-reaches the 15-second maximum while confirmation is disabled. Early completion
-and every confirmation-enabled recording enter review first. If the user already
-has staged images, videos, or descriptions, if reanalysis or multi-capture mode
-is active, or if explicit confirmation is required, the confirmed clip is staged
-in `stagedCapture.audios`. Otherwise the audio-only path calls
-`submitAudio(...)` immediately.
+fires after the user confirms listening review, or at maximum duration for an
+eligible automatic attempt. Every clip first joins the owning draft. Only an
+attempt minted with Auto-submit enabled and empty composition may immediately
+submit after preparation. Reanalysis and additional context always require
+review.
 
-Ordinary scans retain the 2-item total mixed-media cap. Reanalysis keeps two
-evidence slots and a separately reserved supplementary description, so original
-media + new audio + text is valid regardless of insertion order. The control bar
-checks evidence capacity before and after admission, and completed recordings
-recheck it before staging. A clip that loses its slot returns to review instead
-of overflowing the draft. Describe text cannot consume an available reanalysis
-audio slot, and audio cannot consume the reserved description allowance.
-**Analyze** includes the current nonempty description even when Record is the
-selected page. See the
-[reanalysis description contract](11-describe-and-voice-dictation.md).
+Free allows one standalone audio/photo item plus one note, in either order; Pro
+allows two media items plus one note. Recording and preparation block
+Identify/Analyze even when another item is staged. Cancellation and errors
+resolve the owning operation without erasing existing content. See the
+[capture contract](./29-staged-capture-review.md).
 
 When recording begins, `CaptureWorkspaceOrchestrationModifier` asks the
 workspace view model to `prepareNonVisualCaptureContext()`. This starts the same
@@ -754,7 +747,7 @@ private func startAudioRecording() {
             try Task.checkCancellation()
             guard scenePhase == .active else { return }
             try await audioCaptureManager.startRecording(
-                autoSubmitOnMaxDuration: !appSettings.requiresScanConfirmation,
+                autoSubmitOnMaxDuration: appSettings.autoSubmitScans,
                 boostRecordingPreview: appSettings.boostRecordingPreviewsEnabled
             )
         } catch is CancellationError {
@@ -821,20 +814,20 @@ All flanking buttons animate in/out with `.easeInOut(duration: 0.2)` keyed on
 
 ## 9. Session Lifecycle
 
-| Trigger                                                     | Action                                                                                                                                       |
-| ----------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| User taps Record immediately after entering `.audio`        | Await `cameraManager.stopSessionAndWait()`, then start audio; retry a transient zero input format for at most 300 ms                         |
-| User leaves `.audio` while recording startup is pending     | Cancel the outer task and manager transition; reject late activation and do not show a cancellation toast                                    |
-| Swipe from `.audio` to another mode                         | Invalidate pending startup/resume; pause an active unpaused recording so its clip and progress remain recoverable                            |
-| App becomes inactive or backgrounds while `.audio` active   | Apply the same transition invalidation and non-destructive pause contract                                                                    |
-| 15 s countdown completes                                    | Heavy feedback, then review when confirmation is enabled or the established `audioFilePath` Shell handoff when confirmation is disabled      |
-| User taps `CaptureAudioDoneButton` while recording          | `stopRecordingEarly()` → always enters review, including when a maximum-duration clip would auto-submit                                      |
-| User taps center button while recording                     | `pauseRecording()` → engine paused, countdown halted                                                                                         |
-| User taps center button while paused                        | `resumeRecording()` → engine and countdown resumed from current progress                                                                     |
-| User taps `CaptureAudioDeleteButton` while recording/paused | `cancelRecording()` → returns to idle                                                                                                        |
-| User taps center button in review                           | `confirmAndSubmit()` → sets `audioFilePath` → `CaptureWorkspaceOrchestrationModifier.onChange` either stages the clip or calls `submitAudio` |
-| User taps `CaptureAudioDeleteButton` in review              | `discardPending()` → returns to idle                                                                                                         |
-| User taps `CaptureAudioReviewPlayButton` in review          | Toggles `playPendingRecording()` / `stopPlayback()`                                                                                          |
+| Trigger                                                     | Action                                                                                                                                                  |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| User taps Record immediately after entering `.audio`        | Await `cameraManager.stopSessionAndWait()`, then start audio; retry a transient zero input format for at most 300 ms                                    |
+| User leaves `.audio` while recording startup is pending     | Cancel the outer task and manager transition; reject late activation and do not show a cancellation toast                                               |
+| Swipe from `.audio` to another mode                         | Invalidate pending startup/resume; pause an active unpaused recording so its clip and progress remain recoverable                                       |
+| App becomes inactive or backgrounds while `.audio` active   | Apply the same transition invalidation and non-destructive pause contract                                                                               |
+| 15 s countdown completes                                    | Heavy feedback, then review when confirmation is enabled or the established `audioFilePath` Shell handoff when its attempt was eligible for Auto-submit |
+| User taps `CaptureAudioDoneButton` while recording          | `stopRecordingEarly()` → always enters review, including when a maximum-duration clip would auto-submit                                                 |
+| User taps center button while recording                     | `pauseRecording()` → engine paused, countdown halted                                                                                                    |
+| User taps center button while paused                        | `resumeRecording()` → engine and countdown resumed from current progress                                                                                |
+| User taps `CaptureAudioDeleteButton` while recording/paused | `cancelRecording()` → returns to idle                                                                                                                   |
+| User taps center button in review                           | `confirmAndSubmit()` → sets `audioFilePath` → `CaptureWorkspaceOrchestrationModifier.onChange` either stages the clip or calls `submitAudio`            |
+| User taps `CaptureAudioDeleteButton` in review              | `discardPending()` → returns to idle                                                                                                                    |
+| User taps `CaptureAudioReviewPlayButton` in review          | Toggles `playPendingRecording()` / `stopPlayback()`                                                                                                     |
 
 The camera session is **not** started when the user is on `.audio`. The mode
 change still requests an eager stop, and the Record path independently awaits

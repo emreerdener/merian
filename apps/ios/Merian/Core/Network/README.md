@@ -2833,9 +2833,12 @@ reconciliation owner, it declines inline classified-`401` recovery. The failure
 returns to durable scheduling; otherwise recovery would try to quiesce the task
 and account lease that initiated it.
 
-The server—not the request payload—classifies whether a single-evidence capture
-can use the separate daily Flash policy after complimentary exhaustion. Video,
-multiple or mixed evidence, and Pro-only actions remain upgrade-required. The
+The server derives whether the evidence can use the separate daily Flash policy
+after complimentary exhaustion. One non-video photo or standalone audio plus one
+optional note, or one description alone, qualifies. Additional physical media,
+multiple descriptions, video-derived evidence, and Pro-only actions do not.
+Native entry, queue, replay, and recipient preflight mirror that rule through
+`IdentificationEvidenceAllowance`; client hints never authorize dispatch. The
 normative wire and rollout contract is
 [Three Complimentary Pro Scans](../../../../../docs/backend-and-data/18-complimentary-pro-scans.md).
 

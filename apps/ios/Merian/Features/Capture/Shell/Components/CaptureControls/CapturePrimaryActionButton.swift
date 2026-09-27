@@ -119,6 +119,11 @@ struct CapturePrimaryActionButton: View {
         }
         .contentShape(Circle())
         .accessibilityIdentifier("CaptureShutter")
+        .accessibilityLabel(accessibilityActionLabel)
+        .accessibilityAction {
+            guard isInteractionEnabled, presentation.isInputActive else { return }
+            onAction()
+        }
         .accessibilityAddTraits(.isButton)
         .gesture(
             DragGesture(minimumDistance: 0)
@@ -140,6 +145,17 @@ struct CapturePrimaryActionButton: View {
         }
         .onDisappear {
             cancelPendingPress()
+        }
+    }
+
+    private var accessibilityActionLabel: String {
+        switch presentation.captureMode {
+        case .describe: return presentation.willStageOnly ? "Add description to scan" : "Identify"
+        case .visual: return presentation.isVideoRecording ? "Stop recording" : "Take photo"
+        case .audio:
+            if presentation.isAudioReview { return presentation.willStageOnly ? "Add recording to scan" : "Identify" }
+            if presentation.isAudioPaused { return "Resume recording" }
+            return presentation.isAudioRecording ? "Pause recording" : "Record audio"
         }
     }
 

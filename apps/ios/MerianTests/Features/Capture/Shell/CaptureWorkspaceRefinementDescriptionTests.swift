@@ -19,13 +19,62 @@ extension CaptureWorkspaceViewModelRefinementTests {
         return viewModel
     }
 
+    func testHistoricalNoteAndFullMediaBudgetStillAllowOneCurrentSupplement() {
+        let viewModel = makeDescriptionRefinementWorkspace()
+        viewModel.commitPreparedStagedImages([makePreparedStagedImage()])
+        let historical = ObservationContext(freeText: "Original note")
+        viewModel.stagedCapture.observationContexts = [StagedObservationContext(
+            context: historical, addedAt: Date.distantPast
+        )]
+        var draft = ObservationContext(freeText: "New observation")
+        XCTAssertTrue(viewModel.prepareActiveStagedSubmission(descriptionDraft: &draft))
+        XCTAssertEqual(viewModel.stagedCapture.totalItemCount, 4)
+        XCTAssertEqual(viewModel.availableStagedCaptureSlots, 0)
+        XCTAssertEqual(viewModel.commitPreparedStagedImages([makePreparedStagedImage()]), 0)
+        let payload = CaptureSubmissionPayload(nodes: viewModel.stagedCapture.orderedNodes)
+        XCTAssertEqual(payload.mediaTimeline.observationContexts, [historical, draft])
+        draft.freeText = "Updated observation"
+        XCTAssertTrue(viewModel.prepareActiveStagedSubmission(descriptionDraft: &draft))
+        XCTAssertEqual(viewModel.stagedCapture.observationContexts.count, 2)
+        XCTAssertEqual(viewModel.stagedCapture.observationContexts.first?.context, historical)
+    }
+
+    func testHistoricalImageKeepsItsNoteInEitherOriginalOrder() async throws {
+        let fileURL = URL.documentsDirectory.appendingPathComponent("historical-\(UUID().uuidString).png")
+        try makePNGData().write(to: fileURL)
+        defer { try? FileManager.default.removeItem(at: fileURL) }
+        let prepared = makePreparedStagedImage()
+        for noteFirst in [false, true] {
+            let viewModel = CaptureWorkspaceViewModel(
+                diContainer: .preview, preparedImageLoader: { _ in prepared }, prewarmHeadersOnInit: false
+            )
+            let note = ObservationContext(freeText: "Original field note")
+            let photo = SerializedMediaItem.image(StoredMediaReference(legacyPath: fileURL.lastPathComponent))
+            let items: [SerializedMediaItem] = noteFirst ? [.description(note), photo] : [photo, .description(note)]
+            let record = LocalScanRecord(
+                speciesId: "note-order", scientificName: "Danaus plexippus", commonName: "Monarch",
+                capturedMediaJSON: CapturedMediaSnapshot(items: items).jsonString
+            )
+            XCTAssertTrue(viewModel.startRefinementScan(from: record))
+            try await waitUntil { !viewModel.isStagingRefinement }
+            XCTAssertEqual(viewModel.stagedCapture.images.count, 1)
+            XCTAssertEqual(viewModel.stagedCapture.observationContexts.map(\.context), [note])
+            XCTAssertNil(viewModel.stagedCapture.refinementSupplementIndex)
+            let nodes = viewModel.stagedCapture.orderedNodes
+            XCTAssertEqual(nodes.count, 2)
+            if case .description = nodes[noteFirst ? 0 : 1] {} else {
+                XCTFail("Historical note must preserve its original chronological position")
+            }
+        }
+    }
+
     func testAnalyzeIncludesRefinementDraftWithOriginalImage() {
         let viewModel = makeDescriptionRefinementWorkspace()
         var draft = ObservationContext(freeText: "Look at the wing edges")
 
         XCTAssertTrue(viewModel.prepareActiveStagedSubmission(descriptionDraft: &draft))
 
-        XCTAssertTrue(draft.isEmpty)
+        XCTAssertEqual(draft.freeText, "Look at the wing edges")
         XCTAssertEqual(viewModel.stagedCapture.totalItemCount, 2)
         XCTAssertEqual(viewModel.stagedCapture.observationContexts.first?.context.freeText, "Look at the wing edges")
         XCTAssertEqual(viewModel.availableStagedCaptureSlots, 1)
@@ -47,7 +96,7 @@ extension CaptureWorkspaceViewModelRefinementTests {
                 }
                 XCTAssertTrue(viewModel.prepareActiveStagedSubmission(descriptionDraft: &draft))
 
-                XCTAssertTrue(draft.isEmpty)
+                XCTAssertEqual(draft.freeText, "Look at the wing edges")
                 XCTAssertEqual(viewModel.stagedCapture.totalItemCount, 3)
                 XCTAssertEqual(viewModel.stagedCapture.observationContexts.count, 1)
                 XCTAssertFalse(viewModel.hasAvailableStagedCaptureSlot)

@@ -75,8 +75,7 @@ final class HapticManagerTests: XCTestCase {
         )
         let hardwareOrchestrator = HardwareOrchestrator(
             appSettings: appSettings,
-            observeSystemChanges: false,
-            functionalProAccessProvider: { true }
+            observeSystemChanges: false
         )
         hardwareProbe = HapticManagerHardwareProbe()
         hapticManager = makeManager(
@@ -196,11 +195,10 @@ final class HapticManagerTests: XCTestCase {
         XCTAssertFalse(hapticManager.isFeedbackEnabled)
     }
 
-    func testUnverifiedExpeditionPreferenceDoesNotSuppressHaptics() {
+    func testExpeditionPreferenceSuppressesHapticsWithoutEntitlement() {
         let lockedOrchestrator = HardwareOrchestrator(
             appSettings: appSettings,
-            observeSystemChanges: false,
-            functionalProAccessProvider: { false }
+            observeSystemChanges: false
         )
         let lockedHapticManager = makeManager(
             hardwareOrchestrator: lockedOrchestrator
@@ -209,7 +207,7 @@ final class HapticManagerTests: XCTestCase {
         appSettings.isHapticsEnabled = true
         appSettings.isExpeditionModeActive = true
 
-        XCTAssertTrue(lockedHapticManager.isFeedbackEnabled)
+        XCTAssertFalse(lockedHapticManager.isFeedbackEnabled)
     }
 
     private func makeManager(

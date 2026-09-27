@@ -15,6 +15,7 @@ extension CaptureWorkspaceViewModel {
         initialDescription: String? = nil,
         entryPoint: RefinementEntryPoint = .standard
     ) -> Bool {
+        guard !isDraftMutationLocked else { return false }
         guard diContainer.revenueCatManager.canStartProScan else {
             AppTelemetry.trackPaywallImpression()
             activeSheet = .paywall
@@ -77,6 +78,16 @@ extension CaptureWorkspaceViewModel {
         operationState.cancelRefinementStagingTask()
         isStagingRefinement = false
 
+        // Keep every historical description separate from the live supplement. The
+        // existing primary-media selection must not turn a photo's note into a fallback.
+        for (index, item) in context.capturedMediaSnapshot.items.enumerated() {
+            if case .description(let note) = item, !note.isEmpty {
+                stagedCapture.observationContexts.append(StagedObservationContext(
+                    context: note, addedAt: Date(timeIntervalSince1970: TimeInterval(index))
+                ))
+            }
+        }
+
         var imageReferences = context.capturedMediaSnapshot.imageReferences
         if let fallbackImagePath = context.coverImagePath?.trimmingCharacters(
             in: .whitespacesAndNewlines
@@ -128,12 +139,15 @@ extension CaptureWorkspaceViewModel {
         }
 
         isStagingRefinement = true
+        let draftGeneration = draftSession.generation
+        let historicalItems = baseRefinementContext?.capturedMediaSnapshot.items ?? []
         let loader = dependencies.prepareHistoricalAudio
         let task = DetachedWork.fireAndForget(
             priority: .userInitiated,
             category: .audioPreparation
         ) { [weak self, audioReferences, fallbackDescription, scanId, loader] in
             var preparedURL: URL?
+            var preparedOrder = Date.distantPast
             do {
                 for reference in audioReferences {
                     try Task.checkCancellation()
@@ -151,6 +165,7 @@ extension CaptureWorkspaceViewModel {
                                 continue
                             }
                             preparedURL = candidate
+                            preparedOrder = Self.historicalOrderDate(for: reference, in: historicalItems)
                             break
                         }
                     } catch is CancellationError {
@@ -172,12 +187,11 @@ extension CaptureWorkspaceViewModel {
 
                 guard let preparedURL else {
                     await MainActor.run {
-                        guard self.baseRefinementContext?.scanId == scanId else { return }
+                        guard self.draftSession.generation == draftGeneration,
+                              self.baseRefinementContext?.scanId == scanId else { return }
                         if let fallbackDescription,
                            self.hasAvailableStagedCaptureSlot {
-                            self.stagedCapture.observationContexts.append(
-                                StagedObservationContext(context: fallbackDescription)
-                            )
+                            self.stageHistoricalDescriptionForRefinement(fallbackDescription)
                         } else {
                             self.offlineToastMessage = .error(
                                 "The original audio is unavailable for reanalysis."
@@ -189,13 +203,15 @@ extension CaptureWorkspaceViewModel {
                 }
 
                 let didStage = await MainActor.run { () -> Bool in
-                    guard self.baseRefinementContext?.scanId == scanId,
+                    guard self.draftSession.generation == draftGeneration,
+                              self.baseRefinementContext?.scanId == scanId,
                           self.hasAvailableStagedCaptureSlot else {
                         return false
                     }
                     self.stagedCapture.audios.append(
-                        StagedAudio(filePath: preparedURL.lastPathComponent)
+                        StagedAudio(filePath: preparedURL.lastPathComponent, addedAt: preparedOrder)
                     )
+                    self.draftOwnedFiles.insert(preparedURL.path)
                     self.isStagingRefinement = false
                     return true
                 }
@@ -204,7 +220,8 @@ extension CaptureWorkspaceViewModel {
                         preparedURL
                     )
                     await MainActor.run {
-                        guard self.baseRefinementContext?.scanId == scanId else { return }
+                        guard self.draftSession.generation == draftGeneration,
+                              self.baseRefinementContext?.scanId == scanId else { return }
                         self.isStagingRefinement = false
                     }
                 }
@@ -222,7 +239,8 @@ extension CaptureWorkspaceViewModel {
                 }
                 guard let self else { return }
                 await MainActor.run {
-                    guard self.baseRefinementContext?.scanId == scanId else { return }
+                    guard self.draftSession.generation == draftGeneration,
+                              self.baseRefinementContext?.scanId == scanId else { return }
                     self.isStagingRefinement = false
                     self.offlineToastMessage = .error(
                         "Unable to prepare the original audio. Please try again."
@@ -234,9 +252,22 @@ extension CaptureWorkspaceViewModel {
         return true
     }
 
+    nonisolated private static func historicalOrderDate(
+        for reference: StoredMediaReference, in items: [SerializedMediaItem]
+    ) -> Date {
+        let index = items.firstIndex { item in
+            switch item {
+            case .image(let source), .audio(let source): return source == reference
+            case .video(let source): return source.thumbnail == reference || source.audio == reference
+            case .description: return false
+            }
+        } ?? -1
+        return Date(timeIntervalSince1970: TimeInterval(index))
+    }
+
     @discardableResult
     private func stageHistoricalDescriptionForRefinement(_ descriptionContext: ObservationContext) -> Bool {
-        guard hasAvailableStagedCaptureSlot else { return false }
+        guard !stagedCapture.observationContexts.contains(where: { $0.context == descriptionContext }) else { return true }
         stagedCapture.observationContexts.append(StagedObservationContext(context: descriptionContext))
         return true
     }
@@ -254,6 +285,8 @@ extension CaptureWorkspaceViewModel {
         }
 
         isStagingRefinement = true
+        let draftGeneration = draftSession.generation
+        let historicalItems = baseRefinementContext?.capturedMediaSnapshot.items ?? []
 
         let isPro = diContainer.revenueCatManager.canStartProScan
         let loader = dependencies.prepareImage
@@ -320,11 +353,17 @@ extension CaptureWorkspaceViewModel {
                     try Task.checkCancellation()
                     guard let self else { return }
                     let didCommit = await MainActor.run { () -> Bool in
-                        guard self.baseRefinementContext?.scanId == plan.scanId,
+                        guard self.draftSession.generation == draftGeneration,
+                              self.baseRefinementContext?.scanId == plan.scanId,
                               self.hasAvailableStagedCaptureSlot else {
                             return false
                         }
                         self.commitPreparedStagedImages([preparedRefinement])
+                        if let index = self.stagedCapture.images.indices.last {
+                            self.stagedCapture.images[index].addedAt = Self.historicalOrderDate(
+                                for: imageReference, in: historicalItems
+                            )
+                        }
                         self.isStagingRefinement = false
                         return true
                     }
@@ -341,7 +380,8 @@ extension CaptureWorkspaceViewModel {
 
             guard !Task.isCancelled, let self else { return }
             await MainActor.run {
-                guard self.baseRefinementContext?.scanId == plan.scanId else {
+                guard self.draftSession.generation == draftGeneration,
+                              self.baseRefinementContext?.scanId == plan.scanId else {
                     return
                 }
                 if self.stageHistoricalAudioForRefinement(

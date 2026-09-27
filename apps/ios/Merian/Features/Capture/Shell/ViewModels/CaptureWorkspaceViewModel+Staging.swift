@@ -32,15 +32,9 @@ extension CaptureWorkspaceViewModel {
     }
 
     var shouldAutoSubmitStagedCapture: Bool {
-        guard !diContainer.appSettings.requiresScanConfirmation else { return false }
-
-        let isMultiCapture = isMultiCaptureFunctionallyEnabled || baseRefinementContext != nil
-        guard !isMultiCapture else { return false }
-
-        let hasOtherModalities = !stagedCapture.observationContexts.isEmpty || !stagedCapture.audios.isEmpty
-        guard !hasOtherModalities else { return false }
-
-        return stagedCapture.images.count + stagedCapture.videos.count == 1 && !hasPendingRequiredGalleryCrop
+        diContainer.appSettings.autoSubmitScans && draftSession.automaticAttempt != nil
+            && automaticPreferenceRevision == diContainer.appSettings.autoSubmitRevision
+            && isDraftReadyForSubmission && !stagedCapture.isEmpty
     }
 
     var shouldPresentActiveScanToolbar: Bool {
@@ -68,6 +62,7 @@ extension CaptureWorkspaceViewModel {
     }
 
     func finishAutomaticStagedSubmissionAttempt() {
+        draftSession.revokeAutomaticSubmission()
         updateAutomaticStagedSubmissionPending(false)
     }
 
@@ -88,10 +83,12 @@ extension CaptureWorkspaceViewModel {
     }
 
     func cancelRequiredGalleryCrop(for imageID: UUID) {
+        revokeAutomaticSubmission()
         cancelActiveCropTask()
         operationState.removeRequiredGalleryCrop(imageID: imageID)
         if let editIndex = stagedCapture.images.firstIndex(where: { $0.original.id == imageID }) {
             stagedCapture.images.remove(at: editIndex)
+            resetReviewIfEmpty()
         }
         editingCropIndex = nil
         imageToCrop = nil
@@ -99,16 +96,24 @@ extension CaptureWorkspaceViewModel {
     }
 
     func clearStagedCaptureAndCropState(discardStagedMediaFiles: Bool = false) {
+        guard !isQueueingStagedCapture else { return }
         cancelAllVisualCaptureWork()
         cancelActiveCropTask()
         operationState.removeAllRequiredGalleryCrops()
         let discardedMediaPaths = discardStagedMediaFiles
-            ? stagedCapture.discardableLocalMediaFilePaths
+            ? Array(draftOwnedFiles)
             : []
         // Clear media while automatic ownership is still active. Releasing the
         // presentation fence first would briefly make the retained item eligible
         // for ActiveScanToolbar during this synchronous reset.
         stagedCapture.clearAll()
+        descriptionDraft = ObservationContext()
+        descriptionFocusRequest = nil
+        isReviewActive = false
+        draftSession.reset()
+        audioDraftOperation = nil
+        draftOwnedFiles.removeAll()
+        discardConfirmationGeneration = nil
         finishAutomaticStagedSubmissionAttempt()
         discardLocalMediaFiles(at: discardedMediaPaths)
         editingCropIndex = nil
@@ -116,16 +121,20 @@ extension CaptureWorkspaceViewModel {
     }
 
     func removeStagedVideo(at index: Int) {
-        guard stagedCapture.videos.indices.contains(index) else { return }
+        guard !isDraftMutationLocked, stagedCapture.videos.indices.contains(index) else { return }
+        revokeAutomaticSubmission()
         let removedVideo = stagedCapture.videos.remove(at: index)
+        resetReviewIfEmpty()
         discardLocalMediaFiles(
             at: [removedVideo.filePath, removedVideo.audioFilePath].compactMap { $0 }
         )
     }
 
     func removeStagedAudio(at index: Int) {
-        guard stagedCapture.audios.indices.contains(index) else { return }
+        guard !isDraftMutationLocked, stagedCapture.audios.indices.contains(index) else { return }
+        revokeAutomaticSubmission()
         let removedAudio = stagedCapture.audios.remove(at: index)
+        resetReviewIfEmpty()
         discardLocalMediaFiles(at: [removedAudio.filePath])
     }
 
@@ -152,6 +161,7 @@ extension CaptureWorkspaceViewModel {
     func removeStagedDescription(at index: Int, pendingDraft: inout ObservationContext) {
         guard stagedCapture.observationContexts.indices.contains(index) else { return }
         let removed = stagedCapture.observationContexts.remove(at: index)
+        resetReviewIfEmpty()
         if baseRefinementContext != nil, removed.isRefinementSupplement {
             pendingDraft = ObservationContext()
         }
@@ -166,7 +176,10 @@ extension CaptureWorkspaceViewModel {
     }
 
     func presentCrop(for index: Int) {
-        guard index < stagedCapture.images.count else { return }
+        guard !isDraftMutationLocked, index < stagedCapture.images.count else { return }
+        if !isRequiredGalleryCrop(stagedCapture.images[index].original.id) {
+            revokeAutomaticSubmission()
+        }
         self.editingCropIndex = index
         self.imageToCrop = stagedCapture.images[index].original
     }

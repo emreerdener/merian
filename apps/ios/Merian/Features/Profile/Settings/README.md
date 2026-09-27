@@ -361,9 +361,25 @@ The setting is opt-in. `opensExploreOnLaunch` registers a `false` default in
 `reloadFromDefaults()` so externally changed defaults are reflected in the
 running settings model.
 
-The section previously named **Capture** is now **Workspace**. It continues to
-own Camera, Audio, **Reorder modes**, Field trip goals, and confirmation
-preferences; the rename does not move those controls or change their behavior.
+**Workspace** owns Camera, Audio, **Reorder modes**, Field trip goals,
+**Expedition mode**, and **Auto-submit scans**. The separate Pro settings
+section and multi-capture toggle are removed. Auto-submit uses the independent
+`autoSubmitScans` key, defaulting to false for new and existing installations;
+legacy confirmation/multi-capture values do not opt users in. Explicit later
+choices persist. Expedition keeps its saved key/value and default-off behavior,
+with no subscription requirement. Preference writes still precede hardware
+reconciliation.
+
+`Plan/Models/PaywallPresentation.swift` owns all four hero slides, plan
+summaries, comparison values, and attributed reviews. Multi-capture means two
+media items plus an optional note; Free gets one photo/audio item plus an
+optional note. Expedition is Included for both tiers in the comparison, absent
+from paid summaries/slides, and its former attributed testimonial is removed.
+Purchase, restore, price, and provider claims retain their existing owners. See
+the
+[current capture contract](../../../../../../docs/features-and-hardware/29-staged-capture-review.md)
+and
+[entitlement guide](../../../../../../docs/features-and-hardware/02-revenue-and-identity.md).
 
 ### Reorder modes
 

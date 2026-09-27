@@ -2754,7 +2754,15 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(apiContractSource),
-    "For image imports, iOS runs the preview before presenting the native photo picker and before reading/preparing a pending external Photos/Files receipt.",
+    "For image imports, `requestPhotoPickerEntryAdmission` previews the minimum one-photo addition before opening the native picker, independently of its maximum selection count.",
+  );
+  assertStringIncludes(
+    compact(apiContractSource),
+    "After selection, a synchronously registered draft operation checks the actual selected count before file loading/preparation.",
+  );
+  assertStringIncludes(
+    compact(apiContractSource),
+    "An external Photos/Files receipt previews its one-photo addition before metadata extraction or decoding.",
   );
   assertStringIncludes(
     compact(imagePipelineSource),

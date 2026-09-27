@@ -4,72 +4,24 @@ extension CaptureWorkspaceViewModel {
 
     // MARK: - Submit Describe (entry point from DescribeInputView)
 
-    /// Routes the observation based on what else is staged.
-    ///
-    /// - **Reanalysis**: adds or updates one supplementary description beyond the evidence budget.
-    /// - **Multi-capture mode**: always stages the description so the user can compose up to
-    ///   two total items before tapping Identify.
-    /// - **Single-capture with images staged**: stages the description into
-    ///   `stagedCapture.observationContexts` so the toolbar owns the eventual submit.
-    /// - **Single-capture with nothing else staged**: routes immediately through the solo
-    ///   non-visual submission path unless explicit confirmation is enabled.
-    ///
-    /// Includes a 1.5s debounce to prevent duplicate enqueuing on rapid physical taps.
+    /// The initial Describe action stages the shared note by default. Explicit
+    /// auto-submit sends a text-only draft through the same durable queue path.
+    /// Once review exists, its toolbar owns submission and the root editor stays live.
     @discardableResult
     func submitDescribe(
         observationContext: ObservationContext,
         modelContext: ModelContext
     ) async -> Bool {
-        // Prevent rapid duplicate taps from spawning identical offline queue records
-        let now = CFAbsoluteTimeGetCurrent()
-        guard (now - (stagedCapture.lastSubmitTime ?? 0)) > 1.5 else { return false }
-        stagedCapture.lastSubmitTime = now
-
-        guard !observationContext.isEmpty else { return false }
-
-        // StagedObservationContext owns the submission-order timestamp. Keep
-        // ObservationContext itself as text-only domain data so that capture
-        // chronology never leaks into the durable cloud representation.
-        let stagedContext = observationContext
-
-        let isMultiCaptureEnabled = isMultiCaptureFunctionallyEnabled
-        let requiresScanConfirmation = diContainer.appSettings.requiresScanConfirmation
-        let isRefining = baseRefinementContext != nil
-
-        if isRefining {
-            guard !isStagingRefinement, !isCheckingScanAdmission else { return false }
-            let result = stagePendingDescribeDraftForActiveSubmission(stagedContext)
-            if result == .rejected { presentDescriptionStagingError() }
-            return result == .staged
-        } else if isMultiCaptureEnabled {
-            guard stagedCapture.availableSlots(limit: stagedCaptureLimit) > 0 else { return false }
-            stagedCapture.observationContexts.append(StagedObservationContext(context: stagedContext))
-            return true
-        } else {
-            if stagedCapture.hasVisualMedia || !stagedCapture.audios.isEmpty || !stagedCapture.observationContexts.isEmpty {
-                // Already-staged media composes through the toolbar.
-                // The ActiveScanToolbar's Identify button owns submission in this state.
-                stagedCapture.observationContexts = [StagedObservationContext(context: stagedContext)]
-                return true
-            } else {
-                if requiresScanConfirmation {
-                    // Stage as a solo node so the user confirms via Identify before submitting.
-                    // The staged Identify action supplies its own tap clock.
-                    stagedCapture.observationContexts = [StagedObservationContext(context: stagedContext)]
-                } else {
-                    let targetEradicationScanId = baseRefinementContext?.scanId
-                    baseRefinementContext = nil
-                    refinementSubjectId = nil
-                    return await submitDescribeSolo(
-                        observationContext: stagedContext,
-                        modelContext: modelContext,
-                        userPerceivedStart: now,
-                        targetEradicationScanId: targetEradicationScanId
-                    )
-                }
-                return true
-            }
+        guard !isDraftMutationLocked, !observationContext.isEmpty else { return false }
+        let submitImmediately = diContainer.appSettings.autoSubmitScans
+            && stagedCapture.isEmpty && baseRefinementContext == nil
+        updateDescriptionDraft(observationContext)
+        isReviewActive = true
+        synchronizeSharedDescription()
+        if submitImmediately {
+            await submitStagedCapture(modelContext: modelContext)
         }
+        return true
     }
 
     /// Consumes any live Describe text before the active staged toolbar submits.
@@ -107,7 +59,6 @@ extension CaptureWorkspaceViewModel {
             return .staged
         }
 
-        guard stagedCapture.availableSlots(limit: stagedCaptureLimit) > 0 else { return .rejected }
         stagedCapture.observationContexts.append(StagedObservationContext(context: stagedContext))
         return .staged
     }
@@ -115,12 +66,11 @@ extension CaptureWorkspaceViewModel {
     /// The toolbar must not clear a rejected draft or submit evidence without it.
     /// Synchronous preparation also snapshots text before asynchronous admission begins.
     func prepareActiveStagedSubmission(descriptionDraft: inout ObservationContext) -> Bool {
-        guard !isCheckingScanAdmission, !isStagingRefinement else { return false }
+        guard !isDraftMutationLocked, isDraftReadyForSubmission else { return false }
         switch stagePendingDescribeDraftForActiveSubmission(descriptionDraft) {
         case .emptyDraft:
             return true
         case .staged:
-            descriptionDraft = ObservationContext()
             return true
         case .rejected:
             presentDescriptionStagingError()

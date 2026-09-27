@@ -106,41 +106,6 @@ struct Preferences: View {
         }
 
         Section {
-            ProFeatureToggleRow(
-                title: "Multi-capture mode",
-                description: "Attach up to 2 items (photos, audio clips, or descriptions) before submitting.",
-                isOn: $appSettings.isMultiCaptureEnabled,
-                icon: "square.stack.fill",
-                iconColor: ProSettingsStyle.accent,
-                isProActive: revenueCatManager.isProActive,
-                onUpgrade: { showPaywall = true }
-            )
-
-            ProFeatureToggleRow(
-                title: "Expedition mode",
-                description: "Maximizes battery life off-grid by capping camera frame rates, disabling heavy visual effects, and suppressing haptics.",
-                isOn: Binding(
-                    get: { appSettings.isExpeditionModeActive },
-                    set: { newValue in
-                        preferenceActions.updateExpeditionMode(
-                            newValue,
-                            persist: {
-                                appSettings.isExpeditionModeActive = $0
-                            }
-                        )
-                    }
-                ),
-                icon: "map.fill",
-                iconColor: ProSettingsStyle.accent,
-                isProActive: revenueCatManager.isProActive,
-                onUpgrade: { showPaywall = true }
-            )
-        } header: {
-            Text("Pro")
-        }
-        .listRowBackground(ProSettingsStyle.accent.opacity(0.08))
-
-        Section {
             Button {
                 cameraSettingsActive = true
             } label: {
@@ -185,10 +150,24 @@ struct Preferences: View {
             }
 
             SettingsToggleRow(
-                title: "Confirm scan submission",
-                description: "Present the 'Identify' button after capturing to physically confirm the scan. When disabled, single captures are sent to AI immediately.",
-                isOn: $appSettings.requiresScanConfirmation,
-                icon: "hand.tap.fill",
+                title: "Expedition mode",
+                description: "Conserves battery by lowering camera frame rates, reducing visual effects, suppressing haptics, and pausing background uploads.",
+                isOn: Binding(
+                    get: { appSettings.isExpeditionModeActive },
+                    set: { value in
+                        preferenceActions.updateExpeditionMode(value) {
+                            appSettings.isExpeditionModeActive = $0
+                        }
+                    }
+                ),
+                icon: "map.fill",
+                iconColor: .green
+            )
+            SettingsToggleRow(
+                title: "Auto-submit scans",
+                description: "Submit each capture immediately, skipping review and the chance to add a note or another media item.",
+                isOn: $appSettings.autoSubmitScans,
+                icon: "arrow.right.circle.fill",
                 iconColor: .blue
             )
         } header: {

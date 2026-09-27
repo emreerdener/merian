@@ -27,7 +27,7 @@ struct CaptureStagingToolbarMediaRow: View {
                 } label: {
                     Circle()
                         .strokeBorder(
-                            Color.white.opacity(0.5),
+                            Color.primary.opacity(0.5),
                             style: StrokeStyle(lineWidth: 1.5, dash: [4])
                         )
                         .frame(width: 48, height: 48)
@@ -39,7 +39,7 @@ struct CaptureStagingToolbarMediaRow: View {
                                 } else {
                                     Image(systemName: "plus")
                                         .font(.system(size: 20, weight: .medium))
-                                        .foregroundColor(.white.opacity(0.5))
+                                        .foregroundColor(.primary.opacity(0.5))
                                 }
                             }
                             .accessibilityHidden(true)
@@ -88,12 +88,13 @@ struct CaptureStagingToolbarMediaRow: View {
                     .clipShape(Circle())
                     .overlay(
                         Circle().stroke(
-                            Color.white.opacity(0.5),
+                            Color.primary.opacity(0.5),
                             lineWidth: 1
                         )
                     )
             }
             .buttonStyle(PlainButtonStyle())
+            .accessibilityLabel("Review photo \(index + 1)")
 
         case .description(let index, _):
             Button {
@@ -102,6 +103,7 @@ struct CaptureStagingToolbarMediaRow: View {
                 StagedDescriptionBadge()
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Edit historical description \(index + 1)")
 
         case .audio(let index, _):
             Button {
@@ -126,7 +128,7 @@ struct CaptureStagingToolbarMediaRow: View {
                             .clipShape(Circle())
                             .overlay(
                                 Circle().stroke(
-                                    Color.white.opacity(0.5),
+                                    Color.primary.opacity(0.5),
                                     lineWidth: 1
                                 )
                             )
@@ -141,6 +143,7 @@ struct CaptureStagingToolbarMediaRow: View {
                     }
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Review video \(index + 1)")
             }
         }
     }

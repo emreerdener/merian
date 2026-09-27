@@ -100,7 +100,6 @@ extension CaptureWorkspaceViewModelRefinementTests {
         RevenueCatManager.shared.isSubscribed = false
         RevenueCatManager.shared.isProActive = false
         let diContainer = AppDIContainer.preview
-        diContainer.appSettings.isMultiCaptureEnabled = true
         let viewModel = CaptureWorkspaceViewModel(
             diContainer: diContainer,
             preparedImageLoader: { _ in nil },
@@ -471,6 +470,7 @@ extension CaptureWorkspaceViewModelRefinementTests {
             StagedObservationContext(context: ObservationContext(freeText: "Perched in a bare tree"))
         ]
 
+        viewModel.stagedCapture.audios = [StagedAudio(filePath: "second-media.wav")]
         XCTAssertFalse(viewModel.hasAvailableStagedCaptureSlot)
         XCTAssertTrue(viewModel.shouldShowMediaModeToggle)
     }
@@ -482,9 +482,7 @@ extension CaptureWorkspaceViewModelRefinementTests {
             prewarmHeadersOnInit: false
         )
 
-        viewModel.stagedCapture.observationContexts = [
-            StagedObservationContext(context: ObservationContext(freeText: "First note"))
-        ]
+        viewModel.stagedCapture.audios = (0..<viewModel.stagedCaptureLimit).map { StagedAudio(filePath: "existing-\($0).wav") }
 
         XCTAssertFalse(viewModel.hasAvailableStagedCaptureSlot)
         XCTAssertFalse(viewModel.shouldShowMediaModeToggle)

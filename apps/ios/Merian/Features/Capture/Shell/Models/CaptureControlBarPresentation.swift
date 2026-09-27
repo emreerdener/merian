@@ -24,8 +24,7 @@ struct CaptureControlBarPresentation: Equatable {
         hasStagedAudio: Bool,
         hasStagedDescription: Bool,
         isRefining: Bool,
-        isMultiCaptureEnabled: Bool,
-        requiresScanConfirmation: Bool,
+        autoSubmitScans: Bool,
         isVideoRecording: Bool,
         isAudioRecording: Bool,
         hasPendingAudio: Bool,
@@ -34,11 +33,12 @@ struct CaptureControlBarPresentation: Equatable {
         isDescriptionEmpty: Bool,
         canStageRefinementDescription: Bool = true,
         isCapturing: Bool = false,
-        isPreparingVideo: Bool = false
+        isPreparingVideo: Bool = false,
+        isDraftReadyForSubmission: Bool = true
     ) {
         let isAtCapacity = isRefining
             ? (captureMode == .describe ? !canStageRefinementDescription : availableStagedSlots == 0)
-            : totalStagedItems >= capacityLimit
+            : (captureMode != .describe && availableStagedSlots == 0)
 
         self.isAtCapacity = isAtCapacity
         photoSelectionCount = capacityLimit > 1
@@ -62,12 +62,12 @@ struct CaptureControlBarPresentation: Equatable {
             || hasStagedAudio
             || hasStagedDescription
             || isRefining
-            || isMultiCaptureEnabled
-            || requiresScanConfirmation
+            || !autoSubmitScans
         isPrimaryActionDisabled = isAtCapacity
             || isCheckingScanAdmission
             || (captureMode == .visual && isCapturing && !isVideoRecording)
-            || (captureMode == .describe && isStagingRefinement)
+            || (captureMode == .describe && (isStagingRefinement || isDescriptionEmpty
+                || (!willStageOnly && !isDraftReadyForSubmission)))
         isInputActive = captureMode != .describe || !isDescriptionEmpty
     }
 }

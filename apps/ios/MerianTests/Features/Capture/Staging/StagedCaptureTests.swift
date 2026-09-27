@@ -174,7 +174,7 @@ struct StagedCaptureTests {
         )
     }
 
-    @Test func availableSlotsUsesTotalMixedItemCount() {
+    @Test func availableSlotsUsesPhysicalMediaBudget() {
         var capture = StagedCapture()
         capture.audios.append(StagedAudio(filePath: "bird.wav"))
         capture.observationContexts.append(
@@ -182,8 +182,8 @@ struct StagedCaptureTests {
         )
 
         #expect(capture.totalItemCount == 2)
-        #expect(capture.availableSlots(limit: stagedCaptureCapacity) == 0)
-        #expect(capture.isAtCapacity(limit: stagedCaptureCapacity))
+        #expect(capture.availableSlots(limit: stagedCaptureCapacity) == 1)
+        #expect(!capture.isAtCapacity(limit: stagedCaptureCapacity))
     }
 
     @Test func orderedNodesPreserveChronologicalMixedOrderAndCollectionIndexes() {
@@ -414,8 +414,8 @@ struct StagedCaptureTests {
                 "\(scenario.name) must produce the expected ordered node count"
             )
             #expect(
-                scenario.capture.availableSlots(limit: stagedCaptureCapacity) == stagedCaptureCapacity - scenario.expectedCount,
-                "\(scenario.name) must respect the shared two-item capacity"
+                scenario.capture.availableSlots(limit: stagedCaptureCapacity) == stagedCaptureCapacity - scenario.capture.physicalItemCount,
+                "\(scenario.name) must respect the two-media capacity independently of text"
             )
         }
     }

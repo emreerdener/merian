@@ -395,13 +395,18 @@ extension OfflineQueueManager {
     private func flashFallbackEligibleForRetry(
         _ snapshot: CapturedMediaSnapshot
     ) -> Bool {
-        guard snapshot.items.count == 1 else { return false }
-        switch snapshot.items[0] {
-        case .image, .audio, .description:
-            return true
-        case .video:
-            return false
-        }
+        IdentificationEvidenceAllowance.permitsFreeScan(
+            images: snapshot.imageReferences.count,
+            audio: snapshot.audioReferences.count,
+            descriptions: snapshot.items.filter {
+                if case .description(let context) = $0 { return !context.isEmpty }
+                return false
+            }.count,
+            videos: snapshot.items.filter {
+                if case .video = $0 { return true }
+                return false
+            }.count
+        )
     }
 
     @discardableResult

@@ -68,7 +68,7 @@ Features/
     │   ├── Services/
     │   ├── ViewModels/
     │   └── Views/
-    ├── Staging/            # Multi-capture staging and pre-submit review
+    ├── Staging/            # Draft generations, media/note budgets, and staged review
     │   ├── Models/
     │   └── Views/
     ├── Submission/         # Live/offline analysis submission paths

@@ -1,5 +1,5 @@
-/// Normal evidence capacity across images, audio clips, videos, and descriptions.
-/// Refinement permits one explicitly marked supplementary description beyond this budget.
+/// Physical media capacity. Ordinary notes and historical/current refinement text
+/// have separate budgets and do not consume physical media slots.
 let stagedCaptureCapacity = 2
 
 /// Visual captures still top out at the same total staged capacity today.
@@ -10,17 +10,14 @@ extension StagedCapture {
         observationContexts.firstIndex(where: \.isRefinementSupplement)
     }
 
-    /// Refinement permits one description in addition to the normal evidence budget.
-    /// Historical descriptions remain evidence; only the current supplement is exempt.
-    func availableEvidenceSlots(limit: Int, isRefining: Bool) -> Int {
-        let supplementCount = isRefining && refinementSupplementIndex != nil ? 1 : 0
-        return max(0, limit - (totalItemCount - supplementCount))
+    /// Historical text remains evidence without reducing physical capacity.
+    func availableEvidenceSlots(limit: Int, isRefining _: Bool) -> Int {
+        availableSlots(limit: limit)
     }
 
     var canStageRefinementDescription: Bool {
         let supplements = observationContexts.filter(\.isRefinementSupplement).count
-        return supplements <= 1
-            && totalItemCount - supplements <= stagedCaptureCapacity
+        return physicalItemCount <= stagedCaptureCapacity && supplements <= 1
     }
 
     mutating func clearRefinementDescriptionAssociation() {

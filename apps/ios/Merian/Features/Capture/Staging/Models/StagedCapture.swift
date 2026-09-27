@@ -29,6 +29,8 @@ struct StagedCapture {
         images.count + audios.count + videos.count + observationContexts.count
     }
 
+    var physicalItemCount: Int { images.count + audios.count + videos.count }
+
     var hasVisualMedia: Bool {
         !images.isEmpty || !videos.isEmpty
     }
@@ -40,11 +42,11 @@ struct StagedCapture {
     }
 
     func availableSlots(limit: Int) -> Int {
-        max(0, limit - totalItemCount)
+        max(0, limit - physicalItemCount)
     }
 
     func isAtCapacity(limit: Int) -> Bool {
-        totalItemCount >= limit
+        physicalItemCount >= limit
     }
 
     var discardableLocalMediaFilePaths: [String] {

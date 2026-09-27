@@ -129,13 +129,6 @@ struct MerianApp: App {
             opensExploreOnLaunch: appSettings.opensExploreOnLaunch
         )
 
-        // Migrate old multiImageScanMode to the new isMultiCaptureEnabled key
-        if UserDefaults.standard.object(forKey: UserDefaultsKeys.legacyMultiImageScanMode) != nil {
-            let oldVal = UserDefaults.standard.bool(forKey: UserDefaultsKeys.legacyMultiImageScanMode)
-            UserDefaults.standard.set(oldVal, forKey: UserDefaultsKeys.isMultiCaptureEnabled)
-            UserDefaults.standard.removeObject(forKey: UserDefaultsKeys.legacyMultiImageScanMode)
-        }
-
         let bootstrapOutcome = ModelContainerBootstrapper.bootstrap()
         container = bootstrapOutcome.container
         startupStoreState = bootstrapOutcome.startupStoreState
