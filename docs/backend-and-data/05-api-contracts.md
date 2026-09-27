@@ -6978,7 +6978,13 @@ rejection reaches waiters and a new attempt requires fresh admission. An
 observer also handles failures when no waiter exists. Existing usage writes add
 bounded task/provider/version/duration/outcome metadata. Internal execution
 metadata is excluded by the public response formatters; no request or response
-field changes.
+field changes. The independent `sharedContent.ts` acceptance guard requires the
+retained Gemini content profiles before quota commitment; unsupported profiles
+refund without invocation. This guard covers foreground enrichment, optional
+group tags and claimed public refresh jobs. Existing canonical cache content is
+not relabeled or invalidated. Warm-isolate coalescing uses task/profile
+namespace, canonical species ID (or name fallback), exact input name, locale and
+taxonomy fields, so materially different inputs do not share a pending result.
 
 **Scoped Cache Hits**: Each request checks its own cache requirements and
 returns only that scope's fields without AI work when satisfied. A metadata

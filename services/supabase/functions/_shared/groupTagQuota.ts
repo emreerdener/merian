@@ -7,6 +7,7 @@ import {
 import { fetchGroupTags } from "./biology.ts";
 import { logStructuredError } from "./edgeHandler.ts";
 import { prepareAIExecution } from "./ai/production.ts";
+import { prepareSharedSpeciesContent } from "./ai/sharedContent.ts";
 
 /**
  * Runs optional group-tag inference behind its own quota reservation.
@@ -38,7 +39,7 @@ export async function fetchQuotaGuardedGroupTags(
       requestId,
       originalAnalysisId: parentRequestId,
     });
-    const execution = prepare({
+    const execution = prepareSharedSpeciesContent({
       task: "group_tags",
       variant: "species_content",
       scientificName,
@@ -48,7 +49,7 @@ export async function fetchQuotaGuardedGroupTags(
       permission: "google_gemini",
       operation: "scan_group_tag_enrichment",
       reservation: quotaLease.reservation,
-    });
+    }, prepare);
     await quotaLease.commit();
     providerAttempted = true;
 

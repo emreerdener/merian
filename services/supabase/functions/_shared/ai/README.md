@@ -250,6 +250,25 @@ records usage with a null owner. The registry checks supplied claim facts; it
 does not replace the authenticated claim RPC or authorize private observation
 work.
 
+## Shared content qualification
+
+`sharedContent.ts` owns the independent acceptance boundary for shared species
+content. Enrichment, optional group tags and claimed public jobs use its
+prepared execution wrapper before committing quota or invoking. The biology
+helpers also check the snapshot. Only existing Gemini
+task/binding/model/prompt/schema and exact generation profiles qualify; changed
+or unknown fields are rejected. Overview remains English. Updating the
+assignment registry alone cannot qualify an alternate profile for these
+canonical writers.
+
+Existing public dictionary content retains its baseline interpretation without
+invalidation or an invented historical execution identity. Warm-isolate keys
+include the baseline namespace, task, canonical species identity, input name,
+locale and lookalike taxonomy dimensions. These keys are not durable provenance.
+Private candidate storage and task-specific promotion remain necessary if
+another content provider is introduced; see the
+[shared-content record](../../../../../docs/rfcs/identification-shared-content-qualification-2026-09-26.md).
+
 ## Usage and diagnostics
 
 Returned token counts retain Gemini's existing interpretation, including null

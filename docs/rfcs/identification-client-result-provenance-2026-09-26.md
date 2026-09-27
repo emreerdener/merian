@@ -94,7 +94,14 @@ remains a prospective matched, qualified comparison.
 ## Following slices
 
 Continue without a provider-selection decision until the infrastructure is
-ready:
+ready. Items 1 and 2 below are now implemented in the
+[public metric](./identification-public-metric-compatibility-2026-09-26.md),
+[chat/export](./identification-chat-export-metrics-2026-09-26.md),
+[accounting](./identification-provider-usage-attribution-2026-09-26.md), and
+[shared-content guard](./identification-shared-content-qualification-2026-09-26.md)
+slices. Alternative content semantics remain unqualified; current content
+producers stay Gemini Flash. Item 3 remains an activation decision after
+candidate qualification and disclosure review:
 
 1. Apply the same immutable-profile compatibility rule to public AI suggestions
    and server score decisions. Public community detail should expose only the

@@ -39,10 +39,13 @@ provider chooser, model assignment, table column or privileged grant. No
 historical cost is recomputed and no observation content is added to accounting.
 
 A future adapter still needs reviewed native-unit mapping, effective-dated
-prices, cache compatibility, confidence qualification and a matched held-out
-comparison. Existing failed/uncertain-call accounting gaps remain. Total token
-counts across providers are not a calibrated measure of equal work. Disclosures,
-supported clients and an explicitly authorized release remain activation gates.
+prices, confidence qualification and a matched held-out comparison. The
+[following shared-content slice](./identification-shared-content-qualification-2026-09-26.md)
+adds a Gemini-only generation guard; alternate content semantics and promotion
+remain separate qualification work. Existing failed/uncertain-call accounting
+gaps remain. Total token counts across providers are not a calibrated measure of
+equal work. Disclosures, supported clients and an explicitly authorized release
+remain activation gates.
 
 ## Verification
 

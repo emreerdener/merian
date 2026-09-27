@@ -1178,6 +1178,13 @@ dictionary fields, reference-image-backed content, group tags, or durable
 lookalike rows. Provenance write failures are logged and do not fail the
 user-facing scan or dictionary response.
 
+The public row is a source/freshness record, not private execution provenance or
+a store for competing provider candidates. Shared species-content generation now
+requires the existing Gemini profiles at the Edge preparation boundary. Existing
+rows are neither relabeled with invented model identities nor invalidated. A
+future content provider needs reviewed private candidate storage and promotion
+semantics before replacing canonical fields, lookalike relations or group tags.
+
 **Backfill**: the migration inserts low-confidence provenance rows for existing
 dictionary data, reference images, and lookalikes with
 `source_detail = 'legacy backfill; original freshness unknown'` and a 30-day

@@ -127,10 +127,22 @@ executable contract, regenerate DTOs, and ship a reviewed
 compatibility/migration plan before activation. Completed results keep their
 saved interpretation and replay without inference.
 
-Review shared species caches before mixing providers: schema/prompt versions,
-canonical identities, accepted provenance, and invalidation rules must be
-compatible. Changing the binding alone does not regenerate or revalidate cached
-content. Preserve separate user and public-job attribution.
+Primary identification and shared species-content assignments remain separate.
+The three content tasks now use `sharedContent.ts` to require the retained
+Gemini baseline before quota commitment and canonical generation; the biology
+helpers also check snapshots. A registry change alone cannot qualify another
+profile. Existing canonical public content stays reusable under its historical
+baseline, without claiming exact model provenance for old rows. In-flight keys
+include the baseline namespace, task, species identity and input dimensions.
+
+Before another content provider is enabled, qualify schema/prompt versions,
+canonical identities, accepted provenance, locale/taxonomy behavior, lookalike
+ranking, group-tag semantics and promotion/invalidation rules. Use private
+candidate storage until that decision exists; the public one-row-per-field
+provenance table cannot safely hold raw execution configuration or competing
+outputs. Changing a binding does not regenerate or revalidate content. Preserve
+separate user/public-job attribution. See the
+[shared-content record](../../../../../docs/rfcs/identification-shared-content-qualification-2026-09-26.md).
 
 New primary scan ledger entries now copy saved model/provider/binding/policy/
 prompt/schema references, with explicit legacy-tier fallback only when
