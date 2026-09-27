@@ -11,6 +11,9 @@ final class ConsentManager {
     private(set) var hasAcceptedCurrentTerms = false
     private(set) var hasGrantedCurrentGeminiProcessing = false
     private(set) var hasGrantedCurrentPostHogAnalytics = false
+    var aiProcessingPermissions: AIProcessingConsentCoordinator {
+        runtime.aiProcessingPermissions
+    }
     private(set) var requiredConsentRestorationState:
         RequiredConsentRestorationState = .awaitingInitialSession
 
@@ -236,13 +239,10 @@ final class ConsentManager {
     }
 
     func withdrawGeminiPermission() throws {
-        let ownerUserId = currentSessionUserId ?? ledger.activeUserId
-        guard try runtime.mutationService.withdrawGeminiPermission(
-            hasGrantedGeminiProcessing:
-                hasGrantedCurrentGeminiProcessing,
-            ownerUserId: ownerUserId,
-        ) else { return }
-        scheduleSynchronization(createAnonymousSessionIfNeeded: false)
+        try runtime.aiProcessingPermissions.withdrawGeminiPermission(
+            hasGranted: hasGrantedCurrentGeminiProcessing,
+            ownerUserId: currentSessionUserId ?? ledger.activeUserId
+        )
     }
 
     func observeSession(userId: UUID?) {
@@ -559,6 +559,7 @@ final class ConsentManager {
             pendingAnalyticsRevocationApplies: ledgerRepository
                 .pendingAnalyticsRevocationApplies(to: ownerUserId)
         )
+        runtime.aiProcessingPermissions.refresh(ownerUserId: ownerUserId)
         hasConfirmedCurrentAdultEligibility =
             state.hasConfirmedAdultEligibility
         hasAcceptedCurrentTerms = state.hasAcceptedTerms

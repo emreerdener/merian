@@ -11,7 +11,7 @@ import Testing
 @MainActor
 struct CaptureAdmissionTests {
     @MainActor
-    private struct ManagerSnapshot {
+    struct ManagerSnapshot {
         let modelContext: ModelContext?
         let isOnline: Bool
         let unsyncedItemsCount: Int
@@ -203,7 +203,8 @@ struct CaptureAdmissionTests {
         #expect(fetched.serializedCapturedMediaItems == items)
 
         if case .audio(let reference) = items[0] {
-            #expect(reference == audioFilename)
+            #expect(reference.serializedPath.hasSuffix(audioFilename))
+            #expect(reference.serializedPath != audioFilename)
         } else {
             Issue.record("Expected queued capture to serialize audio first")
         }
@@ -474,7 +475,7 @@ struct CaptureAdmissionTests {
         #expect(try context.fetch(descriptor).isEmpty)
     }
 
-    private func enableUnlimitedFreeScansForTest() {
+    func enableUnlimitedFreeScansForTest() {
         let deviceId = DeviceIdentityManager.shared.deviceId
         UserDefaults.standard.removeObject(
             forKey: "Merian_LastScanDate_\(deviceId)"
@@ -492,7 +493,7 @@ struct CaptureAdmissionTests {
         RevenueCatManager.shared.isSubscribed = true
     }
 
-    private func restoreFreeScanLimitForTest() {
+    func restoreFreeScanLimitForTest() {
         let deviceId = DeviceIdentityManager.shared.deviceId
         UserDefaults.standard.removeObject(
             forKey: "Merian_LastScanDate_\(deviceId)"
@@ -506,7 +507,7 @@ struct CaptureAdmissionTests {
         EntitlementManager.shared.resetForTesting()
     }
 
-    private func makeTempAudioFilename(
+    func makeTempAudioFilename(
         prefix: String = "queued_audio"
     ) throws -> String {
         let filename = "\(prefix)_\(UUID().uuidString).wav"
@@ -537,7 +538,7 @@ struct CaptureAdmissionTests {
             case (.image(let reference), .image(let expectedPath)):
                 #expect(reference == expectedPath)
             case (.audio(let reference), .audio(let expectedPath)):
-                #expect(reference == expectedPath)
+                #expect(reference.serializedPath.hasSuffix(expectedPath))
             case (.description(let context), .description(let expectedText)):
                 #expect(context.freeText == expectedText)
             default:
@@ -546,7 +547,7 @@ struct CaptureAdmissionTests {
         }
     }
 
-    private func cleanupSerializedItems(_ items: [SerializedMediaItem]) {
+    func cleanupSerializedItems(_ items: [SerializedMediaItem]) {
         for item in items {
             switch item {
             case .image(let reference), .audio(let reference):
@@ -571,7 +572,7 @@ struct CaptureAdmissionTests {
         )
     }
 
-    private var dummyTelemetry: CaptureTelemetry {
+    var dummyTelemetry: CaptureTelemetry {
         CaptureTelemetry(
             subjectDistanceInMeters: 2.5,
             gpsLatitude: 37.7749,

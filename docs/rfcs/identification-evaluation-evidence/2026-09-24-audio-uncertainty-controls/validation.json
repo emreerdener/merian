@@ -1,0 +1,84 @@
+{
+  "version": "identification_audio_prompt_control_validation_v1",
+  "observedAt": "2026-09-24T18:34:34Z",
+  "scope": "local_synthetic_mechanics_only",
+  "implementation": {
+    "commit": "8c831e90fafe582a2cce7bc22ab63a17d0c507ac",
+    "dirty": true,
+    "digest": "248654ee0455cf52688530c8778a034277621dbf20a2e1fe472eda37f46e19e5",
+    "sdk": "npm:@google/genai@2.23.0"
+  },
+  "bindings": {
+    "planSha256": "8019602955455d8c8fb83ff368a1e54a6dfee58e1f4680f801e45bcee30d8dee",
+    "preparationSha256": "068f74f51f4e7c81a2eaae36f1f51363e84fa57e5f4dadf6694e007fe1fb63bb",
+    "backendBundleSha256": "1949f9c56f0bfa70378adf2f35d8a7275effeeb34c2d6a3afad7bae91f8ad9dd",
+    "slots": 36,
+    "blocks": 3
+  },
+  "tooling": {
+    "status": "passed",
+    "command": "make test-supabase-tooling",
+    "standardTypeScriptSources": 100,
+    "standardTypeScriptTestFiles": 48,
+    "standardTestsPassed": 422,
+    "standardTestStepsPassed": 29,
+    "isolatedEvaluationTestsPassed": 21,
+    "isolatedEvaluationTestStepsPassed": 4,
+    "isolatedDtoTestFiles": 2,
+    "shellSources": 18,
+    "shellTestFiles": 9,
+    "focusedPromptControlTestsPassed": 15,
+    "focusedPromptExecutionTestsPassed": 6,
+    "privateCliTransport": "local_fake_only_zero_network"
+  },
+  "formatting": {
+    "command": "deno fmt --check services/supabase/functions services/supabase/scripts",
+    "status": "passed",
+    "files": 1022
+  },
+  "lint": {
+    "command": "deno lint --config services/supabase/functions/deno.json services/supabase/functions services/supabase/scripts",
+    "status": "passed",
+    "files": 829
+  },
+  "markdown": {
+    "changedFilesChecked": 21,
+    "format": "passed",
+    "localTargetsChecked": 676,
+    "localTargets": "passed"
+  },
+  "whitespace": "passed",
+  "independentReview": {
+    "mode": "read_only",
+    "resolvedFindings": [
+      "preclaim_asset_integrity",
+      "fresh_private_operator_witness",
+      "terminal_exclusion_cleanup_ordering"
+    ],
+    "operatorWitnessIsAuthenticationAttestation": false
+  },
+  "priorValidation": {
+    "record": "../2026-09-24-audio-uncertainty-integration/validation.json",
+    "backendRuntimeChangedInThisSlice": false,
+    "nativeSourceChangedInThisSlice": false,
+    "databaseSchemaChangedInThisSlice": false,
+    "nativeAndDatabaseGatesRepeatedInThisSlice": false
+  },
+  "execution": {
+    "actualExecutionPacketCreated": false,
+    "hostedMutations": 0,
+    "providerCalls": 0,
+    "experimentSubmissions": 0,
+    "liveActivationPerformed": false,
+    "formalQualificationEligible": false,
+    "qualityConclusion": null
+  },
+  "pending": [
+    "reviewed_clean_committed_candidate",
+    "exact_sha_release_evidence",
+    "actual_clean_app_and_deployed_backend_freeze",
+    "reviewed_private_configuration_and_fresh_pricing",
+    "named_activation_and_three_paid_blocks",
+    "verified_block_cleanup_and_complete_schedule_report"
+  ]
+}

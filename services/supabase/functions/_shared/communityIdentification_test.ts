@@ -1,3 +1,4 @@
+import { assertCommunityConfidenceProjection } from "./communityIdentification.ts";
 import { assertEquals, assertThrows } from "@std/assert";
 import {
   normalizeCommunityBoolean,
@@ -63,4 +64,50 @@ Deno.test("community identification boolean parser rejects non-booleans", () => 
     Error,
     "is_genus_best_possible must be a boolean",
   );
+});
+
+Deno.test("community projection requires a server flag and never exposes unknown scores or full provenance", () => {
+  for (const qualified of [true, false]) {
+    assertCommunityConfidenceProjection({
+      author_user_id: "synthetic-author",
+      post_id: "synthetic-post",
+      ai_confidence_qualified: qualified,
+      suggested_taxa: [{ confidence_score: qualified ? 0.9 : null }],
+    });
+  }
+  for (
+    const bad of [
+      null,
+      {},
+      { ai_confidence_qualified: null, suggested_taxa: [] },
+      { ai_confidence_qualified: "false", suggested_taxa: [] },
+      {
+        ai_confidence_qualified: false,
+        suggested_taxa: [{ confidence_score: 0.999 }],
+      },
+      { ai_confidence_qualified: false, suggested_taxa: [{}] },
+      {
+        ai_confidence_qualified: true,
+        suggested_taxa: [],
+        identification_provenance: {},
+      },
+      {
+        ai_confidence_qualified: true,
+        suggested_taxa: Array.from({ length: 7 }, () => ({})),
+      },
+    ]
+  ) {
+    assertThrows(
+      () =>
+        assertCommunityConfidenceProjection(
+          bad === null ? null : {
+            author_user_id: "synthetic-author",
+            post_id: "synthetic-post",
+            ...bad,
+          },
+        ),
+      Error,
+      "community_confidence_projection_invalid",
+    );
+  }
 });

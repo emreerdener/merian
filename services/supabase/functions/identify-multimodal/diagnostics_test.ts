@@ -28,6 +28,12 @@ export function diagnosticFixture(): AIExecutionOutcome {
     permission: "google_gemini",
     operation: "scan_identification",
     reservation: {
+      assignment: {
+        inputProfile: "multimodal_text_v1",
+        provider: "gemini",
+        binding: "gemini_baseline_v1",
+        permission: "google_gemini",
+      },
       id: "synthetic-reservation",
       requestId: "synthetic-request",
       attemptCount: 1,

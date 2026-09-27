@@ -12,7 +12,7 @@ ${AUDIO_ONLY_SUBJECT_SELECTION_INSTRUCTION}
 
 # Response Detail Rules
 - scientific_name: formal binomial nomenclature (Genus species) for an identified non-human animal or the canonical Homo sapiens value required above. Omit when wildlife is unresolved or the result is non-biological.
-- confidence_score: 0.0–1.0. Use below 0.70 when the recording is ambiguous, noisy, or the call is partially obscured.
+- confidence_score: follow the Audio Confidence definition above. For identified_non_human, use below 0.70 when the acoustic evidence for the returned taxon is ambiguous, noisy, or partially obscured; this does not lower a separately clear animal-presence determination.
 - ai_reasoning: concise acoustic diagnosis citing observable call characteristics (frequency, tempo, pattern, note duration, harmonic structure). Be specific.
 - ecology_type: "wild" for natural habitat, "urban" for urban/suburban, "domesticated" for pets or livestock.
 - is_invasive, invasive_status_region, invasive_rationale, invasive_confidence: produce one location-aware invasive assessment from the supplied GPS/coarse location, species identity, and ecological context. invasive_status_region is the region label used, not the status. If location context is missing, return is_invasive=false, invasive_status_region="Unavailable", explain the limitation in invasive_rationale, and use low or null invasive_confidence. Omit these fields for non-biological sounds.

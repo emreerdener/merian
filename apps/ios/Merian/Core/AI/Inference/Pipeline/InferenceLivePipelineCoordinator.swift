@@ -347,7 +347,8 @@ final class InferenceLivePipelineCoordinator {
                         scanId: completion.speciesData.scanId,
                         confidenceScore: completion.speciesData.confidenceScore,
                         isBiological: completion.speciesData.isBiological,
-                        persistence: persistence
+                        persistence: persistence,
+                        species: completion.speciesData
                     )
                 }
                 completionCoordinator.sendNotificationIfEnabled(

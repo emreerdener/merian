@@ -81,6 +81,9 @@ public final class LocalScanRecord {
     @Attribute public var individualCount: Int?
     @Attribute public var ecologicalInteractions: [String]?
     @Attribute public var inferenceTier: String?
+    /// Content-free server execution facts. Nil is historical absence; invalid
+    /// present bytes must not inherit legacy Gemini confidence interpretation.
+    @Attribute public var identificationProvenanceData: Data?
     
     /// User-defined custom tags for personal categorization and search indexing.
     @Attribute public var customTags: [String] = []
@@ -175,6 +178,7 @@ public final class LocalScanRecord {
         individualCount: Int? = nil,
         ecologicalInteractions: [String]? = nil,
         inferenceTier: String? = nil,
+        identificationProvenanceData: Data? = nil,
         customTags: [String] = [],
         hasBeenViewed: Bool = false,
         userIdentificationOverride: String? = nil,
@@ -246,6 +250,7 @@ public final class LocalScanRecord {
         self.individualCount = individualCount
         self.ecologicalInteractions = ecologicalInteractions
         self.inferenceTier = inferenceTier
+        self.identificationProvenanceData = identificationProvenanceData
         self.customTags = customTags
         self.hasBeenViewed = hasBeenViewed
         self.userIdentificationOverride = userIdentificationOverride

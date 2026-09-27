@@ -8,6 +8,7 @@ struct DescribeInputView: View {
     let promptFlow: DescribePromptFlow
     @Binding var context: ObservationContext
     let promptViewModel: DescribePromptViewModel
+    var focusRequest: UUID?
 
     @FocusState private var isTextFieldFocused: Bool
     private let dependencies: DescribePresentationDependencies
@@ -16,7 +17,8 @@ struct DescribeInputView: View {
     init(
         promptFlow: DescribePromptFlow,
         context: Binding<ObservationContext>,
-        promptViewModel: DescribePromptViewModel
+        promptViewModel: DescribePromptViewModel,
+        focusRequest: UUID? = nil
     ) {
         self.init(
             promptFlow: promptFlow,
@@ -24,6 +26,7 @@ struct DescribeInputView: View {
             promptViewModel: promptViewModel,
             dependencies: .live
         )
+        self.focusRequest = focusRequest
     }
 
     @MainActor
@@ -86,7 +89,8 @@ struct DescribeInputView: View {
                     DescribeTextEditorView(
                         placeholder: textFieldPlaceholder,
                         text: $context.freeText,
-                        focus: $isTextFieldFocused
+                        focus: $isTextFieldFocused,
+                        onDone: dependencies.dismissKeyboard
                     )
 
                     // Reserve the fixed capture row and global tab-bar clearance.
@@ -95,6 +99,10 @@ struct DescribeInputView: View {
                     )
                 }
             }
+        }
+        .task(id: focusRequest) {
+            guard focusRequest != nil else { return }
+            isTextFieldFocused = true
         }
     }
 

@@ -18,37 +18,28 @@ struct HardwareOrchestratorTests {
     }
 
     private func makeOrchestrator(
-        appSettings: AppSettings? = nil,
-        functionalProAccessProvider: @escaping @MainActor () -> Bool = { true }
+        appSettings: AppSettings? = nil
     ) -> HardwareOrchestrator {
         HardwareOrchestrator(
             appSettings: appSettings ?? makeAppSettings(),
-            observeSystemChanges: false,
-            functionalProAccessProvider: functionalProAccessProvider
+            observeSystemChanges: false
         )
     }
 
-    @Test func testPersistedExpeditionModeWaitsForFunctionalEntitlement() {
-        let appSettings = makeAppSettings()
-        var hasFunctionalProAccess = false
-        let orchestrator = makeOrchestrator(
-            appSettings: appSettings,
-            functionalProAccessProvider: { hasFunctionalProAccess }
-        )
-
-        appSettings.isExpeditionModeActive = true
+    @Test func testPersistedExpeditionModeRequiresNoEntitlement() {
+        let settings = makeAppSettings()
+        let orchestrator = makeOrchestrator(appSettings: settings)
+        settings.isExpeditionModeActive = true
         orchestrator.evaluateConstraints(thermalState: .nominal)
-        #expect(orchestrator.isExpeditionModeActive == false)
-        #expect(orchestrator.targetFPS == 60)
-        #expect(orchestrator.isGlassmorphismEnabled == true)
-
-        hasFunctionalProAccess = true
-        orchestrator.evaluateConstraints(thermalState: .nominal)
-        #expect(orchestrator.isExpeditionModeActive == true)
+        #expect(orchestrator.isExpeditionModeActive)
         #expect(orchestrator.targetFPS == 24)
-        #expect(orchestrator.isGlassmorphismEnabled == false)
+        #expect(!orchestrator.isGlassmorphismEnabled)
+        settings.isExpeditionModeActive = false
+        orchestrator.evaluateConstraints(thermalState: .serious)
+        #expect(orchestrator.targetFPS == 30)
+        #expect(!orchestrator.isGlassmorphismEnabled)
     }
-    
+
     @Test func testExpeditionModeDisablesBackgroundSyncs() async throws {
         // Arrange
         let appSettings = makeAppSettings()

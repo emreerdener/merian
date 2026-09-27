@@ -28,7 +28,7 @@ Deno.test("compatibility Identify recovers merged scans and profile prerequisite
     replay,
   );
   const quota = source.indexOf(
-    "quotaLease = await reserveAIProviderCall(",
+    "quotaLease = await reserveIdentificationProviderCall(",
     profile,
   );
 

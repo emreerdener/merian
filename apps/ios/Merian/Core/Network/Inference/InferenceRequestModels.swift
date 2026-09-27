@@ -16,6 +16,19 @@ struct InferencePayloadContext: Sendable {
 struct AuthenticatedInferenceRequest: Sendable {
     let request: URLRequest
     let expectedAuthUserID: UUID
+    let identificationAuthorization: IdentificationDispatchAuthorization?
+
+    init(request: URLRequest, expectedAuthUserID: UUID,
+         identificationAuthorization: IdentificationDispatchAuthorization? = nil) {
+        self.request = request
+        self.expectedAuthUserID = expectedAuthUserID
+        self.identificationAuthorization = identificationAuthorization
+    }
+
+    @MainActor
+    func validateForDispatch() throws {
+        try identificationAuthorization?.validate()
+    }
 
     /// Keeps the serialized inference body, JWT, and eventual transport lease
     /// attached to the same Auth account across suspensions.
@@ -45,7 +58,7 @@ struct IdentificationMeasurementContext: Sendable {
         guard telemetry.debugReplayProfile != nil,
               let validateAttempt, let body,
               let payload = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
-              Set(payload.keys) == (comparison == nil ? expectedKeys : expectedKeys.union(["audio_comparison"])),
+              Set(payload.keys) == (comparison.map { expectedKeys.union([$0.requestKey]) } ?? expectedKeys),
               payload["deviceLocale"] as? String == "en",
               payload["deviceTimeZone"] as? String == "UTC",
               payload["currentMonth"] as? Int == 1,
@@ -59,7 +72,7 @@ struct IdentificationMeasurementContext: Sendable {
         else { return nil }
         if let comparison {
             guard payload["client_scan_id"] as? String == comparison.scanId,
-                  let handle = payload["audio_comparison"] as? [String: Any],
+                  let handle = payload[comparison.requestKey] as? [String: Any],
                   NSDictionary(dictionary: handle).isEqual(to: comparison.handle) else { return nil }
         }
         return Self(validateAttempt: validateAttempt, comparisonCapture: comparison == nil ? nil : comparisonCapture)

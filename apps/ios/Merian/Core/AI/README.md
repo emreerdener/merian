@@ -28,7 +28,13 @@ This README maps that contract to native source and test ownership.
   `InferencePresentationCoordinator`, and successful queue finalization records
   a separate completion proof. The existing UIKit draw callback consumes render
   proof once; replacement/Auth/queue transitions clear it. These proofs are
-  observation evidence, not durable species metadata.
+  observation evidence, not durable species metadata. The new prompt-comparison
+  profile uses a separate generated table and typed binding through those same
+  owners. Its finalization proof receives the actual `SpeciesData` and binds
+  subject state plus conditional confidence; only a named animal includes a
+  normalized scientific-name digest. The
+  [prompt observation contract](../../../../../docs/development-guides/21-identification-app-measurement.md#prompt-comparison-observation)
+  defines the strict log shape and provisional-reference limits.
   `Models/SpeciesData+EdgeResponse.swift` is the sole handwritten
   `EdgeResponse`-to-`SpeciesData` adapter. The platform-neutral species value
   graph and display/identity policies remain under `Merian/Models/Species`,
@@ -718,6 +724,13 @@ generated DTOs. Root response fields remain optional to decode older cached
 payloads and support staggered rollout; the Edge runtime validates the full
 final response strictly before sending it.
 
+Audio confidence V2 retains the same decoded numeric field. Named animals use
+confidence in the returned taxon; Human uses confidence in Human identity and
+keeps its existing badge. Unresolved wildlife retains presence confidence
+without presenting it as species certainty. `SpeciesDataEdgeResponseTests`
+covers both tiers, badge boundaries, all four states, and preservation of the
+original score.
+
 Audio subject presentation continues to use those existing fields. `Human` /
 `Homo sapiens` is a resolved biological result and keeps the established Human
 candidate, reference, sharing, and Field Chat suppressions. A biological result
@@ -909,6 +922,36 @@ scan and media throughout this transition. After explicit approval opens the
 lifecycle gate, it resumes at most the newest consent-blocked row whose
 unreleased, dispatchable funding reservation proves the current account and
 exact scan ID. Rows without that ownership proof remain paused in Scans.
+
+OpenAI recipient denial is a separate `.openAIConsentRequired` failure. The
+live-failure coordinator transfers the exact active attempt to the queue's
+retirement owner. Under the scan persistence lock, that owner atomically saves
+`ai_openai_consent_required` needs-attention and removes the matching durable
+generation, then releases its upload hold with background resume disabled. Local
+save failure retries only persistence with capped backoff while keeping the
+generation claimed and retired. Late upload callbacks, backgrounding and network
+changes cannot release that hold; generic cleanup cannot replace the pause
+policy. Durable generation replacement prevents stale writes.
+
+The failure publishes **Permission needed / Scan saved**, stays outside the
+network circuit, and does not reopen Gemini onboarding. Gemini approval never
+resumes an OpenAI-paused row. OpenAI collection remains disabled; activation
+work is recorded in the
+[canonical API contract](../../../../../docs/backend-and-data/05-api-contracts.md#independent-openai-consent-evidence).
+
+Identification now checks the app-assigned recipient before sending its
+serialized observation. Live visual and nonvisual attempt validators survive
+preflight and request reconstruction. A changed assignment
+(`409
+ai_identification_preflight_changed`) preserves the saved observation and
+restarts durable preparation with a fresh check. An incompatible client
+(`426
+client_update_required`) transfers the exact foreground owner to the same
+durable pause mechanism used for recipient denial and presents **Update
+needed**. Neither condition advances the network circuit. The background queue
+persists recipient/update denial before retiring a prepared but unresumed task.
+All current assignments and required onboarding remain Gemini; permission
+collection and provider activation are separate work.
 
 Provider admission is also separated from transport health for both live
 pipelines. Exact `402 pro_required` presents **Upgrade needed / Scan saved**;
@@ -1289,3 +1332,21 @@ error, and prove the same-ID sheet becomes `.queued` without a second request,
 placeholder, haptic, circuit failure, or manual test cleanup of queue ownership.
 The full matrix and release evidence requirements live in the
 [incident](../../../../../docs/incidents/2026-08-live-scan-connectivity-handoff-gap.md).
+
+## Identification result configuration
+
+`Models/SpeciesData+EdgeResponse.swift` carries optional generated provenance
+into `SpeciesData` and owns DTO decoding. The shared
+`Models/Species/IdentificationResultProvenance.swift` value preserves
+content-free JSON without depending on generated DTOs.
+`InferenceConfidencePolicy` recognizes only exact known Gemini execution
+profiles at qualified policy version 1 and returns no bands for unknown or
+damaged present values; absence retains legacy interpretation. Generated
+provenance decoders enforce the executable contract's rejection of unknown
+fields, including generation settings, before DTO encoding can erase them. The
+saved scan factory, V52 local model, history DTO/query and historical projection
+retain the same metadata. Confidence labels, diagnostics/candidates, score-based
+upsell, collection suggestions, prompt actions and perfect-scan rewards gate
+their score interpretation on this compatibility decision. These rules preserve
+existing Gemini behavior; they do not establish calibrated probabilities for any
+model.

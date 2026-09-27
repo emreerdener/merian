@@ -1,3 +1,4 @@
+import { audioUncertaintySystemInstruction } from "../../identify-multimodal/comparison/promptInstruction.ts";
 import type {
   GenerateContentParameters,
   HarmBlockThreshold,
@@ -65,15 +66,17 @@ export function buildGeminiRequestParameters(
       ? getSystemInstruction(
         snapshot.promptDiagnosticTrigger ?? diagnosticTrigger(snapshot),
       )
-      : snapshot.prompt === "identify_audio_v1"
+      : snapshot.prompt === "identify_audio_uncertainty_experiment_v1"
+      ? audioUncertaintySystemInstruction()
+      : snapshot.prompt === "identify_audio_v2"
       ? BIOACOUSTIC_SYSTEM_INSTRUCTION
-      : snapshot.prompt === "identify_audio_compat_v1"
+      : snapshot.prompt === "identify_audio_compat_v2"
       ? AUDIO_COMPAT_INSTRUCTION
       : DESCRIBE_SYSTEM_INSTRUCTION);
   const schema = content?.responseSchema ??
     (snapshot.schema === "merian_describe_v1"
       ? getDescribeResponseSchema()
-      : snapshot.schema === "merian_audio_v1"
+      : snapshot.schema === "merian_audio_v2"
       ? getMerianAudioResponseSchema()
       : getMerianResponseSchema(diagnosticTrigger(snapshot)));
   return {

@@ -76,12 +76,12 @@ incident records. Use the canonical runbooks for current procedures.
   on the zoom meter.
 - Native hardware button capture via `AVCaptureEventInteraction` (volume
   buttons, Action button, iPhone 16 Camera Control).
-- Mixed-media staging mode — ordinary scans combine up to 2 total photos, short
-  Pro video clips, audio clips, or descriptions. Reanalysis also reserves one
-  supplementary description, allowing original media + added media + text.
-  **Analyze** includes the current description automatically; **+** remains
-  available to stage it explicitly. See the
-  [Describe and reanalysis guide](docs/features-and-hardware/11-describe-and-voice-dictation.md).
+- Staged review is the default. Free scans allow one photo/audio item plus an
+  optional note; Pro scans allow two media items plus an optional note,
+  including Pro-only video. Reanalysis preserves historical descriptions and one
+  current supplement. Root Describe edits the shared note, and Identify/Analyze
+  submits the latest text. Auto-submit is opt-in. See the
+  [staged-review contract](docs/features-and-hardware/29-staged-capture-review.md).
 - Share one photo from iOS Photos directly to Naturebook. The app opens through
   its image document association, preserves included EXIF date/location context,
   requires the normal gallery crop, and continues through the existing quota,
@@ -120,9 +120,11 @@ incident records. Use the canonical runbooks for current procedures.
 - The staged entitlement replacement gives every existing and future account
   three lifetime complimentary Pro scans, separate from the daily Flash scan.
   Paid Pro takes precedence; after the third durable result, compatible
-  single-evidence captures fall back to Flash while video, mixed-media, and
-  Pro-only actions offer an upgrade. Activation remains behind the documented
-  protocol-3 atomic cutover after the reservation-safe iOS build is verified.
+  one-photo/audio captures with an optional note, or description-only captures,
+  can fall back to Flash. Video, additional physical media, multiple
+  descriptions, and Pro-only actions require eligible Pro funding. Activation
+  remains behind the documented protocol-3 atomic cutover after the
+  reservation-safe iOS build is verified.
 - Structured JSON output schema enforced server-side: common name, scientific
   name, full Linnaean taxonomy, ecology type, IUCN Red List status,
   location-aware invasiveness flag with region/rationale/confidence, confidence
@@ -365,11 +367,15 @@ incident records. Use the canonical runbooks for current procedures.
 ### Settings
 
 **General preferences** — theme (system/light/dark), an optional fresh-launch
-Explore destination, Notifications, system haptics, and geoprivacy. **Pro** —
-multi-capture scans and expedition mode. **Workspace** — camera and audio
-preferences, **Reorder modes**, the on-by-default Camera field trip-goal overlay
-and selected-goal preference, and scan-submission confirmation. This setting
-does not disable server-side progress or the persistent Insight card.
+Explore destination, Notifications, system haptics, and geoprivacy.
+**Workspace** — camera and audio preferences, **Reorder modes**, the
+on-by-default Camera field trip-goal overlay and selected-goal preference,
+Expedition mode for everyone, and default-off **Auto-submit scans**. The field
+trip-goal toggle does not disable server-side progress or the persistent Insight
+card. Staged review is the default; Free permits one photo/audio item plus a
+note, and Pro permits two media items plus a note. The multi-capture toggle and
+separate Pro settings section are removed. See the
+[staged-review contract](docs/features-and-hardware/29-staged-capture-review.md).
 **Geoprivacy** — open, obscured (~10km), or private; configurable per account
 and synced to Supabase. **Notifications** — species discovery alerts,
 achievement milestone alerts. **Changelog** — bundled feature notes, release
@@ -395,8 +401,9 @@ breaches its SLA. See the
 - `HardwareOrchestrator` monitors `ProcessInfo.thermalState` and
   `isLowPowerModeEnabled`, dynamically capping framerates (60fps → 24fps) and
   dropping glassmorphism shaders under thermal pressure.
-- Expedition Mode allows users to force the 24fps/low-fidelity pipeline manually
-  for off-grid battery conservation. This is separate from Explore Field trips.
+- Expedition Mode is available to everyone and applies the existing 24fps cap,
+  reduced visual effects, haptic suppression, and background-upload pause. Its
+  saved preference works offline and is separate from Explore Field trips.
 - `ViewfinderIntelligence` throttles frame analysis to 3fps via `NSLock` before
   any `@MainActor` context switch, preventing GPU thermal spikes from the luma
   evaluation loop.
@@ -505,15 +512,15 @@ cloud-complete precedence, and same scan UUID are described in the
   per account; complimentary holds settle independently from provider quota and
   do not combine into six credits during Ghost-account merge. Paid Pro removes
   the ordinary product cap and receives Gemini 2.5 Pro, video scans, AI chat,
-  multi-capture, Apple Watch logging, expedition mode, and offline queue;
-  database fair-use ceilings still bound automated provider traffic. Every
-  public AI route atomically resolves entitlement, selects its model, and
-  reserves per-user/IP quota before provider dispatch. The iOS `UserDefaults`
-  meter is advisory, and its debug-only bypass cannot change server capacity.
-  Protocol-3 iOS admission serializes one stable account/scan funding
-  reservation before local media writes, subtracts unresolved reservations from
-  verified capacity, and defers later Flash-eligible work until earlier server
-  settlement is known.
+  multi-capture (two media items plus an optional note), Apple Watch logging,
+  and offline queue; Expedition mode is available to everyone, and database
+  fair-use ceilings still bound automated provider traffic. Every public AI
+  route atomically resolves entitlement, selects its model, and reserves
+  per-user/IP quota before provider dispatch. The iOS `UserDefaults` meter is
+  advisory, and its debug-only bypass cannot change server capacity. Protocol-3
+  iOS admission serializes one stable account/scan funding reservation before
+  local media writes, subtracts unresolved reservations from verified capacity,
+  and defers later Flash-eligible work until earlier server settlement is known.
 - Pro follow-up chat is served by a Supabase Edge Function using Gemini 2.5
   Flash against stored scan evidence only; the same function also generates
   short, scan-specific prompt chips from private text context.

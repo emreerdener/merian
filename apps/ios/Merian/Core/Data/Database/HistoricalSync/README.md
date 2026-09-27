@@ -4,8 +4,8 @@ This directory owns authenticated cloud-history hydration for the local scan
 library. The layers are intentionally narrow:
 
 - `Models/HistoricalSyncModels.swift` contains request values, typed outcomes,
-  and the existing PostgREST DTOs. Snake-case properties mirror the unchanged
-  wire contract.
+  and PostgREST DTOs. Snake-case properties mirror the owner-history wire
+  contract, including optional immutable identification provenance.
 - `Decoding/HistoricalScanPageDecoder.swift` splits raw scan pages into rows and
   decodes each row with the production PostgREST decoder. Malformed rows are
   quarantined without changing raw-row pagination.
@@ -66,3 +66,13 @@ and
 focused behavior files. The canonical focused and complete-target commands live
 in the
 [iOS testing strategy](../../../../../../../docs/development-guides/08-testing-strategy.md).
+
+## Result configuration
+
+The sole scan projection selects `identification_provenance`. Accepted metadata
+is stored as stable JSON bytes in V52 and restored through the shared historical
+species projection. Legacy null or omission never clears a present local value;
+malformed present metadata quarantines that row rather than becoming legacy.
+Raw-row pagination and account/save fences are unchanged. Unknown but decodable
+profiles remain present and receive neutral review guidance instead of Gemini
+confidence bands. `IdentificationResultProvenanceTests` verifies these paths.

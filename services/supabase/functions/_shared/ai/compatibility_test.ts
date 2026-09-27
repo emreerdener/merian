@@ -1,3 +1,4 @@
+import type { IdentificationProvenance } from "./provenance.ts";
 import { assert, assertEquals, assertRejects } from "@std/assert";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createIdentifyHandler } from "../../identify/index.ts";
@@ -64,6 +65,7 @@ function database(
     consentDenied?: boolean;
     setupFailed?: boolean;
     unknownInsert?: boolean;
+    cachedSpecies?: boolean;
   },
 ) {
   const events: string[] = [];
@@ -92,15 +94,26 @@ function database(
           return response({ outcome: "job_not_found" });
         case "ensure_scan_user_profile":
           return response(null);
-        case "reserve_ai_quota":
+        case "reserve_identification_quota":
           events.push("reserve");
           assertEquals(args.p_user_id, user.id);
           assertEquals(args.p_request_id, scanId);
           assertEquals(args.p_operation, options.operation);
+          assert(
+            (options.operation === "scan_audio_identification"
+              ? ["audio_compat_v1"]
+              : ["vision_compat_v1", "description_compat_v1"]).includes(
+                args.p_input_profile as string,
+              ),
+          );
           if (options.consentDenied) {
             return response(null, { message: "ai_consent_required" });
           }
           return response({
+            provider: "gemini",
+            binding: "gemini_baseline_v1",
+            processor_permission: "google_gemini",
+            input_profile: args.p_input_profile,
             reservation_id: "00000000-0000-4000-8000-000000000301",
             request_id: scanId,
             lease_token: "00000000-0000-4000-8000-000000000401",
@@ -196,6 +209,13 @@ function database(
           return query;
         },
         maybeSingle: () => {
+          if (table === "species_dictionary" && options.cachedSpecies) {
+            return response({
+              id: "00000000-0000-4000-8000-000000000301",
+              kingdom: "Animalia",
+              group_tags: ["Birds"],
+            });
+          }
           if (table === "users") {
             assertEquals(filters, { id: user.id });
             return response({ default_geoprivacy: "private" });
@@ -519,6 +539,81 @@ Deno.test("compatibility handlers preserve paid work, media durability and repla
           },
         );
       }
+      if (audio) {
+        for (
+          const [subject, score, expectedName, expectedScientificName] of [
+            [
+              "identified_non_human",
+              0.9499,
+              "Synthetic Bird",
+              "Testus acousticus",
+            ],
+            [
+              "identified_non_human",
+              0.95,
+              "Synthetic Bird",
+              "Testus acousticus",
+            ],
+            ["unidentified_non_human", 1, "Unidentified Wildlife", undefined],
+            ["human_only", 1, "Human", "Homo sapiens"],
+            [
+              "no_confident_biological_source",
+              1,
+              "No Wildlife Detected",
+              undefined,
+            ],
+          ] as const
+        ) {
+          await step(
+            `audio confidence state ${subject} at ${score} preserves persistence and replay`,
+            async () => {
+              const db = newDatabase({ cachedSpecies: true });
+              const candidates = [{
+                scientific_name: "Testus alternativus",
+                confidence_score: 0.5,
+                distinguishing_feature: "Synthetic alternate call.",
+              }];
+              const outcome: AIProviderOutcome = {
+                ...facts,
+                kind: "draft",
+                draft: {
+                  ...draft,
+                  is_biological_subject: true,
+                  audio_subject_type: subject,
+                  scientific_name: "Testus acousticus",
+                  common_name: "Synthetic Bird",
+                  confidence_score: score,
+                  ai_reasoning: "Synthetic acoustic fixture.",
+                  extracted_visual_traits: ["synthetic call"],
+                  candidates,
+                },
+              };
+              const result = await run(db, outcome);
+              assertEquals(result.status, 200);
+              await Promise.all(backgroundTasks);
+              const body = await result.json();
+              assertEquals(body.data.common_name, expectedName);
+              assertEquals(body.data.scientific_name, expectedScientificName);
+              assertEquals(body.data.confidence_score, score);
+              assertEquals(
+                body.data.candidates,
+                subject === "identified_non_human" && score < 0.95
+                  ? candidates
+                  : null,
+              );
+              assert(!("audio_subject_type" in body.data));
+              assertEquals(db.inserted()!.ai_confidence_score, score);
+              assertEquals(db.inserted()!.candidates, body.data.candidates);
+              const replay = await run(db, outcome);
+              assertEquals(await replay.json(), body);
+              assertEquals(
+                db.events.filter((event) => event === "invoke").length,
+                1,
+              );
+            },
+          );
+        }
+      }
       for (const finishReason of ["SAFETY", "PROHIBITED_CONTENT"]) {
         await step(`${finishReason} keeps terminal response`, async () => {
           const db = newDatabase();
@@ -586,7 +681,7 @@ Deno.test("compatibility handlers preserve paid work, media durability and repla
           assertEquals(properties.ai_provider, "gemini");
           assertEquals(
             properties.ai_prompt,
-            audio ? "identify_audio_compat_v1" : "identify_vision_v1",
+            audio ? "identify_audio_compat_v2" : "identify_vision_v1",
           );
           assertEquals(properties.ai_returned_model, null);
           const data = (await result.clone().json()).data;
@@ -601,6 +696,26 @@ Deno.test("compatibility handlers preserve paid work, media durability and repla
           );
           assertEquals(mediaEvents, ["PUT"]);
           const row = db.inserted()!;
+          const provenance = row
+            .identification_provenance as IdentificationProvenance;
+          assertEquals(provenance.provider, "gemini");
+          assertEquals(provenance.binding, "gemini_baseline_v1");
+          assertEquals(provenance.model, "gemini-2.5-flash");
+          assertEquals(
+            provenance.prompt,
+            audio ? "identify_audio_compat_v2" : "identify_vision_v1",
+          );
+          assertEquals(
+            provenance.confidence,
+            audio ? "gemini_audio_compat_v2" : "gemini_vision_compat_v1",
+          );
+          assertEquals(
+            provenance.variant,
+            audio ? "audio_compat" : "vision_compat",
+          );
+          assertEquals(provenance.generation.temperature, 0.1);
+          assertEquals(provenance.version, 1);
+          assertEquals(data.identification_provenance, provenance);
           assertEquals([
             row.llm_prompt_tokens,
             row.llm_candidate_tokens,

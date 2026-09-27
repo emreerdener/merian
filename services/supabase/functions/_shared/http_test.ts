@@ -246,3 +246,13 @@ Deno.test("publicErrorResponse rejects invalid public contracts", () => {
     TypeError,
   );
 });
+
+Deno.test("browser preflight permits the denial-only identification recipient header", () => {
+  const response = jsonResponse(null);
+  assertEquals(
+    response.headers.get("Access-Control-Allow-Headers")?.split(", ").includes(
+      "x-merian-identification-recipient",
+    ),
+    true,
+  );
+});

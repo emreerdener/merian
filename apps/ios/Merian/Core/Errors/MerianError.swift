@@ -13,6 +13,7 @@ public enum MerianError: LocalizedError, Equatable {
     case edgeFunctionUnavailable
     case networkTimeout
     case aiConsentRequired
+    case openAIConsentRequired
 
     // MARK: - Subscriptions / Entitlements
 
@@ -42,6 +43,8 @@ public enum MerianError: LocalizedError, Equatable {
             return String(localized: "The network request timed out. Please check your connection and try again.")
         case .aiConsentRequired:
             return String(localized: "Confirm you are 18 or older, accept the current Terms, and allow Google Gemini processing before identifying an observation.")
+        case .openAIConsentRequired:
+            return String(localized: "OpenAI processing permission is required before identifying this observation.")
         case .proRequiredForOfflineTracking:
             return String(localized: "Naturebook Pro is required to track captures offline.")
         case .hardwareUnavailable:

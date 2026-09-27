@@ -162,13 +162,25 @@ extension ConsentRemoteService.Dependencies {
                     .execute()
                     .value
 
+                async let openAIHeadRows: [ConsentRemoteWire.AIConsentEvent] =
+                    SupabaseManager.shared.client
+                    .from("user_ai_consent_events")
+                    .select(ConsentRemoteWire.consentEventColumns)
+                    .eq("user_id", value: userId)
+                    .eq("provider", value: ConsentPolicy.openAIProvider)
+                    .order("consent_revision", ascending: false)
+                    .limit(1)
+                    .execute()
+                    .value
+
                 let rows = try await (
                     adultRows,
                     termsRows,
                     aiRows,
                     analyticsRows,
                     aiStreamHeadRows,
-                    analyticsStreamHeadRows
+                    analyticsStreamHeadRows,
+                    openAIHeadRows
                 )
                 return ConsentRemoteWire.RemoteRows(
                     adultEligibilityReceipts: rows.0,
@@ -176,8 +188,15 @@ extension ConsentRemoteService.Dependencies {
                     aiConsentEvents: rows.2,
                     analyticsConsentEvents: rows.3,
                     aiConsentStreamHeads: rows.4,
-                    analyticsConsentStreamHeads: rows.5
+                    analyticsConsentStreamHeads: rows.5,
+                    openAIConsentStreamHeads: rows.6
                 )
+            },
+            appendOpenAIConsentEvent: { parameters in
+                try await SupabaseManager.shared.client
+                    .rpc("append_user_openai_consent_event", params: parameters)
+                    .execute()
+                    .value
             }
         )
     }

@@ -37,6 +37,10 @@ All fields are optional:
 - Unnests all non-empty `scans.image_storage_urls`.
 - Requires `image_quality_score >= 80` and either `ai_confidence_score >= 0.95`
   or a non-null `confirmed_species_id` by default.
+- Both dry-run and live selection require an exact compatible Gemini execution
+  or historical absence of provenance. Unknown profiles are excluded even when a
+  species is confirmed: confirmation does not qualify a new image-quality scale.
+  Existing source records are disqualified by the next normal refresh.
 - Dedupes by `(species_id, image_url)`, preferring confirmed-species provenance,
   higher confidence, higher quality score, and then newer `shared_at`.
 - Promotes up to 8 Merian images per species by default.

@@ -1,3 +1,13 @@
+import { identificationProvenance } from "../_shared/ai/provenance.ts";
+import {
+  AUDIO_PROMPT_COMPARISON_CONFIG_ENV,
+  AudioPromptComparisonError,
+  processPromptComparisonAudio,
+  promptComparisonRequested,
+  requirePromptComparisonReservation,
+  resolveAudioPromptComparison,
+  verifyPromptComparisonExecution,
+} from "./comparison/promptAssignment.ts";
 import type { AIExecutionOutcome } from "../_shared/ai/contracts.ts";
 import { prepareAIExecution } from "../_shared/ai/production.ts";
 import { buildMultimodalAIRequest } from "./provider.ts";
@@ -33,7 +43,7 @@ import { isFlashFallbackEligible } from "../_shared/complimentaryScans.ts";
 import {
   AIQuotaError,
   deriveAIRequestId,
-  reserveAIProviderCall,
+  reserveIdentificationProviderCall,
   resolveAIRequestId,
 } from "../_shared/aiQuota.ts";
 import { trackPostHogEvent } from "../_shared/posthog.ts";
@@ -347,6 +357,7 @@ export async function handleIdentifyMultimodalRequest(
   internalReplayAttempt?: number,
   prepare = prepareAIExecution,
   resolveComparison = resolveAudioComparison,
+  resolvePromptComparison = resolveAudioPromptComparison,
 ): Promise<Response> {
   if (internalReplayAttempt == null) {
     const protocolError = await entitlementProtocolResponse(
@@ -433,7 +444,17 @@ export async function handleIdentifyMultimodalRequest(
 
   const generatedScanId = resolveAIRequestId(req, client_scan_id);
   let audioComparison;
+  let audioPromptComparison;
   try {
+    audioPromptComparison = await resolvePromptComparison({
+      body: rawBody,
+      scanId: generatedScanId,
+      userId: user.id,
+      internalReplayAttempt,
+      configuration: promptComparisonRequested(rawBody, generatedScanId)
+        ? Deno.env.get(AUDIO_PROMPT_COMPARISON_CONFIG_ENV)
+        : undefined,
+    });
     audioComparison = await resolveComparison({
       body: rawBody,
       scanId: generatedScanId,
@@ -444,7 +465,10 @@ export async function handleIdentifyMultimodalRequest(
         : undefined,
     });
   } catch (error) {
-    if (!(error instanceof AudioComparisonError)) throw error;
+    if (
+      !(error instanceof AudioComparisonError) &&
+      !(error instanceof AudioPromptComparisonError)
+    ) throw error;
     return publicErrorResponse(
       req,
       409,
@@ -682,7 +706,12 @@ export async function handleIdentifyMultimodalRequest(
       }
       try {
         processedAudios.push(
-          audioComparison
+          audioPromptComparison
+            ? await processPromptComparisonAudio(
+              audioPromptComparison,
+              audioBuffer,
+            )
+            : audioComparison
             ? await processComparisonAudio(audioComparison, audioBuffer)
             : processMultimodalWAV(
               audioBuffer,
@@ -692,7 +721,10 @@ export async function handleIdentifyMultimodalRequest(
         );
         processedAudioInputIndexes.push(audioInputIndex);
       } catch (wavErr) {
-        if (wavErr instanceof AudioComparisonError) {
+        if (
+          wavErr instanceof AudioComparisonError ||
+          wavErr instanceof AudioPromptComparisonError
+        ) {
           return publicErrorResponse(
             req,
             409,
@@ -773,9 +805,43 @@ export async function handleIdentifyMultimodalRequest(
       generatedScanId,
       `scan-ingestion-replay:${internalReplayAttempt}`,
     );
+  const aiRequest = buildMultimodalAIRequest({
+    observationEvidenceTexts,
+    visualMediaItems: normalizedVisualMediaItems,
+    imageBase64s: resolvedImageBase64s,
+    imageMimeType: mimeType,
+    processedAudios,
+    audioMediaItems: processedAudioMediaItems,
+    processedAudioInputIndexes,
+    hasVideoAudio,
+    capture: {
+      hasVideo: mediaTelemetry.hasVideo,
+      videoClipCount: mediaTelemetry.videoClipCount,
+      declaredVideoFrameCount: mediaTelemetry.declaredVideoFrameCount,
+      videoInferenceFrameCount: mediaTelemetry.videoInferenceFrameCount,
+    },
+    telemetry: {
+      safeGpsLat,
+      safeGpsLon,
+      gpsElevation,
+      depthScaleText,
+      zoomFactor,
+      estimatedSizeCm,
+      semanticLocation,
+      weatherCondition,
+      weatherTemperatureF,
+      deviceLocale,
+      deviceTimeZone,
+      deviceRegion,
+      currentMonth,
+      timeOfDay,
+    },
+  });
+
   let quotaLease;
   try {
-    quotaLease = await reserveAIProviderCall(req, supabaseAdmin, {
+    quotaLease = await reserveIdentificationProviderCall(req, supabaseAdmin, {
+      request: aiRequest,
       userId: user.id,
       operation: "scan_identification",
       requestId: quotaRequestId,
@@ -814,12 +880,23 @@ export async function handleIdentifyMultimodalRequest(
     }
     throw error;
   }
-  if (audioComparison) {
+  if (audioComparison || audioPromptComparison) {
     try {
-      requireComparisonReservation(audioComparison, quotaLease.reservation);
+      if (audioPromptComparison) {
+        requirePromptComparisonReservation(
+          audioPromptComparison,
+          quotaLease.reservation,
+        );
+      }
+      if (audioComparison) {
+        requireComparisonReservation(audioComparison, quotaLease.reservation);
+      }
     } catch (error) {
       await quotaLease.refund();
-      if (!(error instanceof AudioComparisonError)) throw error;
+      if (
+        !(error instanceof AudioComparisonError) &&
+        !(error instanceof AudioPromptComparisonError)
+      ) throw error;
       return publicErrorResponse(
         req,
         409,
@@ -835,38 +912,6 @@ export async function handleIdentifyMultimodalRequest(
   const targetModel = quotaLease.reservation.model;
 
   const hasObservationContextText = observationEvidenceTexts.length > 0;
-  const aiRequest = buildMultimodalAIRequest({
-    observationEvidenceTexts,
-    visualMediaItems: normalizedVisualMediaItems,
-    imageBase64s: resolvedImageBase64s,
-    imageMimeType: mimeType,
-    processedAudios,
-    audioMediaItems: processedAudioMediaItems,
-    processedAudioInputIndexes,
-    hasVideoAudio,
-    capture: {
-      hasVideo: mediaTelemetry.hasVideo,
-      videoClipCount: mediaTelemetry.videoClipCount,
-      declaredVideoFrameCount: mediaTelemetry.declaredVideoFrameCount,
-      videoInferenceFrameCount: mediaTelemetry.videoInferenceFrameCount,
-    },
-    telemetry: {
-      safeGpsLat,
-      safeGpsLon,
-      gpsElevation,
-      depthScaleText,
-      zoomFactor,
-      estimatedSizeCm,
-      semanticLocation,
-      weatherCondition,
-      weatherTemperatureF,
-      deviceLocale,
-      deviceTimeZone,
-      deviceRegion,
-      currentMonth,
-      timeOfDay,
-    },
-  });
 
   const mediaCounts = {
     image_count: mediaTelemetry.imageCount,
@@ -1015,10 +1060,24 @@ export async function handleIdentifyMultimodalRequest(
     const execution = prepare(aiRequest, {
       kind: "user_request",
       userId: user.id,
-      permission: "google_gemini",
+      permission: quotaLease.reservation.assignment.permission,
       operation: "scan_identification",
       reservation: quotaLease.reservation,
+      ...(audioPromptComparison
+        ? { audioPromptComparison: audioPromptComparison.assignment.arm }
+        : {}),
     });
+    if (audioPromptComparison) {
+      await verifyPromptComparisonExecution(
+        audioPromptComparison,
+        aiRequest,
+        execution.snapshot,
+      );
+      requirePromptComparisonReservation(
+        audioPromptComparison,
+        quotaLease.reservation,
+      );
+    }
     if (audioComparison) {
       await verifyComparisonExecution(
         audioComparison,
@@ -1290,6 +1349,9 @@ export async function handleIdentifyMultimodalRequest(
 
   let responseEnvelope: IdentifySuccessEnvelope;
   try {
+    payloadReadyForClient.identification_provenance = identificationProvenance(
+      result.execution,
+    );
     responseEnvelope = parseIdentifySuccessEnvelope({
       success: true,
       data: payloadReadyForClient,
@@ -1597,6 +1659,7 @@ export async function handleIdentifyMultimodalRequest(
         {
           id: generatedScanId,
           user_id: user.id,
+          identification_provenance: identificationProvenance(result.execution),
           species_id: speciesId,
           timestamp: timestamp ?? undefined,
           gps_lat_exact: safeGpsLat,
@@ -2076,7 +2139,11 @@ export async function handleIdentifyMultimodalRequest(
     responseEnvelope,
     200,
     {
-      ...identificationDiagnosticHeaders(result, audioComparison),
+      ...identificationDiagnosticHeaders(
+        result,
+        audioComparison,
+        audioPromptComparison,
+      ),
       "Server-Timing": serverTimingValue([
         { name: "body_read", durationMs: bodyReadMs },
         { name: "tier", durationMs: tierMs },

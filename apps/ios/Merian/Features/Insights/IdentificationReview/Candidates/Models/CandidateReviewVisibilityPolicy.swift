@@ -9,6 +9,7 @@ enum CandidateReviewVisibilityPolicy {
     static func shouldSurfaceForReviewCollection(
         primaryConfidence: Double?,
         inferenceTier: String?,
+        provenance: IdentificationResultProvenance? = nil,
         candidates: [IdentificationCandidate],
         isBiological: Bool = true,
         isUnknownSubject: Bool = false,
@@ -29,7 +30,9 @@ enum CandidateReviewVisibilityPolicy {
             return false
         }
 
-        let bands = InferenceConfidencePolicy.bands(forInferenceTier: inferenceTier)
+        guard let bands = InferenceConfidencePolicy.bands(
+            forInferenceTier: inferenceTier, provenance: provenance
+        ) else { return true }
         guard primaryConfidence < bands.diagnosticTrigger else { return false }
         if primaryConfidence < bands.strong { return true }
 
@@ -45,6 +48,7 @@ enum CandidateReviewVisibilityPolicy {
         return visibleCandidates(
             primaryConfidence: speciesData.confidenceScore,
             inferenceTier: speciesData.inferenceTier,
+            provenance: speciesData.identificationProvenance,
             candidates: speciesData.candidates ?? [],
             isBiological: speciesData.isBiological,
             isUnknownSubject: !speciesData.hasResolvedBiologicalIdentification,
@@ -59,6 +63,7 @@ enum CandidateReviewVisibilityPolicy {
     static func visibleCandidates(
         primaryConfidence: Double?,
         inferenceTier: String?,
+        provenance: IdentificationResultProvenance? = nil,
         candidates: [IdentificationCandidate],
         isBiological: Bool = true,
         isUnknownSubject: Bool = false,
@@ -71,6 +76,7 @@ enum CandidateReviewVisibilityPolicy {
         guard shouldShowCandidates(
             primaryConfidence: primaryConfidence,
             inferenceTier: inferenceTier,
+            provenance: provenance,
             candidates: candidates,
             isBiological: isBiological,
             isUnknownSubject: isUnknownSubject,
@@ -89,6 +95,7 @@ enum CandidateReviewVisibilityPolicy {
     static func shouldShowCandidates(
         primaryConfidence: Double?,
         inferenceTier: String?,
+        provenance: IdentificationResultProvenance? = nil,
         candidates: [IdentificationCandidate],
         isBiological: Bool = true,
         isUnknownSubject: Bool = false,
@@ -110,7 +117,9 @@ enum CandidateReviewVisibilityPolicy {
             return false
         }
 
-        let bands = InferenceConfidencePolicy.bands(forInferenceTier: inferenceTier)
+        guard let bands = InferenceConfidencePolicy.bands(
+            forInferenceTier: inferenceTier, provenance: provenance
+        ) else { return true }
         guard primaryConfidence < bands.diagnosticTrigger else { return false }
         if primaryConfidence < bands.strong { return true }
 

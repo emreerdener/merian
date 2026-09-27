@@ -29,13 +29,15 @@ final class AppSettings {
             persistBool(opensExploreOnLaunch, oldValue: oldValue, key: UserDefaultsKeys.opensExploreOnLaunch)
         }
     }
-    var isMultiCaptureEnabled: Bool {
-        didSet { persistBool(isMultiCaptureEnabled, oldValue: oldValue, key: UserDefaultsKeys.isMultiCaptureEnabled) }
-    }
-    var requiresScanConfirmation: Bool {
+    private(set) var autoSubmitRevision: UInt64 = 0
+    var autoSubmitScans: Bool {
         didSet {
-            persistBool(requiresScanConfirmation, oldValue: oldValue, key: UserDefaultsKeys.requiresScanConfirmation)
+            if oldValue != autoSubmitScans { autoSubmitRevision &+= 1 }
+            persistBool(autoSubmitScans, oldValue: oldValue, key: UserDefaultsKeys.autoSubmitScans)
         }
+    }
+    var hasShownCaptureNoteTip: Bool {
+        didSet { persistBool(hasShownCaptureNoteTip, oldValue: oldValue, key: UserDefaultsKeys.hasShownCaptureNoteTip) }
     }
     var showsCaptureGoalProgress: Bool {
         didSet {
@@ -167,8 +169,8 @@ final class AppSettings {
         userDefaults.register(defaults: [
             UserDefaultsKeys.themeMode: ThemeMode.system.rawValue,
             UserDefaultsKeys.opensExploreOnLaunch: false,
-            UserDefaultsKeys.isMultiCaptureEnabled: false,
-            UserDefaultsKeys.requiresScanConfirmation: false,
+            UserDefaultsKeys.autoSubmitScans: false,
+            UserDefaultsKeys.hasShownCaptureNoteTip: false,
             UserDefaultsKeys.showsCaptureGoalProgress: true,
             UserDefaultsKeys.isExpeditionModeActive: false,
             UserDefaultsKeys.isHapticsEnabled: true,
@@ -204,8 +206,8 @@ final class AppSettings {
             rawValue: userDefaults.string(forKey: UserDefaultsKeys.themeMode) ?? ThemeMode.system.rawValue
         ) ?? .system
         opensExploreOnLaunch = userDefaults.bool(forKey: UserDefaultsKeys.opensExploreOnLaunch)
-        isMultiCaptureEnabled = userDefaults.bool(forKey: UserDefaultsKeys.isMultiCaptureEnabled)
-        requiresScanConfirmation = userDefaults.bool(forKey: UserDefaultsKeys.requiresScanConfirmation)
+        autoSubmitScans = userDefaults.bool(forKey: UserDefaultsKeys.autoSubmitScans)
+        hasShownCaptureNoteTip = userDefaults.bool(forKey: UserDefaultsKeys.hasShownCaptureNoteTip)
         showsCaptureGoalProgress = userDefaults.bool(forKey: UserDefaultsKeys.showsCaptureGoalProgress)
         isExpeditionModeActive = userDefaults.bool(forKey: UserDefaultsKeys.isExpeditionModeActive)
         isHapticsEnabled = userDefaults.bool(forKey: UserDefaultsKeys.isHapticsEnabled)
@@ -276,8 +278,8 @@ final class AppSettings {
             rawValue: userDefaults.string(forKey: UserDefaultsKeys.themeMode) ?? ThemeMode.system.rawValue
         ) ?? .system
         opensExploreOnLaunch = userDefaults.bool(forKey: UserDefaultsKeys.opensExploreOnLaunch)
-        isMultiCaptureEnabled = userDefaults.bool(forKey: UserDefaultsKeys.isMultiCaptureEnabled)
-        requiresScanConfirmation = userDefaults.bool(forKey: UserDefaultsKeys.requiresScanConfirmation)
+        autoSubmitScans = userDefaults.bool(forKey: UserDefaultsKeys.autoSubmitScans)
+        hasShownCaptureNoteTip = userDefaults.bool(forKey: UserDefaultsKeys.hasShownCaptureNoteTip)
         showsCaptureGoalProgress = userDefaults.bool(forKey: UserDefaultsKeys.showsCaptureGoalProgress)
         isExpeditionModeActive = userDefaults.bool(forKey: UserDefaultsKeys.isExpeditionModeActive)
         isHapticsEnabled = userDefaults.bool(forKey: UserDefaultsKeys.isHapticsEnabled)

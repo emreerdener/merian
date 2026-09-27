@@ -56,7 +56,12 @@ these facts without replacing service authentication or the claim RPC. User
 permission and quota policy version are null for this context; no user quota or
 scan-credit reservation is created. Preview returns before preparation. Prompts,
 schemas, token limits, and JSON decoding are preserved by the shared Gemini
-adapter.
+adapter. `sharedContent.ts` independently requires the retained Gemini content
+profile before invocation or canonical writes. An unqualified snapshot fails the
+claimed job through its existing completion/retry path without a model call.
+Existing shared content and generic public provenance are not relabeled or
+invalidated; another content provider needs separate task qualification and
+private candidate/promotion rules.
 
 Existing usage writes keep null user attribution and add bounded task,
 provider/version, duration, and outcome metadata. Overview/lookalike writes

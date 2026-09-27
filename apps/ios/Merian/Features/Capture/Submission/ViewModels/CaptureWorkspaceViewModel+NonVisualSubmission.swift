@@ -31,13 +31,15 @@ extension CaptureWorkspaceViewModel {
         }
         stagedCapture.lastSubmitTime = now
 
-        return await submitNonVisualCapture(
+        let accepted = await submitNonVisualCapture(
             audioFileNames: [audioFileName],
             observationContexts: [],
             mediaTimeline: [.audio(audioFileName)],
             modelContext: modelContext,
             userPerceivedStart: now
         )
+        if accepted { discardLocalMediaFiles(at: [audioFileName]) }
+        return accepted
     }
 
     // MARK: - Shared Non-Visual Submission
@@ -57,7 +59,8 @@ extension CaptureWorkspaceViewModel {
         userPerceivedStart: CFAbsoluteTime? = nil,
         admissionRoute: CaptureScanAdmissionRoute? = nil
     ) async -> Bool {
-        guard !mediaTimeline.isEmpty else { return false }
+        guard !mediaTimeline.isEmpty, isDraftReadyForSubmission else { return false }
+        let submittedGeneration = draftSession.generation
         #if DEBUG && targetEnvironment(simulator)
         let debugReplayProfile = stagedCapture.audios.first?.debugReplayProfile
         if hasFixedContextDebugReplay {
@@ -107,6 +110,7 @@ extension CaptureWorkspaceViewModel {
             resolvedAdmissionRoute = route
         }
 
+        guard isDraftReadyForSubmission, draftSession.generation == submittedGeneration else { return false }
         diContainer.cameraManager.resetZoom()
 
         let filteredAudioFileNames = audioFileNames.filter { !$0.isEmpty }
@@ -150,6 +154,7 @@ extension CaptureWorkspaceViewModel {
         // Commit the capture before crossing any async boundary. Location names,
         // WeatherKit, and authentication are optional enrichment; none may decide
         // whether irreplaceable audio/video bytes reach the durable queue.
+        var acceptedMedia: [CaptureSubmissionMediaItem]?
         let enqueued = diContainer.offlineQueueManager.enqueueNonVisualCapture(
             audioFileNames: filteredAudioFileNames,
             observationContexts: filteredObservationContexts,
@@ -157,14 +162,17 @@ extension CaptureWorkspaceViewModel {
             mediaTimeline: mediaTimeline,
             telemetry: immediateTelemetry,
             scanId: scanId,
-            foregroundInferenceGeneration: foregroundInferenceGeneration
+            foregroundInferenceGeneration: foregroundInferenceGeneration,
+            onAccepted: { acceptedMedia = $0 }
         )
-        guard enqueued else {
+        guard enqueued, let acceptedTimeline = acceptedMedia else {
             capturedPreFetchTask?.cancel()
             pendingAnalyzeScanId = nil
             offlineToastMessage = .error("Unable to save capture. Please try again.")
             return false
         }
+        let acceptedAudio = acceptedTimeline.audioFilePaths
+        let acceptedVideo = acceptedTimeline.videoFilePaths
         if let userPerceivedStart {
             MerianLog.general.debug(
                 "[⏱ BENCH] Analyze tap to durable queue commit: \(String(format: "%.3f", CFAbsoluteTimeGetCurrent() - userPerceivedStart), privacy: .public)s"
@@ -277,10 +285,10 @@ extension CaptureWorkspaceViewModel {
             self.diContainer.inferenceEngine.analyzeNonVisual(
                 scanId: scanId,
                 foregroundInferenceGeneration: foregroundInferenceGeneration,
-                audioFilePaths: filteredAudioFileNames.isEmpty ? nil : filteredAudioFileNames,
-                videoFilePaths: filteredVideoFileNames.isEmpty ? nil : filteredVideoFileNames,
+                audioFilePaths: acceptedAudio.isEmpty ? nil : acceptedAudio,
+                videoFilePaths: acceptedVideo.isEmpty ? nil : acceptedVideo,
                 observationContexts: filteredObservationContexts,
-                mediaTimeline: mediaTimeline,
+                mediaTimeline: acceptedTimeline,
                 telemetry: telemetry,
                 modelContext: modelContext,
                 targetEradicationScanId: targetEradicationScanId,

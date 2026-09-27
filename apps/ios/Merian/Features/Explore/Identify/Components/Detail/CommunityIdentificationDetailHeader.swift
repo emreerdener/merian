@@ -147,9 +147,10 @@ struct CommunityAIIdentificationCard: View {
     }
 
     private var confidenceLabel: String? {
-        guard let score = aiSuggestion?.confidenceScore else { return nil }
-        let clampedScore = min(max(score, 0), 1)
-        return "\(Int((clampedScore * 100).rounded()))% confident"
+        CommunityAIIdentificationPresentation.confidenceLabel(
+            score: aiSuggestion?.confidenceScore,
+            qualified: detail.aiConfidenceQualified
+        )
     }
 
     private var aiReasoning: String? {
@@ -157,12 +158,10 @@ struct CommunityAIIdentificationCard: View {
     }
 
     private var modelLabel: String {
-        switch detail.inferenceTier?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
-        case "pro":
-            "Naturebook Pro"
-        default:
-            "Naturebook Flash"
-        }
+        CommunityAIIdentificationPresentation.modelLabel(
+            tier: detail.inferenceTier,
+            qualified: detail.aiConfidenceQualified
+        )
     }
 
     private func trimmed(_ value: String?) -> String? {

@@ -2,6 +2,27 @@ import Foundation
 
 /// File-backed capture staging shared by visual and non-visual queue admission.
 enum OfflineCaptureFileStore {
+    /// Construct the live handoff from the same maps committed to the durable record.
+    static func acceptedTimeline(
+        _ timeline: [CaptureSubmissionMediaItem],
+        audio: [String: String], video: [String: String],
+        documentsDirectory: URL
+    ) throws -> [CaptureSubmissionMediaItem] {
+        func path(_ source: String, in map: [String: String]) throws -> String {
+            guard let name = map[source] else { throw CocoaError(.fileNoSuchFile) }
+            return documentsDirectory.appendingPathComponent(name).path
+        }
+        return try timeline.map { item in
+            switch item {
+            case .audio(let source): return .audio(try path(source, in: audio))
+            case .video(let source, let poster, let companion):
+                return .video(try path(source, in: video), posterImageIndex: poster,
+                              audioFilePath: try companion.map { try path($0, in: audio) })
+            case .image, .description: return item
+            }
+        }
+    }
+
     static func persistFiles(
         _ filePaths: [String],
         documentsDirectory: URL
@@ -10,7 +31,7 @@ enum OfflineCaptureFileStore {
 
         var persistedNamesBySourcePath: [String: String] = [:]
         do {
-            for filePath in filePaths {
+            for filePath in Set(filePaths) {
                 persistedNamesBySourcePath[filePath] = try persistFile(
                     filePath,
                     documentsDirectory: documentsDirectory
@@ -35,7 +56,7 @@ enum OfflineCaptureFileStore {
         }
 
         let sourceURL = URL(fileURLWithPath: normalizedPath)
-        let destinationName = sourceURL.lastPathComponent
+        let destinationName = "queued-\(UUID().uuidString)-\(sourceURL.lastPathComponent)"
         let destinationURL = documentsDirectory.appendingPathComponent(destinationName)
 
         let candidateURLs: [URL]
@@ -43,20 +64,16 @@ enum OfflineCaptureFileStore {
             candidateURLs = [sourceURL]
         } else {
             candidateURLs = [
-                destinationURL,
+                documentsDirectory.appendingPathComponent(normalizedPath),
                 FileManager.default.temporaryDirectory.appendingPathComponent(normalizedPath)
             ]
         }
 
         for candidateURL in candidateURLs {
             guard FileManager.default.fileExists(atPath: candidateURL.path) else { continue }
-            if candidateURL.path == destinationURL.path {
-                return destinationName
-            }
-            if FileManager.default.fileExists(atPath: destinationURL.path) {
-                try FileManager.default.removeItem(at: destinationURL)
-            }
-            try FileManager.default.moveItem(at: candidateURL, to: destinationURL)
+            // The draft retains its source until durable acceptance. Failure cleanup
+            // may delete only these unique queue-owned copies.
+            try FileManager.default.copyItem(at: candidateURL, to: destinationURL)
             return destinationName
         }
 

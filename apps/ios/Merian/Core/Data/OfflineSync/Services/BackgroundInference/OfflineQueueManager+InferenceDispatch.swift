@@ -160,51 +160,9 @@ extension OfflineQueueManager {
                 scanId: scanId,
                 extracted: extracted
             )
-        } catch MerianError.aiConsentRequired {
-            do {
-                try ConsentManager.shared
-                    .requireCurrentConsentReapprovalAfterServerRejection()
-            } catch {
-                MerianLog.auth.error(
-                    "Queued inference consent reapproval could not be persisted; the in-memory gate remains closed: \(error.localizedDescription, privacy: .private)"
-                )
-            }
-            MerianLog.data.debug(
-                "dispatchInferenceDownloadTask: consent reapproval required before dispatch scanId=\(scanId, privacy: .private)"
-            )
-            _ = softDeleteQueuedScan(
-                scanId: scanId,
-                reason: BackgroundInferencePolicy.requiredConsentAttentionMessage,
-                errorCode: "ai_consent_required",
-                needsAttention: true
-            )
-            return
-        } catch BackgroundInferencePreparationRace.Failure.timedOut {
-            MerianLog.data.error(
-                "dispatchInferenceDownloadTask: preparation timed out scanId=\(scanId, privacy: .public)"
-            )
-            await handleInferenceRetry(
-                scanId: scanId,
-                generation: preparationGeneration,
-                reason: "pre-dispatch timeout"
-            )
-            return
-        } catch is CancellationError {
-            MerianLog.data.error(
-                "dispatchInferenceDownloadTask: preparation cancelled scanId=\(scanId, privacy: .public)"
-            )
-            await handleInferenceRetry(
-                scanId: scanId,
-                generation: preparationGeneration,
-                reason: "pre-dispatch cancelled"
-            )
-            return
         } catch {
-            MerianLog.data.error("dispatchInferenceDownloadTask: failed to build request for \(scanId, privacy: .private): \(error, privacy: .private)")
-            await handleInferenceRetry(
-                scanId: scanId,
-                generation: preparationGeneration,
-                reason: "request build failed"
+            await handleInferencePreparationFailure(
+                error, scanId: scanId, generation: preparationGeneration
             )
             return
         }
@@ -258,6 +216,15 @@ extension OfflineQueueManager {
             return
         }
 
+        do {
+            try authenticatedRequest.validateForDispatch()
+        } catch {
+            await handleInferencePreparationFailure(
+                error, scanId: scanId, generation: preparationGeneration
+            )
+            return
+        }
+
         let durableOwnership = BackgroundAccountWorkOwnership(
             ownerUserID: authenticatedRequest.expectedAuthUserID,
             generation: preparationGeneration,
@@ -281,7 +248,18 @@ extension OfflineQueueManager {
             generation: preparationGeneration,
             ownerUserID: authenticatedRequest.expectedAuthUserID
         )
-        guard SupabaseManager.shared.isAccountBoundWorkLeaseCurrent(
+        let dispatchValidationError: Error?
+        do {
+            try authenticatedRequest.validateForDispatch()
+            dispatchValidationError = nil
+        } catch {
+            dispatchValidationError = error
+        }
+        guard dispatchValidationError == nil,
+              allowsAutomaticNetworkWorkOnCurrentPath,
+              isInferencePreparationCurrent(scanId: scanId, generation: preparationGeneration),
+              isInferenceGenerationCurrent(scanId: scanId, expectedGeneration: preparationGeneration),
+              SupabaseManager.shared.isAccountBoundWorkLeaseCurrent(
             accountWorkLease
         ), retainBackgroundAccountWork(
             accountWorkLease,
@@ -293,7 +271,18 @@ extension OfflineQueueManager {
             // a permanently stranded inference owner.
             let didRetire = await Self.awaitDurableBackgroundWorkRetirement(
                 retire: {
-                    await self.retireRejectedBackgroundAccountWork(
+                    // Persist permission/update denial before retirement makes
+                    // this row runnable. Keep the suspended owner on save failure.
+                    if let error = dispatchValidationError,
+                       let attention = BackgroundInferencePolicy.preparationAttention(for: error),
+                       self.isInferencePreparationCurrent(scanId: scanId, generation: preparationGeneration),
+                       self.isInferenceGenerationCurrent(scanId: scanId, expectedGeneration: preparationGeneration) {
+                        guard self.softDeleteQueuedScan(
+                            scanId: scanId, reason: attention.reason,
+                            errorCode: attention.code, needsAttention: true
+                        ) else { return false }
+                    }
+                    return await self.retireRejectedBackgroundAccountWork(
                         scanId: scanId,
                         generation: preparationGeneration,
                         ownerUserID:
@@ -326,6 +315,31 @@ extension OfflineQueueManager {
         )
 
         MerianLog.data.debug("🚀 BACKGROUND INFERENCE: Dispatched download task for \(scanId, privacy: .public)")
+    }
+
+    private func handleInferencePreparationFailure(
+        _ error: Error, scanId: String, generation: UUID
+    ) async {
+        // A late preflight cannot pause or requeue a replacement attempt.
+        guard isInferencePreparationCurrent(scanId: scanId, generation: generation),
+              isInferenceGenerationCurrent(scanId: scanId, expectedGeneration: generation) else { return }
+        if let attention = BackgroundInferencePolicy.preparationAttention(for: error) {
+            if (error as? MerianError) == .aiConsentRequired {
+                _ = try? ConsentManager.shared.requireCurrentConsentReapprovalAfterServerRejection()
+            }
+            _ = softDeleteQueuedScan(
+                scanId: scanId, reason: attention.reason,
+                errorCode: attention.code, needsAttention: true
+            )
+            return
+        }
+        let reason: String
+        switch error {
+        case BackgroundInferencePreparationRace.Failure.timedOut: reason = "pre-dispatch timeout"
+        case is CancellationError: reason = "pre-dispatch cancelled"
+        default: reason = "request build failed"
+        }
+        await handleInferenceRetry(scanId: scanId, generation: generation, reason: reason)
     }
 
     private func prepareInferenceDownloadRequestWithTimeout(

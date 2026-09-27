@@ -267,21 +267,41 @@ decoding failures with a caller-specified `MerianError`; both options default to
 nil. Error replacement surrounds only decoding, never request construction,
 transport, auth, or cancellation.
 
-`ScanAdmissionManager` is the one non-Edge PostgREST consumer admitted through
-the facade. Its bridge accepts only
-`POST /rest/v1/rpc/get_my_scan_admission_preview` on the configured Supabase
-origin with a nonempty bearer credential and nonempty anon API key, then
-dispatches through the same pinned session. It exposes no general raw-request
-capability, refresh, or replay. The transport applies the preview's two-second
-request and wall-clock deadline plus no-cache policy; PostgREST keeps retry
-disabled. `performAuthenticatedEncodedJSONPost` encodes an `Encodable` body with
-`JSONEncoder` and returns bytes for domain-specific validation. It forwards the
-timeout and optional idempotency key without catching encoding, transport, or
-cancellation errors. Classified-401 recovery remains enabled by default. A
-durable caller that is itself part of Auth-transition quiescence may explicitly
-defer that recovery so it cannot recursively await its own task; the original
-HTTP failure then returns to that caller's retry policy. None of these bridges
-adds a retry or task owner or exposes mutable transport state.
+`ScanAdmissionManager` and identification recipient preflight use distinct,
+fixed non-Edge PostgREST routes through the facade. The allowance bridge accepts
+only `POST /rest/v1/rpc/get_my_scan_admission_preview` on the configured
+Supabase origin with a nonempty bearer credential and nonempty anon API key,
+then dispatches through the same pinned session. It exposes no general
+raw-request capability, refresh, or replay. The transport applies the preview's
+two-second request and wall-clock deadline plus no-cache policy; PostgREST keeps
+retry disabled. `performAuthenticatedEncodedJSONPost` encodes an `Encodable`
+body with `JSONEncoder` and returns bytes for domain-specific validation. It
+forwards the timeout and optional idempotency key without catching encoding,
+transport, or cancellation errors. Classified-401 recovery remains enabled by
+default. A durable caller that is itself part of Auth-transition quiescence may
+explicitly defer that recovery so it cannot recursively await its own task; the
+original HTTP failure then returns to that caller's retry policy. None of these
+bridges adds a retry or task owner or exposes mutable transport state.
+
+Identification preparation derives a value-only `IdentificationPreflightInput`
+from the exact serialized `identify` or `identify-multimodal` body off-main.
+`Endpoints/MerianNetworkClient+IdentificationPreflight.swift` validates one
+bounded, matching row from `get_my_identification_preflight`; only shape, scan
+identity and protocol metadata enter this RPC. `AdmissionRPCRequestPolicy` keeps
+both admission routes closed to arbitrary URLs. The recipient call uses private
+authenticated pinned transport, expected-owner binding and a five-second request
+timeout. Failure does not fall back to headerless inference.
+
+`IdentificationDispatchAuthorization` retains a closed recipient expectation and
+main-actor current-permission/attempt validator. Prepared requests keep both;
+`AuthenticatedRequestExecutor` rebuilds the header on every replay and
+`AuthenticatedTransportDispatcher` validates immediately before dispatch. The
+live service supplies its exact attempt validator, including visual requests,
+and releases its upload fail-safe only after preflight readiness. Background
+requests validate again after task enumeration and durable activation. An
+expired recovery-only hint cannot authorize fresh work at the backend. Current
+Gemini required-consent synchronization and protocol 3 remain unchanged; no
+OpenAI grant or provider choice is introduced.
 
 `performAuthenticatedJSONDataPost` serializes an untyped JSON body and returns
 bytes for scan lifecycle's explicit-key decoder. Its optional expected Auth user
@@ -2624,8 +2644,12 @@ mutation or deployment is authorized by this refactor.
 - Maps only handler-owned HTTP `403` with stable code `ai_consent_required` to
   `MerianError.aiConsentRequired`. That is a disclosure transition—not quota
   exhaustion or generic authorization—and foreground callers must preserve the
-  queued scan while the account returns to Ready. `402 pro_required` and the
-  `429` quota/rate codes remain separate.
+  queued scan while the account returns to Ready. Exact
+  `403 ai_openai_consent_required` instead maps to
+  `MerianError.openAIConsentRequired`, with no Gemini reapproval callback,
+  grant, provider selection or automatic retry. Unknown codes retain generic
+  HTTP handling. `402 pro_required` and the `429` quota/rate codes remain
+  separate.
 - Treats shared-auth `401 auth_session_missing` and `401 invalid_session_token`
   as refresh-first transitions. The pinned Supabase SDK refreshes the current
   session through its single-flight session manager, then the client rebuilds
@@ -2658,7 +2682,12 @@ mutation or deployment is authorized by this refactor.
   separate from measurement-v2, within the 1 KiB log budget. They retain no
   response prose, media or request identity. Device/Release builds cannot create
   comparison requests or proof records, and background builders never attach the
-  measurement context.
+  measurement context. `DebugAudioComparisonBinding` shares lifecycle mechanics
+  across the immutable DSP and new prompt assignments; each retains its own
+  plan, request key, receipt and proof version. Prompt finalization additionally
+  binds actual subject state and a named animal's normalized scientific-name
+  digest without logging the name. The offline observer admits these as
+  provisional source agreement only, never independent species accuracy.
 - Records URLSession request-upload, time-to-first-byte-after-upload, and
   response-transfer intervals.
 - Treats current `/identify-multimodal` `200` as a server durability fence:
@@ -2810,9 +2839,12 @@ reconciliation owner, it declines inline classified-`401` recovery. The failure
 returns to durable scheduling; otherwise recovery would try to quiesce the task
 and account lease that initiated it.
 
-The server—not the request payload—classifies whether a single-evidence capture
-can use the separate daily Flash policy after complimentary exhaustion. Video,
-multiple or mixed evidence, and Pro-only actions remain upgrade-required. The
+The server derives whether the evidence can use the separate daily Flash policy
+after complimentary exhaustion. One non-video photo or standalone audio plus one
+optional note, or one description alone, qualifies. Additional physical media,
+multiple descriptions, video-derived evidence, and Pro-only actions do not.
+Native entry, queue, replay, and recipient preflight mirror that rule through
+`IdentificationEvidenceAllowance`; client hints never authorize dispatch. The
 normative wire and rollout contract is
 [Three Complimentary Pro Scans](../../../../../docs/backend-and-data/18-complimentary-pro-scans.md).
 

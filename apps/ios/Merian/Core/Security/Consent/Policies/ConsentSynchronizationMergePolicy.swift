@@ -29,7 +29,8 @@ enum ConsentSynchronizationMergePolicy {
         }
         for event in [
             remoteState.aiConsentEvent,
-            remoteState.aiConsentStreamHead
+            remoteState.aiConsentStreamHead,
+            remoteState.openAIConsentStreamHead
         ].compactMap({ $0 }) {
             upsert(event, in: &candidate.aiConsentEvents, id: \.id)
         }

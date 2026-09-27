@@ -1,11 +1,10 @@
 # Capture Staging
 
 `Capture/Staging` owns the ephemeral mixed-media draft that appears before one
-Capture submission. It preserves user order across up to two total photos,
-videos, audio clips, or descriptions without owning network, queue, or file
-deletion work. Reanalysis permits one supplementary description beyond that
-two-item evidence budget; historical descriptions still count as original
-evidence.
+Capture submission. It preserves user order across one physical item for Free or
+two for Pro, plus one optional note. Staging owns neither network, queue, nor
+file deletion work. Reanalysis keeps historical descriptions and its one current
+supplement separately from the two-physical-item budget.
 
 ## Ownership
 
@@ -62,31 +61,27 @@ and durable ownership is documented in the
 
 ## Behavioral Contracts
 
-Reanalysis uses the same evidence-capacity policy for capture/import admission,
+Reanalysis uses the same physical-capacity policy for capture/import admission,
 completed media, picker counts, and controls. Its supplementary description is
 marked only in the ephemeral `StagedObservationContext`; the marker never enters
-request or queue JSON. Adding description first leaves the additional media slot
-available. Adding both physical items first still leaves Describe's **+**
-available, including to update an existing supplement. The tray retains its
-existing styling and renders all three chronological items. When the refinement
-media row cannot fit, it scrolls horizontally inside the existing tray so Cancel
-and Analyze remain visible without shrinking the media buttons.
-
-The "Tap to edit" tooltip sizes its pill to the full single-line label,
-independently of the media row width, including when only one item is visible.
+request or queue JSON. The shared root Describe editor can update it at full
+media capacity. Historical descriptions remain separate and preserve original
+evidence order. The glass tray scrolls its media row while keeping Discard and
+Analyze visible. The ordinary note tooltip appears once per install.
 
 Photo-library picks and one-photo document imports enter staging only after
 caller-scoped admission and remain required-crop items until confirmed or
-cancelled. A known denial presents the paywall before picker/file preparation;
-queue-only admission may proceed, but final submission rechecks because preview
-does not reserve quota.
+cancelled. Picker entry checks the minimum one-photo addition; selected imports
+recheck the actual count before file preparation. A known denial presents the
+paywall; queue-only admission may proceed, but final submission rechecks because
+preview does not reserve quota.
 
 An eligible automatic single capture suppresses the Identify tray from the same
 mutation that stages its media until submission consumes the draft or fails.
-Confirmation-enabled, multi-capture, mixed-media, and refinement flows retain
-manual tray behavior. Required crop has a separate chrome fence from commit
-through completion/cancellation so staged controls cannot flash beneath the
-full-screen cover.
+Staged review, additional context, and refinement retain manual tray behavior.
+Required crop has a separate chrome fence from commit through
+completion/cancellation so staged controls cannot flash beneath the full-screen
+cover.
 
 The shared image cropper has left/right 90-degree rotation controls that
 preserve zoom and rotate the selected area. Confirmed quarter-turns, scale, and
@@ -98,9 +93,11 @@ crop. See
 
 Every media replacement must retain its original `addedAt` value. Submission and
 persistence derive chronology from that value; changing it during a crop would
-reorder the user's evidence. Cancel, remove, replacement, timeout, and
-queue-rejection paths delete temporary audio/video files. Successful queue/live
-handoff clears references only because the durable owner has adopted them.
+reorder the user's evidence. Confirmed whole-draft discard deletes only
+draft-owned files and invalidates its generation. Queue rejection preserves the
+draft and its sources for manual retry. Queue admission copies media to unique
+durable files; accepted live inference uses that exact mapped timeline. Only
+after acceptance are staging sources released.
 
 The supplementary marker is local to the refinement session and does not alter
 `ObservationContext`, queue JSON, or the API. Supplement updates retain their
@@ -125,3 +122,20 @@ Models/Services/Views/Components boundary, Submission ownership of wire/replay
 declarations, the single toolbar ordering source, effect isolation, retired Core
 path, and 600-line production-file guard. Paired Shell and Submission suites
 cover admission/presentation fences and timeline/projection contracts.
+
+## Review and shared text
+
+The root Describe editor owns the one ordinary note. Note-node taps focus it
+even at physical capacity. Historical descriptions alone retain the local-copy
+sheet. Free has one physical slot plus a note; Pro has two physical slots plus a
+note. The tray scrolls its media row while keeping Identify and confirmed
+Discard visible. Native glass respects Expedition, thermal, and accessibility
+reductions. Identify alone is text-only blue; Analyze retains its existing
+treatment. See the
+[staged-review contract](../../../../../../docs/features-and-hardware/29-staged-capture-review.md).
+
+Reanalysis keeps historical descriptions alongside its existing primary-media
+selection in original evidence order. Historical descriptions and the single
+current supplement have separate text budgets; neither consumes a physical media
+slot. Historical audio preparation is fenced by draft generation, even when
+restarting reanalysis for the same original scan.

@@ -28,6 +28,21 @@ operations. See the
 for field names, errors, retry and proof-header semantics. This is neither a
 provider/model selector nor an additional provider dispatch path.
 
+## Bounded audio prompt comparison (disabled)
+
+`comparison/promptPlan.ts` separately binds the frozen 36-slot uncertainty
+experiment. `promptAssignment.ts` owns its strict owner/block/window, reserved
+scan ID, media, first-Pro-attempt and execution checks. `promptInstruction.ts`
+contains the exact reviewed candidate delta without changing the base audio
+instruction. The handler supplies trusted A/B authority only after admission;
+ordinary requests remain V2 and both arms use current DSP. Runtime imports no
+evaluation scripts. The new environment, request marker and receipt are
+specified in the
+[API contract](../../../../docs/backend-and-data/05-api-contracts.md#server-owned-audio-prompt-comparison).
+Keep the environment unset: its activation controller and exact-SHA release
+validation are
+[Slice 3 prerequisites](../../../../docs/backend-and-data/06-supabase-deployment-runbook.md#audio-prompt-comparison-activation-prerequisites).
+
 ## Request Contract
 
 The endpoint accepts authenticated user requests through `withEdgeHandler`.
@@ -168,7 +183,7 @@ policy, and exhausted counters fail closed before provider dispatch.
 
 `provider.ts` builds the canonical request from already validated and prepared
 evidence. The registry captures the admitted model, tier, prompt/schema, and
-generation settings before commitment. `instructions.ts` owns the unchanged
+generation settings before commitment. `instructions.ts` owns the versioned
 audio, main-text, and blended instructions; the shared Identify schema module
 retains the vision instruction. The handler still owns media validation,
 consent/quota admission, one commit followed by one invocation, error handling,
@@ -187,14 +202,24 @@ performs dictionary hydration and final envelope validation afterward. Offline
 evaluation uses this same helper through its scripts-only bridge; it does not
 invoke admission or persistence.
 
-The route retains the existing modality-specific system instructions,
-temperature `0.1`, seed `42`, `maxOutputTokens: 8192`, Pro thinking budget
-`5000`, unspecified Flash thinking budget, structured response schema,
-image/media resolution, and safety behavior. Neither tier adds `topK` or a
-safety-settings override. Main description-only mode retains the main schema and
-remains distinct from legacy `identify-describe`. Latency optimization must
-happen around this call, not by changing its economics or identification
-semantics.
+The route uses the modality-specific system instructions and retains temperature
+`0.1`, seed `42`, `maxOutputTokens: 8192`, Pro thinking budget `5000`,
+unspecified Flash thinking budget, structured response schema, image/media
+resolution, and safety behavior. Neither tier adds `topK` or a safety-settings
+override. Main description-only mode retains the main schema and remains
+distinct from legacy `identify-describe`. Latency optimization must happen
+around this call, not by changing its economics or identification semantics.
+
+## Audio Confidence V2
+
+Named non-human results score the returned taxon from acoustic evidence.
+Unresolved wildlife scores animal presence without a species-match badge; Human
+scores its returned identity and retains its badge; non-biological audio scores
+the source classification. Both the prompt and private schema use the same
+definition. Thresholds and generation settings are unchanged, and no historic
+score is changed. The consumed processing-comparison plan remains immutable and
+disabled; a future live comparison needs a newly frozen plan bound to the V2
+prompt/schema digests.
 
 ## Audio Subject Selection
 
@@ -653,3 +678,13 @@ its existing error. The
 [API contract](../../../../docs/backend-and-data/05-api-contracts.md) describe
 the representation and limits. Provider, prompt and confidence selection are
 unchanged.
+
+## Result provenance
+
+Fresh success includes optional `data.identification_provenance`, projected from
+the immutable admitted execution before final wire validation and durable
+finalization. It matches the scan's bounded configuration metadata, never model
+output or request JSON. Stored replay preserves its original value or omission;
+reconstruction uses the immutable scan column and omits legacy null. Explicit
+null or damaged present wire metadata fails validation. See the
+[client integration record](../../../../docs/rfcs/identification-client-result-provenance-2026-09-26.md).

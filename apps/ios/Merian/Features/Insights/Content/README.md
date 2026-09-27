@@ -65,6 +65,12 @@ non-biological audio result routes through `NonBiologicalView` and displays the
 sentence-cased `No wildlife detected` label with the normal non-biological
 retention treatment.
 
+Audio confidence V2 keeps the existing Human identity badge. Named animals use
+confidence in their returned taxon, while unresolved-presence and non-biological
+classification scores never become species-match badges. Field Trip
+contributions come from the server's resolved non-Human eligibility guard,
+independent of badge visibility; a Human correction withdraws invalid credit.
+
 Historical `Unknown Subject` / `Taxonomy Unavailable` audio is presentation-only
 compatibility data: a stored biological row receives the safe unresolved label,
 while a stored non-biological row displays `No wildlife detected`. Neither path

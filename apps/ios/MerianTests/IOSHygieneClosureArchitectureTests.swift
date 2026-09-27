@@ -29,6 +29,8 @@ struct IOSHygieneClosureArchitectureTests {
     private static let trackedOversizedOwners: Set<String> = [
         "App/UITesting/UITestSeedCoordinator.swift",
         "Core/Network/SupabaseManager.swift",
-        "Models/SchemaVersions.swift"
+        "Models/SchemaVersions.swift",
+        // The immutable V51 model graph must remain together as its verified snapshot.
+        "Models/Schema/SchemaV51Snapshots.swift"
     ]
 }

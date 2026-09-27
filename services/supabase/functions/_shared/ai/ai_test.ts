@@ -1,3 +1,4 @@
+import { identificationInputProfile } from "./identificationInput.ts";
 import { assert, assertEquals, assertRejects, assertThrows } from "@std/assert";
 import type { AIRequest, UserRequestAuthority } from "./contracts.ts";
 import { prepareAIExecution } from "./production.ts";
@@ -20,6 +21,7 @@ import {
   getMerianResponseSchema,
   getSystemInstruction,
 } from "../identify/schema.ts";
+import { AUDIO_CONFIDENCE_DESCRIPTION } from "../identify/contract.ts";
 import { diagnosticTriggerForTier } from "../identify/thresholds.ts";
 import { isProviderSafetyRejected } from "../identify/moderation.ts";
 import {
@@ -34,13 +36,22 @@ const request = buildDescribeAIRequest("Synthetic striped organism.", {
   currentMonth: 9,
 });
 
-function authority(model = "gemini-2.5-flash"): UserRequestAuthority {
+function authority(
+  model = "gemini-2.5-flash",
+  input: AIRequest = request,
+): UserRequestAuthority {
   return {
     kind: "user_request",
     userId: "synthetic-owner",
     permission: "google_gemini",
     operation: "scan_identification",
     reservation: {
+      assignment: {
+        inputProfile: identificationInputProfile(input),
+        provider: "gemini",
+        binding: "gemini_baseline_v1",
+        permission: "google_gemini",
+      },
       id: "synthetic-reservation",
       requestId: "synthetic-request",
       attemptCount: 1,
@@ -210,7 +221,7 @@ function multimodalCases(): Array<
 
 Deno.test("multimodal binding requires admitted tier and rejects native video evidence", () => {
   const input = buildMultimodalAIRequest(multimodalCases()[0]);
-  const admitted = authority();
+  const admitted = authority("gemini-2.5-flash", input);
   assertThrows(
     () =>
       resolveAIClaim(input, {
@@ -253,7 +264,7 @@ Deno.test("compatibility bindings keep operation and evidence authority distinct
   const visual = buildVisionAIRequest({ imageBase64s: ["AQ=="], telemetry });
   const audio = buildAudioAIRequest("Ag==", telemetry);
   const audioAuthority = {
-    ...authority(),
+    ...authority("gemini-2.5-flash", audio),
     operation: "scan_audio_identification",
   };
   assertEquals(
@@ -281,6 +292,68 @@ Deno.test("compatibility bindings keep operation and evidence authority distinct
     Error,
     "ai_unsupported_input",
   );
+});
+
+Deno.test("audio confidence v2 is bound to both audio-only routes, never blended evidence", () => {
+  for (const model of ["gemini-2.5-flash", "gemini-2.5-pro"]) {
+    for (const input of multimodalCases()) {
+      const canonical = buildMultimodalAIRequest(input);
+      const snapshot = resolveAIClaim(canonical, authority(model, canonical));
+      const audioOnly = input.processedAudios.length > 0 &&
+        input.imageBase64s.length === 0;
+      const native = buildGeminiRequest(canonical, snapshot);
+      assertEquals(snapshot.model, model);
+      assertEquals(
+        snapshot.confidence,
+        audioOnly ? "gemini_audio_v2" : "gemini_identify_v1",
+      );
+      assertEquals(
+        snapshot.schema,
+        audioOnly ? "merian_audio_v2" : "merian_identify_v1",
+      );
+      const instruction = native.config!.systemInstruction;
+      assert(typeof instruction === "string");
+      assertEquals(
+        instruction.includes(AUDIO_CONFIDENCE_DESCRIPTION),
+        audioOnly,
+      );
+      if (audioOnly) {
+        assertEquals(snapshot.prompt, "identify_audio_v2");
+        assertEquals(
+          (native.config!.responseSchema as {
+            properties: { confidence_score: { description: string } };
+          }).properties.confidence_score.description,
+          AUDIO_CONFIDENCE_DESCRIPTION,
+        );
+      } else if (input.processedAudios.length > 0) {
+        assertEquals(snapshot.prompt, "identify_blended_v1");
+      }
+      assertEquals(snapshot.diagnosticTrigger, 0.99);
+    }
+    const audio = buildAudioAIRequest("Ag==", {
+      safeGpsLat: null,
+      safeGpsLon: null,
+    });
+    const snapshot = resolveAIClaim(audio, {
+      ...authority(model, audio),
+      operation: "scan_audio_identification",
+    });
+    const native = buildGeminiRequest(audio, snapshot);
+    assertEquals(snapshot.prompt, "identify_audio_compat_v2");
+    assertEquals(snapshot.schema, "merian_audio_v2");
+    assertEquals(snapshot.confidence, "gemini_audio_compat_v2");
+    assertEquals(snapshot.diagnosticTrigger, undefined);
+    assert(typeof native.config!.systemInstruction === "string");
+    assert(
+      native.config!.systemInstruction.includes(AUDIO_CONFIDENCE_DESCRIPTION),
+    );
+    assertEquals(
+      (native.config!.responseSchema as {
+        properties: { confidence_score: { description: string } };
+      }).properties.confidence_score.description,
+      AUDIO_CONFIDENCE_DESCRIPTION,
+    );
+  }
 });
 
 Deno.test("AI snapshots preserve admitted policy and complete describe request profiles", () => {
@@ -486,7 +559,10 @@ Deno.test("AI Gemini adapter preserves dispatch, usage, finish and timeout behav
           `${input.label} preserves ${model} request and evidence`,
           async () => {
             const canonical = buildMultimodalAIRequest(input);
-            const snapshot = resolveAIClaim(canonical, authority(model));
+            const snapshot = resolveAIClaim(
+              canonical,
+              authority(model, canonical),
+            );
             const hasImages = input.imageBase64s.length > 0;
             const hasAudio = input.processedAudios.length > 0;
             const trigger = diagnosticTriggerForTier(
@@ -582,7 +658,10 @@ Deno.test("AI Gemini adapter preserves dispatch, usage, finish and timeout behav
                 }],
               }],
             };
-            const result = await prepareAIExecution(canonical, authority(model))
+            const result = await prepareAIExecution(
+              canonical,
+              authority(model, canonical),
+            )
               .invoke();
             assertEquals(result.kind, "draft");
             assertEquals(result.usage, null);
@@ -651,12 +730,12 @@ Deno.test("AI Gemini adapter preserves dispatch, usage, finish and timeout behav
                   telemetry,
                 });
               const admitted = {
-                ...authority(model),
+                ...authority(model, canonical),
                 operation: audio
                   ? "scan_audio_identification"
                   : "scan_identification",
                 reservation: {
-                  ...authority(model).reservation,
+                  ...authority(model, canonical).reservation,
                   tier: { effective_tier: tier },
                 },
               };
@@ -790,7 +869,7 @@ Deno.test("AI Gemini adapter preserves dispatch, usage, finish and timeout behav
             }],
           };
           const admitted = {
-            ...authority(),
+            ...authority("gemini-2.5-flash", canonical),
             operation: canonical.variant === "audio_compat"
               ? "scan_audio_identification"
               : "scan_identification",
@@ -868,5 +947,37 @@ Deno.test("AI Gemini adapter preserves dispatch, usage, finish and timeout behav
       if (value == null) Deno.env.delete(name);
       else Deno.env.set(name, value);
     }
+  }
+});
+
+Deno.test("identification registry rejects missing or mismatched database recipient assignments", () => {
+  for (
+    const assignment of [undefined, {
+      provider: "openai",
+      binding: "gemini_baseline_v1",
+      permission: "google_gemini",
+    }, {
+      provider: "gemini",
+      binding: "unapproved",
+      permission: "google_gemini",
+    }, {
+      provider: "gemini",
+      binding: "gemini_baseline_v1",
+      permission: "openai",
+    }]
+  ) {
+    const admitted = authority();
+    assertThrows(
+      () =>
+        prepareAIExecution(request, {
+          ...admitted,
+          reservation: {
+            ...admitted.reservation,
+            assignment: assignment as never,
+          },
+        }),
+      Error,
+      "ai_authority_mismatch",
+    );
   }
 });

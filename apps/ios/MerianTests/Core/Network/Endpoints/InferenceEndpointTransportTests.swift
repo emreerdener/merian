@@ -83,12 +83,16 @@ struct InferenceEndpointTransportTests {
         let persisted = durable.appendingPathComponent(try #require(names[preparedURL.path]))
         defer { try? FileManager.default.removeItem(at: persisted) }
         #expect(try Data(contentsOf: persisted).elementsEqual(expected))
-        // Replay stages a Documents-relative name. Re-admission must retain an
-        // already durable file, then the network client must resolve that name.
+        // Replay stages a Documents-relative source. Admission gives it a distinct
+        // queue-owned copy, leaving the original intact for pre-acceptance failure.
         let retained = try OfflineCaptureFileStore.persistFiles(
             [persisted.lastPathComponent], documentsDirectory: durable
         )
-        #expect(retained[persisted.lastPathComponent] == persisted.lastPathComponent)
+        let acceptedName = try #require(retained[persisted.lastPathComponent])
+        let accepted = durable.appendingPathComponent(acceptedName)
+        defer { try? FileManager.default.removeItem(at: accepted) }
+        #expect(accepted != persisted)
+        #expect(try Data(contentsOf: accepted).elementsEqual(expected))
         #expect(try Data(contentsOf: persisted).elementsEqual(expected))
 
         let fixture = inferenceFixture()
@@ -110,7 +114,7 @@ struct InferenceEndpointTransportTests {
             return try NetworkEndpointTestSupport.response(to: request, json: #"{"success":true}"#)
         }
         _ = try await fixture.client.identifyMultiModal(
-            audioFilePaths: [persisted.lastPathComponent],
+            audioFilePaths: [acceptedName],
             audioMediaItems: [.audio(sourceIndex: 0)],
             ownerMediaTimeline: [.audio(audioInputIndex: 0, sourceIndex: 0)],
             telemetry: fixedContext ? DebugIdentificationReplayProfile.audioMinimalV1.makeTelemetry() : telemetry(),

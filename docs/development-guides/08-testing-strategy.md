@@ -213,15 +213,15 @@ pin tests to historical versioned schemas — a pinned schema silently drops new
 model fields (e.g. `similarSpecies` added in `MerianSchemaV26`), causing
 persistence tests to pass against the wrong shape.
 
-The current persisted schema is V51. Two released-V50 fixtures are required
+The current persisted schema is V52. Two released-V50 fixtures are required
 because builds emitted distinct model checksums under the same schema version.
 The original fixture creates `ScanCollection.isDeleted` and opens through
 `MerianRecentV50MigrationPlan`; the later processed-release fixture creates
 `isPendingDeletion` with `@Attribute(originalName: "isDeleted")` and opens
 through `MerianReleasedActiveV50MigrationPlan`. Both assert the active
-`isPendingDeletion` value after the V50→V51 preference migration. Keep each
-fixture's exact property shape frozen; production tests should use the active
-property name and predicate.
+`isPendingDeletion` value after the V50→V51 preference migration and V51→V52
+provenance stage. Keep each fixture's exact property shape frozen; production
+tests should use the active property name and predicate.
 
 An in-memory container is not sufficient evidence for a stored-property rename,
 schema migration, restart guarantee, or property-name collision with
@@ -405,7 +405,7 @@ here cover only selector ownership and build/tooling contracts.
 | Durable claims, recovery, duplicate records and restart              | `InferenceLifecyclePersistenceTests`, `LiveCaptureLifecycleTests`, `BackgroundInferenceCompletionTests`, `InferenceReplayTests`, `DiskBackedInferenceAcceptanceTests`                             |
 | Insight restoration, media continuity and dismissal                  | `InsightQueuedHandoffTests`, `InsightShellLifecycleTests`, new disk-backed acceptance; five exact UI cases in the manifest                                                                        |
 | Resource admission and task ownership                                | `MediaStagingBudgetTests`, `AsyncPermitPoolTests`, `InferenceEngineTests` (including backlog cap and Auth hydration/write drains)                                                                 |
-| Startup and V50/V51 compatibility                                    | `ModelContainerBootstrapperTests`, `ModelStoreRecoveryCoordinatorTests`, `MigrationPlanTests`                                                                                                     |
+| Startup and V50/V51/V52 compatibility                                | `ModelContainerBootstrapperTests`, `ModelStoreRecoveryCoordinatorTests`, `MigrationPlanTests`                                                                                                     |
 | Secondary product and account transitions                            | `OnboardingViewModelTests`, `OnboardingConsentRecoveryTests`, `ExploreFeedViewModelTests`, `AuthLocalSignOutCoordinatorTests`, `AuthSessionLifecycleCoordinatorTests`, `OfflineJobSchedulerTests` |
 
 The new disk-backed test closes and reopens a private SQLite store, reconciles
@@ -1649,16 +1649,17 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
     must reuse the V45 checksum representative for unchanged local-scan,
     captured-media, and collection models, while V45 and V46 recent plans must
     keep those sources isolated from each other and route directly to V49 before
-    the shared V49→V50→V51 tail. The full historical plan must remain a single
-    linear chain through V42→V49→frozen V50→V51; V43...V48 belong only to
-    source-isolated plans. V49 must select a dedicated `[V49, frozen V50, V51]`
-    plan. V50 must select either `[released-active V50, V51]` or
-    `[frozen V50, V51]` from an allowlisted store checksum, and an unknown V50
-    graph must not be guessed. The source guardrail must preserve retry order as
-    current store, released-active V50, frozen V50, V49, V48, then V47 through
-    V42; checking only that every label exists is insufficient. It must also
-    keep the V35...V48 `UserSpeciesPreference` aliases chained to the immutable
-    V34 model; pointing any retired schema at the active V51 type rewrites that
+    the shared V49→V50→V51→V52 tail. The full historical plan must remain a
+    single linear chain through V42→V49→frozen V50→frozen V51→V52; V43...V48
+    belong only to source-isolated plans. V49 must select a dedicated
+    `[V49, frozen V50, V51, V52]` plan. V50 must select either
+    `[released-active V50, V51, V52]` or `[frozen V50, V51, V52]` from an
+    allowlisted store checksum, and an unknown V50 graph must not be guessed.
+    The source guardrail must preserve retry order as current store, V51,
+    released-active V50, frozen V50, V49, V48, then V47 through V42; checking
+    only that every label exists is insufficient. It must also keep the
+    V35...V48 `UserSpeciesPreference` aliases chained to the immutable V34
+    model; pointing any retired schema at a mutable active type rewrites that
     source schema's checksum. Disk-backed SwiftData migration tests should use
     unique temporary store URLs and must not unlink the `.sqlite`,
     `.sqlite-shm`, or `.sqlite-wal` files during the test process. Core Data may
@@ -2512,7 +2513,7 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   600-line ceiling.
 - **`Models/ModelsIntegrationArchitectureTests.swift`**: Audits the complete
   Models boundary after the Species and Captured Media slices. It freezes the
-  root and V51 active-schema inventories, rejects filesystem/network/task and
+  root and V52 active-schema inventories, rejects filesystem/network/task and
   `ModelContext` workflow ownership there, verifies the queued-row projection,
   queued-byte, queued-media-presentation, and cloud-deletion persistence
   adapters have one owner each, requires the live queued-row projection to stay
@@ -3090,7 +3091,7 @@ prove visual parity, live Auth/provider behavior, or migration execution.
   creation, membership mutation, explicit pre-mutation restoration before
   rollback for every mutation kind, and exact
   save-before-invalidation-before-sync ordering. The
-  `testDeleteUsesDurableSyncBoundary` case verifies the active V51
+  `testDeleteUsesDurableSyncBoundary` case verifies the active V52
   `ScanCollection.isPendingDeletion` save-first tombstone boundary and must
   remain enabled; it is a release-blocking regression if it fails.
 - **`CollectionsViewModelTests.swift`**
@@ -3375,16 +3376,17 @@ functional, format changed Markdown with `deno fmt`, and finish with
 
 The production contract is in
 [Describe mode](../features-and-hardware/11-describe-and-voice-dictation.md).
-Ordinary capture limits remain unchanged; reanalysis permits two evidence items
-plus one supplementary description. The supplementary marker stays local to
-staging and is absent from HTTP and durable payloads.
+Free permits one physical item plus one note; Pro permits two physical items
+plus one note. Reanalysis also preserves historical text separately from its
+current supplement. The supplementary marker stays local to staging and is
+absent from HTTP and durable payloads.
 
-| Coverage                   | Owner and assertions                                                                                                                                                                                                                                                                                                                                                               |
-| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Draft and session behavior | `CaptureWorkspaceRefinementDescriptionTests.swift`, under `CaptureWorkspaceViewModelRefinementTests`: direct Analyze, **+** then Analyze, updates without duplication/reordering, both image/audio insertion orders, blank/rejected drafts, busy submission, historical descriptions, tray edits/removal, and starting replacement reanalysis with only the new target's evidence. |
-| Capacity and controls      | `CaptureStagingToolbarPresentationTests` and `CaptureControlBarPresentationTests`: reserved description allowance, no third physical-media slot, Describe **+** remains usable at evidence capacity, and chronological three-item presentation.                                                                                                                                    |
-| Queue and request body     | `CaptureRefinementReplayTests.swift`, under the same workspace selector: original + image/audio + description persists three entries, replay matches the staged projection, and the actual HTTP body builder emits the expected media arrays, one text context, and exact owner-timeline indexes. This constructs JSON without contacting a provider.                              |
-| Speech lifecycle           | Existing `DescribeInputViewModelTests` cover cancellation and stale-session callbacks. The mounted transcript binding additionally ignores callbacks after the request ends; simulator checks must exercise successful **+**/**Analyze**, tray-editor entry, and replacement routing while dictation is active.                                                                    |
+| Coverage                   | Owner and assertions                                                                                                                                                                                                                                                                                                                                                                             |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Draft and session behavior | `CaptureWorkspaceRefinementDescriptionTests.swift`, under `CaptureWorkspaceViewModelRefinementTests`: direct Analyze, shared-text staging then Analyze, updates without duplication/reordering, both image/audio insertion orders, blank/rejected drafts, busy submission, historical descriptions, tray edits/removal, and starting replacement reanalysis with only the new target's evidence. |
+| Capacity and controls      | `CaptureStagingToolbarPresentationTests` and `CaptureControlBarPresentationTests`: reserved description allowance, no third physical-media slot, shared Describe remains usable at physical capacity, and chronological evidence presentation.                                                                                                                                                   |
+| Queue and request body     | `CaptureRefinementReplayTests.swift`, under the same workspace selector: original + image/audio + description persists three entries, replay matches the staged projection, and the actual HTTP body builder emits the expected media arrays, one text context, and exact owner-timeline indexes. This constructs JSON without contacting a provider.                                            |
+| Speech lifecycle           | Existing `DescribeInputViewModelTests` cover cancellation and stale-session callbacks. The mounted transcript binding additionally ignores callbacks after the request ends; simulator checks must exercise submission, historical-editor entry, and replacement routing while dictation is active.                                                                                              |
 
 After `make xcodegen` and `make validate-ios-project`, run the focused matrix on
 an available simulator through the checkout-local build wrapper. Replace
@@ -3395,12 +3397,12 @@ make ios-local-build ARGS='simulator -- test -configuration Debug -destination "
 ```
 
 Manual acceptance must cover typing on Describe, switching to Scan/Record, and
-tapping Analyze; adding text before and after an extra image/audio item; **+**
-followed by Analyze; editing/removing the supplement with a pending editor
-draft; and opening a different scan's reanalysis. Repeat the submission and
+tapping Analyze; adding text before and after an extra image/audio item;
+editing/clearing the shared supplement and independently editing historical
+text; and opening a different scan's reanalysis. Repeat the submission and
 tray-edit steps with dictation active to ensure late transcripts do not restore
 cleared text. On a narrow screen and with larger text, confirm the media row
-scrolls only when needed and Cancel/Analyze and all media review actions remain
+scrolls only when needed and Discard/Analyze and all media review actions remain
 reachable.
 
 **Local handoff evidence (2026-09-12):** Swift parsing, changed-source
@@ -3838,11 +3840,11 @@ xcodebuild -quiet -scheme Merian -project Merian.xcodeproj \
   `event_source`.
 - **`HardwareOrchestratorTests.swift`**: Mocks
   `ProcessInfo.processInfo.thermalState` boundaries to verify the camera
-  throttles FPS dynamically without restarting instances. Verifies the
-  `UserDefaults` binding (`isExpeditionModeActive`) correctly overrides OS
-  thresholds to lock to 24fps and remove glass modifiers. To avoid Swift runtime
-  crashes in asynchronous CI containers, calls `AppTelemetry.initialize()` at
-  `HardwareOrchestratorTests.init()` using a stub `TEST_MOCK_ID` configuration.
+  throttles FPS dynamically without restarting instances. Verifies the injected
+  preference (`isExpeditionModeActive`) locks to 24fps and removes glass without
+  entitlement, and disabling it restores ordinary thermal evaluation. The suite
+  checks background-sync suppression and initializes `AppTelemetry` in its test
+  initializer.
 - **`SpeechManagerTests.swift`**: Lives under `Core/Hardware` and locks that
   preflight cleanup does not initialize the microphone plus cancellation resets
   recording and level state. Describe session fencing remains in the
@@ -5101,15 +5103,15 @@ Generated-project membership must include every Swift file below both mirrored
 Collections directories, and each production Collections file must remain under
 the feature's 600-line review guard.
 
-The V51 matrix keeps the durable-delete regression enabled. It verifies that the
+The V52 matrix keeps the durable-delete regression enabled. It verifies that the
 renamed application tombstone survives `ModelContext.save()`, refetch, disk
-migration from V49, both released-V50 graphs migrating into V51, and a second
-context, while both V50 fixture graphs remain frozen. Run the complete
-`MigrationPlanTests` suite with the disk-backed V49→V50→V51 and both V50→V51
-fixtures, the focused Collections suites without exclusions, startup recovery
-coverage, and the full `merianTests` target. Any duplicate-checksum
-initialization failure remains a release blocker and must be fixed in the
-migration plan rather than bypassed.
+migration from V49, both released-V50 graphs migrating through frozen V51 into
+V52, and a second context, while both V50 fixture graphs remain frozen. Run the
+complete `MigrationPlanTests` suite with the disk-backed V49→V50→V51→V52, both
+V50→V51→V52 and direct V51→V52 fixtures, the focused Collections suites without
+exclusions, startup recovery coverage, and the full `merianTests` target. Any
+duplicate-checksum initialization failure remains a release blocker and must be
+fixed in the migration plan rather than bypassed.
 
 ### Scans Non-Biological
 
@@ -5685,10 +5687,11 @@ observations/supporting runs older than 30 days, and prevent artifact reuse
 across criteria. The manual evidence workflow passes `${{ inputs.* }}` through
 step environment variables before Bash consumes them; direct expression
 interpolation in a `run` script is a workflow-security regression. The
-historical genuine released-binary V49→V50 baseline, the current V50→V51
-physical install-over, and the canonical external consent/App Store/billing/DPA
-evidence must also pass. Artifact integrity does not authenticate an
-off-platform issuer or establish independent secret administration; follow the
+historical genuine released-binary V49→V50 baseline, the V50 source-variant
+physical install-over to current V52, the released-V51→V52 install-over, and the
+canonical external consent/App Store/billing/DPA evidence must also pass.
+Artifact integrity does not authenticate an off-platform issuer or establish
+independent secret administration; follow the
 [release-evidence operations guide](../release-evidence/README.md). These remain
 full-release checklist items; the beta exception does not certify them or
 reinstate the source hold automatically.
@@ -6802,6 +6805,67 @@ equivalence. See the
 [assignment record](../rfcs/identification-audio-comparison-assignment-2026-09-23.md)
 for the backend checkpoint.
 
+The separate offline audio uncertainty slice adds the root-discovered
+`identification_audio_uncertainty_test.ts`: actual V2 request parity, the exact
+instruction delta, design drift rejection, current DSP format validation, all 36
+prospective assignments and repeated request hashes. The existing isolated
+evaluator suite registers
+`identification_evaluation/testing/audioPromptPacketTests.ts` for frozen
+source/review/reference bindings, retention, tampering, unsafe permissions,
+symlinks/hardlinks, added context, reused outputs and CLI network/environment
+denial. These checks are synthetic mechanics only. The
+[evaluation tooling guide](../../services/supabase/scripts/identification_evaluation/README.md#offline-audio-uncertainty-prompt-preparation)
+owns the offline command. Slice 2 adds the default-off server/native prompt
+lane: `promptAssignment_test.ts` and handler tests exercise owner/block/window,
+reserved IDs, exact media/request/policy hashes, Pro first-attempt admission,
+refunds and ordinary-route parity. The candidate workflow explicitly includes
+the new assignment test. `generate_audio_prompt_comparison_plan_test.ts`
+compares all 36 backend/native bindings to immutable preparation. Native
+capture, pipeline and Debug replay tests run against both lane types; prompt
+finalization additionally checks all four subject states, confidence and private
+name hashes. `identification_audio_prompt_observation_test.ts` and the isolated
+runner test exercise complete 120-second admission, malformed/mixed proof,
+provisional agreement, private exclusive output and historical DSP
+compatibility. Tests use synthetic media/results and provide no acoustic quality
+evidence. No prompt-comparison lane is active. Slice 3 adds
+`control_audio_prompt_comparison_test.ts` and its fake-CLI shell test for the
+separate private configuration, all 36 slots across three selected blocks,
+replacement refusal and independently verified cleanup. The isolated evaluator
+suite registers `testing/audioPromptExecutionTests.ts` for clean-source/pricing
+freeze, all 36 ordered observations, asset tampering and link rejection, fresh
+boolean-only operator preflight, unknown claims, terminal exclusions, immutable
+results and cleanup ordering between blocks. These use synthetic metadata and
+zero provider requests. Actual clean app/backend bindings, exact-SHA candidate
+validation, named deployment/activation and paid observations remain separate
+execution requirements.
+
+The isolated evaluator also registers `testing/audioPromptContinuationTests.ts`
+for the explicit expired-between-trials amendment. Synthetic receipts exercise
+preservation of a closed original prefix, separate tooling/app identities, exact
+remaining-slot order, original evidence drift and future-slot artifacts,
+review/window/owner-witness rejection, exclusive claim races, terminal uncertain
+or invalid observations, block cleanup, and read-only locking of the original.
+The v2 review pins current deployment provenance independently of the original
+deployment SHA while retaining the same runtime bundle. Tests reject wrong or
+missing v2 revisions and preserve strict v1 packet shapes and deployment
+binding. These tests make no provider requests. A combined evidence report keeps
+segments distinct and requires all 36 admitted first attempts, known required
+measurements and cleanup before screening; it does not authorize promotion. The
+[continuation contract](../../services/supabase/scripts/identification_evaluation/README.md#explicit-continuation-after-an-expired-between-trial-pause)
+and canonical runbook govern separately approved live amendments.
+
+`testing/audioPromptSuccessorTests.ts` covers the separately versioned
+successor: the closed 17+2 prefix and remaining 20–36 order, legacy terminal
+behavior, predecessor/report bindings, incorrect
+approval/deployment/window/witness, unknown measurements, missing or premature
+cleanup, future artifacts, hard links and symlinks, exclusive preparation/claim
+races, read-only parent locks, terminal excluded attempts, recovery after
+predecessor drift and create-only external reports. The same isolated evaluator
+suite discovers these synthetic cases; they grant no network or environment
+access and make no provider requests. The
+[successor procedure](../backend-and-data/06-supabase-deployment-runbook.md#continue-after-a-second-between-trial-expiry)
+requires separately authorized live windows.
+
 The subsequent
 [app integration](../rfcs/identification-audio-comparison-app-integration-2026-09-23.md)
 adds `IdentificationComparisonCaptureTests` and
@@ -6819,14 +6883,14 @@ activation and paid observations remain separate release operations.
 configuration lifecycle, malformed inventories, owner/runtime compatibility,
 expiry, idempotency, mismatched replacements, ambiguous activation cleanup and
 redacted failure evidence. `control_audio_comparison_cli_test.sh` runs the
-actual controller with a local fake CLI to verify stdin-only private transport,
-child environment isolation, private evidence permissions,
-activation/deactivation and suppression of upstream output. Both are discovered
-by the complete Supabase tooling gate and make no network or provider requests.
-Workflow guards preserve current-main, Production, the shared deployment lock,
-candidate validation and actual deployed-source evidence. These tests cannot
-prove atomic list/delete against an out-of-workflow operator or cleanup after
-runner loss; the
+actual controller with a local fake CLI to verify the isolated template's
+set-only subprocess environment transport, child environment isolation, private
+evidence permissions, activation/deactivation and suppression of upstream
+output. Both are discovered by the complete Supabase tooling gate and make no
+network or provider requests. Workflow guards preserve current-main, Production,
+the shared deployment lock, candidate validation and actual deployed-source
+evidence. These tests cannot prove atomic list/delete against an out-of-workflow
+operator or cleanup after runner loss; the
 [operator recovery procedure](../backend-and-data/06-supabase-deployment-runbook.md#audio-comparison-activation-hold)
 and runtime expiry own those boundaries.
 
@@ -6882,6 +6946,74 @@ exercises the actual `demo-exploratory`, `preflight`, `report` and rejected
 adds no calls, and saved reports regenerate without media. Both suites deny
 network and environment; their evidence establishes mechanics, not biological
 accuracy.
+
+`run_openai_evaluation_cli_test.sh` exercises the local OpenAI launcher with a
+pseudo-terminal and a local fake executable. It verifies hidden input, private
+exclusive fingerprint creation, refusal without a terminal, preflight before key
+entry, narrow child permissions, removal of unrelated credentials/overrides, and
+suppression of private child output on failure. The single-session cases verify
+one hidden prompt across both ordered OpenAI profiles, real Deno admission,
+rejection of mixed providers and invalid run IDs, and stopping after a nonzero
+exit, exit-zero controller stop, missing completion/state, plan mutation or
+interruption. No key is persisted and no failed invocation is retried. The
+tooling gate discovers this shell test; it makes no provider calls.
+
+Alternative-provider evaluation adds `_shared/ai/openai_test.ts` to the
+candidate workflow with network/environment denied, plus the root-discovered
+`identification_evaluation_openai_test.ts` and a provider demo in the isolated
+runner suite. These cover fixed-origin single-call transport, ordered photo/text
+projection, whole-observation rejection, strict common schema decoding,
+refusals, partial/oversized output, usage accounting, provider-specific approval
+and unqualified confidence. The existing Gemini and handler suites preserve
+production parity. The
+[provider guide](./22-alternative-identification-provider.md) separates these
+synthetic checks from an authorized live comparison and later production
+rollout.
+
+Provider optimization Slice 1 adds the root-discovered
+`identification_evaluation_measurement_test.ts` and isolated
+`identification_evaluation/testing/measurementRunnerTests.ts`. They cover v1
+compatibility, canonical/synonym ambiguity, unmapped subject assessment,
+unsupported specificity, cache-read/write and reasoning accounting, fixed-case
+cost totals, arithmetic medians, missing measurements, versioned crash recovery,
+immutable taxonomy and the actual `demo-measurement` / `compare-exploratory`
+commands. Native OpenAI tests cover absent/invalid cache-write counters. These
+checks use synthetic records and denied network/environment access; they do not
+establish biological accuracy, explanation quality, cache isolation or a
+production qualification verdict.
+
+Provider optimization Slice 2 adds isolated
+`identification_evaluation/testing/experimentRunnerTests.ts`. It verifies frozen
+profile fingerprints and native request parity, complete-input rejection,
+standalone/forged-control rejection, allocation bounds, all reservation/claim/
+result/settlement crash points, settlement idempotence, sticky stops across
+runs/restarts, configuration drift, journal tampering, deadline settlement and
+parallel-controller exclusion. Controlled reports are exercised with synthetic
+live-shaped records under denied network/environment access, including
+regeneration without media and distinct-provider cost eligibility. The actual
+`demo-experiment` / `experiment-preflight` / `experiment-report` commands are
+covered. The local OpenAI launcher suite additionally checks controlled-run
+selection, pre-key provider rejection and real Deno permission admission with a
+fake transport. These checks perform no paid provider requests.
+
+The concise candidate adds `identification_evaluation_explanation_test.ts` and
+isolated `identification_evaluation/testing/candidateRunnerTests.ts`. These
+verify baseline/control/candidate native parity, distinct prompt versions,
+complete-input rejection, bounded ratings and calibration, local capability and
+origin checks, escaped text and no cached response, v1/v2 rejection of new
+identities, cache/read/write stops, missing/failed review, durable settlement
+before review interruption and report regeneration without private content. The
+v3 delegated-review checks additionally prove null human calibration, explicit
+delegation and assistant provenance, rejection of owner/synthetic substitution,
+unchanged stop rules, and AI-specific reports that never claim independent human
+validation. The actual `demo-candidate` workflow and per-run reports are
+exercised. Screening tests require complete assessments, latency/cost thresholds
+and no new quality fault even when the baseline already has a different fault.
+Launcher tests verify candidate-only loopback/opener grants with synthetic keys
+and no provider requests. Actual loopback lifecycle checks cover saving,
+cancellation, opener failure and timeout without aborting an already closed
+server. These tests do not establish AI assessor accuracy, actual owner
+calibration, live account cache behavior or production qualification.
 
 Authoritative AI quota and entitlement security has four complementary base
 checks:
@@ -7227,8 +7359,8 @@ Offline Sync cases cover the pure route policy without mutating process-wide
 connectivity state. `automaticSingleCaptureFencesTheIdentifyTray` independently
 locks the adjacent Shell presentation boundary: automatic single-capture
 ownership hides `ActiveScanToolbar` before asynchronous admission begins,
-admission recovery can reveal the retained staged media, and
-confirmation-enabled capture continues to present **Identify** normally.
+admission recovery can reveal the retained staged media, and staged-review
+capture continues to present **Identify** normally.
 `requiredCropStateFencesCaptureChromeBeforePresentation` locks the distinct
 pre-crop boundary: a required crop suppresses capture chrome even before
 `imageToCrop` mounts the full-screen cover. The workflow source guard requires
@@ -9080,6 +9212,16 @@ configuration is missing. Database atomicity and ACL behavior belong in
 `tests/ai_quota_security.sql` and `tests/complimentary_pro_scans_security.sql`,
 not a mocked TypeScript client.
 
+Reproduce the candidate workflow's **Validate authoritative AI quota coverage**
+step with its exact permissions from `services/`. Its environment allowlist
+covers `AI_QUOTA_IP_HASH_SECRET` and the five supported Supabase server-key
+variables read by `serverApiKeyOptionsFromEnvironment`. The admission tests
+install and restore a synthetic HMAC value and mock the database calls. The
+source-read allowlist includes both `deploy.yml` and
+`supabase-candidate-validation.yml` because the coverage tests inspect those
+workflow contracts. No production secret or network access is needed. A broad
+local `--allow-env` or `--allow-read` run cannot verify these CI permissions.
+
 ## Explore emoji-reaction verification
 
 The
@@ -9308,3 +9450,136 @@ Dynamic Type, VoiceOver, Reduce Motion, and offline behavior on both maps.
 
 Use `make ios-local-build` for focused and complete-target simulator runs. Run
 XcodeGen/project validation and SwiftLint as part of the affected iOS gate.
+
+## Audio confidence V2 verification
+
+The shared audio schema and both audio-only prompt bindings use one confidence
+definition. `_shared/ai/ai_test.ts` and the evaluator/comparison tests bind the
+V2 references while retaining model settings and numeric thresholds. The
+normalizer matrix tests both sides of the candidate cutoff and all four result
+states; `SpeciesDataEdgeResponseTests` exercises the decoded score and actual
+badge presentation for Flash and Pro, including high-confidence unresolved and
+Human cases.
+
+`fieldTripAtomicProgressDb.test.ts` proves that high presence confidence, Human
+taxonomy and Human overrides cannot earn standard/Event credit. It also
+exercises completed-credit withdrawal, receipt invalidation, preference
+retention and the forward migration against simulated historical invalid credit.
+The static migration contract and `field_trip_subject_eligibility.sql` cover
+private helper ACLs and the atomic trigger boundary. Run these against a
+disposable database replayed from the complete migration history. Fixture
+success does not establish acoustic accuracy or calibration; a new live
+comparison must have its own frozen V2 input/settings plan.
+
+## Independent OpenAI consent infrastructure
+
+The source-disabled optional OpenAI flow uses the existing consent lifecycle and
+local simulator gate; no provider key or paid inference is required.
+`AIProcessingConsentCoordinatorTests` covers closed collection, independent
+Gemini/OpenAI parents, withdrawal of current and older grants, stale dialogs,
+SDK mismatch, transitions, cancellation, durable save failure and account
+rebinding. `ConsentRemoteOpenAITests.swift` extends `ConsentRemoteServiceTests`
+with fixed-recipient dispatch, cross-provider ambiguous-write rejection and
+owner-scoped head mapping. Run the complete `merianTests` target through
+`make ios-local-build`, plus generated project/privacy validation, after
+changes.
+
+`openAIConsentMigrationContract.test.ts` is discovered by the migration gate.
+The disposable `openai_consent_security.sql` catalog covers role ACLs,
+provider/version/adult/Terms proof, immutable replay, stale grant rejection,
+independent withdrawal, merge preconditions/reparenting and account deletion.
+`legalConsentConcurrencyDb.test.ts` includes overlapping OpenAI grants and
+revocations and same-ID Gemini/OpenAI collisions in both arrival orders. Set
+`SUPABASE_DB_TEST_URL` to the task-owned disposable database; never use
+production for these fixtures. The complete Supabase candidate gate runs these
+tests.
+
+These checks prove consent mechanics, not public legal approval, model quality,
+production OpenAI authorization or a live provider rollout. Retain source and
+validation status in the
+[implementation record](../rfcs/identification-provider-openai-consent-2026-09-26.md).
+
+## Identification Result Provenance Compatibility
+
+`IdentificationResultProvenanceTests` covers required nullable configuration
+keys, known Gemini profiles, unknown/malformed present metadata, legacy absence,
+confidence/review presentation, live persistence and historical reconciliation.
+The generated DTO and executable contract gates verify optional non-null
+Identify metadata separately from model-output schemas. The four producer/replay
+suites verify that the client receives the same immutable snapshot saved with
+the scan.
+
+For V52,
+`MigrationPlanTests.v51StoreMigratesWithAllSavedStateAndLegacyProvenance`
+creates a complete frozen V51 store, checks the production metadata decision,
+uses the immediate-predecessor plan, preserves all entity types and
+relationships, and reopens saved provenance. Run migration/startup suites on
+installed supported runtimes and record unavailable runtimes. Physical
+released-binary install-over remains a release gate in the startup recovery
+runbook, not evidence implied by these synthetic fixtures.
+
+## Staged review and shared Describe validation
+
+The
+[current capture contract](../features-and-hardware/29-staged-capture-review.md)
+owns behavior. The
+[dated implementation record](../rfcs/staged-review-shared-describe-2026-09-26.md)
+retains the exact provider/provenance dependency, implementation SHAs, completed
+local results, and outstanding distribution evidence.
+
+| Boundary                                                                                                                                       | Executable coverage                                                                                                     |
+| ---------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Draft generation, automatic attempts, readiness, shared text, copy ownership, preferences, paywall copy                                        | `CaptureDraftSessionTests`                                                                                              |
+| Both photo/audio and note input orders; exhausted-Pro/remaining-Free funding; enqueue and same-scan retry                                      | `CaptureAdmissionTests`, including `CaptureAdmissionNoteTests.swift`                                                    |
+| Gallery minimum-one entry vs actual selection, pending-text picker limit, stale admission after discard, refinement/historical text and replay | `CaptureWorkspaceViewModelRefinementTests`, including the submission, staging, refinement-description, and replay files |
+| Recipient evidence shape and video-derived classification                                                                                      | `IdentificationPreflightTests`, plus existing preflight transport, consent, provenance, and replay suites               |
+| Expedition preference persistence without entitlement, thermal restoration, background sync, haptic suppression                                | `HardwareOrchestratorTests`, `HapticManagerTests`, existing Settings preference tests                                   |
+| Toolbar/media capacity and action availability                                                                                                 | `CaptureStagingToolbarPresentationTests`, `CaptureControlBarPresentationTests`, `StagedCaptureTests`                    |
+
+Run focused selectors while iterating, then the complete native gate with the
+repository wrapper and checkout-local caches. Use an installed simulator UUID:
+
+```bash
+make ios-local-build ARGS='simulator test -configuration Debug -destination "platform=iOS Simulator,id=<SIMULATOR_UUID>" -only-testing:merianTests -parallel-testing-enabled NO -collect-test-diagnostics never'
+```
+
+The four mounted UI selectors are:
+
+- `merianUITests/merianUITests/testDescribeFirstLaunchRendersAndOpensPrompts`
+- `merianUITests/merianUITests/testDescribeTextAreaFocusesFromLowerRegion`
+- `merianUITests/merianUITests/testSharedDescribeReviewAndConfirmedDiscard`
+- `merianUITests/merianUITests/testNoteAtMediaCapacityWithLargerText`
+
+Run them with `make ios-local-build ARGS='simulator test ...'`, passing one
+`-only-testing:<selector>` for each and the same destination/diagnostics
+options. The lower-area test explicitly waits for keyboard readiness before
+typing. The capacity test verifies the fixed actions and note access at
+accessibility XXXL; the shared-text test verifies initial staging, retained
+edits, Keep editing, and confirmed discard. Captured screenshots supplement the
+assertions. They do not establish physical-device VoiceOver, older-iOS material
+rendering, or thermal behavior.
+
+Full native validation must retain admission, recipient-preflight, consent,
+provenance, migration, and durable same-scan recovery suites. Backend evidence
+requires the existing Supabase candidate gate, media/Edge DTO checks, and
+`complimentaryScans_test.ts`; do not substitute local native checks for the six
+database-dependent checks or exact-SHA hosted CI. Run project membership, event
+routing, privacy, transport, migration guards, SwiftLint, and Markdown
+formatting as applicable; regenerate the project if source membership changes.
+
+Manual acceptance still includes setting changes during photo/audio/video/import
+preparation and required crop, a second media item in progress,
+historical-editor isolation, permission/recipient/version recovery,
+Free/expired/unverified/offline Expedition access, and restoring normal upload
+eligibility without bypassing funding or consent. Check Light/Dark, Reduce
+Transparency, effect reduction, VoiceOver, narrow-screen overflow, and the
+four-slide paywall after removal of the Expedition slide. Actual released-V51
+install-over and second launch remain a separate distribution gate.
+
+**Local evidence (27 September 2026):** The final production-code run passed
+1,372 XCTest cases and 3,008 Swift Testing cases. After the UI
+keyboard-readiness fix, all four UI selectors passed three consecutive
+iterations (12 executions). Exact commits and retained result bundles are in the
+dated implementation record. These results do not imply server deployment, app
+distribution, or completion of the remaining physical-device and database
+checks.

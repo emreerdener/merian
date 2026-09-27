@@ -128,11 +128,14 @@ serialize finalization per scan id rather than relying on merge-policy behavior.
 Every scan — regardless of network state or what the user does after pressing
 the shutter — is made durable **at the moment of submission**, not on a
 best-effort rescue later. The durable unit is now a single ordered mixed-media
-timeline. Ordinary Capture composition permits up to 2 total user items across
-photos, short Pro video clips, audio clips, and descriptions. Reanalysis permits
-one supplementary description beyond the two-item evidence budget, allowing the
-original media, added media, and description to enter the same durable timeline.
-This is a client composition rule, not a new queue schema or server media limit.
+timeline. Free composition permits one photo or standalone audio item plus one
+optional note; Pro permits two physical media items plus one optional note, with
+video remaining Pro-only. Reanalysis retains two physical slots, historical
+descriptions, and one current supplement. These are client composition rules,
+not a new queue schema or server media limit. The
+[staged-review contract](../features-and-hardware/29-staged-capture-review.md)
+owns draft readiness, attempt-bound Auto-submit, shared editing, and confirmed
+discard. Unresolved capture/preparation/crop work blocks submission.
 
 Timeline ordering comes from each staged wrapper's `addedAt` value. Images,
 audio, video, and `StagedObservationContext` own that composition-only metadata;
@@ -154,13 +157,13 @@ code consumes those values but does not redefine their ordering or indexes.
 
 Before that durable handoff, `prepareActiveStagedSubmission(descriptionDraft:)`
 synchronously stages the current nonempty description or rejects the entire
-submission while retaining the draft. Reanalysis **+** and **Analyze** update
-the same supplementary item and preserve its `addedAt` ordering; historical
-observations stay separate. `isRefinementSupplement` is ephemeral staging
-ownership only: payload construction strips it and queues the unchanged
-text-only `ObservationContext` plus the existing owner timeline. Empty editor
-text does not remove staged descriptions. A failed later admission check retains
-an already-staged description for retry.
+submission while retaining the draft. Root Describe edits the same note or
+reanalysis supplement, preserving its `addedAt` ordering; historical
+observations stay separate. Clearing shared text removes only the current note
+or supplement. `isRefinementSupplement` is ephemeral staging ownership only:
+payload construction strips it and queues the unchanged text-only
+`ObservationContext` plus the existing owner timeline. A failed later admission
+check retains the shared draft for manual retry.
 
 When `CaptureWorkspaceViewModel.submitStagedCapture(modelContext:)` fires:
 
@@ -176,7 +179,7 @@ When `CaptureWorkspaceViewModel.submitStagedCapture(modelContext:)` fires:
    the durable capture; the generation identifies only the live attempt that
    currently owns it. A queue-only route deliberately has no foreground
    generation even if `NWPathMonitor` still reports online.
-3. `enqueueCapture(imageDatas:displayImageDatas:audioFilePaths:videoFilePaths:telemetry:blurScore:scanId:observationContexts:mediaTimeline:visualMediaItems:preferredGoal:captureDate:foregroundInferenceGeneration:startSyncImmediately:onQueued:)`
+3. `enqueueCapture(imageDatas:displayImageDatas:audioFilePaths:videoFilePaths:telemetry:blurScore:scanId:observationContexts:mediaTimeline:visualMediaItems:preferredGoal:captureDate:foregroundInferenceGeneration:startSyncImmediately:onQueued:onAdmission:)`
    is called **synchronously on the main actor** after the caller-scoped
    admission preview returns and the staged-input snapshot is revalidated. No
    environment-context or provider await occurs between that revalidation and
@@ -194,10 +197,14 @@ When `CaptureWorkspaceViewModel.submitStagedCapture(modelContext:)` fires:
    shutter-prefetch result is merged into `OfflineQueuedScan` and submitted to
    `/update-scan-context`; background replay can still backfill missing
    historical context before its own inference dispatch.
-4. The visual submit path waits for `onQueued` before presenting queued/offline
-   success or starting live analysis. A durable-queue rejection rolls back the
-   pending live scan, shows an error, and deletes orphaned source video/audio
-   files because neither the live path nor the queue now owns them.
+4. The visual submit path waits for `onAdmission`, which returns the accepted
+   timeline after durable insertion. Audio/video paths are remapped to unique
+   queue-owned copies, and live analysis consumes those exact accepted paths. A
+   definitive rejection rolls back provisional queue state/copies, shows an
+   error, releases the submission lock and automatic eligibility, and retains
+   the draft and original media for manual retry. After acceptance, Capture may
+   clear its references and delete only its own source files. Later recovery
+   belongs to the accepted scan ID, never a fresh submittable draft.
 5. **Immediate Offline/Queue-Only Network Interceptor**: `submitStagedCapture`
    then synchronously evaluates `OfflineQueueManager.shared.isOnline`. If the
    device currently lacks network connectivity, or admission already selected
@@ -413,31 +420,34 @@ new `OfflineQueuedScan` SwiftData record is inserted with the available
 telemetry payload attached. On a successful `context.save()`,
 `AppTelemetry.trackOfflineQueued()` fires a `ScanQueuedForSync` PostHog event to
 measure offline usage rate. If the save fails, the main context rolls back, any
-consumed free-tier quota token is refunded, and staged files are deleted without
-dispatching sync.
+consumed free-tier quota token is refunded, and provisional queue-owned files
+are deleted without dispatching sync. Caller-owned draft sources remain intact.
 
 If cleanup encounters an orphaned hint after its queued scan was already
 removed, `flushOfflineQueuedScan` deletes the companion and saves that repair.
 This keeps later scan-ID reuse or correction work from observing a stale local
 preference.
 
-All queued-capture file I/O is now actor-owned. `enqueueCapture` writes staged
-image bytes through `FileIOActor.writeTemporaryImages(imageDatas:)`, adopts
-video/audio files already moved into Documents, and routes cleanup for rejected
-inserts or failed saves through `FileIOActor.deleteFiles(at:)`. Inline
-`Data.write` / `FileManager.removeItem` calls on the queue path are no longer
-allowed.
+Queued-capture file I/O is actor-owned. `OfflineCaptureFileStore` writes image
+bytes through `FileIOActor`, copies video/audio into unique `queued-*` Documents
+files, and maps source paths to the accepted timeline, including video companion
+audio. It does not consume caller files. Rejected inserts and failed saves clean
+only the newly prepared queue-owned files through
+`FileIOActor.deleteFiles(at:)`. Inline file writes/deletes on the manager's
+queue path are not allowed.
 
 Queued image bytes must already be bounded before this point. Camera, gallery,
 and refinement paths stage inference-sized `compressedData` plus 2048 px
 `displayData`; the offline queue must not receive original full-size library or
 historical scan file bytes as `displayImageDatas`.
 
-Temporary staged-media cleanup has explicit ownership. UI reset after submit
-clears references only, leaving media for the queue or live persistence path to
-adopt. Cancel, remove, replace, session-timeout discard, and queue-rejection
-paths collect staged playback video paths plus companion audio paths and delete
-them through `FileIOActor.deleteFiles(at:)`.
+Temporary media cleanup has explicit ownership. Before acceptance, an enqueue
+failure retains draft playback/companion sources. After acceptance, the queue
+and live inference use queue-owned copies; Capture clears draft references and
+may delete draft-owned sources. Confirmed discard, individual removal, and
+replacement delete only draft-owned files through the existing file owner.
+Historical and accepted queue media are not draft-owned. Do not delete or
+enqueue again while acceptance is ambiguous; resolve the existing attempt first.
 
 Video captures split display media from inference media before entering the
 queue. `capturedMediaJSON` and `capturedMediaEntries` remain the user-facing
@@ -571,14 +581,19 @@ reservation restoration, server reconciliation, and proven pre-dispatch release;
 capture admission calls its existing manager API without duplicating funding
 policy. The admission architecture suite enforces this consumer allowlist.
 
-Exactly one image, one standalone audio clip, or one description with no video
-is Flash-eligible. Mixed, multi-item, and video captures without Pro funding
-open the upgrade flow and never enter the queue. Immediate and deferred Flash
+`IdentificationEvidenceAllowance` makes one non-video photo or standalone audio
+clip plus at most one note, or one description alone, Flash-eligible. Additional
+physical media, multiple descriptions, video-derived evidence, and refinement do
+not gain Free eligibility. Unfunded Pro-only work opens the upgrade flow and
+does not enter the queue. Recipient preflight and server admission apply the
+same evidence rule; [the allowance contract](./18-complimentary-pro-scans.md)
+remains authoritative for funding precedence. Immediate and deferred Flash
 claims reserve the separate advisory daily meter at enqueue time; if it is
 exhausted, admission fails before durable capture. If queue persistence fails,
 the context rolls back, any Flash token is refunded, the local funding claim is
-released, and source files are cleaned up. `AppTelemetry.trackOfflineQueued()`
-is not fired for rejected work.
+released, and only provisional queue-owned copies are cleaned up. Draft sources
+remain available for retry. `AppTelemetry.trackOfflineQueued()` is not fired for
+rejected work.
 
 Funding is persisted as `funding_reservation` in the scan job metadata beside
 `inference_generation`; generation handoff removes only its property. Relaunch
@@ -1949,7 +1964,7 @@ disconnected.
    the collection-sync job complete only when the captured revision still
    matches. If a newer rename/delete arrives while the old request is in flight,
    the job remains pending/waiting and the next drain loop replays the newer
-   state. The active V51 application-owned `isPendingDeletion` marker is mapped
+   state. The active V52 application-owned `isPendingDeletion` marker is mapped
    to the released `isDeleted` column, so this ordering guarantees
    `is_deleted: true` reaches the Edge function after any stale upsert
    snapshots.
@@ -2008,7 +2023,7 @@ disconnected.
    Shield**: If the cloud response erroneously includes a collection with a
    durable local application tombstone, the cloud response is ignored. This is
    intended to protect against delayed Edge work resurrecting a deleted entity;
-   the active V51 property-name mapping makes that shield durable for reopened
+   the active V52 property-name mapping makes that shield durable for reopened
    stores. Collections absent from the cloud response and not named "Favorites"
    are deleted locally. Because step 4 guarantees every local collection is
    already in the cloud, the delete pass only removes collections the user

@@ -20,16 +20,11 @@ struct CaptureStagingToolbarDependencies {
                 )
             },
             hasShownTooltip: {
-                CaptureStagingToolbarSessionState.hasShownTooltip
+                diContainer.appSettings.hasShownCaptureNoteTip
             },
             markTooltipShown: {
-                CaptureStagingToolbarSessionState.hasShownTooltip = true
+                diContainer.appSettings.hasShownCaptureNoteTip = true
             }
         )
     }
-}
-
-@MainActor
-private enum CaptureStagingToolbarSessionState {
-    static var hasShownTooltip = false
 }

@@ -80,6 +80,15 @@ final class CaptureWorkspaceViewModel {
     /// All content staged for the next combined submission — images, optional audio (reserved),
     /// and optional describe description. Replaces the previous four parallel image arrays.
     var stagedCapture = StagedCapture()
+    var automaticPreferenceRevision: UInt64 = 0
+    var draftSession = CaptureDraftSession()
+    var descriptionDraft = ObservationContext()
+    var descriptionFocusRequest: UUID?
+    var isReviewActive = false
+    var discardConfirmationGeneration: UUID?
+    var isQueueingStagedCapture = false
+    var audioDraftOperation: CaptureDraftSession.Operation?
+    var draftOwnedFiles: Set<String> = []
     var selectedPhotoItems: [PhotosPickerItem] = []
     var isCheckingScanAdmission = false
     /// Set in the same MainActor mutation that stages an eligible single capture.
@@ -129,8 +138,7 @@ final class CaptureWorkspaceViewModel {
     }
 
     var isMultiCaptureFunctionallyEnabled: Bool {
-        diContainer.appSettings.isMultiCaptureEnabled
-            && diContainer.revenueCatManager.canStartProScan
+        diContainer.revenueCatManager.canStartProScan
     }
 
     var stagedCaptureLimit: Int {
@@ -149,6 +157,7 @@ final class CaptureWorkspaceViewModel {
     }
 
     func canUseCaptureControls(in mode: CaptureMode) -> Bool {
+        if mode == .describe, baseRefinementContext == nil { return true }
         if mode == .describe, baseRefinementContext != nil {
             return stagedCapture.canStageRefinementDescription
         }
@@ -274,7 +283,7 @@ final class CaptureWorkspaceViewModel {
     /// background. Staged content survives a brief background trip; an empty
     /// workspace resets to the default camera state after the session timeout.
     private var shouldPreserveStagingOnBackground: Bool {
-        !stagedCapture.isEmpty
+        !stagedCapture.isEmpty || !descriptionDraft.isEmpty || isQueueingStagedCapture
     }
 
     private func handleSessionTimeoutReset(now: Date = Date()) {

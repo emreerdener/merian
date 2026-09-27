@@ -6,8 +6,12 @@ Slices 1–3 of the
 here as local, offline tooling. The production route and tooling reuse the same
 pure normalization helper. No production function imports these scripts modules.
 The CLI runs offline by default and has a separate, explicitly gated live mode.
-No formal reviewed corpus has been collected and no paid direct-evaluator run
-has occurred. The first two-photo exploratory corpus passed local preflight; its
+No formal reviewed corpus has been collected. The September 25
+[OpenAI photo/text pilot](../../../../docs/rfcs/identification-openai-photo-text-pilot-2026-09-25.md)
+completed seven paid direct-evaluator results and retained one unknown execution
+across eight unique attempted cases. Its provisional references do not establish
+formal accuracy or provider qualification. The earlier two-photo exploratory
+corpus passed local preflight; its
 [experiment record](../../../../docs/rfcs/identification-exploratory-benchmark-2026-09-22.md)
 retains scope and limits. A subsequent
 [six-photo source packet](../../../../docs/rfcs/identification-source-photo-pilot-2026-09-22.md)
@@ -15,8 +19,9 @@ also passed offline preflight with provisional references and no model calls.
 Its completed
 [six-photo app benchmark](../../../../docs/rfcs/identification-source-photo-app-benchmark-2026-09-22.md)
 records ordinary-app outcomes and passive measurements separately from the
-direct evaluator's dry schedule. Gemini remains the only live provider; video
-evidence is ordered snapshots and included WAV audio, never a playback video.
+direct evaluator's dry schedule. Gemini remains the only production provider;
+video evidence is ordered snapshots and included WAV audio, never a playback
+video.
 
 The later
 [description app benchmark](../../../../docs/rfcs/identification-description-app-benchmark-2026-09-22.md)
@@ -38,36 +43,427 @@ audio fusion. After the owner's listening review, the
 completed one first submission and a six-event window. Its Wood Thrush Strong
 match disagreed with the provisional Northern Cardinal source label. The new
 single-group packet passed offline preflight without dispatch; earlier packets
-remain frozen. The direct evaluator still has no paid run, and formal counts
-remain unchanged.
+remain frozen. At that September 22 checkpoint, the direct evaluator had no paid
+run. The September 25 pilot above adds paid exploratory evidence; formal
+reviewed-corpus counts remain unchanged.
+
+## Alternative-provider comparison
+
+The explicit `openai_gpt_6_sol` evaluation profile supports photos/text through
+OpenAI Responses. Production remains Gemini-only. The
+[provider guide](../../../../docs/development-guides/22-alternative-identification-provider.md)
+owns the `demo-providers` command, new provider-run/pricing/readiness versions,
+OpenAI-specific input permission, single-provider live runs and credential
+scope. A reviewed Naturebook application project/key can also serve OpenAI
+benchmarks; record `dedicatedEvaluationProject: false` and inject the key as
+`OPENAI_EVALUATION_API_KEY`. The local
+[`run_openai_evaluation.sh`](../run_openai_evaluation.sh) launcher supplies
+hidden terminal key entry, an optional private credential fingerprint, and the
+existing preflight/live commands without saving the key. Its procedure is in the
+provider guide. Historical Gemini specifications, corpus permissions and audio
+records remain unchanged. OpenAI raw confidence has no Gemini Strong/diagnostic
+interpretation.
+
+## Shared measurement repair (optimization Slice 1)
+
+New exploratory packets may opt into `evaluation_taxonomy_v2`. Standalone live
+v2 admission rejects before credential lookup with
+`evaluation_measurement_live_pending`; the verified Slice 2 controller below is
+the only controlled live path. Existing v1 live admission is unchanged. The
+catalog records a frozen `taxonomyVersion`, `catalogRef` and `reviewRef`, with
+each canonical taxon ID/rank, `canonicalName` and accepted `synonyms`. Review a
+catalog containing plausible alternatives as well as references before a real
+run; the new format and synthetic demo do not establish that review. Hash the
+catalog into a new corpus/spec. Never change an old packet to recover an unsaved
+name.
+
+Resolution compares Unicode NFC, case and normalized whitespace only. Different
+IDs sharing a name remain ambiguous, including canonical/synonym collisions;
+there is no fuzzy or live lookup. New projections store `matched`, `ambiguous`,
+`unmapped` or `not_applicable`, the canonical/synonym match category, canonical
+IDs/ranks and candidate mapping states. They retain no returned name or prose.
+
+The v2 catalog selects `identification_exploratory_decisions_v2`,
+`evaluation_attempt_v2` / `evaluation_openai_attempt_v2`, and
+`identification_exploratory_report_v2`. A run cannot mix these with v1 records
+or change taxonomy during resume. Existing v1 packets keep their original
+matching, scoring and nearest-rank p50 reports. Formal evaluation continues to
+use its existing format and `compare`; v2 measurement is exploratory only.
+
+V2 reports keep all scheduled outcomes. They separately show subject agreement,
+identity-assessment coverage, mapped identity agreement, ambiguity, unmapped
+names, unsupported specificity, valid abstentions and failures. An unmapped
+identity is unassessed, not a verified disagreement. A genus reference does not
+verify a more specific species prediction. Subject agreement remains measurable
+when the name is unmapped; unverified references never enter quality rates.
+
+Successful provider time uses the arithmetic median (average the middle two for
+an even count). Partial medians remain diagnostic: complete latency eligibility
+requires every scheduled case to normalize with a positive duration and no model
+mismatch. Normalization, completed-call and failure timing stay separate. Each
+report includes photo, description and combined summaries; empty groups remain
+untested.
+
+The separately labeled `rate_aware_usage_v1` estimate sums full-allocation cost
+at reviewed rates. OpenAI input is partitioned into ordinary, cache-read and
+cache-write tokens; visible output plus reasoning is charged once. Missing or
+contradictory write counts stay unknown. Gemini discounts observed cache reads
+and uses validated modality counts when input rates differ. Incomplete usage,
+unknown execution or unattempted cases prevents a complete cost total. Known
+partial cost and the unchanged conservative upper estimate remain visible.
+Reviewed rates may be tier ceilings; neither estimate is an invoice. Current
+profiles have no explicit cache objects or setup/storage operations; supporting
+those later requires new accounting. The dispatch spend guard still uses its
+original conservative estimate and applies to one run. Controlled experiments
+add the outer accounting boundary below.
+
+`compare-exploratory` validates saved v2 manifests/records, matched source,
+corpus, taxonomy, preparation, order and evidence, then produces
+`identification_exploratory_comparison_v1`. It preserves incomplete cases and
+reports descriptive paired changes with
+`100 * (baseline - candidate) / baseline`. A missing/nonpositive baseline or
+incomplete measurements produces no percentage; cost percentages additionally
+require matching pricing digests. Different-provider totals remain visible;
+paired rate-card validation for a cross-provider cost percentage is deferred to
+a reviewed candidate comparison. Cache comparability and screening are
+explicitly unestablished. This ordinary command does not establish experiment
+membership or completion; use `experiment-report` for controller evidence. This
+report never qualifies a switch. The concise OpenAI candidate below uses the
+separate v2 experiment report for cache verification and explanation ratings;
+ordinary comparisons cannot establish those controls.
+
+For a disposable demonstration using **four invented photo/text cases**, run
+from the repository root:
+
+```bash
+measurement_parent=$(mktemp -d /private/tmp/naturebook-measurement.XXXXXX)
+measurement_packet="$measurement_parent/packet"
+deno run --frozen --no-prompt --deny-env --deny-net \
+  --config services/supabase/functions/deno.json \
+  --allow-read="$PWD,$measurement_parent" --allow-write="$measurement_parent" \
+  --allow-run=git services/supabase/scripts/evaluate_identification.ts \
+  demo-measurement "$measurement_packet"
+deno run --frozen --no-prompt --deny-env --deny-net \
+  --config services/supabase/functions/deno.json \
+  --allow-read="$PWD,$measurement_parent" --allow-write="$measurement_parent" \
+  --allow-run=git services/supabase/scripts/evaluate_identification.ts \
+  compare-exploratory "$measurement_packet" \
+  offline-measurement-v2 offline-measurement-v2 gemini_pro openai_gpt_6_sol
+```
+
+Both commands use synthetic outcomes with no credentials/provider calls. The
+comparison JSON filename includes both run IDs and profiles. The existing
+`report` command regenerates either report version from saved records without
+media or inference. Real experiments still require the independent live
+admission and budget contract; the eight-case development campaign remains
+pending. The
+[optimization plan](../../../../docs/rfcs/identification-provider-optimization-plan.md)
+owns its remaining slices and production qualification path.
+
+## Reusable profiles and experiment controls (optimization Slice 2)
+
+`reusableProfiles.ts` owns two reviewed evaluation baselines:
+`gemini_photo_text_v1` and `openai_photo_text_v1`. Their versioned descriptors
+include provider/API, supported complete inputs, snapshot/generation settings,
+confidence policy, and hashes of actual native settings, prompts and schemas.
+The native settings hash excludes observation content. Golden fingerprints and
+per-case projection checks bind the descriptor to the unchanged request
+builders. No endpoint, generation override or candidate definition is accepted
+from packet JSON. Production still selects its fixed Gemini binding.
+
+The v1 controller accepts those two baselines and retains their automatic cache
+behavior recorded as uncontrolled. The separate v2 candidate contract below adds
+the uncached control and concise OpenAI profile with mandatory private review.
+No packet can supply arbitrary native settings. Neither contract adds
+prewarming, cache objects, paid judge calls, retries or a production selector.
+
+### Frozen plan and accounting
+
+`experimentContracts.ts` validates `identification_experiment_plan_v1` in a new
+private packet's `experiment.json`. It freezes source, corpus, taxonomy,
+preparation, case/evidence digests, order seed, review reference, metric
+formulas, a window of at most 24 hours, and one to four ordered single-provider
+runs. There are at most eight cases and 32 scheduled calls. Every run names a
+reviewed profile ID/digest, its exact call/USD allocation, a reviewed pricing
+card/digest and, for live execution, a readiness digest. Full conservative
+reservations must fit each allocation; their sums must fit the overall limits.
+Unused funds never transfer between runs. Synthetic packets use explicitly
+labeled simulated accounting with invented rates.
+
+Live readiness records live only in `approvals/<runId>.json` and use the
+existing provider-specific approval schema. They are not copied into experiment
+records. The active provider's key, readiness, input permissions, pricing age
+and consent review are revalidated through the existing admission before each
+invocation. The controller never obtains both provider keys. Preparation of all
+frozen inputs and profile settings precedes dispatch.
+
+The controller creates immutable `experiment/manifest.json`, linking the plan,
+profile descriptors and existing per-run manifests. Both the input marker and
+controller directory prevent ordinary `prepareRun`/`executeRun` from taking over
+a controlled packet. A private, expiring in-process capability is registered
+only after verification under the experiment lock; JSON or injected runner
+callbacks cannot enable controlled live execution. Fresh experiments reject
+preexisting run journals. V1 specifications, assignments and reports keep their
+original interpretation.
+
+Lock order is experiment, then run. One active controller holds the experiment
+OS lock throughout execution. Before **every** invocation it reconciles all
+linked journals, checks the frozen run order, time window and both budget
+levels, and durably writes a global reservation before the existing local claim.
+The sequence is reservation → local claim → one invocation → durable result →
+settlement. A saved result without a settlement is reconciled exactly once. An
+unmatched reservation/claim, unknown execution, model drift, operational
+failure, missing budget-critical usage or another runner stop blocks all later
+runs. A call finishing after expiry is recorded and settled before stopping.
+
+Known validated conservative usage replaces its reservation once. Uncertain
+execution and unknown cost retain the full reservation. The controller uses
+integer nanodollars, rounding charges up and budgets down; rate-aware reporting
+remains separate. `experiment/state.json` exposes charged/retained amounts,
+completed allocations and the global stop. Normal allocation completion permits
+the next frozen run; restarting or asking for another run cannot clear a stop.
+There is no reset/continuation command. A future reviewed continuation must
+preserve prior claims and original aggregate caps, never replay an uncertain
+attempt or erase the stop file.
+
+### Commands and reports
+
+For an offline demonstration with four invented cases and two baselines:
+
+```bash
+experiment_parent=$(mktemp -d /private/tmp/naturebook-experiment.XXXXXX)
+experiment_packet="$experiment_parent/packet"
+deno run --frozen --no-prompt --deny-env --deny-net \
+  --config services/supabase/functions/deno.json \
+  --allow-read="$PWD,$experiment_parent" --allow-write="$experiment_parent" \
+  --allow-run=git services/supabase/scripts/evaluate_identification.ts \
+  demo-experiment "$experiment_packet"
+```
+
+The same offline permission boundary supports `experiment-preflight <packet>`,
+`experiment-offline <packet> <runId>` and `experiment-report <packet>`.
+Preflight prepares every run without loading a key, claiming an attempt or
+dispatching. `demo-experiment` invokes eight synthetic outcomes; these are not
+provider calls or real accuracy/performance evidence. `report <packet> <runId>`
+still reads the existing per-run records. Both report forms regenerate after
+media removal.
+
+For an explicitly authorized real experiment, the active OpenAI run uses the
+existing hidden-input launcher:
+
+```bash
+bash services/supabase/scripts/run_openai_evaluation.sh \
+  --experiment-live /absolute/private/packet openai-baseline-run-id
+```
+
+The launcher checks the selected provider before prompting, runs credential-free
+experiment preflight, and grants OpenAI network/key access to
+`--experiment-live <packet> <runId>`. V2/v3 candidate runs additionally receive
+only the loopback listener and fixed macOS browser opener permissions described
+below. Gemini uses that same controlled CLI with its existing single-provider
+environment/network grants from the provider guide. Keys never appear in
+arguments, files or artifacts. This command is a procedure, not authorization to
+run a paid experiment. Regenerate `experiment-report` in a separate offline
+process after a live run; it requires neither keys nor media.
+
+To execute an approved OpenAI-only plan in one local session, use:
+
+```bash
+bash services/supabase/scripts/run_openai_evaluation.sh \
+  --experiment-session /absolute/private/packet
+```
+
+This prompts once and retains the key only in process memory while invoking the
+existing controller for each frozen run in order. Every selected run must be an
+allowlisted OpenAI profile. It checks the controller's durable state after each
+run, including successful process exits: a stop, missing state or incomplete run
+ends the session before another profile starts. Changing the plan ends the
+session as well. Interruption preserves the existing claims and never retries an
+uncertain call. Delegated explanation review still needs the active assistant
+for each result; session mode does not supply an unattended judge or relax any
+readiness, spending, cache or quality requirement.
+
+`identification_experiment_report_v1` verifies frozen run membership, saved
+record compatibility, reservation/result links and settlements under the
+experiment lock. It distinguishes a completed allocation from an unstopped
+complete experiment and from provider qualification. It includes the Slice 1
+measurements and retains incomplete cases. Ordinary `compare-exploratory`
+remains descriptive and is not a controller completion record.
+Different-provider rate cards still produce descriptive cost totals without a
+percentage verdict; frozen cards alone do not establish paired-rate
+comparability. Cache comparability remains `not_established`, screening is
+`deferred_no_candidate`, and production qualification is always false in these
+development reports.
+
+## Concise OpenAI candidate and private review
+
+The two additional code-defined profiles are `openai_photo_text_uncached_v1`
+(control) and `openai_photo_text_concise_uncached_v1` (candidate). Both use
+`prompt_cache_options: {mode: "explicit"}` with no breakpoints. Only the
+candidate adds the plan's `ai_reasoning` instruction and its own vision/text
+prompt versions. Model, low reasoning, high image detail, output limit, schema,
+input bytes and normalization stay identical. Baseline fingerprints and native
+requests are unchanged. Account support and live zero-cache behavior remain
+unverified; missing or nonzero read/write counters stop without a fallback call.
+
+`identification_experiment_plan_v2` admits exactly these two ordered runs, one
+shared pricing digest and `concise_explanation_latency_v1`. Live plans require
+six photos and two descriptions: eight calls per arm, sixteen overall. Existing
+allocations, readiness, source binding, lock and stop rules still apply. The
+candidate uses `identification_provider_run_spec_v2`,
+`identification_provider_run_v2` and `evaluation_openai_attempt_v3`; v1/v2
+historical attempts keep their meanings and reject candidate identities.
+Standalone candidate dispatch is rejected even offline.
+
+Before freezing either review mode, prepare private `review/facts.json`
+(`explanation_facts_v1`) from the exact evidence and complete the owner's
+calibration only when selecting the v2 human-review mode. Each fact card binds
+case/input digests, observed and missing facts, acceptable reasons,
+supported-rank limits and bounded requirements. These facts never enter provider
+requests. The plan's `review` binds the rubric, aggregate facts, individual card
+and calibration digests, an opaque reviewer reference, and a 60–600-second
+review timeout. A real v2 human-review packet must contain actual owner choices;
+the synthetic demonstration's certificate is rejected for live use. The
+delegated v3 mode below does not require a human calibration certificate.
+
+When the user delegates explanation analysis to the active assistant, use
+`identification_experiment_plan_v3` with
+`candidateDecision: concise_explanation_latency_ai_review_v1`. Its review adds
+`method: assistant_local_v1` and an opaque `delegationRef` recording that
+instruction, and requires `calibrationDigest: null`. No owner certificate is
+created or inferred from the synthetic answer key. The delegated assistant
+actually inspects each case's supplied evidence, frozen facts and bounded
+explanation in the existing private view, then submits the same three ratings.
+This is a supervised assistant workflow, not an unattended judge service or
+keyword heuristic; it adds no paid judging API requests. The owner need not
+complete the practice form or grade every result.
+
+Delegation covers only the task-approved evaluation corpus. The view's bounded
+content is processed in the assistant session and may be retained in that
+service's conversation/tool context; this mode must not be described as
+local-only or entirely in memory. Do not export screenshots, whole responses,
+hidden reasoning, private user observations or credentials into an analysis
+archive. Evaluation files still retain only bound enum assessments and
+measurements. User delegation does not approve new inputs, another processor,
+spending or production use.
+
+V3 emits `explanation_assessment_v2` with `assistant_local_v1` for actual review
+and `synthetic_fixture_v1` for offline tests. V1 owner assessments cannot be
+substituted for these records, and synthetic assessments never satisfy live
+review. `identification_experiment_report_v3` explicitly identifies AI-reviewed
+development evidence, `independentHumanValidation: false`, zero additional judge
+calls and the possibility of shared model errors. All existing quality, cache,
+budget, timeout, ledger and no-replay checks remain in force. Historical v2
+human plans keep their original calibration and assessment contract.
+
+For the optional v2 human mode on a Mac, run calibration without any API key or
+provider-network permission:
+
+```bash
+review_packet=/absolute/private/packet
+mkdir -p "$review_packet"
+chmod 700 "$review_packet"
+deno run --frozen --no-prompt --cached-only --deny-env \
+  --config services/supabase/functions/deno.json \
+  --allow-read="$PWD,$review_packet" --allow-write="$review_packet" \
+  --allow-net=127.0.0.1 --allow-run=/usr/bin/open \
+  services/supabase/scripts/evaluate_identification.ts \
+  calibrate-explanations "$review_packet" owner-review-v1
+```
+
+The owner scores eight invented examples using each page's Observation text as
+the reference; there is no separate photo or external source to look up. All
+expected ratings must match before `review/calibration.json` is created. A
+failed calibration writes bounded `review/calibration-feedback.json`; review its
+expected/actual ratings and rerun calibration. No real explanation is in that
+feedback. Calibration cannot replace an existing certificate or run after the
+experiment begins.
+
+During live execution, the bounded provider result and cost settle before the
+browser opens. The private view shows evidence, frozen facts, decision,
+`ai_reasoning`, extracted traits and applicable alternative explanations. It
+hides profile, tokens, timing, cost and prior ratings. The view uses escaped
+text, a one-use random capability, same-origin checks, no third-party assets, no
+browser storage and no response caching/logging. The opener has an empty child
+environment. Loopback/opener permissions are checked before a paid claim. Do not
+save, photograph or record real review pages. Sequential owner review is
+provisional and cannot guarantee full blinding.
+
+The next provider call waits for all three ratings. Close, timeout, unavailable
+review, failed or unassessable criteria stop the whole experiment. Durable
+`explanation_assessment_v1` files under
+`experiment/assessments/<runId>/<attemptKey>.json` contain only bounded
+ratings/reason codes and exact
+plan/run/request/profile/input/card/result/rubric/ calibration/reviewer
+bindings. No raw explanation enters these files or reports. A crash after
+settlement preserves the known result and charge; the missing assessment stops
+recovery without repeating inference.
+
+`identification_experiment_report_v2` validates and includes assessment records
+and their digests; it regenerates without facts, media or model prose. Per-run
+measurement reports point to it for explanation status. An offline result says
+`synthetic_mechanics_only`. A real screen requires all sixteen assessments to
+pass, verified zero cache reads/writes, complete paired quality/time/cost, at
+least 10% combined median latency improvement and no cost or input-group
+regression above 10%. Unresolved quality makes it inconclusive; a new quality
+fault retains the control. Passing means only
+`candidate_for_further_qualification`, with `productionQualified: false`.
+
+Run the complete synthetic path with no network or credentials:
+
+```bash
+candidate_parent=$(mktemp -d /private/tmp/naturebook-candidate.XXXXXX)
+deno run --frozen --no-prompt --deny-env --deny-net \
+  --config services/supabase/functions/deno.json \
+  --allow-read="$PWD,$candidate_parent" --allow-write="$candidate_parent" \
+  --allow-run=git services/supabase/scripts/evaluate_identification.ts \
+  demo-candidate "$candidate_parent/packet"
+```
+
+This makes four invented cases and eight synthetic outcomes/assessments. It
+proves workflow mechanics, not semantic review or model performance. A real
+packet, owner calibration and paid execution remain pending. Use the existing
+hidden-input launcher only after the exact paid experiment is authorized.
 
 ## Owners and use
 
-| File                                   | Responsibility                                                                                                                                                     |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [contracts.ts](./contracts.ts)         | Versioned corpus, input, reference, curation, normalized prediction, and aggregate score-report types. These are internal evaluation records, not public API DTOs. |
-| [validation.ts](./validation.ts)       | Runtime validation of corpus/input/prediction records, approval assertions, split/duplicate checks, media relationships, and content-free error codes.             |
-| [evidence.ts](./evidence.ts)           | Allowlisted evidence projection, existing production capture-context formatting, and canonical SHA-256 fingerprints.                                               |
-| [scoring.ts](./scoring.ts)             | Pure point estimates over normalized predictions, using current Gemini confidence thresholds. No provider invocation or real-output normalization.                 |
-| [normalization.ts](./normalization.ts) | Validates input records and passes actual media-presence/tier facts into the shared production normalizer. No copied identification policy or I/O.                 |
-| [fixtures.ts](./fixtures.ts)           | Twelve invented cases across all six input groups, with invented taxonomy IDs, asset descriptors, and normalized outcomes. No actual media files.                  |
+| File                                   | Responsibility                                                                                                                                                                                   |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [contracts.ts](./contracts.ts)         | Versioned corpus, input, reference, curation, normalized prediction, and aggregate score-report types. These are internal evaluation records, not public API DTOs.                               |
+| [validation.ts](./validation.ts)       | Runtime validation of corpus/input/prediction records, approval assertions, split/duplicate checks, media relationships, and content-free error codes.                                           |
+| [evidence.ts](./evidence.ts)           | Allowlisted evidence projection, existing production capture-context formatting, and canonical SHA-256 fingerprints.                                                                             |
+| [scoring.ts](./scoring.ts)             | Pure point estimates over normalized predictions, using current Gemini thresholds only for Gemini; OpenAI confidence bands are unqualified. No provider invocation or real-output normalization. |
+| [normalization.ts](./normalization.ts) | Validates input records and passes actual media-presence/tier facts into the shared production normalizer. No copied identification policy or I/O.                                               |
+| [fixtures.ts](./fixtures.ts)           | Twelve invented cases across all six input groups, with invented taxonomy IDs, asset descriptors, and normalized outcomes. No actual media files.                                                |
 
 Additional owners:
 
 - `assets.ts` loads prepared evidence and reuses the production multimodal
   builder.
-- `profiles.ts` resolves production profiles and fingerprints native parameters;
-  the pure shared `functions/_shared/ai/geminiRequest.ts` avoids SDK
-  initialization.
+- `profiles.ts` resolves Gemini production profiles or the explicit OpenAI
+  evaluation binding and fingerprints native parameters; the pure shared
+  `functions/_shared/ai/geminiRequest.ts` avoids SDK initialization.
 - `runContracts.ts` validates specifications, pricing, readiness, manifests,
   durable claims and bounded attempt records.
 - `admission.ts` binds live corpus, taxonomy, project/key review and
   permissions.
 - `files.ts` owns private files, exclusive OS locks and flushed writes.
 - `runner.ts` owns preflight, single-call execution, immutable resume and
-  budgets.
+  per-run budgets. `reusableProfiles.ts` owns reviewed profile descriptors;
+  `experimentContracts.ts` owns bounded plans and allocation math;
+  `experiment.ts` owns controller capability, locks, cross-run journals and
+  stops; `experimentReport.ts` owns controlled reports. `experimentOffline.ts`
+  supplies invented controller demonstrations; `candidateOffline.ts` adds the
+  synthetic candidate path. `candidateReport.ts` owns the fixed screening gate.
+- `explanationContracts.ts` owns bounded ratings, bindings and private fact-card
+  validation; `explanationCalibration.ts` owns invented practice anchors;
+  `explanationView.ts` owns the ephemeral loopback view; `explanationReview.ts`
+  owns its in-memory projection and calibration workflow.
 - `projection.ts` maps normalized decisions/usage without persisting model
-  prose.
+  prose. `taxonomy.ts` owns frozen catalog validation and bounded mapping.
+- `measurementCost.ts` owns rate-aware estimates; `exploratoryMeasurement.ts`
+  owns v2 provisional assessments/metrics, and `exploratoryComparison.ts` owns
+  descriptive comparisons with incomplete-case accounting.
 - `reports.ts` regenerates metrics, intervals, timing/cost and paired
   comparisons.
 - `offline.ts` builds invented PNG/WAV fixtures for local mechanics tests.
@@ -117,6 +513,364 @@ request. See the
 [audio preprocessing comparison](../../../../docs/rfcs/identification-audio-preprocessing-fix-2026-09-23.md)
 for the offline evidence. Historical run fingerprints remain frozen; a new
 processor requires a new run rather than overwriting a prior baseline.
+
+### Prompt assignment and observation integration
+
+`generate_audio_prompt_comparison_plan.ts --write` checks the immutable Slice 1
+preparation digest and derives separate backend/native tables with 36 stable
+scan IDs. `--check` and its root test detect stale output. Neither mode
+recreates the old preparation or grants runtime permission. Runtime A/B request
+and policy hashes must still match the frozen source preparation; the newly
+generated backend bundle identity records the extended runtime graph separately.
+
+`audioPromptComparisonObservation.ts` strictly parses the new bounded native
+proof. `comparisonWindow.ts` shares unchanged lifecycle admission with the old
+DSP wrapper; `audioPromptComparisonWindow.ts` requires exactly 120 seconds and
+retains actual subject state, conditional confidence and provisional name-hash
+agreement. The separate
+[offline admission CLI](../admit_audio_prompt_comparison_observation.ts) writes
+exclusive private evidence with no network or environment access. See the
+[measurement guide](../../../../docs/development-guides/21-identification-app-measurement.md#prompt-comparison-observation)
+for command, input shape and evidence limits. The old DSP controller cannot
+activate this new plan. The separate prompt controller and offline execution
+ledger below own its bounded operation.
+
+### Offline prompt execution freeze and ledger
+
+[prepare_audio_prompt_execution.ts](../prepare_audio_prompt_execution.ts)
+creates a new private execution packet from the two retained reviewed source
+packets and a reviewed metadata JSON file. Unlike the dated preparation, this
+requires a clean actual source/app pair, matching generated backend/native
+tables and bundle, current reviewed pricing, and three bounded windows. It
+verifies the retained source/reference permissions and request hashes, copies
+six exact WAVs to case-only filenames, and freezes `run.json` with exact-file
+and canonical hashes in `freeze.json`. A failed preparation cannot resume or
+overwrite an output. No owner ID, credential, session data or provider response
+is accepted.
+
+The strict review shape is `audio_prompt_execution_review_v1`: `reviewedAt`,
+`sourceSha`, `deployedSha`, the five-field measurement `app` identity,
+`backendBundleSha256`, `pricing` (the existing `evaluation_pricing_v1`
+contract), `windows` (ordered blocks 1–3, each with `block`, `startsAt`,
+`expiresAt`) and `privatePreflight`. Use UTC millisecond timestamps. The pricing
+snapshot must cover all three windows; each window is at most two hours inside
+source retention. Obtain the actual clean app and deployment identities after
+review, not from a synthetic fixture or the previous dirty test build.
+
+`privatePreflight` has exactly `version: audio_prompt_private_preflight_v1`,
+`checkedAt` and five true boolean assertions:
+`ownerMatchesReviewedConfiguration`, `sameReviewedOwner`, `consentCurrent`,
+`appMatchesReview`, `foreground`. Perform those checks privately against the
+current authenticated simulator and reviewed configuration before recording the
+witness. It must be at most five minutes old and, for each new claim, no earlier
+than activation or the previous observation's completion. It is an unsigned
+operator witness, not proof of authentication; backend owner/consent checks stay
+authoritative. Never record the actual account/configuration/session values.
+
+Replace uppercase placeholders with absolute private paths. `OUTPUT_PARENT` must
+exist, `RUN` must be its new child, and all paths must be canonical:
+
+```bash
+deno run --frozen --no-prompt --deny-net --deny-env \
+  --config services/supabase/functions/deno.json \
+  --allow-read=.,SOURCE_V2,SOURCE_VISIBLE,REVIEW,OUTPUT_PARENT \
+  --allow-run=git --allow-write=RUN \
+  services/supabase/scripts/prepare_audio_prompt_execution.ts \
+  SOURCE_V2 SOURCE_VISIBLE REVIEW RUN
+```
+
+[manage_audio_prompt_execution.ts](../manage_audio_prompt_execution.ts) and
+[audioPromptExecution.ts](./audioPromptExecution.ts) maintain `slots/` and
+`controls/` under that packet, with exclusive locking and flushed, create-only
+records. `claim` verifies all six frozen WAV hashes again and the unchanged
+clean local implementation, then reserves the next first attempt **before**
+manual Identify. It accepts only the exact block's sanitized activation receipt
+and a fresh witness. It submits nothing. Example claim for slot 1:
+
+```bash
+deno run --frozen --no-prompt --deny-net --deny-env \
+  --config services/supabase/functions/deno.json \
+  --allow-read=.,RUN,ACTIVATION,WITNESS --allow-run=git --allow-write=RUN \
+  services/supabase/scripts/manage_audio_prompt_execution.ts \
+  claim RUN 1 ACTIVATION WITNESS
+```
+
+The other operations have four arguments: `admit RUN SLOT OBSERVATION` and
+`close RUN BLOCK CLEANUP`. Use the same denied network/environment flags,
+`--allow-read=.,RUN,INPUT --allow-write=RUN`, and the corresponding private
+input file; neither operation needs `--allow-run`. `admit` requires the exact
+frozen pricing, a matching fresh 120-second window after the claim, and
+completion before block expiry. It retains normalized proof, subject state,
+score, timing and cost provenance, never response prose. A failed observation
+creates an immutable exclusion and cannot be replaced by a later good window.
+
+A claim without completion blocks all subsequent slots, including after a crash
+before the tap. There is no retry, skip, reset or budget expansion API. Complete
+unfavorable outcomes are retained; missing cost stays unknown for the final
+screen. Close each block with verified deactivation evidence after its last
+completion or exclusion. A failed block can close for recovery but cannot
+resume. The next block requires the previous twelve completions and verified
+cleanup before its own activation. Recovery may use a different controller SHA
+with trusted workflow-artifact provenance and verified absence. The offline
+ledger validates receipt shape and bindings, not ancestry or current-main
+status; identification still uses the frozen app/runtime bindings.
+
+Follow the
+[activation/recovery procedure](../../../../docs/backend-and-data/06-supabase-deployment-runbook.md#audio-prompt-comparison-activation-prerequisites).
+The controller and ledger do not authorize a deployment, secret creation or paid
+run; they also do not prove that a request happened or replace the server's
+single-attempt gate. Actual admission requires the app's runtime receipts. Keep
+the frozen checkout throughout execution, stop on uncertain submissions, and
+preserve every record through the source retention deadline.
+
+### Explicit continuation after an expired between-trial pause
+
+[manage_audio_prompt_continuation.ts](../manage_audio_prompt_continuation.ts)
+creates one separately versioned amendment at the fixed sibling path
+`ORIGINAL.continuation`. It does not reopen the original ledger. Eligibility
+requires a contiguous completed prefix ending **inside** a block, all activated
+original blocks closed with verified absence, the final partial block cleaned up
+after its window expired, and no local evidence or operator uncertainty about
+later submissions. Open claims, exclusions, gaps, and a prefix ending at a block
+boundary are ineligible.
+
+[audioPromptExecutionEvidence.ts](./audioPromptExecutionEvidence.ts) re-admits
+every original observation and binds the exact manifest, claims, completions,
+control receipts, observation bytes, and any retained operator/witness files. It
+checks all six original assets each time. The original's existing `.lock` inode
+is locked read-only; it is never created, replaced or written. Operations take
+that lock before the sidecar lock. The fixed sibling directory is create-only,
+so a second preparation or continuation-of-continuation fails closed. The
+separate successor protocol below leaves this legacy behavior unchanged. Keep
+both directories canonical and private. Never copy the original to manufacture
+another eligible path or remove a failed sidecar.
+
+The continuation pins the clean tooling commit/digest and the reviewed current
+deployment revision separately from the original app, deployment history,
+generated assignments and runtime bundle.
+[audioPromptContinuationContract.ts](./audioPromptContinuationContract.ts)
+requires the new control SHA and amended window while keeping the original
+runtime identity. The app is not rebuilt for a tooling-only continuation.
+Pricing cannot be refreshed: the original reviewed snapshot must remain valid
+through all new windows, each at most two hours and within media retention.
+
+First inspect the stopped original offline:
+
+```bash
+deno run --frozen --no-prompt --deny-net --deny-env \
+  --config services/supabase/functions/deno.json \
+  --allow-read=.,ORIGINAL \
+  services/supabase/scripts/manage_audio_prompt_continuation.ts inspect ORIGINAL
+```
+
+Prepare a strict `audio_prompt_continuation_review_v2` review with `reviewedAt`,
+`sourceSha` (the clean tooling/controller SHA), `deployedSha` (the current
+successful deployment resolved by the protected control workflow),
+`originalEvidenceSha256` from inspection, `firstSlot` (exactly the completed
+prefix plus one), ordered `windows` for the remaining blocks, and the existing
+fresh `privatePreflight` witness. It also requires true `noUnrecordedAttempts`,
+`remainingNeverSubmitted`, and `pauseBetweenCompletedSlots` operator assertions,
+plus `analysisPolicy: original_screening_rules_with_disclosed_interruption`.
+These are unsigned assertions, not a provider-dispatch audit. Obtain separate
+authorization for the new bounded windows before activation; preparation and
+inspection submit nothing.
+
+The reviewed deployment SHA may advance after a tooling-only release, while the
+original bundle, prompts, plan and app must still match. Activation must equal
+the new review's exact `deployedSha`; merely naming any valid revision is
+insufficient. Keep the original evidence's deployment SHA unchanged. Existing
+`audio_prompt_continuation_review_v1` packets retain their original-deployment
+binding and reject an added `deployedSha`; they are never upgraded in place.
+
+For preparation, `ORIGINAL_PARENT` is the existing canonical parent directory of
+`ORIGINAL`. Its read grant covers the new sibling and the parent-directory flush
+needed to make creation durable. The write grant stays limited to the sibling.
+
+```bash
+deno run --frozen --no-prompt --deny-net --deny-env \
+  --config services/supabase/functions/deno.json \
+  --allow-read=.,ORIGINAL_PARENT,REVIEW --allow-run=git \
+  --allow-write=ORIGINAL.continuation \
+  services/supabase/scripts/manage_audio_prompt_continuation.ts \
+  prepare ORIGINAL REVIEW
+```
+
+For `claim ORIGINAL SLOT ACTIVATION WITNESS`, `admit ORIGINAL SLOT`, and
+`close ORIGINAL BLOCK CLEANUP`, use the same denied network/environment flags
+and `--allow-read=.,ORIGINAL,ORIGINAL.continuation,INPUTS`, plus
+`--allow-write=ORIGINAL.continuation`. Claim and admit also need
+`--allow-run=git` to verify the pinned tooling. Substitute the actual
+receipt/witness files for `INPUTS`.
+
+Report requires an existing canonical private `OUTPUT_PARENT` outside both
+packets. It writes a new direct child file and cannot overwrite an existing
+report:
+
+```bash
+deno run --frozen --no-prompt --deny-net --deny-env \
+  --config services/supabase/functions/deno.json \
+  --allow-read=.,ORIGINAL,ORIGINAL.continuation,OUTPUT_PARENT --allow-run=git \
+  --allow-write=ORIGINAL.continuation,OUTPUT_PARENT \
+  services/supabase/scripts/manage_audio_prompt_continuation.ts \
+  report ORIGINAL OUTPUT_PARENT/report.json
+```
+
+Claim verifies the original evidence again and reserves only the next untouched
+assignment. Stage that original slot and WAV in the unchanged app, start the
+normal passive observer at `ORIGINAL.continuation/observations/slot-NN.jsonl`,
+wait for `observer_ready`, then tap Identify once. Admit reads this fixed file,
+requires the full matching 120-second window and frozen pricing, and records a
+distinct continuation completion. Invalid observations become terminal sidecar
+exclusions. An open claim cannot be retried even if the tap may not have
+happened. A previously used server assignment fails first-attempt admission; it
+never authorizes another slot or replacement.
+
+Close every activated amended block after its last claim/completion/exclusion.
+Close can retain verified cleanup even if the original files or tooling later
+change; claiming and reporting still reject that drift. The next block requires
+the preceding block's final completion, verified cleanup and subsequent new
+activation. Failure or expiry closes this sidecar permanently.
+
+The content-free combined evidence report identifies original and amended rows
+separately. All 36 unique first attempts, known required timing/cost and
+verified cleanup are required before evaluating the unchanged screening rules.
+The report does not itself score visible names, declare a candidate win or
+authorize promotion. Preserve the original stopped-run report and disclose the
+interruption in any subsequent analysis. See the
+[canonical amendment procedure](../../../../docs/backend-and-data/06-supabase-deployment-runbook.md#amend-an-expired-prompt-comparison-between-completed-trials).
+
+### Explicit successor after a closed first continuation
+
+The separate
+[manage_audio_prompt_successor.ts](../manage_audio_prompt_successor.ts) creates
+exactly one fixed sibling, `ORIGINAL.continuation.successor`. It is a new
+protocol, not an upgrade or reset of either predecessor. Existing v1/v2
+continuations stay terminal after failure or expiry. No additional successor,
+copied packet, alternate directory, replacement slot or uncertain attempt is
+eligible.
+
+`audioPromptSuccessorEvidence.ts` re-admits both original and continuation
+observations, requires a contiguous completed prefix ending inside a block, and
+requires every activation closed, with the final continuation cleanup after its
+expiry. It hashes all continuation records and binds two retained stopped
+reports as opaque, bounded private JSON files. Private path locators stay inside
+the private manifest; inspect and derived report output expose only their
+hashes. Those report hashes preserve history; their contents never replace
+runtime observation validation or prove biological truth. Their paths and bytes
+must remain unchanged.
+
+Locks are acquired in order: the existing original lock read-only, the existing
+continuation lock read-only, then the successor lock. Preparation uses a
+create-only directory and fsynced files. Parent evidence is revalidated before
+each claim, admission and report. Parents and reports receive read permissions
+only. A pending or excluded successor trial permanently prevents further
+progression. Cleanup stays available after parent/tooling drift.
+
+Inspect both parents before preparing a new review:
+
+```bash
+deno run --frozen --no-prompt --deny-net --deny-env \
+  --config services/supabase/functions/deno.json \
+  --allow-read=.,ORIGINAL_PARENT,ORIGINAL_REPORT,CONTINUATION_REPORT \
+  services/supabase/scripts/manage_audio_prompt_successor.ts \
+  inspect ORIGINAL ORIGINAL_REPORT CONTINUATION_REPORT
+```
+
+The strict `audio_prompt_successor_review_v1` has `reviewedAt`, `sourceSha`,
+current `deployedSha`, inspected `predecessorEvidenceSha256`, `firstSlot`
+(exactly the completed prefix plus one), ordered `windows` for remaining
+original blocks, fresh `privatePreflight`, and `reports` with canonical absolute
+`original` and `continuation` report paths. It requires true
+`noUnrecordedAttempts`, `remainingNeverSubmitted`, `pauseBetweenCompletedSlots`,
+and `analysisPolicy: original_screening_rules_with_disclosed_interruptions`.
+Keep owner IDs, session data and private hosted configuration out of these
+files. Reports must be private regular single-link JSON files, at most 8 MiB,
+with private canonical parents.
+
+After review, preparation is offline:
+
+```bash
+deno run --frozen --no-prompt --deny-net --deny-env \
+  --config services/supabase/functions/deno.json \
+  --allow-read=.,ORIGINAL_PARENT,REVIEW,ORIGINAL_REPORT,CONTINUATION_REPORT \
+  --allow-run=git --allow-write=ORIGINAL.continuation.successor \
+  services/supabase/scripts/manage_audio_prompt_successor.ts \
+  prepare ORIGINAL REVIEW
+```
+
+Use `claim ORIGINAL SLOT ACTIVATION WITNESS`, `admit ORIGINAL SLOT`, and
+`close ORIGINAL BLOCK CLEANUP` with the same denied network/environment,
+parent/report/source read grants and successor-only write grant. Claim and admit
+need `--allow-run=git`; close needs only the successor and cleanup receipt. The
+observer writes one new
+`ORIGINAL.continuation.successor/observations/slot-NN.jsonl`. Wait for
+readiness, tap Identify once, retain the complete 120-second window and admit it
+before the next claim. Activation receipts bind the current reviewed controller
+and deployment plus the unchanged runtime/plan. Admission also binds app and
+pricing. Cleanup verifies absence and binds the window/bundle when those fields
+are present; a later recovery controller is allowed. Each activation remains at
+most two hours. Verified cleanup precedes the next block.
+
+`report ORIGINAL OUTPUT_PARENT/report.json` also needs read/write access to a
+canonical private output parent outside all three packets. It creates a new
+report and refuses overwrite. The report distinguishes original, continuation
+and successor rows/controls, and requires all 36 unique first attempts, required
+known timing/cost/score and verified cleanup before screening. It neither scores
+visible labels nor authorizes promotion. Retain bounded UI labels separately,
+disclose both interruptions, and follow the
+[successor authorization procedure](../../../../docs/backend-and-data/06-supabase-deployment-runbook.md#continue-after-a-second-between-trial-expiry).
+
+### Offline audio uncertainty prompt preparation
+
+[The six-clip prompt design](../../../../docs/rfcs/identification-audio-uncertainty-comparison-plan-2026-09-24.md)
+has a separate offline builder:
+[prepare_audio_uncertainty_comparison.ts](../prepare_audio_uncertainty_comparison.ts).
+It accepts the two previously reviewed private source packets and a fresh output
+directory. Network and environment permissions must be denied. The builder has
+no provider executor or client prompt selector. Slice 2 adds a separately gated
+runtime registry arm and Debug client handle; the new lane remains default-off
+behind its separate activation controller.
+
+[Audio prompt comparison](./audioPromptComparison.ts) pins the complete design,
+inserts its exact species-evidence block into the resolved current V2
+instruction, and uses the production processor, Pro policy and Gemini request
+projection. Both arms share the processed WAV and fixed context. A
+native-request comparison removes only the system instruction and requires
+equality. The actual processed WAV must be canonical mono PCM16 at 16 kHz and
+0.5–15 seconds before its format is recorded.
+
+[Frozen packet loading](./frozenAudioPacket.ts) verifies the design's completed
+freeze, corpus, taxonomy, selected media, eligibility, source and reference
+records. It requires current owner-reviewed retention, existing Gemini
+evaluation permission, the exact selected groups/references, one bounded
+standalone WAV and no observation text or source context. Private canonical
+roots and regular single-link files are required. Historical outcomes and
+response prose are not loaded.
+
+Replace all uppercase path placeholders with absolute paths. `OUTPUT_PARENT`
+must exist and `OUTPUT` must be its new child; these paths must have no symlink
+aliases. Parent read access permits the directory sync after exclusive creation.
+
+```bash
+deno run --frozen --no-prompt --deny-net --deny-env \
+  --config services/supabase/functions/deno.json \
+  --allow-read=.,SOURCE_V2,SOURCE_VISIBLE,OUTPUT_PARENT \
+  --allow-run=git --allow-write=OUTPUT \
+  services/supabase/scripts/prepare_audio_uncertainty_comparison.ts \
+  SOURCE_V2 SOURCE_VISIBLE OUTPUT
+```
+
+The private `preparation.json` contains only source/provenance/request/policy
+hashes, settings, implementation identity and the 36 reviewed assignments.
+`freeze.json` records both its exact-file and canonical-JSON hashes. Source and
+completed packets stay immutable. Preparation slot handles use a new
+`audio-uncertainty-v1` namespace; they are not reserved scan identities or live
+authorization. Scan IDs, app/bundle/private owner/window bindings and live
+dispatch remain unset. Repeats preserve request hashes and receive distinct
+assignment hashes. Neither existing RunSpecs nor the historical DSP lane can
+consume this artifact. Any implementation or binding change requires a new
+preparation; formatting an evidence copy preserves its canonical digest but
+changes its exact-file digest.
 
 ### Offline audio comparison preparation
 
@@ -317,10 +1071,12 @@ case, approved Gemini-evaluation rights, exclusion/review assertions, distinct
 reviewer references, and resolved labels. Synthetic corpora require null
 approval and synthetic curation. These fields are assertions for a controlled
 intake, not cryptographic proof of permission, reviewer identity, or biological
-correctness. Passing validation does not authorize a live run. For real
-execution, the implemented runner also requires asset preflight, reviewed
-processor/account readiness, an approved digest and budget, durable dispatch,
-and explicit live selection. The user must authorize the concrete paid run.
+correctness. Passing validation does not authorize a live run. OpenAI
+additionally requires a recipient-specific permission record bound to the exact
+corpus and selected cases; see the provider guide above. For real execution, the
+implemented runner also requires asset preflight, reviewed processor/account
+readiness, an approved digest and budget, durable dispatch, and explicit live
+selection. The user must authorize the concrete paid run.
 
 ## Automated exploratory runs
 
@@ -342,15 +1098,15 @@ source permission before asserting these checks. One automated eligibility
 review does not create independently verified biological truth. Synthetic
 records instead require null eligibility and synthetic curation.
 
-A real run uses `identification_exploratory_run_spec_v1`, `stage: exploratory`,
-all selected corpus groups, one repeat, and both existing Gemini profiles. The
-maximum is twelve groups and twenty-four calls. It retains every live gate
-below: dedicated reviewed project/key, processor readiness, fresh reviewed
-pricing, retention, exact immutable inputs/source, a positive authorized USD
-budget, durable claims and no automatic retry of unknown executions. Synthetic
-evidence cannot run live, and real evidence cannot be executed by the offline
-fixture transport. The formal corpus/scorer and its two-reviewer requirement are
-unchanged.
+A legacy Gemini run uses `identification_exploratory_run_spec_v1`,
+`stage: exploratory`, all selected corpus groups, one repeat, and both existing
+Gemini profiles. The maximum is twelve groups and twenty-four calls. It retains
+every live gate below: dedicated reviewed project/key, processor readiness,
+fresh reviewed pricing, retention, exact immutable inputs/source, a positive
+authorized USD budget, durable claims and no automatic retry of unknown
+executions. Synthetic evidence cannot run live, and real evidence cannot be
+executed by the offline fixture transport. The formal corpus/scorer and its
+two-reviewer requirement are unchanged.
 
 Use the same permissions as the offline example below:
 
@@ -488,7 +1244,11 @@ app rendering; the adapter does not distinguish timeout causes from other
 unknown executions. Offline durations and costs supply no live performance
 evidence.
 
-## Future explicitly approved live use
+## Future explicitly approved Gemini live use
+
+The following dedicated-project and SDK rules apply to Gemini. OpenAI uses the
+[alternative-provider contract](../../../../docs/development-guides/22-alternative-identification-provider.md),
+which also supports a reviewed shared application project/key.
 
 Only `--live DIRECTORY` can select paid execution. Before using it, approve an
 eligible real reference or exploratory corpus, its exact digest and both
@@ -564,7 +1324,8 @@ caps, sanitized artifacts, report regeneration and comparison are exercised
 there. The main tooling suite also explicitly denies network and environment
 access.
 
-Slice 4 is next: curate and approve the 60-group development corpus, exact
-processor/pricing records and bounded run, then explicitly authorize that paid
-pilot. Held-out evaluation and decision qualification remain later work. No
-synthetic result establishes biological accuracy or a provider cost/latency win.
+The first paid OpenAI exploratory pilot is recorded above. Formal Slice 4 still
+requires the reviewed 60-group development corpus, exact processor/pricing
+records and an explicitly authorized bounded run. Held-out evaluation and
+decision qualification remain later work. Neither synthetic results nor the
+small provisional pilot establish a provider accuracy, cost or latency win.

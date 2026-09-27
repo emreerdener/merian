@@ -41,6 +41,40 @@ struct AuthenticatedTransportDispatcherTests {
                 == "stable-key"
         )
         #expect(request.value(forHTTPHeaderField: "Authorization") == nil)
+        #expect(request.value(forHTTPHeaderField: IdentificationRecipientExpectation.header) == nil)
+    }
+
+    @MainActor
+    @Test func withdrawalBetweenPreparationAndDispatchNeverSendsBody() async throws {
+        let userID = UUID()
+        let transport = ScopedMockTransport()
+        let session = transport.makeSession()
+        defer { session.invalidateAndCancel() }
+        transport.register(path: "/identify") { _ in
+            Issue.record("Withdrawn permission reached network dispatch")
+            throw URLError(.badServerResponse)
+        }
+        let pinned = PinnedNetworkTransport()
+        pinned.overridingSession = session
+        let dispatcher = AuthenticatedTransportDispatcher(sessionTransport: pinned)
+        dispatcher.overridingAuthUserID = userID
+        var allowed = true
+        let authorization = IdentificationDispatchAuthorization(recipient: .openAI) {
+            if !allowed { throw MerianError.openAIConsentRequired }
+        }
+        let body = Data("{}".utf8)
+        let request = try await dispatcher.makeAuthenticatedJSONRequest(
+            url: #require(URL(string: "https://example.supabase.co/functions/v1/identify")),
+            bodyData: body, expectedAuthUserID: userID,
+            identificationAuthorization: authorization)
+        #expect(request.value(forHTTPHeaderField: IdentificationRecipientExpectation.header) == "openai")
+        allowed = false
+        await #expect(throws: MerianError.openAIConsentRequired) {
+            try await dispatcher.perform(.init(
+                request: request, body: body, onRequestBodySent: nil,
+                authTransitionOwner: nil, expectedAuthUserID: userID,
+                identificationAuthorization: authorization))
+        }
     }
 
     private func makeDispatcher(userID: UUID)

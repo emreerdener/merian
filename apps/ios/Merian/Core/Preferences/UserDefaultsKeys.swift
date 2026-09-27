@@ -18,10 +18,9 @@ enum UserDefaultsKeys {
     static let themeMode = "themeMode"
     /// Whether Explore should be presented over the Capture workspace on a fresh app launch.
     static let opensExploreOnLaunch = "opensExploreOnLaunch"
-    /// Whether multi-capture mode is enabled for the camera workflow.
-    static let isMultiCaptureEnabled = "isMultiCaptureEnabled"
-    /// Whether scans should wait for explicit user confirmation before submission.
-    static let requiresScanConfirmation = "requiresScanConfirmation"
+    /// Immediate submission is an explicit opt-in independent of legacy settings.
+    static let autoSubmitScans = "autoSubmitScans"
+    static let hasShownCaptureNoteTip = "hasShownCaptureNoteTip"
     /// Whether the active capture-goal indicator is visible over the Scan camera.
     static let showsCaptureGoalProgress = "showsCaptureGoalProgress"
     /// Legacy pre-migration key for the old multi-image scan mode toggle.

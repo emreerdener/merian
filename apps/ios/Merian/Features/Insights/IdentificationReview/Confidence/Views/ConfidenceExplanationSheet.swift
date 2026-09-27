@@ -7,6 +7,7 @@ struct ConfidenceExplanationSheet: View {
     let presentationGeneration: UInt64
     let confidenceScore: Double?
     let inferenceTier: String?
+    let provenance: IdentificationResultProvenance?
     var userIdentificationOverride: String?
     var userConfirmedIdentification: Bool = false
     var isFlagged: Bool = false
@@ -28,6 +29,7 @@ struct ConfidenceExplanationSheet: View {
         presentationGeneration: UInt64,
         confidenceScore: Double?,
         inferenceTier: String?,
+        provenance: IdentificationResultProvenance? = nil,
         userIdentificationOverride: String? = nil,
         userConfirmedIdentification: Bool = false,
         isFlagged: Bool = false,
@@ -42,6 +44,7 @@ struct ConfidenceExplanationSheet: View {
         self.presentationGeneration = presentationGeneration
         self.confidenceScore = confidenceScore
         self.inferenceTier = inferenceTier
+        self.provenance = provenance
         self.userIdentificationOverride = userIdentificationOverride
         self.userConfirmedIdentification = userConfirmedIdentification
         self.isFlagged = isFlagged
@@ -84,6 +87,8 @@ struct ConfidenceExplanationSheet: View {
     private var headerTitle: String {
         ConfidenceExplanationPresentation.headerTitle(
             confidenceScore: confidenceScore,
+            inferenceTier: inferenceTier,
+            provenance: provenance,
             hasUserOverride: userIdentificationOverride != nil,
             isUserConfirmed: userConfirmedIdentification
         )
@@ -235,7 +240,7 @@ struct ConfidenceExplanationSheet: View {
                 }
 
                 if !userConfirmedIdentification && userIdentificationOverride == nil {
-                    ConfidenceSpectrum(inferenceTier: inferenceTier)
+                    ConfidenceSpectrum(inferenceTier: inferenceTier, provenance: provenance)
                 }
 
                 if !revenueCatManager.isProActive {

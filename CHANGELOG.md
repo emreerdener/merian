@@ -12,6 +12,15 @@ TestFlight, App Store, support, and QA.
   purchase synchronization. Explore and Identify retry initial loads interrupted
   by setup, reducing the need to close and reopen a fresh installation.
 
+### Review scans and add context
+
+- Review captures before identifying by default, with an optional shared note.
+  Free scans support one photo or audio recording plus a note; Pro supports two
+  media items plus a note. Auto-submit scans remains an optional convenience.
+- The staged tray uses adaptive Liquid Glass where supported, a blue Identify
+  button, and confirmation before discarding your scan.
+- Expedition mode is now included for everyone in Workspace settings.
+
 ### Species discovery search
 
 - Search by name or describe what you want to discover with **Search or ask

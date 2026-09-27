@@ -148,10 +148,15 @@ Deno.test("identification evaluation dispatch is explicit, input-validated and d
   assertStringIncludes(cli, 'mode === "--live"');
   assertStringIncludes(runner, "await prepareEvidence(root, item.input)");
   assertStringIncludes(runner, "await approve()");
+  assertStringIncludes(runner, 'await import("./providers.ts")');
+  const providers = await Deno.readTextFile(
+    new URL("identification_evaluation/providers.ts", root),
+  );
   assertStringIncludes(
-    runner,
+    providers,
     'await import("../../functions/_shared/ai/production.ts")',
   );
+  assertStringIncludes(providers, "createOpenAIEvaluationAdapter(credential)");
   assert(
     runner.indexOf("await claimJson(") <
       runner.indexOf("await execution.invoke()"),
@@ -162,7 +167,7 @@ Deno.test("identification evaluation dispatch is explicit, input-validated and d
   assertStringIncludes(admission, "readiness.credentialSha256");
   assertStringIncludes(
     admission,
-    'host: "generativelanguage.googleapis.com:443"',
+    '"generativelanguage.googleapis.com:443"',
   );
   assert(!runner.includes("console.") && !runner.includes("fetch("));
 });
@@ -172,7 +177,12 @@ Deno.test("every public paid-model route declares a server quota operation", asy
     const source = await Deno.readTextFile(new URL(path, import.meta.url));
     assertStringIncludes(
       source,
-      "reserveAIProviderCall",
+      operations.every((operation) =>
+          operation === "scan_identification" ||
+          operation === "scan_audio_identification"
+        )
+        ? "reserveIdentificationProviderCall"
+        : "reserveAIProviderCall",
       `${path} does not import the authoritative quota boundary`,
     );
     for (const operation of operations) {
@@ -435,7 +445,7 @@ Deno.test("every scan-producing route coalesces quota replays into an owner-scop
       "await fetchCompletedIdentifyResponse(",
     );
     const quotaReservation = source.indexOf(
-      "await reserveAIProviderCall(",
+      "await reserveIdentificationProviderCall(",
     );
 
     assertStringIncludes(source, "resolveAIRequestId(req, client_scan_id)");
@@ -527,6 +537,34 @@ Deno.test("server recovery retries use a separately metered idempotency key per 
   assertStringIncludes(worker, '"X-Merian-Replay-Attempt"');
 });
 
+Deno.test("stored identification recovery precedes provider compatibility admission", async () => {
+  for (
+    const route of [
+      "identify",
+      "identify-describe",
+      "identify-multimodal",
+      "audio-spec",
+    ]
+  ) {
+    const source = await Deno.readTextFile(
+      new URL(`../${route}/index.ts`, import.meta.url),
+    );
+    const completed = source.indexOf("await fetchCompletedIdentifyResponse(");
+    const admission = source.indexOf(
+      "await reserveIdentificationProviderCall(",
+    );
+    assert(
+      completed >= 0 && completed < admission,
+      `${route} must recover before fresh assignment admission`,
+    );
+  }
+  const status = await Deno.readTextFile(
+    new URL("../check-scan-status/index.ts", import.meta.url),
+  );
+  assert(!status.includes("reserveIdentificationProviderCall"));
+  assert(!status.includes("entitlementProtocolResponse"));
+});
+
 Deno.test("deployment does not require the optional quota hashing override", async () => {
   const workflow = await Deno.readTextFile(
     new URL("../../../../.github/workflows/deploy.yml", import.meta.url),
@@ -563,5 +601,30 @@ Deno.test("public dictionary fallback and webhook contain no hidden isolate auth
   await assertRejects(
     () => Deno.stat(new URL("../_shared/tierCache.ts", import.meta.url)),
     Deno.errors.NotFound,
+  );
+});
+
+Deno.test("OpenAI dispatch stays outside production composition and its offline adapter tests remain in CI", async () => {
+  const root = new URL("../", import.meta.url);
+  for (const file of await runtimeTypeScriptFiles(root)) {
+    if (/(?:_test|[.]test)[.]ts$/.test(file.pathname)) continue;
+    const source = await Deno.readTextFile(file);
+    if (/from ["'][^"']*openai(?:Request)?[.]ts["']/.test(source)) {
+      assertEquals(
+        file.pathname,
+        new URL("_shared/ai/openai.ts", root).pathname,
+      );
+    }
+  }
+  const workflow = await Deno.readTextFile(
+    new URL(
+      "../../../../.github/workflows/supabase-candidate-validation.yml",
+      import.meta.url,
+    ),
+  );
+  assertStringIncludes(workflow, "--no-prompt --deny-net --deny-env");
+  assertStringIncludes(
+    workflow,
+    "supabase/functions/_shared/ai/openai_test.ts",
   );
 });

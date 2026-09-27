@@ -962,9 +962,10 @@ Reference image mapping:
   comma-separated `species_dictionary.reference_image_url`, then splits, trims,
   and dedupes URLs.
 - Merian rows come from currently published Explore media whose scan-level
-  `image_quality_score` meets the scheduled worker threshold. V1 uses all
-  non-empty image URLs from the qualifying scan and caps promotion at 8 images
-  per species.
+  `image_quality_score` meets the scheduled worker threshold and whose recorded
+  execution has compatible Gemini metrics (or historical-null provenance). V1
+  uses all non-empty image URLs from the qualifying scan and caps promotion at 8
+  images per species.
 - Wikimedia/Wikipedia hosts are marked `wikipedia`.
 - When a Wikipedia URL exists and the first image has no clear host signal, the
   first image is treated as `wikipedia`; all other unresolved URLs default to
@@ -1068,6 +1069,8 @@ Provenance:
 - `refresh-merian-reference-images` runs hourly as a separate service-role cron
   worker. It promotes published Explore media with `image_quality_score >= 80`
   and either `ai_confidence_score >= 0.95` or a resolved `confirmed_species_id`,
+  requires compatible Gemini metric provenance even for a confirmed species
+  because confirmation does not validate an unfamiliar image-quality scale,
   stores private source/confidence provenance in
   `species_reference_image_merian_sources`, and removes public Merian rows when
   the source Explore post/media stops being visible.

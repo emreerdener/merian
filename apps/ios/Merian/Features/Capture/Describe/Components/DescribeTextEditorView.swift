@@ -4,6 +4,7 @@ struct DescribeTextEditorView: View {
     let placeholder: String
     @Binding var text: String
     let focus: FocusState<Bool>.Binding
+    var onDone: () -> Void = {}
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -28,6 +29,17 @@ struct DescribeTextEditorView: View {
                     .font(.body)
                     .foregroundStyle(.primary)
                     .focused(focus)
+                    .submitLabel(.return)
+                    .toolbar {
+                        ToolbarItemGroup(placement: .keyboard) {
+                            Spacer()
+                            Button("Done") {
+                                focus.wrappedValue = false
+                                onDone()
+                            }
+                            .accessibilityIdentifier("DescribeKeyboardDone")
+                        }
+                    }
                     .padding(.horizontal, 16)
                     .padding(.top, 16)
                     .padding(.bottom, 48)

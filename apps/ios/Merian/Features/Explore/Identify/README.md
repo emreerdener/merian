@@ -111,6 +111,13 @@ Requests call `/get-community-identification-feed`; Activity calls
 `group` filters. The dashboard limits are exactly 12 Requests and 10 Activity
 groups; backend defaults are not used for previews.
 
+The detail's server-derived `ai_confidence_qualified` flag controls score/tier
+presentation through `CommunityAIIdentificationPresentation`. False displays
+**AI suggestion** without a percentage or model-tier label while keeping the
+observation and candidate review. Omission preserves older Gemini-only
+responses. It is interpretation metadata, never a viewer preference or provider
+selector.
+
 **Report post** on a Community detail calls `/report-explore-post` through the
 Identify Services adapter with the detail's exact `postId`, the fixed
 `Inappropriate content` reason, and `Reported from Community request` context.

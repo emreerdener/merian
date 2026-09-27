@@ -5,6 +5,9 @@ struct ActiveScanToolbar: View {
     let stagedCapture: StagedCapture
     let isRefining: Bool
     let stagedCaptureLimit: Int
+    let isSubmissionReady: Bool
+    let isMutationLocked: Bool
+    let onNoteTap: () -> Void
     @Binding var selectedPhotoItems: [PhotosPickerItem]
     let onRequestPhotoPickerPresentation: @MainActor (Int) async -> Bool
 
@@ -26,6 +29,9 @@ struct ActiveScanToolbar: View {
         stagedCapture: StagedCapture,
         isRefining: Bool,
         stagedCaptureLimit: Int,
+        isSubmissionReady: Bool = true,
+        isMutationLocked: Bool = false,
+        onNoteTap: @escaping () -> Void = {},
         selectedPhotoItems: Binding<[PhotosPickerItem]>,
         onRequestPhotoPickerPresentation: @escaping @MainActor (Int) async -> Bool,
         onThumbnailTap: @escaping (Int) -> Void,
@@ -39,6 +45,9 @@ struct ActiveScanToolbar: View {
         self.stagedCapture = stagedCapture
         self.isRefining = isRefining
         self.stagedCaptureLimit = stagedCaptureLimit
+        self.isSubmissionReady = isSubmissionReady
+        self.isMutationLocked = isMutationLocked
+        self.onNoteTap = onNoteTap
         self._selectedPhotoItems = selectedPhotoItems
         self.onRequestPhotoPickerPresentation =
             onRequestPhotoPickerPresentation
@@ -62,32 +71,37 @@ struct ActiveScanToolbar: View {
             }
 
             HStack(spacing: 16) {
-                if isRefining {
-                    ViewThatFits(in: .horizontal) {
-                        mediaRow.fixedSize(horizontal: true, vertical: false)
-                        ScrollView(.horizontal) {
-                            mediaRow
-                        }
-                        .transparentTopToolbar()
-                        .scrollIndicators(.hidden)
-                        .frame(height: 48)
-                    }
-                } else {
+                ScrollView(.horizontal) {
                     mediaRow
                 }
+                .transparentTopToolbar()
+                .scrollIndicators(.hidden)
+                .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
+                .frame(maxWidth: CGFloat(mediaNodeCount * 64 - 16))
+                .frame(height: 48)
+                .accessibilityIdentifier("StagedMediaRowScroll")
 
                 CaptureStagingSubmitButton(
                     title: presentation.submitTitle,
-                    isDisabled: presentation.isSubmitDisabled,
+                    isDisabled: presentation.isSubmitDisabled || !isSubmissionReady,
                     onSubmit: onSubmit
                 )
             }
             .padding(8)
-            .background(glassBackground)
-            .overlay(glassBorder)
+            .modifier(CaptureTrayGlass())
             .disabled(isCheckingPhotoImportAdmission)
         }
-        .environment(\.colorScheme, .dark)
+        .overlay(alignment: .top) {
+            if showTooltip {
+                Text("Add a note about what you noticed")
+                    .font(.caption).padding(8)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .offset(y: -64)
+                    .allowsHitTesting(false)
+            }
+        }
+        .disabled(isMutationLocked)
         .padding(.horizontal, 16)
         .padding(.bottom, 24)
         .animation(
@@ -118,22 +132,42 @@ struct ActiveScanToolbar: View {
         }
     }
 
+    private var mediaNodeCount: Int {
+        presentation.visibleNodes.count + (presentation.photoSelectionCount == nil ? 0 : 1) + 1
+    }
+
     private var mediaRow: some View {
-        CaptureStagingToolbarMediaRow(
-            presentation: presentation,
-            selectedPhotoItems: $selectedPhotoItems,
-            isPhotoPickerPresented: $isPhotoPickerPresented,
-            isCheckingPhotoImportAdmission:
-                isCheckingPhotoImportAdmission,
-            showTooltip: showTooltip,
-            photoLibrary: dependencies.photoLibrary,
-            onRequestPhotoPickerPresentation:
-                requestPhotoPickerPresentation,
-            onThumbnailTap: onThumbnailTap,
-            onDescriptionTap: onDescriptionTap,
-            onAudioTap: onAudioTap,
-            onVideoTap: onVideoTap
-        )
+        HStack(spacing: 16) {
+            CaptureStagingToolbarMediaRow(
+                presentation: presentation,
+                selectedPhotoItems: $selectedPhotoItems,
+                isPhotoPickerPresented: $isPhotoPickerPresented,
+                isCheckingPhotoImportAdmission:
+                    isCheckingPhotoImportAdmission,
+                showTooltip: false,
+                photoLibrary: dependencies.photoLibrary,
+                onRequestPhotoPickerPresentation:
+                    requestPhotoPickerPresentation,
+                onThumbnailTap: onThumbnailTap,
+                onDescriptionTap: onDescriptionTap,
+                onAudioTap: onAudioTap,
+                onVideoTap: onVideoTap
+            )
+            Button(action: onNoteTap) {
+                Image(systemName: hasSharedNote ? "text.bubble.fill" : "text.bubble.badge.plus")
+                    .font(.system(size: 20))
+                    .frame(width: 48, height: 48)
+                    .background(.primary.opacity(0.08), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(hasSharedNote ? "Edit note" : "Add note")
+        }
+    }
+
+    private var hasSharedNote: Bool {
+        stagedCapture.observationContexts.contains {
+            !isRefining || $0.isRefinementSupplement
+        }
     }
 
     private var presentation: CaptureStagingToolbarPresentation {
@@ -164,25 +198,4 @@ struct ActiveScanToolbar: View {
         }
     }
 
-    private var glassBackground: some View {
-        Capsule()
-            .fill(.ultraThinMaterial)
-            .shadow(color: .black.opacity(0.2), radius: 15, x: 0, y: 8)
-    }
-
-    private var glassBorder: some View {
-        Capsule()
-            .strokeBorder(
-                LinearGradient(
-                    colors: [
-                        Color.white.opacity(0.5),
-                        Color.white.opacity(0.1),
-                        Color.white.opacity(0.3)
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                ),
-                lineWidth: 0.5
-            )
-    }
 }

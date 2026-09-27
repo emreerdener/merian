@@ -2,6 +2,22 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-09-26-staged-review-and-expedition",
+      "date": "2026-09-26",
+      "title": "Review scans and add context",
+      "sections": [
+        {
+          "title": "Improved",
+          "items": [
+            "Review your capture before identifying and add a note from the staged tray. Turn on Auto-submit scans when you prefer to submit immediately.",
+            "Free scans support one photo or audio recording plus a note. Pro scans support two media items plus a note.",
+            "Discarding a staged scan now asks for confirmation.",
+            "Expedition mode is included for everyone in Workspace settings."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-08-23-library-reanalysis-audio-recovery",
       "date": "2026-08-23",
       "title": "More reliable reanalysis and audio recovery",
@@ -107,7 +123,7 @@
             "Active Backyard Safari status may appear on your public author profile, but enrollment never publishes its scans, media, notes, or location evidence.",
             "Backyard Safari and Park Pollinators now start with 2 goals, expand to 4 in Level 2, and finish with a new Level 3 while keeping valid credited scans.",
             "Backyard Safari now begins with Bird and Dog, and Dog requires an exact domestic-dog identification.",
-            "All six collectible level patches have refreshed embroidered artwork reflecting each level’s updated discoveries."
+            "All six collectible level patches have refreshed embroidered artwork reflecting each level\u2019s updated discoveries."
           ]
         }
       ]

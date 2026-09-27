@@ -26,6 +26,21 @@ struct InferenceFailurePresentation: Equatable, Sendable {
                 reasoning: "Your scan reached Naturebook safely. We’re restoring its saved result now, " +
                     "and it will appear here or in Scans automatically."
             )
+        case .recipientChanged:
+            return .init(
+                title: "Retrying identification",
+                subtitle: hasQueuedScan ? "Scan saved" : "Please try again",
+                reasoning: hasQueuedScan
+                    ? "Naturebook updated its identification service. Your saved scan will retry automatically."
+                    : "Naturebook updated its identification service. Please try again."
+            )
+        case .clientUpdateRequired:
+            return .init(
+                title: "Update needed",
+                subtitle: hasQueuedScan ? "Scan saved" : "Identification paused",
+                reasoning: hasQueuedScan ? BackgroundInferencePolicy.clientUpdateAttentionMessage
+                    : "Update Naturebook to continue identification."
+            )
         case .consentRequired:
             return .init(
                 title: "Approval needed",
@@ -33,6 +48,14 @@ struct InferenceFailurePresentation: Equatable, Sendable {
                 reasoning: "Naturebook saved this scan. Complete the required age, Terms, and Google Gemini " +
                     "consent step, and Naturebook will resume it automatically when eligible. " +
                     "If it stays paused, you can retry it from Scans."
+            )
+        case .openAIConsentRequired:
+            return .init(
+                title: "Permission needed",
+                subtitle: hasQueuedScan ? "Scan saved" : "Identification paused",
+                reasoning: hasQueuedScan
+                    ? BackgroundInferencePolicy.openAIConsentAttentionMessage
+                    : "This observation needs permission for OpenAI processing. Identification is paused."
             )
         case .proRequired:
             return .init(

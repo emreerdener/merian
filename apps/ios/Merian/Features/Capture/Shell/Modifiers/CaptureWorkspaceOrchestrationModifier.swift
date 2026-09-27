@@ -147,29 +147,19 @@ struct CaptureWorkspaceOrchestrationModifier: ViewModifier {
         .onChange(of: viewModel.selectedPhotoItems) { _, newItems in
             viewModel.handlePhotoPickerSelection(newItems: newItems, modelContext: modelContext)
         }
-        .onChange(of: viewModel.stagedCapture.images.count) { _, count in
-            guard count == 1 else { return }
-            guard viewModel.isAutomaticStagedSubmissionPending else { return }
-
+        .onChange(of: viewModel.isAutomaticStagedSubmissionPending) { _, pending in
+            guard pending, let attempt = viewModel.draftSession.automaticAttempt else { return }
             Task { @MainActor in
-                await viewModel.submitStagedCapture(
-                    modelContext: modelContext,
-                    preferredGoal: preferredFieldTripGoal
-                )
-                cameraManager.resetZoom()
+                guard viewModel.draftSession.automaticAttempt == attempt else { return }
+                guard viewModel.shouldAutoSubmitStagedCapture else {
+                    viewModel.finishAutomaticStagedSubmissionAttempt()
+                    return
+                }
+                await viewModel.submitStagedCapture(modelContext: modelContext, preferredGoal: preferredFieldTripGoal)
             }
         }
-        .onChange(of: viewModel.stagedCapture.videos.count) { _, count in
-            guard count == 1 else { return }
-            guard viewModel.isAutomaticStagedSubmissionPending else { return }
-
-            Task { @MainActor in
-                await viewModel.submitStagedCapture(
-                    modelContext: modelContext,
-                    preferredGoal: preferredFieldTripGoal
-                )
-                cameraManager.resetZoom()
-            }
+        .onChange(of: appSettings.autoSubmitRevision) { _, revision in
+            if viewModel.automaticPreferenceRevision != revision { viewModel.revokeAutomaticSubmission() }
         }
         .onChange(of: viewModel.imageToCrop != nil) { _, isCropPresented in
             handleCropPresentationChange(isCropPresented: isCropPresented)
@@ -312,45 +302,36 @@ struct CaptureWorkspaceOrchestrationModifier: ViewModifier {
             coordinator.isDictationRequested = false
             captureMode = requested
             viewModel.requestedCaptureMode = nil
-            observationContext = ObservationContext(
-                freeText: viewModel.refinementInitialDescriptionDraft ?? ""
-            )
+            if let initial = viewModel.refinementInitialDescriptionDraft {
+                observationContext = ObservationContext(freeText: initial)
+            }
             viewModel.refinementInitialDescriptionDraft = nil
         }
         .onChange(of: audioCaptureManager.isRecording) { _, isRecording in
+            viewModel.reconcileEndedAudioOperation(
+                isRecording: isRecording,
+                hasPendingReview: audioCaptureManager.pendingPlaybackPath != nil,
+                hasSubmittedAudio: audioCaptureManager.audioFilePath != nil
+            )
             guard isRecording, !viewModel.stagedCapture.hasVisualMedia else { return }
             viewModel.prepareNonVisualCaptureContext()
         }
         .onChange(of: audioCaptureManager.audioFilePath) { _, fileName in
             guard let fileName else { return }
 
-            let willStageOnly = viewModel.stagedCapture.hasVisualMedia
-                || viewModel.baseRefinementContext != nil
-                || viewModel.isMultiCaptureFunctionallyEnabled
-                || appSettings.requiresScanConfirmation
-                || !viewModel.stagedCapture.observationContexts.isEmpty
-
-            if willStageOnly {
-                guard viewModel.hasAvailableStagedCaptureSlot else {
-                    audioCaptureManager.restoreSubmissionForReview()
-                    return
-                }
-                viewModel.stagedCapture.audios.append(StagedAudio(filePath: fileName))
-                audioCaptureManager.reset()
-            } else {
-                Task { @MainActor in
-                    let didSubmit = await viewModel.submitAudio(
-                        audioFileName: fileName,
-                        modelContext: modelContext
-                    )
-                    if didSubmit {
-                        audioCaptureManager.reset()
-                    } else {
-                        audioCaptureManager.restoreSubmissionForReview()
-                    }
-                }
+            guard let operation = viewModel.audioDraftOperation,
+                  viewModel.draftSession.contains(operation),
+                  viewModel.hasAvailableStagedCaptureSlot else {
+                audioCaptureManager.restoreSubmissionForReview()
+                return
             }
+            viewModel.stagedCapture.audios.append(StagedAudio(filePath: fileName))
+            viewModel.draftOwnedFiles.insert(fileName)
+            audioCaptureManager.reset()
+            viewModel.audioDraftOperation = nil
+            viewModel.completeDraftOperation(operation, succeeded: true)
         }
+
         .onPhysicalCameraShutter(
             isEnabled: viewModel.activeSheet == nil &&
                        viewModel.imageToCrop == nil &&

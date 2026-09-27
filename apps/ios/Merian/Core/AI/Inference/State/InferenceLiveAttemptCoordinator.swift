@@ -367,6 +367,23 @@ final class InferenceLiveAttemptCoordinator {
         )
     }
 
+    func pauseQueuedScan(
+        scanId: String, attemptGeneration: UUID, foregroundGeneration: UUID,
+        reason: String, errorCode: String
+    ) -> Bool {
+        guard isAttemptCurrent(
+            scanId: scanId, attemptGeneration: attemptGeneration,
+            foregroundGeneration: foregroundGeneration
+        ) else { return false }
+        // The queue now owns persistence and retirement. Prevent the pipeline
+        // defer from replacing its no-redispatch policy with generic recovery.
+        activeForegroundGeneration = nil
+        return queueService.pauseQueuedScan(
+            scanId: scanId, generation: foregroundGeneration,
+            reason: reason, errorCode: errorCode
+        )
+    }
+
     @discardableResult
     func rejectQueuedScan(
         scanId: String,

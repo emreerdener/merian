@@ -1,6 +1,5 @@
 import type {
   AIAdapter,
-  AIAttemptSnapshot,
   AIExecutionOutcome,
   AIRequest,
   PreparedAIExecution,
@@ -25,11 +24,13 @@ export function aiExecutionMetadata(
 }
 
 /** One invocation per admitted attempt; no admission, retries or settlement. */
-export function createAIExecution(
-  adapter: AIAdapter,
+export function createAIExecution<
+  Snapshot extends { readonly provider: string },
+>(
+  adapter: AIAdapter<Snapshot>,
   request: AIRequest,
-  snapshot: AIAttemptSnapshot,
-): PreparedAIExecution {
+  snapshot: Snapshot,
+): PreparedAIExecution<Snapshot> {
   const invoke = adapter.prepare(request, snapshot);
   let started = false;
   return Object.freeze({

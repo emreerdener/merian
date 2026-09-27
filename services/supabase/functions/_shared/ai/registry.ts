@@ -3,6 +3,8 @@ import type {
   AIExecutionAuthority,
   AIRequest,
 } from "./contracts.ts";
+import { isIdentificationProviderAssignment } from "./admission.ts";
+import { identificationInputProfile } from "./identificationInput.ts";
 import { diagnosticTriggerForTier } from "../identify/thresholds.ts";
 import { resolveContentClaim } from "./contentRegistry.ts";
 
@@ -11,52 +13,28 @@ export function resolveAIClaim(
   request: AIRequest,
   authority: AIExecutionAuthority,
 ): AIAttemptSnapshot {
+  if (
+    authority.kind === "user_request" &&
+    authority.audioPromptComparison !== undefined
+  ) {
+    if (
+      !["A", "B"].includes(authority.audioPromptComparison) ||
+      request.task !== "identify" || request.variant !== "multimodal" ||
+      authority.reservation.model !== "gemini-2.5-pro" ||
+      authority.reservation.tier?.effective_tier !== "pro" ||
+      authority.reservation.attemptCount !== 1 ||
+      request.capture.hasVideo || request.capture.videoClipCount !== 0 ||
+      request.capture.declaredVideoFrameCount !== 0 ||
+      request.capture.videoInferenceFrameCount !== 0 ||
+      request.evidence.length !== 2 || request.evidence[0].kind !== "audio" ||
+      request.evidence[1].kind !== "text" ||
+      request.evidence[1].source !== "capture_context"
+    ) throw new Error("ai_audio_prompt_authority_mismatch");
+  }
   if (request.task !== "identify") {
     return resolveContentClaim(request, authority);
   }
-  if (
-    request.task !== "identify" ||
-    (request.variant !== "description_compat" &&
-      request.variant !== "multimodal" && request.variant !== "vision_compat" &&
-      request.variant !== "audio_compat")
-  ) throw new Error("ai_unsupported_input");
-  if (
-    request.variant === "description_compat" && (
-      request.evidence.length !== 1 ||
-      request.evidence[0].kind !== "text" ||
-      request.evidence[0].source !== "description" ||
-      request.evidence[0].order !== 0 ||
-      typeof request.evidence[0].text !== "string" ||
-      !request.evidence[0].text.trim()
-    )
-  ) throw new Error("ai_unsupported_input");
-  if (
-    request.variant !== "description_compat" && (
-      !request.evidence.some((item) =>
-        item.kind !== "text" || item.source === "observation_context"
-      ) ||
-      request.evidence.some((item, index) =>
-        item.order !== index || (
-          item.kind === "text"
-            ? typeof item.text !== "string"
-            : item.kind === "image" || item.kind === "audio"
-            ? typeof item.data !== "string" ||
-              typeof item.mimeType !== "string" ||
-              (item.kind === "audio" && item.mimeType !== "audio/wav")
-            : true
-        )
-      )
-    )
-  ) throw new Error("ai_unsupported_input");
-
-  if (
-    (request.variant === "vision_compat" &&
-      (!request.evidence.some((item) => item.kind === "image") ||
-        request.evidence.some((item) => item.kind === "audio"))) ||
-    (request.variant === "audio_compat" &&
-      (request.evidence.filter((item) => item.kind === "audio").length !== 1 ||
-        request.evidence.some((item) => item.kind === "image")))
-  ) throw new Error("ai_unsupported_input");
+  const inputProfile = identificationInputProfile(request);
 
   const operation = request.variant === "audio_compat"
     ? "scan_audio_identification"
@@ -64,7 +42,11 @@ export function resolveAIClaim(
   if (
     authority.kind !== "user_request" ||
     authority.operation !== operation ||
-    authority.permission !== "google_gemini" || !authority.userId ||
+    authority.permission !== "google_gemini" ||
+    !isIdentificationProviderAssignment(authority.reservation.assignment) ||
+    authority.permission !== authority.reservation.assignment.permission ||
+    authority.reservation.assignment.inputProfile !== inputProfile ||
+    !authority.userId ||
     !authority.reservation.id || !authority.reservation.requestId ||
     !Number.isSafeInteger(authority.reservation.attemptCount) ||
     authority.reservation.attemptCount < 1 ||
@@ -88,9 +70,9 @@ export function resolveAIClaim(
       operation,
       policyVersion,
       permission: "google_gemini",
-      prompt: "identify_audio_compat_v1",
-      schema: "merian_audio_v1",
-      confidence: "gemini_audio_compat_v1",
+      prompt: "identify_audio_compat_v2",
+      schema: "merian_audio_v2",
+      confidence: "gemini_audio_compat_v2",
       timeoutMs: 90000,
       generation: Object.freeze({
         temperature: 0.1,
@@ -153,10 +135,12 @@ export function resolveAIClaim(
       prompt: images
         ? audio ? "identify_blended_v1" : "identify_vision_v1"
         : audio
-        ? "identify_audio_v1"
+        ? authority.audioPromptComparison === "B"
+          ? "identify_audio_uncertainty_experiment_v1"
+          : "identify_audio_v2"
         : "identify_text_v1",
-      schema: !images && audio ? "merian_audio_v1" : "merian_identify_v1",
-      confidence: "gemini_identify_v1",
+      schema: !images && audio ? "merian_audio_v2" : "merian_identify_v1",
+      confidence: !images && audio ? "gemini_audio_v2" : "gemini_identify_v1",
       diagnosticTrigger: diagnosticTriggerForTier(
         tier === "pro" ? "pro" : "flash",
       ),

@@ -24,7 +24,7 @@ extension InsightChatViewModel {
         }
         let localConfidencePrompt = "What makes this ID uncertain?"
         let localConfidenceKey = normalizedPromptKey(localConfidencePrompt)
-        let requiredConfidencePrompt: String? = if speciesData.confidenceScore < 0.7 {
+        let requiredConfidencePrompt: String? = if speciesData.identificationConfidenceBands != nil && speciesData.confidenceScore < 0.7 {
             availableConfidencePrompt?.text
                 .trimmingCharacters(in: .whitespacesAndNewlines)
                 ?? (!sentTexts.contains(localConfidenceKey) ? localConfidencePrompt : nil)
@@ -195,9 +195,9 @@ extension InsightChatViewModel {
         let month = monthFormatter.string(from: monthDate)
         candidates.append("Is \(speciesName) typical in \(month)?")
 
-        if speciesData.confidenceScore >= 0.8 {
+        if speciesData.identificationConfidenceBands != nil && speciesData.confidenceScore >= 0.8 {
             candidates.append("What makes this a strong match?")
-        } else if speciesData.confidenceScore < 0.7 {
+        } else if speciesData.identificationConfidenceBands != nil && speciesData.confidenceScore < 0.7 {
             candidates.append("What makes this ID uncertain?")
         } else {
             candidates.append("What traits support this ID?")

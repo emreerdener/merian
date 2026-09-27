@@ -50,11 +50,15 @@ export interface SwiftObjectMetadata {
   readonly parent?: string;
   readonly declarationOrder: number;
   readonly defaultPropertyOptional?: boolean;
+  /** Retain required nullable keys during decoding and re-encoding. */
+  readonly preserveRequiredNulls?: boolean;
 }
 
 export interface SwiftPropertyMetadata {
   readonly name?: string;
   readonly optional?: boolean;
+  /** Preserve omission compatibility while rejecting an explicit JSON null. */
+  readonly rejectExplicitNull?: boolean;
 }
 
 export interface ContractField {
@@ -512,6 +516,10 @@ const audioImageQualityContract = object(
   },
 );
 
+/** One definition shared by the audio schema and both audio-only prompts. */
+export const AUDIO_CONFIDENCE_DESCRIPTION =
+  "Confidence (0.0–1.0) has a different target for each audio_subject_type. For identified_non_human, score confidence in the returned scientific_name from diagnostic acoustic evidence, not merely confidence that an animal is present. Similar plausible taxa, obscured calls, or insufficient diagnostic detail must lower taxon confidence. Location, season, habitat, or local abundance may help choose among plausible taxa but must not inflate this score. If non-human animal presence is clear but the audible evidence cannot support a taxon, use unidentified_non_human and omit scientific_name rather than attach a presence score to a guessed species. For unidentified_non_human, score confidence in non-human animal presence only; a high score does not resolve its taxonomy. For human_only, score confidence in the returned Human identity, without inferring human sex or gender. For no_confident_biological_source, score confidence in that source-classification decision, never confidence in a species. These are model estimates, not calibrated probabilities.";
+
 /**
  * Private structured-output contract for audio-only provider calls. The
  * audio_subject_type discriminator is consumed and removed before the public
@@ -564,8 +572,7 @@ export const merianAudioModelContract = deepFreezeJson(object(
     ),
     confidence_score: field(
       decimal(0, 1, {
-        description:
-          "Confidence in the selected audio subject classification. Species uncertainty may lower taxonomic confidence but must not erase confident non-human animal presence.",
+        description: AUDIO_CONFIDENCE_DESCRIPTION,
       }),
       true,
     ),
@@ -816,9 +823,64 @@ const speciesInsightsContract = object(
   },
 );
 
+/** Content-free execution facts; never part of a provider/model schema. */
+const identificationProvenanceContract = object(
+  {
+    version: field(integer(1, 1), true),
+    provider: field(text({ minLength: 1, maxLength: 80 }), true),
+    binding: field(text({ minLength: 1, maxLength: 80 }), true),
+    model: field(text({ minLength: 1, maxLength: 80 }), true),
+    variant: field(text({ minLength: 1, maxLength: 80 }), true),
+    operation: field(text({ minLength: 1, maxLength: 80 }), true),
+    policy_version: field(integer(1, 999_999_999), true),
+    prompt: field(text({ minLength: 1, maxLength: 80 }), true),
+    schema: field(text({ minLength: 1, maxLength: 80 }), true),
+    confidence: field(text({ minLength: 1, maxLength: 80 }), true),
+    diagnostic_trigger: field(decimal(0, 1, { nullable: true }), true),
+    prompt_diagnostic_trigger: field(decimal(0, 1, { nullable: true }), true),
+    safety: field(text({ nullable: true, minLength: 1, maxLength: 80 }), true),
+    timeout_ms: field(integer(1, 999_999), true),
+    generation: field(
+      object(
+        {
+          temperature: field(decimal(0, 2), true),
+          seed: field(integer(0, 999_999_999, { nullable: true }), true),
+          top_k: field(integer(1, 999_999_999, { nullable: true }), true),
+          max_output_tokens: field(integer(1, 999_999_999), true),
+          thinking_budget: field(
+            integer(0, 999_999_999, { nullable: true }),
+            true,
+          ),
+        },
+        {
+          unknownKeys: "reject",
+          swift: {
+            name: "Generation",
+            parent: "IdentificationProvenanceDTO",
+            declarationOrder: 31,
+            preserveRequiredNulls: true,
+          },
+        },
+      ),
+      true,
+    ),
+  },
+  {
+    unknownKeys: "reject",
+    swift: {
+      name: "IdentificationProvenanceDTO",
+      declarationOrder: 30,
+      preserveRequiredNulls: true,
+    },
+  },
+);
+
 const edgeResponseContract = object(
   {
     scan_id: field(text({ minLength: 1, maxLength: 128 }), true),
+    identification_provenance: field(identificationProvenanceContract, false, {
+      rejectExplicitNull: true,
+    }),
     is_biological_subject: field(truth(), true),
     is_live_capture: field(truth(), true),
     ecology_type: field(merianModelContract.fields.ecology_type.contract),

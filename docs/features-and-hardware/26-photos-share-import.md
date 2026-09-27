@@ -140,15 +140,13 @@ after preparation, and commits exactly one item with `requiresCrop: true`.
 Submission repeats the admission preview because the entry check is advisory and
 reserves no quota.
 
-After the required crop:
-
-- default single-capture mode auto-submits when "Confirm scan submission" is
-  disabled;
-- confirmation-enabled mode leaves the cropped photo in the Active Scan toolbar
-  until the user taps Identify;
-- multi-capture mode retains the normal staged-media behavior; and
-- online and offline submissions use the existing durable scan queue and
-  `/identify-multimodal` contract.
+After the required crop, staged review remains the default. An attempt started
+with Auto-submit enabled in an empty draft may submit after preparation and its
+initial required crop. Turning Auto-submit on later, removing items, or
+recropping cannot arm the existing attempt. Every path uses the same durable
+queue and recipient-preflight contract; failure before durable acceptance
+preserves the source draft. See the
+[capture contract](./29-staged-capture-review.md).
 
 ## Metadata and Privacy
 
@@ -247,3 +245,16 @@ crop while retaining the receipt, capacity blocks retain the import, and both
 online and offline submission complete. Also confirm Naturebook is not required
 to appear for a multi-photo selection and that `Payload/Merian.app/PlugIns/`
 contains no Photos Share Extension.
+
+### Gallery admission and Free fallback
+
+Opening the photo picker checks whether one photo can be added, rather than
+assuming every available slot will be selected. After selection, the registered
+draft operation checks the actual selected count before loading media. This
+allows an exhausted Pro allowance to fall back to the remaining Free allowance
+for one photo plus an optional note. Two selected photos still require eligible
+Pro funding; final submission and durable admission recheck the finished draft.
+
+The one-photo Auto-submit selection limit applies only to an empty composition,
+including pending Describe text. A note typed before opening the picker makes
+the composition manual and retains the normal physical-media selection budget.

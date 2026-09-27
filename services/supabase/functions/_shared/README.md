@@ -513,7 +513,9 @@ identical:
   exact durable owner rows through the executable wire contract—including rows
   whose canonical ledger is still finalizing or retryable—and boundedly
   coalesces concurrent AI-quota ownership so at-least-once delivery returns HTTP
-  success without a second provider call.
+  success without a second provider call. Optional client provenance comes only
+  from the immutable stored envelope or scan column; legacy null omits it and
+  damaged present values fail contract validation.
 - **`latencyDb.ts`**: Thin service-role RPC client for combined
   primary/candidate dictionary hydration (`hydrate_identification_dictionary`).
   Atomic ingestion setup belongs to `scanIngestionJobs.ts`, not this

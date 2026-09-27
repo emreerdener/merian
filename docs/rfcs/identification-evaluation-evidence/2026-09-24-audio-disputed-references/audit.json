@@ -1,0 +1,242 @@
+{
+  "version": "audio_disputed_reference_audit_v1",
+  "recordedAt": "2026-09-24T15:18:01.124Z",
+  "status": "provenance_verified_species_unresolved",
+  "retentionThrough": "2026-10-24",
+  "frozenPacketsVerifiedBeforeAndAfter": [
+    {
+      "packet": "2026-09-24-audio-reference-and-expansion-v1",
+      "freezeSha256": "f22d71d787ea593e6daab38f735311b40084dfa0c8e6b4a0e6a341c85bc65532",
+      "frozenFilesVerified": 29
+    },
+    {
+      "packet": "2026-09-24-audio-expansion-app-v1",
+      "freezeSha256": "88b76f5e3039a00cf339e7c23b2907cc9436af242f6fa2abace8cef0c2ec474c",
+      "frozenFilesVerified": 64
+    },
+    {
+      "packet": "2026-09-24-audio-rain-diagnostic-v1",
+      "freezeSha256": "47bc28ddbc350b3c42b5d59cf3984b2c5d26eab20cbfd3cb77a8e4e399a5c2d0",
+      "frozenFilesVerified": 7
+    },
+    {
+      "packet": "2026-09-24-audio-confidence-v2-app-v1",
+      "freezeSha256": "a1a4ed2c58c1814476f37ac081f61e31ab2aad7e9d6fe117530b8685e7f5aede",
+      "frozenFilesVerified": 79
+    }
+  ],
+  "originalFrozenFilesVerified": 179,
+  "sourceDiagnosticRecordSha256": "177e188c37bbaefb54088adb87ec478f83acca8a45635ea90af8dd8b9a731c08",
+  "sourceAuditFileSha256": "7d11c93a3c3e460cf46a48e32052614338cdf4e3e2c49f405bc2d8a8eb6d3917",
+  "processingAuditFileSha256": "11ac0e969e486fb2d67ed06546378186013def120da741c856f7a3684208f6b7",
+  "originalAppRecordSha256": "6bca13cc1f70022cbb3ae96b8a2be52fd552d1ff6258c4b90b8bf2839746968a",
+  "v2AppRecordSha256": "932eb104f141b1a3d58fb3527cea4bf55c537c14fc3ccd4ae622c8afba1f3b40",
+  "unchangedDspSourceFiles": [
+    {
+      "path": "services/supabase/functions/_shared/audioProcessing.ts",
+      "sha256": "69601412422152a62095358838a1b7be4a6ab4cca2a27bb601f0287266b6d5b6"
+    },
+    {
+      "path": "services/supabase/functions/audio-spec/wav.ts",
+      "sha256": "b8f3fbf2aed80b4873a82f32d1271476426f2411d4ab17138a810b2041a5dfdc"
+    },
+    {
+      "path": "services/supabase/functions/audio-spec/resample.ts",
+      "sha256": "697a29cd6e937d08d7bbf6a5d9df7d32589227a21034db119feb43a723d45de1"
+    },
+    {
+      "path": "services/supabase/functions/identify-multimodal/audio.ts",
+      "sha256": "ff70036c97f6110b20824d7cfbc4f38b5cc92367d9d8acec95f9f5ce3f852706"
+    }
+  ],
+  "cases": [
+    {
+      "caseId": "c0019",
+      "sourceReference": "Turdus migratorius",
+      "sourceCommonName": "American Robin",
+      "page": {
+        "checkedAt": "2026-09-24T15:18:01.029Z",
+        "sourcePage": "https://www.nps.gov/subjects/sound/sounds-american-robin.htm",
+        "resolvedSourcePage": "https://www.nps.gov/subjects/sound/sounds-american-robin.htm",
+        "pageTitle": "Sound Gallery - American Robin",
+        "sourcePageSha256": "ffa09f8cf82b46fede510052d4cf2a862dfb071eadae27569113ae6bb89ef131",
+        "sourceMediaUrl": "https://www.nps.gov/nps-audiovideo/legacy/mp3/nri/avElement/nri-AmericanRobinYELL.mp3",
+        "stillLinksPreviouslyReproducedMedia": true,
+        "rawHtmlRetained": false,
+        "audioRedownloadedInThisAudit": false
+      },
+      "sourceReproduction": {
+        "performedAt": "2026-09-24T05:56:20.947Z",
+        "reusedRetainedAudit": true,
+        "sourceSha256": "74a4cec070fce5bbba559ef7c24a7bb2e62b15549d9bb3d1643946923491f920",
+        "sourceByteLength": 59495,
+        "preparedWavSha256": "2356a662632ce43f88c1ae0773f65960c4ffb0ba8744f3aebc51f12c12fb40e1",
+        "preparedPcmSha256": "92c29ca349c1a480ae0aa83d2cc5614acebbff30216418f8e13cfe93dcdef5cc",
+        "originalWavReproducedExactly": true,
+        "originalPcmReproducedExactly": true
+      },
+      "v2Binding": {
+        "originalAndBothRunAssetsIdentical": true,
+        "stagingRecordSha256": "c2a00ddca48085b043b680a27eed181c9687ea2aef78aef41c527dbd48e44416",
+        "resultFileSha256": "1b70cba8207f1453c3bcf8f1ff0c1468c3b916857987f0a21a178077729b1ca5",
+        "runtimeBundleSha256": "61b69c048f009b62c45681da4219ea01fc9fef039048a9760fc57ca28b73ccc1",
+        "contextProfile": "audio-minimal-v1",
+        "exactProviderBytesAttested": false
+      },
+      "historicalObservations": [
+        {
+          "run": "ordinary_context_v1",
+          "contextProfile": null,
+          "commonName": "Northern House Wren",
+          "scientificName": "Troglodytes aedon",
+          "displayedMatch": "Strong match"
+        },
+        {
+          "run": "fixed_context_confidence_v2",
+          "contextProfile": "audio-minimal-v1",
+          "commonName": "Belted Kingfisher",
+          "scientificName": "Megaceryle alcyon",
+          "displayedMatch": "Strong match"
+        }
+      ],
+      "processingEvidence": {
+        "performedAt": "2026-09-24T05:58:10.119Z",
+        "reusedRetainedAudit": true,
+        "sourceDurationSeconds": 3.526530612244898,
+        "directHelperOutputDurationSeconds": 2.3,
+        "directHelperOutputWavSha256": "5eace347b696a62538502e0bbe1133a84ec96f6faeb6a8cc7c2bc6eac9350d09",
+        "actualAppOrProviderMediaRecreated": false,
+        "speciesInformationLossEstablished": false
+      },
+      "nameMappingReview": {
+        "reviewedAt": "2026-09-24T15:18:01.029Z",
+        "sources": [
+          {
+            "commonName": "American Robin",
+            "scientificName": "Turdus migratorius",
+            "url": "https://www.nps.gov/mora/learn/nature/bluebirds-robins-thrushes.htm"
+          },
+          {
+            "commonName": "Belted Kingfisher",
+            "scientificName": "Megaceryle alcyon",
+            "url": "https://www.nps.gov/grca/learn/nature/belted-kingfisher.htm"
+          }
+        ],
+        "assessment": "Source reference and V2 returned taxon are distinct species, not a common-name or genus-alias equivalence.",
+        "source": "Primary-source pages retrieved during this review; this is nomenclature evidence, not listening adjudication."
+      },
+      "decision": {
+        "referenceStatus": "provisional_source_label_species_unresolved",
+        "formalQualificationEligible": false,
+        "biologicalReferencePromoted": false,
+        "futureUse": "diagnostic_regression_case_until_independent_adjudication",
+        "futureSpeciesQualityDenominatorEligible": false,
+        "historicalResultOrReferenceChanged": false,
+        "additionalIdentificationsSubmitted": 0
+      }
+    },
+    {
+      "caseId": "c0022",
+      "sourceReference": "Lithobates grylio",
+      "sourceCommonName": "Pig Frog",
+      "page": {
+        "checkedAt": "2026-09-24T15:18:01.099Z",
+        "sourcePage": "https://www.nps.gov/subjects/sound/sounds-pigfrog.htm",
+        "resolvedSourcePage": "https://www.nps.gov/subjects/sound/sounds-pigfrog.htm",
+        "pageTitle": "Sound Gallery - Pig Frog",
+        "sourcePageSha256": "5b7f9f9b2be4e6c45eebb5fbb7ba5557a7dbe4dff020ff5a74e243baec870e81",
+        "sourceMediaUrl": "https://www.nps.gov/nps-audiovideo/legacy/mp3/nri/avElement/nri-PigFrogEvergladesNP.mp3",
+        "stillLinksPreviouslyReproducedMedia": true,
+        "rawHtmlRetained": false,
+        "audioRedownloadedInThisAudit": false
+      },
+      "sourceReproduction": {
+        "performedAt": "2026-09-24T05:56:21.108Z",
+        "reusedRetainedAudit": true,
+        "sourceSha256": "3b97ec3c01371f690dd4a54376fe0626ee2ad42d1fcc6f7e37e6f6241892f342",
+        "sourceByteLength": 36011,
+        "preparedWavSha256": "5370a491b7d3fb1af3effe9020ace11305a349e2c979cab7a411dcb73869e409",
+        "preparedPcmSha256": "8324130538b3d034b0b3761e73e03dd40a5bd8c3194d7eeb30c791d9860e75fd",
+        "originalWavReproducedExactly": true,
+        "originalPcmReproducedExactly": true
+      },
+      "v2Binding": {
+        "originalAndBothRunAssetsIdentical": true,
+        "stagingRecordSha256": "140011f5cc49b3f0b39d68b407468a27677927b1a166fe5f218ff7d43e5ec7bd",
+        "resultFileSha256": "e6177cdb1213d4c5a21b3128164249a6a7bbc38a94c49e0b43ebee668c76c0d3",
+        "runtimeBundleSha256": "61b69c048f009b62c45681da4219ea01fc9fef039048a9760fc57ca28b73ccc1",
+        "contextProfile": "audio-minimal-v1",
+        "exactProviderBytesAttested": false
+      },
+      "historicalObservations": [
+        {
+          "run": "ordinary_context_v1",
+          "contextProfile": null,
+          "commonName": "Green Frog",
+          "scientificName": "Lithobates clamitans",
+          "displayedMatch": "Strong match"
+        },
+        {
+          "run": "fixed_context_confidence_v2",
+          "contextProfile": "audio-minimal-v1",
+          "commonName": "Pacific Tree Frog",
+          "scientificName": "Pseudacris regilla",
+          "displayedMatch": "Strong match"
+        }
+      ],
+      "processingEvidence": {
+        "performedAt": "2026-09-24T05:58:10.119Z",
+        "reusedRetainedAudit": true,
+        "sourceDurationSeconds": 2.089795918367347,
+        "directHelperOutputDurationSeconds": 1.62,
+        "directHelperOutputWavSha256": "bbfe4bf93af4c0c17f470443336c1357337f22b2ab9be16c5d08945cc42a344c",
+        "actualAppOrProviderMediaRecreated": false,
+        "speciesInformationLossEstablished": false
+      },
+      "nameMappingReview": {
+        "reviewedAt": "2026-09-24T15:18:01.100Z",
+        "sources": [
+          {
+            "commonName": "Pig Frog",
+            "scientificName": "Lithobates grylio",
+            "family": "Ranidae",
+            "acceptedHistoricalNameInFrozenReference": "Rana grylio",
+            "url": "https://amphibiansoftheworld.amnh.org/Amphibia/Anura/Ranidae/Lithobates/Lithobates-grylio"
+          },
+          {
+            "commonName": "Pacific Tree Frog",
+            "scientificName": "Pseudacris regilla",
+            "family": "Hylidae",
+            "url": "https://amphibiansoftheworld.amnh.org/Amphibia/Anura/Hylidae/Pseudacris/Pseudacris-regilla"
+          }
+        ],
+        "assessment": "Source reference and V2 returned taxon are distinct species, not a common-name or genus-alias equivalence.",
+        "source": "Primary-source pages retrieved during this review; this is nomenclature evidence, not listening adjudication."
+      },
+      "decision": {
+        "referenceStatus": "provisional_source_label_species_unresolved",
+        "formalQualificationEligible": false,
+        "biologicalReferencePromoted": false,
+        "futureUse": "diagnostic_regression_case_until_independent_adjudication",
+        "futureSpeciesQualityDenominatorEligible": false,
+        "historicalResultOrReferenceChanged": false,
+        "additionalIdentificationsSubmitted": 0
+      }
+    }
+  ],
+  "newAppSubmissions": 0,
+  "newProviderCalls": 0,
+  "newAudioDownloads": 0,
+  "newAudioDecodes": 0,
+  "independentBiologicalReviewers": 0,
+  "formalDevelopmentGroups": 0,
+  "formalHeldOutGroups": 0,
+  "limitations": [
+    "The assistant has not listened to or independently identified the sounds.",
+    "Source labels, transcripts and taxonomy accounts do not independently adjudicate the audible recording.",
+    "Changed context and confidence policy prevent causal before/after claims.",
+    "No runtime configuration, source policy, corpus schema or historical reference was changed."
+  ],
+  "privateFreezeSha256": "f6abee77a6473e55d93602a2600d99d1467a889cafa75c69a21430d200fa0a67",
+  "privateFrozenFileCount": 2
+}

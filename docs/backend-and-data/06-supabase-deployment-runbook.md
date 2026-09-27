@@ -4913,6 +4913,239 @@ customer before the Supabase job completes, and never change
 `internal.entitlement_rollout_config.entitlement_mode` as part of cleanup.
 `legacy_trial` and manually granted beta Pro are separate access policies.
 
+## Audio prompt comparison activation prerequisites
+
+The 36-slot uncertainty experiment has its own **Control identification audio
+prompt comparison** workflow
+(`.github/workflows/identification-audio-prompt-comparison.yml`) and
+`services/supabase/scripts/control_audio_prompt_comparison.ts`. Its hosted
+`IDENTIFICATION_AUDIO_PROMPT_COMPARISON_V1` setting remains unset until a named,
+authorized activation. Installing this control submits no requests. The old DSP
+workflow, configuration, twelve assignments, scan IDs and results stay separate.
+
+The new workflow preserves the existing protected `Production` environment,
+`supabase-production-deploy` concurrency group, exact clean current `main`,
+pinned Deno/Supabase tools and fixed `qlarqavoqhkuwzmevrmf` target. `inspect` is
+the default; `activate` additionally requires full candidate validation, the
+`automatic-release` audit and successful production deployment evidence. The
+candidate's generated bundle identity, `promptPlan.ts` and
+`promptInstruction.ts` must match the deployed source. This workflow does not
+deploy functions, push migrations or identify media. `inspect` and `deactivate`
+remain available without a new deployment or database validation.
+
+### Prepare the prompt experiment
+
+1. Finish review, the complete affected gates and the exact-SHA release process.
+   Obtain the named production deployment and bounded experiment authorization.
+   Build the reviewed app from clean source; the execution freeze requires its
+   actual source revision/fingerprint and the successful deployed revision.
+   Synthetic tests and an earlier dirty simulator build are not execution
+   evidence. An unchanged deployed runtime may match a later tooling-only
+   control commit, but all three blocks retain one app/source/bundle pair.
+2. Privately check the installed app, its foreground state, ordinary Pro access,
+   current authenticated owner and fresh session-bound consent synchronization.
+   The owner must match the reviewed private configuration and stay the same
+   across blocks. Do not extract credentials or session data into the packet.
+   Record only the strict, fresh boolean operator witness described in the
+   [execution tooling guide](../../services/supabase/scripts/identification_evaluation/README.md#offline-prompt-execution-freeze-and-ledger).
+   This is an operator assertion, not an authentication attestation; the backend
+   still enforces authenticated ownership, consent and quota.
+3. Freeze the two reviewed source packets, all six exact WAV copies, 36 fixed
+   assignments, generated app/server tables, actual source/app/backend
+   identities, reviewed pricing, decision-plan digest and three bounded block
+   windows with `prepare_audio_prompt_execution.ts`. Use a new private directory
+   outside Git. Each window is at most two hours, stays inside media retention
+   and is covered by pricing no older than seven days at its end. Windows may
+   overlap in time, but active configurations and submitted slots must be
+   serialized. Freeze and per-slot preparation make zero provider calls. Keep
+   the historical preparation and completed packets immutable.
+4. Through the authorized private GitHub secret-management channel, prepare the
+   **Production environment secret** `IDENTIFICATION_AUDIO_PROMPT_COMPARISON_V1`
+   with exactly seven fields: `version: 1`, `block` (integer 1, 2 or 3), private
+   `ownerId`, `planSha256`, `backendBundleSha256`, `startsAt` and `expiresAt`.
+   Use UTC millisecond timestamps and the corresponding frozen block window.
+   Never put this JSON or its digest in workflow inputs, source, messages, logs
+   or experiment artifacts. The controller passes it only through the isolated
+   set subprocess environment and records sanitized block/window evidence.
+5. Dispatch `inspect` on exact current `main` and require verified absence
+   before the first activation. Dispatch `activate` with the same candidate SHA
+   and require `active` or `already_active` evidence matching the frozen block,
+   plan, bundle, source and deployed revision. The approved window must still be
+   open after candidate validation finishes. A different hosted value is
+   preserved and rejected. Management-plane evidence does not prove runtime
+   readiness or identification quality.
+
+### Execute and close each block
+
+Before **each** Identify tap, recheck the private owner/consent/app/foreground
+facts and run `manage_audio_prompt_execution.ts claim` for the next exact slot.
+The claim verifies the clean frozen local implementation, all six current asset
+hashes, activation evidence, fresh operator witness and sufficient remaining
+window time. It reserves an immutable local first attempt before UI submission.
+Stage only its case/slot through the Debug prompt menu, start the normal
+120-second observer with the frozen pricing, wait for `observer_ready`, and tap
+Identify once. Admit the normally closed observation with the ledger's `admit`
+operation before claiming the next slot. The app and server still validate the
+actual source, request, arm, owner, first Pro attempt and fresh result proof.
+
+An uncompleted claim blocks every later slot; a rejected admission also writes
+an immutable exclusion. There is no retry, replacement, reset or skip operation.
+Retain all complete unfavorable results and all failures; missing cost remains
+unknown and makes the eventual cost comparison inconclusive. Keep first visible
+names and bands in the separate reviewed observations, never raw provider prose
+or response bodies. An uncertain tap, account change, failure, wrong identity or
+incomplete observation stops the run under the
+[comparison plan](../rfcs/identification-audio-uncertainty-comparison-plan-2026-09-24.md).
+
+After each block, or immediately on a stop, dispatch `deactivate` using its
+unchanged private configuration and require verified hosted absence. Then use
+ledger `close` to retain that cleanup evidence after the last claim, completion
+or exclusion. An incomplete block may be closed, but cannot resume in that
+original ledger. The separately reviewed
+[between-trial amendment](#amend-an-expired-prompt-comparison-between-completed-trials)
+is available only for an expired, fully certain completed prefix. The next block
+requires all prior slots admitted, prior cleanup recorded, and its new
+activation after that cleanup. Only after verified absence may the private
+environment secret be replaced for the next block; keep the same reviewed owner
+and build.
+
+Expiry makes a stored setting inactive; it does not prove removal. Cleanup of a
+matching expired or older configuration remains available independently of a
+fresh plan, bundle or deployment. The offline ledger accepts cleanup from a
+different controller SHA when recovery outlives the frozen execution source.
+Verify trusted workflow-artifact provenance and hosted absence separately; the
+offline ledger validates the receipt shape and bindings but does not establish
+Git ancestry or current-main status. Continue using the frozen checkout for
+ledger admission/recovery. Do not delete claims, rewrite completed observations
+or create a replacement packet to reuse consumed IDs.
+
+The [existing recovery rules](#expiry-deactivation-and-recovery) also apply:
+serialize all writers through the workflow, prohibit concurrent dashboard/API
+edits, preserve detected replacements, and resolve interrupted or unverified
+cleanup before proceeding. List/delete is not atomic compare-and-swap. Never
+replace the private environment secret while recovery is unresolved.
+
+Each control emits sanitized `audio_prompt_comparison_control_v1` evidence with
+block, window, source/deployed revisions, plan/bundle hashes, state and cleanup;
+no owner, secret value/digest, session, media or response is retained. GitHub
+artifacts expire after thirty days. Retain the private ledger and observations
+under the source packet's earlier retention limit. The
+[API contract](./05-api-contracts.md#server-owned-audio-prompt-comparison) and
+[measurement guide](../development-guides/21-identification-app-measurement.md#prompt-comparison-observation)
+remain authoritative for runtime payloads and admissible evidence. No live
+execution or candidate-quality conclusion follows from the local tests.
+
+### Amend an expired prompt comparison between completed trials
+
+Use this path only when the original stopped **between** completed trials and
+its last activated partial block expired and was then deactivated. A voluntary
+early closure followed by waiting for expiry is ineligible. An open claim,
+excluded observation, uncertain tap, missing completion or possible unrecorded
+submission is ineligible. Deactivate the original unchanged configuration and
+record verified cleanup first. The original packet and its stopped-incomplete
+report remain immutable. No failed or uncertain slot can be recovered through
+this procedure.
+
+The offline `manage_audio_prompt_continuation.ts` command creates one fixed
+`ORIGINAL.continuation` sibling, with distinct manifest/claim/completion
+versions. It hashes and revalidates the original completed prefix, all active
+block cleanup and retained evidence, rechecks the six assets, and permits only
+the original remaining slot IDs in their original order. It requires the
+existing original lock inode without writing that packet. A second sidecar,
+copied packet, reset, skip, replacement or continuation-of-continuation is not
+permitted by this v1/v2 procedure. A separately versioned successor requires the
+additional review and authorization described below. The original must end
+inside a closed block so even the old ledger executable cannot progress past its
+remaining missing slots.
+
+Review the separate clean tooling SHA, unchanged app/runtime/plan, original
+pricing validity, new remaining-block windows and explicit operator assertion
+that no remaining slot has been submitted. Keep owner IDs and private
+configuration out of the review and evidence. Every new window is at most two
+hours, follows original cleanup/expiry and stays within pricing and media
+retention. Freeze it only when the app, operator and ordinary quota are ready.
+This is an explicit protocol amendment with disclosed interruption; the review
+must retain the original screening rules and require all 36 unique first
+attempts before evaluating them.
+
+Obtain new bounded activation/execution authorization naming the same project,
+private setting and exact remaining slot set. Follow the same protected
+Production workflow and current-main candidate/deployed-runtime checks. A
+tooling-only controller revision can differ from the original app revision when
+the deployed plan, prompt and bundle are unchanged. A successful deployment of
+tooling-only changes can also advance the resolved deployment SHA. Use the v2
+continuation review to pin that exact current `deployedSha` separately from the
+immutable original deployment history. Activation receipts must match the
+reviewed controller SHA, current deployment SHA, original runtime bundle and new
+window. Legacy v1 packets retain their original deployment binding; never
+rewrite or upgrade an existing packet. Never replace a hosted configuration
+before verified absence.
+
+Before each Identify, use the sidecar claim command and a fresh private
+owner/consent/app/foreground witness. The backend's existing first-attempt gate
+remains authoritative: local absence and an operator assertion do not prove a
+server ID is unused. A rejected or uncertain reservation stops the continuation;
+never retry or choose another assignment. Retain the full passive observer
+window and admit it before the next claim. No tooling operation submits media.
+
+After every amended block, or immediately on a stop, deactivate and record
+verified cleanup in the sidecar. Cleanup remains available if original evidence
+later changes, while further claims and combined reporting reject that drift.
+The next amended block requires every preceding completion and its cleanup. Keep
+original and successor evidence distinct; report an amended run, never an
+uninterrupted original execution. Missing observations, timing, score or cost
+remain inconclusive, and no result authorizes production promotion. The
+[tooling guide](../../services/supabase/scripts/identification_evaluation/README.md#explicit-continuation-after-an-expired-between-trial-pause)
+owns exact schemas, permissions and commands.
+
+### Continue after a second between-trial expiry
+
+A first continuation that expired between certain, fully completed trials may
+use the separately reviewed successor protocol. This is an explicit narrow
+exception to the v1/v2 single-continuation procedure above. The old ledger stays
+closed. A successor never reopens an earlier packet or replaces an attempt.
+
+First deactivate the unchanged hosted configuration and record verified cleanup
+in the first continuation. Require a contiguous completed prefix ending inside a
+block, no pending/excluded/missing observations, no possible unrecorded
+submissions, and final cleanup after expiry. Preserve both stopped reports.
+`manage_audio_prompt_successor.ts inspect` revalidates both parents and returns
+their combined binding. Local absence and operator assertions remain supporting
+evidence, not an independent provider-dispatch audit.
+
+Review a new `audio_prompt_successor_review_v1` using that binding and only the
+untouched original assignments. The fixed sibling is
+`ORIGINAL.continuation.successor`; a second preparation or further successor
+fails closed. Preserve app, prompts, bundle, media, plan, pricing, IDs, order
+and screening thresholds. Pin the clean controller/tooling commit and current
+successful deployed SHA separately from each predecessor's history. Bind the
+canonical paths and byte hashes of both retained stopped reports.
+
+Prepare only when app, operator, ordinary quota and host are ready. Obtain new
+bounded execution/activation authorization naming the same Supabase project,
+private setting and exact remaining slots. Each reviewed window is at most two
+hours and must fit original pricing validity and retention. Implementation,
+tests, preparation and old-window authorization do not activate a new window.
+Use the protected Production control workflow with its current-main candidate
+and deployed-runtime checks; preserve the private configuration until verified
+deactivation.
+
+Claim each next slot exclusively, with fresh private
+owner/consent/app/foreground evidence, then stage the original media and start
+the passive observer before one Identify tap. Admit the complete observation
+before progression. Complete and deactivate the partial block before configuring
+the following block. On interruption, uncertainty, failure or expiry, deactivate
+promptly and record verified absence. Cleanup remains possible if earlier
+evidence/tooling drifts; further claims and reports reject that drift. Do not
+weaken host lock settings or automate unlocking.
+
+The successor report keeps all three segments and both interruptions explicit.
+Missing trials or required measurements remain inconclusive. An open or excluded
+trial cannot be retried, and an expired successor has no further successor path.
+No result promotes the candidate to production. Exact commands, permissions and
+record ownership are in the
+[evaluation tooling guide](../../services/supabase/scripts/identification_evaluation/README.md#explicit-successor-after-a-closed-first-continuation).
+
 ## Audio comparison activation hold
 
 The reusable control is **Control identification audio comparison**
@@ -6433,24 +6666,34 @@ This section is the GitHub Actions control-plane contract, not a Vercel
 application environment template. Never copy the complete GitHub `Production`
 secret set into either Vercel project.
 
-| GitHub secret                              | Runtime destination                                           |
-| ------------------------------------------ | ------------------------------------------------------------- |
-| `APPLE_SIGN_IN_TEAM_ID`                    | Required; synchronized by the workflow to Supabase Edge only  |
-| `APPLE_SIGN_IN_KEY_ID`                     | Required; synchronized by the workflow to Supabase Edge only  |
-| `APPLE_SIGN_IN_PRIVATE_KEY`                | Required `.p8`; synchronized to Supabase Edge only            |
-| `DWCA_PSEUDONYM_HMAC_KEY_V1`               | Synchronized by the workflow to Supabase Edge only            |
-| `GEMINI_PAID_API_KEY`                      | Required; synchronized by the workflow to Supabase Edge only  |
-| `REVENUECAT_SECRET_API_KEY`                | Synchronized by the workflow to Supabase Edge only            |
-| `REVENUECAT_WEBHOOK_SECRET`                | Synchronized by the workflow to Supabase Edge only            |
-| `REVENUECAT_WEBHOOK_SIGNING_SECRET`        | Synchronized by the workflow to Supabase Edge only            |
-| `R2_READ_ACCESS_KEY_ID`                    | Synchronized by the workflow to Supabase Edge only            |
-| `R2_READ_SECRET_ACCESS_KEY`                | Synchronized by the workflow to Supabase Edge only            |
-| `R2_EVENT_WEBHOOK_SECRET`                  | Optional; synchronized to Supabase Edge for R2 event hints    |
-| `MERIAN_GITHUB_RELEASE_AUDIT_TOKEN`        | Protected read-only GitHub control/evidence audit token       |
-| `MERIAN_PRODUCTION_RELEASE_CLEARANCE_JSON` | Legacy optional audit input; not used by automatic deploy     |
-| `SUPABASE_ACCESS_TOKEN`                    | Used by the GitHub runner to operate the Supabase CLI         |
-| `SUPABASE_DB_URL`                          | Used by the GitHub runner for database migration/audit access |
-| `SUPABASE_DB_PASSWORD`                     | Used only by the runner's alternative pooler connection path  |
+| GitHub secret                              | Runtime destination                                                                 |
+| ------------------------------------------ | ----------------------------------------------------------------------------------- |
+| `APPLE_SIGN_IN_TEAM_ID`                    | Required; synchronized by the workflow to Supabase Edge only                        |
+| `APPLE_SIGN_IN_KEY_ID`                     | Required; synchronized by the workflow to Supabase Edge only                        |
+| `APPLE_SIGN_IN_PRIVATE_KEY`                | Required `.p8`; synchronized to Supabase Edge only                                  |
+| `DWCA_PSEUDONYM_HMAC_KEY_V1`               | Synchronized by the workflow to Supabase Edge only                                  |
+| `GEMINI_PAID_API_KEY`                      | Required; synchronized by the workflow to Supabase Edge only                        |
+| `NATUREBOOK_OPENAI_API_KEY`                | Optional future provider credential in `Production`; no current deployment consumer |
+| `REVENUECAT_SECRET_API_KEY`                | Synchronized by the workflow to Supabase Edge only                                  |
+| `REVENUECAT_WEBHOOK_SECRET`                | Synchronized by the workflow to Supabase Edge only                                  |
+| `REVENUECAT_WEBHOOK_SIGNING_SECRET`        | Synchronized by the workflow to Supabase Edge only                                  |
+| `R2_READ_ACCESS_KEY_ID`                    | Synchronized by the workflow to Supabase Edge only                                  |
+| `R2_READ_SECRET_ACCESS_KEY`                | Synchronized by the workflow to Supabase Edge only                                  |
+| `R2_EVENT_WEBHOOK_SECRET`                  | Optional; synchronized to Supabase Edge for R2 event hints                          |
+| `MERIAN_GITHUB_RELEASE_AUDIT_TOKEN`        | Protected read-only GitHub control/evidence audit token                             |
+| `MERIAN_PRODUCTION_RELEASE_CLEARANCE_JSON` | Legacy optional audit input; not used by automatic deploy                           |
+| `SUPABASE_ACCESS_TOKEN`                    | Used by the GitHub runner to operate the Supabase CLI                               |
+| `SUPABASE_DB_URL`                          | Used by the GitHub runner for database migration/audit access                       |
+| `SUPABASE_DB_PASSWORD`                     | Used only by the runner's alternative pooler connection path                        |
+
+`NATUREBOOK_OPENAI_API_KEY` is reserved for Naturebook identification,
+separately from the repository-level `OPENAI_API_KEY` used by Agent Quality.
+Storing it in `Production` does not enable OpenAI or synchronize it to Supabase.
+The
+[alternative-provider guide](../development-guides/22-alternative-identification-provider.md#credential-storage-and-future-deployment)
+owns evaluation injection and the future production wiring. The current local
+evaluator reads only `OPENAI_EVALUATION_API_KEY`; no GitHub comparison job
+currently consumes the stored Naturebook key.
 
 None of these values belongs in Vercel. The public-web Vercel contract is the
 explicit table in **Public Web Waitlist Release** above and

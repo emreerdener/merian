@@ -5,35 +5,34 @@ struct CaptureStagingCancelButton: View {
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: "xmark")
-                .font(.system(size: 24, weight: .regular))
-                .foregroundColor(.white)
+            Image(systemName: "trash")
+                .font(.system(size: 22, weight: .regular))
+                .foregroundStyle(.red)
                 .frame(width: 48, height: 48)
-                .background(
-                    Circle()
-                        .fill(.ultraThinMaterial)
-                        .shadow(
-                            color: .black.opacity(0.2),
-                            radius: 15,
-                            x: 0,
-                            y: 8
-                        )
-                )
-                .overlay(
-                    Circle()
-                        .strokeBorder(
-                            LinearGradient(
-                                colors: [
-                                    Color.white.opacity(0.5),
-                                    Color.white.opacity(0.1),
-                                    Color.white.opacity(0.3)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 0.5
-                        )
-                )
+                .modifier(CaptureTrayGlass(isCircular: true))
+        }
+        .accessibilityLabel("Discard scan")
+    }
+}
+
+/// Native glass honors the same thermal/Expedition policy as camera effects.
+struct CaptureTrayGlass: ViewModifier {
+    var isCircular = false
+    @Environment(HardwareOrchestrator.self) private var hardware
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if !hardware.isGlassmorphismEnabled || reduceTransparency {
+            content.background(Color(UIColor.secondarySystemBackground), in: Capsule())
+        } else if #available(iOS 26.0, *) {
+            if isCircular {
+                content.glassEffect(.regular.interactive(), in: Circle())
+            } else {
+                content.glassEffect(.regular, in: Capsule())
+            }
+        } else {
+            content.background(.regularMaterial, in: Capsule())
         }
     }
 }
@@ -48,8 +47,10 @@ struct CaptureStagingSubmitButton: View {
     var body: some View {
         Button(action: onSubmit) {
             HStack(spacing: 6) {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 18, weight: .semibold))
+                if title == "Analyze" {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 18, weight: .semibold))
+                }
                 Text(title)
                     .font(.headline.weight(.semibold))
                     .lineLimit(1)
@@ -59,11 +60,11 @@ struct CaptureStagingSubmitButton: View {
             .frame(height: 48)
             .background(
                 isDisabled
-                    ? Color.white.opacity(0.15)
+                    ? Color.primary.opacity(0.15)
                     : buttonColor
             )
             .foregroundColor(
-                isDisabled ? .white.opacity(0.6) : .white
+                isDisabled ? Color.secondary : .white
             )
             .clipShape(Capsule())
             .overlay(
@@ -73,7 +74,7 @@ struct CaptureStagingSubmitButton: View {
                         lineWidth: 1.5
                     )
             )
-            .overlay(shimmerOverlay)
+            .overlay { if title == "Analyze" { shimmerOverlay } }
             .shadow(
                 color: isDisabled ? .clear : buttonColor.opacity(0.25),
                 radius: 10,
@@ -94,7 +95,7 @@ struct CaptureStagingSubmitButton: View {
     }
 
     private var buttonColor: Color {
-        Color(red: 0.11, green: 0.52, blue: 0.28)
+        title == "Analyze" ? Color(red: 0.11, green: 0.52, blue: 0.28) : .blue
     }
 
     private var shimmerOverlay: some View {

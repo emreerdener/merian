@@ -21,10 +21,10 @@ struct ModelTierBadgePresentationTests {
     }
 
     @Test("Free analysis offers an upgrade only in the eligible band")
-    func freeAnalysisUsesConfidenceBand() {
-        let bands = InferenceConfidencePolicy.bands(
+    func freeAnalysisUsesConfidenceBand() throws {
+        let bands = try #require(InferenceConfidencePolicy.bands(
             forInferenceTier: "free"
-        )
+        ))
         let eligibleScore = (bands.possible + bands.strong) / 2
 
         #expect(resolve(confidenceScore: eligibleScore)?.text != nil)

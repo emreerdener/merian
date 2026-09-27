@@ -1,0 +1,138 @@
+name: Control identification audio prompt comparison
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Inspect, activate, or deactivate the reviewed prompt-comparison block
+        required: true
+        default: inspect
+        type: choice
+        options: [inspect, activate, deactivate]
+      candidate_sha:
+        description: Exact current main SHA containing the reviewed control
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  candidate-validation:
+    if: inputs.operation == 'activate'
+    uses: ./.github/workflows/supabase-candidate-validation.yml
+
+  control:
+    # Recovery must remain available when fresh database validation cannot run.
+    if: >-
+      always() && !cancelled() &&
+      (inputs.operation != 'activate' || needs.candidate-validation.result == 'success')
+    needs: candidate-validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: Production
+    concurrency:
+      group: supabase-production-deploy
+      cancel-in-progress: false
+    env:
+      SUPABASE_TELEMETRY_DISABLED: "1"
+    steps:
+      - name: Checkout exact control candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify exact clean main control
+        env:
+          EXPECTED_CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+        run: |
+          if ! [[ "$EXPECTED_CANDIDATE_SHA" =~ ^[a-f0-9]{40}$ ]]; then
+            echo "An exact candidate SHA is required." >&2
+            exit 1
+          fi
+          if [ "$GITHUB_REF" != "refs/heads/main" ] ||
+             [ "$GITHUB_SHA" != "$EXPECTED_CANDIDATE_SHA" ] ||
+             [ "$(git rev-parse HEAD)" != "$GITHUB_SHA" ] ||
+             [ "$(git rev-parse refs/remotes/origin/main)" != "$GITHUB_SHA" ] ||
+             [ -n "$(git status --porcelain)" ]; then
+            echo "The control requires the exact clean current main SHA." >&2
+            exit 1
+          fi
+
+      - name: Setup Deno
+        uses: ./.github/actions/setup-deno
+        with:
+          deno-version: v2.9.4
+
+      - name: Verify Production activation controls
+        if: inputs.operation == 'activate'
+        env:
+          MERIAN_GITHUB_RELEASE_AUDIT_TOKEN: ${{ secrets.MERIAN_GITHUB_RELEASE_AUDIT_TOKEN }}
+        run: |
+          deno run --frozen --config services/supabase/functions/deno.json \
+            --allow-env=GITHUB_REPOSITORY,MERIAN_GITHUB_RELEASE_AUDIT_TOKEN \
+            --allow-net --allow-read=services/supabase/release-holds.json \
+            --allow-write="$GITHUB_STEP_SUMMARY" \
+            services/supabase/scripts/verify_production_release_holds.ts \
+            --mode automatic-release --manifest services/supabase/release-holds.json \
+            --candidate-sha "$GITHUB_SHA" --summary "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify the reviewed identification source is deployed
+        id: deployed
+        if: inputs.operation == 'activate'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          deployed_sha="$(deno run --quiet --frozen --config services/supabase/functions/deno.json \
+            --allow-env=GITHUB_TOKEN,GITHUB_REPOSITORY,GITHUB_SHA \
+            --allow-net=api.github.com --allow-run=git \
+            services/supabase/scripts/resolve_deployed_health_monitor_modes.ts \
+            --latest-successful-deploy-sha)"
+          if ! [[ "$deployed_sha" =~ ^[a-f0-9]{40}$ ]]; then
+            echo "A successful production deployment is required." >&2
+            exit 1
+          fi
+          # The bundle manifest covers the entire identification runtime. Current
+          # candidate validation proves it is fresh; compare its deployed source.
+          git diff --exit-code "$deployed_sha" "$GITHUB_SHA" -- \
+            services/supabase/functions/identify-multimodal/deploymentIdentity.ts \
+            services/supabase/functions/identify-multimodal/comparison/promptPlan.ts \
+            services/supabase/functions/identify-multimodal/comparison/promptInstruction.ts
+          echo "sha=$deployed_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3.0.0
+        with:
+          version: 2.109.1
+
+      - name: Validate reviewed Supabase CLI
+        run: bash services/supabase/scripts/require_supabase_cli_version.sh
+
+      - name: Control the private comparison configuration
+        env:
+          OPERATION: ${{ inputs.operation }}
+          DEPLOYED_SHA: ${{ steps.deployed.outputs.sha }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          IDENTIFICATION_AUDIO_PROMPT_COMPARISON_V1: ${{ secrets.IDENTIFICATION_AUDIO_PROMPT_COMPARISON_V1 }}
+        run: |
+          arguments=(--operation "$OPERATION" --evidence "$RUNNER_TEMP/audio-prompt-comparison-control.json")
+          if [ -n "$DEPLOYED_SHA" ]; then
+            arguments+=(--deployed-sha "$DEPLOYED_SHA")
+          fi
+          deno run --frozen --no-prompt --deny-net \
+            --config services/supabase/functions/deno.json \
+            --allow-env=GITHUB_ACTIONS,GITHUB_REPOSITORY,GITHUB_REF,GITHUB_EVENT_NAME,GITHUB_WORKFLOW_REF,GITHUB_SHA,PATH,SUPABASE_ACCESS_TOKEN,IDENTIFICATION_AUDIO_PROMPT_COMPARISON_V1 \
+            --allow-run=supabase --allow-write="$RUNNER_TEMP/audio-prompt-comparison-control.json" \
+            services/supabase/scripts/control_audio_prompt_comparison.ts "${arguments[@]}"
+
+      - name: Retain sanitized control evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: audio-prompt-comparison-control-${{ github.sha }}-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/audio-prompt-comparison-control.json
+          if-no-files-found: ignore
+          retention-days: 30

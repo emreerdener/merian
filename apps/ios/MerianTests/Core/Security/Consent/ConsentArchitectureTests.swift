@@ -466,9 +466,9 @@ struct ConsentArchitectureTests {
         #expect(!remoteService.contains(".shared"))
         #expect(
             occurrences(
-                of: "try Self.firstMappedRemoteRow(",
+                of: "try ConsentRemoteMapping.firstMappedRemoteRow(",
                 in: remoteService
-            ) == 10
+            ) == 11
         )
         #expect(!remoteService.contains(".first.flatMap("))
         #expect(
@@ -626,6 +626,7 @@ struct ConsentArchitectureTests {
         "Models/ConsentErrors.swift",
         "Models/ConsentModels.swift",
         "Models/ConsentPolicy.swift",
+        "Coordinators/AIProcessingConsentCoordinator.swift",
         "Coordinators/ConsentCloudSessionCoordinator.swift",
         "Coordinators/ConsentManagerRuntime.swift",
         "Coordinators/ConsentRealtimeCoordinator.swift",
@@ -641,6 +642,7 @@ struct ConsentArchitectureTests {
         "Services/ConsentMutationService+Live.swift",
         "Services/ConsentMutationService.swift",
         "Services/ConsentRealtimeCoordinator+Live.swift",
+        "Services/ConsentRemoteMapping.swift",
         "Services/ConsentRemoteModels.swift",
         "Services/ConsentRemoteService+Live.swift",
         "Services/ConsentRemoteService.swift"
@@ -717,10 +719,13 @@ struct ConsentArchitectureTests {
             "Core/Security/Consent/Services/ConsentRealtimeCoordinator+Live.swift"
         let ledgerRepositoryPath =
             "Core/Security/Consent/Repositories/ConsentLedgerRepository.swift"
+        let aiProcessingCoordinatorPath =
+            "Core/Security/Consent/Coordinators/AIProcessingConsentCoordinator.swift"
         let policyAllowedPaths: [String: Set<String>] = [
             "ConsentAuthorityPolicy": [
                 "Core/Security/Consent/Policies/ConsentAuthorityPolicy.swift",
                 stateProjectionPolicyPath,
+                aiProcessingCoordinatorPath,
                 mutationServicePath,
                 synchronizationMergePolicyPath
             ],
@@ -745,6 +750,7 @@ struct ConsentArchitectureTests {
             managerRuntimePath,
             cloudSessionCoordinatorPath,
             ledgerRepositoryPath,
+            aiProcessingCoordinatorPath,
             mutationServicePath,
             synchronizationCoordinatorPath
         ]
@@ -756,6 +762,7 @@ struct ConsentArchitectureTests {
             "Core/Security/Consent/Services/ConsentRemoteService+Live.swift"
         ]
         let wireAllowedPaths: Set<String> = [
+            "Core/Security/Consent/Services/ConsentRemoteMapping.swift",
             "Core/Security/Consent/Services/ConsentRemoteModels.swift",
             "Core/Security/Consent/Services/ConsentRemoteService.swift",
             "Core/Security/Consent/Services/ConsentRemoteService+Live.swift"
@@ -778,6 +785,7 @@ struct ConsentArchitectureTests {
             mutationServicePath
         ]
         let mutationServiceAllowedPaths: Set<String> = [
+            aiProcessingCoordinatorPath,
             managerRuntimePath,
             liveMutationServicePath,
             mutationServicePath

@@ -112,6 +112,7 @@ struct HistoricalScanResponse: Decodable, Sendable {
     let individual_count: Int?
     let ecological_interactions: [String]?
     let inference_tier: String?
+    let identification_provenance: IdentificationProvenanceDTO?
     let custom_tags: [String]?
     let candidates: [CloudIdentificationCandidate]?
     let pet_identification: PetIdentification?

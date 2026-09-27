@@ -361,9 +361,25 @@ The setting is opt-in. `opensExploreOnLaunch` registers a `false` default in
 `reloadFromDefaults()` so externally changed defaults are reflected in the
 running settings model.
 
-The section previously named **Capture** is now **Workspace**. It continues to
-own Camera, Audio, **Reorder modes**, Field trip goals, and confirmation
-preferences; the rename does not move those controls or change their behavior.
+**Workspace** owns Camera, Audio, **Reorder modes**, Field trip goals,
+**Expedition mode**, and **Auto-submit scans**. The separate Pro settings
+section and multi-capture toggle are removed. Auto-submit uses the independent
+`autoSubmitScans` key, defaulting to false for new and existing installations;
+legacy confirmation/multi-capture values do not opt users in. Explicit later
+choices persist. Expedition keeps its saved key/value and default-off behavior,
+with no subscription requirement. Preference writes still precede hardware
+reconciliation.
+
+`Plan/Models/PaywallPresentation.swift` owns all four hero slides, plan
+summaries, comparison values, and attributed reviews. Multi-capture means two
+media items plus an optional note; Free gets one photo/audio item plus an
+optional note. Expedition is Included for both tiers in the comparison, absent
+from paid summaries/slides, and its former attributed testimonial is removed.
+Purchase, restore, price, and provider claims retain their existing owners. See
+the
+[current capture contract](../../../../../../docs/features-and-hardware/29-staged-capture-review.md)
+and
+[entitlement guide](../../../../../../docs/features-and-hardware/02-revenue-and-identity.md).
 
 ### Reorder modes
 
@@ -436,3 +452,17 @@ Successful Settings sign-out invokes the app-root confirmation callback only
 after the complete transition succeeds. The shared **Signed out successfully**
 toast survives replacement of Settings by consent onboarding; failed or
 overlapping attempts do not emit success feedback.
+
+## Optional OpenAI permission
+
+`Components/AIProcessingPrivacySection.swift` delegates to the injected
+`ConsentManager.aiProcessingPermissions` coordinator. It owns only disclosure
+presentation, the captured account identity and unsaved-error feedback. An
+explicit displayed action records a grant or withdrawal; cancel records nothing.
+
+New collection is disabled in source. The section is hidden unless OpenAI
+history exists; current or older-version grants remain withdrawable with the
+gate closed. It never changes required Gemini onboarding or selects a model. The
+[consent owner](../../../Core/Security/Consent/README.md) owns persistence,
+account validation and synchronization. The displayed choice is not cloud
+inference authorization.

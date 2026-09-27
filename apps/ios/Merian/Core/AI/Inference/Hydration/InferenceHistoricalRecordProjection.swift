@@ -169,6 +169,9 @@ struct InferenceHistoricalRecordProjection: Sendable {
                 ? record.gbifTaxonKey
                 : nil,
             inferenceTier: record.inferenceTier,
+            identificationProvenance: record.identificationProvenanceData.map {
+                IdentificationResultProvenance(storedData: $0)
+            },
             alternativeCommonNames: allowsSpeciesHydration
                 ? record.alternativeCommonNames
                 : nil,

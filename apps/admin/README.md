@@ -26,6 +26,17 @@ is in
 - Backend-wide deployment rules:
   [`docs/backend-and-data/06-supabase-deployment-runbook.md`](../../docs/backend-and-data/06-supabase-deployment-runbook.md)
 
+## AI cost coverage
+
+Overview and AI Usage label the priced estimate with priced/unpriced event
+counts. Unknown prices are unavailable; a partial sum is not total spend.
+Missing coverage fields from older backends also show unavailable. AI Usage
+includes a bounded provider/model breakdown and distinguishes saved execution
+from inferred legacy attribution. Apply the attribution/coverage migration and
+updated admin pages before alternative production cost evaluation; this does not
+add provider selection or a new tariff. See the canonical AI ledger and pricing
+runbooks.
+
 ## Prerequisites
 
 - The internal-admin migration has been applied.

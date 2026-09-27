@@ -24,14 +24,14 @@ struct CaptureStagingToolbarPresentationTests {
         let full = CaptureStagingToolbarPresentation(
             stagedCapture: capture, isRefining: true, stagedCaptureLimit: 2
         )
-        #expect(full.visibleNodes.map(\.id) == ["img_0", "desc_0", "audio_0"])
+        #expect(full.visibleNodes.map(\.id) == ["img_0", "audio_0"])
         #expect(full.photoSelectionCount == nil)
         #expect(full.submitTitle == "Analyze")
         #expect(!full.isSubmitDisabled)
         #expect(capture.availableEvidenceSlots(limit: 2, isRefining: true) == 0)
         #expect(capture.canStageRefinementDescription)
         capture.audios.removeAll()
-        #expect(capture.availableEvidenceSlots(limit: 2, isRefining: false) == 0)
+        #expect(capture.availableEvidenceSlots(limit: 2, isRefining: false) == 1)
         #expect(capture.availableEvidenceSlots(limit: 1, isRefining: false) == 0)
     }
 
@@ -63,8 +63,7 @@ struct CaptureStagingToolbarPresentationTests {
         #expect(
             presentation.visibleNodes.map(\.id) == [
                 "audio_0",
-                "img_0",
-                "desc_0"
+                "img_0"
             ]
         )
     }
@@ -110,7 +109,7 @@ struct CaptureStagingToolbarPresentationTests {
         )
 
         #expect(presentation.visibleNodes.isEmpty)
-        #expect(presentation.photoSelectionCount == 1)
+        #expect(presentation.photoSelectionCount == nil)
     }
 
     @Test("A full visible tray omits the add-photo action")

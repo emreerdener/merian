@@ -88,6 +88,9 @@ extension SpeciesData {
             .trimmedNonEmptyValue
         self.gbifTaxonKey = edgeResponse.gbif_taxon_key
         self.inferenceTier = edgeResponse.inference_tier
+        self.identificationProvenance = edgeResponse.identification_provenance.map {
+            IdentificationResultProvenance(dto: $0)
+        }
         self.alternativeCommonNames = SpeciesData.sanitizeAlternativeNames(
             edgeResponse.alternative_common_names
         )
@@ -131,5 +134,15 @@ extension SpeciesData {
         self.alternativesExhausted = false
         self.audioFilePaths = nil // populated by inference processing
         self.videoFilePaths = nil
+    }
+}
+
+extension IdentificationResultProvenance {
+    init(dto: IdentificationProvenanceDTO) {
+        // The bounded generated DTO contains only finite configuration values.
+        // Preserve a present-invalid marker if encoding ever fails.
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        self.init(storedData: (try? encoder.encode(dto)) ?? Data())
     }
 }

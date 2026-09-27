@@ -22,7 +22,7 @@ boundaries, and the [codebase map](./codebase-map.md) inventories source owners.
 | Database and Edge Functions             | [`services/supabase`](../services/supabase/README.md)                                                     |
 
 The app and widget target iOS 17.2; the companion targets watchOS 10.0. The
-active SwiftData schema is `MerianSchemaV51`. The
+active SwiftData schema is `MerianSchemaV52`. The
 [schema contract](./backend-and-data/04-database-schema.md) and
 [startup recovery guide](./backend-and-data/08-startup-store-recovery.md) own
 migration and install-over requirements.
@@ -209,7 +209,47 @@ production submission or public release.
   adds the successful Gemini-only rollout, owner verification, and remaining CI
   observation. The
   [provider onboarding guide](../services/supabase/functions/_shared/ai/ADDING_PROVIDERS.md)
-  explains the work needed before assigning another service.
+  explains the work needed before assigning another service. The
+  [alternative-provider evaluation guide](./development-guides/22-alternative-identification-provider.md)
+  documents the implemented, production-disabled OpenAI photo/text adapter and
+  how to use the existing evaluator for a bounded comparison. The
+  [first OpenAI pilot](./rfcs/identification-openai-photo-text-pilot-2026-09-25.md)
+  retains seven normalized results and one unknown across eight examples,
+  including the unmatched-name scoring limitation; production remains Gemini.
+- **[Provider-flexibility implementation review](./rfcs/identification-provider-flexibility-review-2026-09-26.md):**
+  No runtime blockers identified for the evaluation-only OpenAI adapter and
+  controlled evaluator. Corrects original-phase documentation scope and records
+  the remaining production admission, permission, confidence and rollout work.
+  The subsequent
+  [provider-bound admission slice](./rfcs/identification-provider-production-admission-2026-09-26.md)
+  adds exact database assignment and per-attempt evidence while production stays
+  on Gemini. The subsequent
+  [independent OpenAI consent slice](./rfcs/identification-provider-openai-consent-2026-09-26.md)
+  implements separate permission evidence, causal withdrawal and a
+  source-disabled Settings flow. Gemini remains required for current onboarding
+  and inference. The subsequent
+  [durable provenance slice](./rfcs/identification-provider-result-provenance-2026-09-26.md)
+  preserves each saved Gemini result's configuration, and the
+  [app-controlled routing slice](./rfcs/identification-provider-input-routing-2026-09-26.md)
+  adds complete-input assignments and recipient-aware quota admission. The
+  [native recipient preflight](./rfcs/identification-native-recipient-preflight-2026-09-26.md)
+  checks assignment before dispatch, preserves the expectation across retries,
+  and pauses saved observations on permission or client-version denial.
+  [Client result provenance](./rfcs/identification-client-result-provenance-2026-09-26.md)
+  preserves execution configuration in owner results and V52 local storage, with
+  neutral confidence presentation for unknown profiles. Provider qualification,
+  deliberate permission collection and rollout remain ahead.
+- **[Identification provider optimization plan](./rfcs/identification-provider-optimization-plan.md):**
+  Shared measurement repairs are implemented with versioned mapping, reports and
+  descriptive comparisons. Versioned baseline profiles and experiment-wide
+  budgets/stops are implemented. The first candidate is concise OpenAI
+  explanations, with implemented delegated AI review, optional owner review and
+  uncached profiles for a 16-request comparison. The
+  [26 September screen](./rfcs/identification-openai-concise-screen-2026-09-26.md)
+  stopped after one reference-matching control result because explanation facts
+  did not cover lookalike comparisons; 15 assignments remain unattempted and the
+  concise candidate is deferred. Includes the later production qualification
+  path; production remains Gemini.
 - **Identification evaluation readiness:**
   [PRD](./product/04-identification-evaluation-prd.md) and
   [SRD](./rfcs/identification-evaluation-srd.md) plan the next milestone: an
@@ -220,7 +260,8 @@ production submission or public release.
   [Slice 4 collection packet](./development-guides/20-identification-evaluation-pilot.md)
   supplies a solo phone/computer workflow, automated exploratory preflight and
   provisional reporting, proposed formal coverage and blank intake/reviewer
-  forms. The formal corpus and direct evaluator's live run remain pending; the
+  forms. The formal corpus and formal direct-evaluator baseline remain pending;
+  the
   [exploratory experiment record](./rfcs/identification-exploratory-benchmark-2026-09-22.md)
   distinguishes offline mechanics from the completed
   [two-photo production-app benchmark](./rfcs/identification-production-app-benchmark-2026-09-22.md),
@@ -281,7 +322,33 @@ production submission or public release.
   verifies the disputed inputs and local processing, identifies the mismatch
   between audio subject confidence and the species-match badge, and proposes a
   focused correction. No runtime behavior or earlier result changes in that
-  diagnostic.
+  diagnostic. The subsequent
+  [audio confidence V2 implementation](./rfcs/identification-audio-confidence-v2-2026-09-24.md)
+  aligns the existing audio score with the returned identity and adds a resolved
+  non-Human Field Trip eligibility guard. Its
+  [production deployment](./release-evidence/identification-audio-confidence-v2-deployment-2026-09-24.md)
+  passed migration, function, smoke and health gates. The subsequent
+  [fixed-context six-audio benchmark](./rfcs/identification-audio-confidence-v2-app-benchmark-2026-09-24.md)
+  verified all six fresh V2 responses. Both reviewed non-animal controls
+  returned No wildlife detected; two animal clips still received Strong species
+  labels that disagree with their provisional references. Accuracy improvement
+  and confidence calibration remain unproven. The
+  [disputed-reference review](./rfcs/identification-audio-disputed-reference-review-2026-09-24.md)
+  verifies unchanged source and V2 input bindings and distinct taxon names;
+  audible species remain unresolved. Keep those cases diagnostic until their
+  references are adjudicated. The next
+  [two-audio preparation](./rfcs/identification-audio-visible-caller-preparation-2026-09-24.md)
+  retained separate video context for a pika and a rooster. After owner review,
+  the
+  [two-case app benchmark](./rfcs/identification-audio-visible-caller-app-benchmark-2026-09-24.md)
+  verified both fresh responses: pika returned Peregrine Falcon, while rooster
+  agreed at the planned chicken species rank. Both displayed Strong match;
+  confidence calibration remains unproven. The
+  [controlled confidence comparison plan](./rfcs/identification-audio-uncertainty-comparison-plan-2026-09-24.md)
+  defines six clips, two Gemini prompt arms and three planned repeats. Its
+  offline preparation, default-off server lane and Debug simulator proof path
+  are implemented and locally validated. Separate activation controls and the
+  execution freeze are next; no prompt-comparison requests have run.
 - **Deferred family and prior combined planning:**
   [PRD](./product/02-family-plans-and-ai-platform-prd.md) and
   [SRD](./rfcs/family-plans-and-ai-platform-srd.md). Family plans are deferred;
@@ -446,6 +513,14 @@ production submission or public release.
 
 ### Features & Hardware
 
+- **[Staged capture review and shared Describe](./features-and-hardware/29-staged-capture-review.md)**
+  — Current capture lifecycle: default review, opt-in Auto-submit, separate
+  media/note budgets, the single Describe editor, protected discard, readiness,
+  durable ownership, and Expedition for everyone. The
+  [implementation record](./rfcs/staged-review-shared-describe-2026-09-26.md)
+  retains pinned dependencies, exact commits, local validation, and release
+  gaps.
+
 - **[`/features-and-hardware/01-camera-and-hardware.md`](./features-and-hardware/01-camera-and-hardware.md)**
   — AVFoundation bindings, LiDAR depth logic, Pro video stabilization
   boundaries, identity-fenced haptic feedback ownership, and
@@ -482,9 +557,10 @@ production submission or public release.
   deterministic prompt/text policy, generation-fenced subject and dictation
   lifecycle, serialized startup cancellation, Core `SpeechManager` AVAudioEngine
   and SFSpeechRecognizer pipeline, and Swift 6 concurrency guarantees. Also owns
-  reanalysis's supplementary description allowance, automatic Analyze inclusion,
-  tray-edit/removal precedence, replacement cleanup, and late-transcript
-  handling; runtime acceptance is tracked in the
+  shared root note/supplement editing, historical-only sheet behavior, Analyze
+  inclusion, replacement cleanup, and late-transcript handling. The
+  [staged-review contract](./features-and-hardware/29-staged-capture-review.md)
+  owns cross-mode lifecycle; runtime acceptance is tracked in the
   [reanalysis verification matrix](development-guides/08-testing-strategy.md#reanalysis-description-verification).
 - **[`/features-and-hardware/12-audio-listen-mode.md`](./features-and-hardware/12-audio-listen-mode.md)**
   — Audio Listen Mode: `SpectrogramActor` FFT/mel-scale DSP,
@@ -658,9 +734,10 @@ production submission or public release.
   and stop-condition rules for future hygiene work.
 - **[`/development-guides/20-identification-evaluation-pilot.md`](./development-guides/20-identification-evaluation-pilot.md)**
   — Solo phone/computer checks and automated exploratory testing, proposed
-  60-example formal pilot coverage and blank intake/reference-review forms; paid
-  evaluator measurement remains pending. The first two normal production-app
-  submissions are recorded in the
+  60-example formal pilot coverage and blank intake/reference-review forms. The
+  [first OpenAI pilot](./rfcs/identification-openai-photo-text-pilot-2026-09-25.md)
+  adds paid exploratory evaluator evidence; formal qualification remains
+  pending. The first two normal production-app submissions are recorded in the
   [live benchmark](./rfcs/identification-production-app-benchmark-2026-09-22.md).
 - **[`/development-guides/21-identification-app-measurement.md`](./development-guides/21-identification-app-measurement.md)**
   — Passive app measurement of provider/model, app and Function source identity,

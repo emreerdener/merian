@@ -215,5 +215,6 @@ extension ConsentManager {
         let analyticsConsentEvent: AnalyticsConsentEvent?
         let aiConsentStreamHead: AIConsentEvent?
         let analyticsConsentStreamHead: AnalyticsConsentEvent?
+        var openAIConsentStreamHead: AIConsentEvent? = nil
     }
 }

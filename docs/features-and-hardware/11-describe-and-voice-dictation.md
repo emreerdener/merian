@@ -60,13 +60,13 @@ hardware lives in `Core/Hardware`, not under Capture Describe.
 `submitDescribe(observationContext:modelContext:)` is an extension on
 `CaptureWorkspaceViewModel` in
 `CaptureWorkspaceViewModel+DescribeSubmission.swift`. It routes based on what
-else is staged:
-
-| Condition                                   | Path                                                                                                                               |
-| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `isMultiCaptureEnabled == true`             | Stages the description in `stagedCapture.observationContexts`, preserving chronological order against any staged image/audio items |
-| Images already staged + single-capture mode | Stages the description into the shared mixed-media toolbar state, then `submitStagedCapture` owns the final send                   |
-| Nothing else staged                         | Solo non-visual path via `submitDescribeSolo`, which delegates to `submitNonVisualCapture`                                         |
+else is staged. Root Describe owns the shared draft text. Typing alone neither
+reveals the tray nor submits. The initial plus stages the note for review; with
+Auto-submit enabled the initial arrow explicitly submits it. Once the tray
+exists, remove the central Describe action and let Identify/Analyze submit the
+latest shared text. Both note states navigate to root Describe and focus it,
+even at physical capacity. Only historical descriptions use
+`StagedDescriptionSheet`.
 
 `submitDescribeSolo` mirrors the resilience pattern of the other capture paths:
 it always inserts a zero-byte `.staged` nonvisual queue row before any provider
@@ -82,34 +82,28 @@ foreground consumer cancels the lookup. A description-only scan can therefore
 produce the same privacy-filtered Explore location label as a visual or audio
 scan without making WeatherKit or geocoding a durability dependency.
 
-**Submission rule**: ordinary scans retain the same 2-item total capacity across
-images, audio, video, and descriptions (subject to single-capture settings).
-Reanalysis reserves one supplementary description beyond its two-item evidence
-budget. The original media plus one additional image/audio/video and description
-can therefore form a three-item submission in either insertion order. Additional
-physical media cannot consume the reserved description allowance.
+**Submission rule**: Free permits one photo/audio plus one optional note; Pro
+permits two media plus one optional note. Text-only remains valid. Reanalysis
+preserves historical descriptions and its separate current supplement. No
+placeholder enters the payload. See the
+[complete capture contract](./29-staged-capture-review.md).
 
-In reanalysis, **+** stages or updates the supplementary description, and
-**Analyze** automatically stages any nonempty current draft before sending,
-including after switching capture modes. Both actions update the same supplement
-and preserve its original timeline position; historical description evidence
-remains separate. Saving or removing the supplementary item in the tray clears
-its pending editor draft, preventing Analyze from overwriting that edit or
-recreating a removed item. Historical evidence edits leave the supplementary
-draft intact. Empty drafts preserve staged descriptions. Removing the staged
-supplement or ending/replacing the refinement session clears its association.
-Starting another reanalysis also discards the previous session’s staged media
-before loading the replacement original. Rejected nonempty drafts remain in the
-editor and abort submission with the existing error toast: “Your description
-couldn’t be added. Please try again.” Successful **+**/**Analyze** actions and
-opening the tray's description editor stop dictation; transcript callbacks are
-ignored once the dictation request ends so late results cannot restore consumed
-text.
+In reanalysis, root Describe edits one supplementary description and Analyze
+submits its latest value after any mode switch. Updates preserve its insertion
+time; historical descriptions remain separate. Clearing shared text removes the
+current supplement. Historical evidence uses the local-copy sheet: Done saves,
+swipe-dismiss discards pending edits, and Remove commits removal. Starting a new
+reanalysis clears the previous draft before loading the new original.
 
-Labels, capture-mode selection, and control styling and positioning stay the
-same. The refinement tray keeps the existing media row and uses horizontal
-scrolling when its items would otherwise crowd Cancel/Analyze on narrow screens.
-Automated coverage and the outstanding simulator acceptance checklist are in
+Before ordinary review exists, plus stages text or the arrow explicitly submits
+with Auto-submit enabled. Once the tray exists there is no central Describe
+action. Keyboard-toolbar Done dismisses editing without losing text. Submission
+and historical-editor entry stop dictation, and request/draft-generation checks
+reject late callbacks. Admission failure retains shared text and media for
+manual retry.
+
+The glass tray scrolls its media row while keeping Discard and Identify/Analyze
+visible. Automated coverage and remaining manual acceptance are in
 [reanalysis description verification](../development-guides/08-testing-strategy.md#reanalysis-description-verification).
 
 ---

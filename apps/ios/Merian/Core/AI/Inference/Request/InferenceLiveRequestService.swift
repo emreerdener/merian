@@ -40,6 +40,8 @@ struct InferenceLiveRequestService {
         var isProFunded: Bool = false
         var measurementValidator: IdentificationMeasurementContext.Validator?
         var comparisonCapture: IdentificationComparisonCapture?
+        var validateAttempt: (@MainActor @Sendable () throws -> Void)?
+        var onProviderDispatchReady: (@MainActor @Sendable () -> Void)?
     }
 
     struct VisualRequest: Sendable {
@@ -110,7 +112,9 @@ struct InferenceLiveRequestService {
                     isProFunded: request.isProFunded,
                     onRequestBodySent: onRequestBodySent,
                     measurementValidator: request.measurementValidator,
-                    comparisonCapture: request.comparisonCapture
+                    comparisonCapture: request.comparisonCapture,
+                    validateAttempt: request.validateAttempt,
+                    onProviderDispatchReady: request.onProviderDispatchReady
                 )
             }
         )
@@ -121,8 +125,8 @@ struct InferenceLiveRequestService {
     @MainActor
     func dispatchVisual(
         _ request: VisualRequest,
-        validateAttempt: @MainActor () throws -> Void,
-        onProviderDispatchReady: @MainActor () -> Void,
+        validateAttempt: @escaping @MainActor @Sendable () throws -> Void,
+        onProviderDispatchReady: @escaping @MainActor @Sendable () -> Void,
         onRequestBodySent: @escaping @Sendable () -> Void
     ) async throws -> Response? {
         let encodedImages = await dependencies.encodeVisualImages(
@@ -165,7 +169,6 @@ struct InferenceLiveRequestService {
             try validateAttempt()
         }
 
-        onProviderDispatchReady()
         let resultData = try await dependencies.identify(
             ProviderRequest(
                 // Inline images have no staged source object. A destination
@@ -186,7 +189,9 @@ struct InferenceLiveRequestService {
                 preferredGoal: request.preferredGoal,
                 durableQueueOwnsRecovery:
                     request.durableQueueOwnsRecovery,
-                isProFunded: request.isProFunded
+                isProFunded: request.isProFunded,
+                validateAttempt: validateAttempt,
+                onProviderDispatchReady: onProviderDispatchReady
             ),
             onRequestBodySent
         )
@@ -234,7 +239,8 @@ struct InferenceLiveRequestService {
                     request.durableQueueOwnsRecovery,
                 isProFunded: request.isProFunded,
                 measurementValidator: validateAttempt,
-                comparisonCapture: comparisonCapture
+                comparisonCapture: comparisonCapture,
+                validateAttempt: validateAttempt
             ),
             nil
         )

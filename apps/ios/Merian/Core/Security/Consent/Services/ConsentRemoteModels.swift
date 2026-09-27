@@ -125,6 +125,7 @@ enum ConsentRemoteWire {
         let analyticsConsentEvents: [AnalyticsConsentEvent]
         let aiConsentStreamHeads: [AIConsentEvent]
         let analyticsConsentStreamHeads: [AnalyticsConsentEvent]
+        var openAIConsentStreamHeads: [AIConsentEvent] = []
     }
 
     static let adultEligibilityReceiptColumns =

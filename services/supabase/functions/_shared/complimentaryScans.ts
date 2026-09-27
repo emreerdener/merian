@@ -6,9 +6,8 @@ export interface FlashFallbackEvidenceShape {
 }
 
 /**
- * Flash fallback is available only for one non-video evidence item. Context
- * telemetry attached to an image/audio capture does not count as another item;
- * callers pass only user-supplied identification evidence here.
+ * Flash fallback is available only for one non-video evidence item. One optional
+ * user description may accompany that item. Video-derived media never qualifies.
  */
 export function isFlashFallbackEligible(
   shape: FlashFallbackEvidenceShape,
@@ -23,5 +22,8 @@ export function isFlashFallbackEligible(
     return false;
   }
   return shape.videoCount === 0 &&
-    shape.imageCount + shape.audioCount + shape.descriptionCount === 1;
+    ((shape.imageCount + shape.audioCount === 1 &&
+      shape.descriptionCount <= 1) ||
+      (shape.imageCount + shape.audioCount === 0 &&
+        shape.descriptionCount === 1));
 }

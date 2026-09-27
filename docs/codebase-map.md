@@ -138,7 +138,7 @@ queued-media byte inspection,
 owns main-actor live-row-to-context projection, `Features/Insights` owns
 queued-to-active media presentation and focus-descriptor restoration, and
 `Core/Data/OfflineSync/Persistence` owns cloud-deletion task/job mutations.
-`Models/ActiveSchema` contains the V51 model declarations and deterministic
+`Models/ActiveSchema` contains the V52 model declarations and deterministic
 model/value accessors, never a `ModelContext` fetch workflow. The Models-wide
 architecture suite freezes those boundaries and exempts only the ordered
 historical migration registry from the 600-line review ceiling.
@@ -160,15 +160,18 @@ single-purpose micro-files without changing their declarations or call sites.
 The active schema is:
 
 ```swift
-typealias CurrentSchema = MerianSchemaV51
+typealias CurrentSchema = MerianSchemaV52
 ```
 
-`MerianSchemaV51` is declared in `apps/ios/Merian/Models/SchemaVersions.swift`.
-The two checksum-distinct V50 graphs are frozen in
-`Models/Schema/SchemaV50Snapshots.swift` and
+`MerianSchemaV52` is declared in
+`apps/ios/Merian/Models/Schema/SchemaV52.swift`. `SchemaVersions.swift` retains
+the frozen V51 owner and every migration plan. The two checksum-distinct V50
+graphs are frozen in `Models/Schema/SchemaV50Snapshots.swift` and
 `Models/Schema/SchemaV50ReleasedActiveSnapshots.swift`; checksum selection
-routes each to its own immutable V50→V51 source bridge. V47 through V50 remain
-available for fixtures and source-specific startup recovery.
+routes each to its own immutable V50→V51 source bridge. V51 is independently
+frozen in `SchemaV51Snapshots.swift`; all lanes finish with lightweight V51→V52.
+V47 through V50 remain available for fixtures and source-specific startup
+recovery.
 
 Active persistent models:
 
@@ -234,7 +237,7 @@ Recent schema milestones:
   optional-queue V48 TestFlight checksum. Startup diagnostics record redacted
   store metadata and attempted plan names so failing devices can share evidence
   without exposing paths, account data, scan text, or media URLs. The existing
-  integer remains an inert released-compatibility field in V51; the current
+  integer remains an inert released-compatibility field in V52; the current
   queue runtime neither reads nor mutates it. Removing it would alter the model
   shape and requires a future intentional migration. `MigrationPlanTests`
   carries the disk-store fixture matrix for image, video, audio,
@@ -322,7 +325,7 @@ Historical schema snapshots V1 through V39 live under
 `apps/ios/Merian/Models/Schema/`. V40 through V49 live in `SchemaVersions.swift`
 alongside the migration plan; the two released V50 graphs are frozen in
 `SchemaV50Snapshots.swift` and `SchemaV50ReleasedActiveSnapshots.swift`, while
-their bridges, the active V51 owner, and migration plans remain in
+their bridges, the frozen V51 owner, and migration plans remain in
 `SchemaVersions.swift`.
 
 ## Feature Modules
@@ -425,6 +428,24 @@ data-source cache before the selected page is reinstalled.
 modifier applied directly by native scrolling views, lists, and forms.
 `Core/Media/MediaExportService.swift` owns bounded export and share preparation
 for both Insight and Scans.
+
+Within Capture, `Staging/Models/CaptureDraftSession.swift` owns the draft
+identity, unresolved-operation tokens, and attempt-bound automatic eligibility.
+`Shell/ViewModels/CaptureWorkspaceViewModel+Draft.swift` coordinates shared
+text, readiness, confirmed discard, and gallery selection limits. Root Describe
+edits ordinary notes and reanalysis supplements; `StagedDescriptionSheet` is
+reserved for historical descriptions. `ActiveScanToolbar` presents a single note
+node and horizontal media overflow beside fixed actions.
+`Models/Media/IdentificationEvidenceAllowance.swift` owns the shared native Free
+media-plus-note predicate used by entry, queue, replay, and recipient preflight.
+`Core/Data/OfflineSync/Services/CaptureAdmission` retains durable ownership
+through unique media copies and accepted-timeline handoff. Settings owns the
+independent `autoSubmitScans` preference and included Expedition toggle;
+`HardwareOrchestrator` reads the saved Expedition preference without an
+entitlement dependency. See the
+[current capture contract](./features-and-hardware/29-staged-capture-review.md)
+and
+[verification matrix](./development-guides/08-testing-strategy.md#staged-review-and-shared-describe-validation).
 
 Within Capture, Scan's contained task owner generation-fences still shutters,
 video admission/start, recording, and progress work. Shell invalidates pending
@@ -1692,7 +1713,13 @@ pure helpers; ordinary scans retain their current processor. The
 [app integration record](./rfcs/identification-audio-comparison-app-integration-2026-09-23.md)
 maps the generated native assignments, authenticated receipt collection, exact
 foreground finalization/render proof and offline observation admission. Server
-configuration remains unset; no paid comparison has run.
+configuration and release evidence remain run-specific. The separate
+[prompt lane](./rfcs/identification-audio-uncertainty-comparison-plan-2026-09-24.md)
+adds generated 36-slot bindings, `promptAssignment.ts`, `promptInstruction.ts`,
+`DebugAudioPromptComparisonAssignment` and strict prompt observation admission.
+The new lane is default-off. Its separate `control_audio_prompt_comparison.ts`
+and prompt-comparison workflow preserve bounded Production activation/recovery;
+old DSP IDs and results remain immutable.
 
 Inference and media staging:
 
@@ -1732,12 +1759,53 @@ own the separately versioned provisional corpus and agreement report for solo
 development. `preflight.ts` verifies assets and fingerprints requests without
 network, credentials or dispatch. Formal scoring and comparison reject this
 exploratory evidence; the same live execution controls apply to eligible real
-exploratory runs. `services/supabase/scripts/validate_edge_dtos.ts` imports that
-same executable descriptor and deterministically generates the marked Identify
-DTO block in iOS `InferenceEdgeDTOs.swift`, including nested types, arrays,
-numeric representations, coding keys, and explicit decoders. The gate compares
-the checked-in block exactly and checks exclusive generated DTO ownership across
-the complete `apps/ios` source graph. Its focused tests, third-party-free Deno
+exploratory runs. Provider optimization measurement lives in
+`scripts/identification_evaluation/taxonomy.ts` (frozen catalog resolution).
+`reusableProfiles.ts` freezes reviewed profile definitions and fingerprints;
+`experimentContracts.ts` and `experiment.ts` own experiment plans, allocations,
+locked execution, reservation settlement and persistent global stops.
+`experimentReport.ts` validates controlled reports, while `experimentOffline.ts`
+owns baseline demonstrations and `candidateOffline.ts` owns the synthetic
+concise candidate. `explanationContracts.ts`, `explanationCalibration.ts`,
+`explanationView.ts` and `explanationReview.ts` own bounded ratings, invented
+practice anchors, the ephemeral local view and private review projection. The v3
+experiment/assessment-v2/report-v3 path records explicitly delegated AI review
+without owner calibration; the v2 human path retains its certificate.
+`candidateReport.ts` applies the fixed provisional screening gate. The
+measurement modules are `measurementCost.ts` (usage-based cost),
+`exploratoryMeasurement.ts` (versioned provisional reports) and
+`exploratoryComparison.ts` (descriptive paired comparisons). The tooling README
+owns the opt-in v2 measurement and v2/v3 review contracts; historical v1 reports
+remain unchanged. These modules are not production imports.
+
+`scripts/identification_evaluation/audioPromptComparison.ts` builds the frozen
+audio uncertainty candidate and hash-only assignments; `frozenAudioPacket.ts`
+validates its retained private inputs. The
+`scripts/prepare_audio_uncertainty_comparison.ts` entry point creates a new
+preparation without production routing or dispatch. The later
+`prepare_audio_prompt_execution.ts` freezes actual clean execution bindings and
+assets; `manage_audio_prompt_execution.ts` and `audioPromptExecution.ts` own the
+private ordered first-attempt ledger, fresh operator preflight witness and
+verified block cleanup. They make no submissions. See the separate
+`manage_audio_prompt_continuation.ts` amendment entry point and
+`audioPromptContinuation.ts`/`audioPromptContinuationContract.ts` for a single
+sidecar containing only untouched slots after an expired, closed partial block.
+`audioPromptExecutionEvidence.ts` revalidates the original prefix and immutable
+cross-packet evidence; original and amended app/tooling identities stay
+separate. No continuation tool invokes a provider. `audioPromptLedger.ts` shares
+immutable claim/admission/cleanup checks without changing legacy schemas.
+`manage_audio_prompt_successor.ts` and `audioPromptSuccessor.ts` own one fixed
+successor to a closed first continuation; `audioPromptSuccessorContract.ts` owns
+its new versions and `audioPromptSuccessorEvidence.ts` revalidates both
+read-only predecessors and binds retained report bytes. The combined report
+keeps all three segments distinct. No successor tool invokes a provider. See the
+[successor tooling guide](../services/supabase/scripts/identification_evaluation/README.md#explicit-successor-after-a-closed-first-continuation).
+`services/supabase/scripts/validate_edge_dtos.ts` imports that same executable
+descriptor and deterministically generates the marked Identify DTO block in iOS
+`InferenceEdgeDTOs.swift`, including nested types, arrays, numeric
+representations, coding keys, and explicit decoders. The gate compares the
+checked-in block exactly and checks exclusive generated DTO ownership across the
+complete `apps/ios` source graph. Its focused tests, third-party-free Deno
 config, and frozen lock exercise stale generation, aliased decoder extensions,
 missing source roots, and runtime numeric bounds.
 `_shared/capturedMediaContract.ts` independently owns the durable

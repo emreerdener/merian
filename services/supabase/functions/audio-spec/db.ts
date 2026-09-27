@@ -1,3 +1,4 @@
+import type { IdentificationProvenance } from "../_shared/ai/provenance.ts";
 import { SupabaseClient } from "@supabase/supabase-js";
 import {
   buildGroupTagsProvenanceRows,
@@ -133,6 +134,7 @@ export async function updateGroupTags(
 // MARK: - Scans
 
 export interface AudioScanInsertRow {
+  identification_provenance?: IdentificationProvenance;
   id: string;
   user_id: string;
   species_id: string | null;

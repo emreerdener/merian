@@ -243,6 +243,13 @@ actor HistoricalDatabaseActor {
                 if let newInter = res.ecological_interactions, existing.ecologicalInteractions != newInter {
                     existing.ecologicalInteractions = newInter; chunkDidUpdate = true
                 }
+                if let provenance = res.identification_provenance {
+                    let data = IdentificationResultProvenance(dto: provenance).data
+                    if existing.identificationProvenanceData != data {
+                        existing.identificationProvenanceData = data
+                        chunkDidUpdate = true
+                    }
+                }
                 if let newTier = res.inference_tier, existing.inferenceTier != newTier {
                     existing.inferenceTier = newTier; chunkDidUpdate = true
                 }
@@ -376,6 +383,9 @@ actor HistoricalDatabaseActor {
                 individualCount: scan.individual_count,
                 ecologicalInteractions: scan.ecological_interactions,
                 inferenceTier: scan.inference_tier ?? "flash",
+                identificationProvenanceData: scan.identification_provenance.map {
+                    IdentificationResultProvenance(dto: $0).data
+                },
                 customTags: scan.custom_tags ?? [],
                 hasBeenViewed: true,
                 userIdentificationOverride: scan.user_identification_override,

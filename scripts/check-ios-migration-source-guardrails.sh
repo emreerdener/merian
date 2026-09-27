@@ -2,12 +2,15 @@
 set -euo pipefail
 
 schema_file="apps/ios/Merian/Models/SchemaVersions.swift"
+schema_v52_file="apps/ios/Merian/Models/Schema/SchemaV52.swift"
 v49_snapshot_file="apps/ios/Merian/Models/Schema/SchemaV49Snapshots.swift"
 v49_snapshot_sha256="869fee4639038df74d158fc776b9eed6ccef423ee31aa85a23159162753ad6be"
 v50_snapshot_file="apps/ios/Merian/Models/Schema/SchemaV50Snapshots.swift"
 v50_snapshot_sha256="17f0f51b01a52a16a72abd2282862fee44adcda6c2166c9349d1560fe1470562"
 v50_released_active_snapshot_file="apps/ios/Merian/Models/Schema/SchemaV50ReleasedActiveSnapshots.swift"
 v50_released_active_snapshot_sha256="08529c923aba8ce11a4e3ecd2a8b92f9513876f0203bc4cfec1aa2a28423d219"
+v51_snapshot_file="apps/ios/Merian/Models/Schema/SchemaV51Snapshots.swift"
+v51_snapshot_sha256="613786d824f8dbeeeca679440cfa54248dccdf141c8445f4771bf06ed0bfc0ac"
 alias_file="apps/ios/Merian/Models/Aliases.swift"
 active_queue_file="apps/ios/Merian/Models/ActiveSchema/OfflineQueuedScan.swift"
 active_collection_file="apps/ios/Merian/Models/ActiveSchema/ScanCollection.swift"
@@ -47,6 +50,11 @@ startup_scope_file="scripts/ci-detect-startup-safety-source-changes.sh"
 
 if [ ! -f "$schema_file" ]; then
   echo "Missing $schema_file" >&2
+  exit 1
+fi
+
+if [ ! -f "$schema_v52_file" ]; then
+  echo "Missing $schema_v52_file" >&2
   exit 1
 fi
 
@@ -167,6 +175,11 @@ if [ "$actual_v50_released_active_snapshot_sha256" != "$v50_released_active_snap
   fail "Released-active V50 frozen snapshot bytes changed. Reconstruct and review the exact processed V50 persisted shape before updating its pinned digest."
 fi
 
+actual_v51_snapshot_sha256="$(shasum -a 256 "$v51_snapshot_file" | awk '{print $1}')"
+if [ "$actual_v51_snapshot_sha256" != "$v51_snapshot_sha256" ]; then
+  fail "V51 frozen snapshot bytes changed. Reconstruct and review the complete released V51 persisted shape before updating its pinned digest."
+fi
+
 contains() {
   local file="$1"
   local needle="$2"
@@ -191,6 +204,19 @@ extract_block() {
   ' "$schema_file"
 }
 
+# Every source path must terminate in the additive provenance migration. Check
+# ordering as well as membership so a removed or reordered tail fails early.
+require_v52_tail() {
+  local plan_text="$1"
+  local plan_name="$2"
+  local compact
+  compact="$(tr '\n' ' ' <<< "$plan_text")"
+  grep -Eq 'MerianSchemaV51\.self,[[:space:]]*MerianSchemaV52\.self,?[[:space:]]*\]' <<< "$compact" \
+    || fail "$plan_name must end its schemas with frozen V51 then active V52."
+  grep -Eq 'migrateV51toV52,?[[:space:]]*\]' <<< "$compact" \
+    || fail "$plan_name must finish with the shared V51 to V52 stage."
+}
+
 # Feed extracted text directly to grep. With pipefail, printf | grep -q can
 # report SIGPIPE after a successful early match (including forbidden matches).
 migration_plan_schemas="$(
@@ -211,12 +237,14 @@ migration_plan_stages="$(
   ' "$schema_file"
 )"
 
+require_v52_tail "$migration_plan_schemas $migration_plan_stages" "Full migration plan"
+
 grep -Fq "MerianSchemaV49.self" <<< "$migration_plan_schemas" \
   || fail "MerianMigrationPlan.schemas must include MerianSchemaV49.self."
 grep -Fq "MerianActiveSchemaV50.self" <<< "$migration_plan_schemas" \
   || fail "MerianMigrationPlan.schemas must include the frozen V50 bridge."
 grep -Fq "MerianSchemaV51.self" <<< "$migration_plan_schemas" \
-  || fail "MerianMigrationPlan.schemas must finish with the account-scoped V51 schema."
+  || fail "MerianMigrationPlan.schemas must include the frozen account-scoped V51 schema."
 if grep -Fq "MerianSchemaV50.self" <<< "$migration_plan_schemas"; then
   fail "MerianMigrationPlan.schemas must not include the checksum-identical released V50 fixture beside active V50."
 fi
@@ -355,8 +383,8 @@ contains "$schema_file" "MerianSchemaV49.CapturedMediaEntry.makeEntries(" \
   || fail "V49 queue repair must create frozen V49 captured-media rows."
 contains "$test_file" "MerianSchemaV49.OfflineQueuedScan(id: queuedId)" \
   || fail "V49 disk fixtures must be created with the frozen V49 queue model."
-contains "$alias_file" "typealias CurrentSchema = MerianSchemaV51" \
-  || fail "CurrentSchema must remain aligned with V51."
+contains "$alias_file" "typealias CurrentSchema = MerianSchemaV52" \
+  || fail "CurrentSchema must remain aligned with V52."
 contains "$alias_file" "typealias ActiveOfflineQueuedScanGoalHint = MerianActiveSchemaV50.OfflineQueuedScanGoalHint" \
   || fail "The active goal-hint alias must remain aligned with active V50."
 contains "$schema_file" "static let migrateV50toV51 = MigrationStage.custom" \
@@ -478,11 +506,12 @@ recent_v48_plan="$(extract_block "enum MerianRecentV48MigrationPlan" "enum Meria
 optional_v48_plan="$(extract_block "enum MerianOptionalQueueV48RecoveryPlan" "enum MerianRecentV49MigrationPlan")"
 recent_v49_plan="$(extract_block "enum MerianRecentV49MigrationPlan" "enum MerianRecentV50MigrationPlan")"
 recent_v50_plan="$(extract_block "enum MerianRecentV50MigrationPlan" "enum MerianReleasedActiveV50MigrationPlan")"
-released_active_v50_plan="$(extract_block "enum MerianReleasedActiveV50MigrationPlan" "__MERIAN_STOP__")"
+released_active_v50_plan="$(extract_block "enum MerianReleasedActiveV50MigrationPlan" "enum MerianRecentV51MigrationPlan")"
 
 require_v51_tail() {
   local plan_text="$1"
   local plan_name="$2"
+  require_v52_tail "$plan_text" "$plan_name"
 
   grep -Fq "MerianActiveSchemaV50.self" <<< "$plan_text" \
     || fail "$plan_name must include the frozen V50 bridge."
@@ -493,6 +522,23 @@ require_v51_tail() {
   grep -Fq "MerianMigrationPlan.migrateV50toV51" <<< "$plan_text" \
     || fail "$plan_name must include the shared V50 to V51 stage."
 }
+
+recent_v51_plan="$(extract_block "enum MerianRecentV51MigrationPlan" "END_OF_FILE")"
+require_v52_tail "$recent_v50_plan" "Recent V50 plan"
+require_v52_tail "$released_active_v50_plan" "Released-active V50 plan"
+require_v52_tail "$recent_v51_plan" "Recent V51 plan"
+grep -Fq '[MerianSchemaV51.self, MerianSchemaV52.self]' <<< "$recent_v51_plan" \
+  || fail "Recent V51 plan must validate only the immediate predecessor and current schema."
+grep -Fq '[MerianMigrationPlan.migrateV51toV52]' <<< "$recent_v51_plan" \
+  || fail "Recent V51 plan must run only the additive provenance stage."
+contains "$schema_file" "static let migrateV51toV52 = MigrationStage.lightweight(" \
+  || fail "V51 to V52 must remain an additive lightweight migration."
+contains "$test_file" "v51StoreMigratesWithAllSavedStateAndLegacyProvenance" \
+  || fail "MigrationPlanTests must preserve saved V51 state and legacy provenance on disk."
+contains "$test_file" "migrationPlan: MerianRecentV51MigrationPlan.self" \
+  || fail "The V51 disk fixture must use its production source-isolated migration plan."
+contains "$test_file" "allForwardPlansEndWithTheAdditiveProvenanceStage" \
+  || fail "MigrationPlanTests must check every plan's V51 to V52 terminal stage."
 
 require_v51_tail "$recent_v42_plan" "Recent V42 plan"
 require_v51_tail "$recent_v43_plan" "Recent V43 plan"
@@ -507,9 +553,9 @@ require_v51_tail "$recent_v49_plan" "Recent V49 plan"
 grep -Fq "MerianActiveSchemaV50.self" <<< "$recent_v50_plan" \
   || fail "Recent V50 plan must include the frozen V50 source bridge."
 grep -Fq "MerianSchemaV51.self" <<< "$recent_v50_plan" \
-  || fail "Recent V50 plan must target V51."
+  || fail "Recent V50 plan must include the frozen V51 bridge."
 grep -Fq "MerianMigrationPlan.migrateV50toV51" <<< "$recent_v50_plan" \
-  || fail "Recent V50 plan must run exactly the account-partition migration."
+  || fail "Recent V50 plan must include the account-partition migration."
 if grep -Fq "migrateV49toV50" <<< "$recent_v50_plan"; then
   fail "Recent V50 plan must not validate the V49 source."
 fi
@@ -517,9 +563,9 @@ fi
 grep -Fq "MerianReleasedActiveSchemaV50.self" <<< "$released_active_v50_plan" \
   || fail "Released-active V50 plan must include its exact frozen source graph."
 grep -Fq "MerianSchemaV51.self" <<< "$released_active_v50_plan" \
-  || fail "Released-active V50 plan must target V51."
+  || fail "Released-active V50 plan must include the frozen V51 bridge."
 grep -Fq "MerianMigrationPlan.migrateReleasedActiveV50toV51" <<< "$released_active_v50_plan" \
-  || fail "Released-active V50 plan must run exactly its account-partition migration."
+  || fail "Released-active V50 plan must include its account-partition migration."
 if grep -Fq "migrateV49toV50" <<< "$released_active_v50_plan"; then
   fail "Released-active V50 plan must not validate the V49 source."
 fi
@@ -629,9 +675,9 @@ contains "$test_file" "migrationFromV42ToCurrentSchemaUsesSourceIsolatedPlan" \
   || fail "MigrationPlanTests must cover the V42 source-isolated recovery fixture from startup diagnostics."
 contains "$test_file" "recentV49MigrationPlanRunsOnlyRequiredForwardHops" \
   || fail "MigrationPlanTests must lock the source-isolated V49 to V51 plan shape."
-contains "$test_file" "recentV50MigrationPlanOnlyRunsAccountPartitionMigration" \
+contains "$test_file" "recentV50MigrationPlanOnlyRunsRequiredForwardHops" \
   || fail "MigrationPlanTests must lock the source-isolated V50 to V51 plan shape."
-contains "$test_file" "releasedActiveV50MigrationPlanOnlyRunsAccountPartitionMigration" \
+contains "$test_file" "releasedActiveV50MigrationPlanOnlyRunsRequiredForwardHops" \
   || fail "MigrationPlanTests must lock the released-active V50 to V51 plan shape."
 contains "$test_file" "migrationFromV49UsesDiskMetadataSelectionAndPreservesQueueData" \
   || fail "MigrationPlanTests must exercise a disk-backed V49 to V51 migration."
@@ -663,7 +709,7 @@ contains "$test_file" "#expect(deletedCollection.isPendingDeletion)" \
   || fail "The V50 disk fixture must verify that true tombstones survive the Swift property rename."
 contains "$recovery_models_file" "enum RecentSourceSchema: Int, CaseIterable, Equatable" \
   || fail "Store recovery must model recent source schemas as an exhaustive enum."
-for recent_major in $(seq 42 50); do
+for recent_major in $(seq 42 51); do
   contains "$recovery_models_file" "case v${recent_major} = ${recent_major}" \
     || fail "RecentSourceSchema must include V${recent_major}."
 done
@@ -714,7 +760,7 @@ recent_source_dispatch="$(
     printing && /forStoreMigrationHint hint:/ { exit }
   ' "$container_factory_file"
 )"
-for recent_major in $(seq 42 50); do
+for recent_major in $(seq 42 51); do
   grep -Fq "case .v${recent_major}:" <<< "$recent_source_dispatch" \
     || fail "ModelContainerFactory recent-source dispatch must handle V${recent_major} explicitly."
 done
@@ -743,6 +789,7 @@ checksum_retry_dispatch="$(
 )"
 checksum_retry_markers=(
   'named: "checksum-current-store"'
+  'named: "checksum-recent-v51"'
   'named: "checksum-recent-v50-released-active"'
   'named: "checksum-recent-v50-frozen-snapshot"'
   'named: "checksum-recent-v49"'
@@ -764,7 +811,7 @@ for marker in "${checksum_retry_markers[@]}"; do
     fail "The checksum retry ladder is missing ordered marker: $marker"
   fi
   if [ "$retry_line" -le "$previous_retry_line" ]; then
-    fail "The checksum retry ladder must stay ordered current, both V50 graphs, then V49 through V42."
+    fail "The checksum retry ladder must stay ordered current, V51, both V50 graphs, then V49 through V42."
   fi
   previous_retry_line="$retry_line"
 done
@@ -844,5 +891,15 @@ contains "$startup_workflow_file" "bash $startup_scope_file" \
   || fail "Startup Safety must run the canonical source-scope detector."
 contains "$startup_scope_file" "$v50_released_active_snapshot_file" \
   || fail "Startup Safety source scope must include the processed-release V50 snapshot."
+
+contains "$startup_scope_file" "$v51_snapshot_file" \
+  || fail "Startup Safety source scope must include the frozen V51 snapshot."
+contains "$schema_file" "private typealias MerianSchemaV51UserSpeciesPreference = MerianSchemaV51.UserSpeciesPreference" \
+  || fail "The V51 custom migration must use its frozen preference model."
+
+contains "$schema_v52_file" "enum MerianSchemaV52: VersionedSchema" \
+  || fail "The V52 source must declare the active schema."
+contains "$startup_scope_file" "$schema_v52_file" \
+  || fail "Startup Safety source scope must include the active V52 schema."
 
 echo "iOS migration source guardrails passed."

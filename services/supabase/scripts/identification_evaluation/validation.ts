@@ -11,6 +11,7 @@ import {
 export type ContractErrorCode =
   | "invalid_shape"
   | "unsupported_version"
+  | "evaluation_measurement_live_pending"
   | "invalid_media"
   | "unapproved_evidence"
   | "invalid_reference"

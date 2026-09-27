@@ -45,6 +45,25 @@ hours and makes no identification requests. Expiry leaves the infrastructure
 installed while making that run inactive; deactivation separately verifies
 removal of its hosted setting. See the
 [canonical activation and recovery procedure](../../docs/backend-and-data/06-supabase-deployment-runbook.md#audio-comparison-activation-hold).
+The separate default-off prompt comparison uses a new 36-slot plan and
+`IDENTIFICATION_AUDIO_PROMPT_COMPARISON_V1`. Its own **Control identification
+audio prompt comparison** workflow and
+`scripts/control_audio_prompt_comparison.ts` preserve the same release/recovery
+controls and select one twelve-slot block. The offline execution freeze/ledger
+rechecks source assets, binds the reviewed app/backend and requires admitted
+first-attempt observations plus verified cleanup before progression. Follow its
+[activation prerequisites](../../docs/backend-and-data/06-supabase-deployment-runbook.md#audio-prompt-comparison-activation-prerequisites);
+local implementation does not activate or execute an experiment. For an expired
+pause strictly between completed trials, the separately reviewed
+`scripts/manage_audio_prompt_continuation.ts` can prepare one offline sidecar
+for only untouched assignments. It preserves the original packet and requires
+new bounded authorization before any activation. See the
+[amendment procedure](../../docs/backend-and-data/06-supabase-deployment-runbook.md#amend-an-expired-prompt-comparison-between-completed-trials).
+A closed first continuation has a separate, explicitly reviewed
+`manage_audio_prompt_successor.ts` path for one fixed successor. It binds both
+prior segments and their stopped reports, preserves all original assignments,
+and requires new bounded authorization. See the
+[successor procedure](../../docs/backend-and-data/06-supabase-deployment-runbook.md#continue-after-a-second-between-trial-expiry).
 
 ```text
 services/supabase/
@@ -1230,6 +1249,20 @@ Only analytics and optional enrichment may continue in Edge background work.
 Provider success without an owned durable scan is a retryable failure, never an
 HTTP success.
 
+All four producers derive their routing profile from the complete normalized
+input before quota admission. A private catalog selects the provider and its
+recipient permission, independently of user preference; every current row still
+selects Gemini. Missing routes and denied permission roll back quota/holds. See
+the
+[routing contract](../../docs/rfcs/identification-provider-input-routing-2026-09-26.md).
+
+All four producers also save immutable, content-free identification
+configuration with new scan rows. The same transaction copies it into the exact
+ingestion job for server-authorized recovery. Historical missing configuration
+stays unknown; client recovery JSON cannot supply it. This does not change
+Identify responses, Gemini routing or confidence scores. See the
+[provenance contract](../../docs/rfcs/identification-provider-result-provenance-2026-09-26.md).
+
 Ordinary producer-owned `failed_retryable` transitions obtain their deadline
 from `functions/_shared/scanIngestionRetry.ts`. The helper returns a
 deterministic 30-second value for `identify-multimodal` and for the
@@ -2328,6 +2361,13 @@ emit `blur_score`, `colors`, `candidates` (which may be `null`),
 `pet_identification` (which may be `null`), while biological-only enrichment
 remains optional or nullable.
 
+Audio-only prompt/schema/confidence references are versioned V2. The executable
+`AUDIO_CONFIDENCE_DESCRIPTION` defines taxon, unresolved-presence, Human
+identity, and non-biological classification confidence by result state. Both
+audio-only routes share it; models, generation settings, thresholds and public
+DTO shape are unchanged. Stored scores and earlier benchmark artifacts remain
+immutable.
+
 Provider field descriptions and system instructions are classification guidance;
 the executable parser validates structure rather than the truth of visual
 prominence. The processed-material normalizer can deterministically demote a
@@ -2611,6 +2651,13 @@ Confidence, inference tier, confirmation, and the pending preference are carried
 in the atomic receipt revision. A later downgrade to weak unreviewed evidence
 removes standard/Event credit even after completion, reopens progress, clears
 derived Event badges, and soft-deletes invalid completion publications/entries.
+`20260924062640_gate_field_trip_progress_by_subject.sql` also requires resolved
+non-Human taxonomy, excludes Human overrides and unresolved/non-biological
+subjects, and makes override-only edits invalidate the atomic receipt. The
+existing confidence helper and thresholds stay unchanged. Its bounded repair
+reuses atomic reconciliation for affected historical credit/receipts, retaining
+valid receipts and pending goals.
+
 `20260802053044_simplify_backyard_and_pollinator_levels.sql` preserves checklist
 identities while changing both starter outings to 2/4/4 progressions.
 `20260803015025_auto_enroll_backyard_safari_level_one.sql` then backfills an

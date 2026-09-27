@@ -1,25 +1,21 @@
 enum CaptureSubmissionPolicy {
-    nonisolated static func isImageImportFlashFallbackEligible(
-        existingItemCount: Int,
-        prospectiveImageCount: Int,
-        isRefining: Bool
-    ) -> Bool {
-        !isRefining && existingItemCount == 0 && prospectiveImageCount == 1
-    }
-
     nonisolated static func isFlashFallbackEligible(
         _ timeline: [CaptureSubmissionMediaItem],
         targetEradicationScanId: String? = nil
     ) -> Bool {
-        guard targetEradicationScanId == nil, timeline.count == 1 else {
-            return false
+        guard targetEradicationScanId == nil else { return false }
+        var images = 0, audio = 0, descriptions = 0, videos = 0
+        for item in timeline {
+            switch item {
+            case .image: images += 1
+            case .audio: audio += 1
+            case .description(let context): descriptions += context.isEmpty ? 0 : 1
+            case .video: videos += 1
+            }
         }
-        switch timeline[0] {
-        case .image, .audio, .description:
-            return true
-        case .video:
-            return false
-        }
+        return IdentificationEvidenceAllowance.permitsFreeScan(
+            images: images, audio: audio, descriptions: descriptions, videos: videos
+        )
     }
 
     nonisolated static func shouldOptimizeLiveImageAnalysis(

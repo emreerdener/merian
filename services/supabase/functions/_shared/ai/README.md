@@ -3,8 +3,8 @@
 All four identification routes (`identify-multimodal`, `identify-describe`,
 `identify`, and `audio-spec`) and the biological overview, lookalike, and
 group-tag helpers use this boundary. Their user enrichment and claimed
-public-job callers retain separate admission paths. All live requests still use
-Gemini; see the
+public-job callers retain separate admission paths. All production requests
+still use Gemini; see the
 [slice tracker](../../../../../docs/rfcs/identification-foundation-srd.md#implementation-slices).
 
 ## Ownership
@@ -17,11 +17,29 @@ Gemini; see the
   appropriate. `service_job` supports claimed public-fact work and is rejected
   for identification. These types carry existing admission decisions; they do
   not authenticate callers or validate job claims.
-- `registry.ts` resolves the fixed `gemini_baseline_v1` binding from the
-  quota-selected model and, where applicable, the admitted tier. It checks task,
-  representation, operation, Gemini permission dependency, and reservation
-  metadata before commitment. No client field, environment variable, provider
-  name, or URL can select another adapter.
+- `identificationInput.ts` validates and classifies the complete normalized
+  observation before reservation. It distinguishes compatibility variants and
+  primary text, photo, audio, photo/audio and sampled-video representations. The
+  registry recomputes the profile before preparation; changed or missing
+  assignment evidence cannot dispatch. This classifier never chooses a provider.
+- `admission.ts` defines the closed identification assignment returned by the
+  service-only `reserve_identification_quota` RPC. The four identification
+  callers require its database-owned provider, binding, input profile and
+  recipient permission; missing or unknown assignment metadata cannot authorize
+  fresh work. Durable quota-attempt snapshots preserve each metered generation.
+  The additive caller-bound recipient preflight is advisory. Edge accepts an
+  optional denial-only recipient expectation and uses a ten-argument admission
+  overload to stop fresh work if assignment changed. Native preparation now
+  validates that result, preserves the expectation across retries and rechecks
+  local permission before dispatch; Gemini remains the sole active assignment.
+  See the
+  [admission contract](../../../../../docs/backend-and-data/05-api-contracts.md#provider-bound-identification-reservations).
+- `registry.ts` independently checks that identification assignment and resolves
+  the fixed `gemini_baseline_v1` binding from the quota-selected model and,
+  where applicable, the admitted tier. It checks task, representation,
+  operation, Gemini permission dependency, and reservation metadata before
+  commitment. No client field, environment variable, provider name, or URL can
+  select another adapter.
 - `contentRegistry.ts` binds the three content tasks to their existing quota
   operations and generation settings. User authority carries its admitted model,
   permission, and reservation. Service authority carries a claimed job, matching
@@ -57,6 +75,67 @@ unknown scan persistence retains its existing recovery ownership. Preparation
 failure refunds unused quota. Refusals and malformed/truncated output retain
 their distinct terminal/retryable responses.
 
+## Durable identification provenance
+
+`provenance.ts` projects the admitted execution snapshot into a closed,
+versioned value saved with the scan by all four identification producers. It
+records the requested model, binding, prompt/schema/confidence references,
+policy version, variant, operation, thresholds, safety profile, timeout and
+generation settings. Unset settings are explicit nulls. It never serializes
+model output, returned model text, observation context, media, owner/attempt
+identifiers or timing.
+
+Migration `20260926160249_persist_identification_result_provenance.sql`
+atomically copies each new scan's value into its exact owner/scan ingestion job.
+Both values are immutable. A duplicate insert preserves the original result; a
+separately admitted retry resolves its own snapshot before it can produce a new
+durable result. The existing recovery RPC cannot supply provenance from its
+client JSON: an insert trigger restores only an existing server backup. Missing
+historical evidence stays null, including recovery of a result that never
+reached the scan-insert transaction.
+
+These fixed configuration facts intentionally share the scan's existing Data API
+visibility. They are not private operational telemetry. The backup follows
+existing ingestion-job ownership and retention. Fresh Identify envelopes expose
+that same value through optional `data.identification_provenance`;
+reconstruction uses the immutable scan column and stored envelopes preserve
+their original value or omission. Generated native DTOs retain required null
+settings, and V52 local storage preserves the metadata for profile-aware
+confidence presentation. See the
+[server record](../../../../../docs/rfcs/identification-provider-result-provenance-2026-09-26.md)
+and
+[client record](../../../../../docs/rfcs/identification-client-result-provenance-2026-09-26.md)
+for rollout order, compatibility and remaining activation work.
+
+## Alternative-provider evaluation
+
+`openaiRequest.ts` and `openai.ts` implement an evaluation-only `gpt-6-sol`
+photo/text binding through the same generic single-invocation interface.
+Production snapshot/authority defaults remain Gemini-only. The pure request
+builder derives strict JSON from the common Identify contract; the bounded REST
+adapter accepts only an explicit evaluator-supplied credential. Scripts select
+it only through `identification_evaluation/providers.ts`. Unsupported
+audio/snapshots reject the whole observation. OpenAI confidence is unqualified
+and never inherits Gemini bands. No deployed entrypoint imports this adapter.
+See the
+[alternative-provider guide](../../../../../docs/development-guides/22-alternative-identification-provider.md)
+for permissions, pricing/usage mapping, offline demo and live comparison scope.
+
+## Scoped audio prompt authority
+
+The default-off 36-slot prompt lane adds the internal
+`UserRequestAuthority.audioPromptComparison` discriminator. Only the validated
+route assignment supplies A/B; the registry rejects mismatched task, tier,
+attempt, video flags or audio/context shape. A retains `identify_audio_v2`; B
+uses `identify_audio_uncertainty_experiment_v1` from the route-private candidate
+instruction. The native builder changes only the resolved system instruction;
+model, schema, DSP, confidence thresholds and generation settings remain fixed.
+This discriminator is not copied from caller JSON and grants no quota or
+provider authority. The
+[prompt contract](../../../../../docs/backend-and-data/05-api-contracts.md#server-owned-audio-prompt-comparison)
+owns its deployment/activation boundary. Normal and historical DSP claims omit
+it and retain their existing projection.
+
 ## Preserved description profile
 
 | Admitted model     | Output tokens | Thinking tokens | Shared options                     |
@@ -84,6 +163,16 @@ confidence-threshold settings independently of that model string.
 | Prepared WAV audio only        | Existing bioacoustic instruction     | Audio-only Identify |
 | Images/snapshots and WAV audio | Existing blended instruction         | Main Identify       |
 | Description only               | Existing main-route text instruction | Main Identify       |
+
+Audio-only assignments bind `identify_audio_v2`, `merian_audio_v2`, and
+`gemini_audio_v2`; compatibility audio binds `identify_audio_compat_v2`,
+`merian_audio_v2`, and `gemini_audio_compat_v2`. The shared
+`AUDIO_CONFIDENCE_DESCRIPTION` in the executable contract defines taxon
+confidence for named animals, presence confidence for unresolved wildlife, Human
+identity confidence, and non-biological source-classification confidence.
+Numeric thresholds, models and generation settings retain their existing values.
+Evaluator policy, prompt and schema digests distinguish these semantics from
+historical V1 results.
 
 The main text profile is distinct from the legacy description profile above.
 `identify-multimodal/provider.ts` preserves observation text, visual-context
@@ -161,19 +250,44 @@ records usage with a null owner. The registry checks supplied claim facts; it
 does not replace the authenticated claim RPC or authorize private observation
 work.
 
+## Shared content qualification
+
+`sharedContent.ts` owns the independent acceptance boundary for shared species
+content. Enrichment, optional group tags and claimed public jobs use its
+prepared execution wrapper before committing quota or invoking. The biology
+helpers also check the snapshot. Only existing Gemini
+task/binding/model/prompt/schema and exact generation profiles qualify; changed
+or unknown fields are rejected. Overview remains English. Updating the
+assignment registry alone cannot qualify an alternate profile for these
+canonical writers.
+
+Existing public dictionary content retains its baseline interpretation without
+invalidation or an invented historical execution identity. Warm-isolate keys
+include the baseline namespace, task, canonical species identity, input name,
+locale and lookalike taxonomy dimensions. These keys are not durable provenance.
+Private candidate storage and task-specific promotion remain necessary if
+another content provider is introduced; see the
+[shared-content record](../../../../../docs/rfcs/identification-shared-content-qualification-2026-09-26.md).
+
 ## Usage and diagnostics
 
 Returned token counts retain Gemini's existing interpretation, including null
-for missing counts; modality breakdown and scan-row accounting are unchanged.
+for missing counts; modality breakdown retains its existing meaning. New primary
+scan ledger entries use saved execution model/provider references; absent legacy
+provenance alone falls back to tier-derived Gemini attribution. Historical rows
+remain unchanged. Pricing eligibility is Gemini-contract-specific and unknown
+prices remain null. Admin aggregates expose priced/unpriced coverage; see the
+[accounting record](../../../../../docs/rfcs/identification-provider-usage-attribution-2026-09-26.md).
 The image compatibility route retains cached-token counts; legacy audio keeps
 its existing null cached-token scan field. Bounded execution/version fields are
 added to the existing optional `ScanCompleted` telemetry for image/description,
 `AudioScanCompleted` for legacy audio, and the successful primary
 `multimodal/latency` event. The compatibility `ai_provider_duration_ms` field
 measures native invocation only, excluding decoding. They contain no evidence,
-owner/attempt identifiers, provider diagnostics, or credentials. This adds no
-durable configuration pin or new billing record. Failed/uncertain attempts and
-disabled telemetry retain their existing accounting gaps.
+owner/attempt identifiers, provider diagnostics, or credentials. This telemetry
+adds no cross-retry configuration pin or new billing record. Successful scan
+configuration is separately persisted as described above. Failed/uncertain
+attempts and disabled telemetry retain their existing accounting gaps.
 
 Content adds `ai_task`, provider/binding/prompt/schema references, nullable user
 policy version, context kind, returned model, native duration, and outcome to
@@ -241,5 +355,20 @@ it measures neither provider latency nor end-to-end product timing.
 
 Follow [Adding a provider later](ADDING_PROVIDERS.md) for exact input/task
 qualification, common-contract extensions, database/Edge admission, disclosure,
-confidence, usage, cache, and activation work. There is currently no runtime
-provider selector, percentage-routing control, or alternate live adapter.
+confidence, usage, cache, and activation work. The app owns a private
+complete-input routing catalog, currently seeded only with Gemini. There is no
+end-user provider selector or percentage-routing control. The OpenAI adapter is
+available only to explicitly gated local evaluation.
+
+## Metric interpretation
+
+`metricCompatibility.ts` is the pure exact-profile owner for existing Gemini
+metric meanings in private Insight Chat. It shares qualified policy version 1
+and profile semantics with SQL `identification_metrics_are_gemini_compatible`
+and native `InferenceConfidencePolicy`; database tests compare the TypeScript
+and SQL results against actual registry snapshots. Unknown metadata cannot
+inherit known score meanings. Field Chat removes unqualified numeric metrics
+while keeping descriptive evidence. New immutable export snapshots freeze the
+SQL predicate's boolean for the DwC-A worker. See the
+[chat/export record](../../../../../docs/rfcs/identification-chat-export-metrics-2026-09-26.md)
+for compatibility, rollout and verification.

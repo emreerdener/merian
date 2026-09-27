@@ -423,3 +423,49 @@ Deno.test({
     assertEquals(input, draft);
   },
 });
+
+Deno.test("audio taxon candidate thresholds never turn high presence confidence into taxonomy", () => {
+  for (const inferenceTier of ["flash", "pro"] as const) {
+    for (const confidence_score of [0.65, 0.85, 0.95, 0.9899, 0.99, 1]) {
+      for (
+        const audio_subject_type of [
+          "identified_non_human",
+          "unidentified_non_human",
+          "human_only",
+          "no_confident_biological_source",
+        ] as const
+      ) {
+        const input = { ...draft, audio_subject_type, confidence_score };
+        const result = normalizeIdentification(input, {
+          ...context,
+          inferenceTier,
+          hasVisualEvidence: false,
+          hasAudioEvidence: true,
+        });
+        assertEquals(result.identification.confidence_score, confidence_score);
+        assertEquals("audio_subject_type" in result.identification, false);
+        const identified = audio_subject_type === "identified_non_human";
+        assertEquals(
+          result.identification.candidates.length,
+          identified ? 1 : 0,
+        );
+        assertEquals(
+          result.clientCandidates,
+          confidence_score >= 0.99 ? null : result.identification.candidates,
+        );
+        if (!identified) {
+          assertEquals(
+            result.identification.scientific_name,
+            audio_subject_type === "human_only" ? "Homo sapiens" : undefined,
+          );
+          assertEquals(
+            result.identification.is_biological_subject,
+            audio_subject_type !== "no_confident_biological_source",
+          );
+        }
+        assertEquals(input.confidence_score, confidence_score);
+        assertEquals(input.scientific_name, draft.scientific_name);
+      }
+    }
+  }
+});

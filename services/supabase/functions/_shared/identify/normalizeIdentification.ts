@@ -28,7 +28,8 @@ export interface IdentificationNormalizationContext {
   readonly hasVisualEvidence: boolean;
   readonly hasAudioEvidence: boolean;
   readonly hasInvasiveLocationContext: boolean;
-  readonly inferenceTier: "flash" | "pro";
+  // null is evaluation-only: retain candidates without applying Gemini thresholds.
+  readonly inferenceTier: "flash" | "pro" | null;
 }
 
 /** In-memory diagnostics for the route's existing logger; never evaluation artifacts. */
@@ -224,10 +225,11 @@ export function normalizeIdentification(
   return {
     identification: { ...parsedData, blur_score: parsedData.blur_score },
     audioSubjectKind,
-    clientCandidates: (parsedData.confidence_score ?? 0.0) >=
-        diagnosticTriggerForTier(context.inferenceTier)
-      ? null
-      : parsedData.candidates,
+    clientCandidates:
+      context.inferenceTier !== null && (parsedData.confidence_score ?? 0.0) >=
+          diagnosticTriggerForTier(context.inferenceTier)
+        ? null
+        : parsedData.candidates,
     clientLifeStage: parsedData.is_biological_subject &&
         audioSubjectKind !== "human" &&
         audioSubjectKind !== "unidentified_wildlife"

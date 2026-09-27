@@ -4,6 +4,8 @@ import type {
   VisualMediaDescriptor,
 } from "../../identify-multimodal/capturedMedia.ts";
 
+import type { IdentificationProviderAssignment } from "./admission.ts";
+
 export type AITask =
   | "identify"
   | "species_overview"
@@ -11,11 +13,16 @@ export type AITask =
   | "group_tags";
 
 export interface UserRequestAuthority {
+  /** Internal authority from the validated server-owned prompt experiment only.
+   * Never decoded from client JSON, persisted, or accepted as a model override. */
+  readonly audioPromptComparison?: "A" | "B";
   readonly kind: "user_request";
   readonly userId: string;
   readonly permission: "google_gemini";
   readonly operation: string;
   readonly reservation: {
+    /** Identification requires this; content keeps its existing admission. */
+    readonly assignment?: IdentificationProviderAssignment;
     readonly id: string;
     readonly requestId: string;
     readonly attemptCount: number;
@@ -144,8 +151,9 @@ export interface AIAttemptSnapshot {
   readonly prompt:
     | "identify_describe_v1"
     | "identify_vision_v1"
-    | "identify_audio_v1"
-    | "identify_audio_compat_v1"
+    | "identify_audio_v2"
+    | "identify_audio_uncertainty_experiment_v1"
+    | "identify_audio_compat_v2"
     | "identify_text_v1"
     | "identify_blended_v1"
     | "species_overview_v1"
@@ -154,15 +162,16 @@ export interface AIAttemptSnapshot {
   readonly schema:
     | "merian_describe_v1"
     | "merian_identify_v1"
-    | "merian_audio_v1"
+    | "merian_audio_v2"
     | "species_overview_v1"
     | "lookalikes_v1"
     | "group_tags_v1";
   readonly confidence:
     | "gemini_describe_v1"
     | "gemini_identify_v1"
+    | "gemini_audio_v2"
     | "gemini_vision_compat_v1"
-    | "gemini_audio_compat_v1"
+    | "gemini_audio_compat_v2"
     | null;
   readonly diagnosticTrigger?: number;
   // Legacy vision binds its prompt to the model and schema to the admitted tier.
@@ -184,6 +193,8 @@ export interface AIUsage {
   readonly totalTokens: number | null;
   readonly thinkingTokens: number | null;
   readonly cachedTokens: number | null;
+  /** Native write category, when reported. Absence is unknown, never zero. */
+  readonly cacheWriteTokens?: number | null;
   readonly toolTokens?: number | null;
   readonly modalityBreakdown: Record<string, unknown>;
 }
@@ -210,20 +221,22 @@ export type AIProviderOutcome =
     | { readonly kind: "operational_failure" | "unknown_execution" }
   );
 
-export type AIExecutionOutcome = AIProviderOutcome & {
-  readonly execution: AIAttemptSnapshot & { readonly durationMs: number };
-};
+export type AIExecutionOutcome<Snapshot = AIAttemptSnapshot> =
+  & AIProviderOutcome
+  & {
+    readonly execution: Snapshot & { readonly durationMs: number };
+  };
 
-export interface AIAdapter {
+export interface AIAdapter<Snapshot = AIAttemptSnapshot> {
   readonly provider: string;
   // Prepare must not dispatch. Local configuration failure precedes commitment.
   prepare(
     request: AIRequest,
-    snapshot: AIAttemptSnapshot,
+    snapshot: Snapshot,
   ): () => Promise<AIProviderOutcome>;
 }
 
-export interface PreparedAIExecution {
-  readonly snapshot: AIAttemptSnapshot;
-  invoke(): Promise<AIExecutionOutcome>;
+export interface PreparedAIExecution<Snapshot = AIAttemptSnapshot> {
+  readonly snapshot: Snapshot;
+  invoke(): Promise<AIExecutionOutcome<Snapshot>>;
 }

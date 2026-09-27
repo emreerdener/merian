@@ -29,6 +29,24 @@ struct CaptureDebugReplayMenu: View {
                     }
                 }
             }
+            Menu("Stage prompt comparison") {
+                ForEach(1...3, id: \.self) { block in
+                    Menu("Block \(block)") {
+                        ForEach(0..<3, id: \.self) { group in
+                            Menu("Slots \((block - 1) * 12 + group * 4 + 1)–\((block - 1) * 12 + group * 4 + 4)") {
+                                ForEach(DebugAudioPromptComparisonSlot.allCases.filter {
+                                    $0.assignment.block == block && (($0.rawValue - 1) % 12) / 4 == group
+                                }, id: \.rawValue) { slot in
+                                    Button("\(slot.rawValue) · \(slot.assignment.caseId) · \(slot.assignment.arm)") {
+                                        viewModel.startDebugReplay(.audio, profile: .audioPromptComparison(slot: slot))
+                                    }
+                                    .accessibilityIdentifier("debugReplayAudioPromptComparison\(slot.rawValue)")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             Button("Stage video sample") { viewModel.startDebugReplay(.video) }
                 .disabled(!viewModel.dependencies.scan.canStartProScan())
                 .accessibilityIdentifier("debugReplayVideo")

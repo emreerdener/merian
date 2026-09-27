@@ -1,0 +1,362 @@
+{
+  "version": "audio_visible_caller_app_benchmark_v1",
+  "date": "2026-09-24",
+  "timezone": "America/Chicago",
+  "recordedAt": "2026-09-24T16:06:01.704Z",
+  "status": "two_first_results_two_complete_windows",
+  "planFileSha256": "8127b89a2fccedb3c0540849c5079585cc4a505ece69ac5af0f430ad7e040ae9",
+  "inputFreezeSha256": "e82342fe83762da7989eaceee103977d318956ba7647d6e99b0e7dfa1599a586",
+  "frozenInputFileCount": 21,
+  "completedFreezeSha256": "deace8cf3681b05d7a9e3b505cbdf8c77a0dcd3613b45f4639112096519746cf",
+  "completedFileCount": 38,
+  "retentionThrough": "2026-10-24",
+  "deploymentEvidenceSha256": "8301a897c280b49706057f3044fc5d4e9a2f018bbf8b97ca45ed36c2335540e1",
+  "preflightFileSha256": "ce9d4066d4ccd2dce99d08eb659e14312357f27f13fb8d37390b9075364520b5",
+  "eligibilityFileSha256": "b26997f19287ee84d2fcf020ba4ca7f00bd297897a094c462126b12e0ff13470",
+  "sourcePreparationFreezeSha256": "3ab97dbbbcac2f3ce43330ba1c15a6472bae598c8e87c4fd64eb2198c87ba84e",
+  "observerEnvelopeValidation": {
+    "version": "audio_visible_caller_observer_envelope_validation_v1",
+    "status": "passed",
+    "recordedAt": "2026-09-24T16:05:32.681743+00:00",
+    "scope": "ordinary-observer-v2 envelope invariants; no comparison-slot or persistence proof",
+    "reference": "services/supabase/scripts/identification_evaluation/audioComparisonWindow.ts",
+    "helperSha256": "b44e601fcaa0ec4755760e1b1af36885c5387de27f8077e06488e4a2c166eb08",
+    "newAppSubmissions": 0,
+    "newModelCalls": 0,
+    "cases": [
+      {
+        "caseId": "c0025",
+        "status": "passed",
+        "observationFileSha256": "2f9d64cd3b887cd09d9746b86eae795f7cb02dd068f5fb7dea36a708f2831b30",
+        "maxSeconds": 120,
+        "shutdownGraceSeconds": 30,
+        "automaticSubmissions": 0,
+        "collectorSignal": null,
+        "eventCount": 6,
+        "actualWindowSeconds": 128.592,
+        "headerPricingAndScopesMatched": true,
+        "chronologicalBoundedEvents": true,
+        "sequentialNonoverlappingWindow": true
+      },
+      {
+        "caseId": "c0026",
+        "status": "passed",
+        "observationFileSha256": "dcf62515127eb99f412e39b1559fd61e9338395314060eae480eebb4be52045f",
+        "maxSeconds": 120,
+        "shutdownGraceSeconds": 30,
+        "automaticSubmissions": 0,
+        "collectorSignal": null,
+        "eventCount": 6,
+        "actualWindowSeconds": 128.578,
+        "headerPricingAndScopesMatched": true,
+        "chronologicalBoundedEvents": true,
+        "sequentialNonoverlappingWindow": true
+      }
+    ]
+  },
+  "observerEnvelopeValidationFileSha256": "214d7cf9ffd4c17075c9912d32f0b17bbc336e1cf42175be8d6a895db75ca188",
+  "plan": {
+    "caseOrder": [
+      "c0025",
+      "c0026"
+    ],
+    "frozenAt": "2026-09-24T15:58:09.758Z",
+    "maxAppSubmissions": 2,
+    "maxSubmissionsPerCase": 1,
+    "manualRetries": 0,
+    "observerSeconds": 120,
+    "shutdownGraceSeconds": 30,
+    "uiRoute": "Stage audio with fixed context, then ordinary Identify",
+    "contextProfile": "audio-minimal-v1",
+    "comparisonSlotsReused": false,
+    "comparisonSecretActivated": false,
+    "providerOverride": null,
+    "priorDeployedMainSha": "b91e42ded94fe0904a30209b00d6aac8d2151d8c",
+    "expectedApp": {
+      "version": "1.0.3",
+      "build": "275",
+      "sourceRevision": "fdfb142b6fcb96e6ae8f3c46a561015064c93cd2",
+      "sourceFingerprint": "ebfa958011ec4e61dda121eea6b9d00890b67d23099dedf1612372aa5cbdb3df",
+      "sourceState": "clean"
+    },
+    "expectedBackendBundleSha256": "61b69c048f009b62c45681da4219ea01fc9fef039048a9760fc57ca28b73ccc1"
+  },
+  "summary": {
+    "newAppSubmissions": 2,
+    "manualRetries": 0,
+    "completedObservationWindows": 2,
+    "observedFreshPrimaryResponses": 2,
+    "directEvaluatorCalls": 0,
+    "contextProfile": "audio-minimal-v1",
+    "formalDevelopmentGroups": 0,
+    "formalHeldOutGroups": 0,
+    "independentBiologicalReviewers": 0,
+    "accuracyScored": false,
+    "tapToFirstFrameSeconds": {
+      "minimum": 20.063,
+      "median": 20.6725,
+      "maximum": 21.282
+    },
+    "observedPrimaryEstimateUsd": 0.0546975,
+    "startedAt": "2026-09-24T15:59:09.214Z",
+    "finishedAt": "2026-09-24T16:04:51.996Z"
+  },
+  "references": [
+    {
+      "caseId": "c0025",
+      "commonName": "American Pika",
+      "scientificName": "Ochotona princeps",
+      "status": "provisional_source_species_with_owner_reviewed_visual_context"
+    },
+    {
+      "caseId": "c0026",
+      "commonName": "Domestic Chicken / Rooster",
+      "scientificName": "Gallus gallus",
+      "status": "provisional_source_species_with_owner_reviewed_visual_context"
+    }
+  ],
+  "cases": [
+    {
+      "caseId": "c0025",
+      "recordedAt": "2026-09-24T16:01:42.466Z",
+      "status": "complete_first_observation",
+      "visibleOutcome": {
+        "caseId": "c0025",
+        "observedAt": "2026-09-24T16:00:02.448Z",
+        "subject": "biological",
+        "commonName": "Peregrine Falcon",
+        "scientificName": "Falco peregrinus",
+        "displayedMatch": "Strong match",
+        "nativeConfidence": null,
+        "source": "observed_first_completed_simulator_result",
+        "identifyTaps": 1,
+        "manualRetries": 0,
+        "resultCorrectionPerformed": false,
+        "speciesLabelCryptographicallyBoundToMeasurement": false
+      },
+      "nativeMeasurement": {
+        "app": {
+          "build": "275",
+          "sourceFingerprint": "ebfa958011ec4e61dda121eea6b9d00890b67d23099dedf1612372aa5cbdb3df",
+          "sourceRevision": "fdfb142b6fcb96e6ae8f3c46a561015064c93cd2",
+          "sourceState": "clean",
+          "version": "1.0.3"
+        },
+        "contextProfile": "audio-minimal-v1",
+        "delivery": "fresh",
+        "diagnostics": {
+          "backendBundleSha256": "61b69c048f009b62c45681da4219ea01fc9fef039048a9760fc57ca28b73ccc1",
+          "provider": "gemini",
+          "requestedModel": "gemini-2.5-pro",
+          "returnedModel": "gemini-2.5-pro",
+          "usage": {
+            "cachedTokens": null,
+            "candidateTokens": 511,
+            "promptTokens": 1339,
+            "thinkingTokens": 1277,
+            "toolTokens": null,
+            "totalTokens": 3127
+          },
+          "version": 1
+        },
+        "otherEdgeMs": 1516.2999999999993,
+        "serverTimingMs": {
+          "edge_total": 19075,
+          "provider": 17558.7
+        },
+        "status": 200,
+        "timingStatus": "valid",
+        "version": "identification_app_measurement_v2"
+      },
+      "cost": {
+        "estimatedPrimaryUpperUsd": 0.0301675,
+        "reason": "estimated_primary_only",
+        "scope": "observed_primary_attempt_only",
+        "invoiceExact": false
+      },
+      "timingsSeconds": {
+        "response_to_first_result_state_seconds": 0.026,
+        "postflight_seconds": 0.026,
+        "total_pipeline_seconds": 20.575,
+        "tap_to_first_rendered_frame_seconds": 21.282
+      },
+      "observer": {
+        "startedAt": "2026-09-24T15:59:09.214Z",
+        "readyAt": "2026-09-24T15:59:09.783Z",
+        "finishedAt": "2026-09-24T16:01:17.806Z",
+        "status": "window_completed",
+        "events": 6,
+        "ready": true,
+        "stopReason": "collector_exit",
+        "collectorExitCode": 0,
+        "collectorSignal": null,
+        "unprojectedRows": 25,
+        "oversizedRows": 0,
+        "rejectedProofRows": 0
+      },
+      "inputAssetSha256": "5a35dc6ad96f1b905a7eca55d71e8efb39a1af8fa1617c0d3dcdccd362dcaada",
+      "files": {
+        "c0025-staging.json": "d236e2834111be5217a863b9321aa1ad738b7633d49d70508a61d68878d404d1",
+        "c0025-intent.json": "76f0023c827dbe48522222692be3479c535759c4ba45029b9357f4c37ffd321d",
+        "c0025-ui.json": "a92be046064ffe3db21a9103f0bf109f73fbb7e633e51df299cca7a0719a944a",
+        "c0025-observation.jsonl": "2f9d64cd3b887cd09d9746b86eae795f7cb02dd068f5fb7dea36a708f2831b30"
+      },
+      "fixedContextProfileVerified": true,
+      "accuracyScored": false,
+      "fullRequestBytesAttested": false,
+      "formalQualificationEligible": false
+    },
+    {
+      "caseId": "c0026",
+      "recordedAt": "2026-09-24T16:05:29.676Z",
+      "status": "complete_first_observation",
+      "visibleOutcome": {
+        "caseId": "c0026",
+        "observedAt": "2026-09-24T16:03:31.055Z",
+        "subject": "biological",
+        "commonName": "Red Junglefowl",
+        "scientificName": "Gallus gallus",
+        "displayedMatch": "Strong match",
+        "nativeConfidence": null,
+        "source": "observed_first_completed_simulator_result",
+        "identifyTaps": 1,
+        "manualRetries": 0,
+        "resultCorrectionPerformed": false,
+        "speciesLabelCryptographicallyBoundToMeasurement": false
+      },
+      "nativeMeasurement": {
+        "app": {
+          "build": "275",
+          "sourceFingerprint": "ebfa958011ec4e61dda121eea6b9d00890b67d23099dedf1612372aa5cbdb3df",
+          "sourceRevision": "fdfb142b6fcb96e6ae8f3c46a561015064c93cd2",
+          "sourceState": "clean",
+          "version": "1.0.3"
+        },
+        "contextProfile": "audio-minimal-v1",
+        "delivery": "fresh",
+        "diagnostics": {
+          "backendBundleSha256": "61b69c048f009b62c45681da4219ea01fc9fef039048a9760fc57ca28b73ccc1",
+          "provider": "gemini",
+          "requestedModel": "gemini-2.5-pro",
+          "returnedModel": "gemini-2.5-pro",
+          "usage": {
+            "cachedTokens": null,
+            "candidateTokens": 383,
+            "promptTokens": 1190,
+            "thinkingTokens": 1054,
+            "toolTokens": null,
+            "totalTokens": 2627
+          },
+          "version": 1
+        },
+        "otherEdgeMs": 2778.800000000001,
+        "serverTimingMs": {
+          "edge_total": 17453.2,
+          "provider": 14674.4
+        },
+        "status": 200,
+        "timingStatus": "valid",
+        "version": "identification_app_measurement_v2"
+      },
+      "cost": {
+        "estimatedPrimaryUpperUsd": 0.02453,
+        "reason": "estimated_primary_only",
+        "scope": "observed_primary_attempt_only",
+        "invoiceExact": false
+      },
+      "timingsSeconds": {
+        "response_to_first_result_state_seconds": 0.02,
+        "postflight_seconds": 0.02,
+        "total_pipeline_seconds": 18.778,
+        "tap_to_first_rendered_frame_seconds": 20.063
+      },
+      "observer": {
+        "startedAt": "2026-09-24T16:02:43.418Z",
+        "readyAt": "2026-09-24T16:02:43.978Z",
+        "finishedAt": "2026-09-24T16:04:51.996Z",
+        "status": "window_completed",
+        "events": 6,
+        "ready": true,
+        "stopReason": "collector_exit",
+        "collectorExitCode": 0,
+        "collectorSignal": null,
+        "unprojectedRows": 25,
+        "oversizedRows": 0,
+        "rejectedProofRows": 0
+      },
+      "inputAssetSha256": "6f4cd19d980986aceff21efa656a6b17ba993bfe5d5363967530c4add3de316d",
+      "files": {
+        "c0026-staging.json": "205f14c1e59e589be0c0d8ea32abd28a621972587284c755bd6ce30b4ebdea07",
+        "c0026-intent.json": "f195f679e17eb3fea2b65472719fe814aa09439e16fffc25cda6ca08f2190028",
+        "c0026-ui.json": "7f8ed84a40823ec06411d122762ba7430cf45852e0af7458fcc54806f5a7294d",
+        "c0026-observation.jsonl": "dcf62515127eb99f412e39b1559fd61e9338395314060eae480eebb4be52045f"
+      },
+      "fixedContextProfileVerified": true,
+      "accuracyScored": false,
+      "fullRequestBytesAttested": false,
+      "formalQualificationEligible": false
+    }
+  ],
+  "pricing": {
+    "version": "evaluation_pricing_v1",
+    "currency": "USD",
+    "service": "paid_standard_synchronous",
+    "retrievedAt": "2026-09-23T22:35:58.637Z",
+    "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+    "reviewRef": "pricing-audio-comparison-20260923",
+    "includesReasoning": true,
+    "models": [
+      {
+        "model": "gemini-2.5-flash",
+        "inputPerMillion": {
+          "text": 0.3,
+          "image": 0.3,
+          "audio": 1,
+          "cached": 0.1
+        },
+        "outputPerMillion": 2.5,
+        "maxInputTokens": 1048576,
+        "maxBillableOutputTokens": 65536,
+        "limitsEvidenceRef": "limits-gemini-2.5-flash-20260923"
+      },
+      {
+        "model": "gemini-2.5-pro",
+        "inputPerMillion": {
+          "text": 2.5,
+          "image": 2.5,
+          "audio": 2.5,
+          "cached": 0.25
+        },
+        "outputPerMillion": 15,
+        "maxInputTokens": 1048576,
+        "maxBillableOutputTokens": 65536,
+        "limitsEvidenceRef": "limits-gemini-2.5-pro-20260923"
+      }
+    ]
+  },
+  "pricingFileSha256": "f7543c9c837a04a35db70c6eebeb403d7e2981167f3d140cc56a0b15aeea7309",
+  "pricingReview": {
+    "reviewedAt": "2026-09-24T15:53:06.169Z",
+    "sourceUrl": "https://ai.google.dev/gemini-api/docs/pricing",
+    "retrieval": "official Google pricing page read through web tool",
+    "unchangedSnapshotSha256": "f7543c9c837a04a35db70c6eebeb403d7e2981167f3d140cc56a0b15aeea7309",
+    "conservativeProInputPerMillionUsd": 2.5,
+    "conservativeProOutputPerMillionUsd": 15,
+    "scope": "Observed primary attempt upper estimate, no cache discount; not a complete invoice or spending cap."
+  },
+  "limitations": {
+    "controlledProviderOrPolicyComparison": false,
+    "sourceAudioVisualAuthenticityIndependentlyVerified": false,
+    "speciesReferencesIndependentlyAdjudicated": false,
+    "domesticOrWildChickenStatusEstablished": false,
+    "numericNativeConfidenceObserved": false,
+    "speciesLabelsCryptographicallyBound": false,
+    "fullInferenceBytesAttested": false,
+    "nativePersistenceProved": false,
+    "physicalMicrophoneCaptureTested": false,
+    "accuracyImprovementEstablished": false,
+    "calibratedProbabilitiesEstablished": false,
+    "completeInvoiceEstimate": false,
+    "publicTrainingExposureKnown": false
+  }
+}

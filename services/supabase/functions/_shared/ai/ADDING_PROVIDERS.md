@@ -32,18 +32,75 @@ observation jobs retain user authority even when a service invokes the worker.
    executes once and distinguishes refusal, unusable output, operational
    failure, and uncertain execution. Preserve caller-owned timeouts and
    recovery.
-2. Extend the explicit unions in `contracts.ts` and approved profiles in
-   `registry.ts` / `contentRegistry.ts` for the qualified variants. The current
-   provider/model/configuration unions intentionally contain only Gemini values.
-   Keep the evidence/result contracts independent of the new SDK. Reuse
+2. For production assignment, extend the production attempt/model unions in
+   `contracts.ts` and approved profiles in `registry.ts` / `contentRegistry.ts`
+   for the qualified variants. Those production unions and bindings currently
+   contain only Gemini values. The separate `OpenAIEvaluationSnapshot` and local
+   evaluator profiles do not create production authority. Keep the
+   evidence/result contracts independent of the new SDK. Reuse
    `identify/contract.ts` for common validation and add a provider-specific
    schema projection alongside the existing Google projection when necessary.
 3. Extend authoritative database model/operation admission and the Edge registry
-   together. Public jobs require an approved task/model assignment in their
-   service path as well. Do not let the registry override a quota-selected
-   model, accept client-selected providers/URLs, or widen the allowlist
-   speculatively. Snapshot each admitted attempt; only existing
-   recovery/admission can authorize a later attempt under a changed policy.
+   together. Identification now has a Gemini-only exact binding catalog and
+   immutable quota-attempt snapshots, accessed through
+   `reserve_identification_quota`; see the
+   [admission contract](../../../../../docs/backend-and-data/05-api-contracts.md#provider-bound-identification-reservations).
+   The new complete-input admission path derives a profile from normalized
+   evidence and uses a processor-neutral private quota core before checking the
+   selected recipient. Legacy callers and the current iOS inference gate still
+   require Gemini. Backend policy selects the assignment; user permission can
+   block its disclosure but never select another provider. The
+   [consent infrastructure](../../../../../docs/rfcs/identification-provider-openai-consent-2026-09-26.md)
+   is implemented with collection disabled. Adding a catalog row alone cannot
+   admit another provider. Recipient-specific denial and saved-scan pause are
+   implemented in the
+   [client recovery contract](../../../../../docs/backend-and-data/05-api-contracts.md#independent-openai-consent-evidence).
+   Route-scoped client compatibility is implemented in
+   `20260926200227_add_identification_client_compatibility.sql`: each binding
+   carries a minimum, and each fresh attempt snapshots the minimum and
+   recognized original-client protocol. All current Gemini minima are zero.
+   Internal retries use exact original-attempt evidence, never a worker header.
+   The backend
+   [recipient preflight](../../../../../docs/backend-and-data/05-api-contracts.md#assigned-recipient-preflight)
+   now reports the app-assigned recipient without spending quota. A compatible
+   ten-argument reservation rejects a changed expected recipient atomically; its
+   optional header never selects a provider or proves permission. Native
+   integration must carry that expectation through live and durable retries,
+   preserve observations on drift, and recheck current local permission and
+   account ownership immediately before dispatch. Complete that integration,
+   qualified model admission and explicit permission collection before
+   activation. Future admission changes must review all three identification
+   overloads; do not patch only the older ones. Ship a qualified client
+   capability only after coordinating accepted maxima in Edge, SQL and snapshot
+   constraints (currently 3); preserve the global required minimum for
+   older-client recovery, then set the exact qualified binding's minimum.
+   Marketing app versions and consent grants cannot substitute for capability
+   evidence. The evaluation OpenAI binding supports only primary multimodal
+   photo/text; compatibility and snapshot profiles are not qualified. Before
+   activation, extend the versioned
+   [durable result provenance](../../../../../docs/rfcs/identification-provider-result-provenance-2026-09-26.md)
+   to cover the qualified adapter's generation settings and confidence profile.
+   Gemini scans retain this server configuration independently of the quota
+   record. The Identify DTO, owner history and V52 local store now retain it;
+   unknown present profiles receive neutral native confidence guidance. Public
+   community suggestions now suppress unsupported scores, and SQL metric gates
+   cover Field Trip credit, public Perfect Lens and reference-image promotion.
+   Field Chat now omits unqualified metric values while preserving descriptive
+   evidence, and new export snapshots freeze metric qualification for the
+   worker. Existing immutable jobs retain their prior interpretation; deploy the
+   matching export worker before alternate results can exist. These preserve
+   Gemini meanings; they do not qualify an alternate profile. See the
+   [chat/export record](../../../../../docs/rfcs/identification-chat-export-metrics-2026-09-26.md).
+   Public readers need a compatible minimum app version before alternate results
+   become visible; an identification-only protocol gate is insufficient. See the
+   [public metric record](../../../../../docs/rfcs/identification-public-metric-compatibility-2026-09-26.md)
+   and the
+   [client provenance record](../../../../../docs/rfcs/identification-client-result-provenance-2026-09-26.md).
+   Public jobs require an approved task/model assignment in their service path
+   as well. Do not let the registry override a quota-selected model, accept
+   client-selected providers/URLs, or widen the allowlist speculatively.
+   Snapshot each admitted attempt; only existing recovery/admission can
+   authorize a later attempt under a changed policy.
 4. Update `production.ts` only when qualification and disclosure prerequisites
    below are met. Keep deterministic adapters test-only. Add the new
    SDK/dispatch owner to the reviewed inventory in
@@ -55,8 +112,12 @@ observation jobs retain user authority even when a service invokes the worker.
 Before sending real observation data, complete processor/purpose permission,
 processing terms, account settings, region/subprocessor, retention/deletion, and
 abuse-log review. Existing `google_gemini` receipts do not authorize another
-recipient. Implement deny/revoke/account-switch/replay behavior with the actual
-consent owner; do not relabel historical Gemini receipts.
+recipient. The independent OpenAI stream and source-disabled Settings flow
+implement local deny/revoke/account-switch and causal synchronization behavior.
+Review and publish the intended disclosure/purpose before enabling collection; a
+material copy/purpose change requires a new version and fresh action. Complete
+provider-aware inference admission and recovery with the same consent owner; do
+not relabel historical Gemini receipts.
 
 Qualify confidence interpretation for every affected consumer: candidate bands,
 history, queued results, older clients, public projections, SQL decisions, and
@@ -66,10 +127,31 @@ executable contract, regenerate DTOs, and ship a reviewed
 compatibility/migration plan before activation. Completed results keep their
 saved interpretation and replay without inference.
 
-Review shared species caches before mixing providers: schema/prompt versions,
-canonical identities, accepted provenance, and invalidation rules must be
-compatible. Changing the binding alone does not regenerate or revalidate cached
-content. Preserve separate user and public-job attribution.
+Primary identification and shared species-content assignments remain separate.
+The three content tasks now use `sharedContent.ts` to require the retained
+Gemini baseline before quota commitment and canonical generation; the biology
+helpers also check snapshots. A registry change alone cannot qualify another
+profile. Existing canonical public content stays reusable under its historical
+baseline, without claiming exact model provenance for old rows. In-flight keys
+include the baseline namespace, task, species identity and input dimensions.
+
+Before another content provider is enabled, qualify schema/prompt versions,
+canonical identities, accepted provenance, locale/taxonomy behavior, lookalike
+ranking, group-tag semantics and promotion/invalidation rules. Use private
+candidate storage until that decision exists; the public one-row-per-field
+provenance table cannot safely hold raw execution configuration or competing
+outputs. Changing a binding does not regenerate or revalidate content. Preserve
+separate user/public-job attribution. See the
+[shared-content record](../../../../../docs/rfcs/identification-shared-content-qualification-2026-09-26.md).
+
+New primary scan ledger entries now copy saved model/provider/binding/policy/
+prompt/schema references, with explicit legacy-tier fallback only when
+provenance is absent. Admin totals/daily rows expose unknown-price coverage and
+bounded provider/model/attribution groups. The writer prevents another provider
+borrowing a Gemini tariff through a model-name collision. These changes preserve
+historical rows and current Gemini units; they do not add another provider's
+pricing. See the
+[accounting record](../../../../../docs/rfcs/identification-provider-usage-attribution-2026-09-26.md).
 
 Map usage units and prices explicitly, including cached input, reasoning, tool,
 image, and audio components. Missing values remain unknown. Content helpers

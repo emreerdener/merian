@@ -50,12 +50,8 @@ extension UIDevice {
     var isGlassmorphismEnabled: Bool = true
     var isCriticalHeatWarningActive: Bool = false
 
-    /// Expedition mode is a persisted preference, but its Pro-only behavior is
-    /// enabled only while functional entitlement is currently proven. Paid
-    /// access may remain proven offline; complimentary access may not.
-    var isExpeditionModeActive: Bool {
-        appSettings.isExpeditionModeActive && functionalProAccessProvider()
-    }
+    /// Battery-saving behavior is available to every account, including offline.
+    var isExpeditionModeActive: Bool { appSettings.isExpeditionModeActive }
 
     var isIdleLocked: Bool = false {
         didSet {
@@ -67,18 +63,13 @@ extension UIDevice {
 
     // MARK: - Private
     @ObservationIgnored private let appSettings: AppSettings
-    @ObservationIgnored private let functionalProAccessProvider: @MainActor () -> Bool
     @ObservationIgnored private var cancellables = Set<AnyCancellable>()
 
     init(
         appSettings: AppSettings? = nil,
-        observeSystemChanges: Bool = true,
-        functionalProAccessProvider: @escaping @MainActor () -> Bool = {
-            RevenueCatManager.shared.isProActive
-        }
+        observeSystemChanges: Bool = true
     ) {
         self.appSettings = appSettings ?? AppSettings.shared
-        self.functionalProAccessProvider = functionalProAccessProvider
         if observeSystemChanges {
             setupMonitors()
         }

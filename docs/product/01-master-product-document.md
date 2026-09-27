@@ -58,7 +58,7 @@ when they affect product direction, and are clearly labeled.
 | iOS archive build baseline | 275                      |
 | Minimum iOS deployment     | iOS 17.2                 |
 | Device family              | iPhone                   |
-| SwiftData schema           | MerianSchemaV51          |
+| SwiftData schema           | MerianSchemaV52          |
 | Local Supabase Postgres    | 17                       |
 | Website                    | https://naturebook.earth |
 | Support                    | support@naturebook.earth |
@@ -116,7 +116,7 @@ targets, bundle identifiers, app group, SwiftData schema names, backend resource
 names, RevenueCat identifiers, and existing media host remain Merian where
 compatibility depends on them. The main application bundle identifier is
 `app.merian.Merian`, the shared app group is `group.app.merian.shared`, and the
-current schema is `MerianSchemaV51`.
+current schema is `MerianSchemaV52`.
 
 Legacy `merian.earth` links and the `merian://` scheme remain accepted
 compatibility inputs. New links should use `naturebook.earth` and
@@ -246,28 +246,29 @@ must not generate feedback.
 
 ## 4.2 Mixed-media submission model - Implemented
 
-An ordinary submission can contain up to two user-created timeline items across
-still photographs, eligible Pro video, audio clips, and descriptions, subject to
-single-capture settings. Reanalysis keeps that evidence budget and reserves one
-additional supplementary description. Original media, one additional image/audio
-clip or eligible video, and the description can therefore form a three-item
-submission. Adding description first must not consume the additional media slot;
-physical media cannot use the reserved description allowance.
+Free composition permits one photo or standalone audio item plus one optional
+note. Pro permits two physical media items plus one optional note; video remains
+Pro-only. Description-only scans remain supported. Review is the default, with
+an independent default-off Auto-submit preference. Multi-capture describes Pro's
+media capacity and is no longer a setting.
 
-During reanalysis, **+** explicitly stages the description and **Analyze**
-automatically includes any current nonempty draft, even after switching capture
-modes. Both actions update one supplementary description rather than appending
-duplicates. Historical description evidence remains separate. Explicit tray
-edits/removal supersede the pending supplementary draft; empty editor text
-leaves staged descriptions intact. Failed staging keeps the text and prevents an
-incomplete submission. Starting another reanalysis discards the previous
-session's staged evidence before loading the new original.
+Root Describe is the shared ordinary-note and reanalysis-supplement editor.
+Typing alone does not stage or submit. Before review, its plus stages text or
+its arrow explicitly submits when Auto-submit is enabled. During review the
+central action is absent; Identify/Analyze uses the latest shared text. Clearing
+text removes the note. Historical descriptions remain separate and alone use the
+local-copy editor sheet. Reanalysis has two physical slots, historical text, and
+one current supplement; it always submits manually.
 
-The mode selector, button labels, media sizes, and styling stay unchanged. On
-narrow screens, the refinement media row scrolls inside the existing tray to
-keep Cancel and Analyze visible. The
+The tray uses native Liquid Glass where supported, a text-only blue Identify, a
+red trash icon with discard confirmation, and horizontal media-row overflow
+beside fixed actions. Analyze retains its existing styling. Media preparation
+blocks submission, automatic eligibility belongs to the capture attempt, and
+queue rejection preserves the draft for manual retry. The
+[staged-review contract](../features-and-hardware/29-staged-capture-review.md)
+owns the complete state transitions and durable handoff. The
 [Describe guide](../features-and-hardware/11-describe-and-voice-dictation.md)
-owns the detailed behavior and lifecycle contract.
+owns prompts and dictation.
 
 Mixed-media submissions route through the active multimodal identification
 function. Older single-purpose functions remain compatibility paths and should
@@ -336,10 +337,13 @@ original recording.
 The iPhone Listen flow records up to 15 seconds of audio as PCM Int16 WAV,
 presents a live and review spectrogram, classifies clipping and the rolling
 ambient-noise floor, and preprocesses inference input to mono 16 kHz audio.
-Stopping early always opens review. At the 15-second maximum, the confirmation
-setting selects review or the established automatic submission handoff. Audio
-consumes one evidence item. Ordinary scans retain the two-item total cap;
-reanalysis can also carry its separately reserved supplementary description.
+Stopping early always opens review. At the 15-second maximum, the captured
+recording flag may hand audio to staging, but Shell still checks attempt-bound
+Auto-submit eligibility before submission. Setting changes or added context
+leave the composition manual. Audio uses one physical slot; Free permits one
+photo/audio item plus an optional note, Pro permits two media items plus an
+optional note, and reanalysis preserves historical text and its current
+supplement separately.
 
 The legacy `/audio-spec` route exists for compatibility; new mixed-media work
 should use `/identify-multimodal`.
@@ -542,12 +546,13 @@ Seasonal Challenges and Events are separate concepts. Events are generally
 available in the iOS client, while the server remains authoritative for
 challenge access, participation, ownership, timing, and publication.
 
-## 6.3 Expedition Mode - Implemented, Pro-gated
+## 6.3 Expedition Mode - Available to everyone
 
 Expedition Mode is a performance and field-resilience profile, not another name
 for a Field trip. It targets reduced camera load, disables glass effects, and
 pauses ordinary queue synchronization while active. It is intended for extended
-field use where battery and thermal stability matter.
+field use where battery and thermal stability matter. Its saved Workspace
+preference applies to Free, Pro, expired, unverified, and offline accounts.
 
 ## 6.4 Achievements and persona - Implemented
 
@@ -680,8 +685,9 @@ The database policy grants one free primary Flash scan per UTC day. It is
 separate from the staged grant of three lifetime complimentary Pro scans, so an
 account can receive three Pro-funded results plus one Flash-funded result on day
 one. Complimentary credits are selected automatically before Flash. After
-exhaustion, only compatible single-evidence observations fall back to the daily
-Flash policy; video, mixed/multi-item, and Pro-only actions require an upgrade.
+exhaustion, one photo or standalone audio item plus at most one note, or a
+description-only scan, can fall back to the daily Flash policy. Additional
+media, video, multiple descriptions, and Pro-only actions require Pro funding.
 
 The iOS local meter previews free usage but is not authoritative. Unlimited
 local-meter bypasses are DEBUG-only; Release and TestFlight still reach the
@@ -722,12 +728,12 @@ claim and subtracts unresolved local claims from verified server capacity.
 ## 8.3 Pro capability set
 
 Paid Pro removes the ordinary one-scan product cap and includes the Gemini Pro
-path, short video scans, follow-up AI chat, mixed multi-capture, Expedition
-Mode, offline queue benefits, group-event hosting, and Apple Watch logging. A
-verified complimentary balance can fund three primary Pro analyses and keeps the
-former trial's fair-use caps for non-scan Pro AI actions while at least one
-credit or active hold remains. An active hold is functional access but cannot
-fund a fourth analysis. High database fair-use and rate ceilings bound
+path, short video scans, follow-up AI chat, multi-capture (two media items plus
+an optional note), offline queue benefits, group-event hosting, and Apple Watch
+logging. A verified complimentary balance can fund three primary Pro analyses
+and keeps the former trial's fair-use caps for non-scan Pro AI actions while at
+least one credit or active hold remains. An active hold is functional access but
+cannot fund a fourth analysis. High database fair-use and rate ceilings bound
 automation and provider cost, so product copy must not promise technically
 unbounded model traffic.
 
@@ -1569,29 +1575,29 @@ numbers.
 
 # Appendix A. High-impact correction register
 
-| Stale claim                                               | Repository-aligned correction                                                                                                                                                                       |
-| --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Product is publicly named Merian.                         | Public product is Naturebook; Merian remains the stable engineering identity.                                                                                                                       |
-| Current schema is V45.                                    | Current SwiftData alias is `MerianSchemaV51`; `MerianSchemaV50` and `MerianReleasedActiveSchemaV50` freeze the two released V50 model graphs, and V51 makes preferred species names account-scoped. |
-| Two free scans are allowed per day.                       | Public policy is one per day; Release and TestFlight use it, while unlimited local-meter overrides are DEBUG-only.                                                                                  |
-| New accounts receive a seven-day introductory Pro trial.  | The staged replacement grants every account three lifetime complimentary Pro scans, separate from the daily Flash scan.                                                                             |
-| Pro costs $2.99 weekly and $19.99 annually.               | Current fixed display values are $3.99 for a seven-day non-renewing pass and $24.99 annually.                                                                                                       |
-| Onboarding is six steps and requests all permissions.     | Current onboarding is Welcome, Camera, Location, Ready; photos and notifications are progressive.                                                                                                   |
-| Identification always uses two model calls.               | One primary Gemini call is followed by optional asynchronous enrichment.                                                                                                                            |
-| AI output is capped at 1,000 tokens.                      | Current configuration allows up to 8,192 output tokens, with a Pro thinking budget.                                                                                                                 |
-| Explore is future, video-feed-first, and reaction-only.   | Explore already includes multiple feeds, map/nearby, rich media, likes, comments, replies, follows, profiles, reports, and blocking.                                                                |
-| Field trips are the same as Expedition Mode.              | Field trips organize observations; Expedition Mode is a separate Pro performance profile.                                                                                                           |
-| Watch capture is shipped end to end.                      | Watch recording and transfer exist, but the iPhone receiving path is incomplete.                                                                                                                    |
-| Free biological media expires after 90 days.              | Biological media is durable for free and Pro users unless deleted or moderated.                                                                                                                     |
-| Upgrading moves media from free to Pro storage.           | Existing objects remain in their original storage prefix.                                                                                                                                           |
-| Archive Manager rescues expiring media.                   | Archive Manager downloads generated export ZIPs; the former rescue protocol is retired.                                                                                                             |
-| GPS remains only on the device.                           | Exact owner location can synchronize; public views consume privacy-projected location.                                                                                                              |
-| The product has complete localization.                    | Locale informs identification, but a complete localized UI resource system was not found.                                                                                                           |
-| PostHog plus TelemetryDeck provide analytics.             | Analytics is consolidated under PostHog; TelemetryDeck is not a current direct dependency.                                                                                                          |
-| The widget is Species of the Day.                         | The implemented WidgetKit surface shows Explore snapshots.                                                                                                                                          |
-| Opening Insight automatically idles the camera at 1 FPS.  | Idle hooks exist, but no current sheet-lifecycle wiring was found.                                                                                                                                  |
-| Fixed coverage percentages prove release readiness.       | Current CI has meaningful guardrails, but the old percentage claims are not repository-backed.                                                                                                      |
-| Historical CAC, LTV, MRR, and margin figures are current. | Financial forecasts require a separate dated model based on actual usage and current vendor costs.                                                                                                  |
+| Stale claim                                               | Repository-aligned correction                                                                                                                                                                                                            |
+| --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Product is publicly named Merian.                         | Public product is Naturebook; Merian remains the stable engineering identity.                                                                                                                                                            |
+| Current schema is V45.                                    | Current SwiftData alias is `MerianSchemaV52`; `MerianSchemaV50` and `MerianReleasedActiveSchemaV50` freeze the two released V50 model graphs, V51 makes preferred species names account-scoped, and V52 adds optional result provenance. |
+| Two free scans are allowed per day.                       | Public policy is one per day; Release and TestFlight use it, while unlimited local-meter overrides are DEBUG-only.                                                                                                                       |
+| New accounts receive a seven-day introductory Pro trial.  | The staged replacement grants every account three lifetime complimentary Pro scans, separate from the daily Flash scan.                                                                                                                  |
+| Pro costs $2.99 weekly and $19.99 annually.               | Current fixed display values are $3.99 for a seven-day non-renewing pass and $24.99 annually.                                                                                                                                            |
+| Onboarding is six steps and requests all permissions.     | Current onboarding is Welcome, Camera, Location, Ready; photos and notifications are progressive.                                                                                                                                        |
+| Identification always uses two model calls.               | One primary Gemini call is followed by optional asynchronous enrichment.                                                                                                                                                                 |
+| AI output is capped at 1,000 tokens.                      | Current configuration allows up to 8,192 output tokens, with a Pro thinking budget.                                                                                                                                                      |
+| Explore is future, video-feed-first, and reaction-only.   | Explore already includes multiple feeds, map/nearby, rich media, likes, comments, replies, follows, profiles, reports, and blocking.                                                                                                     |
+| Field trips are the same as Expedition Mode.              | Field trips organize observations; Expedition Mode is a separate performance profile available to everyone.                                                                                                                              |
+| Watch capture is shipped end to end.                      | Watch recording and transfer exist, but the iPhone receiving path is incomplete.                                                                                                                                                         |
+| Free biological media expires after 90 days.              | Biological media is durable for free and Pro users unless deleted or moderated.                                                                                                                                                          |
+| Upgrading moves media from free to Pro storage.           | Existing objects remain in their original storage prefix.                                                                                                                                                                                |
+| Archive Manager rescues expiring media.                   | Archive Manager downloads generated export ZIPs; the former rescue protocol is retired.                                                                                                                                                  |
+| GPS remains only on the device.                           | Exact owner location can synchronize; public views consume privacy-projected location.                                                                                                                                                   |
+| The product has complete localization.                    | Locale informs identification, but a complete localized UI resource system was not found.                                                                                                                                                |
+| PostHog plus TelemetryDeck provide analytics.             | Analytics is consolidated under PostHog; TelemetryDeck is not a current direct dependency.                                                                                                                                               |
+| The widget is Species of the Day.                         | The implemented WidgetKit surface shows Explore snapshots.                                                                                                                                                                               |
+| Opening Insight automatically idles the camera at 1 FPS.  | Idle hooks exist, but no current sheet-lifecycle wiring was found.                                                                                                                                                                       |
+| Fixed coverage percentages prove release readiness.       | Current CI has meaningful guardrails, but the old percentage claims are not repository-backed.                                                                                                                                           |
+| Historical CAC, LTV, MRR, and margin figures are current. | Financial forecasts require a separate dated model based on actual usage and current vendor costs.                                                                                                                                       |
 
 # Appendix B. Repository source map
 

@@ -140,3 +140,13 @@ deno test --config services/supabase/functions/deno.json services/supabase/funct
 
 The normative joined success, replay, recovery, and rollout contract is
 [`docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md`](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md).
+
+## Result provenance
+
+Fresh success includes optional `data.identification_provenance`, projected from
+the immutable admitted execution before final wire validation and durable
+finalization. It matches the scan's bounded configuration metadata, never model
+output or request JSON. Stored replay preserves its original value or omission;
+reconstruction uses the immutable scan column and omits legacy null. Explicit
+null or damaged present wire metadata fails validation. See the
+[client integration record](../../../../docs/rfcs/identification-client-result-provenance-2026-09-26.md).

@@ -64,7 +64,9 @@ private final class NetworkRequestProbe: @unchecked Sendable {
 struct MerianNetworkClientTests {
 
     init() {
-        MockURLProtocol.mockEndpoints = [:]
+        MockURLProtocol.mockEndpoints = [
+                "/get_my_identification_preflight": NetworkEndpointTestSupport.readyGeminiPreflight
+            ]
 
         // Build an ephemeral URLSession configuration tailored exclusively for Mocking
         let config = URLSessionConfiguration.ephemeral

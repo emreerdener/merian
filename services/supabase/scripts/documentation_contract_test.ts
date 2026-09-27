@@ -2754,7 +2754,15 @@ Deno.test("TestFlight scan recovery documentation preserves retry and legacy-sha
   );
   assertStringIncludes(
     compact(apiContractSource),
-    "For image imports, iOS runs the preview before presenting the native photo picker and before reading/preparing a pending external Photos/Files receipt.",
+    "For image imports, `requestPhotoPickerEntryAdmission` previews the minimum one-photo addition before opening the native picker, independently of its maximum selection count.",
+  );
+  assertStringIncludes(
+    compact(apiContractSource),
+    "After selection, a synchronously registered draft operation checks the actual selected count before file loading/preparation.",
+  );
+  assertStringIncludes(
+    compact(apiContractSource),
+    "An external Photos/Files receipt previews its one-photo addition before metadata extraction or decoding.",
   );
   assertStringIncludes(
     compact(imagePipelineSource),
@@ -4996,7 +5004,18 @@ Deno.test("Field Trip documentation preserves the confidence evidence policy", a
 
   assertStringIncludes(feature, "Flash | `0.75` (75%)");
   assertStringIncludes(feature, "Pro | `0.65` (65%)");
-  assertStringIncludes(feature, "Missing or unknown | `0.75` (75%)");
+  assertStringIncludes(
+    feature,
+    "Legacy missing or unknown tier | `0.75` (75%)",
+  );
+  assertStringIncludes(
+    feature,
+    "`internal.identification_metrics_are_gemini_compatible`",
+  );
+  assertStringIncludes(
+    feature,
+    "Unknown present configurations remain pending review regardless of score.",
+  );
   assertStringIncludes(feature, "`user_confirmed_identification` is true");
   assertStringIncludes(feature, "`confirmed_species_id` is populated");
   assertStringIncludes(feature, "selected-goal preference remains pending");
@@ -6394,7 +6413,7 @@ Deno.test("account-grant issuance documentation retires RevenueCat mutation and 
   assertStringIncludes(reconciler, "rejects apply");
 });
 
-Deno.test("Collections documentation carries the V50 tombstone repair through V51 without changing the wire contract", async () => {
+Deno.test("Collections documentation carries the V50 tombstone repair through V52 without changing the wire contract", async () => {
   const [
     documentationIndex,
     coreDataReadme,
@@ -6468,13 +6487,14 @@ Deno.test("Collections documentation carries the V50 tombstone repair through V5
   }
   assertStringIncludes(schema, "MerianActiveSchemaV50");
   assertStringIncludes(schema, "MerianSchemaV51");
+  assertStringIncludes(schema, "MerianSchemaV52");
   assertStringIncludes(schema, "@Attribute(originalName:)");
   assertStringIncludes(schema, "MerianRecentV50MigrationPlan");
   assertStringIncludes(schema, "V50→V51");
-  assertStringIncludes(testing, "V49→V50→V51");
+  assertStringIncludes(testing, "V49→V50→V51→V52");
   assertStringIncludes(documentationIndex, "/sync-collections");
-  assertStringIncludes(coreDataReadme, "Fresh and V51 stores");
-  assertStringIncludes(coreDataReadme, "known V42...V50 sources");
+  assertStringIncludes(coreDataReadme, "Fresh and V52 stores");
+  assertStringIncludes(coreDataReadme, "known V42...V51 sources");
   assertStringIncludes(
     apiContract,
     "clients do not need to send both keys",

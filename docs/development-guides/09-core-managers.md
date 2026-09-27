@@ -159,11 +159,13 @@ drifting apart.
   position set before playback becomes the next start position; explicit stop
   resets progress to zero.
 - **`audioFilePath: String?`** — set to the WAV filename when the user confirms
-  via review UI, or when a maximum-duration recording auto-confirms because
-  confirmation is disabled; consumed and cleared by
-  `CaptureWorkspaceOrchestrationModifier.onChange`, which either stages the clip
-  into `stagedCapture.audios` for the shared mixed-media toolbar flow or routes
-  it through `submitAudio` for the audio-only flow, then calls `reset()`.
+  via review UI, or when a maximum-duration recording uses its captured
+  `autoSubmitOnMaxDuration` flag.
+  `CaptureWorkspaceOrchestrationModifier.onChange` commits it to the draft and
+  resolves the owning operation. Shell then rechecks that attempt's automatic
+  eligibility; a settings change or added context can leave the clip in manual
+  staged review. The manager flag alone never authorizes enqueue. The handoff
+  finishes by resetting the audio manager.
 - **`requestMicrophonePermissionForRecording() async throws`**: called only from
   the explicit Audio red-button action, before camera handoff. This keeps the
   system prompt tied to the user action.
@@ -219,8 +221,9 @@ drifting apart.
   failed activation clears its operation token so an explicit retry is not
   poisoned.
 - **`stopRecordingEarly()`** — cancels the countdown and always routes the
-  partial clip to review. Only reaching the 15-second maximum may bypass review
-  when confirmation is disabled.
+  partial clip to review. The 15-second maximum may hand the clip to staging via
+  the captured `autoSubmitOnMaxDuration` flag; Shell still owns attempt-bound
+  automatic-submission eligibility.
 - **`seekPlayback(to:)`** — clamps and publishes `playbackProgress`; the
   playback controller also seeks the active player, while a not-yet-playing
   review can park that progress for its next start.
@@ -1391,12 +1394,14 @@ See the focused
   for the active account and stable scan ID. Observable entitlement booleans
   remain UI hints. The manager subtracts unresolved local complimentary/legacy
   blockers from verified server availability and records paid Pro, complimentary
-  Pro, immediate Flash, or deferred Flash. Only one image, standalone audio, or
-  description with no video is Flash-eligible; mixed/multi-item/video work
-  without Pro funding is rejected rather than queued. Immediate and deferred
-  Flash reserve the advisory daily token before SwiftData commit. Save failure
-  rolls back and refunds both local admissions before deleting staged files;
-  `AppTelemetry.trackOfflineQueued()` is not fired on rejection.
+  Pro, immediate Flash, or deferred Flash. `IdentificationEvidenceAllowance`
+  permits one non-video photo/audio plus one optional note, or text alone, for
+  Flash; additional physical media, multiple descriptions, video-derived
+  evidence, and refinement require Pro funding. Immediate and deferred Flash
+  reserve the advisory daily token before SwiftData commit. Save failure rolls
+  back and refunds local admissions, deleting provisional queue copies while
+  retaining caller-owned draft media; `AppTelemetry.trackOfflineQueued()` is not
+  fired on rejection.
 - **Durable funding lifecycle**: the scan job persists `funding_reservation`
   beside `inference_generation`. Relaunch restores active claims; legacy jobs
   without funding are conservative blockers. Proven pre-dispatch failure first
@@ -1710,9 +1715,9 @@ selected live image-policy consumer links, the retired aggregate paths, and the
 | `themeMode`                            | `"themeMode"`                             | `MerianApp`, theme bootstrap                                                                                                                                                                                                                                                                                          |
 | `opensExploreOnLaunch`                 | `"opensExploreOnLaunch"`                  | Default-off `AppSettings` preference sampled once by `MerianApp`; after onboarding and current required consent, an ordinary cold launch may initialize the Capture workspace with Explore presented. Registered during settings initialization and reloaded by `AppSettings.reloadFromDefaults()`.                   |
 | `isPushNotificationsEnabled`           | `"isPushNotificationsEnabled"`            | `AppSettings` typed property. Notification settings, inference completion, and offline failure/completion paths read/write through settings except low-level authorization mirrors.                                                                                                                                   |
-| `isMultiCaptureEnabled`                | `"isMultiCaptureEnabled"`                 | `CaptureWorkspaceViewModel`, `CaptureWorkspaceViewModel+DescribeSubmission`, onboarding migration                                                                                                                                                                                                                     |
+| `autoSubmitScans`                      | `"autoSubmitScans"`                       | Default-false opt-in to immediate submission, independent of legacy capture settings.                                                                                                                                                                                                                                 |
 | `showsCaptureGoalProgress`             | `"showsCaptureGoalProgress"`              | `AppSettings` typed property. The **Field trip goals** setting controls whether `CaptureWorkspaceView` presents the active outing target capsule and may forward its camera-only selected-goal hint; default `true`. Server progress remains enabled with deterministic fallback when off.                            |
-| `legacyMultiImageScanMode`             | `"multiImageScanMode"`                    | one-time migration in `MerianApp`                                                                                                                                                                                                                                                                                     |
+| `legacyMultiImageScanMode`             | `"multiImageScanMode"`                    | Retired key; does not determine the new staged-review default.                                                                                                                                                                                                                                                        |
 | `hasPromptedForNotificationsPostIdent` | `"hasPromptedForNotificationsPostIdent"`  | `AppSettings` typed property. `CameraSheetRouter` uses it to present the post-identification notification prompt only once.                                                                                                                                                                                           |
 | `hasSeenExploreOnboarding`             | `"hasSeenExploreOnboarding"`              | `AppSettings` typed property. `InsightSheetViewModel` uses it for the one-time Explore sharing prompt.                                                                                                                                                                                                                |
 | `hasUnseenExplorePost`                 | `"hasUnseenExplorePost"`                  | `AppSettings` typed property. Set after local share, cleared when the Recent Explore feed is loaded, and read by `MainTabBar`.                                                                                                                                                                                        |
@@ -1874,7 +1879,7 @@ consults that Keychain entry.
   `Core/Preferences/AppSettings.swift`; the exact key registry remains in
   `Core/Preferences/UserDefaultsKeys.swift`.
 - Owns the typed, in-memory representation of high-churn persisted settings such
-  as `themeMode`, `isMultiCaptureEnabled`, `requiresScanConfirmation`,
+  as `themeMode`, `autoSubmitScans`, `hasShownCaptureNoteTip`,
   `showsCaptureGoalProgress`, `gridColumns`, `saveToCameraRoll`, and
   notification toggles.
 - Writes through to `UserDefaults` on mutation, reloads from
@@ -1891,7 +1896,7 @@ consults that Keychain entry.
   preferred UI-facing boundary for global UI/preferences state.
 - `CaptureWorkspaceViewModel` and its modality extensions read capture
   preferences through `diContainer.appSettings`, not `AppSettings.shared`, so
-  preview/test containers can isolate multi-capture and confirmation behavior
+  preview/test containers can isolate staged-review and auto-submit behavior
   without mutating global defaults.
 - Core hardware/data managers that need settings (`HardwareOrchestrator`,
   `HapticManager`, `PhotoLibraryManager`) also accept `AppSettings` injection
@@ -3414,12 +3419,13 @@ consent. `ConsentSynchronizationCoordinator` owns the scheduled/active task
 identities, same-account coalescing, generation invalidation, and retention and
 exact cancellation drain of every outstanding handle, including superseded or
 previously invalidated work. It also owns unowned-evidence binding, stable
-adult/Terms/Gemini/PostHog push order, authoritative fetch, and verified merge
-sequencing. It applies the manager-supplied account/generation/session validator
-across every suspended remote phase and contains no direct Supabase or singleton
-dependency. `RequiredConsentRestorationCoordinator` owns the restoration state
-machine, automatic retry budget, UUID-keyed registry of outstanding retry tasks,
-stable completion identity, cancellation snapshot and exact drain, manual retry
+adult/Terms/AI/PostHog push order (each AI event routes to its own fixed
+recipient), authoritative fetch, and verified merge sequencing. It applies the
+manager-supplied account/generation/session validator across every suspended
+remote phase and contains no direct Supabase or singleton dependency.
+`RequiredConsentRestorationCoordinator` owns the restoration state machine,
+automatic retry budget, UUID-keyed registry of outstanding retry tasks, stable
+completion identity, cancellation snapshot and exact drain, manual retry
 admission, duplicate-session preservation, and the account, SDK-session,
 synchronization-generation, and caller-cancellation fences around every
 transition. Its timing, synchronization, context, publication, and
@@ -3439,6 +3445,17 @@ account-work leases for those workflows. `ConsentManager` remains the
 shutdown, publishes synchronization merges and restoration state, applies SDK
 permission, and drains account-bound work before Auth replacement.
 `ConsentLedgerStore` remains the raw durable-byte boundary.
+
+`AIProcessingConsentCoordinator` independently presents optional OpenAI choices
+and validates the dialog's expected account against observed and SDK identity,
+transition state and cancellation. The source collection gate remains closed.
+Any-version historic grants remain withdrawable; successful changes use verified
+ledger persistence before the existing synchronization pipeline. Its display
+state is not cloud authorization and never satisfies required Gemini onboarding.
+`ConsentRemoteMapping` owns the extracted pure mapping helpers; the live adapter
+adds the fixed OpenAI append RPC and a separate provider-head read. Required
+consent restoration and inference admission remain Gemini-only until a later
+reviewed provider rollout.
 
 - `ensureCloudConsentForInference()` is the new-account and returning-account
   provider gate exposed by the facade and implemented by

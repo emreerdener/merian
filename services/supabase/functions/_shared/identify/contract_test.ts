@@ -1,5 +1,6 @@
 import { assert, assertEquals, assertThrows } from "@std/assert";
 import {
+  AUDIO_CONFIDENCE_DESCRIPTION,
   ContractValueError,
   merianAudioModelContract,
   merianDescribeModelContract,
@@ -125,6 +126,12 @@ Deno.test("audio-only provider schema adds a private required discriminator", ()
   assertEquals(first as unknown, expected);
   assert(first === second);
   assert(expected.required?.includes("audio_subject_type"));
+  assertEquals(expected.properties?.confidence_score, {
+    type: "NUMBER",
+    minimum: 0,
+    maximum: 1,
+    description: AUDIO_CONFIDENCE_DESCRIPTION,
+  });
   assertEquals(expected.properties?.audio_subject_type?.enum, [
     "identified_non_human",
     "unidentified_non_human",
@@ -348,4 +355,62 @@ Deno.test("final envelope rejects invalid server-added numeric and URL values", 
     ContractValueError,
     "at most 4096",
   );
+});
+
+Deno.test("wire provenance is optional, bounded, immutable and never a model field", () => {
+  const provenance = {
+    version: 1,
+    provider: "gemini",
+    binding: "gemini_baseline_v1",
+    model: "gemini-2.5-pro",
+    variant: "multimodal",
+    operation: "scan_identification",
+    policy_version: 1,
+    prompt: "identify_vision_v1",
+    schema: "merian_identify_v1",
+    confidence: "gemini_identify_v1",
+    diagnostic_trigger: 0.99,
+    prompt_diagnostic_trigger: null,
+    safety: null,
+    timeout_ms: 90_000,
+    generation: {
+      temperature: 0.1,
+      seed: 42,
+      top_k: null,
+      max_output_tokens: 8192,
+      thinking_budget: 5000,
+    },
+  };
+  const envelope = validEnvelope();
+  const data = envelope.data as Record<string, unknown>;
+  assertEquals(
+    parseIdentifySuccessEnvelope(envelope).data.identification_provenance,
+    undefined,
+  );
+  data.identification_provenance = provenance;
+  const parsed = parseIdentifySuccessEnvelope(envelope);
+  assertEquals(parsed.data.identification_provenance, provenance);
+  assert(Object.isFrozen(parsed.data.identification_provenance?.generation));
+  for (
+    const malformed of [null, {}, { ...provenance, provider: "x".repeat(81) }, {
+      ...provenance,
+      generation: { ...provenance.generation, seed: -1 },
+    }, { ...provenance, observation: "forbidden" }]
+  ) {
+    assertThrows(() =>
+      parseIdentifySuccessEnvelope({
+        ...envelope,
+        data: { ...data, identification_provenance: malformed },
+      })
+    );
+  }
+  for (
+    const contract of [
+      merianModelContract,
+      merianAudioModelContract,
+      merianDescribeModelContract,
+    ]
+  ) {
+    assert(!("identification_provenance" in contract.fields));
+  }
 });

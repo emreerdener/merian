@@ -111,13 +111,16 @@ runs before entitlement selection and provider-counter reservation, so this
 included Pro scan or daily Flash allowance. Provider-admission failures remain
 distinct:
 
-| HTTP | Code                          | Meaning and required client behavior                                                                                                                                                                                                    |
-| ---: | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-|  403 | `ai_consent_required`         | Disclosure-policy transition. Preserve queued media, stop automatic inference retry, and require fresh authoritative consent.                                                                                                           |
-|  402 | `pro_required`                | The requested capability has no valid paid/included/fallback entitlement. Present the existing upgrade path.                                                                                                                            |
-|  429 | `ai_quota_daily_exceeded`     | The applicable daily provider allowance is exhausted. Preserve the queued retry and honor `Retry-After`; live Capture replaces Insight with the existing paywall instead of synthesizing a result placeholder. Do not route to consent. |
-|  429 | `ai_user_rate_limit_exceeded` | Temporary per-user request-rate protection. Use bounded retry.                                                                                                                                                                          |
-|  429 | `ai_ip_rate_limit_exceeded`   | Temporary per-network request-rate protection. Use bounded retry.                                                                                                                                                                       |
+| HTTP | Code                                  | Meaning and required client behavior                                                                                                                                                                                                                                             |
+| ---: | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+|  403 | `ai_consent_required`                 | Disclosure-policy transition. Preserve queued media, stop automatic inference retry, and require fresh authoritative consent.                                                                                                                                                    |
+|  403 | `ai_openai_consent_required`          | Identification requires permission for its app-assigned OpenAI recipient. Preserve the saved scan and funding in needs-attention, stop automatic inference retry, and do not reopen Gemini onboarding or select another provider. OpenAI permission collection remains disabled. |
+|  409 | `ai_identification_preflight_changed` | The app-assigned recipient changed after the client's check. Preserve the observation and rerun preflight; do not blindly retry, grant permission, or select another provider.                                                                                                   |
+|  400 | `ai_identification_preflight_invalid` | The recipient expectation header is invalid. Stop inference and correct the request; do not retry through an older admission path.                                                                                                                                               |
+|  402 | `pro_required`                        | The requested capability has no valid paid/included/fallback entitlement. Present the existing upgrade path.                                                                                                                                                                     |
+|  429 | `ai_quota_daily_exceeded`             | The applicable daily provider allowance is exhausted. Preserve the queued retry and honor `Retry-After`; live Capture replaces Insight with the existing paywall instead of synthesizing a result placeholder. Do not route to consent.                                          |
+|  429 | `ai_user_rate_limit_exceeded`         | Temporary per-user request-rate protection. Use bounded retry.                                                                                                                                                                                                                   |
+|  429 | `ai_ip_rate_limit_exceeded`           | Temporary per-network request-rate protection. Use bounded retry.                                                                                                                                                                                                                |
 
 ### Scan admission preview RPC
 
@@ -125,9 +128,12 @@ Before Capture starts camera/audio hardware or submits staged evidence, an
 online authenticated client calls
 `get_my_scan_admission_preview(p_flash_fallback_eligible boolean)`. The RPC has
 no user-ID input and derives the account from `auth.uid()`. It returns exactly
-one row. The current iOS caller sets the boolean only for one ordinary image,
-standalone audio clip, or description; video, mixed/multiple evidence, and
-refinement pass false.
+one row. The current iOS caller uses `IdentificationEvidenceAllowance`: one
+non-video photo or standalone audio item plus at most one note, or one
+description alone, is eligible. Additional physical media, multiple
+descriptions, video-derived evidence, and refinement pass false. This preserves
+the Free fallback when Pro funding is exhausted without changing funding
+precedence or quota limits.
 
 | Field             | Type              | Meaning                                                                                  |
 | ----------------- | ----------------- | ---------------------------------------------------------------------------------------- |
@@ -143,14 +149,19 @@ client opens the existing paywall and preserves staged input for either denial.
 `ai_quota_daily_exceeded` caused by a concurrent device or request must use the
 same paywall fallback.
 
-For image imports, iOS runs the preview before presenting the native photo
-picker and before reading/preparing a pending external Photos/Files receipt. The
-boolean reflects the prospective imported media shape: exactly one image with no
-existing evidence/refinement is Flash-eligible; multiple, mixed, or refinement
-evidence is not. A known denial therefore reaches the paywall before selection
-or crop work. Crop confirmation/submission rechecks admission because the
-preview is non-reserving; a concurrent account/quota change can still deny that
-later boundary.
+For image imports, `requestPhotoPickerEntryAdmission` previews the minimum
+one-photo addition before opening the native picker, independently of its
+maximum selection count. Pending shared text counts as the optional note. After
+selection, a synchronously registered draft operation checks the actual selected
+count before file loading/preparation. An external Photos/Files receipt previews
+its one-photo addition before metadata extraction or decoding. A known denial
+preserves the draft/receipt. A response from a discarded draft generation cannot
+present a paywall or error on its successor. Final submission rechecks because
+the preview is non-reserving; concurrent account/quota changes can still deny
+that boundary. See the
+[capture lifecycle](../features-and-hardware/29-staged-capture-review.md) and
+[funding contract](./18-complimentary-pro-scans.md). No new wire field is
+introduced for the note.
 
 Before acquiring an account-work lease, iOS waits for eligible first-launch Auth
 session setup through the existing single-flight bootstrap coordinator. Ordinary
@@ -210,15 +221,17 @@ authenticated PostgREST RPCs:
 
 - `append_user_ai_consent_event(...)`, fixed to the caller's `google_gemini`
   stream;
+- `append_user_openai_consent_event(...)`, fixed to the caller's independent
+  `openai` stream (collection implemented but disabled in shipped source);
 - `append_user_analytics_consent_event(...)`, fixed to the caller's `posthog`
   stream.
 
-Both accept the same parameters: `p_id`, `p_disclosure_version`, `p_event_kind`,
-`p_occurred_at`, `p_disclosure_text`, `p_action_text`, `p_platform`,
-`p_app_version`, `p_app_build`, and the nullable `p_causal_parent_id` observed
-when the local action was created. The caller cannot supply a user ID, provider,
-server timestamp, or revision. Direct table inserts and sequence access are
-denied.
+All three accept the same parameters: `p_id`, `p_disclosure_version`,
+`p_event_kind`, `p_occurred_at`, `p_disclosure_text`, `p_action_text`,
+`p_platform`, `p_app_version`, `p_app_build`, and the nullable
+`p_causal_parent_id` observed when the local action was created. The caller
+cannot supply a user ID, provider, server timestamp, or revision. Direct table
+inserts and sequence access are denied.
 
 Each call returns exactly one row with this shape:
 
@@ -234,8 +247,10 @@ Each call returns exactly one row with this shape:
 ```
 
 The RPC first locks the caller's `public.users` row against ghost-profile merge,
-then serializes the account/provider stream with a transaction-scoped advisory
-lock. Under that lock:
+then takes a transaction-scoped advisory lock. Both AI recipients share the
+account-level AI lock because their event IDs share one table; PostHog retains
+its separate lock. Head lookup and causal comparison are always
+recipient-specific. Under that lock:
 
 - a grant is inserted only when `p_causal_parent_id` equals the current head;
 - a stale grant returns `accepted = false`, no event revision or timestamp, and
@@ -248,28 +263,32 @@ The client must persist the returned accepted parent and revision. It retains a
 rejected grant only as superseded local evidence. `occurred_at` and
 `recorded_at` are audit evidence and never order provider authorization.
 
-Reusing an event ID is idempotent only when every immutable payload field
-matches. A revocation retry may repeat its originally observed parent because
-the stored parent can have been rebased; any other mismatch raises
-`consent_event_id_conflict` (`23505`). Missing authentication or an unavailable
-caller account fails with `42501`. After an ambiguous transport failure, a
-fetched row is confirmation only when its immutable payload matches the
-attempted event, with the same revocation-parent exception.
+Reusing an event ID is idempotent only when its owner, provider and every
+immutable payload field match. Concurrent same-account cross-provider reuse
+returns the same controlled conflict as a sequential collision. A revocation
+retry may repeat its originally observed parent because the stored parent can
+have been rebased; any other mismatch raises `consent_event_id_conflict`
+(`23505`). Missing authentication or an unavailable caller account fails with
+`42501`. After an ambiguous transport failure, a fetched row is confirmation
+only when its immutable payload matches the attempted event, with the same
+revocation-parent exception.
 
 On iOS, `Core/Security/Consent/Services/ConsentRemoteModels.swift` owns this
 exact request/result shape and the selected-row projections.
-`ConsentRemoteService.swift` owns result validation, mapping, and
-immutable-payload retry confirmation; `ConsentRemoteService+Live.swift` is the
-sole direct PostgREST/RPC adapter. `ConsentSynchronizationCoordinator` supplies
-the runtime-wired observed-account, SDK-session, cancellation, and generation
-fence across every suspended service phase; it sequences pending evidence before
-the authoritative read and persists a merged result before notifying the
-observable facade. `ConsentCloudSessionCoordinator` separately owns ordinary and
-Auth-transition session/account-work authorization around session adoption,
-scheduled synchronization, inference admission, and Ghost rebinding. Its live
-adapter is the only owner that resolves Supabase Auth and account-work leases
-for those workflows. After suspended inference synchronization, the coordinator
-checks cancellation, the original lease, and synchronization generation before
+`ConsentRemoteService.swift` owns result validation, fixed-recipient dispatch,
+and immutable-payload retry confirmation; `ConsentRemoteMapping.swift` owns pure
+row mapping, exact payload comparison and timestamp conversion;
+`ConsentRemoteService+Live.swift` is the sole direct PostgREST/RPC adapter.
+`ConsentSynchronizationCoordinator` supplies the runtime-wired observed-account,
+SDK-session, cancellation, and generation fence across every suspended service
+phase; it sequences pending evidence before the authoritative read and persists
+a merged result before notifying the observable facade.
+`ConsentCloudSessionCoordinator` separately owns ordinary and Auth-transition
+session/account-work authorization around session adoption, scheduled
+synchronization, inference admission, and Ghost rebinding. Its live adapter is
+the only owner that resolves Supabase Auth and account-work leases for those
+workflows. After suspended inference synchronization, the coordinator checks
+cancellation, the original lease, and synchronization generation before
 interpreting authoritative absence; a stale authorization context exits without
 writing a reapproval marker. `ConsentSynchronizationMergePolicy` performs the
 evidence upsert and authority derivation. `ConsentLedgerRepository` publishes
@@ -329,6 +348,66 @@ and deployment runbook. The distributed IP claim runs before Turnstile; the
 tighter verified-attempt and global-growth transaction runs only after a valid
 challenge.
 
+### Independent OpenAI consent evidence
+
+Migration `20260926150509_add_independent_openai_consent_stream.sql` must
+precede any client collecting OpenAI consent. The iOS live adapter dispatches
+known `google_gemini` and `openai` events to their fixed-recipient RPCs and
+rejects an unknown provider or mismatched owner before network work. Its seven
+authoritative reads include a separate owner-scoped, all-version OpenAI stream
+head. The existing ID-scoped AI read-back verifies provider as well as the
+entire immutable payload. No Identify DTO or client-selected provider field is
+added.
+
+`internal.require_current_ai_consent(uuid,text)` accepts OpenAI evidence only
+when its latest provider-wide event is a grant for disclosure `2026-09-26` and
+current adult policy and Terms receipts both exist for `2026-08-03`. Missing,
+revoked, old or unknown-version heads deny; Gemini permission and its legacy
+rollout mode confer no OpenAI permission. The gate uses the version as the
+policy identifier. Supplied disclosure/action text remains immutable client
+evidence, not server verification of a screen presentation. A material policy
+change must update the client version and server gate together and require a
+fresh action.
+
+The optional Settings coordinator is not inference authorization. Required
+onboarding, `ensureCloudConsentForInference`, `ai_consent_required` recovery and
+legacy quota callers still require Gemini. Identification checks its
+database-selected recipient after a processor-neutral private quota core; all
+assignments remain Gemini. Settings permission is not a provider preference: the
+app controls assignments.
+
+Migration `20260926182547_add_identification_recipient_recovery.sql` adds the
+private `internal.require_identification_processor_consent(uuid,text)` wrapper
+to both identification RPC overloads, for fresh assignments and saved attempts.
+Gemini denial retains `ai_consent_required`; OpenAI denial returns the distinct
+`ai_openai_consent_required`. Unknown recipients or a missing account raise
+`ai_provider_assignment_unavailable`, mapped to service unavailability, rather
+than asking for permission to an unknown recipient. Both known consent errors
+are matched exactly at the Edge boundary, retain the existing public error
+envelope, and occur before dispatch. The transaction rolls back its quota and
+complimentary holds on denial. No client-selected recipient field is added.
+
+On iOS, only `403 ai_consent_required` opens required Gemini reapproval. Exact
+`403 ai_openai_consent_required` becomes `MerianError.openAIConsentRequired`:
+foreground and background recovery retain the original scan, media and local
+funding as needs-attention with the new stable code. A successful durable pause
+has no retry deadline; Gemini completion cannot resume that row. Foreground
+recovery transfers the current scan/attempt/generation to the queue's retirement
+owner, which saves the pause before releasing uploads or durable ownership. A
+local save failure retries only persistence with capped backoff while that
+generation remains claimed and retired. It cannot restart provider dispatch; a
+later generic cleanup cannot replace this policy. Unknown codes and other HTTP
+statuses do not gain consent semantics. A late or superseded completion cannot
+pause a replacement attempt.
+
+This slice exposes no new permission prompt or provider selector. The OpenAI
+collection flag remains false, paused UI offers no retry action or hidden
+Settings destination, and no consent event is created by a denial. Activation
+still requires recipient-aware preflight and supported client-version gating,
+qualification of the exact model/input profile, model admission and provenance,
+and an explicit permission-collection rollout. A consent receipt or a catalog
+row alone cannot enable OpenAI.
+
 ## Fleet-Wide Outbound Provider Contract
 
 Production Edge modules use `services/supabase/functions/_shared/outbound.ts`
@@ -347,6 +426,13 @@ revocation fails closed; only a head grant carrying the current analytics
 disclosure permits delivery. A permitted capture has a 2.5-second deadline. A
 timeout or provider diagnostic is logged privately and does not become a raw
 public API error.
+
+The local identification evaluator can separately compose the OpenAI photo/text
+adapter. It uses the same bounded transport and outcome interface but creates no
+production authority, consent receipt, quota reservation or public DTO. Its
+[provider evaluation contract](../development-guides/22-alternative-identification-provider.md)
+is versioned separately from these HTTP contracts. All production identification
+and enrichment routes retain Gemini admission and composition.
 
 ## Deno `/field-trips` Edge Node
 
@@ -1996,9 +2082,20 @@ filtered out server-side. Identification timeline rows include a computed
 `role_label` such as `supporting`, `leading`, `maverick`, or `withdrawn` for
 internal consensus/audit behavior; clients should not expose these labels as
 user-facing copy. The response also includes additive `suggested_taxa` for the
-Suggest ID sheet and the detail header card. The top-level `inference_tier`
-mirrors `scans.inference_tier` so clients can label the card as Naturebook Pro
-or Naturebook Flash; missing or unknown tiers should display as Flash. The first
+Suggest ID sheet and the detail header card. The non-null server-derived
+`ai_confidence_qualified` flag says whether the recorded execution is compatible
+with the established Gemini metric interpretation. Legacy SQL-null provenance
+retains existing behavior; unfamiliar present metadata yields `false`. The
+public projection omits the full execution configuration. When false, every
+suggestion's `confidence_score` is null, candidates retain their recorded order,
+and current iOS shows **AI suggestion** without a percentage or Flash/Pro claim.
+When true, `inference_tier` selects the established Naturebook Pro/Flash label.
+Native omission support is only for the older Gemini-only endpoint. The updated
+Edge route rejects a missing/non-boolean flag or unsupported scores; deploy its
+migration first. Its invoker RPC is executable only by the authenticated Edge
+service caller. Before any alternate provider becomes visible publicly, enforce
+compatible supported public-detail clients or a minimum app version; gating new
+identification requests alone does not protect older readers. The first
 suggestion is the request's `ai_initial` taxon, hydrated from the backing scan's
 `ai_confidence_score` and `ai_reasoning` so clients can frame it as Merian's
 starting identification without borrowing human consensus or alternative
@@ -2231,6 +2328,58 @@ complete-window admission. Keep the configuration unset; deployment, activation
 and the bounded paid run require the separate operations defined in the
 [activation hold](./06-supabase-deployment-runbook.md#audio-comparison-activation-hold).
 
+### Server-owned audio prompt comparison
+
+The separate default-off prompt lane accepts `audio_prompt_comparison` with
+exactly `{ "planSha256": "<generated plan SHA-256>", "slot": 1 }`; slots are
+integers 1–36. `comparison/promptPlan.ts` is generated from the frozen
+[six-case preparation](../rfcs/identification-audio-uncertainty-comparison-plan-2026-09-24.md).
+The client supplies no instruction, model or policy. Arm A keeps
+`identify_audio_v2`; arm B uses `identify_audio_uncertainty_experiment_v1`. Both
+use current DSP, Gemini Pro, the existing audio schema, fixed context and
+unchanged confidence semantics. Identify JSON response DTOs are unchanged.
+
+`comparison/promptAssignment.ts` validates the private
+`IDENTIFICATION_AUDIO_PROMPT_COMPARISON_V1` configuration: exactly `version`
+(`1`), `block` (integer 1–3), `ownerId`, `startsAt`, `expiresAt`, `planSha256`
+and `backendBundleSha256`. UTC timestamps must form a currently active window of
+at most two hours within the generated plan's preparation/retention lifetime.
+The authenticated owner, backend bundle, plan, selected block and derived
+`ac0b0001-` scan UUID must match. Marked requests and reserved IDs are guarded
+before recovery even when configuration or the handle is missing. Internal
+replay is excluded. Both comparison markers together are invalid.
+
+The exact body/context contract is the same as the DSP lane above, replacing
+`audio_comparison` with `audio_prompt_comparison`. Source WAV length/hash and
+current processed WAV hash are checked before reservation. Normal consent,
+entitlement, quota and persistence remain authoritative. Only the first Pro
+reservation without Flash fallback is eligible. Native request, policy and
+confidence hashes must match their generated slot before commitment; expiry is
+rechecked there. Failed setup refunds unused quota; a committed attempt retains
+ordinary settlement rules and never gains a replacement slot. Unmarked ordinary
+requests continue to use their existing binding.
+
+Errors use `409 audio_prompt_comparison_unavailable` for invalid/missing
+configuration (including an invalid block), owner or window;
+`409 audio_prompt_comparison_mismatch` for a slot outside the active block or
+handle, identity, body or media drift; and
+`409 audio_prompt_comparison_excluded` for service replay or a reopened attempt.
+Normal auth/media/quota errors and caller-safe execution failure paths remain
+unchanged. No failed or replayed response receives prompt-comparison proof.
+
+Fresh durable success adds the CORS-exposed `X-Merian-Audio-Prompt-Comparison`
+header. Its version-1 JSON has `planSha256`, `slot`, `block`, `repeat`,
+`caseId`, `arm` (`A` or `B`), `sourceWavSha256`, `processedWavSha256`,
+`providerRequestSha256`, `policySha256` and `confidenceSha256`. The native
+generated table validates every field and emits separate prompt-lane
+receipt/finalization/draw records. The older DSP plan, namespace and receipt
+interpretation remain immutable. The
+[measurement contract](../development-guides/21-identification-app-measurement.md#prompt-comparison-observation)
+defines native subject-state evidence and its limits. Keep the new configuration
+unset until the separate
+[prompt activation prerequisites](./06-supabase-deployment-runbook.md#audio-prompt-comparison-activation-prerequisites)
+are implemented and verified.
+
 ### AI authorization and idempotency
 
 Every authenticated route that can dispatch paid model work uses the same
@@ -2262,6 +2411,179 @@ only while the corresponding owner/scan job is unresolved
 states retain ordinary retention, and successful recovery or explicit operator
 resolution ends the exception.
 
+### Provider-bound identification reservations
+
+The four identification routes build the complete normalized `AIRequest` before
+calling `reserveIdentificationProviderCall` in `_shared/aiQuota.ts`. The helper
+derives a closed `input_profile` from that request; it never reads a provider,
+model, binding or profile selector from HTTP JSON. The service-only
+`reserve_identification_quota` nine-argument overload adds this profile to the
+existing eight admission inputs and returns it with `provider`, `binding` and
+`processor_permission`. An optional recipient-expectation header uses the
+compatible ten-argument overload described below. Public Identify JSON payloads
+remain unchanged.
+
+The backend chooses the assignment. End-user processing permission gates that
+assignment; it cannot select a different provider or fallback. All current
+catalog rows and runtime model/binding allowlists remain Gemini-only.
+`identificationInput.ts` distinguishes descriptions, photos, audio, combined
+photos/audio and video-derived frames/audio; compatibility request variants have
+separate profiles. Capture indications and lineage conservatively keep sampled
+video out of a photo-only lane. This classifies accepted representations, not
+proof of biological identity or cryptographically verified capture provenance.
+
+The registry independently recomputes the profile before preparation. Missing,
+unknown or mismatched fresh assignment metadata fails with
+`503 ai_quota_unavailable` before commitment or dispatch. A missing database
+route or denied recipient consent rolls back reservation, counters and held
+complimentary credit. Transport corruption cannot authorize inference; an
+uncommitted lease retains its existing expiry/refund recovery.
+
+A live or committed reservation returns its existing replay before Edge
+assignment validation, even if the duplicate's input differs. Old snapshots stay
+unknown where metadata was never recorded. A newly metered retry requires its
+previously recorded input profile and gets a separate assignment snapshot under
+current policy; it cannot silently change a photo observation into audio under
+the same request identifier. Completed scan replay still precedes admission. The
+[database schema](./04-database-schema.md#internalai_quota_policies-counters-and-reservations)
+owns catalog keys, private quota cores and retention.
+
+A binding's `minimum_client_protocol` gates fresh work using the existing
+`X-Merian-Entitlement-Protocol` capability claim. Zero adds no restriction, and
+all current Gemini bindings remain zero. Nonzero minima require a recognized
+protocol at or above the binding requirement; rejection uses the existing
+`426 client_update_required` envelope and rolls back quota/complimentary
+effects. The accepted range is currently 1–3; no client protocol bump is
+included. This is compatibility evidence, not authentication or end-user
+provider selection.
+
+Fresh internal retries ignore any worker protocol header. They require accepted
+protocol evidence from the exact original owner's reservation and current
+attempt with the same operation, observation and complete-input profile. Old
+attempts with no evidence stay unknown and cannot unlock a gated assignment.
+Minimum and accepted protocol snapshots remain internal; neither Identify DTOs
+nor RPC return shapes change. In-progress/committed quota replays and completed
+result/status recovery do not re-evaluate current binding minima. Compatibility
+endpoints currently recover through the multimodal endpoint; that changes the
+profile (and audio operation). Such transformations remain supported by current
+zero-minimum Gemini bindings but do not inherit eligibility for a future gated
+binding. Qualifying that recovery path requires a separate durable origin
+mapping and provider review. Before a new app advertises a protocol above 3,
+coordinate the accepted maxima across Edge, SQL and snapshot constraints while
+retaining the global required minimum for older-client recovery. A global
+entitlement cutoff is not a provider switch.
+
+Apply `20260926174645_add_identification_input_routing.sql`,
+`20260926182547_add_identification_recipient_recovery.sql`,
+`20260926200227_add_identification_client_compatibility.sql`,
+`20260926213316_add_identification_recipient_preflight.sql` and their
+predecessor migrations before deploying these Edge callers through the exact-SHA
+release procedure. The legacy eight-argument identification RPC and both
+`reserve_ai_quota` ABIs remain compatible and Gemini-gated. New callers never
+fall back to them if the routing overload is missing. This infrastructure does
+not activate OpenAI or enable consent collection. Future activation also needs
+the recipient preflight below, a qualified client protocol and coordinated
+accepted maximum expansion, qualified model admission, confidence and versioned
+result provenance. The implemented recipient-specific saved-scan recovery
+remains dormant while all assignments are Gemini.
+
+### Assigned-recipient preflight
+
+The additive authenticated RPC `get_my_identification_preflight` prepares a
+future native recipient check. The native identification client calls it during
+request preparation. The existing Capture allowance preview remains unchanged
+and serves a different purpose: this RPC reports recipient readiness, not
+available quota.
+
+| Input                       | Type              | Meaning                                                                           |
+| --------------------------- | ----------------- | --------------------------------------------------------------------------------- |
+| `p_operation`               | text              | `scan_identification`, or `scan_audio_identification` only with `audio_compat_v1` |
+| `p_input_profile`           | text              | One of the nine complete-input profiles below; `legacy_v1` is not a preview input |
+| `p_flash_fallback_eligible` | boolean           | Prospective eligibility for the complete outgoing observation                     |
+| `p_original_analysis_id`    | UUID              | This request's `client_scan_id`, not the parent observation of a refinement       |
+| `p_client_protocol`         | integer, nullable | Client capability claim; null means unknown; non-null values must be 1–1000       |
+
+Accepted profiles are `description_compat_v1`, `vision_compat_v1`,
+`audio_compat_v1`, `multimodal_text_v1`, `multimodal_photo_v1`,
+`multimodal_audio_v1`, `multimodal_photo_audio_v1`, `multimodal_video_frames_v1`
+and `multimodal_video_audio_v1`. Video profiles represent sampled image
+snapshots, plus audio where present, rather than a native-video model input.
+
+Identity comes only from `auth.uid()`. There is no account or provider selector,
+media, description or location input. Shape and eligibility are advisory hints;
+Edge still derives the actual profile and eligibility from validated evidence.
+The RPC returns exactly one row:
+
+| Field                     | Type              | Meaning                                                                                                       |
+| ------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------- |
+| `input_profile`           | text              | Echo of the validated prospective profile; not proof of the saved input shape                                 |
+| `decision`                | text              | `ready`, `permission_required`, `client_update_required`, or `recovery_only`                                  |
+| `processor_permission`    | text, nullable    | App-assigned recipient: `google_gemini` or `openai`; null for recovery-only or a global protocol denial       |
+| `minimum_client_protocol` | integer, nullable | Greater of global and binding requirements; global minimum alone when it denies early; null for recovery-only |
+
+The global supported-protocol gate runs before recovery and entitlement,
+matching public Identify. A caller-owned live or committed reservation then
+returns `recovery_only`, without looking up a new binding or inventing
+historical recipient proof. Fresh work resolves paid/trial, legacy free,
+scan-specific held/consumed complimentary funding, available complimentary
+credit, then eligible Flash. It checks the exact policy binding, client
+compatibility and the assigned recipient's current consent stream. Missing or
+disabled bindings raise `ai_provider_assignment_unavailable`; denied entitlement
+raises `ai_entitlement_required`; invalid shape/required inputs raise
+`identification_preflight_invalid_request` (`22023`); missing identity raises
+`authentication_required` (`42501`). These are PostgREST errors, not Edge error
+envelopes. Consumers must fail closed on missing, malformed or unknown results.
+
+`ready` is advisory. Preflight creates no reservation, counters, credit hold,
+consent event or provider call. It neither promises daily/rate allowance nor
+records approval of a provider. The app owns assignment; processing permission
+can only allow or block that assigned recipient.
+
+A client integrating this contract sends the checked recipient in
+`X-Merian-Identification-Recipient`, or `recovery_only` for recovery-only work.
+The shared Edge admission helper accepts exactly `google_gemini`, `openai`, or
+`recovery_only`; other values return `400 ai_identification_preflight_invalid`
+if admission is reached. The header is an untrusted, denial-only expectation,
+not a signed preflight token or evidence of consent. It never changes
+assignment. The service-only ten-argument reservation compares it to the fresh
+binding within the existing quota transaction. A mismatch, including
+recovery-only after a reservation expires or is pruned, returns
+`409 ai_identification_preflight_changed` and rolls back counters, reservation,
+attempt and complimentary-hold effects. It creates no provider lease or
+automatic fallback. A change of model within the same permitted recipient is not
+rejected by this recipient-only check; all other admission and qualification
+gates apply.
+
+Live/committed duplicates retain non-dispatchable replay behavior. Completed
+result lookup remains before admission. Refunded, failed and expired requests
+require fresh admission. Headerless clients continue through the nine-argument
+ABI, and eight-argument workers remain compatible; a caller using the new header
+never falls back to an older overload on failure.
+
+Native `identify` and `identify-multimodal` preparation derives this metadata
+from the exact outgoing body off-main. The authenticated fixed-route RPC uses
+the configured pinned Supabase transport and a five-second request timeout. A
+missing RPC, unavailable response, unknown decision, wrong profile or malformed
+row blocks inference; there is no headerless fallback. The expectation survives
+live request reconstruction, Auth/transport retries and the prepared background
+URLRequest. Foreground attempts recheck the local owner, exact live generation
+and recipient permission before each dispatch. Background preparation rechecks
+queue generation and the local gate after each dispatch-related suspension;
+completed-result recovery still comes first.
+
+`409 ai_identification_preflight_changed` preserves the observation and lets
+durable recovery prepare a new request with a fresh preflight. Permission and
+`426 client_update_required` denials pause the saved scan without recording a
+network circuit failure. A late local withdrawal after background activation
+must save needs-attention before releasing its durable owner. These controls
+cannot choose another provider or collect permission. Existing required Gemini
+onboarding/synchronization, native protocol 3 and disabled OpenAI collection
+remain in place; this is not an OpenAI activation path. Confidence
+interpretation and deliberate permission collection remain separate
+prerequisites. Deploy the additive backend contract before distributing a native
+build that requires it. See the
+[native implementation record](../rfcs/identification-native-recipient-preflight-2026-09-26.md).
+
 ### Scan response replay
 
 The `identify-multimodal`, `identify-describe`, `identify`, and `audio-spec`
@@ -2277,10 +2599,40 @@ safety and model/tier settings and legacy audio prompt/token budgets remain
 separate profiles. `audio-spec` retains the `scan_audio_identification` quota
 operation; the other identification routes retain `scan_identification`.
 Compatibility replay intents still target the primary endpoint under its
-existing admission and recovery rules. Execution/version facts are internal
-optional telemetry; no provider-selection request field or new Identify
-response/DTO field is introduced. The admission and replay rules below remain
-authoritative.
+existing admission and recovery rules. Successful execution configuration is
+also saved as bounded immutable `scans.identification_provenance` with an atomic
+ingestion-job recovery copy. These fixed facts share the scan's existing Data
+API visibility; they contain no evidence or owner/attempt identifiers. Client
+`recovery_scan` cannot assert provenance: missing scan insertion reads only the
+exact server-owned backup, and legacy/no-backup results remain null. Fresh
+Identify envelopes now include optional `data.identification_provenance` from
+that same admitted execution snapshot. The executable contract and generated
+Swift DTO own its closed version-1 shape: bounded provider/binding/model,
+variant/operation/policy, prompt/schema/confidence references, nullable
+diagnostic and safety settings, timeout, and generation settings. The value
+contains no observation or personal data and never enters the model-output
+schema. Omission means legacy; an explicitly null or malformed Identify field is
+rejected. Required nullable settings retain explicit null when decoded and
+re-encoded. Stored envelopes retain their original metadata or original
+omission. Older completed jobs reconstruct from the immutable owner scan column;
+null/missing columns omit the field, while damaged present metadata fails
+validation. Neither path consults today's provider assignment or makes an
+inference request.
+
+Owner history selects the same column. SwiftData V52 stores its content-free
+JSON bytes in optional `LocalScanRecord.identificationProvenanceData`; V51 rows
+migrate to nil. Missing legacy cloud metadata cannot erase an existing value.
+Malformed history rows remain quarantined with raw-row pagination intact.
+Recognized exact Gemini profiles retain the existing confidence presentation;
+unknown or damaged present profiles use neutral review guidance. Absence keeps
+legacy behavior. This compatibility rule is not empirical calibration, and
+public Explore suggestion projections still require separate qualification
+before another provider is enabled. See the
+[server provenance record](../rfcs/identification-provider-result-provenance-2026-09-26.md)
+and
+[client integration record](../rfcs/identification-client-result-provenance-2026-09-26.md)
+for rollout order and remaining activation work. The admission and replay rules
+below remain authoritative.
 
 `/identify-multimodal`, `/identify`, `/identify-describe`, and `/audio-spec` use
 the canonical scan UUID as both the response identity and paid-provider request
@@ -2385,8 +2737,10 @@ has succeeded and only when its version is not stale.
 
 Flash fallback is server-classified from the accepted evidence shape. It uses
 the independent daily free policy and returns `plan_used = "free"`; an exhausted
-balance does not authorize fallback for video, mixed/multi-item, or Pro-only
-work.
+balance permits a non-video photo or standalone audio plus at most one note, or
+one description alone, only while that daily allowance remains. Video-derived
+evidence, additional physical media, multiple descriptions, and Pro-only work
+remain ineligible.
 
 The normative balance equations, settlement rules, offline behavior, and rollout
 fence are in [`18-complimentary-pro-scans.md`](./18-complimentary-pro-scans.md).
@@ -2619,8 +2973,8 @@ requires an internal `audio_subject_type` discriminator so Human breathing can
 be distinguished from unresolved non-human wildlife without reading model
 reasoning. The discriminator is validated, consumed, and removed before payload
 assembly. The wire shape is unchanged; no audio-only response field, DTO,
-database column, or schema version is introduced, and the image/Describe model
-contract remains generic.
+database column, or public wire version is introduced, and the image/Describe
+model contract remains generic.
 
 | Primary audio evidence                                            | `is_biological_subject` | `common_name`           | `scientific_name` |
 | ----------------------------------------------------------------- | ----------------------- | ----------------------- | ----------------- |
@@ -2628,6 +2982,23 @@ contract remains generic.
 | Confident non-human animal presence with unresolved species       | `true`                  | `Unidentified Wildlife` | Omitted / `null`  |
 | Human-only biological sound                                       | `true`                  | `Human`                 | `Homo sapiens`    |
 | No confident biological source                                    | `false`                 | `No Wildlife Detected`  | Omitted / `null`  |
+
+Audio confidence V2 defines the existing `confidence_score` by result state:
+
+| Audio result                   | Confidence target                                         | Species-match presentation |
+| ------------------------------ | --------------------------------------------------------- | -------------------------- |
+| Identified non-human           | Returned taxon, supported by diagnostic acoustic evidence | Existing tier bands        |
+| Unidentified non-human         | Non-human animal presence only                            | Hidden                     |
+| Human only                     | Returned Human identity                                   | Existing Human badge       |
+| No confident biological source | Source-classification decision                            | Hidden                     |
+
+Clear animal presence cannot inflate confidence in a guessed taxon. When calls
+cannot support taxonomy, return unresolved wildlife; location, season and local
+abundance cannot inflate acoustic confidence. These scores remain model
+estimates, not calibrated probabilities. Parsing checks shape and bounds, not
+acoustic truth. Both audio-only prompts and the private schema share this
+definition; blended image/audio retains its separate contract. No stored or
+replayed score is rewritten.
 
 A confidently detected non-human animal always outranks Human in the same
 recording. Human-only speech, breathing, coughing, snoring, or another
@@ -2658,7 +3029,11 @@ taxonomy, Human taxonomy (including legacy malformed `Homo sapien`), and a Human
 user override. Ask the Community reuses that server validator. `/insight-chat`
 independently requires a resolved, non-Human selected taxonomy rather than
 relying on toolbar visibility. Neither endpoint derives eligibility from stored
-reasoning.
+reasoning. Field Trip progress independently requires resolved non-Human
+taxonomy and the existing tier threshold or explicit confirmation. High presence
+confidence and confirmation cannot override an ineligible subject. Human
+override edits also invalidate the atomic progress receipt and withdraw prior
+credit.
 
 **Processed-material guardrail**: The identify routes demote manufactured or
 processed objects to `is_biological_subject=false` before cache lookup,
@@ -6615,7 +6990,13 @@ rejection reaches waiters and a new attempt requires fresh admission. An
 observer also handles failures when no waiter exists. Existing usage writes add
 bounded task/provider/version/duration/outcome metadata. Internal execution
 metadata is excluded by the public response formatters; no request or response
-field changes.
+field changes. The independent `sharedContent.ts` acceptance guard requires the
+retained Gemini content profiles before quota commitment; unsupported profiles
+refund without invocation. This guard covers foreground enrichment, optional
+group tags and claimed public refresh jobs. Existing canonical cache content is
+not relabeled or invalidated. Warm-isolate coalescing uses task/profile
+namespace, canonical species ID (or name fallback), exact input name, locale and
+taxonomy fields, so materially different inputs do not share a pending result.
 
 **Scoped Cache Hits**: Each request checks its own cache requirements and
 returns only that scope's fields without AI work when satisfied. A metadata
@@ -7020,6 +7401,14 @@ scan, including after an identification correction. They do not establish
 physical measurements without supporting scale evidence or imply fresh image
 inspection. This internal context addition requires no HTTP payload change, scan
 backfill, or extra AI call; Explore and Dictionary projections are unchanged.
+
+Private Field Chat also reads the saved inference tier and result provenance to
+qualify metric interpretation. Only historical SQL-null or exact qualified
+Gemini configurations at policy version 1 keep primary/candidate, sex/invasive
+confidence and model image-quality values. Unknown or missing metadata supplies
+unavailable metric values and bounded descriptive candidate names/features.
+Stored observations, reasoning, confirmation and local blur/zoom remain usable.
+Full execution configuration is not added to any prompt.
 
 Location-aware answers may use only the saved private location label, month,
 elevation, ecology type, and weather. The prompt explicitly forbids inferring,
@@ -7550,7 +7939,7 @@ tombstone purge remain in `BackgroundDatabaseActor+CollectionSync.swift`.
 }
 ```
 
-The active iOS V51 model names the durable application value
+The active iOS V52 model names the durable application value
 `ScanCollection.isPendingDeletion` and maps it to the released SwiftData
 `isDeleted` column with `@Attribute(originalName:)`. The two released V50 model
 graphs differ only in their Swift-side property name and keep that same physical
@@ -9821,6 +10210,12 @@ This empty-body contract is also bounded by the shared small JSON reader.
   cardinality/URL size, interaction-array cardinality/element size, and selected
   taxonomy text in UTF-8 bytes. Failed jobs purge immutable source DTOs;
   completed DTOs remain only through their live grant and verified cleanup.
+- New immutable occurrence DTOs freeze the private `ai_confidence_qualified`
+  boolean beside the source score. The worker rejects malformed present flags,
+  leaves confidence-derived `identificationVerificationStatus` blank for false,
+  and preserves old snapshots whose flag is absent. It adds no public provider
+  metadata or new archive columns, and does not reinterpret existing jobs using
+  current routing. Deploy the matching worker before alternate results exist.
 - Opaque application capability URLs remain in API-inaccessible work state while
   processing. The final full-fence transaction publishes `file_url` and
   `completed` status atomically. The capability points to `download-dwca`, never
@@ -10444,10 +10839,13 @@ Manual service-role calls may also include:
    location, but private backing scans are not promoted into Merian reference
    imagery.
 3. It unnests all non-empty `scans.image_storage_urls`, requires
-   `image_quality_score >= 80` and `ai_confidence_score >= 0.95` by default
-   unless `confirmed_species_id` is present, dedupes by
-   `(species_id, image_url)`, and promotes up to 8 images per species. Public
-   videos are intentionally excluded from Dictionary/reference galleries.
+   `image_quality_score >= 80` and either `ai_confidence_score >= 0.95` or a
+   resolved `confirmed_species_id` by default. Both dry-run and live promotion
+   require compatible recorded Gemini metrics or legacy-null provenance.
+   Confirmation bypasses the species-confidence threshold, never an unfamiliar
+   image-quality scale. The worker dedupes by `(species_id, image_url)`, and
+   promotes up to 8 images per species. Public videos are intentionally excluded
+   from Dictionary/reference galleries.
 4. Public rows use the stable technical `source = "merian"`,
    `license = "Used with permission via Naturebook"`, and
    `attribution = users.public_author_name`. This intentionally preserves the
@@ -10723,6 +11121,21 @@ Every remaining RPC calls `internal.require_admin`, which verifies:
 the requested IANA timezone; AI summary daily rows currently use database time.
 `p_scan_scope` is `primary` or `all_scan_related`. Authorized results are cached
 for five minutes by the full filter key; `p_refresh = true` bypasses the cache.
+
+Both RPCs add `priced_events` and `unpriced_events` beside `events` and
+`estimated_cost_microusd` in each AI total and daily row; Overview includes the
+same fields in `previous_period`. The numeric sum includes only known prices.
+Consumers must distinguish zero events, zero priced events, and a partial sum;
+missing coverage fields must not imply full coverage. AI Usage adds
+`provider_usage`, at most 50 aggregate objects containing `provider`, `model`,
+`attribution`, `events`, `total_tokens`, both coverage counts and the cost sum.
+`provider_groups_truncated` signals omitted groups, which still count in totals.
+Attribution is `saved_result`, `legacy_tier`, `execution_metadata`,
+`legacy_model`, or `unknown`. Provider identity is a bounded configuration
+label, never an owner identifier. No raw ledger row or observation content is
+returned. New versioned cache keys retain the five-minute TTL and
+authorization-before-cache behavior. AI Usage encodes the complete filter tuple
+structurally, preserving delimiters and distinguishing null from a literal `*`.
 
 ### Review RPCs
 

@@ -19,6 +19,59 @@ struct OfflineQueueManagerTests {
         let updatedAt: Date
     }
 
+    @Test(arguments: [false, true])
+    func openAIDenialPreservesQueuedMediaAndFunding(stale: Bool) async throws {
+        let manager = OfflineQueueManager.shared
+        let originalContext = manager.modelContext
+        let originalIsOnline = manager.isOnline
+        let context = try createIsolatedContext()
+        manager.isOnline = false
+        let scanId = UUID().uuidString.lowercased()
+        let generation = UUID()
+        let currentGeneration = stale ? UUID() : generation
+        let resultURL = URL.temporaryDirectory.appendingPathComponent("\(UUID()).json")
+        defer {
+            try? FileManager.default.removeItem(at: resultURL)
+            manager.activeInferenceGenerations[scanId] = nil
+            manager.retiredInferenceGenerations.remove(generation)
+            manager.inferenceCompletionGenerations[scanId] = nil
+            OfflineJobScheduler.shared.cancelScheduledWake(using: manager)
+            manager.isOnline = originalIsOnline
+            manager.modelContext = originalContext
+        }
+        let scan = OfflineQueuedScan(
+            id: scanId, scanState: .staged, inferenceImagePaths: ["synthetic-image.webp"]
+        )
+        let funding = ScanFundingReservation(
+            accountId: UUID(), scanId: scanId, source: .complimentaryPro, createdAt: Date()
+        )
+        let metadata = try #require(OfflineScanJobMetadataContract.json(
+            generation: currentGeneration, funding: funding
+        ))
+        let job = OfflineJobRecord(
+            id: OfflineQueueManager.scanIngestionJobId(scanId: scanId),
+            kind: .scanIngestion, subjectId: scanId, status: .pending, metadataJSON: metadata
+        )
+        context.insert(scan)
+        context.insert(job)
+        try context.save()
+        manager.activeInferenceGenerations[scanId] = currentGeneration
+        try Data(#"{"code":"ai_openai_consent_required"}"#.utf8).write(to: resultURL)
+        await manager.processInferenceDownloadResult(
+            scanId: scanId, generation: generation, resultFileURL: resultURL, statusCode: 403
+        )
+        #expect(!FileManager.default.fileExists(atPath: resultURL.path))
+        #expect(scan.inferenceImagePaths == ["synthetic-image.webp"])
+        #expect(job.metadataJSON == metadata)
+        #expect(scan.queueState == (stale ? .staged : .failed))
+        #expect(scan.queueNeedsAttention == !stale)
+        #expect(scan.queueLastErrorCode == (stale ? nil : "ai_openai_consent_required"))
+        #expect(scan.queueNextRetryAt == nil)
+        #expect(job.nextRunAt == nil)
+        #expect(job.status == (stale ? .pending : .needsAttention))
+        #expect(manager.activeInferenceGenerations[scanId] == (stale ? currentGeneration : nil))
+    }
+
     @Test func queueDiagnosticsExportOmitsPrivateAndFreeFormValues() throws {
         let manager = OfflineQueueManager.shared
         let originalContext = manager.modelContext
@@ -284,6 +337,7 @@ struct OfflineQueueManagerTests {
         let newestOwnedId = UUID().uuidString.lowercased()
         let newerOtherAccountId = UUID().uuidString.lowercased()
         let newestUnrelatedId = UUID().uuidString.lowercased()
+        let openAIPausedId = UUID().uuidString.lowercased()
 
         let candidates = [
             ConsentResumeCandidate(
@@ -309,6 +363,11 @@ struct OfflineQueueManagerTests {
                 ownerID: accountId,
                 errorCode: "upload_http_403",
                 updatedAt: Date(timeIntervalSince1970: 400)
+            ),
+            ConsentResumeCandidate(
+                scanID: openAIPausedId, ownerID: accountId,
+                errorCode: "ai_openai_consent_required",
+                updatedAt: Date(timeIntervalSince1970: 500)
             )
         ]
         for candidate in candidates {
@@ -363,6 +422,15 @@ struct OfflineQueueManagerTests {
         #expect(scansById[newerOtherAccountId]?.queueNeedsAttention == true)
         #expect(scansById[newestUnrelatedId]?.queueState == .failed)
         #expect(scansById[newestUnrelatedId]?.queueNeedsAttention == true)
+        #expect(scansById[openAIPausedId]?.queueState == .failed)
+        #expect(scansById[openAIPausedId]?.queueNeedsAttention == true)
+        #expect(scansById[openAIPausedId]?.queueLastErrorCode == "ai_openai_consent_required")
+        #expect(scansById[openAIPausedId]?.inferenceImagePaths == ["\(openAIPausedId).webp"])
+        let openAIJob = try #require(try ctx.fetchOfflineJob(
+            id: OfflineQueueManager.scanIngestionJobId(scanId: openAIPausedId)
+        ))
+        #expect(openAIJob.status == .needsAttention)
+        #expect(OfflineScanJobMetadataContract.funding(in: openAIJob.metadataJSON)?.accountId == accountId)
     }
 
     @Test func consentReapprovalSkipsUnownedOrUnfundedScans() throws {

@@ -47,6 +47,16 @@ and native provider duration. Scan-row usage meanings are unchanged, including
 null cached tokens for this route even when provider usage includes a cache
 count.
 
+## Audio Confidence V2
+
+The compatibility assignment uses `identify_audio_compat_v2`, `merian_audio_v2`,
+and `gemini_audio_compat_v2`. Named animals score acoustic support for the
+returned taxon; unresolved wildlife scores presence, Human scores Human
+identity, and non-biological audio scores its source classification. The
+prompt/schema definition is shared with primary audio. The compatibility
+candidate cutoff remains `0.95`; primary audio retains `0.99`. No stored or
+replayed score is changed.
+
 ## Subject Selection Compatibility
 
 This route imports the same `_shared/identify/audioSubjectPolicy.ts`
@@ -176,3 +186,13 @@ do not establish real database concurrency or hosted behavior.
 
 The normative joined success, replay, recovery, and rollout contract is
 [`docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md`](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md).
+
+## Result provenance
+
+Fresh success includes optional `data.identification_provenance`, projected from
+the immutable admitted execution before final wire validation and durable
+finalization. It matches the scan's bounded configuration metadata, never model
+output or request JSON. Stored replay preserves its original value or omission;
+reconstruction uses the immutable scan column and omits legacy null. Explicit
+null or damaged present wire metadata fails validation. See the
+[client integration record](../../../../docs/rfcs/identification-client-result-provenance-2026-09-26.md).
