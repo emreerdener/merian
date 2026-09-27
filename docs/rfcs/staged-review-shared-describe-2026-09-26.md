@@ -146,12 +146,12 @@ normal constraints when disabled. Verify paywall carousel after slide removal.
 Exercise VoiceOver, larger text, overflow, glass, and reduced-effect fallbacks
 on devices/simulators.
 
-Implementation branch: `codex/capture-staged-review`. The implementation SHA and
-final native-suite result are recorded in the validation follow-up. The app and
-test targets build on Xcode 27 / iOS 27. Successful UI evidence covers shared
-Describe staging/editing, confirmed discard, note focus at physical capacity,
-keyboard Done, and accessibility XXXL tray overflow with both fixed actions
-visible. The two existing Describe focus/first-launch tests also passed.
+Implementation branch: `codex/capture-staged-review`. Implementation commit:
+`5c0f6b71a16a59b70789a085785b49c76849d09e`. The app and test targets build on
+Xcode 27 / iOS 27. Successful UI evidence covers shared Describe
+staging/editing, confirmed discard, note focus at physical capacity, keyboard
+Done, and accessibility XXXL tray overflow with both fixed actions visible. The
+two existing Describe focus/first-launch tests also passed.
 
 Backend validation: 2,109 Deno tests and 265 steps passed; six
 database-dependent tests were ignored. Recursive frozen function type checks,
@@ -169,3 +169,40 @@ iOS 17.2 coverage, database-dependent checks, and physical-device VoiceOver,
 older-iOS/reduced-effect visual review. Server eligibility must be released
 through the existing exact-SHA gates before client distribution; no deployment
 or publication is included in this change.
+
+### Native validation status at handoff
+
+The full native gate is **not green**. The initial complete run executed 1,366
+XCTest tests and 3,006 Swift Testing tests. It reported an authentication facade
+failure, an architecture line-budget violation, and two obsolete replay
+file-ownership assertions. The latter three assertions were corrected and their
+focused suites passed. The authentication facade passed unchanged on a fresh
+simulator; it failed on the earlier simulator with accumulated durable fixture
+state.
+
+The latest focused run passed all 118 Swift Testing tests in 11 suites and 91 of
+92 XCTest tests, including the new historical-note ordering and full-media
+supplement cases. Its remaining failure was an old refinement fixture that
+counted historical text against physical capacity. That fixture now stages two
+physical items. A final regression was also added for individually removing the
+last media item: subsequent Describe typing must remain unstaged. These last
+fixture/reset changes require the final build and native rerun.
+
+The two new UI flows passed on iOS 27 before those last fixture/reset changes:
+shared Describe editing plus confirmed discard, and note access at capacity with
+accessibility XXXL text. The keyboard test exposed and verified a real fix: a
+dedicated keyboard-toolbar Done action dismisses the multiline editor.
+Successful screenshots were visually inspected. These checks do not substitute
+for physical-device VoiceOver or older-OS material/thermal-effect review.
+
+The final complete native rerun was attempted twice but refused by
+`scripts/local-ios-build.py` because another task's main-checkout `xcodebuild`
+was active. At handoff it was collecting `simctl diagnose` output; it was not
+interrupted. Re-run through `make ios-local-build` on a fresh simulator once
+that process releases the shared guard, using
+`test -only-testing:merianTests
+-parallel-testing-enabled NO -collect-test-diagnostics never`,
+then rerun the two new UI selectors after any further UI changes. Use the
+wrapper's normal checkout-local cache; do not bypass its concurrency guard. This
+native gate is required before merge/distribution, in addition to the dependency
+release evidence listed above.
