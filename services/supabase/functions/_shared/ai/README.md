@@ -253,7 +253,12 @@ work.
 ## Usage and diagnostics
 
 Returned token counts retain Gemini's existing interpretation, including null
-for missing counts; modality breakdown and scan-row accounting are unchanged.
+for missing counts; modality breakdown retains its existing meaning. New primary
+scan ledger entries use saved execution model/provider references; absent legacy
+provenance alone falls back to tier-derived Gemini attribution. Historical rows
+remain unchanged. Pricing eligibility is Gemini-contract-specific and unknown
+prices remain null. Admin aggregates expose priced/unpriced coverage; see the
+[accounting record](../../../../../docs/rfcs/identification-provider-usage-attribution-2026-09-26.md).
 The image compatibility route retains cached-token counts; legacy audio keeps
 its existing null cached-token scan field. Bounded execution/version fields are
 added to the existing optional `ScanCompleted` telemetry for image/description,

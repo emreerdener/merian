@@ -11104,6 +11104,21 @@ the requested IANA timezone; AI summary daily rows currently use database time.
 `p_scan_scope` is `primary` or `all_scan_related`. Authorized results are cached
 for five minutes by the full filter key; `p_refresh = true` bypasses the cache.
 
+Both RPCs add `priced_events` and `unpriced_events` beside `events` and
+`estimated_cost_microusd` in each AI total and daily row; Overview includes the
+same fields in `previous_period`. The numeric sum includes only known prices.
+Consumers must distinguish zero events, zero priced events, and a partial sum;
+missing coverage fields must not imply full coverage. AI Usage adds
+`provider_usage`, at most 50 aggregate objects containing `provider`, `model`,
+`attribution`, `events`, `total_tokens`, both coverage counts and the cost sum.
+`provider_groups_truncated` signals omitted groups, which still count in totals.
+Attribution is `saved_result`, `legacy_tier`, `execution_metadata`,
+`legacy_model`, or `unknown`. Provider identity is a bounded configuration
+label, never an owner identifier. No raw ledger row or observation content is
+returned. New versioned cache keys retain the five-minute TTL and
+authorization-before-cache behavior. AI Usage encodes the complete filter tuple
+structurally, preserving delimiters and distinguishing null from a literal `*`.
+
 ### Review RPCs
 
 | RPC                            | Important parameters                                                       | Minimum role |

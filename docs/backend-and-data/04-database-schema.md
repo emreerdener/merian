@@ -4138,7 +4138,15 @@ normalized modality breakdown:
 ```
 
 Missing Gemini detail arrays normalize to empty objects; no prompt or response
-content belongs in this field.
+content belongs in this field. New primary scan events copy model/provider and
+bounded execution references from saved `identification_provenance` into the
+existing model/metadata fields; only absent legacy provenance infers Gemini from
+tier. `ai_attribution` distinguishes recorded provenance from that fallback.
+Historical rows remain unchanged. The pricing writer requires the Gemini usage
+contract, a known modality, prompt/candidate counts and consistent cached
+counts. An unsupported provider (even with a Gemini model name), usage mapping
+or tariff retains a null estimate/version. Provider attribution survives account
+anonymization without identifying linkage.
 
 The unique key `(source_type, source_id, operation)` makes durable retries and
 backfills idempotent. Indexes cover event time, operation/time, scan, and
@@ -5188,8 +5196,10 @@ changes must close the old row and insert a new version in one migration.
 
 `admin_aggregate_cache` stores a private JSON payload by cache key and
 `created_at`. Overview and AI summary RPCs accept cache entries only for five
-minutes after authorization. Raw review/feedback/user/audit results never use
-this cache.
+minutes after authorization. Provider-coverage payloads use versioned keys;
+totals and daily rows carry priced/unpriced event counts beside partial cost
+sums. AI Usage adds at most 50 provider/model/attribution groups plus a
+truncation flag. Raw review/feedback/user/audit results never use this cache.
 
 ### Moderation and durable usage columns
 

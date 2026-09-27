@@ -37,11 +37,13 @@ current results remain Gemini. The existing snapshot bounds, owner/lease fences,
 privacy invalidation and download controls remain in force.
 
 This implementation performs no paid inference or hosted mutation. Benchmarks
-are unchanged. Provider-aware accounting, explicit unknown-price coverage, and
-shared content-cache qualification are the next infrastructure work; actual
-alternative-provider activation still needs a matched qualified benchmark,
-appropriate disclosures, supported clients, and an explicitly authorized
-release.
+are unchanged. Provider-aware accounting and explicit unknown-price coverage are
+implemented in the
+[following slice](./identification-provider-usage-attribution-2026-09-26.md).
+Shared content-cache qualification remains before assigning a different
+provider; actual alternative-provider activation still needs a matched qualified
+benchmark, appropriate disclosures, supported clients, and an explicitly
+authorized release.
 
 ## Verification
 

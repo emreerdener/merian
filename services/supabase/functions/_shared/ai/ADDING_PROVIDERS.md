@@ -132,6 +132,15 @@ canonical identities, accepted provenance, and invalidation rules must be
 compatible. Changing the binding alone does not regenerate or revalidate cached
 content. Preserve separate user and public-job attribution.
 
+New primary scan ledger entries now copy saved model/provider/binding/policy/
+prompt/schema references, with explicit legacy-tier fallback only when
+provenance is absent. Admin totals/daily rows expose unknown-price coverage and
+bounded provider/model/attribution groups. The writer prevents another provider
+borrowing a Gemini tariff through a model-name collision. These changes preserve
+historical rows and current Gemini units; they do not add another provider's
+pricing. See the
+[accounting record](../../../../../docs/rfcs/identification-provider-usage-attribution-2026-09-26.md).
+
 Map usage units and prices explicitly, including cached input, reasoning, tool,
 image, and audio components. Missing values remain unknown. Content helpers
 currently project normalized counts back into the legacy usage shape for
