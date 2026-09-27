@@ -1,8 +1,9 @@
 # OpenAI photo integration
 
 Date: 27 September 2026\
-Status: dormant photo routing, native capability, safety, V2 metadata and
-saved-result usage integration implemented; production remains Gemini.
+Status: dormant photo routing, native capability, safety, V2 metadata,
+saved-result usage integration and result-reader checks implemented; production
+remains Gemini.
 
 ## Decision
 
@@ -67,12 +68,13 @@ retains its original source and hash.
 ## Remaining slices
 
 1. **Finish activation prerequisites.** The dormant connection described below
-   is implemented. Resolve historical/public reader compatibility,
-   failed/uncertain attempt accounting and effective-dated native pricing.
-   Prepare the exact GitHub-to-Supabase secret synchronization and disclosure
-   collection through existing release owners. The source gate remains false and
-   all assignments remain Gemini. A secret, consent grant or catalog edit cannot
-   enable dispatch.
+   is implemented, including the result-reader boundary below. Finish
+   failed/uncertain attempt accounting and effective-dated native pricing, and
+   release/verify the compatible reader before activation. Prepare the exact
+   GitHub-to-Supabase secret synchronization and disclosure collection through
+   existing release owners. The source gate remains false and all assignments
+   remain Gemini. A secret, consent grant or catalog edit cannot enable
+   dispatch.
 
 2. **Qualification and controlled activation.** Freeze the precise supported
    photo envelope, quality/safety/failure/latency/cost acceptance limits and a
@@ -164,13 +166,44 @@ introduced. Failed/uncertain attempts that never save a scan still have the
 previously documented accounting gap; closing that gap and qualifying pricing
 are activation requirements.
 
-**History compatibility remains a blocker.** Older protocol-3 apps read
-`identification_provenance` directly from PostgREST and cannot decode V2. Gating
-a new identification request does not protect another older device reading that
-account's history. Resolve this with a reviewed reader rollout/history
-projection before emitting V2 results. Do not omit provenance and thereby
-restore legacy Gemini confidence meanings. No SwiftData schema migration is
-required.
+**The connection slice identified a history blocker.** Older protocol-3 apps
+read `identification_provenance` directly from PostgREST and cannot decode V2.
+Gating a new identification request does not protect another older device
+reading that account's history. Resolve this with a reviewed reader
+rollout/history projection before emitting V2 results. Do not omit provenance
+and thereby restore legacy Gemini confidence meanings. No SwiftData schema
+migration is required. The following slice implements the read boundary; its
+release remains an activation prerequisite.
+
+## Result-reader compatibility slice
+
+The new migration retains the existing owner/public visibility predicates and
+adds a current-reader check for visible V2 rows. Null/V1 reads continue
+unchanged. A visible V2 row without exact identification protocol 4 fails the
+entire query with `426 client_update_required`, even if the query omits
+provenance. It never silently removes observations from a mixed page or
+reinterprets their scores. Private/non-live/tombstoned rows that were already
+invisible remain invisible without a capability error. Service projections keep
+their existing access.
+
+The native SDK factory shares the dispatch capability constant and sends it on
+history, single-scan and metadata-update requests. Actual SDK requests are
+covered using an isolated URLSession transport. All four Edge endpoints also
+check the current reader for stored or reconstructed completed results,
+including concurrent completion and ingestion recovery. The primary handler
+checks fresh V2 emission as well. Only the existing service-authenticated replay
+worker bypasses client decoding; its original admission proof remains required
+to do provider work.
+
+This boundary deliberately requires older apps to update when they encounter a
+newer result. Already installed binaries may show a generic sync failure; local
+observations remain intact, but fresh/mixed history cannot finish hydrating
+until updated. The implementation cannot retrofit an upgrade UI into those
+binaries. Ship and verify the capable reader before enabling OpenAI, and
+preserve the reader/guard during provider rollback while V2 results exist. There
+is no SwiftData migration or rewrite of existing provider/confidence facts. The
+[API contract](../backend-and-data/05-api-contracts.md#identification-result-readers)
+owns the exact request and error semantics.
 
 ## Video snapshots as an additional visual route
 
@@ -207,6 +240,29 @@ Preserve readers for any OpenAI results already saved; rollback must not rewrite
 their scores or delete observations.
 
 ## Verification
+
+The result-reader slice passed **2,148 Edge tests plus 342 steps**, including
+all four endpoints' initial, quota-race and ingestion-race replay paths. The
+complete disposable migration replay and **415 database assertions across 65
+files** passed. Tests switch to actual anonymous, authenticated and service
+roles and cover mixed pages, omitted metadata projections, private/public
+visibility, malformed headers, metadata edits and unchanged scores. Database
+lint found no errors; advisor error gates passed with 103 security and 79
+performance warnings. The complete tooling suite, 355 migration-contract tests,
+all 101 function entrypoint checks, regenerated runtime identity, DTO/media
+contracts, recursive formatting/lint and Markdown checks also passed.
+Independent read-only review verified the SQL/native boundary and the
+service-client replay fix.
+
+The new native SDK request test and relevant preflight/provenance suites passed:
+**21 Swift Testing cases across four suites**. The complete native rerun was
+attempted but the repository build wrapper refused to start while another
+checkout's Xcode build used the shared simulator. That build was left running;
+the prior complete native result below does not certify this reader slice.
+Hosted native checks and reader-first release verification remain separate. This
+slice made no paid provider request, deployment or production mutation.
+
+### Earlier dormant connection evidence
 
 The dormant connection slice passed **2,145 Edge tests plus 286 steps**, a
 complete disposable migration replay, and **407 database assertions across 64

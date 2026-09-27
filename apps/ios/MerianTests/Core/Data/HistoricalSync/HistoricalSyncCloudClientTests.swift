@@ -1,4 +1,5 @@
 import Foundation
+import Supabase
 import Testing
 
 @testable import Merian
@@ -6,6 +7,27 @@ import Testing
 @MainActor
 @Suite("Historical Sync Cloud Client")
 struct HistoricalSyncCloudClientTests {
+    @Test func sdkScanReadsCarryTheResultReaderCapability() async throws {
+        let transport = ScopedMockTransport()
+        let session = transport.makeSession()
+        defer { session.invalidateAndCancel() }
+        transport.register(path: "/rest/v1/scans") { request in
+            #expect(request.value(forHTTPHeaderField: "X-Merian-Identification-Protocol") == "4")
+            #expect(request.value(forHTTPHeaderField: "X-Merian-Identification-Recipient") == nil)
+            #expect(request.value(forHTTPHeaderField: "X-Merian-Entitlement-Protocol") == nil)
+            let url = try #require(request.url)
+            return (try #require(HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)), Data("[]".utf8))
+        }
+        let client = MerianSupabaseClientFactory.makeClient(session: session)
+        let page = try await client.from("scans").select("id, identification_provenance")
+            .range(from: 0, to: 199).execute().data
+        #expect(page == Data("[]".utf8))
+        let record = try await client.from("scans").select("id, identification_provenance")
+            .eq("id", value: "00000000-0000-0000-0000-00000000bc13")
+            .limit(1).execute().data
+        #expect(record == Data("[]".utf8))
+    }
+
     @Test func forwardsLeaseAndRequestValuesThroughInjectedHandlers() async throws {
         let lease = AccountBoundWorkLease(
             id: UUID(),

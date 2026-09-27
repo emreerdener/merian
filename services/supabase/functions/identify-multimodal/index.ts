@@ -82,10 +82,13 @@ import {
 } from "../_shared/identify/db.ts";
 import { fetchIdentificationDictionaryHydration } from "../_shared/identify/latencyDb.ts";
 import {
-  type CompletedIdentifyResponse,
   fetchCompletedIdentifyResponse,
   waitForCompletedIdentifyResponse,
 } from "../_shared/identify/completedResponse.ts";
+import {
+  completedIdentifyResponse,
+  identifyResultResponse,
+} from "../_shared/identify/resultResponse.ts";
 import { normalizeIdentification } from "../_shared/identify/normalizeIdentification.ts";
 import {
   type MultimodalResultPolicy,
@@ -345,14 +348,6 @@ function serverTimingValue(metrics: ServerTimingMetric[]): string {
     .join(", ");
 }
 
-function completedReplayResponse(
-  replay: CompletedIdentifyResponse,
-): Response {
-  return jsonResponse(replay.envelope, 200, {
-    "X-Merian-Idempotent-Replay": replay.source,
-  });
-}
-
 export async function handleIdentifyMultimodalRequest(
   req: Request,
   user: User,
@@ -533,7 +528,7 @@ export async function handleIdentifyMultimodalRequest(
   // A successful first invocation may already have promoted its staging keys,
   // and the quota ledger intentionally refuses a second provider call. Replaying
   // the completed response here turns an ambiguous/lost HTTP response into the
-  // same successful Identify result for old and current iOS clients.
+  // same successful Identify result for clients capable of reading its metadata.
   const existingCompletion = await fetchCompletedIdentifyResponse(
     generatedScanId,
     user.id,
@@ -546,7 +541,11 @@ export async function handleIdentifyMultimodalRequest(
       source: existingCompletion.source,
       ts: new Date().toISOString(),
     }));
-    return completedReplayResponse(existingCompletion);
+    return completedIdentifyResponse(
+      req,
+      existingCompletion,
+      internalReplayAttempt != null,
+    );
   }
 
   const updateIngestionJobBestEffort = async (
@@ -879,7 +878,11 @@ export async function handleIdentifyMultimodalRequest(
           source: replay.source,
           ts: new Date().toISOString(),
         }));
-        return completedReplayResponse(replay);
+        return completedIdentifyResponse(
+          req,
+          replay,
+          internalReplayAttempt != null,
+        );
       }
     }
     throw error;
@@ -1010,7 +1013,11 @@ export async function handleIdentifyMultimodalRequest(
           source: replay.source,
           ts: new Date().toISOString(),
         }));
-        return completedReplayResponse(replay);
+        return completedIdentifyResponse(
+          req,
+          replay,
+          internalReplayAttempt != null,
+        );
       }
       return publicErrorResponse(
         req,
@@ -2173,9 +2180,9 @@ export async function handleIdentifyMultimodalRequest(
     ts: new Date().toISOString(),
   }));
 
-  return jsonResponse(
+  return identifyResultResponse(
+    req,
     responseEnvelope,
-    200,
     {
       ...identificationDiagnosticHeaders(
         result,
@@ -2198,6 +2205,7 @@ export async function handleIdentifyMultimodalRequest(
       ]),
       "X-Merian-Edge-Region": edgeRegion,
     },
+    internalReplayAttempt != null,
   );
 }
 

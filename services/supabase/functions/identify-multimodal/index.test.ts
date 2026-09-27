@@ -769,7 +769,7 @@ Deno.test("completed scan retries replay before staging or AI provider work", as
   assert(earlyReplay > generatedScanId);
   assert(imageResolution > earlyReplay);
   assert(quotaReservation > imageResolution);
-  assert(source.includes('"X-Merian-Idempotent-Replay": replay.source'));
+  assert(source.includes("return completedIdentifyResponse("));
 });
 
 Deno.test("identity-merge recovery precedes staging access and never grants old-key ownership", async () => {

@@ -68,3 +68,44 @@ Deno.test("v2 provenance migration preserves the v1 generation validator and exi
     ),
   );
 });
+
+Deno.test("result readers preserve visibility and fail explicitly before legacy V2 decoding", async () => {
+  const sql = await Deno.readTextFile(
+    new URL(
+      "../../migrations/20260927185833_require_identification_result_reader.sql",
+      import.meta.url,
+    ),
+  );
+  for (
+    const required of [
+      "SECURITY INVOKER\nSET search_path = ''",
+      "RAISE SQLSTATE 'PT426'",
+      "MESSAGE = 'client_update_required'",
+      "headers -> 'x-merian-identification-protocol' = '\"4\"'::JSONB",
+      "p_provenance -> 'version' = '2'::JSONB",
+      "CASE WHEN (SELECT auth.uid()) = user_id THEN",
+      "CASE WHEN geoprivacy = 'open' AND is_live_capture = TRUE AND is_tombstoned = FALSE THEN",
+      "unexpected_scan_reader_policies",
+    ]
+  ) assertStringIncludes(sql, required);
+  assert(
+    !/\b(?:UPDATE public|INSERT INTO|DELETE FROM|GRANT SELECT|GRANT UPDATE|SECURITY DEFINER)\b/
+      .test(sql),
+  );
+  assert(!sql.includes("ai_confidence_score"));
+  assert(!sql.includes("inference_tier"));
+  const factory = await Deno.readTextFile(
+    new URL(
+      "../../../../apps/ios/Merian/Core/Network/MerianSupabaseClientFactory.swift",
+      import.meta.url,
+    ),
+  );
+  assertStringIncludes(
+    factory,
+    "IdentificationDispatchAuthorization.protocolHeader",
+  );
+  assertStringIncludes(
+    factory,
+    "IdentificationDispatchAuthorization.currentProtocol",
+  );
+});

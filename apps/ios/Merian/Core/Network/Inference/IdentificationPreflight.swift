@@ -11,8 +11,9 @@ enum IdentificationRecipientExpectation: String, Codable, Sendable {
 
 struct IdentificationDispatchAuthorization: Sendable {
     static let protocolHeader = "X-Merian-Identification-Protocol"
-    /// Photo V2 decoding capability; independent of entitlement protocol 3.
-    let identificationProtocol = 4
+    /// V2 result decoding, including cross-device history; independent of entitlement protocol 3.
+    static let currentProtocol = 4
+    let identificationProtocol = Self.currentProtocol
     let recipient: IdentificationRecipientExpectation
     let validate: @MainActor @Sendable () throws -> Void
 }
@@ -35,7 +36,7 @@ struct IdentificationPreflightInput: Encodable, Equatable, Sendable {
     let originalAnalysisID: UUID
     let operation = "scan_identification"
     let clientProtocol = 3
-    let identificationProtocol = 4
+    let identificationProtocol = IdentificationDispatchAuthorization.currentProtocol
 
     enum CodingKeys: String, CodingKey {
         case inputProfile = "p_input_profile"

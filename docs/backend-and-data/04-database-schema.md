@@ -1313,6 +1313,15 @@ The transaction log for every successful identification.
   `reasoning_effort`, `image_detail`). The 2 KiB bound, existing columns,
   triggers, privileges and rows remain unchanged. V2 receives no Gemini metric
   interpretation and enables no provider assignment.
+- Result-reader compatibility: migration
+  `20260927185833_require_identification_result_reader.sql` adds an invoker
+  capability check inside the original owner/public SELECT policy predicates.
+  Visible V2 results require `X-Merian-Identification-Protocol: 4`; unsupported
+  readers receive `PT426` / `client_update_required` for the whole query.
+  Null/V1 reads, visibility predicates, service-role reads and write grants are
+  unchanged. No row, score or provenance is rewritten. See the
+  [reader contract](./05-api-contracts.md#identification-result-readers) for
+  current-request replay checks and the required reader-first release order.
 - Metric interpretation: the service-only pure helper
   `internal.identification_metrics_are_gemini_compatible(jsonb,text)` recognizes
   the exact existing profiles, including Pro audio comparison B. This is a

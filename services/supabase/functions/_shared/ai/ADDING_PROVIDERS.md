@@ -74,12 +74,15 @@ observation jobs retain user authority even when a service invokes the worker.
    overloads; do not patch only the older ones. The new six-argument preflight
    and eleven-argument reservation carry identification capability 4 separately
    from entitlement protocol 3. Preserve original-attempt proof and the global
-   minimum for older-client recovery. Capability gating the submitting device
-   does not protect old direct history readers; resolve that compatibility
-   boundary before activation. Marketing app versions and consent grants cannot
-   substitute for capability evidence. The evaluation OpenAI binding supports
-   only primary multimodal photo/text; compatibility and snapshot profiles are
-   not qualified. Before activation, extend the versioned
+   minimum for older-client recovery. The separate
+   [result-reader boundary](../../../../../docs/backend-and-data/05-api-contracts.md#identification-result-readers)
+   now checks the current capability on direct history/public reads and every
+   completed-response emission. Release and verify that reader before
+   activation, and retain it during rollback while V2 results exist. Marketing
+   app versions and consent grants cannot substitute for capability evidence.
+   The evaluation OpenAI binding supports only primary multimodal photo/text;
+   compatibility and snapshot profiles are not qualified. Before activation,
+   extend the versioned
    [durable result provenance](../../../../../docs/rfcs/identification-provider-result-provenance-2026-09-26.md)
    to cover the qualified adapter's generation settings and confidence profile.
    Gemini scans retain this server configuration independently of the quota

@@ -304,6 +304,7 @@ function database(
 function request(
   overrides: Record<string, unknown> = {},
   signal?: AbortSignal,
+  headers: Record<string, string> = {},
 ) {
   return new Request("https://example.invalid/identify-multimodal", {
     method: "POST",
@@ -311,6 +312,7 @@ function request(
     headers: {
       "Content-Type": "application/json",
       "X-Merian-Entitlement-Protocol": "3",
+      ...headers,
     },
     body: JSON.stringify({
       user_id: user.id,
@@ -1076,6 +1078,7 @@ Deno.test("multimodal handler preserves admission, evidence and recovery through
       payload: Record<string, unknown> = {},
       inspect: (input: AIRequest) => void = () => {},
       replayAttempt?: number,
+      headers: Record<string, string> = {},
     ) => {
       const adapter: AIAdapter = {
         provider: "test_only",
@@ -1095,7 +1098,7 @@ Deno.test("multimodal handler preserves admission, evidence and recovery through
         },
       };
       return handleIdentifyMultimodalRequest(
-        request(payload),
+        request(payload, undefined, headers),
         user,
         db.client,
         0,
@@ -1303,29 +1306,40 @@ Deno.test("multimodal handler preserves admission, evidence and recovery through
             return Promise.resolve(new Response(null, { status: 200 }));
           };
           const db = database({ openAI: true });
-          const response = await run(db, {
-            ...facts,
-            kind: "draft",
-            draft,
-            returnedModel: "gpt-6-sol",
-            finishReason: "completed",
-            mediaSafety: {
-              provider: "openai",
-              policy: "openai_photo_moderation_v1",
-              disposition: "allowed",
+          const readerHeaders = {
+            "X-Merian-Identification-Protocol": "4",
+            "X-Merian-Identification-Recipient": "openai",
+          };
+          const response = await run(
+            db,
+            {
+              ...facts,
+              kind: "draft",
+              draft,
+              returnedModel: "gpt-6-sol",
+              finishReason: "completed",
+              mediaSafety: {
+                provider: "openai",
+                policy: "openai_photo_moderation_v1",
+                disposition: "allowed",
+              },
+              usage: {
+                promptTokens: 100,
+                candidateTokens: 30,
+                thinkingTokens: 10,
+                outputTokens: 40,
+                totalTokens: 140,
+                cachedTokens: 20,
+                cacheWriteTokens: 5,
+                toolTokens: 0,
+                modalityBreakdown: {},
+              },
             },
-            usage: {
-              promptTokens: 100,
-              candidateTokens: 30,
-              thinkingTokens: 10,
-              outputTokens: 40,
-              totalTokens: 140,
-              cachedTokens: 20,
-              cacheWriteTokens: 5,
-              toolTokens: 0,
-              modalityBreakdown: {},
-            },
-          }, { imageBase64s: ["AQ=="] });
+            { imageBase64s: ["AQ=="] },
+            undefined,
+            undefined,
+            readerHeaders,
+          );
           assertEquals(response.status, 200, JSON.stringify(db.events));
           const saved = db.inserted()!;
           assertEquals(
@@ -1350,7 +1364,14 @@ Deno.test("multimodal handler preserves admission, evidence and recovery through
             db.events.filter((event) => event === "insert").length,
             1,
           );
-          const replay = await run(db, new Error("Replay cannot invoke"));
+          const replay = await run(
+            db,
+            new Error("Replay cannot invoke"),
+            {},
+            undefined,
+            undefined,
+            readerHeaders,
+          );
           assertEquals(replay.status, 200);
           assertEquals(promotions, 1);
         } finally {

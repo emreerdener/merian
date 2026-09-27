@@ -706,3 +706,12 @@ output or request JSON. Stored replay preserves its original value or omission;
 reconstruction uses the immutable scan column and omits legacy null. Explicit
 null or damaged present wire metadata fails validation. See the
 [client integration record](../../../../docs/rfcs/identification-client-result-provenance-2026-09-26.md).
+
+Every stored/reconstructed completion checks the current external reader,
+including quota and ingestion races. V2 requires exact
+`X-Merian-Identification-Protocol: 4`; otherwise the response is
+`426 client_update_required` without result data. Null/V1 replays are unchanged.
+Only the service-authenticated primary replay worker bypasses client decoding.
+See the
+[result-reader contract](../../../../docs/backend-and-data/05-api-contracts.md#identification-result-readers)
+for direct-history protection and reader-first release requirements.

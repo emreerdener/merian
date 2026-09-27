@@ -74,6 +74,13 @@ behavior coverage.
 
 ## Supabase Auth cold-start adoption
 
+The factory also attaches `X-Merian-Identification-Protocol: 4` to SDK requests
+using the same decoder-capability constant as identification dispatch. This
+covers PostgREST history and single-scan reads, independently of entitlement
+protocol 3 and recipient permission. Unsupported older readers get a query error
+for visible V2 results; the backend preserves their saved observations. See the
+[result-reader contract](../../../../../docs/backend-and-data/05-api-contracts.md#identification-result-readers).
+
 `MerianSupabaseClientFactory` enables `emitLocalSessionAsInitialSession`. The
 pinned Supabase Swift SDK therefore emits the cached session immediately,
 including a session whose access token is expired, and refreshes an expired

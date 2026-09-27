@@ -469,7 +469,7 @@ Deno.test("every scan-producing route coalesces quota replays into an owner-scop
     assertStringIncludes(source, "waitForCompletedIdentifyResponse(");
     assertStringIncludes(source, '"ai_request_already_completed"');
     assertStringIncludes(source, '"ai_request_in_progress"');
-    assertStringIncludes(source, '"X-Merian-Idempotent-Replay"');
+    assertStringIncludes(source, "return completedIdentifyResponse(");
     assertStringIncludes(source, "parseIdentifySuccessEnvelope(");
     assertStringIncludes(source, "responseEnvelope");
   }
