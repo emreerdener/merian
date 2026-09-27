@@ -873,10 +873,17 @@ final class merianUITests: XCTestCase {
         )
 
         textArea.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.8)).tap()
+        XCTAssertTrue(
+            app.keyboards.firstMatch.waitForExistence(timeout: 4),
+            "Tapping the lower editor region did not focus the input"
+        )
 
         let enteredText = "Small green shape"
         textInput.typeText(enteredText)
-        XCTAssertEqual(textInput.value as? String, enteredText)
+        let enteredValue = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value == %@", enteredText), object: textInput
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [enteredValue], timeout: 3), .completed)
     }
 
     @MainActor
