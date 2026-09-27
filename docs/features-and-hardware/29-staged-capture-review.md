@@ -84,11 +84,17 @@ remains reachable at full capacity. The media row scrolls horizontally while
 Discard and Identify/Analyze stay visible. On iOS 26+, the tray capsule and
 circular discard control use native Liquid Glass. Earlier iOS uses material;
 Reduce Transparency or the existing Expedition/thermal effect policy selects an
-opaque adaptive background. **Identify** is text-only, system blue, and 48
-points high, with its existing disabled appearance. **Analyze** retains its
-green styling and sparkles. Media icons retain their meanings.
+opaque adaptive background. The tray follows the app's color scheme consistently
+across Scan, Record, and Describe; switching capture modes does not force a
+separate dark appearance. **Identify** is text-only, uses the same primary
+accent blue as Share, and remains 48 points high with its existing disabled
+appearance. **Analyze** retains its green styling and sparkles. Media icons
+retain their meanings.
 
-The neutral discard surface has a red trash icon. Tapping it presents:
+The neutral discard surface has a semibold trash icon with a deeper red in light
+appearance and a brighter red in dark appearance for contrast. The empty note
+icon combines the supported `text.bubble` and `plus.circle.fill` symbols; a
+populated note uses `text.bubble.fill`. Tapping discard presents:
 
 - **Discard this scan?**
 - “Your staged media and description will be removed.”

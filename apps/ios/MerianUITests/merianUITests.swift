@@ -813,6 +813,7 @@ final class merianUITests: XCTestCase {
     func testNoteAtMediaCapacityWithLargerText() throws {
         let app = UITestAppLauncher.launchConfiguredApp(extraArguments: [
             "-seedStagedAudioReviewFlow", "-autoSubmitScans", "NO",
+            "-captureModeOrder", "audio,visual,describe",
             "-hasShownCaptureNoteTip", "YES",
             "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"
         ])
@@ -822,6 +823,10 @@ final class merianUITests: XCTestCase {
         XCTAssertTrue(app.buttons["Discard scan"].isHittable)
         if !note.isHittable { app.scrollViews["StagedMediaRowScroll"].swipeLeft() }
         XCTAssertTrue(note.isHittable)
+        let recordScreenshot = XCTAttachment(screenshot: app.screenshot())
+        recordScreenshot.name = "Staged toolbar in Record with empty note"
+        recordScreenshot.lifetime = .keepAlways
+        add(recordScreenshot)
         note.tap()
         let input = app.descendants(matching: .any)["DescribeTextInput"]
         XCTAssertTrue(input.waitForExistence(timeout: 4))

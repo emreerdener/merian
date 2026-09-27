@@ -2,16 +2,24 @@ import SwiftUI
 
 struct CaptureStagingCancelButton: View {
     let action: () -> Void
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         Button(action: action) {
             Image(systemName: "trash")
-                .font(.system(size: 22, weight: .regular))
-                .foregroundStyle(.red)
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundStyle(discardColor)
                 .frame(width: 48, height: 48)
                 .modifier(CaptureTrayGlass(isCircular: true))
         }
+        .buttonStyle(.plain)
         .accessibilityLabel("Discard scan")
+    }
+
+    private var discardColor: Color {
+        colorScheme == .dark
+            ? Color(red: 1, green: 0.30, blue: 0.32)
+            : Color(red: 0.75, green: 0.08, blue: 0.12)
     }
 }
 
@@ -82,6 +90,7 @@ struct CaptureStagingSubmitButton: View {
                 y: 4
             )
         }
+        .buttonStyle(.plain)
         .disabled(isDisabled)
         .animation(.easeInOut(duration: 0.2), value: isDisabled)
         .onAppear {
@@ -95,7 +104,7 @@ struct CaptureStagingSubmitButton: View {
     }
 
     private var buttonColor: Color {
-        title == "Analyze" ? Color(red: 0.11, green: 0.52, blue: 0.28) : .blue
+        title == "Analyze" ? Color(red: 0.11, green: 0.52, blue: 0.28) : .accentColor
     }
 
     private var shimmerOverlay: some View {

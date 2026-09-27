@@ -154,8 +154,7 @@ struct ActiveScanToolbar: View {
                 onVideoTap: onVideoTap
             )
             Button(action: onNoteTap) {
-                Image(systemName: hasSharedNote ? "text.bubble.fill" : "text.bubble.badge.plus")
-                    .font(.system(size: 20))
+                CaptureStagingNoteIcon(hasNote: hasSharedNote)
                     .frame(width: 48, height: 48)
                     .background(.primary.opacity(0.08), in: Circle())
             }
@@ -198,4 +197,29 @@ struct ActiveScanToolbar: View {
         }
     }
 
+}
+
+/// Compose the empty badge from symbols available on every supported iOS version.
+struct CaptureStagingNoteIcon: View {
+    static let emptySymbol = "text.bubble"
+    static let populatedSymbol = "text.bubble.fill"
+    static let badgeSymbol = "plus.circle.fill"
+
+    let hasNote: Bool
+
+    var body: some View {
+        Image(systemName: hasNote ? Self.populatedSymbol : Self.emptySymbol)
+            .font(.system(size: 20, weight: .medium))
+            .foregroundStyle(.primary)
+            .overlay(alignment: .bottomTrailing) {
+                if !hasNote {
+                    Image(systemName: Self.badgeSymbol)
+                        .font(.system(size: 11, weight: .bold))
+                        .symbolRenderingMode(.palette)
+                        .foregroundStyle(.primary, Color(uiColor: .secondarySystemBackground))
+                        .offset(x: 5, y: 4)
+                }
+            }
+            .accessibilityHidden(true)
+    }
 }

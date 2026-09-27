@@ -7,6 +7,14 @@ import UIKit
 @MainActor
 @Suite("Capture staging toolbar presentation")
 struct CaptureStagingToolbarPresentationTests {
+    @Test("Both note states and the add badge resolve to drawable system symbols")
+    func noteSymbolsAreAvailable() {
+        for name in [CaptureStagingNoteIcon.emptySymbol, CaptureStagingNoteIcon.populatedSymbol,
+                     CaptureStagingNoteIcon.badgeSymbol] {
+            #expect(UIImage(systemName: name) != nil)
+        }
+    }
+
     @Test("Refinement description reserves capacity without admitting a third physical item")
     func refinementSupplementCapacityAndThreeItemTray() {
         var capture = StagedCapture()

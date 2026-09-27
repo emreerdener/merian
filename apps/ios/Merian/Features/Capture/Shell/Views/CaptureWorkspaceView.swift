@@ -10,7 +10,6 @@ struct CaptureWorkspaceView: View {
     @Environment(SpeechManager.self) private var speechManager
     @Environment(AudioCaptureManager.self) private var audioCaptureManager
     @Environment(\.modelContext) private var modelContext
-    @Environment(\.colorScheme) private var colorScheme
 
     // MARK: - View Model & State
     @State private var viewModel: CaptureWorkspaceViewModel
@@ -382,7 +381,6 @@ struct CaptureWorkspaceView: View {
                             onVideoTap: { index in stagedVideoReviewIndex = index },
                             dependencies: viewModel.dependencies.stagingToolbar
                         )
-                        .environment(\.colorScheme, captureMode == .describe ? colorScheme : .dark)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                 }

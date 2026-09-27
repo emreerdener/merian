@@ -130,8 +130,11 @@ even at physical capacity. Historical descriptions alone retain the local-copy
 sheet. Free has one physical slot plus a note; Pro has two physical slots plus a
 note. The tray scrolls its media row while keeping Identify and confirmed
 Discard visible. Native glass respects Expedition, thermal, and accessibility
-reductions. Identify alone is text-only blue; Analyze retains its existing
-treatment. See the
+reductions. The tray follows app appearance across capture modes. Identify uses
+the same accent blue as Share, and the neutral discard control uses a
+contrasting semibold red icon. The empty note composes a speech bubble and plus
+badge from supported system symbols. Analyze retains its existing treatment. See
+the
 [staged-review contract](../../../../../../docs/features-and-hardware/29-staged-capture-review.md).
 
 Reanalysis keeps historical descriptions alongside its existing primary-media
