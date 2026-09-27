@@ -2469,9 +2469,10 @@ remains dormant while all assignments are Gemini.
 ### Assigned-recipient preflight
 
 The additive authenticated RPC `get_my_identification_preflight` prepares a
-future native recipient check. Current iOS clients do not call it yet. The
-existing Capture allowance preview remains unchanged and serves a different
-purpose: this RPC reports recipient readiness, not available quota.
+future native recipient check. The native identification client calls it during
+request preparation. The existing Capture allowance preview remains unchanged
+and serves a different purpose: this RPC reports recipient readiness, not
+available quota.
 
 | Input                       | Type              | Meaning                                                                           |
 | --------------------------- | ----------------- | --------------------------------------------------------------------------------- |
@@ -2582,12 +2583,35 @@ also saved as bounded immutable `scans.identification_provenance` with an atomic
 ingestion-job recovery copy. These fixed facts share the scan's existing Data
 API visibility; they contain no evidence or owner/attempt identifiers. Client
 `recovery_scan` cannot assert provenance: missing scan insertion reads only the
-exact server-owned backup, and legacy/no-backup results remain null. Stored and
-reconstructed Identify envelopes stay unchanged; no provider-selection request
-field or new Identify response/DTO field is introduced. The
-[provenance record](../rfcs/identification-provider-result-provenance-2026-09-26.md)
-describes compatibility and rollout order. The admission and replay rules below
-remain authoritative.
+exact server-owned backup, and legacy/no-backup results remain null. Fresh
+Identify envelopes now include optional `data.identification_provenance` from
+that same admitted execution snapshot. The executable contract and generated
+Swift DTO own its closed version-1 shape: bounded provider/binding/model,
+variant/operation/policy, prompt/schema/confidence references, nullable
+diagnostic and safety settings, timeout, and generation settings. The value
+contains no observation or personal data and never enters the model-output
+schema. Omission means legacy; an explicitly null or malformed Identify field is
+rejected. Required nullable settings retain explicit null when decoded and
+re-encoded. Stored envelopes retain their original metadata or original
+omission. Older completed jobs reconstruct from the immutable owner scan column;
+null/missing columns omit the field, while damaged present metadata fails
+validation. Neither path consults today's provider assignment or makes an
+inference request.
+
+Owner history selects the same column. SwiftData V52 stores its content-free
+JSON bytes in optional `LocalScanRecord.identificationProvenanceData`; V51 rows
+migrate to nil. Missing legacy cloud metadata cannot erase an existing value.
+Malformed history rows remain quarantined with raw-row pagination intact.
+Recognized exact Gemini profiles retain the existing confidence presentation;
+unknown or damaged present profiles use neutral review guidance. Absence keeps
+legacy behavior. This compatibility rule is not empirical calibration, and
+public Explore suggestion projections still require separate qualification
+before another provider is enabled. See the
+[server provenance record](../rfcs/identification-provider-result-provenance-2026-09-26.md)
+and
+[client integration record](../rfcs/identification-client-result-provenance-2026-09-26.md)
+for rollout order and remaining activation work. The admission and replay rules
+below remain authoritative.
 
 `/identify-multimodal`, `/identify`, `/identify-describe`, and `/audio-spec` use
 the canonical scan UUID as both the response identity and paid-provider request
@@ -7878,7 +7902,7 @@ tombstone purge remain in `BackgroundDatabaseActor+CollectionSync.swift`.
 }
 ```
 
-The active iOS V51 model names the durable application value
+The active iOS V52 model names the durable application value
 `ScanCollection.isPendingDeletion` and maps it to the released SwiftData
 `isDeleted` column with `@Attribute(originalName:)`. The two released V50 model
 graphs differ only in their Swift-side property name and keep that same physical

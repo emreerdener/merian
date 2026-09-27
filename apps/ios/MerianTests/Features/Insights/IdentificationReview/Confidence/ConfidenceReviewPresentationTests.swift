@@ -3,8 +3,8 @@ import Testing
 @testable import Merian
 
 struct ConfidenceReviewPresentationTests {
-    @Test func badgePresentationPreservesEveryVisibleState() {
-        let bands = InferenceConfidencePolicy.bands(forInferenceTier: "pro")
+    @Test func badgePresentationPreservesEveryVisibleState() throws {
+        let bands = try #require(InferenceConfidencePolicy.bands(forInferenceTier: "pro"))
 
         #expect(badge(score: nil).isVisible == false)
         #expect(badge(score: bands.strong).label == "Strong match")

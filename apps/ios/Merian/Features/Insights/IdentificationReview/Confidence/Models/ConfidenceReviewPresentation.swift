@@ -49,6 +49,7 @@ struct ConfidenceBadgePresentation: Equatable {
     static func resolve(
         confidenceScore: Double?,
         inferenceTier: String?,
+        provenance: IdentificationResultProvenance? = nil,
         hasUserOverride: Bool,
         isUserConfirmed: Bool,
         analyzingPhrase: String?
@@ -81,9 +82,11 @@ struct ConfidenceBadgePresentation: Equatable {
             )
         }
 
-        let bands = InferenceConfidencePolicy.bands(
-            forInferenceTier: inferenceTier
-        )
+        guard let bands = InferenceConfidencePolicy.bands(
+            forInferenceTier: inferenceTier, provenance: provenance
+        ) else {
+            return Self(label: "Needs review", icon: "questionmark.circle", style: .unknown, isVisible: true)
+        }
         switch confidenceScore {
         case bands.strong...:
             return Self(
@@ -113,12 +116,17 @@ struct ConfidenceBadgePresentation: Equatable {
 enum ConfidenceExplanationPresentation {
     static func headerTitle(
         confidenceScore: Double?,
+        inferenceTier: String? = nil,
+        provenance: IdentificationResultProvenance? = nil,
         hasUserOverride: Bool,
         isUserConfirmed: Bool
     ) -> String {
         if hasUserOverride || isUserConfirmed {
             return "Confirmed"
         }
+        guard InferenceConfidencePolicy.bands(
+            forInferenceTier: inferenceTier, provenance: provenance
+        ) != nil else { return "Review identification" }
         guard let confidenceScore else { return "Analysis" }
         return "\(Int(round(confidenceScore * 100)))% confident"
     }

@@ -177,3 +177,14 @@ terrarium tiers, achievement sorting/detail navigation, Field trip badge links,
 avatar picker/crop/upload/error timing, username/display-name editing,
 published-scan preview/library pagination and recovery, VoiceOver, and large
 Dynamic Type.
+
+## Confidence-based achievements
+
+Private profile analytics and detail snapshots both retain the scan's immutable
+identification provenance and inference tier. Perfect Lens keeps the existing
+threshold only for recognized Gemini configurations or legacy metadata absence.
+An unfamiliar or malformed present profile cannot earn this score-based award.
+The protocol requires both fields, preventing a new projection from silently
+forgetting provenance. Public author-profile SQL is a separate activation
+prerequisite; it must receive equivalent treatment before another provider runs.
+`IdentificationResultProvenanceTests` exercises both private snapshot paths.

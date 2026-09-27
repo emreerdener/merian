@@ -1332,3 +1332,18 @@ error, and prove the same-ID sheet becomes `.queued` without a second request,
 placeholder, haptic, circuit failure, or manual test cleanup of queue ownership.
 The full matrix and release evidence requirements live in the
 [incident](../../../../../docs/incidents/2026-08-live-scan-connectivity-handoff-gap.md).
+
+## Identification result configuration
+
+`Models/SpeciesData+EdgeResponse.swift` carries optional generated provenance
+into `SpeciesData` and owns DTO decoding. The shared
+`Models/Species/IdentificationResultProvenance.swift` value preserves
+content-free JSON without depending on generated DTOs.
+`InferenceConfidencePolicy` recognizes only exact known Gemini execution
+profiles and returns no bands for unknown or damaged present values; absence
+retains legacy interpretation. The saved scan factory, V52 local model, history
+DTO/query and historical projection retain the same metadata. Confidence labels,
+diagnostics/candidates, score-based upsell, collection suggestions, prompt
+actions and perfect-scan rewards gate their score interpretation on this
+compatibility decision. These rules preserve existing Gemini behavior; they do
+not establish calibrated probabilities for any model.

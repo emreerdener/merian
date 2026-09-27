@@ -134,7 +134,7 @@ struct HistoricalSyncCloudClient {
         "gps_long_exact, gps_elevation, ai_reasoning, estimated_size_cm, " +
         "life_stage, reproductive_condition, sex, sex_confidence, " +
         "sex_evidence, individual_count, ecological_interactions, " +
-        "inference_tier, custom_tags, candidates, " +
+        "inference_tier, identification_provenance, custom_tags, candidates, " +
         "user_identification_override, user_confirmed_identification, " +
         "image_quality_score, pet_identification, " +
         "explore_posts(id, unshared_at), " +

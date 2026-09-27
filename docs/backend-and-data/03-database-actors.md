@@ -807,7 +807,7 @@ pagination is not part of this upload path. Historical download reconciliation
 remains independently page-bounded because it is ingesting remote scan history
 rather than projecting an existing local relationship.
 
-## 2026-08 Collection Tombstone Boundary (V51 Current Shape)
+## 2026-08 Collection Tombstone Boundary (V52 Current Shape)
 
 The projection and acknowledgement-purge code reads the active
 `ScanCollection.isPendingDeletion` Boolean, which survives `ModelContext.save()`
@@ -821,10 +821,10 @@ reactivated during the request cannot be removed by a stale snapshot.
 
 The two checksum-distinct V50 source graphs are frozen under
 `Models/Schema/SchemaV50Snapshots.swift` and
-`Models/Schema/SchemaV50ReleasedActiveSnapshots.swift`. The active V51 model
+`Models/Schema/SchemaV50ReleasedActiveSnapshots.swift`. The active V52 model
 retains the mapped source name; each exact V50 graph has a separate source
 bridge for the preferred-name ownership migration. Disk-backed fixtures prove
-checksum-based selection, true/false values, relationship retention, and V51
+checksum-based selection, true/false values, relationship retention, and V52
 relaunch. Keep persistence projection and conditional purge in the actor, wire
 mapping in Core Network, and account-lifecycle orchestration in
 `CollectionSyncService`; do not synthesize snapshots from transient view state

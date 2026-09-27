@@ -78,6 +78,7 @@ enum LocalScanRecordFactory {
             individualCount: mappedData.individualCount,
             ecologicalInteractions: mappedData.ecologicalInteractions,
             inferenceTier: mappedData.inferenceTier,
+            identificationProvenanceData: mappedData.identificationProvenance?.data,
             imageQualityScore: mappedData.imageQualityScore,
             alternativeCommonNames: mappedData.alternativeCommonNames,
             petIdentificationData: petIdentificationData,

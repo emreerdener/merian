@@ -63,6 +63,17 @@ if mode == "forbidden-source":
         1,
     )
     source = source[:start] + plan + source[end:]
+if mode == "missing-v52-full-tail":
+    source = source.replace("            migrateV51toV52", "            removedV52Stage", 1)
+elif mode == "missing-v52-recent-tail":
+    start = source.index("enum MerianRecentV50MigrationPlan")
+    end = source.index("enum MerianReleasedActiveV50MigrationPlan", start)
+    plan = source[start:end].replace("MerianMigrationPlan.migrateV51toV52", "removedV52Stage", 1)
+    source = source[:start] + plan + source[end:]
+elif mode == "reordered-v52-schema":
+    source = source.replace("MerianSchemaV51.self,\n            MerianSchemaV52.self", "MerianSchemaV52.self,\n            MerianSchemaV51.self", 1)
+elif mode == "missing-v51-plan":
+    source = source[:source.index("enum MerianRecentV51MigrationPlan")]
 (Path(fixture) / path).write_text(source)
 
 factory_path = Path(
@@ -87,7 +98,15 @@ if mode == "safe-mode-plan":
         1,
     )
     factory_source = factory_source[:start] + function + factory_source[end:]
+if mode == "missing-v51-dispatch":
+    factory_source = factory_source.replace("case .v51:", "case .removedV51:", 1)
 (Path(fixture) / factory_path).write_text(factory_source)
+models_path = Path("apps/ios/Merian/Core/Data/StoreRecovery/Models/StoreMigrationModels.swift")
+models_source = (Path(repo) / models_path).read_text()
+if mode == "missing-v51-source":
+    models_source = models_source.replace("case v51 = 51", "case removedV51 = 51", 1)
+(Path(fixture) / models_path).write_text(models_source)
+
 
 recovery_path = Path(
     "apps/ios/Merian/Core/Data/StoreRecovery/Services/StoreRecoveryMetadataService.swift"
@@ -144,5 +163,12 @@ assert_rejected forbidden-source "Recent V46 plan must not use the V45 source re
 assert_rejected safe-mode-plan "The empty current-schema safe-mode container must not validate the historical migration plan."
 assert_rejected weakened-full-plan-test "MigrationPlanTests must validate the full historical plan independently from safe mode."
 assert_rejected reconstructed-store-path "Store recovery must not reconstruct the SwiftData store under Application Support."
+
+assert_rejected missing-v52-full-tail "Full migration plan must finish with the shared V51 to V52 stage."
+assert_rejected missing-v52-recent-tail "Recent V50 plan must finish with the shared V51 to V52 stage."
+assert_rejected reordered-v52-schema "Full migration plan must end its schemas with frozen V51 then active V52."
+assert_rejected missing-v51-plan "Recent V51 plan must end its schemas with frozen V51 then active V52."
+assert_rejected missing-v51-source "RecentSourceSchema must include V51."
+assert_rejected missing-v51-dispatch "ModelContainerFactory recent-source dispatch must handle V51 explicitly."
 
 echo "iOS migration source guardrail tests passed."

@@ -1,4 +1,7 @@
-import type { MerianAudioIdentification } from "../_shared/identify/contract.ts";
+import type {
+  ClientPayload,
+  MerianAudioIdentification,
+} from "../_shared/identify/contract.ts";
 
 // MARK: - Request
 
@@ -52,6 +55,7 @@ export interface AudioCandidate {
  */
 export interface AudioClientPayload {
   scan_id: string;
+  identification_provenance?: ClientPayload["identification_provenance"];
   is_biological_subject: boolean;
   is_live_capture: boolean;
   scientific_name?: string;

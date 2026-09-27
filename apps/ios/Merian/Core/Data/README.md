@@ -101,7 +101,7 @@ file owners and must not infer ownership from a broad directory alone.
 V50 introduced `OfflineQueuedScanGoalHint`, a scan-keyed companion that stores
 the optional standard-outing and checklist-item IDs selected in a qualifying
 live Capture. Keeping this separate preserved the released V49 queue entity. The
-current V51 schema retains that companion through
+current V52 schema retains that companion through
 `ActiveOfflineQueuedScanGoalHint` and keeps the collection tombstone
 `ScanCollection.isPendingDeletion` mapped to the released `isDeleted` column
 while the Core Network adapter continues to emit the `is_deleted` wire field.
@@ -372,7 +372,7 @@ higher-authority recovery marker and funding evidence so retry can hydrate that
 result without a second provider request. Historical playback and explicit
 `scan_share_restore` publication recovery may still use M4A; those contracts do
 not make M4A valid queue inference input. The V49 `queueSchemaRepairGeneration`
-field remains in the V51 model as inert persisted compatibility storage and is
+field remains in the V52 model as inert persisted compatibility storage and is
 not read or mutated by the current queue runtime.
 
 Fetch, job-read, manifest-mismatch, or save failure returns a retry-required
@@ -904,8 +904,8 @@ persistence.
 - It resolves the store URL from the same automatic SwiftData configuration used
   by the production container, then reads actual metadata before container
   creation. This keeps App Group-backed stores aligned with migration,
-  diagnostics, quarantine, and rescue. Fresh and V51 stores open as current;
-  known V42...V50 sources use finite, source-isolated plans; only unknown older
+  diagnostics, quarantine, and rescue. Fresh and V52 stores open as current;
+  known V42...V51 sources use finite, source-isolated plans; only unknown older
   stores use the full historical plan.
 - The current automatic App Group location is a shipped-store compatibility
   constraint, not an extension data-sharing contract. Extensions never open the
@@ -916,13 +916,14 @@ persistence.
   `MerianRecentV50MigrationPlan` for the original frozen graph or
   `MerianReleasedActiveV50MigrationPlan` for the processed release's
   `isPendingDeletion` graph. Both apply a source-exact custom V50→V51
-  account-partition stage; unknown V50 signatures are preserved through rescue
-  instead of guessed. A released V49 store selects
+  account-partition stage and lightweight V51→V52 tail; unknown V50 signatures
+  are preserved through rescue instead of guessed. A released V49 store selects
   `MerianRecentV49MigrationPlan` and advances through lightweight V49→V50 plus
-  custom V50→V51 hops. The full historical plan remains linear through
-  V42→V49→V50→V51; V43...V48 use their source-isolated plans. The
-  duplicate-checksum retry ladder is ordered current store, both V50 graphs,
-  then V49 down through V42.
+  custom V50→V51 and lightweight V51→V52 hops. V51 stores select only the
+  immediate-predecessor V51→V52 plan. The full historical plan remains linear
+  through V42→V49→V50→V51→V52; V43...V48 use their source-isolated plans. The
+  duplicate-checksum retry ladder is ordered current store, V51, both V50
+  graphs, then V49 down through V42.
 - Only confirmed corruption may quarantine `default.store`, `default.store-shm`,
   and `default.store-wal`.
 - Non-corrupt failures on legacy migration strategies may archive those same

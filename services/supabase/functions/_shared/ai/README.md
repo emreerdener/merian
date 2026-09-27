@@ -96,10 +96,16 @@ reached the scan-insert transaction.
 
 These fixed configuration facts intentionally share the scan's existing Data API
 visibility. They are not private operational telemetry. The backup follows
-existing ingestion-job ownership and retention. Neither Identify envelopes nor
-iOS local storage gain fields in this server-side slice. See the
-[implementation record](../../../../../docs/rfcs/identification-provider-result-provenance-2026-09-26.md)
-for rollout order, limits and the remaining client/confidence work.
+existing ingestion-job ownership and retention. Fresh Identify envelopes expose
+that same value through optional `data.identification_provenance`;
+reconstruction uses the immutable scan column and stored envelopes preserve
+their original value or omission. Generated native DTOs retain required null
+settings, and V52 local storage preserves the metadata for profile-aware
+confidence presentation. See the
+[server record](../../../../../docs/rfcs/identification-provider-result-provenance-2026-09-26.md)
+and
+[client record](../../../../../docs/rfcs/identification-client-result-provenance-2026-09-26.md)
+for rollout order, compatibility and remaining activation work.
 
 ## Alternative-provider evaluation
 

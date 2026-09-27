@@ -700,6 +700,10 @@ export function createDescribeHandler(prepare = prepareAIExecution) {
 
     let responseEnvelope: IdentifySuccessEnvelope;
     try {
+      payloadReadyForClient.identification_provenance =
+        identificationProvenance(
+          result.execution,
+        );
       responseEnvelope = parseIdentifySuccessEnvelope({
         success: true,
         data: payloadReadyForClient,

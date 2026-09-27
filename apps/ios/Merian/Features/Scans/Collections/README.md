@@ -72,9 +72,9 @@ inside the task and outer lease that recovery must first drain. The complete
 `/sync-collections` behavior is documented in the
 [offline sync pipeline](../../../../../../docs/backend-and-data/01-offline-sync-pipeline.md#the-collections-pipeline).
 
-## SwiftData Tombstone Contract (V51)
+## SwiftData Tombstone Contract (V52)
 
-The active V51 `ScanCollection` model exposes the application-owned
+The active V52 `ScanCollection` model exposes the application-owned
 `isPendingDeletion` property and maps it to the unchanged `isDeleted` column
 with `@Attribute(originalName:)`. This avoids SwiftData's reserved
 `PersistentModel.isDeleted` lifecycle state while preserving the existing
@@ -87,8 +87,9 @@ frozen in `Models/Schema/SchemaV50Snapshots.swift`; the processed release's
 goal-hint companion and have source-exact custom V50→V51 preference migrations;
 the collection shape itself remains unchanged in V51. Startup chooses between
 them using allowlisted model metadata. V49 stores advance through lightweight
-V49→V50 and custom V50→V51 hops; V43...V48 retain source-isolated repair plans
-ending at V51.
+V49→V50, custom V50→V51 and lightweight V51→V52 hops; V43...V48 retain
+source-isolated repair plans ending at V52 after the shared lightweight V51→V52
+provenance hop.
 
 The deletion marker is covered across save/refetch, disk migration, relationship
 retention, outbound `is_deleted` projection, inbound tombstone shielding, and
@@ -134,7 +135,7 @@ Focused deterministic coverage lives beside the feature in
   rollback for every mutation kind, related-record creation, and
   save/event/sync/feedback ordering, including durable tombstone persistence and
   failed-save restoration.
-- `MigrationPlanTests` locks the frozen V50 bridge and active V51 owner, the
+- `MigrationPlanTests` locks the frozen V50 bridge and active V52 owner, the
   collection rename mapping, disk-backed tombstone, relationship, goal-hint, and
   preference-discard behavior, the linear full historical plan, and
   source-isolated startup plan selection.

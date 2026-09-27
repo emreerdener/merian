@@ -678,3 +678,13 @@ its existing error. The
 [API contract](../../../../docs/backend-and-data/05-api-contracts.md) describe
 the representation and limits. Provider, prompt and confidence selection are
 unchanged.
+
+## Result provenance
+
+Fresh success includes optional `data.identification_provenance`, projected from
+the immutable admitted execution before final wire validation and durable
+finalization. It matches the scan's bounded configuration metadata, never model
+output or request JSON. Stored replay preserves its original value or omission;
+reconstruction uses the immutable scan column and omits legacy null. Explicit
+null or damaged present wire metadata fails validation. See the
+[client integration record](../../../../docs/rfcs/identification-client-result-provenance-2026-09-26.md).

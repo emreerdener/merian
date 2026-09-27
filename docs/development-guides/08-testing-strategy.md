@@ -213,15 +213,15 @@ pin tests to historical versioned schemas — a pinned schema silently drops new
 model fields (e.g. `similarSpecies` added in `MerianSchemaV26`), causing
 persistence tests to pass against the wrong shape.
 
-The current persisted schema is V51. Two released-V50 fixtures are required
+The current persisted schema is V52. Two released-V50 fixtures are required
 because builds emitted distinct model checksums under the same schema version.
 The original fixture creates `ScanCollection.isDeleted` and opens through
 `MerianRecentV50MigrationPlan`; the later processed-release fixture creates
 `isPendingDeletion` with `@Attribute(originalName: "isDeleted")` and opens
 through `MerianReleasedActiveV50MigrationPlan`. Both assert the active
-`isPendingDeletion` value after the V50→V51 preference migration. Keep each
-fixture's exact property shape frozen; production tests should use the active
-property name and predicate.
+`isPendingDeletion` value after the V50→V51 preference migration and V51→V52
+provenance stage. Keep each fixture's exact property shape frozen; production
+tests should use the active property name and predicate.
 
 An in-memory container is not sufficient evidence for a stored-property rename,
 schema migration, restart guarantee, or property-name collision with
@@ -405,7 +405,7 @@ here cover only selector ownership and build/tooling contracts.
 | Durable claims, recovery, duplicate records and restart              | `InferenceLifecyclePersistenceTests`, `LiveCaptureLifecycleTests`, `BackgroundInferenceCompletionTests`, `InferenceReplayTests`, `DiskBackedInferenceAcceptanceTests`                             |
 | Insight restoration, media continuity and dismissal                  | `InsightQueuedHandoffTests`, `InsightShellLifecycleTests`, new disk-backed acceptance; five exact UI cases in the manifest                                                                        |
 | Resource admission and task ownership                                | `MediaStagingBudgetTests`, `AsyncPermitPoolTests`, `InferenceEngineTests` (including backlog cap and Auth hydration/write drains)                                                                 |
-| Startup and V50/V51 compatibility                                    | `ModelContainerBootstrapperTests`, `ModelStoreRecoveryCoordinatorTests`, `MigrationPlanTests`                                                                                                     |
+| Startup and V50/V51/V52 compatibility                                | `ModelContainerBootstrapperTests`, `ModelStoreRecoveryCoordinatorTests`, `MigrationPlanTests`                                                                                                     |
 | Secondary product and account transitions                            | `OnboardingViewModelTests`, `OnboardingConsentRecoveryTests`, `ExploreFeedViewModelTests`, `AuthLocalSignOutCoordinatorTests`, `AuthSessionLifecycleCoordinatorTests`, `OfflineJobSchedulerTests` |
 
 The new disk-backed test closes and reopens a private SQLite store, reconciles
@@ -1649,16 +1649,17 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
     must reuse the V45 checksum representative for unchanged local-scan,
     captured-media, and collection models, while V45 and V46 recent plans must
     keep those sources isolated from each other and route directly to V49 before
-    the shared V49→V50→V51 tail. The full historical plan must remain a single
-    linear chain through V42→V49→frozen V50→V51; V43...V48 belong only to
-    source-isolated plans. V49 must select a dedicated `[V49, frozen V50, V51]`
-    plan. V50 must select either `[released-active V50, V51]` or
-    `[frozen V50, V51]` from an allowlisted store checksum, and an unknown V50
-    graph must not be guessed. The source guardrail must preserve retry order as
-    current store, released-active V50, frozen V50, V49, V48, then V47 through
-    V42; checking only that every label exists is insufficient. It must also
-    keep the V35...V48 `UserSpeciesPreference` aliases chained to the immutable
-    V34 model; pointing any retired schema at the active V51 type rewrites that
+    the shared V49→V50→V51→V52 tail. The full historical plan must remain a
+    single linear chain through V42→V49→frozen V50→frozen V51→V52; V43...V48
+    belong only to source-isolated plans. V49 must select a dedicated
+    `[V49, frozen V50, V51, V52]` plan. V50 must select either
+    `[released-active V50, V51, V52]` or `[frozen V50, V51, V52]` from an
+    allowlisted store checksum, and an unknown V50 graph must not be guessed.
+    The source guardrail must preserve retry order as current store, V51,
+    released-active V50, frozen V50, V49, V48, then V47 through V42; checking
+    only that every label exists is insufficient. It must also keep the
+    V35...V48 `UserSpeciesPreference` aliases chained to the immutable V34
+    model; pointing any retired schema at a mutable active type rewrites that
     source schema's checksum. Disk-backed SwiftData migration tests should use
     unique temporary store URLs and must not unlink the `.sqlite`,
     `.sqlite-shm`, or `.sqlite-wal` files during the test process. Core Data may
@@ -2512,7 +2513,7 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   600-line ceiling.
 - **`Models/ModelsIntegrationArchitectureTests.swift`**: Audits the complete
   Models boundary after the Species and Captured Media slices. It freezes the
-  root and V51 active-schema inventories, rejects filesystem/network/task and
+  root and V52 active-schema inventories, rejects filesystem/network/task and
   `ModelContext` workflow ownership there, verifies the queued-row projection,
   queued-byte, queued-media-presentation, and cloud-deletion persistence
   adapters have one owner each, requires the live queued-row projection to stay
@@ -3090,7 +3091,7 @@ prove visual parity, live Auth/provider behavior, or migration execution.
   creation, membership mutation, explicit pre-mutation restoration before
   rollback for every mutation kind, and exact
   save-before-invalidation-before-sync ordering. The
-  `testDeleteUsesDurableSyncBoundary` case verifies the active V51
+  `testDeleteUsesDurableSyncBoundary` case verifies the active V52
   `ScanCollection.isPendingDeletion` save-first tombstone boundary and must
   remain enabled; it is a release-blocking regression if it fails.
 - **`CollectionsViewModelTests.swift`**
@@ -5054,15 +5055,15 @@ Generated-project membership must include every Swift file below both mirrored
 Collections directories, and each production Collections file must remain under
 the feature's 600-line review guard.
 
-The V51 matrix keeps the durable-delete regression enabled. It verifies that the
+The V52 matrix keeps the durable-delete regression enabled. It verifies that the
 renamed application tombstone survives `ModelContext.save()`, refetch, disk
-migration from V49, both released-V50 graphs migrating into V51, and a second
-context, while both V50 fixture graphs remain frozen. Run the complete
-`MigrationPlanTests` suite with the disk-backed V49→V50→V51 and both V50→V51
-fixtures, the focused Collections suites without exclusions, startup recovery
-coverage, and the full `merianTests` target. Any duplicate-checksum
-initialization failure remains a release blocker and must be fixed in the
-migration plan rather than bypassed.
+migration from V49, both released-V50 graphs migrating through frozen V51 into
+V52, and a second context, while both V50 fixture graphs remain frozen. Run the
+complete `MigrationPlanTests` suite with the disk-backed V49→V50→V51→V52, both
+V50→V51→V52 and direct V51→V52 fixtures, the focused Collections suites without
+exclusions, startup recovery coverage, and the full `merianTests` target. Any
+duplicate-checksum initialization failure remains a release blocker and must be
+fixed in the migration plan rather than bypassed.
 
 ### Scans Non-Biological
 
@@ -5638,10 +5639,11 @@ observations/supporting runs older than 30 days, and prevent artifact reuse
 across criteria. The manual evidence workflow passes `${{ inputs.* }}` through
 step environment variables before Bash consumes them; direct expression
 interpolation in a `run` script is a workflow-security regression. The
-historical genuine released-binary V49→V50 baseline, the current V50→V51
-physical install-over, and the canonical external consent/App Store/billing/DPA
-evidence must also pass. Artifact integrity does not authenticate an
-off-platform issuer or establish independent secret administration; follow the
+historical genuine released-binary V49→V50 baseline, the V50 source-variant
+physical install-over to current V52, the released-V51→V52 install-over, and the
+canonical external consent/App Store/billing/DPA evidence must also pass.
+Artifact integrity does not authenticate an off-platform issuer or establish
+independent secret administration; follow the
 [release-evidence operations guide](../release-evidence/README.md). These remain
 full-release checklist items; the beta exception does not certify them or
 reinstate the source hold automatically.
@@ -9411,3 +9413,22 @@ These checks prove consent mechanics, not public legal approval, model quality,
 production OpenAI authorization or a live provider rollout. Retain source and
 validation status in the
 [implementation record](../rfcs/identification-provider-openai-consent-2026-09-26.md).
+
+## Identification Result Provenance Compatibility
+
+`IdentificationResultProvenanceTests` covers required nullable configuration
+keys, known Gemini profiles, unknown/malformed present metadata, legacy absence,
+confidence/review presentation, live persistence and historical reconciliation.
+The generated DTO and executable contract gates verify optional non-null
+Identify metadata separately from model-output schemas. The four producer/replay
+suites verify that the client receives the same immutable snapshot saved with
+the scan.
+
+For V52,
+`MigrationPlanTests.v51StoreMigratesWithAllSavedStateAndLegacyProvenance`
+creates a complete frozen V51 store, checks the production metadata decision,
+uses the immediate-predecessor plan, preserves all entity types and
+relationships, and reopens saved provenance. Run migration/startup suites on
+installed supported runtimes and record unavailable runtimes. Physical
+released-binary install-over remains a release gate in the startup recovery
+runbook, not evidence implied by these synthetic fixtures.

@@ -5,6 +5,7 @@ struct ConfidenceBadge: View {
 
     let confidenceScore: Double?
     let inferenceTier: String?
+    let provenance: IdentificationResultProvenance?
     var userIdentificationOverride: String?
     var userConfirmedIdentification: Bool = false
     var isFlagged: Bool = false
@@ -24,6 +25,7 @@ struct ConfidenceBadge: View {
     init(
         confidenceScore: Double?,
         inferenceTier: String?,
+        provenance: IdentificationResultProvenance? = nil,
         userIdentificationOverride: String? = nil,
         userConfirmedIdentification: Bool = false,
         isFlagged: Bool = false,
@@ -35,6 +37,7 @@ struct ConfidenceBadge: View {
     ) {
         self.confidenceScore = confidenceScore
         self.inferenceTier = inferenceTier
+        self.provenance = provenance
         self.userIdentificationOverride = userIdentificationOverride
         self.userConfirmedIdentification = userConfirmedIdentification
         self.isFlagged = isFlagged
@@ -66,6 +69,7 @@ struct ConfidenceBadge: View {
         ConfidenceBadgePresentation.resolve(
             confidenceScore: confidenceScore,
             inferenceTier: inferenceTier,
+            provenance: provenance,
             hasUserOverride: userIdentificationOverride != nil,
             isUserConfirmed: userConfirmedIdentification,
             analyzingPhrase: analyzingPhrase
@@ -233,6 +237,7 @@ struct ConfidenceBadge: View {
                         presentationGeneration: subject.presentationGeneration,
                         confidenceScore: confidenceScore,
                         inferenceTier: inferenceTier,
+            provenance: provenance,
                         userIdentificationOverride: userIdentificationOverride,
                         userConfirmedIdentification: userConfirmedIdentification,
                         isFlagged: isFlagged,

@@ -64,6 +64,7 @@ struct BiologicalView: View {
                 paragraphs: viewModel.headerParagraphs,
                 confidenceScore: inferenceEngine.speciesData?.presentationConfidenceScore,
                 inferenceTier: inferenceEngine.speciesData?.inferenceTier,
+                provenance: inferenceEngine.speciesData?.identificationProvenance,
                 userIdentificationOverride: inferenceEngine.speciesData?.userIdentificationOverride,
                 userConfirmedIdentification: inferenceEngine.speciesData?.userConfirmedIdentification ?? false,
                 isFlagged: inferenceEngine.speciesData?.isFlagged ?? false,
@@ -341,6 +342,7 @@ struct BiologicalView: View {
             confidenceScore: inferenceEngine.speciesData?
                 .presentationConfidenceScore,
             inferenceTier: inferenceEngine.speciesData?.inferenceTier,
+                provenance: inferenceEngine.speciesData?.identificationProvenance,
             isSubscribed: revenueCatManager.isSubscribed,
             isProActive: revenueCatManager.isProActive,
             hasComplimentaryAccess: entitlementManager

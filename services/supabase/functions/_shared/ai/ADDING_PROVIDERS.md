@@ -80,8 +80,12 @@ observation jobs retain user authority even when a service invokes the worker.
    activation, extend the versioned
    [durable result provenance](../../../../../docs/rfcs/identification-provider-result-provenance-2026-09-26.md)
    to cover the qualified adapter's generation settings and confidence profile.
-   Gemini scans now retain this server configuration independently of the quota
-   record; client confidence consumers still need their own compatibility work.
+   Gemini scans retain this server configuration independently of the quota
+   record. The Identify DTO, owner history and V52 local store now retain it;
+   unknown present profiles receive neutral native confidence guidance. Public
+   projections, SQL score decisions and candidate-specific qualification remain
+   separate activation requirements. See the
+   [client provenance record](../../../../../docs/rfcs/identification-client-result-provenance-2026-09-26.md).
    Public jobs require an approved task/model assignment in their service path
    as well. Do not let the registry override a quota-selected model, accept
    client-selected providers/URLs, or widen the allowlist speculatively.

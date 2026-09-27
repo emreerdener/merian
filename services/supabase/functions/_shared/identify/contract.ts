@@ -50,11 +50,15 @@ export interface SwiftObjectMetadata {
   readonly parent?: string;
   readonly declarationOrder: number;
   readonly defaultPropertyOptional?: boolean;
+  /** Retain required nullable keys during decoding and re-encoding. */
+  readonly preserveRequiredNulls?: boolean;
 }
 
 export interface SwiftPropertyMetadata {
   readonly name?: string;
   readonly optional?: boolean;
+  /** Preserve omission compatibility while rejecting an explicit JSON null. */
+  readonly rejectExplicitNull?: boolean;
 }
 
 export interface ContractField {
@@ -819,9 +823,64 @@ const speciesInsightsContract = object(
   },
 );
 
+/** Content-free execution facts; never part of a provider/model schema. */
+const identificationProvenanceContract = object(
+  {
+    version: field(integer(1, 1), true),
+    provider: field(text({ minLength: 1, maxLength: 80 }), true),
+    binding: field(text({ minLength: 1, maxLength: 80 }), true),
+    model: field(text({ minLength: 1, maxLength: 80 }), true),
+    variant: field(text({ minLength: 1, maxLength: 80 }), true),
+    operation: field(text({ minLength: 1, maxLength: 80 }), true),
+    policy_version: field(integer(1, 999_999_999), true),
+    prompt: field(text({ minLength: 1, maxLength: 80 }), true),
+    schema: field(text({ minLength: 1, maxLength: 80 }), true),
+    confidence: field(text({ minLength: 1, maxLength: 80 }), true),
+    diagnostic_trigger: field(decimal(0, 1, { nullable: true }), true),
+    prompt_diagnostic_trigger: field(decimal(0, 1, { nullable: true }), true),
+    safety: field(text({ nullable: true, minLength: 1, maxLength: 80 }), true),
+    timeout_ms: field(integer(1, 999_999), true),
+    generation: field(
+      object(
+        {
+          temperature: field(decimal(0, 2), true),
+          seed: field(integer(0, 999_999_999, { nullable: true }), true),
+          top_k: field(integer(1, 999_999_999, { nullable: true }), true),
+          max_output_tokens: field(integer(1, 999_999_999), true),
+          thinking_budget: field(
+            integer(0, 999_999_999, { nullable: true }),
+            true,
+          ),
+        },
+        {
+          unknownKeys: "reject",
+          swift: {
+            name: "Generation",
+            parent: "IdentificationProvenanceDTO",
+            declarationOrder: 31,
+            preserveRequiredNulls: true,
+          },
+        },
+      ),
+      true,
+    ),
+  },
+  {
+    unknownKeys: "reject",
+    swift: {
+      name: "IdentificationProvenanceDTO",
+      declarationOrder: 30,
+      preserveRequiredNulls: true,
+    },
+  },
+);
+
 const edgeResponseContract = object(
   {
     scan_id: field(text({ minLength: 1, maxLength: 128 }), true),
+    identification_provenance: field(identificationProvenanceContract, false, {
+      rejectExplicitNull: true,
+    }),
     is_biological_subject: field(truth(), true),
     is_live_capture: field(truth(), true),
     ecology_type: field(merianModelContract.fields.ecology_type.contract),

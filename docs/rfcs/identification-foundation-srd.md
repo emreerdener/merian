@@ -821,3 +821,14 @@ unchanged. This extends the later-provider foundation; the original completed
 Gemini-only phase and its historical release evidence above are unchanged.
 Matched candidate qualification and deliberate provider activation remain
 separate milestones.
+
+## Subsequent result compatibility — 26 September 2026
+
+[Client result provenance](./identification-client-result-provenance-2026-09-26.md)
+extends the later-provider foundation with optional immutable execution metadata
+in Identify and owner history, V52 local persistence, and confidence
+presentation that distinguishes recognized Gemini profiles from unknown present
+profiles. Existing results without metadata retain legacy behavior. The app owns
+assignment; no provider chooser or second-provider activation is introduced.
+This is compatibility infrastructure, not benchmark qualification or a change to
+the original phase's historical acceptance evidence.

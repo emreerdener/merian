@@ -418,7 +418,10 @@ Deno.test("describe handler executes the shared boundary and preserves recovery"
           },
         });
         assertEquals(result.status, 200);
-        assertEquals(await result.json(), envelope);
+        const actualEnvelope = await result.json();
+        const { identification_provenance, ...legacyData } =
+          actualEnvelope.data;
+        assertEquals({ ...actualEnvelope, data: legacyData }, envelope);
         assertEquals(db.events, [
           "reserve",
           "ledger",
@@ -440,7 +443,7 @@ Deno.test("describe handler executes the shared boundary and preserves recovery"
         assertEquals(provenance.variant, "description_compat");
         assertEquals(provenance.generation.temperature, 0.15);
         assertEquals(provenance.version, 1);
-        assert(!("identification_provenance" in envelope.data));
+        assertEquals(identification_provenance, provenance);
         assertEquals([
           row.llm_prompt_tokens,
           row.llm_candidate_tokens,

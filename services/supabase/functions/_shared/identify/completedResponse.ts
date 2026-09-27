@@ -30,6 +30,7 @@ const COMPLETED_SCAN_SELECT = [
   "ai_reasoning",
   "extracted_visual_traits",
   "inference_tier",
+  "identification_provenance",
   "candidates",
   "image_quality_score",
   "pet_identification",
@@ -82,6 +83,7 @@ export interface CompletedScanResponseRow {
   ai_reasoning: string | null;
   extracted_visual_traits: string[] | null;
   inference_tier: string | null;
+  identification_provenance?: unknown;
   candidates: Array<Record<string, unknown>> | null;
   image_quality_score: number | null;
   pet_identification: Record<string, unknown> | null;
@@ -410,6 +412,12 @@ export function buildCompletedIdentifyEnvelope(
       ? extractedVisualTraits
       : ["saved observation result"],
   };
+
+  // Omission is historical compatibility. Present metadata must pass the wire
+  // contract; a damaged durable value must not degrade into legacy confidence.
+  if (scan.identification_provenance != null) {
+    data.identification_provenance = scan.identification_provenance;
+  }
 
   const optionalFields: Array<[string, unknown]> = [
     [

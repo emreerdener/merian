@@ -264,7 +264,7 @@ boundary:
 4. Through the bounded internal TestFlight group, install the exact processed
    candidate over V50 without uninstalling or clearing app data.
 5. Launch the candidate while collecting public device-console output. Require
-   `ModelContainer bootstrap diagnostics` to show `currentSchema=V51` and the
+   `ModelContainer bootstrap diagnostics` to show `currentSchema=V52` and the
    candidate source identity, and require
    `ModelContainer store-aware migration selection` to show
    `hasStoreArtifacts=true`, `storedSchema=V50`, and
@@ -444,3 +444,8 @@ private API credentials in the release record.
 
 This separation keeps the high-frequency Xcode workflow familiar while making
 sequential build ownership unambiguous.
+
+The V52 provenance candidate also requires the startup runbook's released-V51
+install-over and second-launch evidence. V51 sources must select
+`recent-source-v51`, migrate through lightweight V51→V52, preserve all saved
+state, and reopen as `current-store`; rescue into a fresh store does not pass.

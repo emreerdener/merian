@@ -5,7 +5,7 @@ import Testing
 struct SpeciesDataEdgeResponseTests {
     @Test(arguments: ["flash", "pro"])
     func audioConfidencePresentationUsesResolvedIdentity(tier: String) throws {
-        let strong = InferenceConfidencePolicy.bands(forInferenceTier: tier).strong
+        let strong = try #require(InferenceConfidencePolicy.bands(forInferenceTier: tier)).strong
         let cases: [(biological: Bool, common: String, scientific: String?, score: Double, style: ConfidenceBadgePresentation.Style)] = [
             (true, "American Robin", "Turdus migratorius", strong, .strong),
             (true, "American Robin", "Turdus migratorius", strong - 0.0001, .possible),

@@ -1949,7 +1949,7 @@ disconnected.
    the collection-sync job complete only when the captured revision still
    matches. If a newer rename/delete arrives while the old request is in flight,
    the job remains pending/waiting and the next drain loop replays the newer
-   state. The active V51 application-owned `isPendingDeletion` marker is mapped
+   state. The active V52 application-owned `isPendingDeletion` marker is mapped
    to the released `isDeleted` column, so this ordering guarantees
    `is_deleted: true` reaches the Edge function after any stale upsert
    snapshots.
@@ -2008,7 +2008,7 @@ disconnected.
    Shield**: If the cloud response erroneously includes a collection with a
    durable local application tombstone, the cloud response is ignored. This is
    intended to protect against delayed Edge work resurrecting a deleted entity;
-   the active V51 property-name mapping makes that shield durable for reopened
+   the active V52 property-name mapping makes that shield durable for reopened
    stores. Collections absent from the cloud response and not named "Favorites"
    are deleted locally. Because step 4 guarantees every local collection is
    already in the cloud, the delete pass only removes collections the user

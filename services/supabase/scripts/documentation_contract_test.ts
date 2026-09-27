@@ -6394,7 +6394,7 @@ Deno.test("account-grant issuance documentation retires RevenueCat mutation and 
   assertStringIncludes(reconciler, "rejects apply");
 });
 
-Deno.test("Collections documentation carries the V50 tombstone repair through V51 without changing the wire contract", async () => {
+Deno.test("Collections documentation carries the V50 tombstone repair through V52 without changing the wire contract", async () => {
   const [
     documentationIndex,
     coreDataReadme,
@@ -6468,13 +6468,14 @@ Deno.test("Collections documentation carries the V50 tombstone repair through V5
   }
   assertStringIncludes(schema, "MerianActiveSchemaV50");
   assertStringIncludes(schema, "MerianSchemaV51");
+  assertStringIncludes(schema, "MerianSchemaV52");
   assertStringIncludes(schema, "@Attribute(originalName:)");
   assertStringIncludes(schema, "MerianRecentV50MigrationPlan");
   assertStringIncludes(schema, "V50→V51");
-  assertStringIncludes(testing, "V49→V50→V51");
+  assertStringIncludes(testing, "V49→V50→V51→V52");
   assertStringIncludes(documentationIndex, "/sync-collections");
-  assertStringIncludes(coreDataReadme, "Fresh and V51 stores");
-  assertStringIncludes(coreDataReadme, "known V42...V50 sources");
+  assertStringIncludes(coreDataReadme, "Fresh and V52 stores");
+  assertStringIncludes(coreDataReadme, "known V42...V51 sources");
   assertStringIncludes(
     apiContract,
     "clients do not need to send both keys",

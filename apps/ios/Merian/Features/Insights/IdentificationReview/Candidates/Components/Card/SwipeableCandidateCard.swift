@@ -165,7 +165,9 @@ struct SwipeableCandidateCard: View {
             // Species info bottom bar
             VStack(alignment: .leading, spacing: 8) {
                 // Confidence score
-                Text("\(Int(candidate.confidenceScore * 100))% match")
+                Text(inferenceEngine.speciesData?.identificationConfidenceBands != nil
+                     ? "\(Int(candidate.confidenceScore * 100))% match"
+                     : "Alternative suggestion")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(.white)
                     .padding(.horizontal, 10)

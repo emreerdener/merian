@@ -715,7 +715,7 @@ Deno.test("compatibility handlers preserve paid work, media durability and repla
           );
           assertEquals(provenance.generation.temperature, 0.1);
           assertEquals(provenance.version, 1);
-          assert(!("identification_provenance" in envelope.data));
+          assertEquals(data.identification_provenance, provenance);
           assertEquals([
             row.llm_prompt_tokens,
             row.llm_candidate_tokens,

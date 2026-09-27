@@ -22,7 +22,7 @@ boundaries, and the [codebase map](./codebase-map.md) inventories source owners.
 | Database and Edge Functions             | [`services/supabase`](../services/supabase/README.md)                                                     |
 
 The app and widget target iOS 17.2; the companion targets watchOS 10.0. The
-active SwiftData schema is `MerianSchemaV51`. The
+active SwiftData schema is `MerianSchemaV52`. The
 [schema contract](./backend-and-data/04-database-schema.md) and
 [startup recovery guide](./backend-and-data/08-startup-store-recovery.md) own
 migration and install-over requirements.
@@ -230,8 +230,11 @@ production submission or public release.
   adds complete-input assignments and recipient-aware quota admission. The
   [native recipient preflight](./rfcs/identification-native-recipient-preflight-2026-09-26.md)
   checks assignment before dispatch, preserves the expectation across retries,
-  and pauses saved observations on permission or client-version denial. Provider
-  qualification, deliberate permission collection and rollout remain ahead.
+  and pauses saved observations on permission or client-version denial.
+  [Client result provenance](./rfcs/identification-client-result-provenance-2026-09-26.md)
+  preserves execution configuration in owner results and V52 local storage, with
+  neutral confidence presentation for unknown profiles. Provider qualification,
+  deliberate permission collection and rollout remain ahead.
 - **[Identification provider optimization plan](./rfcs/identification-provider-optimization-plan.md):**
   Shared measurement repairs are implemented with versioned mapping, reports and
   descriptive comparisons. Versioned baseline profiles and experiment-wide
