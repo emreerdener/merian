@@ -72,18 +72,19 @@ The canonical behavioral contract is the
   handoff from a validated response to a fresh persistence actor. The
   finalization service owns cross-domain ordering but neither SwiftData nor
   response-decoding implementation. The recovery owner resolves the existing
-  network client and scan repository for server-owned result hydration and
-  persists the retryable server-status transition. When background completion
-  wins an open live presentation, `InferenceSessionLifecycleCoordinator`
-  validates the exact presentation owner, atomically detaches and cancels that
-  task, and only then publishes recovered state. The queue manager never
-  re-reads or cancels `engine.inferenceTask` after that facade call because a
-  synchronous observer may already have installed a replacement. The
-  reconciliation owner projects server-owned inferencing IDs from durable
-  authority, and the retry sibling owns general transport-retry
-  preflight/persistence and server-poll execution. Completion has no direct
-  network-client or session access, while dispatch and watchdog use only the
-  root manager's retained background session.
+  network client, preserves server ownership, and persists retryable
+  server-status transitions. The hydration owner resolves the scan repository,
+  promotes a compatible local result, and commits queue cleanup before
+  completion effects. When background completion wins an open live presentation,
+  `InferenceSessionLifecycleCoordinator` validates the exact presentation owner,
+  atomically detaches and cancels that task, and only then publishes recovered
+  state. The queue manager never re-reads or cancels `engine.inferenceTask`
+  after that facade call because a synchronous observer may already have
+  installed a replacement. The reconciliation owner projects server-owned
+  inferencing IDs from durable authority, and the retry sibling owns general
+  transport-retry preflight/persistence and server-poll execution. Completion
+  has no direct network-client or session access, while dispatch and watchdog
+  use only the root manager's retained background session.
 - `Services/BackgroundTransfer/` owns the lock-protected terminal-work tracker,
   Auth-bound lease retention and transition quiescence, relaunched-task owner
   validation/adoption, terminal callback routing, and the nonisolated URLSession
@@ -181,7 +182,8 @@ The canonical behavioral contract is the
 | `Services/BackgroundInference/OfflineQueueManager+InferenceCompletion.swift`      | Generation-fenced task-result processing, compare-before-clear completion ownership and diagnostics, transport-failure handling, final persistence handoff, and private status-probe cancellation.                         |
 | `Services/BackgroundInference/BackgroundInferenceFinalizationService.swift`       | Cross-domain generation validation, response preparation, exact response-ID validation, and final persistence handoff through a fresh actor.                                                                               |
 | `Services/BackgroundInference/OfflineQueueManager+InferenceWatchdog.swift`        | Generation-fenced delayed status probing, exact background-task inspection/cancellation, and watchdog retirement/retry handoff.                                                                                            |
-| `Services/BackgroundInference/OfflineQueueManager+InferenceRecovery.swift`        | Server-status lookup, durable result evidence, retryable-status persistence, durable-wake-first post-save fencing, hydration, and cleanup.                                                                                 |
+| `Services/BackgroundInference/OfflineQueueManager+InferenceRecovery.swift`        | Server-status lookup, durable result evidence, retryable-status persistence, durable-wake-first post-save fencing, and recovery-outcome handling.                                                                          |
+| `Services/BackgroundInference/OfflineQueueManager+InferenceHydration.swift`       | Completed-result history hydration, compatibility checks, local promotion, and queue cleanup before notification, milestones, and presentation.                                                                            |
 | `Services/BackgroundInference/OfflineQueueManager+InferenceReconciliation.swift`  | Durable-authority projection of server-owned inferencing scan IDs for orphan reconciliation.                                                                                                                               |
 | `Services/BackgroundInference/OfflineQueueManager+InferenceRetry.swift`           | Compare-before-clear poll-token validation, general transport-retry preflight/persistence, server polling, and retry wake restoration.                                                                                     |
 | `Services/CaptureAdmission/DebugAudioComparisonAdmission.swift`                   | Debug simulator-only duplicate-ID lookup across queued and saved scans, before comparison funding or file effects. It persists no comparison profile and changes no schema.                                                |

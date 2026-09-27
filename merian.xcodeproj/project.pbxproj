@@ -1549,6 +1549,7 @@
 		B575B54883DB5E56CBEAC720 /* SpeciesDictionaryDetailServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFBB154622DEE9D771DBE3E4 /* SpeciesDictionaryDetailServiceTests.swift */; };
 		B5D50B03DB1E93D965B186E7 /* InsightSheetView+Content.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3C2191382771F7CBEEBF90E /* InsightSheetView+Content.swift */; };
 		B621606E9F3E3B9573B7B1BA /* InsightChatConversationComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC32CF90D196B6A42AC33B02 /* InsightChatConversationComponents.swift */; };
+		B65197F4EF438ABFFA11EB9B /* OfflineQueueManager+InferenceHydration.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA3E0F9A5D644BB7EB1B5A1A /* OfflineQueueManager+InferenceHydration.swift */; };
 		B66835E34999FE0D8FA71BC7 /* OfflineQueueManager+UploadLifecycle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82D75FA0AFF1C49663DCF105 /* OfflineQueueManager+UploadLifecycle.swift */; };
 		B6928285C4A02ED5666BB026 /* OfflineSyncFoundationArchitectureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12FF06091CFE5E03255A5FBC /* OfflineSyncFoundationArchitectureTests.swift */; };
 		B6AA5E2C7D37F9C17DAB0601 /* HardwareOrchestratorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68C049773FB7691159114A01 /* HardwareOrchestratorTests.swift */; };
@@ -4388,6 +4389,7 @@
 		F9EA7B5B49BE570AFD0006D9 /* SchemaV11.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SchemaV11.swift; sourceTree = "<group>"; };
 		FA0A1BDAAABB5709A978A269 /* UserProfileAvatarCoordinatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserProfileAvatarCoordinatorTests.swift; sourceTree = "<group>"; };
 		FA1BD4B4474D268EA505D201 /* OfflineQueueManagerAudioTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflineQueueManagerAudioTests.swift; sourceTree = "<group>"; };
+		FA3E0F9A5D644BB7EB1B5A1A /* OfflineQueueManager+InferenceHydration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "OfflineQueueManager+InferenceHydration.swift"; sourceTree = "<group>"; };
 		FA59BD72D321576E79C9C54E /* ExplorePostStoreMediaMergeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExplorePostStoreMediaMergeTests.swift; sourceTree = "<group>"; };
 		FA59FF99FD6F0D97EAD199F9 /* KeychainManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainManager.swift; sourceTree = "<group>"; };
 		FA5A5DE4E23F862A55674C50 /* DescribePromptViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DescribePromptViewModelTests.swift; sourceTree = "<group>"; };
@@ -8093,6 +8095,7 @@
 				D7648CA68A62F0DFF164E46A /* BackgroundInferenceFinalizationService.swift */,
 				F9E9F9681883D707BD6BA18E /* OfflineQueueManager+InferenceCompletion.swift */,
 				42C8E9E472092F5190275DFE /* OfflineQueueManager+InferenceDispatch.swift */,
+				FA3E0F9A5D644BB7EB1B5A1A /* OfflineQueueManager+InferenceHydration.swift */,
 				DF29AA328E652A4EC7D8D829 /* OfflineQueueManager+InferenceLifecycle.swift */,
 				C313D62C61409563A1A3C790 /* OfflineQueueManager+InferenceReconciliation.swift */,
 				2E0B2423906EE24F3D964752 /* OfflineQueueManager+InferenceRecovery.swift */,
@@ -14098,6 +14101,7 @@
 				AB5EABCFCA26997DA957D823 /* OfflineQueueManager+Funding.swift in Sources */,
 				7D4021F0B46EDE0F45AAA6E1 /* OfflineQueueManager+InferenceCompletion.swift in Sources */,
 				AC483C297E8643963DF5C34B /* OfflineQueueManager+InferenceDispatch.swift in Sources */,
+				B65197F4EF438ABFFA11EB9B /* OfflineQueueManager+InferenceHydration.swift in Sources */,
 				8DFE7154413D4EF2F00934CB /* OfflineQueueManager+InferenceLifecycle.swift in Sources */,
 				BF8245F54B0708859FAD123D /* OfflineQueueManager+InferenceReconciliation.swift in Sources */,
 				D67669EA418D49A15933E1F5 /* OfflineQueueManager+InferenceRecovery.swift in Sources */,

@@ -59,13 +59,15 @@ successful fetch proves the row is absent.
 mirrored scan/job error markers, attempt counts, and required-video count from
 one fresh throwing context.
 `Services/BackgroundInference/OfflineQueueManager+InferenceRecovery.swift` owns
-server-result hydration/recovery and retryable server-status persistence, while
-its `InferenceReconciliation` sibling owns the durable-authority projection used
-to identify server-owned inferencing rows, and its `InferenceRetry` sibling owns
-compare-before-clear poll validation, general transport-retry persistence, and
-server-poll execution. The existing manager and durability file remain the other
-live orchestration owners; there is no longer a queue, sync, or URLSession
-aggregate.
+server-status recovery, durable result ownership, and retryable server-status
+persistence. Its `InferenceHydration` sibling owns completed-result history
+hydration, compatibility checks, local promotion, and cleanup before completion
+effects; its `InferenceReconciliation` sibling owns the durable-authority
+projection used to identify server-owned inferencing rows, and its
+`InferenceRetry` sibling owns compare-before-clear poll validation, general
+transport-retry persistence, and server-poll execution. The existing manager and
+durability file remain the other live orchestration owners; there is no longer a
+queue, sync, or URLSession aggregate.
 `Core/Data/Database/BackgroundDatabaseActor+BackgroundAccountWork.swift` is the
 separate persistence-only owner for background-account activation, exact-owner
 validation, candidate projection, and durable retirement. It does not own Auth
@@ -1413,14 +1415,17 @@ private task-owner validation/adoption plus main-actor terminal routing, and
 nonisolated delegate callbacks. Accepted upload callbacks enter
 `Services/MediaUpload/OfflineQueueManager+UploadCompletion.swift`.
 `Services/BackgroundInference/OfflineQueueManager+InferenceRecovery.swift` owns
-server recovery, hydration, and retryable server-status persistence, while
+server recovery and retryable server-status persistence, while
+`OfflineQueueManager+InferenceHydration.swift` owns compatible completed-result
+hydration, promotion, and queue cleanup before completion effects.
 `OfflineQueueManager+InferenceRetry.swift` owns general transport-retry and
-server-poll processing. Both services delegate their durable retry mutation to
-`Database/BackgroundDatabaseActor+InferenceRetry.swift`; the actor extension
-does not own the scheduler or network policy. Generation lifecycle, request
-dispatch, accepted task completion, and delayed status-probe/task-retirement
-handling live in the other four focused `Services/BackgroundInference` owners.
-This source split does not change the sequence:
+server-poll processing. The recovery and retry services delegate their durable
+retry mutation to `Database/BackgroundDatabaseActor+InferenceRetry.swift`; the
+actor extension does not own the scheduler or network policy. Generation
+lifecycle, request dispatch, accepted task completion, and delayed
+status-probe/task-retirement handling live in the other four focused
+`Services/BackgroundInference` owners. This source split does not change the
+sequence:
 
 - **Step A**: iOS transmits the staged file to the Cloudflare R2 staging bucket.
 - **Step B**: `urlSession(_:task:didCompleteWithError:)` and inference
