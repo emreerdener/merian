@@ -1045,11 +1045,13 @@ export async function handleIdentifyMultimodalRequest(
   let resultPolicy: MultimodalResultPolicy;
   let finishReason: string | undefined;
   let safetyRatings: AIExecutionOutcome["safetyRatings"];
+  let mediaSafety: AIExecutionOutcome["mediaSafety"];
 
   let llmPromptTokens: number | null = null;
   let llmCandidateTokens: number | null = null;
   let llmThinkingTokens: number | null = null;
   let llmTotalTokens: number | null = null;
+  let llmCachedTokens: number | null = null;
   let llmUsageMetadata: Record<string, unknown> = {};
   let geminiLatencyMs = 0;
   let quotaCommitMs = 0;
@@ -1107,14 +1109,23 @@ export async function handleIdentifyMultimodalRequest(
       throw new Error(`ai_${result.kind}`);
     }
 
-    ({ finishReason, safetyRatings } = resultPolicy.safetySignals(result));
+    ({ finishReason, safetyRatings, mediaSafety } = resultPolicy.safetySignals(
+      result,
+    ));
     const usage = result.usage;
     if (usage) {
-      llmUsageMetadata = usage.modalityBreakdown;
+      llmUsageMetadata = result.execution.provider === "openai"
+        ? {
+          // Native counters are not modality counts or Gemini pricing inputs.
+          output_tokens: usage.outputTokens ?? null,
+          cache_write_tokens: usage.cacheWriteTokens ?? null,
+        }
+        : usage.modalityBreakdown;
       llmPromptTokens = usage.promptTokens;
       llmCandidateTokens = usage.candidateTokens;
       llmThinkingTokens = usage.thinkingTokens;
       llmTotalTokens = usage.totalTokens;
+      llmCachedTokens = usage.cachedTokens;
     }
   } catch (genErr) {
     if (providerAttempted) {
@@ -1439,15 +1450,37 @@ export async function handleIdentifyMultimodalRequest(
           "moderation_started",
           { leaseSeconds: requireDurableVideo ? 300 : 600 },
         );
-        modResult = await evaluateAndProcessPayload(
-          user.id,
-          stagedImageKeys,
-          imageBase64s,
-          finishReason,
-          safetyRatings,
-          userTier,
-          videoR2ObjectKeys,
-        );
+        if (result.execution.provider === "openai") {
+          // Result-policy acceptance is required before reaching ingestion.
+          // Never route another provider through Gemini's rating/strike policy.
+          if (
+            mediaSafety?.provider !== "openai" ||
+            mediaSafety.policy !== result.execution.safety ||
+            mediaSafety.disposition !== "allowed"
+          ) {
+            throw new Error("ai_identification_safety_unavailable");
+          }
+          modResult = {
+            status: "PROMOTED",
+            publicUrls: await promoteSafeMedia({
+              userId: user.id,
+              r2ObjectKeys: stagedImageKeys,
+              imageBase64s,
+              userTier,
+              r2Config: getR2Config(),
+            }),
+          };
+        } else {
+          modResult = await evaluateAndProcessPayload(
+            user.id,
+            stagedImageKeys,
+            imageBase64s,
+            finishReason,
+            safetyRatings,
+            userTier,
+            videoR2ObjectKeys,
+          );
+        }
         if (modResult.status === "ERROR") {
           console.error(
             "Multimodal moderation pipeline returned ERROR. Halting durable scan finalization.",
@@ -1694,7 +1727,7 @@ export async function handleIdentifyMultimodalRequest(
           llm_prompt_tokens: llmPromptTokens,
           llm_candidate_tokens: llmCandidateTokens,
           llm_thinking_tokens: llmThinkingTokens,
-          llm_cached_tokens: null,
+          llm_cached_tokens: llmCachedTokens,
           llm_total_tokens: llmTotalTokens,
           llm_usage_metadata: llmUsageMetadata,
           image_storage_urls: modResult?.publicUrls ?? [],

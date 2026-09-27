@@ -10,6 +10,9 @@ enum IdentificationRecipientExpectation: String, Codable, Sendable {
 }
 
 struct IdentificationDispatchAuthorization: Sendable {
+    static let protocolHeader = "X-Merian-Identification-Protocol"
+    /// Photo V2 decoding capability; independent of entitlement protocol 3.
+    let identificationProtocol = 4
     let recipient: IdentificationRecipientExpectation
     let validate: @MainActor @Sendable () throws -> Void
 }
@@ -32,6 +35,7 @@ struct IdentificationPreflightInput: Encodable, Equatable, Sendable {
     let originalAnalysisID: UUID
     let operation = "scan_identification"
     let clientProtocol = 3
+    let identificationProtocol = 4
 
     enum CodingKeys: String, CodingKey {
         case inputProfile = "p_input_profile"
@@ -39,6 +43,7 @@ struct IdentificationPreflightInput: Encodable, Equatable, Sendable {
         case originalAnalysisID = "p_original_analysis_id"
         case operation = "p_operation"
         case clientProtocol = "p_client_protocol"
+        case identificationProtocol = "p_identification_protocol"
     }
 
     init(body: Data, function: String) throws {
@@ -104,12 +109,14 @@ struct IdentificationPreflightResponse: Decodable, Sendable {
     let decision: Decision
     let processorPermission: IdentificationRecipientExpectation?
     let minimumClientProtocol: Int?
+    let minimumIdentificationProtocol: Int?
 
     enum CodingKeys: String, CodingKey {
         case inputProfile = "input_profile"
         case decision
         case processorPermission = "processor_permission"
         case minimumClientProtocol = "minimum_client_protocol"
+        case minimumIdentificationProtocol = "minimum_identification_protocol"
     }
 
     static func recipient(from data: Data, for input: IdentificationPreflightInput) throws
@@ -120,18 +127,28 @@ struct IdentificationPreflightResponse: Decodable, Sendable {
             throw MerianError.invalidResponse
         }
         if row.decision == .recoveryOnly {
-            guard row.processorPermission == nil, row.minimumClientProtocol == nil else {
+            guard row.processorPermission == nil, row.minimumClientProtocol == nil,
+                  row.minimumIdentificationProtocol == nil else {
                 throw MerianError.invalidResponse
             }
             return .recoveryOnly
         }
         guard let minimum = row.minimumClientProtocol, (0...1000).contains(minimum),
               row.processorPermission != .recoveryOnly else { throw MerianError.invalidResponse }
+        if let identificationMinimum = row.minimumIdentificationProtocol,
+           !(0...1000).contains(identificationMinimum) { throw MerianError.invalidResponse }
         if row.decision == .clientUpdateRequired {
-            guard minimum > 0 else { throw MerianError.invalidResponse }
+            guard minimum > 0 || (row.minimumIdentificationProtocol ?? 0) > 0 else {
+                throw MerianError.invalidResponse
+            }
             throw MerianError.httpError(statusCode: 426, message: #"{"code":"client_update_required"}"#)
         }
-        guard minimum <= input.clientProtocol, let recipient = row.processorPermission else {
+        guard minimum <= input.clientProtocol,
+              let identificationMinimum = row.minimumIdentificationProtocol,
+              [0, 4].contains(identificationMinimum),
+              identificationMinimum <= input.identificationProtocol,
+              let recipient = row.processorPermission,
+              recipient != .openAI || identificationMinimum == 4 else {
             throw MerianError.invalidResponse
         }
         if row.decision == .permissionRequired {

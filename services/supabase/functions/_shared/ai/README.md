@@ -29,31 +29,36 @@ still use Gemini; see the
   fresh work. Durable quota-attempt snapshots preserve each metered generation.
   The additive caller-bound recipient preflight is advisory. Edge accepts an
   optional denial-only recipient expectation and uses a ten-argument admission
-  overload to stop fresh work if assignment changed. Native preparation now
-  validates that result, preserves the expectation across retries and rechecks
-  local permission before dispatch; Gemini remains the sole active assignment.
-  See the
+  overload to stop fresh work if assignment changed. Identification capability 4
+  selects the eleven-argument overload independently of entitlement protocol 3.
+  Native preparation now validates that result, preserves the expectation across
+  retries and rechecks local permission before dispatch; Gemini remains the sole
+  active assignment. See the
   [admission contract](../../../../../docs/backend-and-data/05-api-contracts.md#provider-bound-identification-reservations).
 - `registry.ts` independently checks that identification assignment and resolves
-  the fixed `gemini_baseline_v1` binding from the quota-selected model and,
-  where applicable, the admitted tier. It checks task, representation,
-  operation, Gemini permission dependency, and reservation metadata before
-  commitment. No client field, environment variable, provider name, or URL can
-  select another adapter.
+  `gemini_baseline_v1` or the exact dormant `openai_photo_v1` from the
+  database-selected execution model and, where applicable, the admitted tier. It
+  checks task, complete representation, operation, recipient permission and
+  reservation metadata before commitment. No client field, environment variable,
+  provider name, or URL can select another adapter.
 - `contentRegistry.ts` binds the three content tasks to their existing quota
   operations and generation settings. User authority carries its admitted model,
   permission, and reservation. Service authority carries a claimed job, matching
   public-fact task, bounded attempt, and the fixed Flash model; its permission
   and user quota policy version are null.
-- `production.ts` composes the registry and Gemini adapter. Tests inject their
-  deterministic adapter through internal handler injection and the shared
-  executor; its implementation is confined to a test file.
+- `production.ts` composes the registry and Gemini adapter. Its OpenAI branch is
+  behind a constant-false source gate before credential lookup; handler
+  rejection refunds unused quota. Tests inject their deterministic adapter
+  through internal handler injection and the shared executor; its implementation
+  is confined to a test file.
 - `multimodalResultPolicy.ts` independently qualifies primary result handling
   before quota commitment. It derives the normalization threshold from the
   admitted snapshot and exposes Gemini safety signals only for a matching
-  supported profile. Unknown policies, including OpenAI evaluation snapshots,
-  cannot invoke or reach durable media promotion. Adapter registration alone
-  cannot qualify confidence or safety; see the
+  supported profile. The exact dormant OpenAI photo profile uses unqualified
+  confidence and requires its own allowed native moderation before promotion.
+  Unknown policies, including OpenAI evaluation snapshots, cannot invoke or
+  reach durable media promotion. Adapter registration alone cannot qualify
+  confidence or safety; see the
   [photo integration plan](../../../../../docs/rfcs/identification-openai-photo-integration-2026-09-27.md).
 - `execution.ts` permits one invocation per prepared attempt and records its
   duration. It owns no quota, persistence, retry, failover, or cancellation
@@ -128,13 +133,14 @@ OpenAI production result is emitted.
 
 `openaiRequest.ts` and `openai.ts` implement an evaluation-only `gpt-6-sol`
 photo/text binding through the same generic single-invocation interface.
-Production snapshot/authority defaults remain Gemini-only. The pure request
-builder derives strict JSON from the common Identify contract; the bounded REST
-adapter accepts only an explicit evaluator-supplied credential. Scripts select
-it only through `identification_evaluation/providers.ts`. Unsupported
-audio/snapshots reject the whole observation. OpenAI confidence is unqualified
-and never inherits Gemini bands. No deployed entrypoint imports this adapter.
-See the
+Production dispatch remains Gemini-only; the photo snapshot is a separate
+dormant user-request binding. The pure request builder derives strict JSON from
+the common Identify contract; the bounded REST adapter accepts only an explicit
+evaluator-supplied credential. Scripts select it only through
+`identification_evaluation/providers.ts`. Unsupported audio/snapshots reject the
+whole observation. OpenAI confidence is unqualified and never inherits Gemini
+bands. The source-disabled composition imports the photo adapter, but cannot
+dispatch it. See the
 [alternative-provider guide](../../../../../docs/development-guides/22-alternative-identification-provider.md)
 for permissions, pricing/usage mapping, offline demo and live comparison scope.
 
@@ -143,8 +149,10 @@ for permissions, pricing/usage mapping, offline demo and live comparison scope.
 input/output moderation to one request and releasing a draft only after its
 native safety policy allows it. Moderation rejection remains a refusal even if
 generated JSON is invalid. Missing evidence cannot become Gemini safety ratings.
-No registry/admission entry or deployed composition selects this binding; see
-the
+The registry, capability-aware admission and media-promotion path support this
+exact binding; no catalog row selects it, and the source gate independently
+blocks dispatch. Saved usage retains native output/cache-write counts and
+reported cached tokens, without a Gemini tariff; see the
 [safety contract](../../../../../docs/development-guides/10-safety-and-moderation.md#dormant-openai-photo-policy).
 
 ## Scoped audio prompt authority
@@ -384,7 +392,10 @@ qualification, common-contract extensions, database/Edge admission, disclosure,
 confidence, usage, cache, and activation work. The app owns a private
 complete-input routing catalog, currently seeded only with Gemini. There is no
 end-user provider selector or percentage-routing control. The OpenAI adapter is
-available only to explicitly gated local evaluation.
+available to explicitly gated evaluation; the separate production photo branch
+remains source-disabled. Ordered video frames have their own input profile and a
+planned separately qualified OpenAI binding; audio is never dropped to fit a
+route.
 
 ## Metric interpretation
 

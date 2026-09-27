@@ -2,6 +2,7 @@ import { assert, assertEquals, assertThrows } from "@std/assert";
 import type {
   AIAttemptSnapshot,
   AIExecutionOutcome,
+  GeminiAttemptSnapshot,
   MultimodalAIRequest,
 } from "./contracts.ts";
 import { identificationInputProfile } from "./identificationInput.ts";
@@ -15,7 +16,7 @@ function snapshot(
   request = openAITextFixture(),
   model = "gemini-2.5-flash",
   tier: "free" | "pro" = "free",
-): AIAttemptSnapshot {
+): GeminiAttemptSnapshot {
   return resolveAIClaim(request, {
     kind: "user_request",
     userId: "synthetic-owner",
@@ -37,7 +38,9 @@ function snapshot(
     },
   });
 }
-function outcome(execution = snapshot()): AIExecutionOutcome {
+function outcome(
+  execution: AIAttemptSnapshot = snapshot(),
+): AIExecutionOutcome {
   return {
     kind: "draft",
     draft: {},

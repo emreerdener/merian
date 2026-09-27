@@ -461,7 +461,11 @@ This README maps that contract to native source and test ownership.
   or logs.
 - The marked Identify wire block in `InferenceEdgeDTOs.swift` is generated from
   the server's executable contract. It owns explicit `CodingKeys` and
-  `init(from:)` implementations; do not hand-edit or extend those DTOs.
+  `init(from:)` implementations; do not hand-edit or extend those DTOs. The
+  generated V1/V2 decoders exceed the ordinary 600-line review ceiling, so both
+  architecture inventories name this specific generator-owned file. The DTO
+  generation/validation gate remains authoritative; other source files keep
+  their existing ceiling.
 
 ## First-Result Critical Path
 

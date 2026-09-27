@@ -28,6 +28,8 @@ struct IOSHygieneClosureArchitectureTests {
 
     private static let trackedOversizedOwners: Set<String> = [
         "App/UITesting/UITestSeedCoordinator.swift",
+        // Versioned wire decoders are generator-owned and validated as one contract.
+        "Core/AI/InferenceEdgeDTOs.swift",
         "Core/Network/SupabaseManager.swift",
         "Models/SchemaVersions.swift",
         // The immutable V51 model graph must remain together as its verified snapshot.

@@ -1,8 +1,8 @@
 # OpenAI photo integration
 
 Date: 27 September 2026\
-Status: result-policy boundary, dormant photo safety adapter and V2 metadata
-readers implemented; production remains Gemini.
+Status: dormant photo routing, native capability, safety, V2 metadata and
+saved-result usage integration implemented; production remains Gemini.
 
 ## Decision
 
@@ -15,11 +15,12 @@ biological photo references and one mineral control; median provider time was
 development examples, not held-out qualification or an end-to-end app benchmark.
 
 Keep description-only requests on Gemini for the first rollout. Both providers
-over-specified the mushroom description. Audio, sampled video frames (including
-the five snapshots from a five-second capture), combined media, compatibility
-routes, enrichment and Field Chat also retain their current Gemini assignments.
-A photo's optional note stays part of the complete observation; never drop it to
-qualify for a photo lane. The completed no-note benchmarks remain valid.
+over-specified the mushroom description. Audio, combined media, compatibility
+routes, enrichment and Field Chat retain Gemini. Ordered video snapshots are
+also image inputs and are a planned OpenAI visual route, described below; their
+current assignment remains Gemini pending separate qualification. A photo's
+optional note stays part of the complete observation; never drop it to qualify
+for a photo lane. The completed no-note benchmarks remain valid.
 
 The app owns assignments. End-user permission can allow or block disclosure to
 the app-selected processor; it is neither a preference nor an instruction to
@@ -33,13 +34,14 @@ client compatibility, immutable result provenance, neutral treatment of unknown
 scores, and metric restrictions in shared/public consumers. Preserve those
 owners; do not rebuild them as a new routing system.
 
-The first remaining code slice is an independent result-policy boundary in
+The first completed slice added an independent result-policy boundary in
 `_shared/ai/multimodalResultPolicy.ts`. The primary handler prepares it from the
 admitted execution snapshot **before quota commitment or invocation**. It
-accepts only the existing Gemini primary task, model, binding, prompt/schema,
-confidence and safety combinations. A missing or unsupported policy refunds
-unused quota through the existing retryable failure path. Registering an adapter
-alone cannot authorize its result handling.
+retains the existing Gemini primary task, model, binding, prompt/schema,
+confidence and safety combinations; the connection slice adds the exact dormant
+photo profile. A missing or unsupported policy refunds unused quota through the
+existing retryable failure path. Registering an adapter alone cannot authorize
+its result handling.
 
 Normalization now receives an explicit diagnostic threshold from that policy,
 instead of deriving one from the account tier. OpenAI evaluation continues to
@@ -49,27 +51,29 @@ production authority.
 
 Only an outcome matching the prepared Gemini result profile exposes native
 finish/rating signals to the existing media moderation path. Gemini's absent
-ratings retain their historical behavior. OpenAI has no qualified equivalent
-here: absence of Gemini ratings cannot be used to approve its media. The
-evaluation snapshot is rejected before provider spend or promotion, including
-when injected into the actual handler in tests.
+ratings retain their historical behavior. The dormant OpenAI photo path instead
+requires its own complete allowed native moderation disposition; absence of
+Gemini ratings cannot approve its media. The evaluation snapshot is rejected
+before provider spend or promotion, including when injected into the actual
+handler in tests.
 
-This is a source change to the primary result-processing boundary. It changes no
-database assignment, public payload, consent collection, credential store, model
-request, prompt, generation setting or existing stored result. The runtime
-fingerprint is regenerated for this implementation; the completed comparison
+That first slice changed the primary result-processing boundary without changing
+database assignments, public payloads, consent collection, credential stores,
+model requests, prompts, generation settings or existing stored results. The
+connection slice below adds its separate capability contract. The runtime
+fingerprint is regenerated for each implementation; the completed comparison
 retains its original source and hash.
 
 ## Remaining slices
 
-1. **Dormant runtime and admission.** Reuse the adapter behind an exact
-   photo-only binding, complete-input checks, server-owned assignment and the
-   existing atomic lease. Coordinate accepted client protocol, native/public
-   readers, disclosure collection, usage units and reviewed pricing. Prepare
-   GitHub-to-Supabase secret synchronization through the existing deployment
-   workflow; never retrieve the GitHub secret locally. Keep the assignment
-   disabled until its release conditions are satisfied. Neither a secret nor a
-   consent grant activates it.
+1. **Finish activation prerequisites.** The dormant connection described below
+   is implemented. Resolve historical/public reader compatibility,
+   failed/uncertain attempt accounting and effective-dated native pricing.
+   Prepare the exact GitHub-to-Supabase secret synchronization and disclosure
+   collection through existing release owners. The source gate remains false and
+   all assignments remain Gemini. A secret, consent grant or catalog edit cannot
+   enable dispatch.
+
 2. **Qualification and controlled activation.** Freeze the precise supported
    photo envelope, quality/safety/failure/latency/cost acceptance limits and a
    separately budgeted held-out comparison. Existing exploratory cases remain
@@ -120,15 +124,71 @@ media promotion. Bounded future configuration identifiers within the existing
 scan operation and variant vocabulary remain readable and unqualified. Exact
 production-profile matching remains the responsibility of admission and result
 policy. V2 can never receive Gemini confidence bands or score-based rewards.
-Current native protocol 3, permission collection and all server assignments are
-unchanged. Future routing must enforce a client minimum that actually reads V2
-before producing OpenAI results.
+Entitlement protocol remains 3. The connection slice separately advertises
+identification capability 4, while permission collection and all server
+assignments remain unchanged. This capability proves the requesting client can
+read V2; it does not solve history compatibility on another, older device.
 
-This slice does not yet connect the new adapter to production admission or media
-promotion. The next slice must compose the safety disposition before side
-effects, settle each failure through the existing attempt owner, preserve native
-usage/accounting and gate compatible clients. Recording metadata or constructing
-a snapshot is not authority to invoke a provider.
+## Dormant connection slice
+
+Migration `20260927175708_prepare_openai_photo_routing.sql` separates the quota
+policy's `model` from optional `provider_model` in the existing per-input
+binding and immutable attempt. NULL means the saved Gemini quota model; OpenAI
+requires the exact photo/GPT/permission tuple and identification capability 4.
+No catalog, quota policy, rollout or consent row changes. Other input profiles
+retain Gemini.
+
+New six-argument preflight and eleven-argument reservation overloads carry
+`p_identification_protocol` independently of `p_client_protocol`. Native request
+preparation and both transports retain capability 4 through retries in
+`X-Merian-Identification-Protocol`; the entitlement header stays 3. Legacy ABIs
+remain available and deny fresh alternate-provider assignments. Internal retries
+must recover capability from the original owner's exact saved attempt, never a
+worker header. Recipient expectation can only reject assignment drift.
+
+The registry resolves the exact dormant photo binding. `production.ts` has a
+constant-false source gate before credential lookup and invocation; the handler
+refunds that unused lease. Tests inject a synthetic execution through the
+existing seam. Allowed native moderation reaches the existing media promotion
+and durable scan path, while refusal/unavailable/uncertain outcomes retain
+existing settlement and recovery. No Gemini safety scores or account strikes are
+synthesized.
+
+Saved scans preserve reported cached tokens for both providers. OpenAI
+additionally retains native output and cache-write counts; candidate tokens
+exclude reasoning because Responses output already includes it. The existing
+scan trigger writes one ledger entry, labels `openai_responses_tokens_v1`, and
+retains unknown values as NULL. An OpenAI result with entirely missing usage
+still counts as an unpriced event. No OpenAI tariff or second success writer is
+introduced. Failed/uncertain attempts that never save a scan still have the
+previously documented accounting gap; closing that gap and qualifying pricing
+are activation requirements.
+
+**History compatibility remains a blocker.** Older protocol-3 apps read
+`identification_provenance` directly from PostgREST and cannot decode V2. Gating
+a new identification request does not protect another older device reading that
+account's history. Resolve this with a reviewed reader rollout/history
+projection before emitting V2 results. Do not omit provenance and thereby
+restore legacy Gemini confidence meanings. No SwiftData schema migration is
+required.
+
+## Video snapshots as an additional visual route
+
+The product captures about five seconds and sends five ordered image snapshots,
+not the video file, for identification. An image-capable provider can process
+these snapshots. Preserve `multimodal_video_frames_v1` as a distinct assignment
+so photos and frames can be switched independently. Add a separately versioned
+OpenAI frame binding using the same transport and native moderation machinery;
+include every frame, its order/lineage and available timing/context. Never
+relabel frames as still photos merely to pass the current photo-only validator.
+
+The existing photo comparison stays frozen. A small separately approved frame
+comparison must check sequence handling, uncertain/refused results, full media
+promotion/recovery and the latency/cost of five images. Image moderation covers
+only submitted frames, not every instant of the retained playback clip. Review
+that product safety limit before activation. Observations containing audio keep
+the complete Gemini binding until an audio-capable assignment is qualified;
+never silently drop audio or split one observation into unapproved extra calls.
 
 ## Activation and return to Gemini
 
@@ -147,6 +207,31 @@ Preserve readers for any OpenAI results already saved; rollback must not rewrite
 their scores or delete observations.
 
 ## Verification
+
+The dormant connection slice passed **2,145 Edge tests plus 286 steps**, a
+complete disposable migration replay, and **407 database assertions across 64
+files**. These include headerless worker admission with original-client proof,
+rejection of missing/invalid capability and changed recipient, atomic quota
+rollback, immutable replay, native safety promotion and exactly-once unpriced
+accounting when usage is missing. Database lint found no errors; security and
+performance advisor error gates passed with the same 103 and 80 existing
+warnings. The task-owned disposable database was stopped after validation.
+
+The source gates also passed: 444 standard tooling tests plus 34 steps, 60
+isolated evaluator tests plus 29 steps, the DTO/media contracts and ten shell
+suites, 354 migration-contract tests, all 101 function entrypoint checks,
+generated bundle fingerprints, recursive formatting/lint, iOS guardrails and
+Markdown checks. Independent read-only review verified the capability and
+worker-ABI fixes. No live provider calls or production mutations ran in this
+slice.
+
+The full native unit gate passed **1,372 XCTest cases and 3,013 Swift Testing
+cases across 465 Swift Testing suites**, using the checkout-local simulator
+cache. The earlier hosted iOS failure at `8eb8c95d4` identified the generated
+V1/V2 DTO file crossing the ordinary source-size ceiling. Both architecture
+inventories now explicitly name that generator-owned file; generated-contract
+validation and all ordinary source ceilings remain enforced. Hosted validation
+of the completed connection commit remains separate from this local evidence.
 
 Focused tests cover the current Gemini profiles and confidence boundaries,
 unchanged refusal and media-signal projection, unqualified-score alternatives,

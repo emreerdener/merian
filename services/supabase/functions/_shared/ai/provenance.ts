@@ -1,4 +1,4 @@
-import type { AIAttemptSnapshot } from "./contracts.ts";
+import type { AIAttemptSnapshot, GeminiAttemptSnapshot } from "./contracts.ts";
 import type { OpenAIPhotoSnapshot } from "./openaiPhoto.ts";
 
 /**
@@ -55,16 +55,16 @@ export type IdentificationProvenance =
 
 /** Project only the admitted, immutable execution snapshot, never model JSON. */
 export function identificationProvenance(
-  snapshot: AIAttemptSnapshot,
+  snapshot: GeminiAttemptSnapshot,
 ): IdentificationProvenanceV1;
 export function identificationProvenance(
   snapshot: OpenAIPhotoSnapshot,
 ): IdentificationProvenanceV2;
 export function identificationProvenance(
-  snapshot: AIAttemptSnapshot | OpenAIPhotoSnapshot,
+  snapshot: AIAttemptSnapshot,
 ): IdentificationProvenance;
 export function identificationProvenance(
-  snapshot: AIAttemptSnapshot | OpenAIPhotoSnapshot,
+  snapshot: AIAttemptSnapshot,
 ): IdentificationProvenance {
   if (
     snapshot.task !== "identify" || snapshot.contextKind !== "user_request" ||

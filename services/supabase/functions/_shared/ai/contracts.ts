@@ -5,7 +5,7 @@ import type {
 } from "../../identify-multimodal/capturedMedia.ts";
 
 import type { IdentificationProviderAssignment } from "./admission.ts";
-import type { OpenAIPhotoSafety } from "./openaiPhoto.ts";
+import type { OpenAIPhotoSafety, OpenAIPhotoSnapshot } from "./openaiPhoto.ts";
 
 export type AITask =
   | "identify"
@@ -19,7 +19,7 @@ export interface UserRequestAuthority {
   readonly audioPromptComparison?: "A" | "B";
   readonly kind: "user_request";
   readonly userId: string;
-  readonly permission: "google_gemini";
+  readonly permission: "google_gemini" | "openai";
   readonly operation: string;
   readonly reservation: {
     /** Identification requires this; content keeps its existing admission. */
@@ -134,7 +134,9 @@ export type SpeciesContentAIRequest =
     | { readonly task: "group_tags" }
   );
 
-export interface AIAttemptSnapshot {
+export type AIAttemptSnapshot = GeminiAttemptSnapshot | OpenAIPhotoSnapshot;
+
+export interface GeminiAttemptSnapshot {
   readonly provider: "gemini";
   readonly binding: "gemini_baseline_v1";
   readonly task: AITask;
@@ -189,6 +191,8 @@ export interface AIAttemptSnapshot {
 }
 
 export interface AIUsage {
+  /** Responses output includes reasoning; retain it even when the split is unknown. */
+  readonly outputTokens?: number | null;
   readonly promptTokens: number | null;
   readonly candidateTokens: number | null;
   readonly totalTokens: number | null;

@@ -2423,7 +2423,8 @@ remain unchanged.
 
 The backend chooses the assignment. End-user processing permission gates that
 assignment; it cannot select a different provider or fallback. All current
-catalog rows and runtime model/binding allowlists remain Gemini-only.
+catalog rows remain Gemini. The registry recognizes the exact dormant OpenAI
+photo tuple, but a separate constant-false composition gate prevents dispatch.
 `identificationInput.ts` distinguishes descriptions, photos, audio, combined
 photos/audio and video-derived frames/audio; compatibility request variants have
 separate profiles. Capture indications and lineage conservatively keep sampled
@@ -2451,9 +2452,9 @@ A binding's `minimum_client_protocol` gates fresh work using the existing
 all current Gemini bindings remain zero. Nonzero minima require a recognized
 protocol at or above the binding requirement; rejection uses the existing
 `426 client_update_required` envelope and rolls back quota/complimentary
-effects. The accepted range is currently 1–3; no client protocol bump is
-included. This is compatibility evidence, not authentication or end-user
-provider selection.
+effects. The entitlement protocol range remains 1–3. Identification capability 4
+is a separate contract and does not raise the global cutoff. This is
+compatibility evidence, not authentication or end-user provider selection.
 
 Fresh internal retries ignore any worker protocol header. They require accepted
 protocol evidence from the exact original owner's reservation and current
@@ -2466,23 +2467,49 @@ endpoints currently recover through the multimodal endpoint; that changes the
 profile (and audio operation). Such transformations remain supported by current
 zero-minimum Gemini bindings but do not inherit eligibility for a future gated
 binding. Qualifying that recovery path requires a separate durable origin
-mapping and provider review. Before a new app advertises a protocol above 3,
-coordinate the accepted maxima across Edge, SQL and snapshot constraints while
-retaining the global required minimum for older-client recovery. A global
-entitlement cutoff is not a provider switch.
+mapping and provider review. The new identification capability is independent of
+the global entitlement protocol. A global entitlement cutoff is not a provider
+switch.
+
+Migration `20260927175708_prepare_openai_photo_routing.sql` adds the exact
+dormant photo tuple and a separate `provider_model`. The quota policy model and
+limits are unchanged; the new reservation returns the saved execution model.
+Current rows still resolve Gemini. The native app adds
+`p_identification_protocol: 4` to the six-argument preflight and
+`X-Merian-Identification-Protocol: 4` to the final request alongside the
+recipient expectation. Edge accepts only that exact header value and uses the
+eleven-argument reservation. Missing headers on external requests keep legacy
+ABIs. Internal retries use the eleven-argument ABI with a NULL capability claim
+and may omit the recipient expectation; the database recovers proof from the
+original attempt. Every supplied expectation still rejects assignment drift.
+Invalid or expectation-less capability headers return
+`400 ai_identification_preflight_invalid`. No client field chooses a provider.
+
+Bindings store `minimum_identification_protocol` (0 or 4), and new attempts
+store that minimum plus recognized `accepted_identification_protocol` (4 or
+NULL). Older attempts remain unknown. Internal retries use the original exact
+owner/operation/observation/profile generation, not a worker claim. Fresh legacy
+admission cannot dispatch an OpenAI tuple. The production composition separately
+rejects OpenAI before credential lookup/commit and refunds the admitted lease.
+
+Capability 4 covers the requesting client's V2 decoder. Older apps directly read
+history through PostgREST, so this gate alone cannot make V2 safe for another
+older device. Historical/public reader compatibility remains an activation gate.
 
 Apply `20260926174645_add_identification_input_routing.sql`,
 `20260926182547_add_identification_recipient_recovery.sql`,
 `20260926200227_add_identification_client_compatibility.sql`,
-`20260926213316_add_identification_recipient_preflight.sql` and their
-predecessor migrations before deploying these Edge callers through the exact-SHA
-release procedure. The legacy eight-argument identification RPC and both
+`20260926213316_add_identification_recipient_preflight.sql`,
+`20260927165545_accept_openai_identification_provenance_v2.sql`,
+`20260927175708_prepare_openai_photo_routing.sql` and their predecessor
+migrations before deploying these Edge callers through the exact-SHA release
+procedure. The legacy eight-argument identification RPC and both
 `reserve_ai_quota` ABIs remain compatible and Gemini-gated. New callers never
 fall back to them if the routing overload is missing. This infrastructure does
 not activate OpenAI or enable consent collection. Future activation also needs
-the recipient preflight below, a qualified client protocol and coordinated
-accepted maximum expansion, qualified model admission, confidence and versioned
-result provenance. The implemented recipient-specific saved-scan recovery
+qualified historical/public readers, disclosure and credential release, exact
+safety-binding evidence, and complete usage/pricing coverage. V2 confidence
+remains unqualified. The implemented recipient-specific saved-scan recovery
 remains dormant while all assignments are Gemini.
 
 ### Assigned-recipient preflight
@@ -2501,6 +2528,12 @@ available quota.
 | `p_original_analysis_id`    | UUID              | This request's `client_scan_id`, not the parent observation of a refinement       |
 | `p_client_protocol`         | integer, nullable | Client capability claim; null means unknown; non-null values must be 1–1000       |
 
+The new six-argument overload additionally accepts nullable
+`p_identification_protocol`. Only 4 is recognized as the V2 identification
+capability; this does not change `p_client_protocol` or the entitlement header.
+The five-argument ABI stays available to older callers and returns
+update-required for any binding requiring the new capability.
+
 Accepted profiles are `description_compat_v1`, `vision_compat_v1`,
 `audio_compat_v1`, `multimodal_text_v1`, `multimodal_photo_v1`,
 `multimodal_audio_v1`, `multimodal_photo_audio_v1`, `multimodal_video_frames_v1`
@@ -2518,6 +2551,12 @@ The RPC returns exactly one row:
 | `decision`                | text              | `ready`, `permission_required`, `client_update_required`, or `recovery_only`                                  |
 | `processor_permission`    | text, nullable    | App-assigned recipient: `google_gemini` or `openai`; null for recovery-only or a global protocol denial       |
 | `minimum_client_protocol` | integer, nullable | Greater of global and binding requirements; global minimum alone when it denies early; null for recovery-only |
+
+The six-argument result adds nullable `minimum_identification_protocol`: 0 or 4
+for an assignment, NULL for recovery-only or early global denial. Native readers
+check it independently of `minimum_client_protocol` and reject unknown
+ready/permission minima. A positive future minimum can still signal an explicit
+update-required decision.
 
 The global supported-protocol gate runs before recovery and entitlement,
 matching public Identify. A caller-owned live or committed reservation then

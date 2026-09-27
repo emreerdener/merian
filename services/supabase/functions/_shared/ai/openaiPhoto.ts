@@ -45,6 +45,10 @@ export function openAIPhotoSnapshot(
   policyVersion: number,
 ): OpenAIPhotoSnapshot {
   assertOpenAIPhotoInput(request);
+  return photoConfiguration(policyVersion);
+}
+
+function photoConfiguration(policyVersion: number): OpenAIPhotoSnapshot {
   if (
     !Number.isSafeInteger(policyVersion) || policyVersion < 1 ||
     policyVersion > 999_999_999
@@ -71,14 +75,30 @@ export function openAIPhotoSnapshot(
   });
 }
 
+/** Exact content-free configuration, independently checked before result use. */
+export function assertOpenAIPhotoSnapshot(
+  snapshot: OpenAIPhotoSnapshot,
+): void {
+  const expected = photoConfiguration(snapshot.policyVersion);
+  const record = snapshot as unknown as Record<string, unknown>;
+  if (
+    Object.keys(record).length !== Object.keys(expected).length ||
+    Object.entries(expected).some(([key, value]) =>
+      key === "generation"
+        ? JSON.stringify(record[key]) !== JSON.stringify(value)
+        : record[key] !== value
+    )
+  ) {
+    throw new Error("openai_binding_mismatch");
+  }
+}
+
 export function buildOpenAIPhotoRequestParameters(
   request: AIRequest,
   snapshot: OpenAIPhotoSnapshot,
 ) {
-  const expected = openAIPhotoSnapshot(request, snapshot.policyVersion);
-  if (JSON.stringify(snapshot) !== JSON.stringify(expected)) {
-    throw new Error("openai_binding_mismatch");
-  }
+  assertOpenAIPhotoInput(request);
+  assertOpenAIPhotoSnapshot(snapshot);
   // Preserve the measured baseline prompt and generation settings. Only this
   // distinct binding requests inline moderation; old benchmark profiles do not.
   return {

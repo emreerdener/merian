@@ -234,6 +234,7 @@ export async function verifyComparisonExecution(
   snapshot: AIAttemptSnapshot,
 ): Promise<void> {
   const a = comparison.assignment;
+  check(snapshot.provider === "gemini");
   check(request.task === "identify" && request.variant === "multimodal");
   check(
     await fingerprintJson(buildGeminiRequestParameters(request, snapshot)) ===

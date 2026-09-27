@@ -217,8 +217,13 @@ The adapter exposes only the policy and disposition, not moderation scores,
 diagnostics or content. It makes no separate moderation request and performs no
 automatic retry. Added latency, actual billing and safety effectiveness remain
 unqualified. Offline fixtures establish control flow only. Production still
-rejects this binding before commitment: runtime admission, media promotion,
-end-to-end qualification and explicit activation remain pending.
+rejects this binding before commitment through a constant-false composition gate
+and refunds the unused lease. The dormant admission/result path is connected:
+only a matching allowed native disposition can reach media promotion, without
+Gemini ratings or strikes. Historical-reader compatibility, end-to-end
+qualification, accounting completeness and explicit activation remain pending.
+Video-frame support is planned as a separate visual binding; moderation of five
+submitted snapshots cannot assert safety of every instant of the playback clip.
 
 ## Gemini Safety Ratings Evaluation
 

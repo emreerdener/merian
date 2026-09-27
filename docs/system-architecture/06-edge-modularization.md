@@ -70,7 +70,9 @@ quota commitment. It binds normalization thresholds and media-safety signals to
 supported execution profiles; adapter registration cannot authorize result
 interpretation or media promotion. Current Gemini profiles retain their
 behavior. OpenAI evaluation remains unqualified and cannot enter this production
-result path. The
+result path. The exact dormant photo binding instead uses native moderation,
+separate identification capability and saved provider-model attribution behind a
+false production source gate. The
 [photo integration plan](../rfcs/identification-openai-photo-integration-2026-09-27.md)
 owns the remaining safety, provenance, admission and activation slices.
 

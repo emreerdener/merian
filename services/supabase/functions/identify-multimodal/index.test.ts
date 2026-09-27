@@ -925,9 +925,8 @@ Deno.test("identify success waits for durable scan persistence for every media t
   );
   assert(source.includes('"scan_persistence_failed"'));
   assert(
-    source.includes(
-      "evaluateAndProcessPayload(\n          user.id,\n          stagedImageKeys,\n          imageBase64s,",
-    ),
+    /evaluateAndProcessPayload\(\s*user\.id,\s*stagedImageKeys,\s*imageBase64s,/
+      .test(source),
     "inline destination hints must not influence public object naming",
   );
   assert(
@@ -1014,7 +1013,7 @@ Deno.test("latency telemetry is privacy-safe and keeps the Gemini boundary exact
     generationCall,
   );
   const responseExtraction = source.indexOf(
-    "resultPolicy.safetySignals(result)",
+    "resultPolicy.safetySignals(",
     generationCall,
   );
   assert(generationCall >= 0);
@@ -1046,7 +1045,7 @@ Deno.test("latency phase spans isolate quota, provider, promotion, enrichment, a
     "providerMs = result.providerDurationMs;",
     "quotaCommitMs = providerStart - quotaCommitStart;",
     "geminiLatencyMs = result.providerCompletedAt - geminiStart;",
-    "resultPolicy.safetySignals(result)",
+    "resultPolicy.safetySignals(",
   );
   assertOrdered(
     '"video_promotion_started"',

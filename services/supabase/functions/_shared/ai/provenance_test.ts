@@ -15,7 +15,7 @@ function authority(
   tier: "free" | "pro",
   operation = "scan_identification",
   inputProfile: IdentificationInputProfile = "description_compat_v1",
-): UserRequestAuthority {
+): UserRequestAuthority & { readonly permission: "google_gemini" } {
   return {
     kind: "user_request",
     userId: "synthetic-owner",

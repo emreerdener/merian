@@ -1,5 +1,5 @@
 import { assert, assertEquals, assertRejects, assertThrows } from "@std/assert";
-import type { AIAttemptSnapshot, MultimodalAIRequest } from "./contracts.ts";
+import type { MultimodalAIRequest } from "./contracts.ts";
 import { createAIExecution } from "./execution.ts";
 import { prepareMultimodalResultPolicy } from "./multimodalResultPolicy.ts";
 import { createOpenAIPhotoAdapter, OPENAI_RESPONSES_URL } from "./openai.ts";
@@ -180,9 +180,9 @@ Deno.test("photo candidate never admits text-only, audio, sampled video or alter
   for (const policy of [0, -1, 1.5, Infinity, 1_000_000_000]) {
     assertThrows(() => openAIPhotoSnapshot(base, policy));
   }
-  assertThrows(() =>
-    prepareMultimodalResultPolicy(snapshot as unknown as AIAttemptSnapshot)
-  );
+  assertEquals(prepareMultimodalResultPolicy(snapshot).confidence, {
+    kind: "unqualified",
+  });
 });
 
 Deno.test("photo safety requires complete native input and output evidence without treating text-only categories as image coverage", () => {

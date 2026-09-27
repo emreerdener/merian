@@ -2562,10 +2562,14 @@ make ios-local-build ARGS="simulator -- test-without-building \
 `IOSHygieneClosureArchitectureTests` scans the complete main-app Swift tree and
 requires the oversized inventory to remain exactly the Debug-only UI-test seed
 coordinator, the measured residual `SupabaseManager` facade, and the cohesive
-ordered migration registry. It therefore catches a new ordinary production file
-crossing the 600-line review ceiling even when a local domain suite has not yet
-been added. Domain architecture tests still own imports, live-effect placement,
-inventories, retired paths, and tighter budgets.
+ordered migration registry, together with the immutable V51 model snapshot and
+`InferenceEdgeDTOs.swift`. The DTO file's generated V1/V2 wire decoders share
+one executable contract; `make validate-edge-dto-contract` verifies their
+generated content. This explicit generated-file entry does not exempt ordinary
+source files or permit hand edits to DTOs. The inventory therefore catches a new
+ordinary production file crossing the 600-line review ceiling even when a local
+domain suite has not yet been added. Domain architecture tests still own
+imports, live-effect placement, inventories, retired paths, and tighter budgets.
 
 The shared source counter treats a trailing newline as a line terminator rather
 than an additional empty physical line. The closure suite locks empty,

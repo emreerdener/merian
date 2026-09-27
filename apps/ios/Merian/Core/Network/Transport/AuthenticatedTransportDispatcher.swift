@@ -70,6 +70,8 @@ final class AuthenticatedTransportDispatcher {
             )
         }
         if let authorization = identificationAuthorization {
+            request.setValue(String(authorization.identificationProtocol),
+                             forHTTPHeaderField: IdentificationDispatchAuthorization.protocolHeader)
             request.setValue(authorization.recipient.rawValue,
                              forHTTPHeaderField: IdentificationRecipientExpectation.header)
         }

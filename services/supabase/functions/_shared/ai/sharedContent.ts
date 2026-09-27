@@ -1,6 +1,6 @@
 import type {
-  AIAttemptSnapshot,
   AIExecutionAuthority,
+  GeminiAttemptSnapshot,
   SpeciesContentAIRequest,
 } from "./contracts.ts";
 import type { prepareAIExecution } from "./production.ts";
@@ -53,7 +53,7 @@ const exactKeys = (value: Record<string, unknown>, keys: readonly string[]) =>
 export function assertSharedSpeciesContentSnapshot(
   snapshot: unknown,
   task: ContentTask,
-): asserts snapshot is AIAttemptSnapshot {
+): asserts snapshot is GeminiAttemptSnapshot {
   const profile = qualified[task];
   if (
     !Object.hasOwn(qualified, task) || !profile || !record(snapshot) ||

@@ -22,6 +22,109 @@ import {
 const REQUEST_ID = "00000000-0000-0000-0000-000000000123";
 const SECRET = "test-only-ai-quota-hmac-secret-32-bytes";
 
+Deno.test("internal replay selects capability-aware admission without claiming worker capability", async () => {
+  const prior = Deno.env.get("AI_QUOTA_IP_HASH_SECRET");
+  Deno.env.set("AI_QUOTA_IP_HASH_SECRET", SECRET);
+  try {
+    const workerHeaders: Record<string, string>[] = [{}, {
+      "X-Merian-Identification-Protocol": "4",
+      "X-Merian-Identification-Recipient": "google_gemini",
+    }];
+    for (const headers of workerHeaders) {
+      let calls = 0;
+      const error = await assertRejects(() =>
+        reserveIdentificationProviderCall(
+          new Request("https://example.invalid", { headers }),
+          {
+            rpc: (name: string, args: Record<string, unknown>) => {
+              calls++;
+              assertEquals(name, "reserve_identification_quota");
+              assertEquals(args.p_identification_protocol, null);
+              assertEquals(
+                args.p_expected_processor_permission,
+                headers["X-Merian-Identification-Recipient"] ?? null,
+              );
+              assertEquals(args.p_internal_replay, true);
+              assertEquals(args.p_original_analysis_id, REQUEST_ID);
+              return {
+                abortSignal: () =>
+                  Promise.resolve({
+                    data: null,
+                    error: { message: "client_update_required" },
+                  }),
+              };
+            },
+          } as never,
+          {
+            request: buildDescribeAIRequest("Synthetic observation", {
+              safeGpsLat: null,
+              safeGpsLon: null,
+            }),
+            userId: "synthetic-owner",
+            operation: "scan_identification",
+            requestId: REQUEST_ID,
+            originalAnalysisId: REQUEST_ID,
+            internalReplay: true,
+          },
+        ), AIQuotaError);
+      assertEquals(calls, 1);
+      assertEquals(error.code, "client_update_required");
+    }
+  } finally {
+    if (prior === undefined) Deno.env.delete("AI_QUOTA_IP_HASH_SECRET");
+    else Deno.env.set("AI_QUOTA_IP_HASH_SECRET", prior);
+  }
+});
+
+Deno.test("identification capability is separate from entitlement and cannot select a provider", async () => {
+  const prior = Deno.env.get("AI_QUOTA_IP_HASH_SECRET");
+  Deno.env.set("AI_QUOTA_IP_HASH_SECRET", SECRET);
+  try {
+    for (const capability of ["4", "3", "5", "04", "garbage"]) {
+      let calls = 0;
+      const error = await assertRejects(() =>
+        reserveIdentificationProviderCall(
+          new Request("https://example.invalid", {
+            headers: {
+              "X-Merian-Entitlement-Protocol": "3",
+              "X-Merian-Identification-Protocol": capability,
+              "X-Merian-Identification-Recipient": "google_gemini",
+            },
+          }),
+          {
+            rpc: (_name: string, args: Record<string, unknown>) => {
+              calls++;
+              assertEquals(args.p_client_protocol, 3);
+              assertEquals(args.p_identification_protocol, 4);
+              assertEquals("p_model" in args || "p_provider" in args, false);
+              return {
+                abortSignal: () =>
+                  Promise.resolve({
+                    data: null,
+                    error: { message: "client_update_required" },
+                  }),
+              };
+            },
+          } as never,
+          {
+            request: buildDescribeAIRequest("Synthetic observation", {
+              safeGpsLat: null,
+              safeGpsLon: null,
+            }),
+            userId: "synthetic-owner",
+            operation: "scan_identification",
+            requestId: REQUEST_ID,
+          },
+        ), AIQuotaError);
+      assertEquals(calls, capability === "4" ? 1 : 0);
+      assertEquals(error.status, capability === "4" ? 426 : 400);
+    }
+  } finally {
+    if (prior === undefined) Deno.env.delete("AI_QUOTA_IP_HASH_SECRET");
+    else Deno.env.set("AI_QUOTA_IP_HASH_SECRET", prior);
+  }
+});
+
 Deno.test("AI request id prefers the validated body id", () => {
   const request = new Request("https://example.invalid", {
     headers: {

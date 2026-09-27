@@ -208,7 +208,17 @@ Gemini diagnostic threshold and checks the outcome profile before exposing
 finish/rating signals to moderation. Missing or unsupported policies use the
 existing pre-invocation refund/failure path. OpenAI's evaluation policy remains
 unqualified and cannot reach provider invocation or media promotion through this
-route. Production composition and all current Gemini outcomes are unchanged.
+route. The exact dormant photo profile separately checks native OpenAI
+moderation, uses unqualified confidence, and promotes allowed media without
+Gemini ratings or strikes. A false source gate prevents production OpenAI
+dispatch and refunds the unused lease. All current assignments remain Gemini.
+
+Native callers carry identification capability 4 in a separate header, leaving
+entitlement protocol 3 unchanged. Saved usage preserves reported cached tokens
+and OpenAI output/cache-write units; the scan trigger owns the single success
+ledger event. Unknown units/prices remain unknown. See the
+[connection and video-frame plan](../../../../docs/rfcs/identification-openai-photo-integration-2026-09-27.md)
+for historical-reader and activation prerequisites.
 
 The route uses the modality-specific system instructions and retains temperature
 `0.1`, seed `42`, `maxOutputTokens: 8192`, Pro thinking budget `5000`,

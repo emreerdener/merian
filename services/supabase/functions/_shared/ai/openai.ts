@@ -37,6 +37,7 @@ function usageFrom(value: unknown): AIUsage | null {
     cached = count(object(u.input_tokens_details)?.cached_tokens),
     writes = count(object(u.input_tokens_details)?.cache_write_tokens);
   return {
+    outputTokens: output,
     promptTokens: input,
     // Responses output_tokens ALREADY includes reasoning. Never add it twice.
     candidateTokens:
@@ -137,7 +138,7 @@ export function createOpenAIEvaluationAdapter(
   }));
 }
 
-/** Dormant: runtime registration and result-policy admission remain Gemini-only. */
+/** Photo-only transport; the production composition independently blocks dispatch. */
 export function createOpenAIPhotoAdapter(
   credential: string,
   fetcher: typeof fetch = fetch,

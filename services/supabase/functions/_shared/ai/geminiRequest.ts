@@ -5,7 +5,7 @@ import type {
   HarmCategory,
   Schema,
 } from "@google/genai";
-import type { AIAttemptSnapshot, AIRequest } from "./contracts.ts";
+import type { AIRequest, GeminiAttemptSnapshot } from "./contracts.ts";
 import {
   getDescribeResponseSchema,
   getDescribeSystemInstruction,
@@ -34,7 +34,7 @@ const BIOLOGICAL_SAFETY_SETTINGS = [
   },
 ];
 
-function diagnosticTrigger(snapshot: AIAttemptSnapshot): number {
+function diagnosticTrigger(snapshot: GeminiAttemptSnapshot): number {
   if (
     typeof snapshot.diagnosticTrigger !== "number" ||
     !Number.isFinite(snapshot.diagnosticTrigger)
@@ -46,7 +46,7 @@ function diagnosticTrigger(snapshot: AIAttemptSnapshot): number {
 
 export function buildGeminiRequestParameters(
   request: AIRequest,
-  snapshot: AIAttemptSnapshot,
+  snapshot: GeminiAttemptSnapshot,
   content?: {
     systemInstruction: string;
     responseSchema: Schema;

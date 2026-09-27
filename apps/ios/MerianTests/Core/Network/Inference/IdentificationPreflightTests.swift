@@ -17,11 +17,12 @@ struct IdentificationPreflightTests {
         let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
         #expect(Set(object.keys) == Set([
             "p_operation", "p_input_profile", "p_flash_fallback_eligible",
-            "p_original_analysis_id", "p_client_protocol"
+            "p_original_analysis_id", "p_client_protocol", "p_identification_protocol"
         ]))
         #expect((object["p_original_analysis_id"] as? String)?.lowercased() == scanID)
         #expect(object["p_input_profile"] as? String == "multimodal_photo_v1")
         #expect(object["p_client_protocol"] as? Int == 3)
+        #expect(object["p_identification_protocol"] as? Int == 4)
         #expect(!String(decoding: data, as: UTF8.self).contains("synthetic"))
     }
 
@@ -107,10 +108,38 @@ struct IdentificationPreflightTests {
         return try IdentificationPreflightInput(body: JSONSerialization.data(withJSONObject: payload), function: function)
     }
 
+    @Test func identificationCapabilityIsIndependentOfEntitlementAndCannotBeGuessed() throws {
+        let input = try makeInput(["imageBase64s": ["image"]])
+        func response(_ decision: String, minimum: Int) -> Data {
+            Data("[{\"input_profile\":\"multimodal_photo_v1\",\"decision\":\"\(decision)\",\"processor_permission\":\"openai\",\"minimum_client_protocol\":3,\"minimum_identification_protocol\":\(minimum)}]".utf8)
+        }
+        #expect(try IdentificationPreflightResponse.recipient(from: response("ready", minimum: 4), for: input) == .openAI)
+        for minimum in [0, 1, 2, 3, 5] {
+            #expect(throws: MerianError.invalidResponse) {
+                try IdentificationPreflightResponse.recipient(from: response("ready", minimum: minimum), for: input)
+            }
+        }
+        #expect(throws: MerianError.httpError(statusCode: 426, message: #"{"code":"client_update_required"}"#)) {
+            try IdentificationPreflightResponse.recipient(from: response("client_update_required", minimum: 5), for: input)
+        }
+        for recipient in ["google_gemini", "openai"] {
+            for decision in ["ready", "permission_required"] {
+                for capability in ["", ",\"minimum_identification_protocol\":null"] {
+                    let data = Data("[{\"input_profile\":\"multimodal_photo_v1\",\"decision\":\"\(decision)\",\"processor_permission\":\"\(recipient)\",\"minimum_client_protocol\":3\(capability)}]".utf8)
+                    #expect(throws: MerianError.invalidResponse) {
+                        try IdentificationPreflightResponse.recipient(from: data, for: input)
+                    }
+                }
+            }
+        }
+    }
+
     private func row(decision: String, recipient: String? = nil, minimum: Int? = nil,
                      profile: String = "multimodal_photo_v1") -> Data {
         let recipientJSON = recipient.map { "\"\($0)\"" } ?? "null"
         let minimumJSON = minimum.map(String.init) ?? "null"
-        return Data("[{\"input_profile\":\"\(profile)\",\"decision\":\"\(decision)\",\"processor_permission\":\(recipientJSON),\"minimum_client_protocol\":\(minimumJSON)}]".utf8)
+        let identificationMinimum = decision == "recovery_only" || recipient == nil
+            ? "null" : recipient == "openai" ? "4" : "0"
+        return Data("[{\"input_profile\":\"\(profile)\",\"decision\":\"\(decision)\",\"processor_permission\":\(recipientJSON),\"minimum_client_protocol\":\(minimumJSON),\"minimum_identification_protocol\":\(identificationMinimum)}]".utf8)
     }
 }

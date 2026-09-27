@@ -5,17 +5,17 @@ import { buildGeminiContent } from "./geminiContent.ts";
 import { buildGeminiRequestParameters } from "./geminiRequest.ts";
 import type {
   AIAdapter,
-  AIAttemptSnapshot,
   AIProviderOutcome,
   AIRequest,
   AIResponseFacts,
+  GeminiAttemptSnapshot,
 } from "./contracts.ts";
 
 /** Preserve the complete request projection while keeping pure identification
  * preparation independent from the SDK's Node environment initialization. */
 export function buildGeminiRequest(
   request: AIRequest,
-  snapshot: AIAttemptSnapshot,
+  snapshot: GeminiAttemptSnapshot,
 ): GenerateContentParameters {
   return buildGeminiRequestParameters(
     request,
@@ -24,9 +24,9 @@ export function buildGeminiRequest(
   );
 }
 
-export const geminiAdapter: AIAdapter = Object.freeze({
+export const geminiAdapter: AIAdapter<GeminiAttemptSnapshot> = Object.freeze({
   provider: "gemini",
-  prepare(request: AIRequest, snapshot: AIAttemptSnapshot) {
+  prepare(request: AIRequest, snapshot: GeminiAttemptSnapshot) {
     if (snapshot.timeoutMs !== GEMINI_REQUEST_TIMEOUT_MS) {
       throw new Error("ai_timeout_mismatch");
     }
