@@ -143,6 +143,15 @@ reference expertise is missing, report that gap and collect eligible examples.
 
 ## 4. Runner, artifacts, and live limits
 
+**27 September 2026 update:** The matched provider comparison adds an explicit
+`evaluation_gemini_processor_v1` review for a shared paid application project,
+with Gemini-specific approval of the exact corpus and selected cases. The
+original `evaluation_processor_v1` remains dedicated-project-only. The current
+[Gemini procedure](../../services/supabase/scripts/identification_evaluation/README.md#future-explicitly-approved-gemini-live-use)
+owns the two contracts. References below to a dedicated credential describe the
+original contract; shared-project use retains the same fingerprint, processor,
+expiry, input, spend and dispatch controls.
+
 Proposed tooling owner: `services/supabase/scripts/identification_evaluation/`,
 with one thin `scripts/evaluate_identification.ts` entrypoint. Keep dataset
 loading, scoring, comparison, and report generation outside deployed functions.

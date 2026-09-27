@@ -116,10 +116,10 @@ no need to invent a second reviewer or label real observations synthetic.
    It checks actual assets and reports coverage and planned calls without a key
    or inference. `demo-exploratory DIRECTORY` supplies invented examples for
    verifying the automation itself.
-3. Review the exact corpus, dedicated evaluation project/key, processor
-   readiness, current pricing and run specification. Authorize the concrete USD
-   budget before `--live DIRECTORY`. The exploratory specification schedules
-   each existing Gemini profile once per group: at most twenty-four calls.
+3. Review the exact corpus, actual paid project/key, processor readiness,
+   current pricing and run specification. Authorize the concrete USD budget
+   before `--live DIRECTORY`. The exploratory specification schedules each
+   existing Gemini profile once per group: at most twenty-four calls.
 4. Keep `manifest.json`, claims/results, `summary.json` and `report.md`
    together. The report records reference agreement, failed/unknown/unattempted
    cases, successful-call timing and estimated usage cost.

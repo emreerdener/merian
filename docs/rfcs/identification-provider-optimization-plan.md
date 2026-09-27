@@ -112,11 +112,14 @@ Use three levels of testing:
    uncertainty, negatives, failures, consent, quota, persistence and replay.
 
 Prefer separate evaluation projects/credentials for ongoing work where
-practical. The present Gemini evaluator requires a dedicated reviewed project;
-OpenAI's reviewed shared Naturebook project remains permitted. Credentials stay
-in their respective local launcher or approved backend secret store, outside
-profiles and reports. Production provisioning follows the existing release
-procedure when that integration is requested.
+practical. Both providers permit an explicitly reviewed shared paid application
+project under their recipient-specific readiness versions. Gemini uses
+`evaluation_gemini_processor_v1`; its legacy `evaluation_processor_v1` stays
+dedicated-only. Both new provider records bind approved input permission to the
+exact corpus and selected case set. Credentials stay in their respective local
+launcher or approved backend secret store, outside profiles and reports.
+Production provisioning follows the existing release procedure when that
+integration is requested.
 
 ## Slice 1 — Repair shared measurement
 
@@ -573,10 +576,11 @@ Before dispatch, freeze:
    using current reviewed pricing and conservative reservations. The 32-call
    proposal is not spending authorization.
 5. Provider-specific input permission, credential/readiness and retention
-   records. The current Gemini evaluator requires a dedicated reviewed project;
-   OpenAI permits a reviewed shared Naturebook project. Simulator access and a
-   stored GitHub secret do not supply a local Gemini credential. Resolve access
-   through the existing contract before scheduling a paid run.
+   records. Both providers permit reviewed shared paid application projects
+   through their explicit recipient-specific records; the legacy Gemini record
+   remains dedicated-only. Simulator access and a stored GitHub secret do not
+   supply a local Gemini credential. Resolve access through the existing
+   contract before scheduling a paid run.
 
 Retain one provider/profile per live run and the existing narrow credential and
 network permissions. Match the frozen case order and record execution timing.
@@ -649,6 +653,12 @@ versioned profiles and comparison report are reviewed and documented. It can
 finish successfully with no provider switch.
 
 ## App-controlled assignment foundation
+
+The subsequent
+[matched comparison plan](./identification-gemini-openai-matched-comparison-2026-09-27.md)
+prepares the existing Gemini Pro and OpenAI baselines on the same eight
+development inputs. It does not restart the closed concise screen or advance
+formal qualification counts.
 
 The [input-routing slice](./identification-provider-input-routing-2026-09-26.md)
 derives a complete-input profile before admission and records a private backend

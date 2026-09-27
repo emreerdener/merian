@@ -26,8 +26,10 @@ import {
   wilson95,
 } from "./identification_evaluation/reports.ts";
 import {
+  type GeminiReadiness,
   MODELS,
   parseAttempt,
+  parseEvaluationReadiness,
   parsePricing,
   parseReadiness,
   parseRunSpec,
@@ -350,7 +352,7 @@ Deno.test("bounded subject projection preserves the normalized biological dispos
     assertEquals(record.prediction.subject, "non_biological");
   }
 });
-Deno.test("live admission binds pricing, corpus, actual credential, paid processor and validity dates", async () => {
+Deno.test("live admission binds pricing, corpus, actual credential, paid processor and validity dates", async (t) => {
   const now = Date.parse("2026-09-22T12:00:00.000Z"),
     p = fixturePricing(),
     credential = "synthetic-evaluation-credential";
@@ -417,6 +419,105 @@ Deno.test("live admission binds pricing, corpus, actual credential, paid process
     readinessDigest: await fingerprintJson(readiness),
   });
   await validateLiveApproval(corpus, spec, p, readiness, credential, now);
+  const shared: GeminiReadiness = {
+    ...readiness,
+    version: "evaluation_gemini_processor_v1",
+    provider: "gemini",
+    dedicatedEvaluationProject: false,
+    inputPermission: {
+      provider: "gemini",
+      corpusDigest,
+      caseIds: spec.caseIds,
+      reviewRef: "synthetic-shared-gemini-permission",
+      approved: true,
+    },
+  };
+  await t.step(
+    "shared Gemini project requires the explicit recipient version and approved cases",
+    async () => {
+      assertEquals(parseEvaluationReadiness(shared), shared);
+      assertThrows(() => parseReadiness(shared));
+      assertThrows(() =>
+        parseReadiness({ ...readiness, dedicatedEvaluationProject: false })
+      );
+      for (const dedicatedEvaluationProject of [false, true]) {
+        const approved = { ...shared, dedicatedEvaluationProject };
+        await validateLiveApproval(
+          corpus,
+          { ...spec, readinessDigest: await fingerprintJson(approved) },
+          p,
+          approved,
+          credential,
+          now,
+        );
+      }
+      const { inputPermission: _permission, ...missingPermission } = shared;
+      const { dedicatedEvaluationProject: _dedicated, ...missingProjectKind } =
+        shared;
+      for (
+        const invalid of [
+          missingPermission,
+          missingProjectKind,
+          { ...shared, dedicatedEvaluationProject: "false" },
+          { ...shared, provider: "openai" },
+          { ...shared, version: "evaluation_openai_processor_v1" },
+          { ...shared, paidServiceApproved: false },
+          { ...shared, unexpected: true },
+          {
+            ...shared,
+            inputPermission: { ...shared.inputPermission, provider: "openai" },
+          },
+          {
+            ...shared,
+            inputPermission: { ...shared.inputPermission, approved: false },
+          },
+        ]
+      ) assertThrows(() => parseEvaluationReadiness(invalid));
+    },
+  );
+  await t.step(
+    "shared Gemini review cannot change corpus, cases, credential or validity",
+    async () => {
+      for (
+        const changed of [
+          { ...shared, corpusDigest: "1".repeat(64) },
+          { ...shared, credentialSha256: "2".repeat(64) },
+          { ...shared, expiresAt: "2026-09-22T01:00:00.000Z" },
+          { ...shared, reviewedAt: "2026-09-22T13:00:00.000Z" },
+          {
+            ...shared,
+            inputPermission: {
+              ...shared.inputPermission,
+              corpusDigest: "3".repeat(64),
+            },
+          },
+          {
+            ...shared,
+            inputPermission: {
+              ...shared.inputPermission,
+              caseIds: shared.inputPermission.caseIds.slice(1),
+            },
+          },
+        ]
+      ) {
+        // A freshly bound digest cannot excuse a false recipient review.
+        const changedSpec = {
+          ...spec,
+          readinessDigest: await fingerprintJson(changed),
+        };
+        await assertRejects(() =>
+          validateLiveApproval(
+            corpus,
+            changedSpec,
+            p,
+            changed,
+            credential,
+            now,
+          )
+        );
+      }
+    },
+  );
   for (
     const changed of [
       { ...readiness, projectRef: "changed" },

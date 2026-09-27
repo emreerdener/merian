@@ -210,7 +210,13 @@ The executable owners are `runContracts.ts` and `admission.ts`:
    The same reviewed OpenAI key may serve the app and these benchmarks; a
    separate test project/key is optional. Shared usage consumes the same project
    limits, and the runner's budget accounts only for its own calls. The legacy
-   Gemini readiness contract remains dedicated-project-only.
+   Gemini `evaluation_processor_v1` remains dedicated-project-only. New Gemini
+   runs may use `evaluation_gemini_processor_v1` with `provider: gemini`, an
+   explicit project-kind Boolean and the same exact corpus/case permission
+   structure naming Gemini. This permits the owner's existing paid application
+   project without asserting that it is dedicated; it never approves OpenAI. The
+   [Gemini procedure](../../services/supabase/scripts/identification_evaluation/README.md#future-explicitly-approved-gemini-live-use)
+   owns credential, review, expiry and execution requirements.
 3. Supply `evaluation_openai_pricing_v1`, `provider: openai`, with the model
    page above as `sourceUrl`, USD, `paid_standard_synchronous`, retrieval/review
    references and `includesReasoning: true`. Its single model is `gpt-6-sol`.
@@ -328,6 +334,13 @@ concise candidate. The single result does not establish general cache support or
 qualify production use.
 
 ## Later production assignment
+
+The next development step is the
+[matched Gemini/OpenAI photo/text comparison](../rfcs/identification-gemini-openai-matched-comparison-2026-09-27.md):
+six existing photos and two descriptions, one attempt per provider on identical
+prepared inputs. Its private draft and offline input/profile checks do not
+authorize execution or establish held-out qualification. TestFlight archive and
+released-store upgrade verification remain separate iOS release work.
 
 Production integration is a separate milestone. The first admission slice now
 records an exact Gemini provider/binding/permission assignment per metered
