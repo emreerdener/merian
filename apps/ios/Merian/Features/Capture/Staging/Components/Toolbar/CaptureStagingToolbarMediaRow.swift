@@ -163,10 +163,11 @@ private struct StagedDescriptionBadge: View {
 private struct StagedAudioBadge: View {
     var body: some View {
         Image(systemName: "waveform")
-            .font(.system(size: 18, weight: .medium))
-            .foregroundStyle(Color(UIColor.systemBackground))
+            .font(.system(size: 18, weight: .semibold))
+            .foregroundStyle(.primary)
             .frame(width: 48, height: 48)
-            .background(Circle().fill(Color.primary))
+            .background(.primary.opacity(0.08), in: Circle())
+            .overlay(Circle().strokeBorder(.primary.opacity(0.5), lineWidth: 1))
             .transition(.scale(scale: 0.8).combined(with: .opacity))
     }
 }

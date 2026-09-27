@@ -89,7 +89,10 @@ across Scan, Record, and Describe; switching capture modes does not force a
 separate dark appearance. **Identify** is text-only, uses the same primary
 accent blue as Share, and remains 48 points high with its existing disabled
 appearance. **Analyze** retains its green styling and sparkles. Media icons
-retain their meanings.
+retain their meanings. Both the note and audio-review nodes have a visible
+circular border. Audio uses a primary-contrast waveform on a neutral surface;
+its appearance does not imply a disabled state. It remains a playback-review
+button, subject to the shared draft/admission locks.
 
 The neutral discard surface has a semibold trash icon with a deeper red in light
 appearance and a brighter red in dark appearance for contrast. The empty note

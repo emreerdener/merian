@@ -157,6 +157,7 @@ struct ActiveScanToolbar: View {
                 CaptureStagingNoteIcon(hasNote: hasSharedNote)
                     .frame(width: 48, height: 48)
                     .background(.primary.opacity(0.08), in: Circle())
+                    .overlay(Circle().strokeBorder(.primary.opacity(0.5), lineWidth: 1))
             }
             .buttonStyle(.plain)
             .accessibilityLabel(hasSharedNote ? "Edit note" : "Add note")

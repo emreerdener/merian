@@ -632,7 +632,10 @@ final class merianUITests: XCTestCase {
     @MainActor
     func testStagedAudioBadgeOpensPlaybackReview() throws {
         let app = UITestAppLauncher.launchConfiguredApp(
-            extraArguments: ["-seedStagedAudioReviewFlow"]
+            extraArguments: [
+                "-seedStagedAudioReviewFlow", "-captureModeOrder", "audio,visual,describe",
+                "-hasShownCaptureNoteTip", "YES"
+            ]
         )
 
         let stagedAudioBadge = app.buttons["StagedAudioBadge_0"]
@@ -641,6 +644,11 @@ final class merianUITests: XCTestCase {
             "Seeded staged audio did not appear in the active scan toolbar"
         )
         XCTAssertTrue(stagedAudioBadge.isHittable)
+        XCTAssertTrue(stagedAudioBadge.isEnabled)
+        let toolbarScreenshot = XCTAttachment(screenshot: app.screenshot())
+        toolbarScreenshot.name = "Bordered audio and note review nodes"
+        toolbarScreenshot.lifetime = .keepAlways
+        add(toolbarScreenshot)
         stagedAudioBadge.tap()
 
         let preview = app.otherElements[
