@@ -68,13 +68,16 @@ retains its original source and hash.
 ## Remaining slices
 
 1. **Finish activation prerequisites.** The dormant connection described below
-   is implemented, including the result-reader boundary below. Finish
-   failed/uncertain attempt accounting and effective-dated native pricing, and
-   release/verify the compatible reader before activation. Prepare the exact
-   GitHub-to-Supabase secret synchronization and disclosure collection through
-   existing release owners. The source gate remains false and all assignments
-   remain Gemini. A secret, consent grant or catalog edit cannot enable
-   dispatch.
+   is implemented, including the result-reader boundary below. Release and
+   verify the compatible reader before activation. The September 27 accounting
+   follow-up implements primary multimodal failed/uncertain coverage and native
+   pricing; see the
+   [current accounting contract](../backend-and-data/04-database-schema.md#primary-identification-attempt-accounting).
+   Source implementation does not establish deployed readiness. Prepare the
+   exact GitHub-to-Supabase secret synchronization and disclosure collection
+   through existing release owners. The source gate remains false and all
+   assignments remain Gemini. A secret, consent grant or catalog edit cannot
+   enable dispatch.
 
 2. **Qualification and controlled activation.** Freeze the precise supported
    photo envelope, quality/safety/failure/latency/cost acceptance limits and a

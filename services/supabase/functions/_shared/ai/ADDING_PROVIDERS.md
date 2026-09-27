@@ -178,8 +178,13 @@ Map usage units and prices explicitly, including cached input, reasoning, tool,
 image, and audio components. Missing values remain unknown. Content helpers
 currently project normalized counts back into the legacy usage shape for
 existing ledger consumers; update that seam if another provider's units differ.
-Preserve one accounting owner per call and document failed/uncertain-attempt
-coverage. Keep diagnostics bounded and content-free.
+The primary multimodal route now owns one invocation event independently of scan
+persistence, with durable unknown coverage and an exact native OpenAI photo
+tariff. See the
+[current accounting contract](../../../../../docs/backend-and-data/04-database-schema.md#primary-identification-attempt-accounting).
+Extend that provider-scoped price identity and usage mapping for a new service;
+do not add a second success writer. Compatibility and content routes retain
+separate coverage limits. Keep diagnostics bounded and content-free.
 
 ## Qualify and activate
 

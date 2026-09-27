@@ -818,7 +818,7 @@ Deno.test("scan profile prerequisite fails before quota or provider work and rec
     "await quotaLease.commit();",
     ingestionClaim,
   );
-  const providerCall = source.indexOf("await execution.invoke()");
+  const providerCall = source.indexOf("await accounted.invoke()");
   const durableIngestion = source.indexOf(
     "const runDurableIngestion = async () =>",
   );
@@ -870,7 +870,7 @@ Deno.test("main identification uses one admitted shared-provider invocation", as
     new URL("./index.ts", import.meta.url),
   );
   assertEquals(
-    source.match(/await execution\.invoke\(/g)?.length,
+    source.match(/await accounted\.invoke\(/g)?.length,
     1,
   );
   assert(!source.includes("generateContent("));
@@ -1007,7 +1007,7 @@ Deno.test("latency telemetry is privacy-safe and keeps the Gemini boundary exact
     assert(latencyBlock.includes(fragment), `missing latency tag: ${fragment}`);
   }
 
-  const generationCall = source.indexOf("await execution.invoke()");
+  const generationCall = source.indexOf("await accounted.invoke()");
   const geminiStop = source.indexOf(
     "geminiLatencyMs = result.providerCompletedAt - geminiStart;",
     generationCall,
@@ -1041,7 +1041,7 @@ Deno.test("latency phase spans isolate quota, provider, promotion, enrichment, a
     "const quotaCommitStart = performance.now();",
     "await quotaLease.commit();",
     "const providerStart = performance.now();",
-    "await execution.invoke()",
+    "await accounted.invoke()",
     "providerMs = result.providerDurationMs;",
     "quotaCommitMs = providerStart - quotaCommitStart;",
     "geminiLatencyMs = result.providerCompletedAt - geminiStart;",

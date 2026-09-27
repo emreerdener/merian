@@ -2517,6 +2517,25 @@ safety-binding evidence, and complete usage/pricing coverage. V2 confidence
 remains unqualified. The implemented recipient-specific saved-scan recovery
 remains dormant while all assignments are Gemini.
 
+### Primary identification usage RPCs
+
+`commit_identification_invocation(uuid,uuid,uuid,integer,jsonb)` and
+`complete_identification_invocation(uuid,uuid,uuid,text,jsonb)` are service-only
+accounting RPCs. The first requires the exact owner, reservation, lease and
+attempt plus validated execution provenance, returns
+`{invocation_id,
+may_dispatch}`, and combines commitment with a unique witness.
+Only `may_dispatch=true` permits the current invocation. The second accepts
+bounded native usage facts, returning the immutable event UUID; replay cannot
+replace that event.
+
+The primary Identify response, iOS DTO and stored result provenance shapes do
+not change. `ai_usage_events.outcome` adds `unknown` for missing reports. A
+`success` event denotes a provider draft, independently of eventual scan
+persistence. The private reconciler, scan-trigger ownership marker, pricing
+eligibility, account lifecycle and compatibility coverage are specified in the
+[database contract](./04-database-schema.md#primary-identification-attempt-accounting).
+
 ### Assigned-recipient preflight
 
 The additive authenticated RPC `get_my_identification_preflight` prepares a

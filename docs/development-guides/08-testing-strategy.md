@@ -6733,6 +6733,18 @@ completion and replay without another provider call. These tests also run
 without network permission; they do not establish database concurrency, hosted
 recovery, real model quality, or full-flow performance.
 
+Primary invocation accounting adds `_shared/ai/identificationUsage_test.ts`,
+`_tests/identificationInvocationAccountingMigrationContract.test.ts`, and
+`tests/identification_invocation_accounting.sql`. These cover atomic quota and
+witness admission, duplicate dispatch fencing, all provider outcomes, missing
+reports, immutable completion, native pricing eligibility and tariff boundaries,
+scan-writer deduplication, and account deletion.
+`_tests/identificationInvocationConcurrencyDb.test.ts` also races duplicate
+commitments and completion against account deletion. Provider bodies and errors
+never enter the durable usage projection. These checks use synthetic inputs and
+a disposable local database; they do not rerun or replace the existing model
+benchmark.
+
 Slice 4 adds sixteen intercepted SDK request cases for legacy image/audio
 profiles across both models and tiers, including independent model/tier
 selection, explicit image safety settings, and first-part text fallback.

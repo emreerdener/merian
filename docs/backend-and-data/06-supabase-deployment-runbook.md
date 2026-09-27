@@ -101,6 +101,31 @@ downloads each uniquely assigned artifact, recomputes the archive digest, and
 verifies exact-SHA provenance; a digest proves retained bytes, not the issuing
 authority. Green held/skipped runs are not production deployment evidence.
 
+### Primary identification accounting release order
+
+Apply `20260927230801_account_identification_invocations.sql` before releasing
+the primary multimodal bundle that calls `commit_identification_invocation` and
+`complete_identification_invocation`. Candidate evidence must include the
+invocation catalog and concurrency tests, migration replay, and existing
+privilege and account lifecycle catalogs. This migration creates private
+accounting state, an effective OpenAI photo tariff, and a bounded minute cron;
+it does not activate OpenAI or change the app's provider assignments.
+
+After an authorized deployment, verify both service-only RPC signatures and
+`reconcile_identification_usage` cron registration. Reports that fail leave a
+pending witness; after five minutes it becomes an unknown, unpriced event.
+Monitor `identification_usage_report_unavailable` and unknown-event counts.
+Missing usage is not zero cost. OpenAI dispatch requires an effective reviewed
+tariff, while actual pricing also requires compatible returned native counters.
+
+For a bundle rollback, keep the forward migration and reconciler. Older bundles
+omit the new accounting marker and retain the legacy successful-scan writer;
+already marked scans and pending witnesses keep their original owner. Do not
+remove accounting rows or rewrite historical prices as a rollback step. Follow
+the normal exact-SHA authorization and release controls; this source change
+provides no deployment or provider-activation authorization. See the
+[accounting contract](./04-database-schema.md#primary-identification-attempt-accounting).
+
 ### Scan admission preview release order
 
 Migration `20260809155517_add_scan_admission_preview.sql` must reach the target

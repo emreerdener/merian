@@ -340,7 +340,7 @@ trigger. Deleting an account clears user, scan, conversation, message, source,
 and identifying metadata linkage while retaining anonymous cost and usage
 aggregates.
 
-New primary scan events use the model and bounded provider, binding, policy,
+Legacy scan-trigger events use the model and bounded provider, binding, policy,
 prompt and schema references from immutable `identification_provenance`. Only
 SQL-null legacy provenance infers Gemini from the tier, with explicit
 `legacy_tier` attribution. The ledger operation stays `scan_identification` so
@@ -348,13 +348,22 @@ existing primary-scan totals include compatibility routes. Historical entries
 are not rewritten; account anonymization preserves these content-free execution
 facts.
 
-Pricing is restricted to the Gemini token contract, a known input modality,
-present prompt/candidate counts, and cached counts no larger than prompt counts.
-An explicit different/unknown provider or unreviewed usage contract cannot
-inherit a Gemini tariff, even with an identical model name. Missing tariffs or
-incomplete usage leave both estimate and pricing version null. Omitted optional
-cached/thinking/tool counts retain the existing Gemini estimate semantics; this
-is not invoice reconciliation or a new provider's usage-unit mapping.
+Legacy-writer pricing is restricted to the Gemini token contract, a known input
+modality, present prompt/candidate counts, and cached counts no larger than
+prompt counts. An explicit different/unknown provider or unreviewed usage
+contract cannot inherit a Gemini tariff, even with an identical model name.
+Missing tariffs or incomplete usage leave both estimate and pricing version
+null. Omitted optional cached/thinking/tool counts retain the existing Gemini
+estimate semantics; this is not invoice reconciliation or a new provider's
+usage-unit mapping.
+
+The current primary multimodal route now records one event per committed
+invocation, including failed and uncertain calls. A provider draft is an
+accounting success even if later observation persistence fails; missing reports
+become `unknown` after five minutes. Exact native OpenAI photo pricing is frozen
+at commitment, while missing or unsupported usage stays unpriced. Compatibility
+routes retain their prior coverage limits. See the canonical
+[attempt accounting contract](./04-database-schema.md#primary-identification-attempt-accounting).
 
 Overview and AI Usage return `priced_events` and `unpriced_events` alongside
 total/daily numeric cost sums. Sums include only priced events; zero can mean no

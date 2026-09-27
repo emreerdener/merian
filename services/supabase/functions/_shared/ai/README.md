@@ -309,8 +309,9 @@ Returned token counts retain Gemini's existing interpretation, including null
 for missing counts; modality breakdown retains its existing meaning. New primary
 scan ledger entries use saved execution model/provider references; absent legacy
 provenance alone falls back to tier-derived Gemini attribution. Historical rows
-remain unchanged. Pricing eligibility is Gemini-contract-specific and unknown
-prices remain null. Admin aggregates expose priced/unpriced coverage; see the
+remain unchanged. Legacy-writer pricing eligibility is Gemini-contract-specific
+and unknown prices remain null. Admin aggregates expose priced/unpriced
+coverage; see the
 [accounting record](../../../../../docs/rfcs/identification-provider-usage-attribution-2026-09-26.md).
 The image compatibility route retains cached-token counts; legacy audio keeps
 its existing null cached-token scan field. Bounded execution/version fields are
@@ -320,8 +321,16 @@ added to the existing optional `ScanCompleted` telemetry for image/description,
 measures native invocation only, excluding decoding. They contain no evidence,
 owner/attempt identifiers, provider diagnostics, or credentials. This telemetry
 adds no cross-retry configuration pin or new billing record. Successful scan
-configuration is separately persisted as described above. Failed/uncertain
-attempts and disabled telemetry retain their existing accounting gaps.
+configuration is separately persisted as described above. Compatibility routes
+retain their existing failed/uncertain-attempt gaps. The primary multimodal
+route uses `identificationUsage.ts`: quota commit and a unique invocation
+witness are atomic, usage reporting is awaited independently of scan
+persistence, and a private reconciler records missing reports as
+unknown/unpriced. Native OpenAI photo pricing freezes the effective tariff
+before dispatch. See the
+[accounting contract](../../../../../docs/backend-and-data/04-database-schema.md#primary-identification-attempt-accounting).
+This accounting is independent of optional telemetry and never invokes a model
+again.
 
 Content adds `ai_task`, provider/binding/prompt/schema references, nullable user
 policy version, context kind, returned model, native duration, and outcome to

@@ -363,9 +363,13 @@ partial sums. No historical estimate or price changes in this attribution slice.
 Adding another provider requires a reviewed native-unit mapping and explicit
 pricing eligibility, not just adding its model name to the price table. Review
 cached reads/writes, reasoning, tool and media units and effective dates
-together. The current production writer accepts only the Gemini token pricing
-contract; unsupported usage remains unpriced. Preserve one accounting owner per
-call and existing failed/uncertain-attempt coverage limits.
+together. The primary multimodal invocation writer adds the exact OpenAI photo
+contract and snapshots its effective native tariff. Other writers retain the
+Gemini contract. Unsupported usage remains unpriced. Preserve the single owner
+and
+[attempt accounting rules](./04-database-schema.md#primary-identification-attempt-accounting).
+Native tariff rows use database-enforced non-overlapping periods; close and add
+versions through a forward migration, preserving snapshotted rates.
 
 When a model introduces pricing the schema cannot represent, extend the schema
 and tests before using that model in production. Do not force a long-context,
@@ -418,11 +422,21 @@ columns.
 
 ### Ledger writer failures
 
-Primary scan/message trigger failures are transactional and should be treated as
+Legacy scan/message trigger failures are transactional and should be treated as
 write-path incidents. Independent best-effort failures emit structured
 `ai_usage_ledger_write_failed` logging and create a known coverage gap. Record
 the affected operation/time window, repair only from durable token metadata, use
 the idempotent source key, and keep the repaired rows labeled accurately.
+
+For primary multimodal calls, `identification_usage_report_unavailable` means
+the durable witness awaits the minute reconciler. Inspect its bounded pending
+count/oldest age and the `reconcile_identification_usage` cron before
+considering a repair. Reports older than five minutes become unknown/unpriced;
+do not label them zero-cost, overwrite them with a later result, or retry the
+provider to recover usage. Deletion settles and anonymizes pending evidence.
+Deploy the migration before the new handler; the additive marker preserves
+older-bundle scan accounting during rollout and rollback. This does not activate
+OpenAI.
 
 ### Complimentary hold or settlement incident
 
