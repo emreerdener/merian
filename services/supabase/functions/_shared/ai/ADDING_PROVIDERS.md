@@ -85,7 +85,12 @@ observation jobs retain user authority even when a service invokes the worker.
    unknown present profiles receive neutral native confidence guidance. Public
    community suggestions now suppress unsupported scores, and SQL metric gates
    cover Field Trip credit, public Perfect Lens and reference-image promotion.
-   These preserve Gemini meanings; they do not qualify an alternate profile.
+   Field Chat now omits unqualified metric values while preserving descriptive
+   evidence, and new export snapshots freeze metric qualification for the
+   worker. Existing immutable jobs retain their prior interpretation; deploy the
+   matching export worker before alternate results can exist. These preserve
+   Gemini meanings; they do not qualify an alternate profile. See the
+   [chat/export record](../../../../../docs/rfcs/identification-chat-export-metrics-2026-09-26.md).
    Public readers need a compatible minimum app version before alternate results
    become visible; an identification-only protocol gate is insufficient. See the
    [public metric record](../../../../../docs/rfcs/identification-public-metric-compatibility-2026-09-26.md)

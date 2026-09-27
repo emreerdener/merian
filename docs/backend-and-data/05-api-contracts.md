@@ -7384,6 +7384,14 @@ physical measurements without supporting scale evidence or imply fresh image
 inspection. This internal context addition requires no HTTP payload change, scan
 backfill, or extra AI call; Explore and Dictionary projections are unchanged.
 
+Private Field Chat also reads the saved inference tier and result provenance to
+qualify metric interpretation. Only historical SQL-null or exact qualified
+Gemini configurations at policy version 1 keep primary/candidate, sex/invasive
+confidence and model image-quality values. Unknown or missing metadata supplies
+unavailable metric values and bounded descriptive candidate names/features.
+Stored observations, reasoning, confirmation and local blur/zoom remain usable.
+Full execution configuration is not added to any prompt.
+
 Location-aware answers may use only the saved private location label, month,
 elevation, ecology type, and weather. The prompt explicitly forbids inferring,
 requesting, revealing, or reconstructing exact GPS coordinates.
@@ -10184,6 +10192,12 @@ This empty-body contract is also bounded by the shared small JSON reader.
   cardinality/URL size, interaction-array cardinality/element size, and selected
   taxonomy text in UTF-8 bytes. Failed jobs purge immutable source DTOs;
   completed DTOs remain only through their live grant and verified cleanup.
+- New immutable occurrence DTOs freeze the private `ai_confidence_qualified`
+  boolean beside the source score. The worker rejects malformed present flags,
+  leaves confidence-derived `identificationVerificationStatus` blank for false,
+  and preserves old snapshots whose flag is absent. It adds no public provider
+  metadata or new archive columns, and does not reinterpret existing jobs using
+  current routing. Deploy the matching worker before alternate results exist.
 - Opaque application capability URLs remain in API-inaccessible work state while
   processing. The final full-fence transaction publishes `file_url` and
   `completed` status atomically. The capability points to `download-dwca`, never

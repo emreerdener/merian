@@ -1,3 +1,4 @@
+import { identificationMetricsAreGeminiCompatible } from "../_shared/ai/metricCompatibility.ts";
 import { assert, assertEquals } from "@std/assert";
 import type { AIRequest } from "../_shared/ai/contracts.ts";
 import {
@@ -69,6 +70,14 @@ Deno.test("metric interpretation accepts actual registered executions and reject
         "SELECT internal.identification_metrics_are_gemini_compatible($1::JSONB, $2) AS compatible",
         [sqlNull ? null : JSON.stringify(value), tier],
       );
+      // JS null is a validated SQL-null scan value; JSON literal null cannot be
+      // persisted and is tested separately by the SQL validator.
+      if (sqlNull || value !== null) {
+        assertEquals(
+          result.rows[0].compatible,
+          identificationMetricsAreGeminiCompatible(value, tier),
+        );
+      }
       return result.rows[0].compatible;
     }
     for (const pro of [false, true]) {

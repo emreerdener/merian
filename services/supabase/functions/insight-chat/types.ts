@@ -116,6 +116,8 @@ export interface ChatScanContext {
   time_of_day: string | null;
   depth_scale_text: string | null;
   ai_confidence_score: number | null;
+  inference_tier: string | null;
+  identification_provenance: unknown;
   ai_reasoning: string | null;
   extracted_visual_traits: string[] | null;
   candidates: unknown;

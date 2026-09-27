@@ -162,7 +162,8 @@ export async function generateOccurrenceRow(
     }`;
   }
 
-  const verificationStatus = scan.ai_confidence_score != null
+  const verificationStatus = scan.ai_confidence_qualified !== false &&
+      scan.ai_confidence_score != null
     ? scan.ai_confidence_score.toFixed(2)
     : "";
 

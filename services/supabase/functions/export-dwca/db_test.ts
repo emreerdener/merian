@@ -460,3 +460,46 @@ Deno.test("fetchExportQueueHealth rejects inconsistent telemetry", async () => {
     "inconsistent state",
   );
 });
+
+Deno.test("export snapshot metric qualification is optional for legacy rows but strict when present", async () => {
+  const scanId = "00000000-0000-4000-8000-000000000301";
+  const payload = {
+    id: scanId,
+    user_id: job.userId,
+    ecological_interactions: [],
+    species_dictionary: null,
+  };
+  const fetch = (value: Record<string, unknown>) =>
+    fetchExportScanBatch(
+      job,
+      "00000000-0000-4000-8000-000000000401",
+      "occurrence",
+      null,
+      mockClient([{
+        scan_id: scanId,
+        scan_payload: value,
+        source_byte_count: 256,
+        page_complete: false,
+        source_row_oversize: false,
+        source_revision_changed: false,
+      }]),
+    );
+  assertEquals(
+    (await fetch(payload)).scans[0].ai_confidence_qualified,
+    undefined,
+  );
+  for (const qualified of [true, false]) {
+    assertEquals(
+      (await fetch({ ...payload, ai_confidence_qualified: qualified })).scans[0]
+        .ai_confidence_qualified,
+      qualified,
+    );
+  }
+  for (const invalid of [null, "true", 1, {}, []]) {
+    await assertRejects(
+      () => fetch({ ...payload, ai_confidence_qualified: invalid }),
+      ExportWorkerError,
+      "The export metric qualification was invalid.",
+    );
+  }
+});

@@ -1,3 +1,4 @@
+import { identificationMetricsAreGeminiCompatible } from "../_shared/ai/metricCompatibility.ts";
 import { FIELD_CHAT_SPECIES_KNOWLEDGE_RULES } from "../_shared/fieldChat/speciesKnowledge.ts";
 import {
   ChatScanContext,
@@ -168,6 +169,17 @@ export function buildScanContextBlock(scan: ChatScanContext): string {
     species?.genus,
   ].map((value) => trimText(value, 100)).filter(Boolean).join(" > ");
 
+  const compatibleMetrics = identificationMetricsAreGeminiCompatible(
+    scan.identification_provenance,
+    scan.inference_tier,
+  );
+  const metric = (value: number | null) =>
+    compatibleMetrics
+      ? formatNumber(value)
+      : "Unavailable (model metrics are not qualified for interpretation)";
+  const candidates = compatibleMetrics
+    ? scan.candidates
+    : unscoredCandidates(scan.candidates);
   const rows: string[] = [
     "[SAVED SCAN CONTEXT]",
     `Observation Label: ${observationLabel(species)}`,
@@ -194,7 +206,7 @@ export function buildScanContextBlock(scan: ChatScanContext): string {
     `User Review State: ${
       trimText(scan.user_review_state, 80) ?? "Unavailable"
     }`,
-    `AI Confidence: ${formatNumber(scan.ai_confidence_score)}`,
+    `AI Confidence: ${metric(scan.ai_confidence_score)}`,
     `User Override: ${
       trimText(scan.user_identification_override, 160) ?? "None"
     }`,
@@ -214,7 +226,7 @@ export function buildScanContextBlock(scan: ChatScanContext): string {
     `Estimated Size Cm: ${formatNumber(scan.estimated_size_cm)}`,
     `Individual Count: ${formatNumber(scan.individual_count)}`,
     `Sex: ${trimText(scan.sex, 80) ?? "Unavailable"}`,
-    `Sex Confidence: ${formatNumber(scan.sex_confidence)}`,
+    `Sex Confidence: ${metric(scan.sex_confidence)}`,
     `Sex Evidence: ${trimText(scan.sex_evidence, 240) ?? "Unavailable"}`,
     "",
     "[ECOLOGY]",
@@ -227,7 +239,7 @@ export function buildScanContextBlock(scan: ChatScanContext): string {
     `Invasive Rationale: ${
       trimText(scan.invasive_rationale, 500) ?? "Unavailable"
     }`,
-    `Invasive Confidence: ${formatNumber(scan.invasive_confidence)}`,
+    `Invasive Confidence: ${metric(scan.invasive_confidence)}`,
     `Ecological Interactions: ${
       formatArray(scan.ecological_interactions) ?? "Unavailable"
     }`,
@@ -249,10 +261,10 @@ export function buildScanContextBlock(scan: ChatScanContext): string {
     `Observation Context: ${
       compactJson(scan.user_observation_context, 900) ?? "Unavailable"
     }`,
-    `Candidate IDs: ${compactJson(scan.candidates, 900) ?? "Unavailable"}`,
+    `Candidate IDs: ${compactJson(candidates, 900) ?? "Unavailable"}`,
     "",
     "[IMAGE/CAPTURE QUALITY]",
-    `Image Quality Score: ${formatNumber(scan.image_quality_score)}`,
+    `Image Quality Score: ${metric(scan.image_quality_score)}`,
     `Blur Score: ${formatNumber(scan.blur_score)}`,
     `Zoom Factor: ${formatNumber(scan.zoom_factor, "x")}`,
     "",
@@ -261,6 +273,30 @@ export function buildScanContextBlock(scan: ChatScanContext): string {
   ];
 
   return rows.join("\n");
+}
+
+/** Retain only bounded descriptive candidate fields for unfamiliar metrics. */
+function unscoredCandidates(
+  value: unknown,
+): Array<Record<string, string>> | null {
+  if (!Array.isArray(value)) return null;
+  return value.slice(0, 6).flatMap((candidate) => {
+    if (
+      candidate === null || typeof candidate !== "object" ||
+      Array.isArray(candidate)
+    ) return [];
+    const row: Record<string, string> = {};
+    for (
+      const key of ["scientific_name", "common_name", "distinguishing_feature"]
+    ) {
+      const text = trimText(
+        candidate[key],
+        key === "distinguishing_feature" ? 500 : 255,
+      );
+      if (text) row[key] = text;
+    }
+    return Object.keys(row).length ? [row] : [];
+  });
 }
 
 export function sanitizeFieldNotesDraft(text: string): string {

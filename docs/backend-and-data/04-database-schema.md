@@ -2099,7 +2099,11 @@ replaces that representation with source snapshot version 2:
   table has RLS and no API-role grants.
 - `internal.dwca_export_snapshot_source`: a private projection used once to
   create the DTOs and later only to recompute live eligibility. Its taxonomy
-  join uses `COALESCE(confirmed_species_id, species_id)`.
+  join uses `COALESCE(confirmed_species_id, species_id)`. New occurrence DTOs
+  freeze `ai_confidence_qualified` from the private Gemini metric compatibility
+  predicate, without exposing full execution provenance. Existing immutable job
+  rows are not rewritten. The matching export worker suppresses unqualified
+  confidence-derived verification status and preserves legacy omitted-flag rows.
 
 An insertion trigger materializes membership, both immutable DTOs, source
 statistics, and eligibility hashes in one MVCC statement before the webhook can

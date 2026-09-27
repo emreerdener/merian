@@ -335,3 +335,16 @@ confidence, usage, cache, and activation work. The app owns a private
 complete-input routing catalog, currently seeded only with Gemini. There is no
 end-user provider selector or percentage-routing control. The OpenAI adapter is
 available only to explicitly gated local evaluation.
+
+## Metric interpretation
+
+`metricCompatibility.ts` is the pure exact-profile owner for existing Gemini
+metric meanings in private Insight Chat. It shares qualified policy version 1
+and profile semantics with SQL `identification_metrics_are_gemini_compatible`
+and native `InferenceConfidencePolicy`; database tests compare the TypeScript
+and SQL results against actual registry snapshots. Unknown metadata cannot
+inherit known score meanings. Field Chat removes unqualified numeric metrics
+while keeping descriptive evidence. New immutable export snapshots freeze the
+SQL predicate's boolean for the DwC-A worker. See the
+[chat/export record](../../../../../docs/rfcs/identification-chat-export-metrics-2026-09-26.md)
+for compatibility, rollout and verification.

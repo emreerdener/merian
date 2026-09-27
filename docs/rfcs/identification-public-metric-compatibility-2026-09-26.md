@@ -49,10 +49,11 @@ Community readers who can see someone else's result.
 
 This slice does not change production assignments, permissions, numeric Gemini
 thresholds, pricing or benchmarks. No paid inference or hosted mutation is
-required to validate it. Field Chat/export meaning, provider-aware usage and
-cache compatibility remain the following slice. Prospective matched provider
-qualification, published recipient disclosures, client compatibility and an
-explicit authorized release remain activation gates.
+required to validate it. Field Chat/export meaning is implemented in the
+[following slice](./identification-chat-export-metrics-2026-09-26.md).
+Provider-aware usage and cache compatibility remain next. Prospective matched
+provider qualification, published recipient disclosures, client compatibility
+and an explicit authorized release remain activation gates.
 
 ## Verification
 
