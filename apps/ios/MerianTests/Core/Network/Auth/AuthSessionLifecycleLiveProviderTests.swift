@@ -27,9 +27,13 @@ private actor AuthSessionLifecycleLiveSuspensionGate {
 
 @MainActor
 private final class AuthSessionLifecycleLiveStreamHarness {
-    private var continuation:
-        AsyncStream<AuthSessionLifecycleSDKState>.Continuation?
-    private lazy var stream = AsyncStream<AuthSessionLifecycleSDKState> {
+    private struct Delivery {
+        let state: AuthSessionLifecycleSDKState
+        let completion: XCTestExpectation?
+    }
+
+    private var continuation: AsyncStream<Delivery>.Continuation?
+    private lazy var stream = AsyncStream<Delivery> {
         self.continuation = $0
     }
 
@@ -44,9 +48,10 @@ private final class AuthSessionLifecycleLiveStreamHarness {
         return AuthSessionLifecycleLiveProvider(
             startListening: { handler in
                 Task { @MainActor in
-                    for await state in stream {
+                    for await delivery in stream {
                         guard !Task.isCancelled else { return }
-                        await handler(state)
+                        await handler(delivery.state)
+                        delivery.completion?.fulfill()
                     }
                 }
             },
@@ -62,7 +67,19 @@ private final class AuthSessionLifecycleLiveStreamHarness {
 
     func send(_ state: AuthSessionLifecycleSDKState) {
         currentState = state
-        continuation?.yield(state)
+        continuation?.yield(Delivery(state: state, completion: nil))
+    }
+
+    func sendAndWait(
+        _ state: AuthSessionLifecycleSDKState,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async {
+        let completion = XCTestExpectation(description: "Auth listener handled this event")
+        currentState = state
+        continuation?.yield(Delivery(state: state, completion: completion))
+        let result = await XCTWaiter.fulfillment(of: [completion], timeout: 5)
+        XCTAssertEqual(result, .completed, file: file, line: line)
     }
 }
 
@@ -172,10 +189,8 @@ final class AuthSessionLifecycleLiveProviderTests: XCTestCase {
         let provider = stream.makeProvider()
         provider.start(dependencies: dependencies.dependencies())
 
-        stream.send(state)
-        await waitUntil {
-            dependencies.coordinatorHarness.diagnostics.last == .processed
-        }
+        await stream.sendAndWait(state)
+        XCTAssertEqual(dependencies.coordinatorHarness.diagnostics.last, .processed)
 
         XCTAssertEqual(
             dependencies.events,
@@ -210,11 +225,11 @@ final class AuthSessionLifecycleLiveProviderTests: XCTestCase {
         dependencies.hasActiveTransition = true
         let provider = stream.makeProvider()
         provider.start(dependencies: dependencies.dependencies())
-        stream.send(state)
-        await waitUntil {
-            dependencies.coordinatorHarness.diagnostics.last
-                == .deferredForActiveTransition
-        }
+        await stream.sendAndWait(state)
+        XCTAssertEqual(
+            dependencies.coordinatorHarness.diagnostics.last,
+            .deferredForActiveTransition
+        )
 
         dependencies.hasActiveTransition = false
         let scheduled = provider.scheduleCurrentSessionReconciliation(
@@ -302,11 +317,11 @@ final class AuthSessionLifecycleLiveProviderTests: XCTestCase {
         dependencies.hasActiveTransition = true
         let provider = stream.makeProvider()
         provider.start(dependencies: dependencies.dependencies())
-        stream.send(state)
-        await waitUntil {
-            dependencies.coordinatorHarness.diagnostics.last
-                == .deferredForActiveTransition
-        }
+        await stream.sendAndWait(state)
+        XCTAssertEqual(
+            dependencies.coordinatorHarness.diagnostics.last,
+            .deferredForActiveTransition
+        )
 
         dependencies.hasActiveTransition = false
         let scheduled = provider.scheduleCurrentSessionReconciliation(
@@ -351,11 +366,11 @@ final class AuthSessionLifecycleLiveProviderTests: XCTestCase {
         let provider = stream.makeProvider()
         let liveDependencies = dependencies.dependencies()
         provider.start(dependencies: liveDependencies)
-        stream.send(state)
-        await waitUntil {
-            dependencies.coordinatorHarness.diagnostics.last
-                == .deferredForActiveTransition
-        }
+        await stream.sendAndWait(state)
+        XCTAssertEqual(
+            dependencies.coordinatorHarness.diagnostics.last,
+            .deferredForActiveTransition
+        )
 
         provider.start(dependencies: liveDependencies)
         dependencies.hasActiveTransition = false
@@ -436,11 +451,20 @@ final class AuthSessionLifecycleLiveProviderTests: XCTestCase {
         file: StaticString = #filePath,
         line: UInt = #line
     ) async {
-        for _ in 0..<2_000 {
-            if predicate() { return }
-            await Task.yield()
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: .seconds(5))
+        while !predicate() {
+            guard clock.now < deadline else {
+                XCTFail("Timed out waiting for lifecycle work.", file: file, line: line)
+                return
+            }
+            do {
+                try await Task.sleep(for: .milliseconds(10))
+            } catch {
+                XCTFail("Lifecycle wait cancelled.", file: file, line: line)
+                return
+            }
         }
-        XCTFail("Timed out waiting for lifecycle work.", file: file, line: line)
     }
 
     private static func user(id: UUID, isAnonymous: Bool) -> User {
