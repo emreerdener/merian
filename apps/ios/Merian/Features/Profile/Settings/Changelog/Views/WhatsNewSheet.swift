@@ -14,7 +14,7 @@ struct WhatsNewSheet: View {
                             .accessibilityIdentifier("WhatsNew_Title")
                             .accessibilityAddTraits(.isHeader)
 
-                        Text("Less waiting. More discovering.")
+                        Text("New and improved!")
                             .font(.title3)
                             .foregroundStyle(.secondary)
                     }
@@ -23,8 +23,8 @@ struct WhatsNewSheet: View {
                     VStack(alignment: .leading, spacing: 32) {
                         highlight(
                             symbol: "sparkles",
-                            title: "2.2× faster AI identifications",
-                            detail: "Get to know what you’ve found sooner, with less time waiting for results."
+                            title: "Faster AI identifications",
+                            detail: "2x faster analysis, means less time waiting for results."
                         )
 
                         highlight(
@@ -36,7 +36,7 @@ struct WhatsNewSheet: View {
                         highlight(
                             symbol: "text.bubble",
                             title: "More context, better results",
-                            detail: "Add a description with details like size, habitat, or behavior to help improve identification accuracy. Available to everyone."
+                            detail: "Add a description to help improve identification accuracy. Available to everyone."
                         )
 
                         highlight(
@@ -47,8 +47,8 @@ struct WhatsNewSheet: View {
 
                         highlight(
                             symbol: "speaker.wave.2",
-                            title: "Boost quiet recordings",
-                            detail: "Make quiet bird calls and other sounds easier to hear when reviewing your recordings."
+                            title: "Boost audio",
+                            detail: "Make quiet bird calls and other sounds easier to hear when listening to your recordings."
                         )
                     }
                 }
