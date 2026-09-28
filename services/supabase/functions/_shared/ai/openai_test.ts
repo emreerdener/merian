@@ -81,6 +81,7 @@ Deno.test("OpenAI executes the frozen complete photo/text projection once, with 
     result.usage,
     {
       promptTokens: 100,
+      outputTokens: 40,
       candidateTokens: 30,
       thinkingTokens: 10,
       totalTokens: 140,
@@ -337,5 +338,40 @@ Deno.test("OpenAI cache-write usage is bounded and missing or contradictory coun
     );
     assertEquals(result.usage?.candidateTokens, 30);
     assertEquals(result.usage?.thinkingTokens, 10);
+  }
+});
+
+Deno.test("OpenAI native pricing eligibility requires exact returned model, actual default tier and no unexpected tools", async () => {
+  for (
+    const [model, tier, status, tools, expectedTier] of [
+      ["gpt-6-sol", "default", "completed", false, "default"],
+      ["gpt-6-sol", "flex", "completed", false, null],
+      ["gpt-6-sol", undefined, "completed", false, null],
+      ["gpt-6-sol-snapshot", "default", "completed", false, null],
+      ["gpt-6-sol", "default", "completed", true, "default"],
+      ["gpt-6-sol", "default", "incomplete", true, "default"],
+    ] as const
+  ) {
+    const request = openAITextFixture();
+    const response = {
+      ...openAIResponseFixture(),
+      model,
+      service_tier: tier,
+      status,
+    };
+    const result = await createAIExecution(
+      createOpenAIEvaluationAdapter(
+        credential,
+        () =>
+          Promise.resolve(Response.json({
+            ...response,
+            output: tools ? [{ type: "web_search_call" }] : response.output,
+          })),
+      ),
+      request,
+      openAIEvaluationSnapshot(request),
+    ).invoke();
+    assertEquals(result.serviceTier, expectedTier);
+    assertEquals(result.usage?.toolTokens, tools ? null : 0);
   }
 });

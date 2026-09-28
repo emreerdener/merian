@@ -708,3 +708,39 @@ Future feedback or routing changes must preserve all of these invariants:
 6. Prefer view-owned `.onReceive` or the reviewed `sinkOnMainActor` bridge. A
    new raw `.sink` must satisfy the lifetime/actor review and update the
    executable guard plus this document in the same change.
+
+## Update-required presentation
+
+`AppDIContainer` injects one observable `AppUpdateCoordinator`, owned by
+`App/Lifecycle`, into foreground failure, the offline queue, and historical
+sync. Its preference store records the installed release/build and affected
+operation (identification or history) per account. It stores no response bodies
+or observation content. Account cleanup removes the registered preference
+prefix. Appearance, foreground activation, and account changes reload the
+requirement; a process-local event is not required to recover it.
+
+`MerianApp` composes one `AppRootAlertHost` with injected actions and a single
+selected root alert. Its UIKit bridge presents above the existing sheet, waits
+behind other alerts or presentation transitions, and dismisses only its own
+alert. The sheet router retains its navigation state. Account-deletion recovery
+and unavailable local storage defer presentation; Apple-revocation cleanup takes
+priority, and the update alert waits until onboarding/consent is complete. The
+alert says **Update Naturebook**, explains that saved observations are safe, and
+offers **Update app** and **Not now**. It never names a provider or exposes
+protocol details. Dismissal suppresses repeated prompts for that account during
+the process, without clearing the persisted pause or restricting local library
+access. An explicit retry can reopen the prompt.
+
+**Update app** opens Naturebook's verified App Store listing,
+`https://apps.apple.com/app/id6760208440`. Opening or returning from the store
+does not prove an update was installed. Only a changed bundle release/build
+permits affected requests to retry. History gets a foreground retry after that
+change; paused identification scans remain available for explicit retry from
+Scans, preserving quota and completed-result ownership. No automatic model
+request burst is introduced.
+
+Before enabling a reader requirement, release and verify a compatible app at
+that listing, including the previous-release upgrade check. TestFlight and
+development installs still require their normal installation channel. This UX
+cannot be added to binaries that users already have installed; those retain
+their existing error behavior until updated.

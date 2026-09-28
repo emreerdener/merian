@@ -5,6 +5,12 @@ adapter is implemented for local evaluation; **production continues to assign
 every identification and enrichment task to Gemini**. No client, environment
 setting or quota reservation can activate OpenAI in a deployed endpoint.
 
+The separate dormant `openai_photo_v1` integration binding now adds pinned
+inline moderation and V2 result metadata. It is not an evaluation profile and
+does not alter the completed baseline requests or their hashes. Its safety and
+end-to-end qualification remain pending; see the
+[integration plan](../rfcs/identification-openai-photo-integration-2026-09-27.md).
+
 The purpose of this slice is to use the existing examples and evaluation harness
 to compare a second provider. It does not require another Gemini-only benchmark
 campaign. Earlier app measurements remain useful reference evidence; a direct
@@ -102,24 +108,31 @@ password manager. Do not put the key in source, app configuration or artifacts.
 
 The name is intentionally separate from the repository's `OPENAI_API_KEY`, which
 is consumed by the unrelated Agent Quality workflow. Storage alone does not run
-a comparison, synchronize a Supabase secret or enable the provider. No current
-comparison or deployment job reads `NATUREBOOK_OPENAI_API_KEY`; those consumers
-have not been implemented yet.
+a comparison, synchronize a Supabase secret or enable the provider. The manual
+**Compare identification providers** workflow now reads the Naturebook key in
+its protected evaluation steps. The protected production deployment now
+synchronizes a configured value into the same-named Supabase Edge secret and
+verifies its stored digest. An absent value skips synchronization and leaves any
+existing runtime copy untouched.
 
-The first comparison runs locally, using the existing private source packets and
-persistent run ledger. GitHub-hosted jobs cannot access those files or retain
-local claims across an interrupted job. Adding private packet delivery or a
-self-hosted runner would introduce a separate storage and execution boundary;
-neither is part of this slice. In particular, do not register the owner's Mac as
-a runner just to retrieve the key.
+The first pilot ran locally with a private packet and persistent run ledger. The
+subsequent
+[hosted comparison procedure](./23-hosted-identification-comparison.md) reuses
+the existing public `merian` bucket for owner-approved test exports and durable,
+one-shot experiment claims. It preserves provider-scoped credentials and
+prevents a fresh GitHub runner from repeating an admitted comparison. No
+self-hosted runner or local key retrieval is required for that path.
 
 The local runner requires the same key from the owner's password manager; GitHub
 does not provide a way to read a saved secret back. The terminal launcher below
-injects it transiently as `OPENAI_EVALUATION_API_KEY`. Once production
-onboarding is approved, the deployment workflow must explicitly synchronize the
-GitHub key into Supabase Edge secrets and compose the OpenAI adapter. GitHub is
-the deployment source and Supabase is the future runtime store; provider
-assignment, rollout and rollback remain separate decisions.
+injects it transiently as `OPENAI_EVALUATION_API_KEY`. GitHub is the deployment
+source and Supabase is the runtime store. The
+[deployment runbook](../backend-and-data/06-supabase-deployment-runbook.md#required-and-optional-github-secrets)
+owns the env-backed CLI transport, digest verification and failure handling.
+Successful synchronization proves only that the key was copied; it does not
+validate provider access or enable OpenAI. The photo source gate remains false,
+Gemini retains every assignment, and permission collection is deferred. Provider
+activation, qualification, rollout and rollback remain separate decisions.
 
 ### Private local key entry
 
@@ -210,7 +223,13 @@ The executable owners are `runContracts.ts` and `admission.ts`:
    The same reviewed OpenAI key may serve the app and these benchmarks; a
    separate test project/key is optional. Shared usage consumes the same project
    limits, and the runner's budget accounts only for its own calls. The legacy
-   Gemini readiness contract remains dedicated-project-only.
+   Gemini `evaluation_processor_v1` remains dedicated-project-only. New Gemini
+   runs may use `evaluation_gemini_processor_v1` with `provider: gemini`, an
+   explicit project-kind Boolean and the same exact corpus/case permission
+   structure naming Gemini. This permits the owner's existing paid application
+   project without asserting that it is dedicated; it never approves OpenAI. The
+   [Gemini procedure](../../services/supabase/scripts/identification_evaluation/README.md#future-explicitly-approved-gemini-live-use)
+   owns credential, review, expiry and execution requirements.
 3. Supply `evaluation_openai_pricing_v1`, `provider: openai`, with the model
    page above as `sourceUrl`, USD, `paid_standard_synchronous`, retrieval/review
    references and `includesReasoning: true`. Its single model is `gpt-6-sol`.
@@ -329,6 +348,26 @@ qualify production use.
 
 ## Later production assignment
 
+The
+[matched Gemini/OpenAI photo/text comparison](../rfcs/identification-gemini-openai-matched-comparison-2026-09-27.md)
+completed all 16 first attempts on 27 September. Its
+[outcome record](../rfcs/identification-gemini-openai-matched-results-2026-09-27.md)
+preserves the source, measurements, description failures and cost limitations.
+Both configurations agreed with five provisional biological photo references and
+the mineral control. OpenAI's observed photo median was 7.10 seconds versus
+15.81 seconds for Gemini Pro; this small reused corpus remains unqualified.
+
+The next milestone is
+[photo integration](../rfcs/identification-openai-photo-integration-2026-09-27.md).
+The primary handler now independently prepares a result policy before quota
+commitment. Current Gemini profiles retain their diagnostic threshold and
+safety-signal behavior. OpenAI evaluation keeps unqualified confidence, and its
+absence of Gemini ratings cannot authorize production media promotion. A
+separate OpenAI safety contract, versioned provenance, dormant admission/runtime
+wiring and qualification precede activation. Description-only, audio and
+sampled-video assignments remain Gemini. TestFlight archive and released-store
+upgrade verification remain separate iOS release work.
+
 Production integration is a separate milestone. The first admission slice now
 records an exact Gemini provider/binding/permission assignment per metered
 identification attempt and rejects unqualified recipients before dispatch. See
@@ -343,11 +382,15 @@ client inference admission and the underlying quota delegate still require
 Gemini. The
 [server provenance slice](../rfcs/identification-provider-result-provenance-2026-09-26.md)
 now retains successful Gemini provider/model and generation/confidence
-configuration with atomic recovery backups. Historical unknown values stay null;
-this does not yet add client DTO/local-store fields. Next, complete
-recipient-aware admission, client confidence and safety compatibility,
-qualification and controlled activation. The optional concise-prompt screen is
-closed and is not required to implement these boundaries. Follow the
+configuration with atomic recovery backups. Historical unknown values stay null.
+The
+[client provenance slice](../rfcs/identification-client-result-provenance-2026-09-26.md)
+adds DTO/V52 storage and neutral unknown-profile presentation; the
+[native preflight slice](../rfcs/identification-native-recipient-preflight-2026-09-26.md)
+carries app-assigned recipient expectations through dispatch and retries. These
+implemented controls do not qualify OpenAI's runtime safety or confidence. The
+optional concise-prompt screen is closed and is not required to implement these
+boundaries. Follow the
 [provider onboarding contract](../../services/supabase/functions/_shared/ai/ADDING_PROVIDERS.md).
 Photo/text could then receive one provider and audio-containing observations
 another, using complete-task capability checks. This slice enables that work

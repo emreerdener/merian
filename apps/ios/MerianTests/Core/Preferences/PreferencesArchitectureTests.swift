@@ -84,6 +84,7 @@ struct PreferencesArchitectureTests {
         "AccountScopedPreferences.swift",
         "AccountScopedRuntimeState.swift",
         "AppSettings.swift",
+        "Stores/ClientUpdateRequirementStore.swift",
         "Stores/ExploreShareStateStore.swift",
         "Stores/FirstFieldTripAchievementProgressStore.swift",
         "Stores/FieldNotesStore.swift",
@@ -100,6 +101,7 @@ struct PreferencesArchitectureTests {
             "import Observation",
             "import UIKit"
         ],
+        "Stores/ClientUpdateRequirementStore.swift": ["import Foundation"],
         "Stores/ExploreShareStateStore.swift": ["import Foundation"],
         "Stores/FirstFieldTripAchievementProgressStore.swift": ["import Foundation"],
         "Stores/FieldNotesStore.swift": ["import Foundation"],
@@ -109,6 +111,8 @@ struct PreferencesArchitectureTests {
     ]
 
     private static let expectedDeclarationOwners: [String: String] = [
+        "struct ClientUpdateRequirementStore":
+            "apps/ios/Merian/Core/Preferences/Stores/ClientUpdateRequirementStore.swift",
         "enum AccountScopedPreferences":
             "apps/ios/Merian/Core/Preferences/AccountScopedPreferences.swift",
         "enum AccountScopedRuntimeState":

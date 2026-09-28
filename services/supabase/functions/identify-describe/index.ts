@@ -50,6 +50,7 @@ import {
   fetchCompletedIdentifyResponse,
   waitForCompletedIdentifyResponse,
 } from "../_shared/identify/completedResponse.ts";
+import { completedIdentifyResponse } from "../_shared/identify/resultResponse.ts";
 import {
   canonicalizeDomesticPetScientificName,
   sanitizePetIdentification,
@@ -193,9 +194,7 @@ export function createDescribeHandler(prepare = prepareAIExecution) {
       supabaseAdmin,
     );
     if (existingCompletion) {
-      return jsonResponse(existingCompletion.envelope, 200, {
-        "X-Merian-Idempotent-Replay": existingCompletion.source,
-      });
+      return completedIdentifyResponse(req, existingCompletion);
     }
 
     console.log(`[⏱ BENCH] payload_parsed: ${Date.now() - fnStart}ms`);
@@ -260,9 +259,7 @@ export function createDescribeHandler(prepare = prepareAIExecution) {
           supabaseAdmin,
         );
         if (replay) {
-          return jsonResponse(replay.envelope, 200, {
-            "X-Merian-Idempotent-Replay": replay.source,
-          });
+          return completedIdentifyResponse(req, replay);
         }
       }
       throw error;
@@ -319,9 +316,7 @@ export function createDescribeHandler(prepare = prepareAIExecution) {
           supabaseAdmin,
         );
         if (replay) {
-          return jsonResponse(replay.envelope, 200, {
-            "X-Merian-Idempotent-Replay": replay.source,
-          });
+          return completedIdentifyResponse(req, replay);
         }
       }
       throw error;

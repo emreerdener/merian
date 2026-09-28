@@ -2425,7 +2425,8 @@ remain unchanged.
 
 The backend chooses the assignment. End-user processing permission gates that
 assignment; it cannot select a different provider or fallback. All current
-catalog rows and runtime model/binding allowlists remain Gemini-only.
+catalog rows remain Gemini. The registry recognizes the exact dormant OpenAI
+photo tuple, but a separate constant-false composition gate prevents dispatch.
 `identificationInput.ts` distinguishes descriptions, photos, audio, combined
 photos/audio and video-derived frames/audio; compatibility request variants have
 separate profiles. Capture indications and lineage conservatively keep sampled
@@ -2453,9 +2454,9 @@ A binding's `minimum_client_protocol` gates fresh work using the existing
 all current Gemini bindings remain zero. Nonzero minima require a recognized
 protocol at or above the binding requirement; rejection uses the existing
 `426 client_update_required` envelope and rolls back quota/complimentary
-effects. The accepted range is currently 1–3; no client protocol bump is
-included. This is compatibility evidence, not authentication or end-user
-provider selection.
+effects. The entitlement protocol range remains 1–3. Identification capability 4
+is a separate contract and does not raise the global cutoff. This is
+compatibility evidence, not authentication or end-user provider selection.
 
 Fresh internal retries ignore any worker protocol header. They require accepted
 protocol evidence from the exact original owner's reservation and current
@@ -2468,24 +2469,72 @@ endpoints currently recover through the multimodal endpoint; that changes the
 profile (and audio operation). Such transformations remain supported by current
 zero-minimum Gemini bindings but do not inherit eligibility for a future gated
 binding. Qualifying that recovery path requires a separate durable origin
-mapping and provider review. Before a new app advertises a protocol above 3,
-coordinate the accepted maxima across Edge, SQL and snapshot constraints while
-retaining the global required minimum for older-client recovery. A global
-entitlement cutoff is not a provider switch.
+mapping and provider review. The new identification capability is independent of
+the global entitlement protocol. A global entitlement cutoff is not a provider
+switch.
+
+Migration `20260927175708_prepare_openai_photo_routing.sql` adds the exact
+dormant photo tuple and a separate `provider_model`. The quota policy model and
+limits are unchanged; the new reservation returns the saved execution model.
+Current rows still resolve Gemini. The native app adds
+`p_identification_protocol: 4` to the six-argument preflight and
+`X-Merian-Identification-Protocol: 4` to the final request alongside the
+recipient expectation. Edge accepts only that exact header value and uses the
+eleven-argument reservation. Missing headers on external requests keep legacy
+ABIs. Internal retries use the eleven-argument ABI with a NULL capability claim
+and may omit the recipient expectation; the database recovers proof from the
+original attempt. Every supplied expectation still rejects assignment drift.
+Invalid or expectation-less capability headers return
+`400 ai_identification_preflight_invalid`. No client field chooses a provider.
+
+Bindings store `minimum_identification_protocol` (0 or 4), and new attempts
+store that minimum plus recognized `accepted_identification_protocol` (4 or
+NULL). Older attempts remain unknown. Internal retries use the original exact
+owner/operation/observation/profile generation, not a worker claim. Fresh legacy
+admission cannot dispatch an OpenAI tuple. The production composition separately
+rejects OpenAI before credential lookup/commit and refunds the admitted lease.
+
+Capability 4 covers the requesting client's V2 decoder. The separate
+[result-reader boundary](#identification-result-readers) checks the current
+reader on direct PostgREST reads and completed-result replay. Release a capable
+app before enabling V2 results; submission-time capability cannot authorize
+another device's history reads.
 
 Apply `20260926174645_add_identification_input_routing.sql`,
 `20260926182547_add_identification_recipient_recovery.sql`,
 `20260926200227_add_identification_client_compatibility.sql`,
-`20260926213316_add_identification_recipient_preflight.sql` and their
-predecessor migrations before deploying these Edge callers through the exact-SHA
-release procedure. The legacy eight-argument identification RPC and both
+`20260926213316_add_identification_recipient_preflight.sql`,
+`20260927165545_accept_openai_identification_provenance_v2.sql`,
+`20260927175708_prepare_openai_photo_routing.sql`,
+`20260927185833_require_identification_result_reader.sql` and their predecessor
+migrations before deploying these Edge callers through the exact-SHA release
+procedure. The legacy eight-argument identification RPC and both
 `reserve_ai_quota` ABIs remain compatible and Gemini-gated. New callers never
 fall back to them if the routing overload is missing. This infrastructure does
 not activate OpenAI or enable consent collection. Future activation also needs
-the recipient preflight below, a qualified client protocol and coordinated
-accepted maximum expansion, qualified model admission, confidence and versioned
-result provenance. The implemented recipient-specific saved-scan recovery
+qualified historical/public readers, disclosure and credential release, exact
+safety-binding evidence, and complete usage/pricing coverage. V2 confidence
+remains unqualified. The implemented recipient-specific saved-scan recovery
 remains dormant while all assignments are Gemini.
+
+### Primary identification usage RPCs
+
+`commit_identification_invocation(uuid,uuid,uuid,integer,jsonb)` and
+`complete_identification_invocation(uuid,uuid,uuid,text,jsonb)` are service-only
+accounting RPCs. The first requires the exact owner, reservation, lease and
+attempt plus validated execution provenance, returns
+`{invocation_id,
+may_dispatch}`, and combines commitment with a unique witness.
+Only `may_dispatch=true` permits the current invocation. The second accepts
+bounded native usage facts, returning the immutable event UUID; replay cannot
+replace that event.
+
+The primary Identify response, iOS DTO and stored result provenance shapes do
+not change. `ai_usage_events.outcome` adds `unknown` for missing reports. A
+`success` event denotes a provider draft, independently of eventual scan
+persistence. The private reconciler, scan-trigger ownership marker, pricing
+eligibility, account lifecycle and compatibility coverage are specified in the
+[database contract](./04-database-schema.md#primary-identification-attempt-accounting).
 
 ### Assigned-recipient preflight
 
@@ -2502,6 +2551,12 @@ available quota.
 | `p_flash_fallback_eligible` | boolean           | Prospective eligibility for the complete outgoing observation                     |
 | `p_original_analysis_id`    | UUID              | This request's `client_scan_id`, not the parent observation of a refinement       |
 | `p_client_protocol`         | integer, nullable | Client capability claim; null means unknown; non-null values must be 1–1000       |
+
+The new six-argument overload additionally accepts nullable
+`p_identification_protocol`. Only 4 is recognized as the V2 identification
+capability; this does not change `p_client_protocol` or the entitlement header.
+The five-argument ABI stays available to older callers and returns
+update-required for any binding requiring the new capability.
 
 Accepted profiles are `description_compat_v1`, `vision_compat_v1`,
 `audio_compat_v1`, `multimodal_text_v1`, `multimodal_photo_v1`,
@@ -2520,6 +2575,12 @@ The RPC returns exactly one row:
 | `decision`                | text              | `ready`, `permission_required`, `client_update_required`, or `recovery_only`                                  |
 | `processor_permission`    | text, nullable    | App-assigned recipient: `google_gemini` or `openai`; null for recovery-only or a global protocol denial       |
 | `minimum_client_protocol` | integer, nullable | Greater of global and binding requirements; global minimum alone when it denies early; null for recovery-only |
+
+The six-argument result adds nullable `minimum_identification_protocol`: 0 or 4
+for an assignment, NULL for recovery-only or early global denial. Native readers
+check it independently of `minimum_client_protocol` and reject unknown
+ready/permission minima. A positive future minimum can still signal an explicit
+update-required decision.
 
 The global supported-protocol gate runs before recovery and entitlement,
 matching public Identify. A caller-owned live or committed reservation then
@@ -2607,27 +2668,35 @@ API visibility; they contain no evidence or owner/attempt identifiers. Client
 exact server-owned backup, and legacy/no-backup results remain null. Fresh
 Identify envelopes now include optional `data.identification_provenance` from
 that same admitted execution snapshot. The executable contract and generated
-Swift DTO own its closed version-1 shape: bounded provider/binding/model,
+Swift DTO own its closed versioned shape: bounded provider/binding/model,
 variant/operation/policy, prompt/schema/confidence references, nullable
 diagnostic and safety settings, timeout, and generation settings. The value
-contains no observation or personal data and never enters the model-output
-schema. Omission means legacy; an explicitly null or malformed Identify field is
-rejected. Required nullable settings retain explicit null when decoded and
-re-encoded. Stored envelopes retain their original metadata or original
-omission. Older completed jobs reconstruct from the immutable owner scan column;
-null/missing columns omit the field, while damaged present metadata fails
-validation. Neither path consults today's provider assignment or makes an
-inference request.
+preserves the exact five-field Gemini generation object in version 1. Version 2
+uses provider `openai` and an exact three-field generation object:
+`max_output_tokens`, `reasoning_effort`, `image_detail`. The generated decoder
+selects the version before decoding its generation object; unknown versions,
+mixed settings and extra keys fail. V2 is preparation only: all deployed
+assignments remain Gemini. Dormant admission and the result-reader boundary
+require identification capability 4 before returning V2 to an external client;
+entitlement protocol remains 3. The value contains no observation or personal
+data and never enters the model-output schema. Omission means legacy; an
+explicitly null or malformed Identify field is rejected. Required nullable
+settings retain explicit null when decoded and re-encoded. Stored envelopes
+retain their original metadata or original omission. Older completed jobs
+reconstruct from the immutable owner scan column; null/missing columns omit the
+field, while damaged present metadata fails validation. Neither path consults
+today's provider assignment or makes an inference request.
 
 Owner history selects the same column. SwiftData V52 stores its content-free
 JSON bytes in optional `LocalScanRecord.identificationProvenanceData`; V51 rows
 migrate to nil. Missing legacy cloud metadata cannot erase an existing value.
-Malformed history rows remain quarantined with raw-row pagination intact.
-Recognized exact Gemini profiles retain the existing confidence presentation;
-unknown or damaged present profiles use neutral review guidance. Absence keeps
-legacy behavior. This compatibility rule is not empirical calibration, and
-public Explore suggestion projections still require separate qualification
-before another provider is enabled. See the
+Malformed history rows remain quarantined with raw-row pagination intact. Both
+versions use the existing V52 opaque JSON storage; this adds no SwiftData schema
+version or data migration. Recognized exact V1 Gemini profiles retain the
+existing confidence presentation; unknown or damaged present profiles use
+neutral review guidance. Absence keeps legacy behavior. This compatibility rule
+is not empirical calibration, and public Explore suggestion projections still
+require separate qualification before another provider is enabled. See the
 [server provenance record](../rfcs/identification-provider-result-provenance-2026-09-26.md)
 and
 [client integration record](../rfcs/identification-client-result-provenance-2026-09-26.md)
@@ -2639,7 +2708,56 @@ the canonical scan UUID as both the response identity and paid-provider request
 identity. Before resolving staged media or reserving quota, each route loads
 `scan_ingestion_jobs` by both `scan_id` and authenticated `user_id`. A
 `complete` job with its owner scan returns `200` and
-`X-Merian-Idempotent-Replay: stored|reconstructed`.
+`X-Merian-Idempotent-Replay: stored|reconstructed` when the current caller can
+read its metadata. An unsupported V2 reader receives the `426` below instead.
+
+### Identification result readers
+
+Migration `20260927185833_require_identification_result_reader.sql` preserves
+the two `scans` SELECT policies' existing owner/public visibility predicates.
+Each policy evaluates the invoker helper
+`internal.require_identification_result_reader` only after its original
+visibility condition succeeds. Null/V1 metadata remains readable by older
+clients. A visible V2 row requires the exact normalized PostgREST header
+`x-merian-identification-protocol: 4`. A missing, malformed or unsupported claim
+raises SQLSTATE `PT426` with message `client_update_required` and a fixed update
+hint. This applies even when a query omits the provenance column. A mixed page
+fails as a whole rather than filtering out newer results. Invisible private,
+non-live or tombstoned rows do not trigger a reader error.
+
+The native `MerianSupabaseClientFactory` supplies
+`X-Merian-Identification-Protocol: 4` globally for SDK reads, including history
+pages, single-scan recovery and metadata update/readback. The constant is shared
+with identification dispatch. It describes decoder capability only: it grants no
+identity, visibility, processing permission or provider choice. Existing table
+grants, update-column restrictions and service-role projections remain
+unchanged. Source scores and immutable provenance are never rewritten.
+
+All four identification endpoints apply the same current-reader check at every
+stored/reconstructed completion emission, including quota and ingestion races.
+Their service client bypasses table RLS, so they cannot rely on that RLS or the
+original producer's capability. Unsupported callers receive the standard Edge
+`426 client_update_required` envelope without result data. The primary handler
+also checks fresh V2 emission. Only the separately service-authenticated
+internal replay worker bypasses the client decoder check; inbound worker-like
+headers do not grant that exception. This reader failure makes no new provider
+call.
+
+The current native UX classifies the exact PostgREST code/message pair and the
+Edge HTTP-status/stable-code pair through the shared update flow. Account-lease
+and inference-generation checks precede effects. A dismissed prompt never clears
+paused work, and same-build manual retry cannot re-enable blocked work. The
+[presentation contract](../system-architecture/10-event-and-presentation-routing.md#update-required-presentation)
+owns app-version recovery and the App Store destination.
+
+Ship and verify a capability-4 reader before activating OpenAI. Older binaries
+may show their existing generic history-sync error, retain local observations,
+and fail to hydrate mixed cloud history until updated; this change cannot add an
+upgrade screen to an installed old binary. Null/V1-only reads continue normally.
+Turning fresh assignments back to Gemini does not remove this reader requirement
+while V2 rows exist. Keep the guard and compatible readers during rollback.
+
+### Completed-result recovery
 
 Migration `20260728220000_persist_idempotent_scan_responses.sql` makes current
 completions persist the executable-contract-validated success envelope inside

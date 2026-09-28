@@ -10,7 +10,8 @@ import Testing
 )
 @MainActor
 struct LiveCaptureLifecycleTests {
-    @Test func consentPauseRetriesOnlyLocalPersistenceBeforeRetiring() async throws {
+    @Test(arguments: ["ai_openai_consent_required", "client_update_required"])
+    func consentPauseRetriesOnlyLocalPersistenceBeforeRetiring(code: String) async throws {
         let manager = OfflineQueueManager.shared
         let originalContext = manager.modelContext
         let originalIsOnline = manager.isOnline
@@ -44,7 +45,7 @@ struct LiveCaptureLifecycleTests {
         #expect(InferenceLiveQueueService.live.pauseQueuedScan(
             scanId: scanId, generation: generation,
             reason: BackgroundInferencePolicy.openAIConsentAttentionMessage,
-            errorCode: "ai_openai_consent_required"
+            errorCode: code
         ))
         // A later generic defer cannot change the pause owner's recovery policy.
         manager.retireForegroundInference(
@@ -68,7 +69,9 @@ struct LiveCaptureLifecycleTests {
         }
         #expect(scan.queueState == .failed)
         #expect(scan.queueNeedsAttention)
-        #expect(scan.queueLastErrorCode == "ai_openai_consent_required")
+        #expect(scan.queueLastErrorCode == code)
+        #expect(scan.queueLastHTTPStatus == (code == "client_update_required" ? 426 : 403))
+        #expect(job.lastHTTPStatus == scan.queueLastHTTPStatus)
         #expect(scan.inferenceImagePaths == ["synthetic-pause.webp"])
         #expect(scan.queueNextRetryAt == nil)
         #expect(job.status == .needsAttention)

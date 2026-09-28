@@ -17,6 +17,7 @@ import {
   merianModelContract,
   type ObjectContract,
   providerSchemaFromContract,
+  type UnionContract,
 } from "../functions/_shared/identify/contract.ts";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
@@ -140,6 +141,10 @@ export function collectContractPaths(
         );
       }
       active.delete(node);
+    } else if (node.kind === "union") {
+      active.add(node);
+      for (const variant of Object.values(node.variants)) visit(variant, path);
+      active.delete(node);
     }
   };
 
@@ -179,6 +184,21 @@ function assertFiniteNumericContracts(
       for (const [name, definition] of Object.entries(node.fields)) {
         visit(definition.contract, pathForChild(path, name));
       }
+    } else if (node.kind === "union") {
+      for (const [version, variant] of Object.entries(node.variants)) {
+        const discriminator = variant.fields[node.discriminator];
+        if (
+          !discriminator?.required ||
+          discriminator.contract.kind !== "integer" ||
+          discriminator.contract.minimum !== Number(version) ||
+          discriminator.contract.maximum !== Number(version)
+        ) {
+          throw new ContractValidationError(
+            "Versioned wire variants require exact integer discriminators.",
+          );
+        }
+        visit(variant, path);
+      }
     }
   };
   visit(root, "");
@@ -199,8 +219,8 @@ function assertRequiredPaths(
 
 function collectSwiftObjects(
   root: ContractNode,
-): ReadonlyMap<string, ObjectContract> {
-  const objects = new Map<string, ObjectContract>();
+): ReadonlyMap<string, ObjectContract | UnionContract> {
+  const objects = new Map<string, ObjectContract | UnionContract>();
   const visited = new Set<ContractNode>();
   const visit = (node: ContractNode, path: string): void => {
     if (visited.has(node)) return;
@@ -209,7 +229,7 @@ function collectSwiftObjects(
       visit(node.items, `${path}[]`);
       return;
     }
-    if (node.kind !== "object") return;
+    if (node.kind !== "object" && node.kind !== "union") return;
     if (node.swift) {
       const previous = objects.get(node.swift.name);
       if (previous && previous !== node) {
@@ -218,6 +238,10 @@ function collectSwiftObjects(
         );
       }
       objects.set(node.swift.name, node);
+    }
+    if (node.kind === "union") {
+      for (const variant of Object.values(node.variants)) visit(variant, path);
+      return;
     }
     for (const [name, definition] of Object.entries(node.fields)) {
       if (definition.swift === false) continue;
@@ -264,6 +288,7 @@ function swiftBaseType(contract: ContractNode): string {
       return `[${contract.items.nullable ? `${itemType}?` : itemType}]`;
     }
     case "object":
+    case "union":
       if (!contract.swift) {
         throw new ContractValidationError(
           "A Swift-visible object is missing Swift type metadata.",
@@ -328,8 +353,8 @@ function renderSwiftCodingKeys(
 }
 
 function renderSwiftStruct(
-  node: ObjectContract,
-  allObjects: ReadonlyMap<string, ObjectContract>,
+  node: ObjectContract | UnionContract,
+  allObjects: ReadonlyMap<string, ObjectContract | UnionContract>,
   level: number,
 ): string {
   if (!node.swift) {
@@ -337,6 +362,7 @@ function renderSwiftStruct(
       "Cannot render an object without Swift metadata.",
     );
   }
+  if (node.kind === "union") return renderSwiftUnion(node, level);
   const indent = indentation(level);
   const childIndent = indentation(level + 1);
   const lines: string[] = [
@@ -433,6 +459,52 @@ function renderSwiftStruct(
       );
     }
   }
+  if (node.unknownKeys === "reject") {
+    for (const [jsonName, definition] of properties) {
+      const contract = definition.contract;
+      const identifier = swiftIdentifier(jsonName, definition);
+      const tests: string[] = [];
+      if (contract.kind === "integer" || contract.kind === "number") {
+        tests.push(
+          `${identifier} >= ${contract.minimum}`,
+          `${identifier} <= ${contract.maximum}`,
+        );
+      } else if (contract.kind === "string") {
+        if (contract.minLength !== undefined) {
+          tests.push(`${identifier}.utf16.count >= ${contract.minLength}`);
+        }
+        if (contract.maxLength !== undefined) {
+          tests.push(`${identifier}.utf16.count <= ${contract.maxLength}`);
+        }
+        if (contract.enum) {
+          tests.push(
+            `[${
+              contract.enum.map((item) => JSON.stringify(item)).join(", ")
+            }].contains(${identifier})`,
+          );
+        }
+        if (contract.pattern) {
+          tests.push(
+            `${identifier}.range(of: ${
+              JSON.stringify(contract.pattern)
+            }, options: .regularExpression) == (${identifier}.startIndex..<${identifier}.endIndex)`,
+          );
+        }
+      }
+      if (!tests.length) continue;
+      const body = indentation(level + 2), nested = indentation(level + 3);
+      if (isSwiftPropertyOptional(node, definition)) {
+        lines.push(`${body}if let ${identifier} {`);
+      }
+      const check = isSwiftPropertyOptional(node, definition) ? nested : body;
+      lines.push(
+        `${check}guard ${tests.join(" && ")} else {`,
+        `${check}    throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))`,
+        `${check}}`,
+      );
+      if (isSwiftPropertyOptional(node, definition)) lines.push(`${body}}`);
+    }
+  }
   lines.push(`${childIndent}}`);
 
   if (node.swift.parent || node.swift.preserveRequiredNulls) {
@@ -464,10 +536,59 @@ function renderSwiftStruct(
   return lines.join("\n");
 }
 
+function renderSwiftUnion(node: UnionContract, level: number): string {
+  const indent = indentation(level),
+    child = indentation(level + 1),
+    body = indentation(level + 2);
+  const variants = Object.entries(node.variants);
+  const lines = [`${indent}enum ${node.swift.name}: Codable {`];
+  for (const [version, variant] of variants) {
+    if (!variant.swift || variant.swift.parent) {
+      throw new ContractValidationError(
+        "Wire union variants require top-level Swift DTOs.",
+      );
+    }
+    lines.push(`${child}case v${version}(${variant.swift.name})`);
+  }
+  lines.push(
+    "",
+    `${child}init(from decoder: Decoder) throws {`,
+    `${body}let container = try decoder.container(keyedBy: IdentifyWireCodingKey.self)`,
+    `${body}let version = try container.decode(Int.self, forKey: IdentifyWireCodingKey(stringValue: ${
+      JSON.stringify(node.discriminator)
+    })!)`,
+    `${body}switch version {`,
+  );
+  for (const [version, variant] of variants) {
+    lines.push(
+      `${body}case ${version}: self = .v${version}(try ${
+        variant.swift!.name
+      }(from: decoder))`,
+    );
+  }
+  lines.push(
+    `${body}default: throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unsupported identification metadata version."))`,
+    `${body}}`,
+    `${child}}`,
+    "",
+    `${child}func encode(to encoder: Encoder) throws {`,
+    `${body}switch self {`,
+  );
+  for (const [version] of variants) {
+    lines.push(
+      `${body}case .v${version}(let value): try value.encode(to: encoder)`,
+    );
+  }
+  lines.push(`${body}}`, `${child}}`, `${indent}}`);
+  return lines.join("\n");
+}
+
 export function renderGeneratedSwiftDTOBlock(): string {
   const objects = collectSwiftObjects(identifyWireEnvelopeContract);
   const nested = [...objects.values()]
-    .filter((node) => node.swift?.parent)
+    .filter((node): node is ObjectContract =>
+      node.kind === "object" && !!node.swift?.parent
+    )
     .sort((left, right) =>
       (left.swift?.parent ?? "").localeCompare(right.swift?.parent ?? "") ||
       (left.swift?.declarationOrder ?? 0) -

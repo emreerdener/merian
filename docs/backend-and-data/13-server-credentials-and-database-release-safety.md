@@ -272,6 +272,18 @@ missing service-role `SELECT` on `user_follows` needed by the existing invoker
 Explore author-profile read. It changes no browser-role grant, table RLS, or
 write privilege. Actual-role integration tests cover both public projections.
 
+The result-reader helper `internal.require_identification_result_reader(jsonb)`
+is `SECURITY INVOKER`, `VOLATILE`, fixed to an empty search path, and executable
+only by `anon` and `authenticated`. Its exact capability-4 header check runs
+inside the two existing `scans` SELECT visibility predicates; it does not
+authorize visibility or change table/write grants. Service projections retain
+their existing bypass. Unsupported visible V2 rows fail the query with `PT426`,
+including projections that omit metadata. All four Edge completion paths
+separately check the current external reader because their service client
+bypasses RLS. See the
+[reader contract](./05-api-contracts.md#identification-result-readers) and the
+actual-role fixture `tests/identification_result_reader.sql`.
+
 ## Migration Execution Contract
 
 CI pins Supabase CLI `2.109.1`, which owns migration transaction and

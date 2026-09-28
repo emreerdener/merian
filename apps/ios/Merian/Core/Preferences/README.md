@@ -126,6 +126,12 @@ Repository and cloud-convergence tests live under
 `MerianTests/Core/Data/SpeciesPreferences/`; Preferences tests retain ownership
 of only legacy cleanup, the pending-delete store, and diagnostic persistence.
 
+`Stores/ClientUpdateRequirementStore.swift` records only the installed
+release/build for identification or history compatibility denials, scoped by
+account. `AccountScopedPreferences` removes its registered key prefix during
+account cleanup. Prompt state and effects belong to `AppUpdateCoordinator`; the
+store has no network, view, or queue dependencies.
+
 ## Map preferences
 
 `AppSettings.mapAppearance` is a device-level satellite/standard choice. Missing

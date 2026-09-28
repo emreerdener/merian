@@ -57,7 +57,8 @@ and
 - `HistoricalScanReconciliationTests` owns update, media-repair, cancellation,
   and collection reconciliation behavior.
 - `HistoricalSyncCloudClientTests` owns injected account-lease and request-value
-  forwarding through the service seam.
+  forwarding through the service seam, plus real SDK request-header coverage
+  through an isolated URLSession transport.
 - `HistoricalSyncPolicyTests` freezes the exact page and checkpoint values.
 - `CoreDataIntegrationArchitectureTests` freezes the production/test inventory,
   imports, dependency direction, sole query ownership, and file-size ceilings.
@@ -76,3 +77,21 @@ malformed present metadata quarantines that row rather than becoming legacy.
 Raw-row pagination and account/save fences are unchanged. Unknown but decodable
 profiles remain present and receive neutral review guidance instead of Gemini
 confidence bands. `IdentificationResultProvenanceTests` verifies these paths.
+
+`MerianSupabaseClientFactory` advertises result-reader capability 4 on SDK
+requests. The backend checks that capability before returning visible V2 rows,
+including a single-scan projection or a page that mixes old and new results.
+Older readers receive a query error; they retain existing local observations and
+must update to hydrate newer cloud results. This is separate from malformed-row
+quarantine and does not hide rows or rewrite metadata. The
+[result-reader contract](../../../../../../../docs/backend-and-data/05-api-contracts.md#identification-result-readers)
+owns rollout and rollback requirements.
+
+`ScanRepository` recognizes only exact PostgREST `PT426` /
+`client_update_required` failures after rechecking the account lease. It records
+the shared update requirement and skips further history reads on that installed
+build. A targeted read returns `clientUpdateRequired`, separately from transient
+transport or row-decoding failures. `HistoricalSyncUpdateRequiredTests` covers
+lease fencing, repeat-read suppression, retained local work, and server-owned
+retry pauses. History resumes after a different installed release/build; paused
+identification scans remain available for explicit retry.

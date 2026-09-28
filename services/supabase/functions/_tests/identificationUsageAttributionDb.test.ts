@@ -1,4 +1,10 @@
 import { assert, assertEquals } from "@std/assert";
+import { openAIPhotoSnapshot } from "../_shared/ai/openaiPhoto.ts";
+import { identificationProvenance } from "../_shared/ai/provenance.ts";
+import {
+  metricCapture,
+  metricImage,
+} from "./identificationMetricsTestFixtures.ts";
 import {
   insertScan,
   insertSpecies,
@@ -9,6 +15,70 @@ import {
   geminiMetricProvenance,
   unqualifiedMetricProvenance,
 } from "./identificationMetricsTestFixtures.ts";
+
+Deno.test("OpenAI scan accounting retains native units once and counts missing usage as unpriced", async () => {
+  await withExploreDbTest("openAIUsageAttribution", async (client) => {
+    const user = crypto.randomUUID();
+    await insertUser(client, user, "Synthetic OpenAI Usage");
+    const provenance = identificationProvenance(openAIPhotoSnapshot({
+      task: "identify",
+      variant: "multimodal",
+      evidence: [metricImage],
+      capture: metricCapture,
+    }, 1));
+    for (const missing of [false, true]) {
+      const scan = crypto.randomUUID();
+      await client.queryArray(
+        "INSERT INTO public.scan_ingestion_jobs (scan_id,user_id,endpoint,identification_provenance) VALUES ($1,$2,'identify-multimodal',$3::JSONB)",
+        [scan, user, JSON.stringify(provenance)],
+      );
+      await client.queryArray(
+        `INSERT INTO public.scans
+        (id,user_id,image_storage_urls,is_biological_subject,ai_confidence_score,identification_provenance,
+         llm_prompt_tokens,llm_cached_tokens,llm_candidate_tokens,llm_thinking_tokens,llm_total_tokens,llm_usage_metadata)
+        VALUES ($1,$2,'{}',FALSE,0,$3::JSONB,$4,$5,$6,$7,$8,$9::JSONB)`,
+        [
+          scan,
+          user,
+          JSON.stringify(provenance),
+          missing ? null : 100,
+          missing ? null : 20,
+          missing ? null : 30,
+          missing ? null : 10,
+          missing ? null : 140,
+          JSON.stringify({
+            output_tokens: missing ? null : 40,
+            cache_write_tokens: missing ? null : 5,
+          }),
+        ],
+      );
+      const read = () =>
+        client.queryObject<{ event: Record<string, unknown> }>(
+          "SELECT to_jsonb(event) AS event FROM public.ai_usage_events event WHERE scan_id=$1",
+          [scan],
+        );
+      const rows = (await read()).rows;
+      assertEquals(rows.length, 1);
+      const event = rows[0].event,
+        metadata = event.metadata as Record<string, unknown>;
+      assertEquals(event.model, "gpt-6-sol");
+      assertEquals(event.estimated_cost_microusd, null);
+      assertEquals(event.pricing_version, null);
+      assertEquals(event.cached_tokens, missing ? null : 20);
+      assertEquals(event.candidate_tokens, missing ? null : 30);
+      assertEquals(event.thinking_tokens, missing ? null : 10);
+      assertEquals(event.total_tokens, missing ? null : 140);
+      assertEquals(metadata.ai_usage_contract, "openai_responses_tokens_v1");
+      assertEquals(metadata.ai_output_tokens, missing ? null : 40);
+      assertEquals(metadata.ai_cache_write_tokens, missing ? null : 5);
+      await client.queryArray(
+        "UPDATE public.scans SET llm_total_tokens=999 WHERE id=$1",
+        [scan],
+      );
+      assertEquals((await read()).rows, rows);
+    }
+  });
+});
 
 Deno.test("scan usage uses saved execution, preserves legacy attribution and never prices a provider by model-name collision", async () => {
   await withExploreDbTest("identificationUsageAttribution", async (client) => {

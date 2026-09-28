@@ -114,6 +114,17 @@ extension OfflineQueueManager {
             )
             return
         case .needsAttention:
+            if statusCode == 426, EdgeFunctionErrorPolicy.stableCode(
+                responseData: resultData ?? Data()
+            ) == "client_update_required" {
+                _ = softDeleteQueuedScan(
+                    scanId: scanId,
+                    reason: BackgroundInferencePolicy.clientUpdateAttentionMessage,
+                    errorCode: "client_update_required", httpStatus: statusCode,
+                    needsAttention: true
+                )
+                return
+            }
             let code = statusCode ?? 0
             if statusCode == 402 {
                 EntitlementManager.shared

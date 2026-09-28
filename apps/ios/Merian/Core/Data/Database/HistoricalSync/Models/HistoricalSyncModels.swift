@@ -22,6 +22,7 @@ enum HistoricalScanDownOutcome: Equatable, Sendable {
     case notFound
     case transientFailure
     case contractMismatch
+    case clientUpdateRequired
 }
 
 struct HistoricalScanPageDecodeResult: Sendable {

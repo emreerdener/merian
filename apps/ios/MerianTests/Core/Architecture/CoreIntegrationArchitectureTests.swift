@@ -228,6 +228,8 @@ struct CoreIntegrationArchitectureTests {
     ]
 
     private static let trackedOversizedOwners: Set<String> = [
+        // Versioned wire decoders are generator-owned and validated as one contract.
+        "AI/InferenceEdgeDTOs.swift",
         "Network/SupabaseManager.swift"
     ]
 

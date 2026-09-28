@@ -1,6 +1,6 @@
 import type {
-  AIAttemptSnapshot,
   AIExecutionAuthority,
+  GeminiAttemptSnapshot,
   SpeciesContentAIRequest,
 } from "./contracts.ts";
 
@@ -26,7 +26,7 @@ const profiles = {
 export function resolveContentClaim(
   request: SpeciesContentAIRequest,
   authority: AIExecutionAuthority,
-): AIAttemptSnapshot {
+): GeminiAttemptSnapshot {
   if (
     request.variant !== "species_content" ||
     !Object.hasOwn(profiles, request.task) ||

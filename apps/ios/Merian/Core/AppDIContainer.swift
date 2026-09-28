@@ -75,6 +75,7 @@ import SwiftUI
     var environmentContextManager = EnvironmentContextManager.shared
     let exploreContentVisibility = ExploreContentVisibilityStore()
     let appEventPublisher: AppEventPublisher
+    let appUpdateCoordinator: AppUpdateCoordinator
     let appRouteCoordinator = AppRouteCoordinator()
     let milestoneToastClock: any MilestoneToastClock
     let milestoneToastPresenter: MilestoneToastPresenter
@@ -140,6 +141,9 @@ import SwiftUI
         let liveInferenceReviewSnapshotService =
             InferenceReviewSnapshotService.live
         let appEventPublisher = AppEventPublisher()
+        let appUpdateCoordinator = AppUpdateCoordinator {
+            SupabaseManager.shared.currentUser?.id
+        }
         let milestoneToastClock = ContinuousMilestoneToastClock()
         let milestoneToastPresenter = MilestoneToastPresenter()
         let milestoneToastHostRegistry = MilestoneToastHostRegistry()
@@ -164,7 +168,8 @@ import SwiftUI
             InferenceLiveFailureCoordinator.Dependencies.composed(
                 circuitBreakerManager: CircuitBreakerManager.shared,
                 hapticManager: HapticManager.shared,
-                usageManager: UsageManager.shared
+                usageManager: UsageManager.shared,
+                requestAppUpdate: { appUpdateCoordinator.record(.identification) }
             )
         let liveInferencePipelineDependencies =
             InferenceLivePipelineCoordinator.Dependencies.composed(
@@ -207,6 +212,7 @@ import SwiftUI
         self.liveInferenceIdentificationReviewDependencies =
             liveInferenceIdentificationReviewDependencies
         self.appEventPublisher = appEventPublisher
+        self.appUpdateCoordinator = appUpdateCoordinator
         self.milestoneToastClock = milestoneToastClock
         self.milestoneToastPresenter = milestoneToastPresenter
         self.milestoneToastHostRegistry = milestoneToastHostRegistry
@@ -254,6 +260,8 @@ import SwiftUI
                 AppIconBadgeCoordinator.clearExploreUnreadNotificationCount()
                 ExploreWidgetSnapshotWriter.invalidate(visibility: visibility)
             }
+            scanRepository.appUpdateCoordinator = appUpdateCoordinator
+            offlineQueueManager.appUpdateCoordinator = appUpdateCoordinator
             supabaseManager.bindAppRouteSessionController(appRouteCoordinator)
             supabaseManager.bindMilestoneToastSessionController(scanMilestoneCoordinator)
         }

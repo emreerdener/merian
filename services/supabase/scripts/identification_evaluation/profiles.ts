@@ -23,7 +23,7 @@ import type {
 export function fixtureAuthority(
   profile: GeminiProfile,
   request: MultimodalAIRequest,
-): UserRequestAuthority {
+): UserRequestAuthority & { readonly permission: "google_gemini" } {
   return {
     kind: "user_request",
     userId: "synthetic-evaluation",

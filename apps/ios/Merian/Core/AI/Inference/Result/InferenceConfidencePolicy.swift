@@ -44,7 +44,8 @@ enum InferenceConfidencePolicy {
 extension IdentificationResultProvenance {
     func supportsGeminiBands(forInferenceTier tier: String?) -> Bool {
         guard data.count <= 2_048,
-              let value = try? JSONDecoder().decode(IdentificationProvenanceDTO.self, from: data),
+              let decoded = try? JSONDecoder().decode(IdentificationProvenanceDTO.self, from: data),
+              case .v1(let value) = decoded,
               value.version == 1,
               value.provider == "gemini",
               value.binding == "gemini_baseline_v1",

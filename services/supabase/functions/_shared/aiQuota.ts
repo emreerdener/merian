@@ -5,6 +5,7 @@ import {
 } from "./ai/identificationInput.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  assignmentMatchesModel,
   type IdentificationProviderAssignment,
   isIdentificationProviderAssignment,
 } from "./ai/admission.ts";
@@ -85,7 +86,7 @@ export interface AIQuotaReservation {
   leaseToken: string;
   leaseExpiresAt: string;
   attemptCount: number;
-  model: "gemini-2.5-flash" | "gemini-2.5-pro";
+  model: "gemini-2.5-flash" | "gemini-2.5-pro" | "gpt-6-sol";
   tier: TierResolution;
   policyVersion: number;
   dailyLimit: number | null;
@@ -371,9 +372,18 @@ async function reserveQuota(
   const expectedRecipient = rpcName === "reserve_identification_quota"
     ? req.headers.get("X-Merian-Identification-Recipient")
     : null;
+  const identificationProtocol = rpcName === "reserve_identification_quota"
+    ? req.headers.get("X-Merian-Identification-Protocol")
+    : null;
+  const identificationReplay = rpcName === "reserve_identification_quota" &&
+    input.internalReplay === true;
   if (
-    expectedRecipient !== null &&
-    !["google_gemini", "openai", "recovery_only"].includes(expectedRecipient)
+    (expectedRecipient !== null &&
+      !["google_gemini", "openai", "recovery_only"].includes(
+        expectedRecipient,
+      )) ||
+    (identificationProtocol !== null &&
+      (identificationProtocol !== "4" || expectedRecipient === null))
   ) {
     throw new AIQuotaError(
       400,
@@ -389,8 +399,15 @@ async function reserveQuota(
         ...(rpcName === "reserve_identification_quota"
           ? { p_input_profile: inputProfile }
           : {}),
-        ...(expectedRecipient === null ? {} : {
+        ...(expectedRecipient === null && !identificationReplay ? {} : {
           p_expected_processor_permission: expectedRecipient,
+        }),
+        ...(identificationProtocol === null && !identificationReplay ? {} : {
+          // Select the capability-aware ABI for workers without inventing a
+          // client claim. SQL recovers proof from the original saved attempt.
+          p_identification_protocol: identificationReplay
+            ? null
+            : Number(identificationProtocol),
         }),
         p_user_id: input.userId,
         p_operation: input.operation,
@@ -445,7 +462,9 @@ async function reserveQuota(
     typeof row.is_replay !== "boolean" ||
     !Number.isSafeInteger(row.attempt_count) ||
     row.attempt_count < 1 ||
-    !SUPPORTED_MODELS.has(row.model) ||
+    !(SUPPORTED_MODELS.has(row.model) ||
+      (rpcName === "reserve_identification_quota" &&
+        row.model === "gpt-6-sol")) ||
     (row.effective_plan !== "free" &&
       row.effective_plan !== "pro_trial" &&
       row.effective_plan !== "pro_complimentary" &&
@@ -546,7 +565,8 @@ async function reserveQuota(
     };
     if (
       !isIdentificationProviderAssignment(candidate) ||
-      candidate.inputProfile !== inputProfile
+      candidate.inputProfile !== inputProfile ||
+      !assignmentMatchesModel(candidate, row.model)
     ) {
       throw new AIQuotaError(
         503,
@@ -632,6 +652,7 @@ export function createAIProviderQuotaLease<
   supabaseAdmin: SupabaseClient,
   userId: string,
   reservation: Reservation,
+  commitReservation?: () => Promise<boolean>,
 ): AIProviderQuotaLease<Reservation> {
   let finalState: "committed" | "failed" | "refunded" | null = null;
 
@@ -646,12 +667,14 @@ export function createAIProviderQuotaLease<
           "AI service is temporarily unavailable.",
         );
       }
-      const finalized = await finalizeReservation(
-        supabaseAdmin,
-        userId,
-        reservation,
-        "committed",
-      );
+      const finalized = commitReservation
+        ? await commitReservation()
+        : await finalizeReservation(
+          supabaseAdmin,
+          userId,
+          reservation,
+          "committed",
+        );
       if (!finalized) {
         throw new AIQuotaError(
           503,

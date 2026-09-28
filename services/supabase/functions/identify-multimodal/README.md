@@ -195,12 +195,30 @@ or environment provider selector is introduced.
 post-provider parsing and normalization. It preserves name/pet sanitization,
 processed-material demotion, audio subject precedence, location-dependent
 invasive metadata, blur, and client candidate/life-stage projections. Its inputs
-are the unknown draft, actual visual/audio presence, the admitted inference
-tier, and a Boolean for existing invasive-location context; it accepts no
+are the unknown draft, actual visual/audio presence, an explicit confidence
+policy, and a Boolean for existing invasive-location context; it accepts no
 coordinates or user identity. The route handles returned diagnostics and
 performs dictionary hydration and final envelope validation afterward. Offline
 evaluation uses this same helper through its scripts-only bridge; it does not
 invoke admission or persistence.
+
+`_shared/ai/multimodalResultPolicy.ts` binds result handling to the prepared
+execution snapshot before quota commitment. It supplies the snapshot's existing
+Gemini diagnostic threshold and checks the outcome profile before exposing
+finish/rating signals to moderation. Missing or unsupported policies use the
+existing pre-invocation refund/failure path. OpenAI's evaluation policy remains
+unqualified and cannot reach provider invocation or media promotion through this
+route. The exact dormant photo profile separately checks native OpenAI
+moderation, uses unqualified confidence, and promotes allowed media without
+Gemini ratings or strikes. A false source gate prevents production OpenAI
+dispatch and refunds the unused lease. All current assignments remain Gemini.
+
+Native callers carry identification capability 4 in a separate header, leaving
+entitlement protocol 3 unchanged. Saved usage preserves reported cached tokens
+and OpenAI output/cache-write units; the scan trigger owns the single success
+ledger event. Unknown units/prices remain unknown. See the
+[connection and video-frame plan](../../../../docs/rfcs/identification-openai-photo-integration-2026-09-27.md)
+for historical-reader and activation prerequisites.
 
 The route uses the modality-specific system instructions and retains temperature
 `0.1`, seed `42`, `maxOutputTokens: 8192`, Pro thinking budget `5000`,
@@ -688,3 +706,26 @@ output or request JSON. Stored replay preserves its original value or omission;
 reconstruction uses the immutable scan column and omits legacy null. Explicit
 null or damaged present wire metadata fails validation. See the
 [client integration record](../../../../docs/rfcs/identification-client-result-provenance-2026-09-26.md).
+
+Every stored/reconstructed completion checks the current external reader,
+including quota and ingestion races. V2 requires exact
+`X-Merian-Identification-Protocol: 4`; otherwise the response is
+`426 client_update_required` without result data. Null/V1 replays are unchanged.
+Only the service-authenticated primary replay worker bypasses client decoding.
+See the
+[result-reader contract](../../../../docs/backend-and-data/05-api-contracts.md#identification-result-readers)
+for direct-history protection and reader-first release requirements.
+
+## Primary invocation accounting
+
+`_shared/ai/identificationUsage.ts` wraps the admitted execution with an atomic
+quota commit and durable invocation witness. The handler awaits one native usage
+report for every provider outcome before continuing result processing. A failed
+report leaves a durable witness for bounded unknown reconciliation and never
+repeats inference. New saved scans mark this accounting owner to prevent the
+legacy scan trigger from recording the call again.
+
+The migration must precede the new bundle. OpenAI remains source-disabled and
+all assignments remain Gemini. The completed benchmark is unchanged; no paid
+experiment is run by this infrastructure. See the
+[database/API ownership and pricing contract](../../../../docs/backend-and-data/04-database-schema.md#primary-identification-attempt-accounting).

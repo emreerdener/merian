@@ -256,7 +256,7 @@ BEGIN
     -- Only this rollback-only fixture widens recipient data, without allowing
     -- OpenAI model admission or dispatch. Simulate assignment drift after a
     -- Gemini preview; even missing OpenAI permission must not mask that drift.
-    ALTER TABLE internal.identification_provider_bindings DROP CONSTRAINT identification_provider_bindings_processor_permission_check;
+    ALTER TABLE internal.identification_provider_bindings DROP CONSTRAINT identification_provider_bindings_recipient_tuple;
     UPDATE internal.identification_provider_bindings SET processor_permission = 'openai'
         WHERE effective_plan = 'pro_paid' AND input_profile = 'multimodal_photo_v1';
     SELECT * INTO STRICT preview FROM public.get_my_identification_preflight('scan_identification','multimodal_photo_v1',FALSE,scan_id,3);

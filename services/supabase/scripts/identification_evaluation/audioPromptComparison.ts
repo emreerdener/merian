@@ -2,7 +2,7 @@
 import reviewedDesign from "../../../../docs/rfcs/identification-experiment-plans/2026-09-24-audio-uncertainty/design.json" with {
   type: "json",
 };
-import type { AIAttemptSnapshot } from "../../functions/_shared/ai/contracts.ts";
+import type { GeminiAttemptSnapshot } from "../../functions/_shared/ai/contracts.ts";
 import { buildGeminiRequestParameters } from "../../functions/_shared/ai/geminiRequest.ts";
 import { resolveAIClaim } from "../../functions/_shared/ai/registry.ts";
 import { decodeBase64 } from "../../functions/_shared/encoding.ts";
@@ -28,7 +28,7 @@ export const AUDIO_PROMPT_CONTEXT = Object.freeze({
   timeOfDay: "12:00 PM",
 });
 export type AudioPromptArm = "A" | "B";
-type OfflinePromptPolicy = Omit<AIAttemptSnapshot, "prompt"> & {
+type OfflinePromptPolicy = Omit<GeminiAttemptSnapshot, "prompt"> & {
   prompt: "identify_audio_v2" | typeof AUDIO_UNCERTAINTY_PROMPT;
 };
 

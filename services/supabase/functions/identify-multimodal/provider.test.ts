@@ -22,9 +22,11 @@ import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { handleIdentifyMultimodalRequest } from "./index.ts";
 import type {
   AIAdapter,
+  AIAttemptSnapshot,
   AIProviderOutcome,
   AIRequest,
 } from "../_shared/ai/contracts.ts";
+import { openAIEvaluationSnapshot } from "../_shared/ai/openaiRequest.ts";
 import { createAIExecution } from "../_shared/ai/execution.ts";
 import { resolveAIClaim } from "../_shared/ai/registry.ts";
 import { decodeBase64, encodeBase64 } from "../_shared/encoding.ts";
@@ -108,6 +110,7 @@ function database(
     commitDenied?: boolean;
     consentDenied?: boolean;
     wrongProvider?: boolean;
+    openAI?: boolean;
     expectedInputProfile?: string;
     setupFailed?: boolean;
     unknownInsert?: boolean;
@@ -157,9 +160,11 @@ function database(
             return response(null, { message: "ai_consent_required" });
           }
           return response({
-            provider: options.wrongProvider ? "openai" : "gemini",
-            binding: "gemini_baseline_v1",
-            processor_permission: "google_gemini",
+            provider: options.wrongProvider || options.openAI
+              ? "openai"
+              : "gemini",
+            binding: options.openAI ? "openai_photo_v1" : "gemini_baseline_v1",
+            processor_permission: options.openAI ? "openai" : "google_gemini",
             input_profile: args.p_input_profile,
             reservation_id: "00000000-0000-4000-8000-000000000301",
             request_id: options.requestId ?? acceptedScanId,
@@ -168,7 +173,11 @@ function database(
             reservation_state: "reserved",
             is_replay: false,
             attempt_count: options.attemptCount ?? 1,
-            model: options.pro ? "gemini-2.5-pro" : "gemini-2.5-flash",
+            model: options.openAI
+              ? "gpt-6-sol"
+              : options.pro
+              ? "gemini-2.5-pro"
+              : "gemini-2.5-flash",
             effective_plan: options.pro ? "pro_paid" : "free",
             effective_tier: options.pro ? "pro" : "free",
             subscription_tier: options.pro ? "pro" : "free",
@@ -196,6 +205,14 @@ function database(
             stage: "claimed",
             already_complete: false,
           });
+        case "commit_identification_invocation":
+          events.push("committed");
+          return response([{
+            invocation_id: "00000000-0000-4000-8000-000000000501",
+            may_dispatch: !options.commitDenied,
+          }]);
+        case "complete_identification_invocation":
+          return response("00000000-0000-4000-8000-000000000601");
         case "finalize_ai_quota_reservation":
           events.push(String(args.p_final_state));
           return response(
@@ -295,6 +312,7 @@ function database(
 function request(
   overrides: Record<string, unknown> = {},
   signal?: AbortSignal,
+  headers: Record<string, string> = {},
 ) {
   return new Request("https://example.invalid/identify-multimodal", {
     method: "POST",
@@ -302,6 +320,7 @@ function request(
     headers: {
       "Content-Type": "application/json",
       "X-Merian-Entitlement-Protocol": "3",
+      ...headers,
     },
     body: JSON.stringify({
       user_id: user.id,
@@ -1067,6 +1086,7 @@ Deno.test("multimodal handler preserves admission, evidence and recovery through
       payload: Record<string, unknown> = {},
       inspect: (input: AIRequest) => void = () => {},
       replayAttempt?: number,
+      headers: Record<string, string> = {},
     ) => {
       const adapter: AIAdapter = {
         provider: "test_only",
@@ -1086,7 +1106,7 @@ Deno.test("multimodal handler preserves admission, evidence and recovery through
         },
       };
       return handleIdentifyMultimodalRequest(
-        request(payload),
+        request(payload, undefined, headers),
         user,
         db.client,
         0,
@@ -1208,6 +1228,35 @@ Deno.test("multimodal handler preserves admission, evidence and recovery through
         ]);
       },
     );
+    await t.step(
+      "unqualified OpenAI result policy refunds before commitment, inference or promotion",
+      async () => {
+        const db = database();
+        const result = await handleIdentifyMultimodalRequest(
+          request({ imageBase64s: ["AQ=="] }),
+          user,
+          db.client,
+          0,
+          undefined,
+          (input) => ({
+            snapshot: openAIEvaluationSnapshot(
+              input,
+            ) as unknown as AIAttemptSnapshot,
+            invoke: () => {
+              db.events.push("invoke");
+              throw new Error("unqualified provider must not invoke");
+            },
+          }),
+        );
+        assertEquals(result.status, 503);
+        assertEquals(db.events, [
+          "reserve",
+          "ledger",
+          "refunded",
+          "failed_retryable",
+        ]);
+      },
+    );
     await t.step("failed commitment has no invocation", async () => {
       const db = database({ commitDenied: true });
       assertEquals((await run(db, new Error("Must not invoke"))).status, 503);
@@ -1220,6 +1269,159 @@ Deno.test("multimodal handler preserves admission, evidence and recovery through
         "failed_retryable",
       ]);
     });
+    await t.step(
+      "dormant OpenAI composition refunds the admitted lease before reading a credential or dispatching",
+      async () => {
+        const db = database({ openAI: true });
+        const response = await handleIdentifyMultimodalRequest(
+          request({ imageBase64s: ["AQ=="] }),
+          user,
+          db.client,
+          0,
+        );
+        assertEquals(response.status, 503);
+        assertEquals(db.events, [
+          "reserve",
+          "ledger",
+          "refunded",
+          "failed_retryable",
+        ]);
+        assertEquals(db.inserted(), null);
+      },
+    );
+    await t.step(
+      "admitted OpenAI uses native safety and persists V2 plus factual cached/output usage exactly once",
+      async () => {
+        const names = [
+          "R2_ACCOUNT_ID",
+          "R2_BUCKET_NAME",
+          "R2_ACCESS_KEY_ID",
+          "R2_SECRET_ACCESS_KEY",
+        ];
+        const values = names.map((name) => Deno.env.get(name));
+        const fetcher = globalThis.fetch;
+        let promotions = 0;
+        try {
+          names.forEach((name) => Deno.env.set(name, "synthetic-test"));
+          globalThis.fetch = (input) => {
+            const req = input instanceof Request ? input : new Request(input);
+            assertEquals(req.method, "PUT");
+            assertEquals(
+              new URL(req.url).hostname,
+              "synthetic-test.r2.cloudflarestorage.com",
+            );
+            promotions++;
+            return Promise.resolve(new Response(null, { status: 200 }));
+          };
+          const db = database({ openAI: true });
+          const readerHeaders = {
+            "X-Merian-Identification-Protocol": "4",
+            "X-Merian-Identification-Recipient": "openai",
+          };
+          const response = await run(
+            db,
+            {
+              ...facts,
+              kind: "draft",
+              draft,
+              returnedModel: "gpt-6-sol",
+              finishReason: "completed",
+              mediaSafety: {
+                provider: "openai",
+                policy: "openai_photo_moderation_v1",
+                disposition: "allowed",
+              },
+              usage: {
+                promptTokens: 100,
+                candidateTokens: 30,
+                thinkingTokens: 10,
+                outputTokens: 40,
+                totalTokens: 140,
+                cachedTokens: 20,
+                cacheWriteTokens: 5,
+                toolTokens: 0,
+                modalityBreakdown: {},
+              },
+            },
+            { imageBase64s: ["AQ=="] },
+            undefined,
+            undefined,
+            readerHeaders,
+          );
+          assertEquals(response.status, 200, JSON.stringify(db.events));
+          const saved = db.inserted()!;
+          assertEquals(
+            (saved.identification_provenance as IdentificationProvenance)
+              .version,
+            2,
+          );
+          assertEquals(saved.llm_cached_tokens, 20);
+          assertEquals(saved.llm_candidate_tokens, 30);
+          assertEquals(saved.llm_thinking_tokens, 10);
+          assertEquals(saved.llm_total_tokens, 140);
+          assertEquals(saved.llm_usage_metadata, {
+            accounting_contract: "identification_invocation_v1",
+            output_tokens: 40,
+            cache_write_tokens: 5,
+          });
+          assertEquals(promotions, 1);
+          assertEquals(
+            db.events.filter((event) => event === "invoke").length,
+            1,
+          );
+          assertEquals(
+            db.events.filter((event) => event === "insert").length,
+            1,
+          );
+          const replay = await run(
+            db,
+            new Error("Replay cannot invoke"),
+            {},
+            undefined,
+            undefined,
+            readerHeaders,
+          );
+          assertEquals(replay.status, 200);
+          assertEquals(promotions, 1);
+        } finally {
+          globalThis.fetch = fetcher;
+          names.forEach((name, index) =>
+            values[index] === undefined
+              ? Deno.env.delete(name)
+              : Deno.env.set(name, values[index]!)
+          );
+        }
+      },
+    );
+    for (
+      const kind of [
+        "refusal",
+        "invalid_output",
+        "unknown_execution",
+        "draft",
+      ] as const
+    ) {
+      await t.step(
+        `OpenAI ${kind} without allowed native safety cannot promote, save, or apply Gemini strikes`,
+        async () => {
+          const db = database({ openAI: true });
+          const response = await run(db, {
+            ...facts,
+            kind,
+            reason: "safety",
+            draft,
+            finishReason: "completed",
+            returnedModel: "gpt-6-sol",
+            // Fake Gemini ratings cannot replace missing native moderation.
+            safetyRatings: [{ probability: "NEGLIGIBLE" }],
+          }, { imageBase64s: ["AQ=="] });
+          assertEquals(response.status, kind === "refusal" ? 400 : 503);
+          assertEquals(db.inserted(), null);
+          assertEquals(db.events.includes("insert"), false);
+          assertEquals(db.events.includes("committed"), true);
+        },
+      );
+    }
     for (
       const outcome of [
         new Error("Synthetic lost response"),
@@ -1506,8 +1708,8 @@ Deno.test("multimodal handler preserves admission, evidence and recovery through
         assertEquals(provenance.prompt, "identify_text_v1");
         assertEquals(provenance.confidence, "gemini_identify_v1");
         assertEquals(provenance.variant, "multimodal");
+        assert(provenance.version === 1);
         assertEquals(provenance.generation.temperature, 0.1);
-        assertEquals(provenance.version, 1);
         assertEquals(data.identification_provenance, provenance);
         assertEquals([
           row.llm_prompt_tokens,
@@ -1515,8 +1717,11 @@ Deno.test("multimodal handler preserves admission, evidence and recovery through
           row.llm_total_tokens,
           row.llm_thinking_tokens,
           row.llm_cached_tokens,
-        ], [100, 20, 127, 7, null]);
-        assertEquals(row.llm_usage_metadata, { prompt: { text: 100 } });
+        ], [100, 20, 127, 7, 5]);
+        assertEquals(row.llm_usage_metadata, {
+          prompt: { text: 100 },
+          accounting_contract: "identification_invocation_v1",
+        });
         assert(db.events.indexOf("complete") > db.events.indexOf("insert"));
         assertEquals(db.events.filter((event) => event === "invoke").length, 1);
       },

@@ -1,0 +1,6 @@
+# Public transport template: only the set subprocess receives this value.
+# Never add another secret or private value to this isolated configuration.
+project_id = "merian-openai-secret-sync"
+
+[edge_runtime.secrets]
+NATUREBOOK_OPENAI_API_KEY = "env(NATUREBOOK_OPENAI_API_KEY)"

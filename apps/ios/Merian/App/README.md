@@ -91,3 +91,10 @@ announcement as its initial `CameraSheetRouter` destination. The App-owned
 consent and recovery state. Workspace stays mounted; Settings reuses the content
 view. See the
 [What’s New contract](../../../../docs/development-guides/12-in-app-changelog.md#whats-new-sheet).
+
+`Lifecycle/AppUpdateCoordinator` owns the account/build-scoped compatibility
+pause and prompt dismissal state. The root uses `Presentation/AppRootAlertHost`
+and one `AppRootAlertPolicy` to defer the update prompt behind account-deletion
+recovery, Apple-revocation cleanup, and onboarding. The App Store action does
+not clear the pause; see the
+[update-required UX contract](../../../../docs/system-architecture/10-event-and-presentation-routing.md#update-required-presentation).

@@ -1,0 +1,152 @@
+name: Compare identification providers
+
+on:
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Preflight makes no provider requests; compare spends the approved allocation once
+        required: true
+        default: preflight
+        type: choice
+        options: [preflight, compare]
+      candidate_sha:
+        description: Exact reviewed current main SHA
+        required: true
+        type: string
+      bundle_sha256:
+        description: SHA-256 of the reviewed public test bundle in merian
+        required: true
+        type: string
+      maximum_budget_usd:
+        description: Approved ceiling in USD for this 16-call comparison (zero for preflight)
+        required: true
+        default: 0
+        type: number
+
+permissions:
+  contents: read
+
+jobs:
+  candidate-validation:
+    if: inputs.operation == 'compare'
+    uses: ./.github/workflows/supabase-candidate-validation.yml
+    permissions:
+      contents: read
+      pull-requests: read
+
+  compare:
+    needs: candidate-validation
+    if: >-
+      always() && !cancelled() &&
+      (inputs.operation == 'preflight' || needs.candidate-validation.result == 'success')
+    environment: Production
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    concurrency:
+      group: identification-provider-comparison
+      cancel-in-progress: false
+    steps:
+      - name: Checkout exact comparison candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify exact clean main comparison
+        env:
+          EXPECTED_CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+          BUNDLE_SHA256: ${{ inputs.bundle_sha256 }}
+        run: |
+          if ! [[ "$EXPECTED_CANDIDATE_SHA" =~ ^[a-f0-9]{40}$ && "$BUNDLE_SHA256" =~ ^[a-f0-9]{64}$ ]]; then
+            echo "Exact candidate and bundle hashes are required." >&2
+            exit 1
+          fi
+          if [ "$GITHUB_REF" != "refs/heads/main" ] ||
+             [ "$GITHUB_SHA" != "$EXPECTED_CANDIDATE_SHA" ] ||
+             [ "$(git rev-parse HEAD)" != "$GITHUB_SHA" ] ||
+             [ "$(git rev-parse refs/remotes/origin/main)" != "$GITHUB_SHA" ] ||
+             [ -n "$(git status --porcelain)" ]; then
+            echo "The comparison requires the exact clean current main SHA." >&2
+            exit 1
+          fi
+
+      - name: Setup Deno
+        uses: ./.github/actions/setup-deno
+        with:
+          deno-version: v2.9.4
+
+      - name: Cache frozen evaluator dependencies without credentials
+        run: |
+          deno cache --frozen --config services/supabase/functions/deno.json \
+            services/supabase/scripts/host_identification_comparison.ts \
+            services/supabase/scripts/evaluate_identification.ts
+
+      - name: Fetch and validate the reviewed public test bundle
+        id: bundle
+        env:
+          BUNDLE_SHA256: ${{ inputs.bundle_sha256 }}
+        run: bash services/supabase/scripts/run_hosted_identification.sh fetch "$BUNDLE_SHA256"
+
+      - name: Preflight public inputs and reservations without credentials
+        run: bash services/supabase/scripts/run_hosted_identification.sh check
+
+      - name: Bind the reviewed Gemini credential without network access
+        if: inputs.operation == 'compare'
+        env:
+          GEMINI_PAID_API_KEY: ${{ secrets.GEMINI_PAID_API_KEY }}
+        run: bash services/supabase/scripts/run_hosted_identification.sh bind-gemini
+
+      - name: Bind the reviewed Naturebook OpenAI credential without network access
+        if: inputs.operation == 'compare'
+        env:
+          OPENAI_EVALUATION_API_KEY: ${{ secrets.NATUREBOOK_OPENAI_API_KEY }}
+        run: bash services/supabase/scripts/run_hosted_identification.sh bind-openai
+
+      - name: Preflight the complete frozen experiment without network access
+        if: inputs.operation == 'compare'
+        run: bash services/supabase/scripts/run_hosted_identification.sh prepare
+
+      - name: Claim this experiment once in the existing merian bucket
+        id: claim
+        if: inputs.operation == 'compare'
+        env:
+          MAXIMUM_BUDGET_USD: ${{ inputs.maximum_budget_usd }}
+          R2_ACCOUNT_ID: ${{ vars.R2_ACCOUNT_ID || secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: bash services/supabase/scripts/run_hosted_identification.sh claim "$MAXIMUM_BUDGET_USD"
+
+      - name: Run the eight Gemini cases
+        if: inputs.operation == 'compare' && steps.claim.outcome == 'success'
+        env:
+          GEMINI_PAID_API_KEY: ${{ secrets.GEMINI_PAID_API_KEY }}
+        run: bash services/supabase/scripts/run_hosted_identification.sh run-gemini
+
+      - name: Run the eight OpenAI cases
+        if: inputs.operation == 'compare' && steps.claim.outcome == 'success'
+        env:
+          OPENAI_EVALUATION_API_KEY: ${{ secrets.NATUREBOOK_OPENAI_API_KEY }}
+        run: bash services/supabase/scripts/run_hosted_identification.sh run-openai
+
+      - name: Generate the public comparison summary without network access
+        id: report
+        if: always() && steps.bundle.outcome == 'success'
+        run: bash services/supabase/scripts/run_hosted_identification.sh report
+
+      - name: Store the comparison summary in merian
+        if: always() && steps.claim.outcome == 'success' && steps.report.outcome == 'success'
+        env:
+          R2_ACCOUNT_ID: ${{ vars.R2_ACCOUNT_ID || secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: bash services/supabase/scripts/run_hosted_identification.sh publish
+
+      - name: Retain only the public comparison summary
+        if: always() && steps.report.outcome == 'success'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: identification-comparison-${{ github.run_id }}-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/identification-public/summary.json
+          if-no-files-found: error
+          retention-days: 30
