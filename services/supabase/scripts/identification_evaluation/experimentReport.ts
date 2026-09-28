@@ -1,4 +1,9 @@
 import { screenCandidate } from "./candidateReport.ts";
+import { screenNullFieldsCandidate } from "./nullFieldsReport.ts";
+import {
+  hasAssistantReview,
+  NULL_FIELDS_PLAN_VERSION,
+} from "./experimentContracts.ts";
 import { join } from "node:path";
 import { experimentReportSnapshot } from "./experiment.ts";
 import { compareExploratoryRuns } from "./exploratoryComparison.ts";
@@ -13,8 +18,10 @@ export async function saveExperimentReport(root: string) {
   const complete = accounting.stop === null &&
     accounting.completedRunIds.length === plan.runs.length;
   const reviewed = !!plan.review;
-  const assistant = plan.version === "identification_experiment_plan_v3";
+  const assistant = hasAssistantReview(plan);
+  const nullFields = plan.version === NULL_FIELDS_PLAN_VERSION;
   const cacheValid = reviewed && complete &&
+    plan.cacheControl === "explicit_no_breakpoints_v1" &&
     runs.every((r) =>
       r.records.every((a) =>
         a.usage?.cachedTokens === 0 && a.usage?.cacheWriteTokens === 0
@@ -50,7 +57,9 @@ export async function saveExperimentReport(root: string) {
     );
     comparisons.push({
       ...comparison,
-      limitation: assistant
+      limitation: nullFields
+        ? "ai_reviewed_six_photo_consistency_screen_uncontrolled_cache"
+        : assistant
         ? "ai_reviewed_uncached_eight_case_development_screen_only"
         : reviewed
         ? "uncached_eight_case_development_screen_only"
@@ -66,7 +75,7 @@ export async function saveExperimentReport(root: string) {
         return {
           ...slice,
           latencyMeasurementsComplete: slice.latencyMeasurementsComplete &&
-            (!reviewed || cacheValid),
+            (nullFields ? complete : !reviewed || cacheValid),
           observedLatencyImprovementPercent: (!reviewed || cacheValid)
             ? slice.observedLatencyImprovementPercent
             : null,
@@ -82,7 +91,9 @@ export async function saveExperimentReport(root: string) {
     });
   }
   const report = {
-    version: assistant
+    version: nullFields
+      ? "identification_experiment_report_v4"
+      : assistant
       ? "identification_experiment_report_v3"
       : reviewed
       ? "identification_experiment_report_v2"
@@ -111,10 +122,22 @@ export async function saveExperimentReport(root: string) {
     complete,
     accounting,
     metrics: plan.metrics,
-    cacheComparability: reviewed
+    ...(nullFields
+      ? {
+        performanceInterpretation: "descriptive_only_uncontrolled_cache",
+        promptConsistency: "four_null_field_wording_edits_only",
+      }
+      : {}),
+    cacheComparability: reviewed && !nullFields
       ? cacheValid ? "verified_zero_reads_and_writes" : "inconclusive"
       : "not_established",
-    screeningDecision: reviewed
+    screeningDecision: nullFields
+      ? screenNullFieldsCandidate(
+        comparisons[0],
+        snapshot.assessments.map((a) => a.record),
+        { live: plan.mode === "live", complete },
+      )
+      : reviewed
       ? screenCandidate(
         comparisons[0],
         snapshot.assessments.map((a) => a.record),

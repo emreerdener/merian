@@ -33,7 +33,10 @@ import {
   chargeUnits,
   EXPERIMENT_STOPS,
   experimentGuard,
+  experimentSpecVersion,
   type ExperimentStop,
+  hasAssistantReview,
+  NULL_FIELDS_PLAN_VERSION,
   parseExperimentPlan,
 } from "./experimentContracts.ts";
 import {
@@ -53,13 +56,11 @@ import {
 import {
   type Assignment,
   type AttemptRecord,
-  CANDIDATE_SPEC_VERSION,
   type EvaluationPricing,
   parseEvaluationReadiness,
   parseManifest,
   parseRunSpec,
   parseTaxonomy,
-  PROVIDER_SPEC_VERSION,
   type RunManifest,
   type SourceIdentity,
 } from "./runContracts.ts";
@@ -132,7 +133,9 @@ export async function prepareExperiment(
     ),
   );
   const reviewFacts = plan.review ? await reviewInputs(root, plan) : null;
-  if (plan.review && plan.mode === "live") {
+  if (plan.version === NULL_FIELDS_PLAN_VERSION) {
+    check(corpus.cases.every((c) => c.input.inputGroup === "photos"));
+  } else if (plan.review && plan.mode === "live") {
     check(
       corpus.cases.filter((c) => c.input.inputGroup === "photos").length ===
           6 &&
@@ -161,7 +164,7 @@ export async function prepareExperiment(
       };
     }
     const spec = parseRunSpec({
-      version: plan.review ? CANDIDATE_SPEC_VERSION : PROVIDER_SPEC_VERSION,
+      version: experimentSpecVersion(plan),
       runId: run.runId,
       mode: plan.mode,
       corpusDigest: plan.corpusDigest,
@@ -267,7 +270,8 @@ export async function experimentReportSnapshot(root: string) {
       // Descriptors are never emitted as arbitrary saved objects in a report.
       const manifest = parseManifest(saved.manifest), spec = manifest.spec;
       check(
-        spec.runId === run.runId && spec.mode === plan.mode &&
+        spec.version === experimentSpecVersion(plan) &&
+          spec.runId === run.runId && spec.mode === plan.mode &&
           spec.stage === "exploratory" && spec.repeats === 1 &&
           spec.corpusDigest === plan.corpusDigest &&
           spec.taxonomyDigest === plan.taxonomyDigest &&
@@ -546,8 +550,9 @@ async function reconcile(
       } else check(!await exists(settlementPath));
       if (plan.review && local && hasResult) {
         if (
-          record.usage?.cachedTokens !== 0 ||
-          record.usage?.cacheWriteTokens !== 0
+          plan.cacheControl === "explicit_no_breakpoints_v1" &&
+          (record.usage?.cachedTokens !== 0 ||
+            record.usage?.cacheWriteTokens !== 0)
         ) accounting.stop ??= "cache_control_failed";
         const path = join(directory, "assessments", run.runId, `${a.key}.json`);
         if (await exists(path)) {
@@ -563,7 +568,7 @@ async function reconcile(
             await readJson(path, 16384),
             binding,
             plan.mode === "live",
-            plan.version === "identification_experiment_plan_v3",
+            hasAssistantReview(plan),
           );
           if (!ratingsPass(assessment.ratings)) {
             completed = false;
@@ -792,20 +797,19 @@ export async function executeExperimentRun(
               ? await reviewExplanation(
                 display,
                 prepared.plan.review.timeoutMs,
-                prepared.plan.version === "identification_experiment_plan_v3",
+                hasAssistantReview(prepared.plan),
               )
               : await dependencies.review?.(display) ?? null;
           } catch {
             /* Failed review is bounded and never changes provider accounting. */
           }
           const assessment = parseAssessment({
-            version:
-              prepared.plan.version === "identification_experiment_plan_v3"
-                ? "explanation_assessment_v2"
-                : "explanation_assessment_v1",
+            version: hasAssistantReview(prepared.plan)
+              ? "explanation_assessment_v2"
+              : "explanation_assessment_v1",
             binding,
             method: prepared.plan.mode === "live"
-              ? prepared.plan.version === "identification_experiment_plan_v3"
+              ? hasAssistantReview(prepared.plan)
                 ? "assistant_local_v1"
                 : "owner_local_v1"
               : "synthetic_fixture_v1",

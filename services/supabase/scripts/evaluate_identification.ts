@@ -1,3 +1,4 @@
+import { createNullFieldsDemo } from "./identification_evaluation/nullFieldsOffline.ts";
 import { createCandidateDemo } from "./identification_evaluation/candidateOffline.ts";
 import { calibrateReviewer } from "./identification_evaluation/explanationReview.ts";
 import { CALIBRATION_EXAMPLES } from "./identification_evaluation/explanationCalibration.ts";
@@ -57,6 +58,7 @@ export async function main(args = Deno.args): Promise<void> {
     "demo",
     "demo-experiment",
     "demo-candidate",
+    "demo-null-fields",
     "calibrate-explanations",
     "experiment-preflight",
     "experiment-report",
@@ -95,7 +97,8 @@ export async function main(args = Deno.args): Promise<void> {
   if (
     mode === "demo" || mode === "demo-exploratory" ||
     mode === "demo-providers" || mode === "demo-measurement" ||
-    mode === "demo-experiment" || mode === "demo-candidate"
+    mode === "demo-experiment" || mode === "demo-candidate" ||
+    mode === "demo-null-fields"
   ) {
     check(!await exists(values[0]));
   }
@@ -117,17 +120,19 @@ export async function main(args = Deno.args): Promise<void> {
     await saveExperimentReport(root);
   } else if (
     mode === "demo-experiment" || mode === "demo-candidate" ||
+    mode === "demo-null-fields" ||
     mode === "experiment-preflight" ||
     mode === "experiment-offline" || mode === "--experiment-live"
   ) {
     const source = await sourceIdentity(repository);
     if (mode === "demo-experiment") await createExperimentDemo(root, source);
     if (mode === "demo-candidate") await createCandidateDemo(root, source);
+    if (mode === "demo-null-fields") await createNullFieldsDemo(root, source);
     const prepared = await prepareExperiment(root, source);
     check(mode !== "--experiment-live" || prepared.plan.mode === "live");
     if (
       mode === "experiment-offline" || mode === "demo-experiment" ||
-      mode === "demo-candidate"
+      mode === "demo-candidate" || mode === "demo-null-fields"
     ) {
       check(prepared.plan.mode === "offline");
     }
@@ -141,9 +146,11 @@ export async function main(args = Deno.args): Promise<void> {
         allocatedUsd: prepared.plan.runs.reduce((n, r) => n + r.budgetUsd, 0),
       });
     } else {
-      const selected = (mode === "demo-experiment" || mode === "demo-candidate")
-        ? prepared.plan.runs.map((r) => r.runId)
-        : [values[1]];
+      const selected =
+        (mode === "demo-experiment" || mode === "demo-candidate" ||
+            mode === "demo-null-fields")
+          ? prepared.plan.runs.map((r) => r.runId)
+          : [values[1]];
       for (const runId of selected) {
         const index = prepared.plan.runs.findIndex((r) => r.runId === runId);
         check(index >= 0);

@@ -1,4 +1,7 @@
-import { isOpenAIProfile } from "../../functions/_shared/ai/openaiRequest.ts";
+import {
+  isOpenAIProfile,
+  OPENAI_NULL_FIELDS_PROFILE,
+} from "../../functions/_shared/ai/openaiRequest.ts";
 import type {
   AIProviderOutcome,
   AIUsage,
@@ -76,7 +79,9 @@ export function emptyRecord(
   measured = false,
 ): AttemptRecord {
   return parseAttempt({
-    version: isOpenAIProfile(a.profile) && a.profile !== "openai_gpt_6_sol"
+    version: a.profile === OPENAI_NULL_FIELDS_PROFILE
+      ? "evaluation_openai_attempt_v4"
+      : isOpenAIProfile(a.profile) && a.profile !== "openai_gpt_6_sol"
       ? "evaluation_openai_attempt_v3"
       : isOpenAIProfile(a.profile)
       ? measured
