@@ -21,6 +21,7 @@ final class InferenceLiveFailureCoordinator {
                 String
             ) -> Void
         let logQueueHandoff: @MainActor () -> Void
+        var requestAppUpdate: @MainActor () -> Void = {}
     }
 
     enum PresentationAction {
@@ -155,6 +156,7 @@ final class InferenceLiveFailureCoordinator {
         ) else {
             return
         }
+        if failure == .clientUpdateRequired { dependencies.requestAppUpdate() }
         if scanId != nil {
             applyPresentation(.retainRecoverableScan(resolvedClientScanId))
         }

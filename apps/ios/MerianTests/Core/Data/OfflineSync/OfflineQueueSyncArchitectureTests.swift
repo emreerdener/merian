@@ -191,6 +191,10 @@ struct OfflineQueueSyncArchitectureTests {
             source(
                 "Services/BackgroundInference/OfflineQueueManager+InferenceRetry.swift",
                 below: root
+            ),
+            source(
+                "Services/BackgroundInference/OfflineQueueManager+InferenceHydration.swift",
+                below: root
             )
         ].joined(separator: "\n")
 

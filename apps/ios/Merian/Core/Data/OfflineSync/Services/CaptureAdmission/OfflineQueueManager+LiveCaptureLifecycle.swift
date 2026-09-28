@@ -208,6 +208,7 @@ extension OfflineQueueManager {
                         in: job.metadataJSON
                     ) {
                         if let consentPauseErrorCode {
+                            let pauseHTTPStatus = consentPauseErrorCode == "client_update_required" ? 426 : 403
                             let descriptor = FetchDescriptor<OfflineQueuedScan>(
                                 predicate: #Predicate { $0.id == scanId }
                             )
@@ -221,17 +222,17 @@ extension OfflineQueueManager {
                             scan.queueNextRetryAt = nil
                             scan.queueLastErrorCode = consentPauseErrorCode
                             scan.queueLastErrorMessage = reason
-                            scan.queueLastHTTPStatus = 403
+                            scan.queueLastHTTPStatus = pauseHTTPStatus
                             scan.queueNeedsAttention = true
                             scan.queueUpdatedAt = now
                             job.status = .needsAttention
                             job.nextRunAt = nil
                             job.lastErrorCode = consentPauseErrorCode
                             job.lastErrorMessage = reason
-                            job.lastHTTPStatus = 403
+                            job.lastHTTPStatus = pauseHTTPStatus
                             context.insert(OfflineQueueEvent(
                                 jobId: jobId, scanId: scanId, kind: .needsAttention,
-                                message: reason, errorCode: consentPauseErrorCode, httpStatus: 403
+                                message: reason, errorCode: consentPauseErrorCode, httpStatus: pauseHTTPStatus
                             ))
                         }
                         job.metadataJSON =

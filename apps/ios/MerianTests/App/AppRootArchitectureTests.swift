@@ -39,6 +39,7 @@ struct AppRootArchitectureTests {
             "final class AppDelegate:": "AppDelegate.swift",
             "enum AppRootPresentation:":
                 "Presentation/AppRootPresentation.swift",
+            "struct AppRootAlertHost:": "Presentation/AppRootAlertHost.swift",
             "enum StartupRecoveryNoticePolicy {":
                 "Presentation/AppRootPresentation.swift",
             "enum MerianOpenURLRoute:": "Routing/AppURLRouting.swift",

@@ -2724,6 +2724,13 @@ internal replay worker bypasses the client decoder check; inbound worker-like
 headers do not grant that exception. This reader failure makes no new provider
 call.
 
+The current native UX classifies the exact PostgREST code/message pair and the
+Edge HTTP-status/stable-code pair through the shared update flow. Account-lease
+and inference-generation checks precede effects. A dismissed prompt never clears
+paused work, and same-build manual retry cannot re-enable blocked work. The
+[presentation contract](../system-architecture/10-event-and-presentation-routing.md#update-required-presentation)
+owns app-version recovery and the App Store destination.
+
 Ship and verify a capability-4 reader before activating OpenAI. Older binaries
 may show their existing generic history-sync error, retain local observations,
 and fail to hydrate mixed cloud history until updated; this change cannot add an

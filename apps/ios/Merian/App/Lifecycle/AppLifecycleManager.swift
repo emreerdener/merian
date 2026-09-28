@@ -32,6 +32,7 @@ final class AppLifecycleManager {
 
     /// Handles application transition to active foreground.
     func handleActivePhase() {
+        container.appUpdateCoordinator.refresh()
         guard container.appSettings.hasCompletedOnboarding else { return }
 
         // Consent synchronization must also run while the required gate is
@@ -100,7 +101,8 @@ final class AppLifecycleManager {
                 // Restore account history on re-install or multi-device login.
                 // Throttled to once per 15 minutes to avoid redundant network syncs on every foreground.
                 let lastSyncDate = UserDefaults.standard.object(forKey: UserDefaultsKeys.lastHistoricalSyncDate) as? Date ?? Date.distantPast
-                if now.timeIntervalSince(lastSyncDate) >= 900 {
+                if now.timeIntervalSince(lastSyncDate) >= 900
+                    || container.appUpdateCoordinator.shouldRetryHistoryAfterUpdate {
                     // Stamp before starting the sync, not after. Without this, two concurrent
                     // callers (auth listener + foreground handler) both check the timestamp
                     // before either writes it and both proceed — doubling the network load.

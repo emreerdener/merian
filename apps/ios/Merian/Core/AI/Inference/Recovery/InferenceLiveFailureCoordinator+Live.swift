@@ -14,7 +14,8 @@ extension InferenceLiveFailureCoordinator.Dependencies {
         return make(
             circuitBreakerManager: { CircuitBreakerManager.shared },
             hapticManager: { HapticManager.shared },
-            requestPaywall: resolvedRequestPaywall
+            requestPaywall: resolvedRequestPaywall,
+            requestAppUpdate: { AppDIContainer.shared.appUpdateCoordinator.record(.identification) }
         )
     }
 
@@ -22,12 +23,14 @@ extension InferenceLiveFailureCoordinator.Dependencies {
     static func composed(
         circuitBreakerManager: CircuitBreakerManager,
         hapticManager: HapticManager,
-        usageManager: UsageManager
+        usageManager: UsageManager,
+        requestAppUpdate: @escaping @MainActor () -> Void
     ) -> Self {
         make(
             circuitBreakerManager: { circuitBreakerManager },
             hapticManager: { hapticManager },
-            requestPaywall: { usageManager.showPaywall = true }
+            requestPaywall: { usageManager.showPaywall = true },
+            requestAppUpdate: requestAppUpdate
         )
     }
 
@@ -35,7 +38,8 @@ extension InferenceLiveFailureCoordinator.Dependencies {
         circuitBreakerManager:
             @escaping @MainActor () -> CircuitBreakerManager,
         hapticManager: @escaping @MainActor () -> HapticManager,
-        requestPaywall: @escaping @MainActor () -> Void
+        requestPaywall: @escaping @MainActor () -> Void,
+        requestAppUpdate: @escaping @MainActor () -> Void
     ) -> Self {
         Self(
             trackError: { AppTelemetry.trackError($0) },
@@ -51,7 +55,8 @@ extension InferenceLiveFailureCoordinator.Dependencies {
                 MerianLog.general.debug(
                     "Live inference handed presentation to durable queue state."
                 )
-            }
+            },
+            requestAppUpdate: requestAppUpdate
         )
     }
 

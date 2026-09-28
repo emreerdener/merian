@@ -4486,6 +4486,7 @@ struct CoreNetworkIntegrationArchitectureTests {
         "AuthenticatedRequestExecutor.swift",
         "AuthenticatedRequestRetryPolicy.swift",
         "AuthenticatedTransportDispatcher.swift",
+        "ClientUpdateRequiredPolicy.swift",
         "EdgeFunctionErrorPolicy.swift",
         "EdgeFunctionRoutePolicy.swift",
         "IdentificationBenchmarkRecord.swift",

@@ -19,6 +19,7 @@ private final class InferenceLiveFailureHarness {
             InferenceLiveFailurePolicy.Mode,
             String
         )
+        case appUpdate
         case queueLog
         case retainRecoverableScan(String)
         case transitionToQueue(String, UUID)
@@ -89,7 +90,8 @@ private final class InferenceLiveFailureHarness {
             },
             logQueueHandoff: { [self] in
                 events.append(.queueLog)
-            }
+            },
+            requestAppUpdate: { [self] in events.append(.appUpdate) }
         )
     }
 
@@ -142,6 +144,32 @@ private final class InferenceLiveFailureHarness {
 @MainActor
 @Suite("Inference Live Failure Coordinator")
 struct InferenceLiveFailureCoordinatorTests {
+    @Test func clientUpdatePromptFollowsTheCurrentPauseAndIgnoresReplacements() {
+        for replacement in [false, true] {
+            let harness = InferenceLiveFailureHarness()
+            let attempt = UUID(), foreground = UUID()
+            let subject = harness.makeSubject(
+                scanId: "scan-a", attemptGeneration: attempt, foregroundGeneration: foreground
+            )
+            if replacement {
+                harness.onPause = {
+                    harness.activateReplacement(
+                        scanId: "scan-a", attemptGeneration: UUID(), foregroundGeneration: UUID()
+                    )
+                }
+            }
+            subject.handle(
+                MerianError.httpError(statusCode: 426, message: #"{"code":"client_update_required"}"#),
+                mode: .visual, scanId: "scan-a", resolvedClientScanId: "scan-a",
+                attemptGeneration: attempt, foregroundGeneration: foreground,
+                telemetry: telemetry, isTaskCancelled: false, applyPresentation: harness.record
+            )
+            #expect(harness.events.first == .pause("scan-a", foreground, "client_update_required"))
+            #expect(harness.events.contains(.appUpdate) == !replacement)
+            #expect(!harness.events.contains(.circuitFailure))
+        }
+    }
+
     @Test func openAIConsentPausesBeforeReleasingTheExactAttempt() {
         let harness = InferenceLiveFailureHarness()
         let attempt = UUID(), foreground = UUID()
