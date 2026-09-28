@@ -267,6 +267,14 @@ production submission or public release.
   neutral confidence presentation for unknown profiles. Compatible-client
   distribution and exact production-profile qualification remain separate; beta
   still-photo activation is recorded in the rollout evidence.
+- **[OpenAI photo models for Free and Pro](./rfcs/identification-openai-free-pro-models-2026-09-28.md):**
+  Proposed Luna model for Free with the current Sol profile retained for Pro, a
+  bounded comparison using existing photo evidence, and staged admission,
+  confidence presentation, and rollout work. Current assignments remain
+  unchanged.
+- **[Luna/Sol photo comparison preparation](./rfcs/identification-luna-sol-photo-preparation-2026-09-28.md):**
+  Frozen twelve-photo packet, durable local controller, offline validation and
+  the pending spending decision. No new model benchmark has run.
 - **[Identification optimization while preserving current results](./rfcs/identification-optimization-preserving-results-2026-09-27.md):**
   Current plan following verified completion of the provider infrastructure
   milestone. Preserve explanation format and detail while investigating

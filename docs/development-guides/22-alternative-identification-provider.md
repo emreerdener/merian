@@ -23,6 +23,151 @@ detail. It does not require another Gemini-only benchmark campaign or a repeat
 of the closed concise-explanation screen. Audio experiments cannot establish
 photo/text quality.
 
+## Luna/Sol photo comparison preparation
+
+The
+[Free/Pro model plan](../rfcs/identification-openai-free-pro-models-2026-09-28.md)
+introduces two closed evaluation profiles: `openai_photo_luna_low_v1` and
+`openai_photo_sol_low_v1`. Both use the production photo prompt, strict schema,
+high image detail, low reasoning, 8,192-token output limit, and pinned native
+input/output moderation. Only the model differs. The Sol control therefore
+matches the current production request, including moderation; the completed
+September 27 evaluation remains historical evidence with its original binding.
+
+`_shared/ai/openaiPhotoModels.ts` owns those immutable configurations.
+`createOpenAIPhotoModelEvaluationAdapter` reuses the bounded transport and
+safety decoder, requiring the exact returned model before releasing a draft.
+Neither profile is registered for production or accepted by the historical
+evaluator or hosted workflow. The dedicated local `--photo-model-live` mode owns
+this separate comparison. Production still-photo assignment remains
+`openai_photo_v1` / `gpt-6-sol` for both tiers.
+
+The new `preflight-free-pro-photo` mode performs preparation only. Place these
+private files outside Git:
+
+| File                       | Contract                                                                                                                                                                                                                                              |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `corpus.json`              | Existing exploratory corpus format, exactly 12 development photo cases without descriptions; non-null provisional references and valid media hashes.                                                                                                  |
+| `taxonomy.json`            | Existing taxonomy format, containing every reference taxon.                                                                                                                                                                                           |
+| `photo-model-facts.json`   | `photo_model_facts_v1`, exactly 12 existing-format fact cards bound to each input digest; rank/abstention/non-biological review requirements as applicable.                                                                                           |
+| `photo-model-pricing.json` | `photo_model_pricing_v1`, current USD paid Standard synchronous rates for both exact models, official model-page sources and a review reference.                                                                                                      |
+| `photo-model-plan.json`    | `photo_model_plan_v1` preserves the original $5 proposal; `photo_model_plan_v2` supports an explicitly approved ceiling up to $40. Both bind all four input-file digests, six screen IDs, six challenge IDs, 18 calls and one attempt per assignment. |
+
+For real inputs, the plan's `inputApproval` records the owner's existing OpenAI
+benchmark authorization for that corpus and all selected cases. This is an
+operator evidence record, not app-user provider consent. Synthetic fixtures
+require a null approval and are labeled mechanics-only. Real evidence must have
+unexpired retention and its existing source/eligibility records. The screen
+contains five named biological references and one non-biological control; the
+challenge set also includes a non-biological control and a biological reference
+that requires a higher rank or abstention. Freeze the six challenge references
+before candidate outputs exist.
+
+Run from the repository root, replacing `PRIVATE_PACKET` with the existing
+private packet directory:
+
+```bash
+evaluation_root="PRIVATE_PACKET"
+deno run --frozen --no-prompt --deny-net --deny-env \
+  --config services/supabase/functions/deno.json \
+  --allow-read="$PWD,$evaluation_root" --allow-write="$evaluation_root" \
+  --allow-run=git \
+  services/supabase/scripts/evaluate_identification.ts \
+  preflight-free-pro-photo "$evaluation_root"
+```
+
+`photo-model-preflight.json` contains hashes, source identity, reviewed model
+settings, fixed ordering and a conservative reservation. It stores no photo
+bytes, observation/review prose, references or credential. Six Luna screening
+assignments precede paired challenge assignments; challenge ordering alternates
+Luna/Sol and Sol/Luna. The output always states `dispatchAuthorized: false`;
+`liveControllerAvailable: true` reports implementation availability only. The
+runner requires passing assistant reviews and correct reference decisions on all
+six screen cases before any challenge call. Successful preparation is not a
+completed benchmark or spending approval.
+
+At the September 28 reviewed global Standard rates, reserving 1,050,000 input
+tokens plus 8,192 output tokens per call costs at most $0.268644 for Luna and
+$5.37288 for Sol, or **$35.461008 for the full schedule**. These ceilings
+include long-context and cache-write tariffs; they are not expected per-scan
+prices. The live controller also reserves the 10% regional premium, for
+**$39.0071088** across the 18 calls, regardless of whether that premium applies
+to the account. Preflight reports both reservations and budget-fit flags. Both
+flags remain false for the proposed $5 cap. Do not lower the historical
+full-context reservation using media byte length or raise the approved ceiling
+implicitly. Before live execution, bind a justified input-token bound to each
+exact request and the actual account pricing, or explicitly revise the budget.
+OpenAI's
+[input token counting API](https://developers.openai.com/api/docs/guides/token-counting)
+is a possible follow-on mechanism; its request compatibility, billing and
+artifact/dispatch controls are not implemented by this offline mode.
+
+The
+[real preparation record](../rfcs/identification-luna-sol-photo-preparation-2026-09-28.md)
+now records all twelve photos, frozen reference limits and a successful offline
+preflight. Before live execution, finalize the spending decision and bind its
+approval to the reviewed clean revision. Deterministic adapter, controller and
+launcher tests do not establish Luna accuracy, real moderation compatibility or
+a Free/Pro quality difference.
+
+### Durable local execution
+
+After explicit spending approval, freeze a `photo_model_plan_v2` whose budget
+covers the entire reservation. The original v1/$5 packet remains unchanged until
+that decision. A larger parser limit alone does not authorize spending.
+
+`photo-model-approval.json` uses `photo_model_approval_v1`. It binds the
+`naturebook` project, `18_call_luna_sol_photo_comparison` operation, exact plan
+digest, clean source commit and implementation digest, credential SHA-256,
+approved budget, approval reference, reviewer/delegation references, and an
+approval window of at most 24 hours. It contains no API key. The assistant's
+review delegation comes from the existing instruction to perform evaluation;
+this is not an end-user provider choice. Keep the approval private alongside the
+packet, and create it only for the actual approved revision and budget.
+
+The existing hidden-input launcher now supports:
+
+```bash
+bash services/supabase/scripts/run_openai_evaluation.sh \
+  --photo-model-live PRIVATE_PACKET
+```
+
+It completes offline preflight and rejects an insufficient budget or dirty
+source before prompting for the Naturebook key. The child can access only the
+OpenAI host, one-use loopback review, Git, fixed browser opener and evaluation
+credential. `photoModelAdmission.ts` binds that credential to approval and
+revalidates the scope, expiry, prices, evidence, source and spending limit
+before every dispatch. The current GitHub-hosted comparison workflow does not
+accept these new profiles; its existing secrets do not automatically authorize
+this local runner.
+
+`photoModelRunner.ts` owns an exclusive lock and immutable `photo-model-run/`
+manifest, claims, results and assessments. It reserves the complete schedule
+before the first call and retains each claimed reservation, even when a request
+fails or its bill is unknown. A claim without a result stops permanently as
+interrupted. A missing or unavailable explanation review also stops. Neither a
+restart nor a changed state summary can repeat an attempt. Once a manifest
+exists, source, packet or approval drift/expiry creates an immutable
+configuration stop. Restoring the old inputs cannot clear it. If inputs no
+longer validate, the stop summary leaves totals unknown and preserves the
+original journal. Model mismatch, refusal, invalid safety/output, missing or
+inconsistent billing, and operational failures stop subsequent calls. Six
+successful screen results with passing assistant ratings are required before
+challenges. Challenge quality failures remain visible for comparison; they do
+not trigger replacement calls.
+
+`photoModelRecords.ts` projects bounded taxonomy IDs, scores, timings, native
+usage categories, exact model, safety disposition and a conservative usage-based
+cost upper bound. Unknown cache writes or service tier remain unpriced. Output
+already includes reasoning, which is never billed twice in the projection. These
+upper bounds are not invoices or expected per-scan prices; report measured cost
+only when the actual pricing basis and all native usage categories permit it. No
+photo, provider prose, reasoning trace, response/error body or key enters the
+journal. Explanations exist only in the one-use assistant review view; only
+bound enum ratings are saved. Finishing all calls never selects or activates a
+production profile. The assistant still writes the quality/cost/latency
+selection record against the frozen references.
+
 ## Fixed initial assignment
 
 | Setting                     | Candidate                                                                    |

@@ -60,7 +60,8 @@ reviewed-corpus counts remain unchanged.
 ## Alternative-provider comparison
 
 The explicit `openai_gpt_6_sol` evaluation profile supports photos/text through
-OpenAI Responses. Production remains Gemini-only. The
+OpenAI Responses. The separate beta production photo binding uses OpenAI for
+still photos and retains Gemini for other complete-input profiles. The
 [provider guide](../../../../docs/development-guides/22-alternative-identification-provider.md)
 owns the `demo-providers` command, new provider-run/pricing/readiness versions,
 OpenAI-specific input permission, single-provider live runs and credential
@@ -84,6 +85,43 @@ controller without changing provider assignment or measurement. The
 owns public export, exact-source validation, per-provider credential binding,
 conditional remote claims, interruption behavior and summary publication. Source
 implementation does not establish that a hosted comparison has run.
+
+## Free/Pro photo-model preparation
+
+`photoModelContracts.ts` and `photoModelPreparation.ts` own the separate
+`photo_model_plan_v1` ($5 proposal), `photo_model_plan_v2` (up to $40 with
+separate approval), `photo_model_facts_v1`, `photo_model_pricing_v1`, and
+`photo_model_preflight_v1` contracts. The `preflight-free-pro-photo` CLI
+validates 12 frozen no-description photo cases and prepares 12 Luna-low
+assignments plus six production-equivalent Sol-low controls. It denies
+network/environment access, checks contained media bytes, references, fact
+cards, retention and explicit operator input scope, and emits content-free
+digests and costs. It cannot create a live claim, dispatch a provider or change
+production assignment.
+
+The historical `Profile`, run-spec, pricing, experiment and fact-card contracts
+stay unchanged. A new 12-card wrapper reuses individual card validation without
+increasing the old eight-card limit. The
+[provider guide](../../../../docs/development-guides/22-alternative-identification-provider.md#lunasol-photo-comparison-preparation)
+owns packet fields, commands, the spending decision and private approval. The
+real twelve-photo packet is prepared; no Luna quality result is claimed.
+
+`photoModelAdmission.ts`, `photoModelRunner.ts` and `photoModelRecords.ts` own
+separate versioned approval, immutable claims/results/reviews and the durable
+state summary. The existing terminal launcher accepts `--photo-model-live` for
+this controller. It reserves the entire 18-call schedule plus a regional premium
+before the first call, requires a clean source and credential-bound approval,
+and revalidates every dispatch. Six correct Luna screen outcomes with passing
+assistant explanation ratings must precede challenge calls. Missing results,
+missing reviews, unknown billing, refusal or technical failure stop the run;
+restart cannot repeat a claim. A completed challenge run still requires an
+assistant selection report and grants no production authority.
+
+The existing one-use explanation view is shared through
+`normalizedExplanationDisplay`; historical normalization and record parsers
+retain their original profiles. New tests use invented media and mocked
+responses with network and environment access denied. The current real packet
+remains v1/$5 pending the owner's budget decision.
 
 ## Shared measurement repair (optimization Slice 1)
 

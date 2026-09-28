@@ -627,6 +627,7 @@ Deno.test("OpenAI dispatch stays confined to production composition and its offl
         [
           "_shared/ai/openai.ts",
           "_shared/ai/openaiPhoto.ts",
+          "_shared/ai/openaiPhotoModels.ts",
           "_shared/ai/production.ts",
         ].some((path) => file.pathname === new URL(path, root).pathname),
         "Only reviewed adapters and the admitted production composition may import OpenAI",
@@ -647,6 +648,17 @@ Deno.test("OpenAI dispatch stays confined to production composition and its offl
   assertStringIncludes(
     workflow,
     "supabase/functions/_shared/ai/openaiPhoto_test.ts",
+  );
+  assertStringIncludes(
+    workflow,
+    "supabase/functions/_shared/ai/openaiPhotoModels_test.ts",
+  );
+  const photoModels = await Deno.readTextFile(
+    new URL("_shared/ai/openaiPhotoModels.ts", root),
+  );
+  assert(
+    !/from ["'][^"']*openai[.]ts["']|\bfetch\s*\(|Deno[.]env/.test(photoModels),
+    "Evaluation profile configuration cannot own transport or credentials",
   );
   assertStringIncludes(
     workflow,

@@ -1,3 +1,5 @@
+import { registerPhotoModelRunnerTests } from "./identification_evaluation/testing/photoModelRunnerTests.ts";
+import { registerPhotoModelPreparationTests } from "./identification_evaluation/testing/photoModelPreparationTests.ts";
 import { registerNullFieldsTests } from "./identification_evaluation/testing/nullFieldsRunnerTests.ts";
 import { registerCandidateTests } from "./identification_evaluation/testing/candidateRunnerTests.ts";
 import { registerExperimentTests } from "./identification_evaluation/testing/experimentRunnerTests.ts";
@@ -58,6 +60,8 @@ import { registerMeasurementTests } from "./identification_evaluation/testing/me
 
 const scratch = Deno.args[0];
 if (!scratch) throw new Error("evaluation_test_directory_required");
+registerPhotoModelPreparationTests(scratch);
+registerPhotoModelRunnerTests(scratch);
 registerMeasurementTests(scratch);
 registerCandidateTests(scratch);
 registerNullFieldsTests(scratch);

@@ -1,3 +1,5 @@
+import { executePhotoModelComparison } from "./identification_evaluation/photoModelRunner.ts";
+import { preparePhotoModelComparison } from "./identification_evaluation/photoModelPreparation.ts";
 import { createNullFieldsDemo } from "./identification_evaluation/nullFieldsOffline.ts";
 import { createCandidateDemo } from "./identification_evaluation/candidateOffline.ts";
 import { calibrateReviewer } from "./identification_evaluation/explanationReview.ts";
@@ -68,6 +70,8 @@ export async function main(args = Deno.args): Promise<void> {
     "demo-providers",
     "demo-measurement",
     "preflight",
+    "preflight-free-pro-photo",
+    "--photo-model-live",
     "offline",
     "--live",
     "report",
@@ -89,7 +93,7 @@ export async function main(args = Deno.args): Promise<void> {
   );
   if (
     mode !== "--live" && mode !== "--experiment-live" &&
-    mode !== "calibrate-explanations"
+    mode !== "calibrate-explanations" && mode !== "--photo-model-live"
   ) {
     await assertOfflinePermissions();
   }
@@ -114,7 +118,15 @@ export async function main(args = Deno.args): Promise<void> {
         "exploratory"
       ? await saveExploratoryReport(root, runId)
       : await saveReport(root, runId);
-  if (mode === "calibrate-explanations") {
+  if (mode === "--photo-model-live") {
+    await executePhotoModelComparison(
+      root,
+      await sourceIdentity(repository),
+      "live",
+    );
+  } else if (mode === "preflight-free-pro-photo") {
+    await preparePhotoModelComparison(root, await sourceIdentity(repository));
+  } else if (mode === "calibrate-explanations") {
     await calibrateReviewer(root, values[1]);
   } else if (mode === "experiment-report") {
     await saveExperimentReport(root);

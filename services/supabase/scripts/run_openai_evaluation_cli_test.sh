@@ -31,12 +31,12 @@ import json, os, pathlib, signal, sys
 entry_index = sys.argv.index('services/supabase/scripts/evaluate_identification.ts')
 mode = sys.argv[entry_index + 1]
 packet = pathlib.Path(sys.argv[entry_index + 2])
-assert mode in ('preflight', '--live', 'experiment-preflight', '--experiment-live')
+assert mode in ('preflight', '--live', 'experiment-preflight', '--experiment-live', 'preflight-free-pro-photo', '--photo-model-live')
 assert '--cached-only' in sys.argv
-reviewed = mode in ('experiment-preflight', '--experiment-live') and json.loads((packet / 'experiment.json').read_text()).get('version') in ('identification_experiment_plan_v2', 'identification_experiment_plan_v3', 'identification_experiment_plan_v4')
+reviewed = mode in ('preflight-free-pro-photo', '--photo-model-live') or mode in ('experiment-preflight', '--experiment-live') and json.loads((packet / 'experiment.json').read_text()).get('version') in ('identification_experiment_plan_v2', 'identification_experiment_plan_v3', 'identification_experiment_plan_v4')
 assert all(name not in os.environ for name in ('SUPABASE_SERVICE_ROLE_KEY', 'GITHUB_TOKEN', 'OPENAI_API_KEY', 'GIT_CONFIG_COUNT', 'GEMINI_PAID_API_KEY'))
 assert 'synthetic-local-launcher-value' not in ' '.join(sys.argv)
-if mode in ('preflight', 'experiment-preflight'):
+if mode in ('preflight', 'experiment-preflight', 'preflight-free-pro-photo'):
     assert 'OPENAI_EVALUATION_API_KEY' not in os.environ
     assert '--deny-net' in sys.argv and '--deny-env' in sys.argv
 else:
@@ -46,7 +46,7 @@ else:
     assert ('--allow-run=git,/usr/bin/open' if reviewed else '--allow-run=git') in sys.argv
 with (packet / 'calls.jsonl').open('a') as output:
     output.write(json.dumps({'mode': mode, 'runId': sys.argv[entry_index + 3] if mode == '--experiment-live' else None}) + '\n')
-if mode in ('--live', '--experiment-live') and (packet / 'check-permissions').exists():
+if mode in ('--live', '--experiment-live', '--photo-model-live') and (packet / 'check-permissions').exists():
     flags = sys.argv[1:entry_index]
     # Use the actual launcher flags and actual permission gate; never invoke a provider.
     code = """
@@ -64,13 +64,22 @@ if ((await Deno.permissions.query({name: "run", command: "/usr/bin/open"})).stat
                            env=os.environ, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if check.returncode:
         sys.exit(check.returncode)
-if mode in ('--live', '--experiment-live') and (packet / 'pause-live').exists():
+if mode in ('--live', '--experiment-live', '--photo-model-live') and (packet / 'pause-live').exists():
     (packet / 'claim.marker').write_text('started')
     print(os.environ['OPENAI_EVALUATION_API_KEY'], flush=True)
     signal.pause()
 if (packet / ('fail-' + mode.lstrip('-'))).exists():
     print(os.environ.get('OPENAI_EVALUATION_API_KEY', 'synthetic-upstream-private-output'))
     sys.exit(1)
+if mode == 'preflight-free-pro-photo':
+    (packet / 'photo-model-preflight.json').write_text(json.dumps({'version':'photo_model_preflight_v1',
+        'budgetFitsRegionalReservation': not (packet / 'insufficient-budget').exists(),
+        'evidenceStatus':'provisional_reference_pilot','source':{'dirty':False}}))
+if mode == '--photo-model-live' and not (packet / 'missing-state').exists():
+    directory = packet / 'photo-model-run'
+    directory.mkdir(exist_ok=True)
+    (directory / 'state.json').write_text(json.dumps({'version':'photo_model_state_v1','claimedCalls':18,'completedCalls':18,
+        'complete': not (packet / 'stop-after-run').exists(), 'stop': 'screen_failed' if (packet / 'stop-after-run').exists() else None}))
 if mode == '--experiment-live':
     run_id = sys.argv[entry_index + 3]
     state_path = packet / 'experiment' / 'state.json'
@@ -159,6 +168,26 @@ p = packet('runtime-permissions')
 (p / 'check-permissions').touch()
 assert terminal('--live', p) == (0, True), 'actual launcher grants must satisfy the real Deno admission gate'
 assert [json.loads(line)['mode'] for line in (p / 'calls.jsonl').read_text().splitlines()] == ['preflight', '--live']
+
+def photo_packet(name):
+    p = packet(name)
+    (p / 'photo-model-plan.json').write_text(json.dumps({'version':'photo_model_plan_v2','maxCalls':18,'attemptsPerAssignment':1}))
+    return p
+
+p = photo_packet('photo-models')
+(p / 'check-permissions').touch()
+assert terminal('--photo-model-live', p) == (0, True)
+assert [json.loads(line)['mode'] for line in (p / 'calls.jsonl').read_text().splitlines()] == ['preflight-free-pro-photo', '--photo-model-live']
+for marker in ('stop-after-run','missing-state'):
+    p = photo_packet('photo-models-' + marker)
+    (p / marker).touch()
+    assert terminal('--photo-model-live', p) == (1, True), 'a stopped comparison is never reported as complete'
+p = photo_packet('photo-models-insufficient-budget')
+(p / 'insufficient-budget').touch()
+assert terminal('--photo-model-live', p) == (1, False), 'budget preflight must stop before prompting for a key'
+p = photo_packet('photo-models-old-plan')
+(p / 'photo-model-plan.json').write_text(json.dumps({'version':'photo_model_plan_v1','maxCalls':18,'attemptsPerAssignment':1}))
+assert terminal('--photo-model-live', p) == (1, False), 'the original $5 proposal does not authorize an expanded run'
 
 p = packet('controlled-experiment')
 (p / 'experiment.json').write_text(json.dumps({'version': 'identification_experiment_plan_v1', 'mode': 'live',

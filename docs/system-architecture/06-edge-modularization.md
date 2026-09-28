@@ -53,17 +53,18 @@ prepared text, images/snapshots, WAV audio, and positional lineage. The registry
 and Gemini adapter own the admitted model binding, generation settings, SDK
 dispatch, response decoding, and native timing facts. HTTP handlers still own
 admission, quota commitment/settlement, domain validation, and finalization.
-Internal handler injection supports behavioral tests; production composition is
-fixed to Gemini. Legacy image safety settings, model/tier distinctions, and
-legacy audio prompt/token budgets remain separate profiles. Biological content
-helpers also use this boundary: `ai/contentRegistry.ts` binds overview,
-lookalikes, and group tags, while `ai/geminiContent.ts` owns their native
-prompts and schemas. User enrichment retains reservation/commit ownership; the
-public worker supplies its claimed task and attempt bounds without user quota or
-permission. `biology.ts` retains result normalization and existing usage owners.
-The shared adapter's transitive dependencies now include `enrich-scan` and
-`refresh-species-model-content` in deployment selection for Identify-contract
-changes; the dependency graph test requires both.
+Internal handler injection supports behavioral tests; production composition
+follows the admitted server-owned catalog described below. Legacy image safety
+settings, model/tier distinctions, and legacy audio prompt/token budgets remain
+separate profiles. Biological content helpers also use this boundary:
+`ai/contentRegistry.ts` binds overview, lookalikes, and group tags, while
+`ai/geminiContent.ts` owns their native prompts and schemas. User enrichment
+retains reservation/commit ownership; the public worker supplies its claimed
+task and attempt bounds without user quota or permission. `biology.ts` retains
+result normalization and existing usage owners. The shared adapter's transitive
+dependencies now include `enrich-scan` and `refresh-species-model-content` in
+deployment selection for Identify-contract changes; the dependency graph test
+requires both.
 
 Primary identification separately prepares `ai/multimodalResultPolicy.ts` before
 quota commitment. It binds normalization thresholds and media-safety signals to

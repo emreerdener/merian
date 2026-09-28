@@ -137,9 +137,9 @@ OpenAI production result is emitted.
 ## Alternative-provider evaluation
 
 `openaiRequest.ts` and `openai.ts` implement an evaluation-only `gpt-6-sol`
-photo/text binding through the same generic single-invocation interface.
-Production assignments remain Gemini-only until the separate catalog activation.
-The photo snapshot is an enabled, separate user-request binding. The pure
+photo/text binding through the same generic single-invocation interface. The
+beta catalog selects the separate `openai_photo_v1` user-request binding for
+still photos and retains Gemini for other complete-input profiles. The pure
 request builder derives strict JSON from the common Identify contract; the
 bounded REST adapter accepts only an explicit evaluator-supplied credential.
 Scripts select it only through `identification_evaluation/providers.ts`.
@@ -172,6 +172,18 @@ remain Gemini. The source composition must be deployed before catalog
 activation. Saved usage retains native output/cache-write counts and reported
 cached tokens, without a Gemini tariff; see the
 [safety contract](../../../../../docs/development-guides/10-safety-and-moderation.md#openai-photo-policy).
+
+`openaiPhotoModels.ts` adds two closed evaluation configurations,
+`openai_photo_luna_low_v1` and `openai_photo_sol_low_v1`. Their request builder
+reuses the complete production photo payload and changes only the model. The new
+evaluation adapter shares production moderation decoding, rejects a returned
+model mismatch, and cannot enter the registry, production result policy or old
+evaluation profiles. Native request preparation supports the production photo
+shape, including optional notes and multiple images; the first comparison
+selects no-description photos. The
+[preparation procedure](../../../../../docs/development-guides/22-alternative-identification-provider.md#lunasol-photo-comparison-preparation)
+owns its offline packet preparation, separately approved durable local runner,
+assistant review and spending limits.
 
 ## Scoped audio prompt authority
 

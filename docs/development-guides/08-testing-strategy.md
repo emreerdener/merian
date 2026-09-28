@@ -125,6 +125,17 @@ action makes at most three attempts with the same immutable installer SHA, then
 verifies exact version `2.9.4`; exhausted retries remain a failed candidate
 rather than being treated as passing evidence.
 
+The OpenAI adapter lane explicitly denies network and environment access. It
+covers the historical evaluation adapter, production photo adapter, and closed
+Luna/Sol photo-model evaluation profiles. The architecture guard permits the
+pure profile owner to reuse request settings while rejecting transport or
+credential ownership there; new evaluation profiles cannot enter production
+admission. The isolated evaluator suite also checks the Luna/Sol controller's
+whole-schedule reservation, immutable claims, interrupted recovery, six-case
+screen barrier, assistant ratings and source/key/approval bindings. The terminal
+launcher suite verifies its new mode with fake credentials and the real scoped
+Deno permission gate; neither suite dispatches a provider.
+
 The production workflow's cumulative undeployed-source scope separately includes
 the generated inference DTO contract, `Core/Network/SupabaseManager.swift`, the
 exact scan- admission bridge in `Core/Network/MerianNetworkClient.swift`, its
