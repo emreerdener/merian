@@ -10,12 +10,19 @@ struct HistoricalSessionSyncLiveDependencies {
     let makeWork: @MainActor () -> AuthHistoricalSessionSyncWork?
 }
 
-/// Retains every listener-admitted historical synchronization task so facade
-/// teardown can cancel work that has not crossed its final session fence.
+struct AuthHistoricalSessionSyncKey: Equatable {
+    let session: AuthTransitionSession
+    let authGeneration: UInt64
+}
+
+/// Coalesces foreground and listener work for the same published session.
+/// Retains displaced tasks until completion so teardown can still cancel them.
 @MainActor
 final class AuthHistoricalSessionSyncLiveService {
     private let dependencies: HistoricalSessionSyncLiveDependencies
     private var tasks: [UUID: Task<Void, Never>] = [:]
+    private var activeKey: AuthHistoricalSessionSyncKey?
+    private var activeTaskID: UUID?
 
     init(dependencies: HistoricalSessionSyncLiveDependencies) {
         self.dependencies = dependencies
@@ -27,11 +34,23 @@ final class AuthHistoricalSessionSyncLiveService {
         }
     }
 
+    @discardableResult
     func schedule(
+        key: AuthHistoricalSessionSyncKey,
         isCurrentSession: @escaping @MainActor () -> Bool
-    ) {
-        guard let work = dependencies.makeWork() else { return }
+    ) -> Task<Void, Never>? {
+        guard !Task.isCancelled, isCurrentSession() else { return nil }
+        if activeKey == key, let activeTaskID,
+           let task = tasks[activeTaskID], !task.isCancelled {
+            return task
+        }
+        for task in tasks.values { task.cancel() }
+        activeKey = nil
+        activeTaskID = nil
+        guard let work = dependencies.makeWork() else { return nil }
         let taskID = UUID()
+        activeKey = key
+        activeTaskID = taskID
         tasks[taskID] = Task { @MainActor [weak self] in
             defer { self?.clearTask(taskID) }
             guard !Task.isCancelled, isCurrentSession() else { return }
@@ -40,6 +59,7 @@ final class AuthHistoricalSessionSyncLiveService {
             guard !Task.isCancelled, isCurrentSession() else { return }
             await work.syncHistoricalScans()
         }
+        return tasks[taskID]
     }
 
     func cancel() {
@@ -47,9 +67,15 @@ final class AuthHistoricalSessionSyncLiveService {
             task.cancel()
         }
         tasks.removeAll()
+        activeKey = nil
+        activeTaskID = nil
     }
 
     private func clearTask(_ taskID: UUID) {
         tasks[taskID] = nil
+        if activeTaskID == taskID {
+            activeKey = nil
+            activeTaskID = nil
+        }
     }
 }

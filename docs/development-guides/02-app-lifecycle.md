@@ -368,9 +368,12 @@ continue to use `AppEventPublisher`. See
    account scope participates only in local coalescing and is not sent over the
    wire.
 4. `OfflineQueueManager.purgeSoftDeletedRecords()` removes safe local records.
-5. When a model context exists, preferred-name sync, expired non-biological
-   purge, and throttled historical scan download run. Historical sync stamps the
-   15-minute throttle before starting to prevent concurrent foreground handlers.
+5. When a model context exists, expired non-biological records are purged.
+   Historical downloads retain the 15-minute foreground throttle. Foreground and
+   Auth-listener triggers enter `AuthHistoricalSessionSyncLiveService`, joining
+   one task for the exact published session and Auth generation. That task
+   stamps the throttle, synchronizes preferred names, and hydrates scans. A
+   throttled foreground still synchronizes preferred names.
 6. `OfflineJobScheduler.drainRunnableJobs(using:)` drains work and recreates the
    next process-local wake from durable retry dates. This scheduler owns pending
    upload and interrupted-inference replay; the lifecycle manager no longer
@@ -571,6 +574,11 @@ work; it is not an inventory of effects inside `AppLifecycleManager` alone.
   exact manager-published user and nonexpired SDK session before stamping the
   throttle and again between preferred-name and scan synchronization. A
   replacement account must never continue the predecessor's scan-hydration task.
+  Foreground callers use `SupabaseManager.syncHistoricalSessionForForeground`
+  rather than invoking the repository directly. Same-key triggers join the
+  active task; a different session/generation cancels displaced work, whose
+  completion cannot clear its replacement. Completed work does not permanently
+  suppress a later eligible synchronization.
 - **Always let `OfflineJobScheduler.drainRunnableJobs(using:)` own foreground
   queue drain and replay after the required-consent guard.** `NWPathMonitor`
   only fires when connectivity changes, while delayed Swift tasks do not survive

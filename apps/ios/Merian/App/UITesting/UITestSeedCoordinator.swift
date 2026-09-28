@@ -1,5 +1,6 @@
 import Foundation
 import MapKit
+import os
 import SwiftData
 import UIKit
 
@@ -112,9 +113,15 @@ enum UITestSeedCoordinator {
               ProcessInfo.processInfo.arguments.contains(requiredConsentArgument) else {
             return
         }
-        try? consentManager.confirmAdultAndAcceptCurrentTermsAndGrantGemini(
-            analyticsEnabled: false
-        )
+        do {
+            try consentManager.confirmAdultAndAcceptCurrentTermsAndGrantGemini(
+                analyticsEnabled: false
+            )
+        } catch {
+            MerianLog.general.error(
+                "UI-test required-consent seed failed; kind=\(MerianLog.errorKind(error), privacy: .public)"
+            )
+        }
     }
 
     @MainActor

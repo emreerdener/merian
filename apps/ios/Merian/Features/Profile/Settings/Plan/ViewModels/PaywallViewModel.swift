@@ -4,6 +4,7 @@ import RevenueCat
 @MainActor
 @Observable
 final class PaywallViewModel {
+    private(set) var isFetchingOfferings = false
     private(set) var isPurchasing = false
     private(set) var isRestoring = false
     var operationErrorMessage: String?
@@ -15,6 +16,9 @@ final class PaywallViewModel {
     }
 
     func fetchOfferings() async {
+        guard !isFetchingOfferings, !Task.isCancelled else { return }
+        isFetchingOfferings = true
+        defer { isFetchingOfferings = false }
         await dependencies.fetchOfferings()
     }
 

@@ -21,9 +21,10 @@ decide server entitlement.
   admitted store provenance. It imports RevenueCat only for provider value types
   and performs no SDK calls.
 - `Policies/RevenueCatPrivacyPolicies.swift` owns fixed severity-only SDK log
-  messages and derives the exact legacy subscriber-attribute deletion map from
-  that shared key registry. It never records provider message bodies or customer
-  identity.
+  messages, fixed-category offerings diagnostics with numeric codes only for
+  recognized RevenueCat/URL-loading errors, and derives the exact legacy
+  subscriber-attribute deletion map from that shared key registry. It never
+  records provider message bodies or customer identity.
 - `Coordinators/RevenueCatIdentityCoordinator.swift` owns requested and linked
   identity state, binding-generation and account-kind fences, handoff and
   account-grant readiness, and serialized link-task lifetime. It runs injected

@@ -25,6 +25,77 @@ private actor AuthHistoricalSessionSyncTestGate {
 
 @MainActor
 final class HistoricalSessionSyncLiveServiceTests: XCTestCase {
+    func testForegroundAndListenerCoalesceUntilSharedWorkCompletes() async {
+        let gate = AuthHistoricalSessionSyncTestGate()
+        let key = makeKey()
+        var makeCount = 0, stampCount = 0, scanCount = 0
+        let service = AuthHistoricalSessionSyncLiveService(dependencies: .init(makeWork: {
+            makeCount += 1
+            return AuthHistoricalSessionSyncWork(
+                markStarted: { stampCount += 1 },
+                syncPreferredNames: { await gate.wait() },
+                syncHistoricalScans: { scanCount += 1 }
+            )
+        }))
+        let foreground = service.schedule(key: key, isCurrentSession: { true })
+        await gate.waitUntilSuspended()
+        let listener = service.schedule(key: key, isCurrentSession: { true })
+        XCTAssertEqual(makeCount, 1)
+        XCTAssertEqual(stampCount, 1)
+        XCTAssertEqual(scanCount, 0)
+        await gate.release()
+        await foreground?.value
+        await listener?.value
+        XCTAssertEqual(scanCount, 1)
+    }
+
+    func testReplacementFencesOldGenerationAndCannotBeClearedByItsCompletion() async {
+        for changesAccount in [false, true] {
+            let oldGate = AuthHistoricalSessionSyncTestGate()
+            let newGate = AuthHistoricalSessionSyncTestGate()
+            let oldKey = makeKey()
+            let newKey = AuthHistoricalSessionSyncKey(
+                session: changesAccount ? makeKey().session : oldKey.session,
+                authGeneration: oldKey.authGeneration + 1
+            )
+            var makeCount = 0
+            var scannedWork: [Int] = []
+            var oldIsCurrent = true
+            let service = AuthHistoricalSessionSyncLiveService(dependencies: .init(makeWork: {
+                makeCount += 1
+                let workNumber = makeCount
+                return AuthHistoricalSessionSyncWork(
+                    markStarted: {},
+                    syncPreferredNames: {
+                        if workNumber == 1 { await oldGate.wait() }
+                        if workNumber == 2 { await newGate.wait() }
+                    },
+                    syncHistoricalScans: { scannedWork.append(workNumber) }
+                )
+            }))
+            let old = service.schedule(key: oldKey, isCurrentSession: { oldIsCurrent })
+            await oldGate.waitUntilSuspended()
+            oldIsCurrent = false
+            let replacement = service.schedule(key: newKey, isCurrentSession: { true })
+            await newGate.waitUntilSuspended()
+            XCTAssertNil(service.schedule(key: oldKey, isCurrentSession: { false }))
+            await oldGate.release()
+            await old?.value
+            let joinedReplacement = service.schedule(key: newKey, isCurrentSession: { true })
+            XCTAssertEqual(makeCount, 2)
+            XCTAssertTrue(scannedWork.isEmpty)
+            await newGate.release()
+            await replacement?.value
+            await joinedReplacement?.value
+            XCTAssertEqual(scannedWork, [2])
+
+            // Completed work is not a permanent throttle: a later admitted
+            // foreground request must be able to synchronize again.
+            await service.schedule(key: newKey, isCurrentSession: { true })?.value
+            XCTAssertEqual(scannedWork, [2, 3])
+        }
+    }
+
     func testSyncPreservesStampPreferencesFenceAndScanOrder() async {
         let gate = AuthHistoricalSessionSyncTestGate()
         var events: [String] = []
@@ -49,7 +120,7 @@ final class HistoricalSessionSyncLiveServiceTests: XCTestCase {
             )
         )
 
-        service.schedule(isCurrentSession: { isCurrent })
+        service.schedule(key: makeKey(), isCurrentSession: { isCurrent })
         await gate.waitUntilSuspended()
         XCTAssertEqual(
             events,
@@ -96,7 +167,7 @@ final class HistoricalSessionSyncLiveServiceTests: XCTestCase {
             )
         )
 
-        service.schedule(isCurrentSession: { isCurrent })
+        service.schedule(key: makeKey(), isCurrentSession: { isCurrent })
         await gate.waitUntilSuspended()
         isCurrent = false
         await gate.release()
@@ -132,7 +203,7 @@ final class HistoricalSessionSyncLiveServiceTests: XCTestCase {
                     }
                 )
             )
-        service?.schedule(isCurrentSession: { true })
+        service?.schedule(key: makeKey(), isCurrentSession: { true })
         await gate.waitUntilSuspended()
         weak let releasedService = service
 
@@ -143,6 +214,13 @@ final class HistoricalSessionSyncLiveServiceTests: XCTestCase {
         await gate.release()
         await waitUntil { didFinishPreferredNames }
         XCTAssertFalse(didScan)
+    }
+
+    private func makeKey() -> AuthHistoricalSessionSyncKey {
+        AuthHistoricalSessionSyncKey(
+            session: AuthTransitionSession(userID: UUID(), isAnonymous: false),
+            authGeneration: 1
+        )
     }
 
     private func waitUntil(

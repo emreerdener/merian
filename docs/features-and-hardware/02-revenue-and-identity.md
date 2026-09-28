@@ -597,6 +597,9 @@ integrated provider claims remain unchanged.
   reported as `verified` or `verifiedOnDevice`. Any unverified snapshot closes
   local paid state. The SDK log callback discards provider message bodies and
   emits fixed severity-only diagnostics without customer or account identity.
+  Offering-fetch failures separately emit fixed source/category labels and
+  numeric codes for recognized RevenueCat or URL-loading errors. Unknown error
+  domains, descriptions, underlying errors, and provider payloads are excluded.
 - `RevenueCatOfferingPolicy` requires the current offering to contain App Store
   product identifiers `pro_week` and `pro_annual`. Offering fetches emit an
   operational error when there is no current offering, the current offering has
@@ -611,7 +614,11 @@ integrated provider claims remain unchanged.
   redemption. Their `@MainActor` view models reject purchase/restore overlap,
   serialize restore work, and prevent code redemption from competing with an
   active restore; SwiftUI views retain only package selection and presentation
-  timing.
+  timing. An unavailable-plan state exposes **Try again** through the same
+  offering dependency. The view model prevents overlapping fetches and clears
+  its loading gate after completion; retry remains disabled until purchase
+  identity is ready. This manual recovery does not create an automatic retry
+  loop.
 - Evaluates paid `isSubscribed` state via `.customerInfo()` and combines it with
   the current session's server-verified complimentary entitlement.
   - `isSubscribed` checks for active entitlements across the standard Pro

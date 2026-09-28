@@ -476,7 +476,7 @@ import UIKit
             }
         } catch {
             MerianLog.general.debug(
-                "Failed to fetch RevenueCat offerings; kind=\(MerianLog.errorKind(error), privacy: .public)"
+                "Failed to fetch RevenueCat offerings; \(RevenueCatOfferingDiagnosticPolicy.summary(for: error), privacy: .public)"
             )
         }
     }

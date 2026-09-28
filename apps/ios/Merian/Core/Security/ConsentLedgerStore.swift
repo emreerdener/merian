@@ -8,6 +8,32 @@ protocol ConsentLedgerStoring: AnyObject {
     func clearAnalyticsRevocationIntentData() throws
 }
 
+enum ConsentLedgerStoreFactory {
+    static func makeDefault() -> any ConsentLedgerStoring {
+        #if DEBUG
+        if TestExecutionCoordinator.isRunningUITests {
+            return InMemoryConsentLedgerStore()
+        }
+        #endif
+        return DurableConsentLedgerStore()
+    }
+}
+
+#if DEBUG
+/// UI-test approvals and withdrawal journals must not survive the test process
+/// or read evidence belonging to an ordinary app launch.
+final class InMemoryConsentLedgerStore: ConsentLedgerStoring {
+    private var ledgerData: Data?
+    private var revocationIntentData: Data?
+
+    func loadLedgerData() throws -> Data? { ledgerData }
+    func saveLedgerData(_ data: Data) throws { ledgerData = data }
+    func loadAnalyticsRevocationIntentData() throws -> Data? { revocationIntentData }
+    func saveAnalyticsRevocationIntentData(_ data: Data) throws { revocationIntentData = data }
+    func clearAnalyticsRevocationIntentData() throws { revocationIntentData = nil }
+}
+#endif
+
 enum ConsentLedgerStorageError: LocalizedError {
     case ledgerReadFailed
     case ledgerWriteFailed

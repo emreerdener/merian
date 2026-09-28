@@ -212,11 +212,14 @@ keyed purchase-handoff, keyed Ghost-merge, keyed public-author-refresh,
 lifecycle replay, Apple credential-revalidation, Apple OAuth-completion,
 SDK-listener, and historical-synchronization tasks. `SupabaseManager` retains
 the lifecycle and history services plus the local-sign-out coordinator. The
-latter owns the retained single-flight task; its focused live adapter alone
-invalidates the local Supabase session. The lifecycle coordinator admits
-listener-driven purchase, entitlement, and historical-sync effects only while
-the exact manager-published user, nonexpired SDK session, Auth-event generation,
-and absence of an active Auth transition remain current after suspension. The
+history service coalesces foreground and listener triggers by exact published
+session and Auth generation; displaced tasks remain retained until completion so
+cancellation and teardown fences still apply. The local-sign-out coordinator
+owns its retained single-flight task; its focused live adapter alone invalidates
+the local Supabase session. The lifecycle coordinator admits listener-driven
+purchase, entitlement, and historical-sync effects only while the exact
+manager-published user, nonexpired SDK session, Auth-event generation, and
+absence of an active Auth transition remain current after suspension. The
 retained history service repeats that fence before each account-leased
 synchronization and cancels every outstanding task at facade teardown. Its
 `+Live` adapter is the reviewed Auth composition owner of
@@ -1057,12 +1060,16 @@ owners, rejects an endpoint entry point duplicated in the remaining aggregate,
 and applies the 600-line review ceiling to every Swift owner under `Auth/`,
 `Endpoints/`, `Inference/`, `Media/`, `Recovery/`, and `Transport/`, plus the
 client façade. The Auth inventory is exactly sixty-one production files; its
-source guard also caps Auth at 7,734 production lines, Purchase Identity at
-2,016, `SupabaseManager.swift` at 3,461, and the combined surface at 13,211. It
-freezes the effect-free observable runtime owner for transition, generation,
-analytics-token, exact-session lease/drain, and local sign-out state, the
-focused SDK listener/current-state adapter, historical-sync task owner,
-lifecycle diagnostics, and the live listener's
+source guard also caps Auth at 7,756 production lines, Purchase Identity at
+2,016, `SupabaseManager.swift` at 3,475, and the combined surface at 13,247. The
+September 2026 startup fix adds exactly 22 Auth lines and 14 façade lines for
+keyed foreground/listener coalescing and replacement fencing; the other limits
+and ownership checks remain unchanged. See the
+[startup investigation](../../../../../docs/incidents/2026-09-startup-log-triage.md).
+The guard freezes the effect-free observable runtime owner for transition,
+generation, analytics-token, exact-session lease/drain, and local sign-out
+state, the focused SDK listener/current-state adapter, historical-sync task
+owner, lifecycle diagnostics, and the live listener's
 generation/context/transition-observation order; the fallback-callback
 dependency/coordinator/diagnostics split; plus the bootstrap dependency package,
 coordinator, focused SDK service/live adapter, and diagnostics owner, and the

@@ -72,6 +72,15 @@ owner. The portable iOS workflow contract extracts every Debug seed marker from
 `UITesting/UITestSeedCoordinator.swift` and requires the Release archive
 denylist to match exactly.
 
+The required-consent UI fixture seeds at initialization and again when the
+consent manager adopts a nonnil account. Initial unowned receipts stop applying
+after account adoption, while test mode deliberately disables the cloud sync
+that would bind them. The App root observes the consent owner directly; Core
+does not call fixture code. Seeding still requires Debug, `UITesting=true`, and
+the existing consent seed argument, and its failure diagnostic contains only the
+error type. Debug UI-test consent storage is process-local; normal launches
+retain durable consent and every production readiness check.
+
 See the canonical
 [app lifecycle contract](../../../../docs/development-guides/02-app-lifecycle.md),
 [startup recovery contract](../../../../docs/backend-and-data/08-startup-store-recovery.md),

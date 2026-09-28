@@ -298,6 +298,18 @@ import Supabase
         }
     }
 
+    func syncHistoricalSessionForForeground() async {
+        guard let user = currentUser,
+              let session = transitionSession(from: user) else { return }
+        let generation = authSessionGeneration
+        let task = authHistoricalSessionSyncLiveService.schedule(
+            key: AuthHistoricalSessionSyncKey(session: session, authGeneration: generation)
+        ) { [weak self] in
+            self?.hasCurrentPublishedSession(user, expectedAuthGeneration: generation) ?? false
+        }
+        await task?.value
+    }
+
     private func hasCurrentPublishedSession(
         _ user: User,
         expectedAuthGeneration: UInt64? = nil,
@@ -813,7 +825,9 @@ import Supabase
                           transitionSession(from: sdkUser) == session else {
                         return
                     }
-                    authHistoricalSessionSyncLiveService.schedule { [weak self] in
+                    authHistoricalSessionSyncLiveService.schedule(
+                        key: AuthHistoricalSessionSyncKey(session: session, authGeneration: generation)
+                    ) { [weak self] in
                         self?.hasCurrentPublishedSession(
                             sdkUser,
                             expectedAuthGeneration: generation

@@ -15,6 +15,46 @@ final class PlanViewModelTests: XCTestCase {
         XCTAssertTrue(ComplimentaryPlanDetailContext.settings.showsDetails)
     }
 
+    func testOfferingsRetryRejectsOverlapAndCanRunAfterUnavailableResult() async {
+        var pendingFetch: CheckedContinuation<Void, Never>?
+        var fetchCount = 0
+        let viewModel = PaywallViewModel(
+            dependencies: makePaywallDependencies(fetchOfferings: {
+                fetchCount += 1
+                if fetchCount == 1 {
+                    await withCheckedContinuation { pendingFetch = $0 }
+                }
+            })
+        )
+
+        let initialFetch = Task { await viewModel.fetchOfferings() }
+        while pendingFetch == nil { await Task.yield() }
+        XCTAssertTrue(viewModel.isFetchingOfferings)
+        await viewModel.fetchOfferings()
+        XCTAssertEqual(fetchCount, 1)
+
+        // The provider completes without supplying plans. A user retry must
+        // become available again rather than leaving the loading gate stuck.
+        pendingFetch?.resume()
+        await initialFetch.value
+        XCTAssertFalse(viewModel.isFetchingOfferings)
+        await viewModel.fetchOfferings()
+        XCTAssertEqual(fetchCount, 2)
+        XCTAssertFalse(viewModel.isFetchingOfferings)
+    }
+
+    func testCancelledOfferingsTaskDoesNotStartProviderWork() async {
+        var fetchCount = 0
+        let viewModel = PaywallViewModel(
+            dependencies: makePaywallDependencies(fetchOfferings: { fetchCount += 1 })
+        )
+        let task = Task { await viewModel.fetchOfferings() }
+        task.cancel()
+        await task.value
+        XCTAssertEqual(fetchCount, 0)
+        XCTAssertFalse(viewModel.isFetchingOfferings)
+    }
+
     func testPaywallRestoreDismissesOnlyForActiveSubscription() async {
         var restoreCount = 0
         var isSubscribed = false
@@ -145,9 +185,7 @@ final class PlanViewModelTests: XCTestCase {
 
     private func makePaywallDependencies(
         fetchOfferings: @escaping @MainActor () async -> Void = {},
-        purchase: @escaping @MainActor (Package) async throws -> Void = {
-            _ in
-        },
+        purchase: @escaping @MainActor (Package) async throws -> Void = { _ in },
         restorePurchases: @escaping @MainActor () async throws -> Void = {},
         isSubscribed: @escaping @MainActor () -> Bool = { false },
         logPurchaseFailure: @escaping @MainActor (Error) -> Void = { _ in },

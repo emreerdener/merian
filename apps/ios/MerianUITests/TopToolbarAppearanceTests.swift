@@ -12,6 +12,10 @@ final class TopToolbarAppearanceTests: XCTestCase {
         )
         defer { app.terminate() }
 
+        let scansEntry = app.buttons["MainTabBar_Scans"]
+        if scansEntry.waitForExistence(timeout: 2), scansEntry.isHittable {
+            scansEntry.tap()
+        }
         let scans = app.segmentedControls.buttons["Scans"]
         XCTAssertTrue(scans.waitForExistence(timeout: 10))
         scans.tap()

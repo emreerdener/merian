@@ -182,7 +182,7 @@ struct PaywallView: View {
 
     @ViewBuilder
     private func planPicker(isCompact: Bool) -> some View {
-        if revenueCatManager.isFetchingOfferings && packages.isEmpty {
+        if (revenueCatManager.isFetchingOfferings || viewModel.isFetchingOfferings) && packages.isEmpty {
             VStack(spacing: 14) {
                 ProgressView()
                     .tint(.accentColor)
@@ -207,11 +207,18 @@ struct PaywallView: View {
                     .foregroundStyle(.primary)
 
                 Text(
-                    "Please check your connection or try restoring an existing purchase."
+                    "Check your connection and try again, or restore an existing purchase below."
                 )
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
+
+                Button("Try again") {
+                    Task { await viewModel.fetchOfferings() }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(!revenueCatManager.isPurchaseIdentityReady)
+                .accessibilityIdentifier("Paywall_RetryPlans")
             }
             .frame(maxWidth: .infinity, minHeight: isCompact ? 160 : 190)
             .padding(.horizontal, 22)

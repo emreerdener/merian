@@ -17,6 +17,10 @@ TestFlight, App Store, support, and QA.
 
 ### First-launch reliability
 
+- Retry unavailable Pro plans directly from the subscription screen.
+- Explore badges refresh when account setup finishes, and overlapping startup
+  history requests share one synchronization.
+
 - Browsing and sign-in become available after account setup without waiting for
   purchase synchronization. Explore and Identify retry initial loads interrupted
   by setup, reducing the need to close and reopen a fresh installation.

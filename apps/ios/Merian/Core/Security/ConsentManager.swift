@@ -91,7 +91,7 @@ final class ConsentManager {
     }
 
     convenience init() {
-        self.init(ledgerStore: DurableConsentLedgerStore())
+        self.init(ledgerStore: ConsentLedgerStoreFactory.makeDefault())
     }
 
     convenience init(userDefaults: UserDefaults) {

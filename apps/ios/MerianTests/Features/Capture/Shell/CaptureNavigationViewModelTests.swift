@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 
 @testable import Merian
@@ -5,6 +6,79 @@ import Testing
 @MainActor
 @Suite("Capture navigation view model")
 struct CaptureNavigationViewModelTests {
+    @Test("Auth readiness defers badge requests and retries when the session is usable")
+    func readinessDefersThenLoadsBadges() async {
+        let spy = CaptureNavigationSpy()
+        let viewModel = CaptureNavigationViewModel(dependencies: CaptureNavigationDependencies(
+            loadBadgeSnapshot: { value in
+                spy.requestedLastSeenValues.append(value)
+                return CaptureNavigationBadgeSnapshot(hasUnseenExternalPost: true, unreadNotificationCount: 1)
+            },
+            setHasUnseenExplorePost: { spy.unseenPostValues.append($0) },
+            performRouteFeedback: {}
+        ))
+        await viewModel.refreshBadges(lastSeenSharedAt: "pending", isAccountWorkAllowed: false)
+        #expect(spy.requestedLastSeenValues.isEmpty)
+        #expect(spy.unseenPostValues == [false])
+        await viewModel.refreshBadges(lastSeenSharedAt: "ready", isAccountWorkAllowed: true)
+        #expect(spy.requestedLastSeenValues == ["ready"])
+        #expect(spy.unseenPostValues == [false, true])
+    }
+
+    @Test("Closing account readiness fences a suspended badge result")
+    func readinessClosureFencesPendingRefresh() async {
+        let gate = CaptureNavigationBadgeGate()
+        let spy = CaptureNavigationSpy()
+        let viewModel = CaptureNavigationViewModel(dependencies: CaptureNavigationDependencies(
+            loadBadgeSnapshot: { await gate.load(key: $0) },
+            setHasUnseenExplorePost: { spy.unseenPostValues.append($0) },
+            performRouteFeedback: {}
+        ))
+        let pending = Task {
+            await viewModel.refreshBadges(lastSeenSharedAt: "old-session", isAccountWorkAllowed: true)
+        }
+        await gate.waitUntilStarted(key: "old-session")
+        await viewModel.refreshBadges(lastSeenSharedAt: "transition", isAccountWorkAllowed: false)
+        await gate.resume(key: "old-session", with: CaptureNavigationBadgeSnapshot(
+            hasUnseenExternalPost: true, unreadNotificationCount: 2
+        ))
+        await pending.value
+        #expect(spy.unseenPostValues == [false])
+        #expect(!viewModel.hasUnreadExploreNotifications)
+    }
+
+    @Test("Account replacement or readiness closure clears previously published badges")
+    func accountBoundaryClearsPublishedBadges() async {
+        for closesReadiness in [false, true] {
+            let firstOwner = UUID()
+            let nextOwner = closesReadiness ? firstOwner : UUID()
+            let spy = CaptureNavigationSpy()
+            spy.snapshots = [
+                CaptureNavigationBadgeSnapshot(hasUnseenExternalPost: true, unreadNotificationCount: 1),
+                CaptureNavigationBadgeSnapshot(hasUnseenExternalPost: false, unreadNotificationCount: nil)
+            ]
+            let viewModel = CaptureNavigationViewModel(dependencies: CaptureNavigationDependencies(
+                loadBadgeSnapshot: { _ in spy.nextSnapshot() },
+                setHasUnseenExplorePost: { spy.unseenPostValues.append($0) },
+                performRouteFeedback: {}
+            ))
+            await viewModel.refreshBadges(lastSeenSharedAt: "first", userID: firstOwner)
+            #expect(viewModel.hasUnreadExploreNotifications)
+            #expect(spy.unseenPostValues.last == true)
+            if closesReadiness {
+                await viewModel.refreshBadges(
+                    lastSeenSharedAt: "closed", userID: firstOwner, isAccountWorkAllowed: false
+                )
+                #expect(!viewModel.hasUnreadExploreNotifications)
+                #expect(spy.unseenPostValues.last == false)
+                #expect(spy.snapshots.count == 1)
+            }
+            await viewModel.refreshBadges(lastSeenSharedAt: "next", userID: nextOwner)
+            #expect(!viewModel.hasUnreadExploreNotifications)
+            #expect(spy.unseenPostValues.last == false)
+        }
+    }
+
     @Test("A badge snapshot updates both Explore badge sources atomically")
     func appliesBadgeSnapshot() async {
         let spy = CaptureNavigationSpy()
