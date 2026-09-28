@@ -31,8 +31,7 @@ final class AIProcessingConsentCoordinatorTests: XCTestCase {
         return (store, repository, mutation, coordinator)
     }
 
-    func testCollectionStaysClosedAndNeverCreatesImplicitOpenAIConsent() throws {
-        XCTAssertFalse(ConsentPolicy.openAIConsentCollectionEnabled)
+    func testDisabledCollectionNeverCreatesImplicitOpenAIConsent() throws {
         let (_, repository, mutation, coordinator) = harness()
         try mutation.setAIProcessingEnabled(true, processor: .gemini, ownerUserId: userId)
         coordinator.refresh(ownerUserId: userId)
@@ -42,7 +41,34 @@ final class AIProcessingConsentCoordinatorTests: XCTestCase {
         XCTAssertEqual(repository.ledger.aiConsentEvents.map(\.provider), [ConsentPolicy.geminiProvider])
     }
 
-    func testProviderChoicesAndCausalParentsRemainIndependent() throws {
+    func testCollectionRequiresExplicitGrantAndDoesNotClaimCloudReceipt() throws {
+        XCTAssertTrue(ConsentPolicy.openAIConsentCollectionEnabled)
+        let (_, repository, mutation, coordinator) = harness(
+            collectionEnabled: ConsentPolicy.openAIConsentCollectionEnabled
+        )
+        var syncCount = 0
+        coordinator.setHandlers(
+            contextProvider: { [userId] in
+                .init(observedUserId: userId, sdkUserId: userId, isAccountTransitionInProgress: false)
+            }, synchronize: { syncCount += 1 }
+        )
+        try mutation.setAIProcessingEnabled(true, processor: .gemini, ownerUserId: userId)
+        coordinator.refresh(ownerUserId: userId)
+        XCTAssertTrue(coordinator.canManageOpenAIPermission)
+        XCTAssertFalse(coordinator.hasGrantedOpenAI)
+        XCTAssertEqual(syncCount, 0)
+        XCTAssertEqual(repository.ledger.aiConsentEvents.map(\.provider), [ConsentPolicy.geminiProvider])
+
+        try coordinator.setOpenAIEnabled(true, expectedOwnerUserId: userId)
+        let grant = try XCTUnwrap(repository.ledger.aiConsentEvents.last)
+        XCTAssertEqual(grant.provider, ConsentPolicy.openAIProvider)
+        XCTAssertNil(grant.recordedAt)
+        XCTAssertNil(grant.syncedUserId)
+        XCTAssertTrue(coordinator.hasGrantedOpenAI)
+        XCTAssertEqual(syncCount, 1)
+    }
+
+    func testProviderPermissionsAndCausalParentsRemainIndependent() throws {
         let (_, repository, mutation, coordinator) = harness(collectionEnabled: true)
         try mutation.setAIProcessingEnabled(true, processor: .gemini, ownerUserId: userId)
         let geminiGrant = try XCTUnwrap(repository.ledger.aiConsentEvents.last)
@@ -110,8 +136,12 @@ final class AIProcessingConsentCoordinatorTests: XCTestCase {
         ] {
             coordinator.setHandlers(
                 contextProvider: { context }, synchronize: { XCTFail("stale context synchronized") })
+            XCTAssertFalse(coordinator.hasCurrentAccount)
+            XCTAssertFalse(coordinator.canManageOpenAIPermission)
             XCTAssertThrowsError(try coordinator.setOpenAIEnabled(true, expectedOwnerUserId: userId))
         }
+        coordinator.setHandlers(contextProvider: { nil }, synchronize: {})
+        XCTAssertFalse(coordinator.canManageOpenAIPermission)
         XCTAssertTrue(repository.ledger.aiConsentEvents.isEmpty)
         coordinator.refresh(ownerUserId: otherId)
         XCTAssertFalse(coordinator.hasGrantedOpenAI)
@@ -139,6 +169,7 @@ final class AIProcessingConsentCoordinatorTests: XCTestCase {
         XCTAssertThrowsError(try coordinator.setOpenAIEnabled(false, expectedOwnerUserId: userId))
         XCTAssertFalse(coordinator.hasGrantedOpenAI)
         XCTAssertTrue(coordinator.hasPendingOpenAIWithdrawal)
+        XCTAssertTrue(coordinator.canManageOpenAIPermission)
         store.failLedgerWrites = false
         try coordinator.setOpenAIEnabled(false, expectedOwnerUserId: userId)
         XCTAssertFalse(coordinator.hasPendingOpenAIWithdrawal)

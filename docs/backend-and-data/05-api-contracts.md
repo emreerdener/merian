@@ -111,16 +111,16 @@ runs before entitlement selection and provider-counter reservation, so this
 included Pro scan or daily Flash allowance. Provider-admission failures remain
 distinct:
 
-| HTTP | Code                                  | Meaning and required client behavior                                                                                                                                                                                                                                             |
-| ---: | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-|  403 | `ai_consent_required`                 | Disclosure-policy transition. Preserve queued media, stop automatic inference retry, and require fresh authoritative consent.                                                                                                                                                    |
-|  403 | `ai_openai_consent_required`          | Identification requires permission for its app-assigned OpenAI recipient. Preserve the saved scan and funding in needs-attention, stop automatic inference retry, and do not reopen Gemini onboarding or select another provider. OpenAI permission collection remains disabled. |
-|  409 | `ai_identification_preflight_changed` | The app-assigned recipient changed after the client's check. Preserve the observation and rerun preflight; do not blindly retry, grant permission, or select another provider.                                                                                                   |
-|  400 | `ai_identification_preflight_invalid` | The recipient expectation header is invalid. Stop inference and correct the request; do not retry through an older admission path.                                                                                                                                               |
-|  402 | `pro_required`                        | The requested capability has no valid paid/included/fallback entitlement. Present the existing upgrade path.                                                                                                                                                                     |
-|  429 | `ai_quota_daily_exceeded`             | The applicable daily provider allowance is exhausted. Preserve the queued retry and honor `Retry-After`; live Capture replaces Insight with the existing paywall instead of synthesizing a result placeholder. Do not route to consent.                                          |
-|  429 | `ai_user_rate_limit_exceeded`         | Temporary per-user request-rate protection. Use bounded retry.                                                                                                                                                                                                                   |
-|  429 | `ai_ip_rate_limit_exceeded`           | Temporary per-network request-rate protection. Use bounded retry.                                                                                                                                                                                                                |
+| HTTP | Code                                  | Meaning and required client behavior                                                                                                                                                                                                                                                                                                                                  |
+| ---: | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+|  403 | `ai_consent_required`                 | Disclosure-policy transition. Preserve queued media, stop automatic inference retry, and require fresh authoritative consent.                                                                                                                                                                                                                                         |
+|  403 | `ai_openai_consent_required`          | Identification requires permission for its app-assigned OpenAI recipient. Preserve the saved scan and funding in needs-attention, stop automatic inference retry, and do not reopen Gemini onboarding or select another provider. Offer in-app permission review, then a separate eligible retry after a local grant; dispatch still requires synchronized authority. |
+|  409 | `ai_identification_preflight_changed` | The app-assigned recipient changed after the client's check. Preserve the observation and rerun preflight; do not blindly retry, grant permission, or select another provider.                                                                                                                                                                                        |
+|  400 | `ai_identification_preflight_invalid` | The recipient expectation header is invalid. Stop inference and correct the request; do not retry through an older admission path.                                                                                                                                                                                                                                    |
+|  402 | `pro_required`                        | The requested capability has no valid paid/included/fallback entitlement. Present the existing upgrade path.                                                                                                                                                                                                                                                          |
+|  429 | `ai_quota_daily_exceeded`             | The applicable daily provider allowance is exhausted. Preserve the queued retry and honor `Retry-After`; live Capture replaces Insight with the existing paywall instead of synthesizing a result placeholder. Do not route to consent.                                                                                                                               |
+|  429 | `ai_user_rate_limit_exceeded`         | Temporary per-user request-rate protection. Use bounded retry.                                                                                                                                                                                                                                                                                                        |
+|  429 | `ai_ip_rate_limit_exceeded`           | Temporary per-network request-rate protection. Use bounded retry.                                                                                                                                                                                                                                                                                                     |
 
 ### Scan admission preview RPC
 
@@ -400,13 +400,24 @@ later generic cleanup cannot replace this policy. Unknown codes and other HTTP
 statuses do not gain consent semantics. A late or superseded completion cannot
 pause a replacement attempt.
 
-This slice exposes no new permission prompt or provider selector. The OpenAI
-collection flag remains false, paused UI offers no retry action or hidden
-Settings destination, and no consent event is created by a denial. Activation
-still requires recipient-aware preflight and supported client-version gating,
-qualification of the exact model/input profile, model admission and provenance,
-and an explicit permission-collection rollout. A consent receipt or a catalog
-row alone cannot enable OpenAI.
+The optional permission-collection source flag is now true. A paused scan can
+open the same in-app disclosure as Settings through **Review permission** when
+the observed and SDK account match its permission owner outside a transition,
+and the saved job retains dispatchable funding for that account and scan. A
+denial or canceled disclosure creates no grant. Explicit grant/withdrawal uses
+the existing immutable ledger; an unsaved change is never reported as saved.
+Saving a local grant does not start inference. It exposes a separate **Retry
+now** for an eligible online scan, which follows existing consent
+synchronization and fresh recipient preflight. Account/scan replacement closes
+stale disclosure presentation, and mutation/dispatch retain their own account
+checks.
+
+Production OpenAI dispatch remains source-disabled and assignments remain
+Gemini. Recipient-aware preflight, client-version gating, model admission and
+provenance are implemented; compatible-reader distribution and qualification of
+the exact production photo binding still precede activation. A consent receipt
+or a catalog row alone cannot enable OpenAI. See the
+[photo rollout](../rfcs/identification-openai-photo-rollout-2026-09-28.md).
 
 ## Fleet-Wide Outbound Provider Contract
 
@@ -2637,11 +2648,12 @@ durable recovery prepare a new request with a fresh preflight. Permission and
 `426 client_update_required` denials pause the saved scan without recording a
 network circuit failure. A late local withdrawal after background activation
 must save needs-attention before releasing its durable owner. These controls
-cannot choose another provider or collect permission. Existing required Gemini
-onboarding/synchronization, native protocol 3 and disabled OpenAI collection
-remain in place; this is not an OpenAI activation path. Confidence
-interpretation and deliberate permission collection remain separate
-prerequisites. Deploy the additive backend contract before distributing a native
+cannot choose another provider or implicitly collect permission. Optional OpenAI
+collection is now exposed separately in Settings and paused-scan recovery;
+required Gemini onboarding/synchronization remains in place. The dormant photo
+connection advertises identification capability 4 independently of entitlement
+protocol 3. Preflight is not an activation path or evidence of model
+qualification. Deploy the additive backend contract before distributing a native
 build that requires it. See the
 [native implementation record](../rfcs/identification-native-recipient-preflight-2026-09-26.md).
 

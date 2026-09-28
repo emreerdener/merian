@@ -9,6 +9,7 @@ import SwiftUI
 struct QueuedContentView: View {
     @Environment(OfflineQueueManager.self) private var offlineQueueManager
     @Environment(InferenceEngine.self) private var inferenceEngine
+    @Environment(ConsentManager.self) private var consentManager
     @Environment(\.modelContext) private var modelContext
     @Bindable var viewModel: InsightSheetViewModel
 
@@ -16,6 +17,7 @@ struct QueuedContentView: View {
     @State private var operationViewModel: QueuedContentViewModel
     @State private var phaseIndex = 0
     @State private var retryReferenceDate = Date()
+    @State private var isShowingAIPrivacy = false
 
     init(
         viewModel: InsightSheetViewModel,
@@ -80,6 +82,17 @@ struct QueuedContentView: View {
         return scanningPhasePhrases[phaseIndex % scanningPhasePhrases.count]
     }
 
+    private var openAIPermission: QueuedRetryPresentation.OpenAIPermission {
+        guard queuedContext.queueLastErrorCode == "ai_openai_consent_required" else { return .unavailable }
+        let permission = consentManager.aiProcessingPermissions
+        guard permission.canManageOpenAIPermission,
+            let accountId = permission.ownerUserId,
+            offlineQueueManager.ownsOpenAIConsentPausedScan(
+                scanId: queuedContext.id, accountId: accountId
+            ) else { return .unavailable }
+        return permission.hasGrantedOpenAI ? .granted : .needsReview
+    }
+
     private var retryPresentation: QueuedRetryPresentation? {
         QueuedRetryPresentation.resolve(
             queueState: queuedContext.queueState,
@@ -88,7 +101,8 @@ struct QueuedContentView: View {
             needsAttention: queuedContext.queueNeedsAttention,
             canRetryNow: queuedContext.canRetryNow,
             isOnline: offlineQueueManager.isOnline,
-            now: retryReferenceDate
+            now: retryReferenceDate,
+            openAIPermission: openAIPermission
         )
     }
 
@@ -156,6 +170,13 @@ struct QueuedContentView: View {
                     },
                     onViewPlans: {
                         viewModel.state.showPaywall = true
+                    },
+                    onReviewOpenAIPermission: {
+                        guard self.retryPresentation?.action == .reviewOpenAIPermission,
+                            viewModel.isPresentingScan(
+                                scanId: queuedContext.id, generation: queuedGeneration
+                            ) else { return }
+                        isShowingAIPrivacy = true
                     }
                 )
             }
@@ -175,6 +196,19 @@ struct QueuedContentView: View {
             }
         }
         #endif
+        .sheet(isPresented: $isShowingAIPrivacy) {
+            AIProcessingPrivacySheet()
+                .environment(consentManager)
+        }
+        .onChange(of: viewModel.scanBoundActionGeneration) { _, _ in
+            isShowingAIPrivacy = false
+        }
+        .onChange(of: consentManager.aiProcessingPermissions.ownerUserId) { _, _ in
+            isShowingAIPrivacy = false
+        }
+        .onChange(of: consentManager.aiProcessingPermissions.hasCurrentAccount) { _, hasCurrentAccount in
+            if !hasCurrentAccount { isShowingAIPrivacy = false }
+        }
         .task(id: queuedContext.id) {
             operationViewModel.scheduleNextPersistedWake(
                 using: offlineQueueManager
@@ -239,6 +273,7 @@ private extension QueuedContentView {
     func retryQueuedScanNow(expectedGeneration: UInt64) {
         let scanId = queuedContext.id
         guard !isRetrying,
+              retryPresentation?.action == .retryNow,
               viewModel.isPresentingScan(
                   scanId: scanId,
                   generation: expectedGeneration

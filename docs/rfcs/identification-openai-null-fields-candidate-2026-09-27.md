@@ -1,10 +1,10 @@
 # OpenAI explicit-null prompt candidate
 
 Date: 27 September 2026\
-Status: Candidate and controlled evaluator implemented; complete local backend
-checks and independent contract/documentation review passed. Required PR
-candidate validation and a bounded live comparison remain ahead. No live
-candidate comparison or production activation has occurred.
+Status: Experiment closed inconclusive on 28 September before any candidate
+request. Retain the original prompt; no production activation. The
+implementation and original verification record below remain historical
+evidence; see the closeout at the end of this document.
 
 ## Decision and scope
 
@@ -134,3 +134,17 @@ the candidate is unhelpful; no parameter sweep or automatic promotion follows.
 Close this optimization decision before planning OpenAI audio. Permission
 collection, production qualification/activation and iOS distribution remain
 separate work.
+
+## Experiment closeout — 28 September 2026
+
+The final bounded run stopped during baseline explanation review: the available
+review references could not assess all material claims. No candidate request
+ran, so there is no paired quality, latency or cost result for this prompt
+change. The result is **inconclusive**, not evidence of a regression or an
+improvement. Keep `openai_photo_text_v1` and the original production prompt. Do
+not resume unused assignments or automatically replace failed runs.
+
+Private review reports retain the per-attempt evidence; no provider response
+text is copied into this record. The owner chose to complete the
+[photo rollout](./identification-openai-photo-rollout-2026-09-28.md) before any
+further prompt optimization. The existing Gemini/OpenAI benchmark is unchanged.

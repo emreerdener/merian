@@ -70,6 +70,8 @@ private extension QueuedScanContext {
     }
     .transparentTopToolbar()
     .environment(manager)
+    .environment(QueuedContentDependencies.previewInferenceEngine)
+    .environment(QueuedContentDependencies.previewConsentManager)
 }
 
 #Preview("Queued — offline") {
@@ -85,5 +87,7 @@ private extension QueuedScanContext {
     }
     .transparentTopToolbar()
     .environment(manager)
+    .environment(QueuedContentDependencies.previewInferenceEngine)
+    .environment(QueuedContentDependencies.previewConsentManager)
 }
 #endif

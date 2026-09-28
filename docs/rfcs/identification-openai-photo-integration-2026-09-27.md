@@ -2,8 +2,9 @@
 
 Date: 27 September 2026\
 Status: dormant photo routing, native capability, safety, V2 metadata,
-saved-result usage integration and result-reader checks implemented; production
-remains Gemini.
+saved-result usage integration and result-reader checks implemented. Optional
+permission collection/recovery follows on 28 September; production remains
+Gemini.
 
 ## Decision
 
@@ -368,3 +369,15 @@ Independent safety and contract review verified rejection precedence and aligned
 V2 identifier patterns and task vocabulary across Deno, SQL and Swift. Hosted
 checks for this new slice are separate evidence; no live provider requests or
 hosted mutations were performed.
+
+## Photo rollout resumed — 28 September 2026
+
+The owner resumed photo rollout before further optimization. The
+[rollout record](./identification-openai-photo-rollout-2026-09-28.md) supersedes
+the deferred-permission sequence above: optional collection and saved-scan
+permission recovery are now implemented in source. This does not establish a
+released iOS build or activate the provider. Retain the original OpenAI prompt;
+the explicit-null experiment closed inconclusive without a candidate call.
+Completed six-photo Gemini/OpenAI evidence stays frozen. Finish compatible
+reader distribution and qualification of the exact production binding before
+requesting the concrete production activation.

@@ -235,8 +235,10 @@ production submission or public release.
   adds exact database assignment and per-attempt evidence while production stays
   on Gemini. The subsequent
   [independent OpenAI consent slice](./rfcs/identification-provider-openai-consent-2026-09-26.md)
-  implements separate permission evidence, causal withdrawal and a
-  source-disabled Settings flow. Gemini remains required for current onboarding
+  implements separate permission evidence and causal withdrawal. The
+  [photo rollout](./rfcs/identification-openai-photo-rollout-2026-09-28.md)
+  enables optional collection and saved-scan permission recovery in source
+  before production activation. Gemini remains required for current onboarding
   and inference. The subsequent
   [durable provenance slice](./rfcs/identification-provider-result-provenance-2026-09-26.md)
   preserves each saved Gemini result's configuration, and the
@@ -247,8 +249,9 @@ production submission or public release.
   and pauses saved observations on permission or client-version denial.
   [Client result provenance](./rfcs/identification-client-result-provenance-2026-09-26.md)
   preserves execution configuration in owner results and V52 local storage, with
-  neutral confidence presentation for unknown profiles. Provider qualification,
-  deliberate permission collection and rollout remain ahead.
+  neutral confidence presentation for unknown profiles. Compatible-client
+  distribution, exact production-profile qualification and activation remain
+  ahead.
 - **[Identification optimization while preserving current results](./rfcs/identification-optimization-preserving-results-2026-09-27.md):**
   Current plan following verified completion of the provider infrastructure
   milestone. Preserve explanation format and detail while investigating
@@ -262,8 +265,10 @@ production submission or public release.
   preserves context and explanation format. The
   [candidate implementation](./rfcs/identification-openai-null-fields-candidate-2026-09-27.md)
   adds a separate photo-only v4 experiment with unchanged baselines and
-  automatic caching. A fresh six-photo/twelve-call comparison remains ahead of
-  audio work. Production remains Gemini. The
+  automatic caching. The 28 September comparison closed inconclusive before any
+  candidate call because baseline explanation review was not assessable. Retain
+  the original prompt and complete the photo rollout before more prompt
+  experiments or OpenAI audio. Production remains Gemini. The
   [earlier provider optimization plan](./rfcs/identification-provider-optimization-plan.md)
   retains implemented measurement and experiment controls. Its
   [26 September concise screen](./rfcs/identification-openai-concise-screen-2026-09-26.md)

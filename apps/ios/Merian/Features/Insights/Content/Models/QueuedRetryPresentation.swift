@@ -4,6 +4,14 @@ struct QueuedRetryPresentation: Equatable {
     enum Action: Equatable {
         case retryNow
         case viewPlans
+        case reviewOpenAIPermission
+    }
+
+    /// Local permission only. Explicit retry still synchronizes consent and runs server preflight.
+    enum OpenAIPermission {
+        case unavailable
+        case needsReview
+        case granted
     }
 
     let message: String
@@ -16,11 +24,17 @@ struct QueuedRetryPresentation: Equatable {
         needsAttention: Bool,
         canRetryNow: Bool,
         isOnline: Bool,
-        now: Date
+        now: Date,
+        openAIPermission: OpenAIPermission = .unavailable
     ) -> QueuedRetryPresentation? {
         let requiresAttention = needsAttention || queueState == .failed
         if requiresAttention {
             let category = reasonCategory(for: errorCode)
+            if category == .openAIConsent {
+                return openAIConsentPresentation(
+                    permission: openAIPermission, canRetryNow: canRetryNow, isOnline: isOnline
+                )
+            }
             return QueuedRetryPresentation(
                 message: category.message,
                 action: attentionAction(
@@ -56,6 +70,28 @@ struct QueuedRetryPresentation: Equatable {
             ].joined(separator: " "),
             action: canRetryNow ? .retryNow : nil
         )
+    }
+
+    private static func openAIConsentPresentation(
+        permission: OpenAIPermission, canRetryNow: Bool, isOnline: Bool
+    ) -> QueuedRetryPresentation {
+        switch permission {
+        case .unavailable:
+            QueuedRetryPresentation(message: ReasonCategory.openAIConsent.message, action: nil)
+        case .needsReview:
+            QueuedRetryPresentation(
+                message: ReasonCategory.openAIConsent.message, action: .reviewOpenAIPermission
+            )
+        case .granted:
+            QueuedRetryPresentation(
+                message: "Your OpenAI permission is saved on this device. " + (
+                    !isOnline ? "Connect to the internet to retry."
+                        : canRetryNow ? "Tap Retry now to continue this saved scan."
+                        : "This scan remains saved and paused."
+                ),
+                action: isOnline && canRetryNow ? .retryNow : nil
+            )
+        }
     }
 
     private enum ReasonCategory: Equatable {

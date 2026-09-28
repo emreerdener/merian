@@ -3446,16 +3446,19 @@ shutdown, publishes synchronization merges and restoration state, applies SDK
 permission, and drains account-bound work before Auth replacement.
 `ConsentLedgerStore` remains the raw durable-byte boundary.
 
-`AIProcessingConsentCoordinator` independently presents optional OpenAI choices
-and validates the dialog's expected account against observed and SDK identity,
-transition state and cancellation. The source collection gate remains closed.
-Any-version historic grants remain withdrawable; successful changes use verified
-ledger persistence before the existing synchronization pipeline. Its display
-state is not cloud authorization and never satisfies required Gemini onboarding.
-`ConsentRemoteMapping` owns the extracted pure mapping helpers; the live adapter
-adds the fixed OpenAI append RPC and a separate provider-head read. Required
-consent restoration and inference admission remain Gemini-only until a later
-reviewed provider rollout.
+`AIProcessingConsentCoordinator` independently presents optional OpenAI
+permissions and validates the dialog's expected account against observed and SDK
+identity, transition state and cancellation. Source collection is enabled before
+provider activation. Its availability projection uses the same account checks;
+Settings and saved-scan recovery share the disclosure. Any-version historic
+grants remain withdrawable if collection closes again. Successful changes use
+verified ledger persistence before the existing synchronization pipeline. Its
+display state is not cloud authorization and never satisfies required Gemini
+onboarding. A local grant allows an explicit eligible retry, never automatic
+resumption or provider selection. `ConsentRemoteMapping` owns the extracted pure
+mapping helpers; the live adapter adds the fixed OpenAI append RPC and a
+separate provider-head read. Required consent restoration and inference
+admission remain Gemini-only until a later reviewed provider rollout.
 
 - `ensureCloudConsentForInference()` is the new-account and returning-account
   provider gate exposed by the facade and implemented by

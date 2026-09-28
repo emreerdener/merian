@@ -2,9 +2,9 @@
 
 This package owns the value, deterministic policy, focused local-persistence,
 and cloud boundaries for Merian's versioned adult, Terms, Google Gemini, and
-optional PostHog consent system, plus independent, source-disabled OpenAI
-consent collection. It is part of [Core Security](../README.md), not a
-feature-owned presentation layer.
+optional PostHog consent system, plus independent OpenAI consent collection. It
+is part of [Core Security](../README.md), not a feature-owned presentation
+layer.
 
 ## Boundaries
 
@@ -211,19 +211,27 @@ Release readiness remains governed separately by
 
 ## Optional OpenAI permission
 
-`ConsentPolicy.openAIConsentCollectionEnabled` remains `false`. Onboarding and
-all current inference still require Gemini. `AIProcessingPrivacySection` is
-hidden without OpenAI history, but any-version historic grant remains visible
-for withdrawal. Opening the disclosure captures the expected owner; account
-replacement, SDK mismatch, transition or cancellation rejects the action.
+`ConsentPolicy.openAIConsentCollectionEnabled` is `true`; optional permission
+collection precedes provider activation. Onboarding and current production
+inference still require Gemini. `AIProcessingPrivacySection` is available in
+Settings and in the saved-scan **Review permission** sheet. Naturebook owns
+provider assignment; granting permission neither selects OpenAI nor retries a
+scan. Account availability is projected from the same observed/SDK identity and
+transition checks used at mutation. Opening the disclosure captures the expected
+owner; account replacement, SDK mismatch, transition or cancellation rejects the
+action. Existing grants remain withdrawable if collection is later disabled.
 Successful offline actions persist in the existing ledger and later synchronize
 in causal order. Failed writes show an unsaved error; failed withdrawal closes
 the local choice for this process and stays retryable, without claiming durable
 revocation across restart. The existing separate Keychain withdrawal journal
 remains PostHog-only. OpenAI evidence never becomes Gemini required proof.
 
-`AIProcessingConsentCoordinatorTests` covers independent choices and parents,
-closed collection, historic withdrawal, account/dialog cancellation, persistence
-failures and ownership rebinding. The remote tests cover fixed OpenAI dispatch,
-cross-provider ambiguous-write rejection and owner-scoped head mapping. See the
+`AIProcessingConsentCoordinatorTests` covers explicit collection without an
+implicit grant or cloud receipt, independent permissions and parents, closed
+collection, historic withdrawal, account/dialog cancellation, persistence
+failures and ownership rebinding. A local grant only makes explicit retry
+available; the existing inference path synchronizes consent and performs fresh
+recipient preflight before dispatch. The remote tests cover fixed OpenAI
+dispatch, cross-provider ambiguous-write rejection and owner-scoped head
+mapping. See the
 [implementation and remaining rollout work](../../../../../../docs/rfcs/identification-provider-openai-consent-2026-09-26.md).

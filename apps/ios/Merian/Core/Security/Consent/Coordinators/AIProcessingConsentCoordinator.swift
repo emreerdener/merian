@@ -1,7 +1,7 @@
 import Foundation
 import Observation
 
-/// Optional processor preferences, not authorization to dispatch an AI request.
+/// Optional processor permissions, not authorization to dispatch an AI request.
 /// ConsentManager retains the required Gemini onboarding and inference gate.
 @MainActor
 @Observable
@@ -20,6 +20,18 @@ final class AIProcessingConsentCoordinator {
     let isOpenAICollectionEnabled: Bool
 
     var showsOpenAIChoice: Bool { isOpenAICollectionEnabled || hasOpenAIHistory }
+
+    var hasCurrentAccount: Bool {
+        guard let ownerUserId, let context = contextProvider() else { return false }
+        return context.observedUserId == ownerUserId
+            && context.sdkUserId == ownerUserId
+            && !context.isAccountTransitionInProgress
+    }
+
+    var canManageOpenAIPermission: Bool {
+        hasCurrentAccount
+            && (isOpenAICollectionEnabled || hasOpenAIGrantToWithdraw || hasPendingOpenAIWithdrawal)
+    }
 
     @ObservationIgnored private let repository: ConsentLedgerRepository
     @ObservationIgnored private let mutationService: ConsentMutationService
@@ -66,10 +78,7 @@ final class AIProcessingConsentCoordinator {
     func setOpenAIEnabled(_ enabled: Bool, expectedOwnerUserId: UUID?) throws {
         guard !Task.isCancelled,
             let expectedOwnerUserId, expectedOwnerUserId == ownerUserId,
-            let context = contextProvider(),
-            context.observedUserId == expectedOwnerUserId,
-            context.sdkUserId == expectedOwnerUserId,
-            !context.isAccountTransitionInProgress
+            hasCurrentAccount
         else {
             throw ConsentHandoffError.activeAccountChanged
         }

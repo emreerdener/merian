@@ -9513,16 +9513,25 @@ comparison must have its own frozen V2 input/settings plan.
 
 ## Independent OpenAI consent infrastructure
 
-The source-disabled optional OpenAI flow uses the existing consent lifecycle and
-local simulator gate; no provider key or paid inference is required.
-`AIProcessingConsentCoordinatorTests` covers closed collection, independent
+The optional OpenAI collection and saved-scan permission flow uses the existing
+consent lifecycle and local simulator gate; no provider key or paid inference is
+required. `AIProcessingConsentCoordinatorTests` covers explicit collection
+without an implicit grant/cloud receipt, closed collection, independent
 Gemini/OpenAI parents, withdrawal of current and older grants, stale dialogs,
 SDK mismatch, transitions, cancellation, durable save failure and account
-rebinding. `ConsentRemoteOpenAITests.swift` extends `ConsentRemoteServiceTests`
-with fixed-recipient dispatch, cross-provider ambiguous-write rejection and
-owner-scoped head mapping. Run the complete `merianTests` target through
-`make ios-local-build`, plus generated project/privacy validation, after
-changes.
+rebinding. `InsightQueuedRetryPresentationTests` covers unavailable account,
+offline review, local permission and explicit retry eligibility.
+`OfflineQueueOpenAIPermissionTests` verifies the durable scan/funding owner,
+missing or released funding, withdrawal and account transitions before retry
+mutation. The runtime-audit manifest includes these suites and
+`testOpenAIPermissionReviewPreservesPausedScanAndRequiresExplicitRetry`: the
+Debug-only synthetic ledger/UI fixture verifies cancel, grant, withdrawal and
+retention of the paused scan without a provider call. Saving permission alone
+must never start inference. `ConsentRemoteOpenAITests.swift` extends
+`ConsentRemoteServiceTests` with fixed-recipient dispatch, cross-provider
+ambiguous-write rejection and owner-scoped head mapping. Run the complete
+`merianTests` target through `make ios-local-build`, plus generated
+project/privacy validation, after changes.
 
 `openAIConsentMigrationContract.test.ts` is discovered by the migration gate.
 The disposable `openai_consent_security.sql` catalog covers role ACLs,

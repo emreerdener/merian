@@ -105,7 +105,12 @@ import SwiftUI
     var supabaseManager = SupabaseManager.shared
     
     // MARK: - Dependencies (Analytics & Security)
-    var consentManager = ConsentManager.shared
+    var consentManager: ConsentManager = {
+        #if DEBUG
+        if let fixture = UITestSeedCoordinator.openAIPermissionConsentManager() { return fixture }
+        #endif
+        return ConsentManager.shared
+    }()
     var revenueCatManager = RevenueCatManager.shared
     var entitlementManager = EntitlementManager.shared
     var scanAdmissionManager = ScanAdmissionManager.shared

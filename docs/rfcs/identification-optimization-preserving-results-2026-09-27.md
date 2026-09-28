@@ -239,3 +239,13 @@ candidate leaves the baseline in place; it does not automatically start another
 paid parameter sweep. Production adoption, permission collection and release
 retain their separate gates. BioCLIP, custom-model training and family plans are
 outside this milestone.
+
+## Sequence update — 28 September 2026
+
+The explicit-null comparison closed inconclusive at baseline review, before any
+candidate request. Keep the original prompt and explanation format. The owner
+resumed the [photo rollout](./identification-openai-photo-rollout-2026-09-28.md)
+before additional optimization or OpenAI audio evaluation. Do not restart the
+closed experiment or repeat the completed no-note Gemini/OpenAI benchmark.
+Qualification of the exact production photo binding remains separate from those
+exploratory comparisons.

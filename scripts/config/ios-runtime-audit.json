@@ -272,6 +272,27 @@
         "Map preferences"
       ],
       "owner": "apps/ios/MerianTests/Core/Preferences/MapPreferencesTests.swift"
+    },
+    {
+      "selector": "merianTests/AIProcessingConsentCoordinatorTests",
+      "suite_names": [
+        "AIProcessingConsentCoordinatorTests"
+      ],
+      "owner": "apps/ios/MerianTests/Core/Security/Consent/AIProcessingConsentCoordinatorTests.swift"
+    },
+    {
+      "selector": "merianTests/InsightQueuedRetryPresentationTests",
+      "suite_names": [
+        "InsightQueuedRetryPresentationTests"
+      ],
+      "owner": "apps/ios/MerianTests/Features/Insights/Content/InsightQueuedRetryPresentationTests.swift"
+    },
+    {
+      "selector": "merianTests/OfflineQueueOpenAIPermissionTests",
+      "suite_names": [
+        "OfflineQueueOpenAIPermissionTests"
+      ],
+      "owner": "apps/ios/MerianTests/Core/Data/OfflineSync/OfflineQueueOpenAIPermissionTests.swift"
     }
   ],
   "ui": [
@@ -329,6 +350,13 @@
       "suite_names": [
         "merianUITests"
       ]
+    },
+    {
+      "selector": "merianUITests/merianUITests/testOpenAIPermissionReviewPreservesPausedScanAndRequiresExplicitRetry",
+      "suite_names": [
+        "merianUITests"
+      ],
+      "owner": "apps/ios/MerianUITests/merianUITests.swift"
     }
   ],
   "performance": [

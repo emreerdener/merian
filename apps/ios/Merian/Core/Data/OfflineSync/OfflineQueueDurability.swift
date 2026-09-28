@@ -263,7 +263,9 @@ extension OfflineQueueManager {
     }
 
     @discardableResult
-    func retryQueuedScanNow(scanId: String) -> Bool {
+    func retryQueuedScanNow(
+        scanId: String, openAIPermission: AIProcessingConsentCoordinator? = nil
+    ) -> Bool {
         guard let context = modelContext else { return false }
         var descriptor = FetchDescriptor<OfflineQueuedScan>(
             predicate: #Predicate { $0.id == scanId }
@@ -287,6 +289,15 @@ extension OfflineQueueManager {
         guard scan.queueState != .externalImport else { return false }
         guard appUpdateCoordinator?.blocksRetry(errorCode: scan.queueLastErrorCode) != true,
               appUpdateCoordinator?.blocksRetry(errorCode: job?.lastErrorCode) != true else { return false }
+
+        if scan.queueLastErrorCode == "ai_openai_consent_required"
+            || job?.lastErrorCode == "ai_openai_consent_required" {
+            let permission = openAIPermission ?? AppDIContainer.shared.consentManager.aiProcessingPermissions
+            guard permission.hasCurrentAccount, permission.hasGrantedOpenAI,
+                let accountId = permission.ownerUserId,
+                ownsOpenAIConsentPausedScan(scanId: scanId, accountId: accountId)
+            else { return false }
+        }
 
         let snapshot = scan.capturedMediaSnapshot
         var newlyClaimedFunding: ScanFundingReservation?
@@ -579,11 +590,6 @@ extension OfflineQueueManager {
         scanId: String,
         in context: ModelContext
     ) throws -> OfflineJobRecord? {
-        let jobId = Self.scanIngestionJobId(scanId: scanId)
-        var descriptor = FetchDescriptor<OfflineJobRecord>(
-            predicate: #Predicate { $0.id == jobId }
-        )
-        descriptor.fetchLimit = 1
-        return try context.fetch(descriptor).first
+        try context.fetchOfflineJob(id: Self.scanIngestionJobId(scanId: scanId))
     }
 }

@@ -5,6 +5,27 @@ import UIKit
 #endif
 
 extension OfflineQueueManager {
+    /// Local library visibility is not authority to resend another account's media.
+    /// Both permission presentation and durable retry use this retained owner proof.
+    func ownsOpenAIConsentPausedScan(scanId: String, accountId: UUID) -> Bool {
+        guard let context = modelContext else { return false }
+        do {
+            guard let job = try context.fetchOfflineJob(id: Self.scanIngestionJobId(scanId: scanId)),
+                job.kind == .scanIngestion, job.status == .needsAttention,
+                job.subjectId?.lowercased() == scanId.lowercased(),
+                job.lastErrorCode == "ai_openai_consent_required",
+                let funding = OfflineScanJobMetadataContract.funding(in: job.metadataJSON),
+                !OfflineScanJobMetadataContract.fundingWasReleased(in: job.metadataJSON),
+                funding.allowsDispatch,
+                funding.accountId == accountId, funding.scanId == scanId.lowercased()
+            else { return false }
+            return true
+        } catch {
+            MerianLog.data.error("OpenAI permission recovery: ownership lookup failed.")
+            return false
+        }
+    }
+
     /// Deletes an `OfflineQueuedScan` from the **main context** and saves,
     /// reliably triggering `@Query queuedScans` (and `@Query rawRecords`) in
     /// any open sheet to re-evaluate.

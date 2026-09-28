@@ -80,5 +80,13 @@ struct QueuedContentDependencies {
     static var previewQueueManager: OfflineQueueManager {
         OfflineQueueManager.shared
     }
+
+    static var previewInferenceEngine: InferenceEngine {
+        AppDIContainer.shared.inferenceEngine
+    }
+
+    static var previewConsentManager: ConsentManager {
+        AppDIContainer.shared.consentManager
+    }
     #endif
 }

@@ -133,7 +133,11 @@ The canonical behavioral contract is the
   media through injected file-adoption closures.
 - `OfflineQueueDurability.swift` contains live `OfflineQueueManager` durable
   state mutations and retry orchestration. It consumes the extracted policies;
-  it does not own their definitions.
+  it does not own their definitions. The queue-state sibling owns the retained
+  funding/account/scan query for OpenAI permission recovery. Presentation uses
+  that query before showing a permission action; durable retry repeats it before
+  any explicit-retry mutation. Local queue visibility does not authorize another
+  account to resend its media.
 
 ### Production Swift File Inventory
 
@@ -606,4 +610,4 @@ hydration uses `server_result_local_recovery_update_required`, preserving the
 completed-owner prefix and stopping the full-history fallback and recovery
 polling. Updating the app permits an explicit retry from Scans; it does not
 automatically start paid identifications. See the
-[compatibility recovery contract](../../../../../docs/backend-and-data/01-offline-sync-pipeline.md).
+[compatibility recovery contract](../../../../../../docs/backend-and-data/01-offline-sync-pipeline.md).
