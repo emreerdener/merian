@@ -3,8 +3,9 @@
 All four identification routes (`identify-multimodal`, `identify-describe`,
 `identify`, and `audio-spec`) and the biological overview, lookalike, and
 group-tag helpers use this boundary. Their user enrichment and claimed
-public-job callers retain separate admission paths. All production requests
-still use Gemini; see the
+public-job callers retain separate admission paths. All current catalog
+assignments select Gemini; the enabled OpenAI photo composition awaits a
+separate assignment activation. See the
 [slice tracker](../../../../../docs/rfcs/identification-foundation-srd.md#implementation-slices).
 
 ## Ownership

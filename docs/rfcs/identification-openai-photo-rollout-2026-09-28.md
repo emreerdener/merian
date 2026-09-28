@@ -36,7 +36,7 @@ evidence. The explicit-null prompt experiment is closed inconclusive without a
 candidate call. Neither substitutes for qualification of `openai_photo_v1`,
 which adds native input/output moderation to the measured baseline.
 
-## This implementation
+## Permission and recovery implementation (PR 95)
 
 - Enable optional OpenAI collection in Settings using disclosure `2026-09-26`
   and its existing statement. Gemini onboarding stays required.
@@ -58,12 +58,13 @@ which adds native input/output moderation to the measured baseline.
   publish permission; failed withdrawal stays locally blocked and retryable
   without claiming durable revocation across restart.
 
-No database migration, wire/schema change, assignment update, model/prompt
-change or production request is part of this slice. The source dispatch gate in
-`production.ts` remains false and every production input profile remains Gemini.
-The UI and ledger tests use synthetic local evidence without provider keys. The
-Release archive rejects the new fixture marker, and the workflow contract checks
-markers from every Swift fixture file in `App/UITesting/`.
+PR 95 made no database migration, wire/schema change, assignment update,
+model/prompt change or production request. Its source dispatch gate remained
+false. The adapter follow-up above now enables that composition; every catalog
+assignment still selects Gemini until the separate activation migration. The UI
+and ledger tests use synthetic local evidence without provider keys. The Release
+archive rejects the new fixture marker, and the workflow contract checks markers
+from every Swift fixture file in `App/UITesting/`.
 
 ## Remaining release sequence
 

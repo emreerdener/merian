@@ -6776,16 +6776,18 @@ CLI's stored digest must match the exact GitHub value. Logs contain only a fixed
 validation, skip, verification or failure status. Digest verification proves
 transfer, not OpenAI authentication, billing or model access.
 
-The credential remains optional while the OpenAI source gate is false. An absent
-GitHub value leaves any existing Supabase copy untouched; deleting the GitHub
-secret does not revoke the runtime key. A failed verification stops the release
-without automatically deleting or restoring runtime credentials. Retry through
-the reviewed deployment workflow after correcting the cause; credential rotation
-or revocation remains a separately authorized operation.
+The credential remains optional while catalog assignments select Gemini. OpenAI
+photo activation requires a valid runtime credential. An absent GitHub value
+leaves any existing Supabase copy untouched; deleting the GitHub secret does not
+revoke the runtime key. A failed verification stops the release without
+automatically deleting or restoring runtime credentials. Retry through the
+reviewed deployment workflow after correcting the cause; credential rotation or
+revocation remains a separately authorized operation.
 
-The dormant photo composition names this credential, but its constant-false
-source gate still runs before lookup. Synchronization does not activate OpenAI,
-change provider assignments, collect permission or make identification requests.
+The enabled photo composition reads this credential only after an exact OpenAI
+photo assignment has been admitted. Synchronization does not change provider
+assignments, collect permission or make identification requests. Deploy this
+enabled Function bundle before a separate photo catalog activation migration.
 The
 [alternative-provider guide](../development-guides/22-alternative-identification-provider.md#credential-storage-and-future-deployment)
 owns evaluation injection and runtime storage. The manual **Compare

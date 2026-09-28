@@ -648,4 +648,12 @@ Deno.test("OpenAI dispatch stays confined to production composition and its offl
     workflow,
     "supabase/functions/_shared/ai/openaiPhoto_test.ts",
   );
+  assertStringIncludes(
+    workflow,
+    "--allow-env=NATUREBOOK_OPENAI_API_KEY,GOOGLE_SDK_NODE_LOGGING,WS_NO_BUFFER_UTIL,WS_NO_UTF_8_VALIDATE",
+  );
+  assertStringIncludes(
+    workflow,
+    "supabase/functions/_shared/ai/production_test.ts",
+  );
 });
