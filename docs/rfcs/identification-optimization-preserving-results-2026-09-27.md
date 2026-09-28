@@ -1,9 +1,8 @@
 # Identification optimization while preserving current results
 
 Date: 27 September 2026\
-Status: Slice 1 audit complete; current baseline retained. Provider
-infrastructure milestone verified before this plan was started. Production
-remains Gemini.
+Status: Shared-pipeline audit complete; OpenAI prompt and context review remains
+open. Production remains Gemini.
 
 ## Decision
 
@@ -19,26 +18,70 @@ record of implemented measurement and experiment controls. Its
 stays closed and inconclusive. We will not repair or repeat that experiment as a
 prerequisite to this work.
 
-## Slice 1 outcome
+## Slice 1 outcome and scope correction
 
 The [bottleneck audit](./identification-bottleneck-audit-2026-09-27.md) used the
-existing six-photo app records and matched provider comparison, with no new paid
-requests. Provider await accounts for a median **82.2%** of each historical app
-pipeline. Current source already contains the media-preparation, schema-reuse
-and parallel-lookup improvements considered first; no safely removable wait is
-established by these measurements.
+existing six-photo **Gemini** app records and matched provider comparison, with
+no new paid requests. Provider await accounts for a median **82.2%** of each
+historical Gemini app pipeline. Current source already contains the
+media-preparation, schema-reuse and parallel-lookup improvements considered
+first; no safely removable shared-pipeline wait was established.
 
-Retain the current baseline and skip a speculative shared-code change in
-Slice 2. No new provider-specific setting is selected for Slice 3. Native cache
-reuse is already observed, and missing cache counts are not misses. The existing
-OpenAI photo profile remains the measured qualification candidate under its
-separate integration plan, not a new prompt optimization.
+That finding supports skipping a speculative shared-code change in Slice 2. It
+does **not** close the OpenAI prompt and context work. The matched comparison
+tested existing provider profiles, not an optimized OpenAI prompt against its
+own baseline. Gemini timing and cache observations cannot establish whether an
+OpenAI-specific change would help. The previous recommendation to move directly
+to audio was premature; this section corrects that scope decision.
 
-This closes the offline selection pass without shortening explanations or
-repeating benchmarks. If later validation exposes a specific removable wait,
-reopen only that candidate using the audit's measurement and acceptance bounds.
-Proceed next to the separate OpenAI audio evaluation plan; photo activation and
-iOS distribution keep their existing gates.
+Keep the existing profiles as controls while completing the OpenAI review below.
+Preserve all frozen evidence and the separate photo qualification work. The
+concise-explanation experiment remains closed; retaining explanation detail does
+not prevent improving the instructions and context sent to the model.
+
+## Next: OpenAI prompt and context review
+
+Start with the actual request produced by
+[buildOpenAIRequestParameters](../../services/supabase/functions/_shared/ai/openaiRequest.ts),
+including its shared instructions, OpenAI-specific additions, strict response
+schema and ordered observation evidence. Review three candidates independently:
+
+1. **Instruction clarity and duplication.** Map requirements across the shared
+   prompt, appended OpenAI guidance and schema. Identify genuinely repeated or
+   conflicting directions and propose clearer OpenAI-specific wording. Preserve
+   identification rules, required fields, abstention, uncertainty, safety and
+   the current explanation structure and detail. Fewer input instructions do not
+   require shorter explanations.
+2. **Context organization.** Trace which observation and environmental facts
+   reach the model, how they are labelled, and whether facts are repeated or
+   mixed with instructions. Distinguish supplied evidence from missing or
+   inferred context. Preserve all legitimate observation content, optional
+   descriptions and media ordering; no evidence removal is selected by this
+   plan.
+3. **OpenAI cache reuse.** Verify which instructions and schema remain identical
+   between requests, then inspect supported cache boundaries and actual OpenAI
+   usage evidence. Stable instructions already exist; their presence alone does
+   not prove optimal reuse or justify a new cache setting. Compare read/write
+   cost and cold behavior before predicting a benefit, using the
+   [OpenAI caching guidance](https://developers.openai.com/api/docs/guides/prompt-caching).
+
+The first deliverable is an offline requirement map and one concrete candidate
+request/prompt diff, or a specific finding that a candidate is already handled.
+Keep model choice, reasoning effort, image detail, output limits and explanation
+format fixed while selecting a prompt/context change. No new paid benchmark is
+needed for this review.
+
+For the selected candidate, document its expected benefit and measurable target
+before implementation or live comparison. Offline validation must preserve the
+complete evidence and result contract. Any quality, latency or cost claim needs
+an appropriate OpenAI baseline/candidate comparison with the existing evaluation
+controls; the historical Gemini app measurements cannot substitute for it.
+Existing paid allocations are not reopened by this plan.
+
+The sequence remains: finish this OpenAI review, implement and validate one
+justified change (or explicitly retain the baseline based on that review), then
+plan OpenAI audio evaluation. Photo activation and iOS distribution retain their
+separate gates.
 
 ## Initial infrastructure milestone is complete
 
