@@ -3,9 +3,10 @@
 Date: 2026-09-28
 
 Status: Real input packet prepared and offline-validated. Zero new provider
-requests. The durable local controller and launcher are implemented. Final
-budget authorization and approval of the exact clean execution revision remain
-pending. No production assignment changes.
+requests. The durable local controller and launcher are implemented. The owner
+approved a $40 maximum for the same 18-call Naturebook comparison on 28
+September. The private plan is v2/$40; execution uses a credential-bound clean
+revision and the existing key. No production assignment changes.
 
 ## Frozen scope
 
@@ -74,20 +75,25 @@ neither release nor live-run approval. Input scope records the owner's
 preparation request; that record does not increase the spending ceiling or
 authorize production.
 
-## Budget finding and next work
+## Budget finding and approved execution
 
 At the reviewed global Standard token ceilings, full-context reservations are
 $0.268644 per Luna call and $5.37288 per Sol call: **$35.461008** for the
 complete schedule. A 10% regional premium, if applicable to the account, would
 bring that to $39.0071088. These are deliberately conservative reservations, not
-predicted or measured spend. The current $5 plan therefore reports a budget
-non-fit and cannot proceed under that method.
+predicted or measured spend. The original $5 proposal could not proceed under
+that method.
 
-The practical options are an explicitly approved **$40 ceiling** for the same 18
-generation calls, or a separately justified smaller input-token bound for each
-request. OpenAI documents an input-token-count endpoint, but its exact
-compatibility and billing have not been validated here. No counting or
-generation requests were made, and the $5 plan has not been silently expanded.
+On 28 September, the owner explicitly approved a **$40 maximum** for the same
+18 generation calls in the Naturebook project. The private plan was revised to
+`photo_model_plan_v2`, retaining the exact inputs, references, pricing, model
+profiles and assignment order. The original v1/$5 plan and preflight are
+preserved privately. There are still no automatic retries or additional
+requests. The assistant is responsible for the explanation reviews.
+
+No input-token-count requests are needed for this approved comparison. Their
+compatibility and billing remain unvalidated; this run uses the existing
+full-context reservation.
 
 The durable controller now provides per-attempt immutable claims, no automatic
 reruns, refusal/error handling, conservative handling of missing usage,
@@ -95,10 +101,11 @@ transient assistant review and a content-free journal/state summary. It reuses
 the existing hidden-key launcher through `--photo-model-live` and requires an
 explicit v2 plan, approved budget and credential-bound clean source before
 dispatch. It reserves the 10% premium even if the account does not incur it. The
-current real packet remains v1/$5; no live approval has been created. A
-completed run must report quality at the justified rank, unsupported certainty,
-explanation support, moderation, latency and priced usage; this preparation
-establishes none of those model outcomes.
+current real packet is v2/$40. Its private approval binds the exact clean source
+and the existing Naturebook credential fingerprint; GitHub secrets cannot be
+read back into this local launcher. A completed run must report quality at the
+justified rank, unsupported certainty, explanation support, moderation, latency
+and priced usage; this preparation establishes none of those model outcomes.
 
 ## Local verification
 

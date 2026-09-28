@@ -93,11 +93,12 @@ include long-context and cache-write tariffs; they are not expected per-scan
 prices. The live controller also reserves the 10% regional premium, for
 **$39.0071088** across the 18 calls, regardless of whether that premium applies
 to the account. Preflight reports both reservations and budget-fit flags. Both
-flags remain false for the proposed $5 cap. Do not lower the historical
-full-context reservation using media byte length or raise the approved ceiling
-implicitly. Before live execution, bind a justified input-token bound to each
-exact request and the actual account pricing, or explicitly revise the budget.
-OpenAI's
+flags were false for the original $5 proposal. The owner-approved v2/$40 plan
+covers both reservations. Do not lower the historical full-context reservation
+using media byte length or raise the approved ceiling implicitly. Any future
+comparison whose budget does not fit must bind justified input-token bounds to
+its exact requests and actual account pricing, or obtain an explicit budget
+revision. OpenAI's
 [input token counting API](https://developers.openai.com/api/docs/guides/token-counting)
 is a possible follow-on mechanism; its request compatibility, billing and
 artifact/dispatch controls are not implemented by this offline mode.
@@ -105,16 +106,17 @@ artifact/dispatch controls are not implemented by this offline mode.
 The
 [real preparation record](../rfcs/identification-luna-sol-photo-preparation-2026-09-28.md)
 now records all twelve photos, frozen reference limits and a successful offline
-preflight. Before live execution, finalize the spending decision and bind its
-approval to the reviewed clean revision. Deterministic adapter, controller and
-launcher tests do not establish Luna accuracy, real moderation compatibility or
-a Free/Pro quality difference.
+preflight. The owner approved the $40 maximum for the same 18-call comparison on
+28 September; bind that approval to the reviewed clean revision before live
+execution. Deterministic adapter, controller and launcher tests do not establish
+Luna accuracy, real moderation compatibility or a Free/Pro quality difference.
 
 ### Durable local execution
 
 After explicit spending approval, freeze a `photo_model_plan_v2` whose budget
-covers the entire reservation. The original v1/$5 packet remains unchanged until
-that decision. A larger parser limit alone does not authorize spending.
+covers the entire reservation. For this comparison, the owner approved $40
+and the private packet was revised to v2 while preserving the original v1/$5
+proposal. A larger parser limit alone does not authorize spending.
 
 `photo-model-approval.json` uses `photo_model_approval_v1`. It binds the
 `naturebook` project, `18_call_luna_sol_photo_comparison` operation, exact plan

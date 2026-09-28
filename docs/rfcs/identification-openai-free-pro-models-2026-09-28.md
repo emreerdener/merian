@@ -4,9 +4,10 @@ Date: 2026-09-28
 
 Status: Slice 1 implementation and local verification complete. Closed Luna/Sol
 profiles, the real 12-photo packet and the durable local controller are
-prepared. Live comparison readiness still requires the spending decision and an
-approval bound to the reviewed clean revision. Production assignments and
-benchmark results are unchanged.
+prepared. The owner approved a $40 maximum for the same 18-call Naturebook
+comparison on 28 September. Execution requires the credential-bound approval and
+existing Naturebook key. Production assignments are unchanged. Live benchmark
+results remain pending.
 
 ## Recommendation
 
@@ -207,11 +208,11 @@ Prepare one small new comparison:
   interleave the current Sol-low production binding as the Pro control. Both use
   the exact production input/output moderation configuration. This gives **18
   generation requests maximum**: 12 Luna calls and six Sol controls, with a
-  proposed **$5 total ceiling**. Freeze and validate the actual worst-case cost
-  before execution; stop before a request that cannot fit the remaining ceiling.
-  Use the first frozen case as each profile's compatibility check, counting it
-  toward the limit. No automatic reruns or replacement of failures with
-  successful attempts.
+  revised, explicitly approved **$40 total ceiling**. Freeze and validate the
+  actual worst-case cost before execution; stop before a request that cannot fit
+  the remaining ceiling. Use the first frozen case as each profile's
+  compatibility check, counting it toward the limit. No automatic reruns or
+  replacement of failures with successful attempts.
 - Interleave candidate calls on identical bytes and context. Record completion,
   taxonomic correctness at the justified rank, unsupported specificity,
   explanation support, moderation outcome, latency, usage, and total cost per
@@ -274,7 +275,8 @@ Implemented locally:
   with immutable claims, whole-schedule reservation, six-case screen barrier,
   transient assistant review, content-free results and no repeat of interrupted
   attempts. A separate v2 plan and credential/source-bound approval are required
-  before any live call; the real packet remains the original v1/$5 proposal.
+  before any live call. The owner approved the v2/$40 revision without changing
+  the inputs, model profiles, call count or one-attempt limit.
 - Regression coverage for request parity, model/safety failures, frozen inputs,
   retained reference controls, media containment and the cost ceiling.
 
@@ -282,17 +284,20 @@ The full-context reservation exposed a plan issue: at the reviewed global
 Standard rates it totals $35.461008, so the proposed $5 cap cannot pass the
 existing conservative method. The controller additionally reserves the 10%
 regional premium, bringing its full reservation to $39.0071088. This is not
-forecast spend. The owner has been asked to choose an explicit $40 ceiling for
-the same 18 calls or keep $5 while tighter input-token bounds are prepared. Keep
-the current $5 packet until that decision; a v2 parser limit is not spending
-authority. Do not infer token limits from image byte counts. The
+forecast spend. On 28 September, the owner explicitly approved a **$40 maximum**
+for the same 18 calls in the Naturebook project. The private packet now uses
+`photo_model_plan_v2` with that ceiling; the original v1/$5 proposal is
+preserved privately for provenance. The approval does not authorize extra calls,
+retries or production assignment changes. Do not infer token limits from image
+byte counts. The
 [provider guide](../development-guides/22-alternative-identification-provider.md#lunasol-photo-comparison-preparation)
 records the implemented boundary and next preparation steps. The
 [real packet preparation record](identification-luna-sol-photo-preparation-2026-09-28.md)
 now records all twelve photos and the pre-output reference review. It passed the
 offline preflight with zero provider calls. Local implementation and
-verification are complete. Budget resolution and binding the live approval to
-the reviewed clean revision remain before Slice 2 can execute.
+verification are complete, and the spending decision is resolved. Slice 2 uses a
+credential-bound approval for the reviewed clean revision and the existing
+Naturebook key. The assistant performs the transient explanation reviews.
 
 ## Implementation slices
 
