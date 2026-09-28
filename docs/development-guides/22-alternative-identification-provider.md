@@ -110,7 +110,10 @@ The name is intentionally separate from the repository's `OPENAI_API_KEY`, which
 is consumed by the unrelated Agent Quality workflow. Storage alone does not run
 a comparison, synchronize a Supabase secret or enable the provider. The manual
 **Compare identification providers** workflow now reads the Naturebook key in
-its protected evaluation steps. Production deployment does not consume it.
+its protected evaluation steps. The protected production deployment now
+synchronizes a configured value into the same-named Supabase Edge secret and
+verifies its stored digest. An absent value skips synchronization and leaves any
+existing runtime copy untouched.
 
 The first pilot ran locally with a private packet and persistent run ledger. The
 subsequent
@@ -122,11 +125,14 @@ self-hosted runner or local key retrieval is required for that path.
 
 The local runner requires the same key from the owner's password manager; GitHub
 does not provide a way to read a saved secret back. The terminal launcher below
-injects it transiently as `OPENAI_EVALUATION_API_KEY`. Once production
-onboarding is approved, the deployment workflow must explicitly synchronize the
-GitHub key into Supabase Edge secrets and compose the OpenAI adapter. GitHub is
-the deployment source and Supabase is the future runtime store; provider
-assignment, rollout and rollback remain separate decisions.
+injects it transiently as `OPENAI_EVALUATION_API_KEY`. GitHub is the deployment
+source and Supabase is the runtime store. The
+[deployment runbook](../backend-and-data/06-supabase-deployment-runbook.md#required-and-optional-github-secrets)
+owns the env-backed CLI transport, digest verification and failure handling.
+Successful synchronization proves only that the key was copied; it does not
+validate provider access or enable OpenAI. The photo source gate remains false,
+Gemini retains every assignment, and permission collection is deferred. Provider
+activation, qualification, rollout and rollback remain separate decisions.
 
 ### Private local key entry
 

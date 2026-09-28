@@ -765,6 +765,43 @@ Deno.test("production deploy records disposable-CI Ghost proof without hosted st
   );
 });
 
+Deno.test("production deploy scopes optional OpenAI synchronization before Function deployment", async () => {
+  const workflow = await Deno.readTextFile(deployWorkflowPath);
+  const validation = workflow.indexOf("--validate-only");
+  const databasePush = workflow.indexOf("supabase db push");
+  const synchronization = workflow.indexOf(
+    "      - name: Synchronize optional OpenAI API key and verify digest",
+  );
+  const functionDeploy = workflow.indexOf("Deploy affected Edge Functions");
+  assert(validation >= 0 && validation < databasePush);
+  assert(synchronization > databasePush && synchronization < functionDeploy);
+  const step = workflow.slice(
+    synchronization,
+    workflow.indexOf("      - name:", synchronization + 1),
+  );
+  assertStringIncludes(
+    step,
+    "NATUREBOOK_OPENAI_API_KEY: ${{ secrets.NATUREBOOK_OPENAI_API_KEY }}",
+  );
+  assertStringIncludes(
+    step,
+    "--allow-env=PATH,SUPABASE_ACCESS_TOKEN,NATUREBOOK_OPENAI_API_KEY",
+  );
+  assertStringIncludes(step, "--allow-run=supabase");
+  assertStringIncludes(step, "supabase/scripts/sync_openai_edge_secret.ts");
+  assertStringIncludes(step, '--project-ref "$PROJECT_ID"');
+  assertStringIncludes(
+    step,
+    "if: steps.production-scope.outputs.should_deploy == 'true'",
+  );
+  assert(!step.includes("continue-on-error"));
+  assert(!step.includes("GITHUB_ENV") && !step.includes("GITHUB_OUTPUT"));
+  assert(
+    !step.includes("OPENAI_EVALUATION_API_KEY") &&
+      !step.includes("secrets.OPENAI_API_KEY"),
+  );
+});
+
 Deno.test("production deploy reports aggregate Explore publication health", async () => {
   const workflow = await Deno.readTextFile(deployWorkflowPath);
   const synchronizeIndex = workflow.indexOf(

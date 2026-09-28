@@ -73,11 +73,13 @@ retains its original source and hash.
    follow-up implements primary multimodal failed/uncertain coverage and native
    pricing; see the
    [current accounting contract](../backend-and-data/04-database-schema.md#primary-identification-attempt-accounting).
-   Source implementation does not establish deployed readiness. Prepare the
-   exact GitHub-to-Supabase secret synchronization and disclosure collection
-   through existing release owners. The source gate remains false and all
-   assignments remain Gemini. A secret, consent grant or catalog edit cannot
-   enable dispatch.
+   Source implementation does not establish deployed readiness. The deployment
+   workflow now prepares GitHub-to-Supabase synchronization of the existing
+   Naturebook OpenAI key with stored-digest verification; its successful
+   deployment is separate evidence. Permission collection is deferred at the
+   owner's request and remains an activation prerequisite. The source gate
+   remains false and all assignments remain Gemini. A secret, consent grant or
+   catalog edit cannot enable dispatch.
 
 2. **Qualification and controlled activation.** Freeze the precise supported
    photo envelope, quality/safety/failure/latency/cost acceptance limits and a

@@ -2972,6 +2972,13 @@ optional controls are set in the Supabase Edge secret store via the CLI
   `gemini-2.5-pro` model inferences. It must come from the approved
   billing-enabled Google Cloud project; deployment validates and synchronizes
   it, and runtime code has no alternate secret fallback.
+- **`NATUREBOOK_OPENAI_API_KEY`** (optional while dormant): The protected
+  deployment synchronizes the existing GitHub `Production` value to this
+  same-named secret and verifies its stored digest. Absence leaves an existing
+  runtime copy untouched. The photo composition remains source-gated before
+  lookup; this secret does not enable OpenAI or change Gemini assignments. See
+  the
+  [credential deployment contract](./06-supabase-deployment-runbook.md#required-and-optional-github-secrets).
 - **`AI_QUOTA_IP_HASH_SECRET`** (optional override): At least 32 high-entropy
   characters used to HMAC the proxy-observed client address for daily-rotating
   IP rate-limit buckets. When absent, Edge code uses a built-in server-only

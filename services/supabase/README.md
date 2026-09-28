@@ -36,7 +36,10 @@ only enabled provider. The
 [local verification record](../../docs/rfcs/identification-foundation-verification.md)
 and [future-provider procedure](functions/_shared/ai/ADDING_PROVIDERS.md)
 distinguish completed source/local checks from candidate and production
-activation.
+activation. The deployment-only `scripts/sync_openai_edge_secret.ts` copies a
+configured GitHub Naturebook key through an isolated env-backed CLI template and
+verifies its stored digest; it does not enable OpenAI. See the
+[credential synchronization contract](../../docs/backend-and-data/06-supabase-deployment-runbook.md#required-and-optional-github-secrets).
 
 The reusable **Control identification audio comparison** workflow uses
 `scripts/control_audio_comparison.ts` to inspect, activate or deactivate a
