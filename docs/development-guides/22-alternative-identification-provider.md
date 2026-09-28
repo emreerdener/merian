@@ -324,10 +324,11 @@ the private review described below.
 
 The
 [current optimization plan](../rfcs/identification-optimization-preserving-results-2026-09-27.md)
-owns the next slices: locate a measured bottleneck, remove unnecessary shared
-work, then consider one provider-specific improvement if justified. Existing
-explanation format and detail stay intact. Its first slice is an offline audit,
-with no new owner practice exercise, corpus collection or paid benchmark.
+records the completed existing-evidence bottleneck audit and OpenAI prompt
+review. The isolated explicit-null visual candidate is now implemented for
+evaluation; explanation format and detail stay intact. No new owner practice
+exercise or Gemini benchmark campaign is required. Live candidate comparison
+remains pending a fresh bounded allocation.
 
 The [earlier plan](../rfcs/identification-provider-optimization-plan.md) records
 the implemented measurement and experiment controls. Its Slice 2 supplies
@@ -361,12 +362,16 @@ concise candidate. The single result does not establish general cache support or
 qualify production use. These profiles and tests remain available as historical
 and regression contracts; their presence does not schedule another comparison.
 
-The existing v1 controller accepts the two baseline profiles; v2/v3 are specific
-to the closed concise hypothesis. A different optimization needs a reviewed
-profile and any required controller, accounting and report changes before live
-use. Packet JSON cannot select arbitrary settings. The
-[tooling owner](../../services/supabase/scripts/identification_evaluation/README.md#reusable-profiles-and-experiment-controls-optimization-slice-2)
-remains authoritative for executable admission.
+The v1 controller accepts the two original baseline profiles; v2/v3 remain
+specific to the closed concise hypothesis. The separate
+[v4 explicit-null contract](../../services/supabase/scripts/identification_evaluation/README.md#openai-explicit-null-candidate)
+compares the unchanged OpenAI baseline against four visual-prompt wording
+changes, using six photos and twelve calls live. It retains baseline automatic
+caching, delegated review and explanation detail; cache observations remain
+descriptive, with no speed target or automatic production promotion. New run and
+attempt versions preserve historical decoding. Packet JSON cannot select
+arbitrary settings or authorize spending; the tooling owner remains
+authoritative for admission.
 
 ## Later production assignment
 

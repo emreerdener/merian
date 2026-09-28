@@ -3,8 +3,10 @@ import {
   OPENAI_CANDIDATE_PROFILES,
   OPENAI_GENERATION,
   OPENAI_MODEL,
+  OPENAI_NULL_FIELDS_PROFILE,
   OPENAI_PROFILE,
 } from "../../functions/_shared/ai/openaiRequest.ts";
+import { OPENAI_NULL_FIELDS_PROMPT } from "../../functions/_shared/ai/openaiNullFields.ts";
 import {
   type Prediction,
   type Profile,
@@ -35,7 +37,12 @@ export const PROVIDER_RUN_VERSION = "identification_provider_run_v1" as const;
 export const CANDIDATE_SPEC_VERSION =
   "identification_provider_run_spec_v2" as const;
 export const CANDIDATE_RUN_VERSION = "identification_provider_run_v2" as const;
+export const NULL_FIELDS_SPEC_VERSION =
+  "identification_provider_run_spec_v3" as const;
+export const NULL_FIELDS_RUN_VERSION =
+  "identification_provider_run_v3" as const;
 export const MODEL_FOR_PROFILE = {
+  [OPENAI_NULL_FIELDS_PROFILE]: OPENAI_MODEL,
   openai_photo_text_uncached_v1: OPENAI_MODEL,
   openai_photo_text_concise_uncached_v1: OPENAI_MODEL,
   gemini_flash_free: "gemini-2.5-flash",
@@ -102,12 +109,14 @@ import {
 export function isMeasuredAttempt(record: { version: string }): boolean {
   return record.version === "evaluation_attempt_v2" ||
     record.version === "evaluation_openai_attempt_v2" ||
-    record.version === "evaluation_openai_attempt_v3";
+    record.version === "evaluation_openai_attempt_v3" ||
+    record.version === "evaluation_openai_attempt_v4";
 }
 export function isOpenAIAttempt(record: { version: string }): boolean {
   return record.version === "evaluation_openai_attempt_v1" ||
     record.version === "evaluation_openai_attempt_v2" ||
-    record.version === "evaluation_openai_attempt_v3";
+    record.version === "evaluation_openai_attempt_v3" ||
+    record.version === "evaluation_openai_attempt_v4";
 }
 
 export interface RunSpec {
@@ -115,7 +124,8 @@ export interface RunSpec {
     | "identification_run_spec_v1"
     | typeof EXPLORATORY_SPEC_VERSION
     | typeof PROVIDER_SPEC_VERSION
-    | typeof CANDIDATE_SPEC_VERSION;
+    | typeof CANDIDATE_SPEC_VERSION
+    | typeof NULL_FIELDS_SPEC_VERSION;
   runId: string;
   mode: "offline" | "live";
   corpusDigest: string;
@@ -150,7 +160,8 @@ export function parseRunSpec(value: unknown): RunSpec {
     "readinessDigest",
   ]);
   check(
-    v.version === CANDIDATE_SPEC_VERSION ||
+    v.version === NULL_FIELDS_SPEC_VERSION ||
+      v.version === CANDIDATE_SPEC_VERSION ||
       v.version === PROVIDER_SPEC_VERSION || v.version ===
         (v.stage === "exploratory"
           ? EXPLORATORY_SPEC_VERSION
@@ -166,7 +177,9 @@ export function parseRunSpec(value: unknown): RunSpec {
   profiles.forEach((p) =>
     member(
       p,
-      v.version === CANDIDATE_SPEC_VERSION
+      v.version === NULL_FIELDS_SPEC_VERSION
+        ? [OPENAI_PROFILE, OPENAI_NULL_FIELDS_PROFILE] as const
+        : v.version === CANDIDATE_SPEC_VERSION
         ? OPENAI_CANDIDATE_PROFILES
         : v.version === PROVIDER_SPEC_VERSION
         ? PROFILES
@@ -174,7 +187,10 @@ export function parseRunSpec(value: unknown): RunSpec {
     )
   );
   unique(profiles);
-  if (v.version === CANDIDATE_SPEC_VERSION) {
+  if (
+    v.version === CANDIDATE_SPEC_VERSION ||
+    v.version === NULL_FIELDS_SPEC_VERSION
+  ) {
     check(v.stage === "exploratory" && profiles.length === 1);
   }
   const ids = array(v.caseIds, 1, 240);
@@ -193,7 +209,8 @@ export function parseRunSpec(value: unknown): RunSpec {
     check(
       profiles.length ===
         (v.version === PROVIDER_SPEC_VERSION ||
-            v.version === CANDIDATE_SPEC_VERSION
+            v.version === CANDIDATE_SPEC_VERSION ||
+            v.version === NULL_FIELDS_SPEC_VERSION
           ? 1
           : 2),
     );
@@ -561,7 +578,8 @@ export interface RunManifest {
   version:
     | typeof RUN_VERSION
     | typeof PROVIDER_RUN_VERSION
-    | typeof CANDIDATE_RUN_VERSION;
+    | typeof CANDIDATE_RUN_VERSION
+    | typeof NULL_FIELDS_RUN_VERSION;
   boundary: typeof BOUNDARY;
   createdAt: string;
   spec: RunSpec;
@@ -575,7 +593,11 @@ export interface RunManifest {
   order: Assignment[];
 }
 export function parseManifest(value: unknown): RunManifest {
-  const providerRun = [PROVIDER_RUN_VERSION, CANDIDATE_RUN_VERSION].includes(
+  const providerRun = [
+    PROVIDER_RUN_VERSION,
+    CANDIDATE_RUN_VERSION,
+    NULL_FIELDS_RUN_VERSION,
+  ].includes(
     (value as { version?: unknown } | null)
       ?.version as typeof PROVIDER_RUN_VERSION,
   );
@@ -594,7 +616,12 @@ export function parseManifest(value: unknown): RunManifest {
     "order",
   ]);
   check(
-    [RUN_VERSION, PROVIDER_RUN_VERSION, CANDIDATE_RUN_VERSION].includes(
+    [
+      RUN_VERSION,
+      PROVIDER_RUN_VERSION,
+      CANDIDATE_RUN_VERSION,
+      NULL_FIELDS_RUN_VERSION,
+    ].includes(
       v.version as typeof RUN_VERSION,
     ) && v.boundary === BOUNDARY,
   );
@@ -602,7 +629,9 @@ export function parseManifest(value: unknown): RunManifest {
   const spec = parseRunSpec(v.spec);
   check(
     v.version ===
-      (spec.version === CANDIDATE_SPEC_VERSION
+      (spec.version === NULL_FIELDS_SPEC_VERSION
+        ? NULL_FIELDS_RUN_VERSION
+        : spec.version === CANDIDATE_SPEC_VERSION
         ? CANDIDATE_RUN_VERSION
         : spec.version === PROVIDER_SPEC_VERSION
         ? PROVIDER_RUN_VERSION
@@ -695,7 +724,9 @@ export function parseManifest(value: unknown): RunManifest {
       check(
         a.confidence === "openai_unqualified_v1" &&
           a.schema === "merian_openai_identify_v1" &&
-          (a.profile === "openai_photo_text_concise_uncached_v1"
+          (a.profile === OPENAI_NULL_FIELDS_PROFILE
+            ? [OPENAI_NULL_FIELDS_PROMPT]
+            : a.profile === "openai_photo_text_concise_uncached_v1"
             ? [
               "openai_concise_identify_vision_v1",
               "openai_concise_identify_text_v1",
@@ -746,7 +777,8 @@ export interface AttemptRecord {
     | "evaluation_openai_attempt_v1"
     | "evaluation_attempt_v2"
     | "evaluation_openai_attempt_v2"
-    | "evaluation_openai_attempt_v3";
+    | "evaluation_openai_attempt_v3"
+    | "evaluation_openai_attempt_v4";
   mapping?: IdentityMapping | null;
   candidateMappings?: IdentityMapping[] | null;
   runDigest: string;
@@ -792,6 +824,10 @@ export function parseAttempt(value: unknown): AttemptRecord {
     new RegExp(`^c[0-9]{4,12}-${p}-[12]$`).test(v.key as string)
   );
   check((v.version === "evaluation_openai_attempt_v3") === candidateKey);
+  const nullFieldsKey = new RegExp(
+    "^c[0-9]{4,12}-" + OPENAI_NULL_FIELDS_PROFILE + "-[12]$",
+  ).test(v.key as string);
+  check((v.version === "evaluation_openai_attempt_v4") === nullFieldsKey);
   const prediction = parsePrediction(v.prediction);
   member(v.reason, REASONS);
   check(

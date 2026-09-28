@@ -336,6 +336,83 @@ comparability. Cache comparability remains `not_established`, screening is
 `deferred_no_candidate`, and production qualification is always false in these
 development reports.
 
+## OpenAI explicit-null candidate
+
+The current implementation follows the
+[explicit-null candidate record](../../../../docs/rfcs/identification-openai-null-fields-candidate-2026-09-27.md).
+`openai_photo_null_fields_v1` supports photos with optional observation context.
+It changes exactly four omission instructions to explicit null instructions in
+`openai_identify_vision_null_fields_v1`; the common strict schema and
+explanation definition are unchanged. Reusable profile construction checks the
+frozen candidate prompt/schema digests. Text-only, audio and sampled-video input
+fail as a whole. Production registration and assignment remain separate.
+
+`identification_experiment_plan_v4` admits exactly these ordered runs:
+
+1. `openai_photo_text_v1`, the unchanged reusable OpenAI baseline executing
+   `openai_gpt_6_sol`.
+2. `openai_photo_null_fields_v1`, the isolated wording candidate.
+
+Both runs bind the same rate-card digest. Live plans require exactly six photos,
+six calls per arm and twelve total; offline synthetic demonstrations can be
+smaller. Every case must be a photo in both arms. Accepted photo evidence and
+optional observation text stay intact. The decision is
+`null_fields_consistency_ai_review_v1`, metrics use `thresholdPercent: null`,
+and cache control is `automatic_uncontrolled_no_extra_requests`. Native cache
+options match the baseline. V1 remains restricted to the original two baselines,
+while v2/v3 keep the original concise pair, eight cases and explicit zero-cache
+requirement.
+
+V4 uses `identification_provider_run_spec_v3` and
+`identification_provider_run_v3`. Candidate attempts are
+`evaluation_openai_attempt_v4`; unchanged baseline attempts remain
+`evaluation_openai_attempt_v2`. Older specs, manifests and attempts cannot claim
+the new candidate identity. Standalone admission rejects both controlled
+candidate specification versions, including offline. Source, complete-input
+preflight, readiness, reservations, global stops and no-replay accounting remain
+mandatory; a new plan version is not live authorization.
+
+The review is the same delegated assistant method described below:
+`assistant_local_v1`, an opaque delegation reference, frozen fact cards and
+rubric, `calibrationDigest: null`, and bound `explanation_assessment_v2`
+records. Missing or failed review stops later calls. This mode does not require
+owner practice, invent human review or add paid judge requests. The same private
+review disclosure and retention limits apply.
+
+V4 does not impose the old zero-cache condition. Observed cache reads/writes are
+retained, and unknown counters stay null. Conservative upper estimates still
+enforce budgets; missing budget-critical usage retains its reservation and
+stops. Rate-aware cost can remain unknown even when a conservative charge is
+known. Neither unknown nor nonzero cache counters are interpreted as savings.
+
+`identification_experiment_report_v4` regenerates from frozen manifests, bounded
+attempts and bound assessments, without media or explanation prose. It reports
+per-run measured times/costs, but improvement percentages are null, cache
+comparability is `not_established`, and `performanceInterpretation` is
+`descriptive_only_uncontrolled_cache`. `nullFieldsReport.ts` checks all twelve
+completed assessments and six supported pairs without a speed target. New
+quality faults retain the baseline; missing evidence, unresolved identities or
+existing reference faults are inconclusive. Only a complete, supported screen
+returns `no_observed_regression_in_six_photo_screen`. `productionQualified` is
+always false. A six-photo screen cannot establish safety or quality outside its
+covered inputs.
+
+Run the new synthetic demonstration separately from the retained concise demo:
+
+```bash
+null_fields_parent=$(mktemp -d /private/tmp/naturebook-null-fields.XXXXXX)
+deno run --frozen --no-prompt --deny-env --deny-net \
+  --config services/supabase/functions/deno.json \
+  --allow-read="$PWD,$null_fields_parent" --allow-write="$null_fields_parent" \
+  --allow-run=git services/supabase/scripts/evaluate_identification.ts \
+  demo-null-fields "$null_fields_parent/packet"
+```
+
+This uses invented outcomes and synthetic ratings only. It does not invoke a
+model, grant an allocation or establish identification quality. The hidden-key
+launcher supports a reviewed v4 packet using the existing session command only
+after its fresh bounded paid allocation and processor readiness are authorized.
+
 ## Concise OpenAI candidate and private review
 
 This retained contract belongs to the
@@ -501,7 +578,9 @@ Additional owners:
   `experiment.ts` owns controller capability, locks, cross-run journals and
   stops; `experimentReport.ts` owns controlled reports. `experimentOffline.ts`
   supplies invented controller demonstrations; `candidateOffline.ts` adds the
-  synthetic candidate path. `candidateReport.ts` owns the fixed screening gate.
+  retained concise path. `candidateReport.ts` owns its fixed screening gate.
+  `nullFieldsOffline.ts` supplies the separate photo-only v4 demo;
+  `nullFieldsReport.ts` owns its consistency screen without a speed verdict.
 - `explanationContracts.ts` owns bounded ratings, bindings and private fact-card
   validation; `explanationCalibration.ts` owns invented practice anchors;
   `explanationView.ts` owns the ephemeral loopback view; `explanationReview.ts`

@@ -1,4 +1,7 @@
-import { isOpenAIProfile } from "../../functions/_shared/ai/openaiRequest.ts";
+import {
+  isOpenAIProfile,
+  OPENAI_NULL_FIELDS_PROFILE,
+} from "../../functions/_shared/ai/openaiRequest.ts";
 import { MEASUREMENT_SCORER } from "./taxonomy.ts";
 import { join } from "node:path";
 import { validateSelectionFacts } from "./admission.ts";
@@ -186,7 +189,9 @@ export async function validateReportInputs(
     if (manifest.scorerVersion === MEASUREMENT_SCORER) {
       check(
         r.version ===
-          (isOpenAIProfile(a.profile) && a.profile !== "openai_gpt_6_sol"
+          (a.profile === OPENAI_NULL_FIELDS_PROFILE
+            ? "evaluation_openai_attempt_v4"
+            : isOpenAIProfile(a.profile) && a.profile !== "openai_gpt_6_sol"
             ? "evaluation_openai_attempt_v3"
             : isOpenAIProfile(a.profile)
             ? "evaluation_openai_attempt_v2"

@@ -259,8 +259,11 @@ production submission or public release.
   supported shared-pipeline optimization was selected. The
   [OpenAI prompt and context review](./rfcs/identification-openai-prompt-review-2026-09-27.md)
   selects an isolated explicit-null wording candidate; its exact offline diff
-  preserves context and explanation format. Implementation and controlled
-  evaluation remain ahead of audio work. Production remains Gemini. The
+  preserves context and explanation format. The
+  [candidate implementation](./rfcs/identification-openai-null-fields-candidate-2026-09-27.md)
+  adds a separate photo-only v4 experiment with unchanged baselines and
+  automatic caching. A fresh six-photo/twelve-call comparison remains ahead of
+  audio work. Production remains Gemini. The
   [earlier provider optimization plan](./rfcs/identification-provider-optimization-plan.md)
   retains implemented measurement and experiment controls. Its
   [26 September concise screen](./rfcs/identification-openai-concise-screen-2026-09-26.md)

@@ -60,13 +60,19 @@ def main():
         spec_bytes = spec_path.read_bytes()
         spec = json.loads(spec_bytes)
         if experiment:
-            if spec.get("version") not in ("identification_experiment_plan_v1", "identification_experiment_plan_v2", "identification_experiment_plan_v3") or spec.get("mode") != "live" or not isinstance(spec.get("runs"), list):
+            if spec.get("version") not in ("identification_experiment_plan_v1", "identification_experiment_plan_v2", "identification_experiment_plan_v3", "identification_experiment_plan_v4") or spec.get("mode") != "live" or not isinstance(spec.get("runs"), list):
                 raise ValueError("provider")
+            allowed_profiles = {
+                "identification_experiment_plan_v1": ("openai_photo_text_v1",),
+                "identification_experiment_plan_v2": ("openai_photo_text_uncached_v1", "openai_photo_text_concise_uncached_v1"),
+                "identification_experiment_plan_v3": ("openai_photo_text_uncached_v1", "openai_photo_text_concise_uncached_v1"),
+                "identification_experiment_plan_v4": ("openai_photo_text_v1", "openai_photo_null_fields_v1"),
+            }[spec["version"]]
             selected = spec["runs"] if session else [run for run in spec["runs"] if isinstance(run, dict) and run.get("runId") == run_id]
             if not 1 <= len(selected) <= (4 if session else 1) or any(
                 not isinstance(run, dict) or not isinstance(run.get("runId"), str)
                 or not re.fullmatch("[a-z0-9][a-z0-9_.:-]{0,79}", run["runId"])
-                or run.get("profileId") not in ("openai_photo_text_v1", "openai_photo_text_uncached_v1", "openai_photo_text_concise_uncached_v1")
+                or run.get("profileId") not in allowed_profiles
                 for run in selected
             ) or len({run["runId"] for run in selected}) != len(selected):
                 raise ValueError("provider")
@@ -106,7 +112,7 @@ def main():
             os.close(descriptor)
         print("Credential fingerprint saved privately; no API request was made.")
     else:
-        reviewed = experiment and spec.get("version") in ("identification_experiment_plan_v2", "identification_experiment_plan_v3")
+        reviewed = experiment and spec.get("version") in ("identification_experiment_plan_v2", "identification_experiment_plan_v3", "identification_experiment_plan_v4")
         if reviewed:
             # Only the private local view needs a loopback listener and fixed browser opener.
             common = [arg if arg != "--allow-run=git" else "--allow-run=git,/usr/bin/open" for arg in common]

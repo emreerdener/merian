@@ -33,7 +33,7 @@ mode = sys.argv[entry_index + 1]
 packet = pathlib.Path(sys.argv[entry_index + 2])
 assert mode in ('preflight', '--live', 'experiment-preflight', '--experiment-live')
 assert '--cached-only' in sys.argv
-reviewed = mode in ('experiment-preflight', '--experiment-live') and json.loads((packet / 'experiment.json').read_text()).get('version') in ('identification_experiment_plan_v2', 'identification_experiment_plan_v3')
+reviewed = mode in ('experiment-preflight', '--experiment-live') and json.loads((packet / 'experiment.json').read_text()).get('version') in ('identification_experiment_plan_v2', 'identification_experiment_plan_v3', 'identification_experiment_plan_v4')
 assert all(name not in os.environ for name in ('SUPABASE_SERVICE_ROLE_KEY', 'GITHUB_TOKEN', 'OPENAI_API_KEY', 'GIT_CONFIG_COUNT', 'GEMINI_PAID_API_KEY'))
 assert 'synthetic-local-launcher-value' not in ' '.join(sys.argv)
 if mode in ('preflight', 'experiment-preflight'):
@@ -185,6 +185,24 @@ p = packet('assistant-reviewed-candidate')
 (p / 'check-permissions').touch()
 assert terminal('--experiment-live', p, run_id='uncached-control') == (0, True)
 assert terminal('--experiment-live', p, run_id='concise-candidate') == (0, True)
+
+p = packet('null-fields-reviewed-session')
+(p / 'experiment.json').write_text(json.dumps({'version': 'identification_experiment_plan_v4', 'mode': 'live',
+    'runs': [{'runId': 'unchanged-baseline', 'profileId': 'openai_photo_text_v1'},
+             {'runId': 'null-fields-candidate', 'profileId': 'openai_photo_null_fields_v1'}]}))
+(p / 'check-permissions').touch()
+assert terminal('--experiment-session', p) == (0, True)
+assert [json.loads(line)['runId'] for line in (p / 'calls.jsonl').read_text().splitlines()] == [None, 'unchanged-baseline', 'null-fields-candidate']
+for version in ('identification_experiment_plan_v1', 'identification_experiment_plan_v2', 'identification_experiment_plan_v3'):
+    p = packet('null-fields-invalid-' + version[-2:])
+    (p / 'experiment.json').write_text(json.dumps({'version': version, 'mode': 'live',
+        'runs': [{'runId': 'null-fields-candidate', 'profileId': 'openai_photo_null_fields_v1'}]}))
+    assert terminal('--experiment-live', p, run_id='null-fields-candidate') == (1, False)
+    assert not (p / 'calls.jsonl').exists()
+p = packet('null-fields-reject-concise')
+(p / 'experiment.json').write_text(json.dumps({'version': 'identification_experiment_plan_v4', 'mode': 'live',
+    'runs': [{'runId': 'concise-candidate', 'profileId': 'openai_photo_text_concise_uncached_v1'}]}))
+assert terminal('--experiment-live', p, run_id='concise-candidate') == (1, False)
 
 def session_packet(name):
     path = packet(name)
