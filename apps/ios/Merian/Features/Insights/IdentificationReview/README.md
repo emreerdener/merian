@@ -37,6 +37,23 @@ previews; existing public feature-view initializers explicitly default to
 `.live`, preserving production call sites and signatures without making an
 otherwise plain dependency value resolve global services.
 
+## Confidence display boundary
+
+`InferenceConfidencePolicy.displayBands` supplies the existing Strong / Possible
+/ Weak labels. Recognized Gemini profiles keep their tier-specific thresholds.
+The exact shipped OpenAI photo profile uses Strong at `0.95`, Possible at
+`0.60`, and Weak below `0.60`, regardless of plan tier. Its explanation
+identifies the score as a model estimate, without a Flash/Pro accuracy or
+upgrade claim. Unknown or damaged present provenance retains Needs review;
+confirmed decisions still take precedence.
+
+These are display thresholds only. Candidate visibility, review collections,
+sharing recommendations, score-based promotions and rewards continue to use
+`bands` / `SpeciesData.identificationConfidenceBands`, which do not qualify
+OpenAI scores. See the
+[threshold decision](../../../../../../docs/rfcs/identification-openai-confidence-display-2026-09-28.md)
+for the evidence, scope and calibration limits.
+
 ## Modal action lifecycle
 
 `CandidateSwipeModal` records a typed `CandidateSwipeDismissalRequest`

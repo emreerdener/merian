@@ -187,7 +187,14 @@ moderated against the canonical original recording.
                 └─ Return PROMOTED { publicUrls[] }  → continue to insertScan
 ```
 
-## Dormant OpenAI photo policy
+<a id="dormant-openai-photo-policy"></a>
+
+## OpenAI photo policy
+
+This policy is active for the still-photo beta assignments recorded in the
+[28 September rollout](../rfcs/identification-openai-photo-rollout-2026-09-28.md).
+Other input profiles retain Gemini. Native confidence display thresholds do not
+change this moderation or backend confidence policy.
 
 `_shared/ai/openaiPhoto.ts` defines the `openai_photo_v1` binding and
 `openai_photo_moderation_v1` policy. It accepts still photos with their optional

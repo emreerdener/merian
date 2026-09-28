@@ -1,10 +1,10 @@
 # Naturebook AI Provider Flexibility — PRD
 
 Document ID: NB-PRD-IDENTIFICATION-001\
-Version: 0.7\
-Date: 26 September 2026\
-Status: Gemini-only foundation deployed; separate OpenAI evaluator implemented
-locally\
+Version: 0.8\
+Date: 28 September 2026\
+Status: Original Gemini-only foundation complete; subsequent OpenAI still-photo
+beta active\
 Suggested owners: Backend and Product, with iOS contract review\
 Companion: [Provider Flexibility SRD](../rfcs/identification-foundation-srd.md)
 
@@ -28,6 +28,16 @@ preserves current explanations and owns future optimization priorities. These
 later milestones do not rewrite this PRD's original Gemini-only acceptance
 scope.
 
+**Follow-up — 28 September 2026:** The
+[photo rollout](../rfcs/identification-openai-photo-rollout-2026-09-28.md)
+activated OpenAI for still photos; other profiles remain Gemini. The
+[beta correction](../incidents/2026-09-beta-openai-consent-gate.md) defers
+OpenAI-specific permission collection and enforcement. The
+[confidence display decision](../rfcs/identification-openai-confidence-display-2026-09-28.md)
+adds model-estimate thresholds for existing native labels without qualifying
+OpenAI scores for rewards or benchmark confidence metrics. These later changes
+do not alter the original-phase requirements below.
+
 All six implementation slices have local source and verification evidence in the
 [completion record](../rfcs/identification-foundation-verification.md). The
 [21 September deployment record](../release-evidence/provider-flexibility-deployment-2026-09-21.md)
@@ -48,9 +58,9 @@ The later
 makes assignment authority explicit: the app owner configures backend
 provider/model policy; end users never choose or approve a provider assignment.
 Consent permits data processing by the assigned recipient. Declining it blocks
-that processing without choosing a different provider. Every current route
-remains Gemini; OpenAI consent collection and runtime assignments remain
-disabled.
+that processing without choosing a different provider. At that routing milestone
+every route remained Gemini. Current beta assignments and deferred
+OpenAI-specific permission are described in the 28 September follow-up above.
 
 ## 1. Goal and benefit
 
