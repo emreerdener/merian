@@ -44,6 +44,13 @@ success for the same account session; failures do not hide content. Repeating a
 report does not invalidate again. Account switches clear local IDs and advance
 the account generation, including switches away and back to the same account.
 
+The store owns a private Combine subject and exposes one cached read-only
+publisher. Its main-actor mutations synchronously invalidate Feed state before
+returning, so an account switch clears author suppression and a report fences
+pending loads without a scheduling gap. `ExploreFeedViewModel` retains its
+subscription, captures itself weakly, and cancels automatically when released;
+this is a reviewed raw-sink boundary in the event-routing guard.
+
 Post stores reject hidden posts from late hydration and pagination. Explore
 presentation owners rebuild on visibility changes; hidden post discussions and
 media presentations close. Map invalidation cancels pending work, drops cached

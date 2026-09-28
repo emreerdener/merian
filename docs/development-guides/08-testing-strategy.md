@@ -2802,11 +2802,15 @@ prove visual parity, live Auth/provider behavior, or migration execution.
   sources; `make test-ios-event-routing` exercises missing canonical model/bus,
   multiline, alias, application-name/post, duplicate-subject, singleton,
   allowlist, and test-target-exclusion fixtures. An adversarial leaky-owner
-  fixture also proves a raw Combine `.sink` outside the five exact reviewed
-  lifetime owners is rejected. These fixtures are part of
-  `make test-ios-ci-tooling`. The fast `ios-project-guardrails.yml` lane and the
-  compiled iOS workflow both validate the live repository, and both are
-  path-sensitive to the checker, its exact allowlist, and its fixture script.
+  fixture also proves a raw Combine `.sink` outside the six exact reviewed
+  lifetime owners is rejected. The reviewed-feed fixture accepts the exact
+  `ExploreFeedViewModel.swift` owner and rejects the same subscription in a
+  neighboring unreviewed file. Native visibility tests prove same-turn account
+  and report invalidation, request fencing, and subscription teardown. These
+  fixtures are part of `make test-ios-ci-tooling`. The fast
+  `ios-project-guardrails.yml` lane and the compiled iOS workflow both validate
+  the live repository, and both are path-sensitive to the checker, its exact
+  allowlist, and its fixture script.
 - **Verification tiers**: A recursive `swiftc -frontend -parse` catches syntax
   errors quickly. A direct iOS module/test-target type-check can add useful
   compile evidence when CoreSimulator is unavailable, but neither runs XCTest,

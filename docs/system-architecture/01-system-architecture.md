@@ -83,7 +83,7 @@ orphaned object does not reconstruct its relational context.
 - Framework notifications are allowed only at the seven reviewed Apple boundary
   files. Application-defined notification names and posts are forbidden and
   enforced by the iOS event-routing guard. Raw Combine sinks are likewise
-  fail-closed to five exact lifetime-owner files. AVPlayer KVO, notifications,
+  fail-closed to six exact lifetime-owner files. AVPlayer KVO, notifications,
   and periodic time callbacks are owned by `MediaPlaybackObservation`, which
   removes exact old-player tokens and rejects late callbacks with a generation
   fence.
