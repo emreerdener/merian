@@ -5,6 +5,7 @@ import Observation
 @Observable
 final class StagedVideoPreviewPlayback {
     struct Dependencies {
+        var play: @MainActor (AVPlayer) -> Void = { $0.play() }
         var makeBoostedItem: @MainActor (URL, URL) async throws -> AVPlayerItem = {
             try await StagedVideoPreviewComposition.makeItem(videoURL: $0, boostedAudioURL: $1)
         }
@@ -60,11 +61,12 @@ final class StagedVideoPreviewPlayback {
         let expected = lifecycle
         let activated = await session.activate()
         guard activated, isActive, lifecycle == expected, !Task.isCancelled else { return }
-        player.play()
+        dependencies.play(player)
     }
 
-    func toggleBoost() {
-        guard isActive, canBoost, !isPreparing else { return }
+    @discardableResult
+    func toggleBoost() -> Task<Void, Never>? {
+        guard isActive, canBoost, !isPreparing else { return nil }
         let enable = !isBoostEnabled
         let request = UUID()
         generation = request
@@ -73,6 +75,7 @@ final class StagedVideoPreviewPlayback {
         preparationTask = Task { [weak self] in
             await self?.changeSource(enable: enable, request: request)
         }
+        return preparationTask
     }
 
     /// Stops pending preparation/resume without changing the user's paused position.
@@ -149,7 +152,7 @@ final class StagedVideoPreviewPlayback {
     private func resume(request: UUID) async {
         let activated = await session.activate()
         guard activated, accepts(request) else { return }
-        player.play()
+        dependencies.play(player)
     }
 
     private func accepts(_ request: UUID) -> Bool {

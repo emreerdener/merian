@@ -285,6 +285,14 @@ struct MerianApp: App {
             .onChange(of: diContainer.supabaseManager.currentUser?.id, initial: true) { _, viewerID in
                 diContainer.exploreContentVisibility.activate(viewerID: viewerID)
             }
+            .onChange(of: consentManager.currentSessionUserId, initial: true) { _, userID in
+                guard userID != nil else { return }
+                // Test-mode cloud sync is disabled, so seed the adopted owner
+                // after initially unowned fixture consent loses applicability.
+                UITestSeedCoordinator.prepareRequiredConsentIfNeeded(
+                    consentManager: consentManager
+                )
+            }
             .onChange(of: appSettings.themeMode) { _, newTheme in
                 applyTheme(newTheme)
             }

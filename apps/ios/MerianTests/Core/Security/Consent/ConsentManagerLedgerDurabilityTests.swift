@@ -4,6 +4,33 @@ import XCTest
 
 @MainActor
 final class ConsentManagerLedgerDurabilityTests: ConsentManagerTestCase {
+    func testUITestConsentCanFollowAccountAdoptionWithoutSurvivingItsStore() throws {
+        let ownerUserId = UUID()
+        let store = InMemoryConsentLedgerStore()
+        let manager = ConsentManager(
+            ledgerStore: store,
+            currentSDKUserIdProvider: { ownerUserId }
+        )
+        try manager.confirmAdultAndAcceptCurrentTermsAndGrantGemini(analyticsEnabled: false)
+        XCTAssertTrue(manager.hasCurrentRequiredConsent)
+
+        manager.observeSession(userId: ownerUserId)
+        XCTAssertFalse(manager.hasCurrentRequiredConsent)
+        try manager.confirmAdultAndAcceptCurrentTermsAndGrantGemini(analyticsEnabled: false)
+        XCTAssertTrue(manager.hasCurrentRequiredConsent)
+        XCTAssertFalse(manager.hasGrantedCurrentPostHogAnalytics)
+
+        let laterProcessStore = InMemoryConsentLedgerStore()
+        XCTAssertNil(try laterProcessStore.loadLedgerData())
+        XCTAssertNil(try laterProcessStore.loadAnalyticsRevocationIntentData())
+        let laterManager = ConsentManager(
+            ledgerStore: laterProcessStore,
+            currentSDKUserIdProvider: { ownerUserId }
+        )
+        laterManager.observeSession(userId: ownerUserId)
+        XCTAssertFalse(laterManager.hasCurrentRequiredConsent)
+    }
+
     func testFailedAnalyticsRevocationRemainsOffAcrossRestartAndReplaysExactEvent() throws {
         let store = FaultInjectingConsentLedgerStore()
         let ownerUserId = UUID()

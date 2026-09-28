@@ -141,6 +141,12 @@ fault-injectable raw-byte store for the atomic ledger file, legacy migration,
 and independent Keychain analytics-withdrawal journal. The repository, not the
 store, owns decoding, structural validation, and publication of live state.
 
+Debug UI-test processes select `InMemoryConsentLedgerStore` through the default
+manager initializer. Both ledger bytes and the analytics withdrawal journal are
+process-local, so synthetic approvals cannot read or alter the ordinary durable
+ledger or survive into a later normal launch. Explicit injected stores and the
+normal durable initializer path retain their existing behavior.
+
 ## Compatibility
 
 Do not change JSON field names, policy text or versions, provider identifiers,

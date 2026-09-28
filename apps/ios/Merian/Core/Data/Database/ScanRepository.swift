@@ -26,7 +26,11 @@ final class ScanRepository {
 
     // MARK: - Lifecycle
 
-    init(historicalCloudClient: HistoricalSyncCloudClient = .live) {
+    convenience init() {
+        self.init(historicalCloudClient: .live)
+    }
+
+    init(historicalCloudClient: HistoricalSyncCloudClient) {
         self.historicalCloudClient = historicalCloudClient
     }
 

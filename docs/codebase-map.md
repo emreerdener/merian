@@ -905,7 +905,7 @@ cross-domain architecture suite freezes that inventory, requires a README for
 every Core domain, checks bounded stateless Policies and their exact documented
 local-input exceptions, keeps shared UI components transport/persistence-free,
 rejects `try?` SwiftData fetches, protects sensitive diagnostics, and tracks the
-remaining production file above 600 lines: the 3,461-line
+remaining production file above 600 lines: the 3,475-line
 `SupabaseManager.swift`. Its purchase-identity binding state, keyed resolution
 task, foreground repair, legacy-profile query, and ordinary live-effect assembly
 have focused owners under `Core/Security/PurchaseIdentity/`; the facade supplies
@@ -1302,7 +1302,7 @@ Recovery, and Transport owners plus the client façade, and requires exactly six
 Transport files: three stateless policies, the request-scoped executor, the
 pinned session, and the authenticated dispatcher. It also freezes the sixty-one
 Auth foundation paths and caps Auth, Purchase Identity, `SupabaseManager.swift`,
-and their combined production surface at 7,734, 2,016, 3,461, and 13,211 lines,
+and their combined production surface at 7,756, 2,016, 3,475, and 13,247 lines,
 respectively. The guard includes the effect-free observable owner for
 transition, generation, transition-analytics, exact-session lease/drain, and
 local sign-out state plus the focused listener/current-state adapter,

@@ -88,8 +88,11 @@ private final class AppRootAlertController: UIViewController {
                         return
                     }
                 }
-                do { try await Task.sleep(for: .milliseconds(250)) }
-                catch { return }
+                do {
+                    try await Task.sleep(for: .milliseconds(250))
+                } catch {
+                    return
+                }
             }
         }
     }

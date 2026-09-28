@@ -1,6 +1,6 @@
 @testable import Merian
-@_spi(Internal) import RevenueCat
 import Observation
+@_spi(Internal) import RevenueCat
 import XCTest
 
 @MainActor
@@ -339,6 +339,51 @@ final class RevenueCatManagerTests: XCTestCase {
         XCTAssertEqual(
             RevenueCatSDKLogPrivacyPolicy.safeMessage(for: .error),
             "RevenueCat SDK reported an error."
+        )
+    }
+
+    func testOfferingsDiagnosticsClassifySDKCodesWithoutProviderText() {
+        let cases: [(RevenueCat.ErrorCode, String)] = [
+            (.networkError, "network"),
+            (.offlineConnectionError, "network"),
+            (.apiEndpointBlockedError, "network"),
+            (.configurationError, "configuration"),
+            (.invalidCredentialsError, "configuration"),
+            (.storeProblemError, "store"),
+            (.productNotAvailableForPurchaseError, "store"),
+            (.productRequestTimedOut, "store"),
+            (.unknownBackendError, "provider")
+        ]
+        for (code, category) in cases {
+            let error = NSError(
+                domain: RevenueCat.ErrorCode.errorDomain,
+                code: code.rawValue,
+                userInfo: [
+                    NSLocalizedDescriptionKey: "sensitive-provider-description",
+                    NSUnderlyingErrorKey: NSError(
+                        domain: "sensitive-underlying-domain", code: 999
+                    )
+                ]
+            )
+            XCTAssertEqual(
+                RevenueCatOfferingDiagnosticPolicy.summary(for: error),
+                "source=revenuecat category=\(category) code=\(code.rawValue)"
+            )
+        }
+    }
+
+    func testOfferingsDiagnosticsNeverClassifyUnknownDomainsByCodeAlone() {
+        XCTAssertEqual(
+            RevenueCatOfferingDiagnosticPolicy.summary(for: NSError(
+                domain: "sensitive-provider-domain",
+                code: RevenueCat.ErrorCode.configurationError.rawValue,
+                userInfo: [NSLocalizedDescriptionKey: "sensitive-description"]
+            )),
+            "source=other category=unknown"
+        )
+        XCTAssertEqual(
+            RevenueCatOfferingDiagnosticPolicy.summary(for: URLError(.timedOut)),
+            "source=url-loading category=network code=-1001"
         )
     }
 
