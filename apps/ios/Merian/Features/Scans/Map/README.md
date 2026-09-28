@@ -54,6 +54,12 @@ receives shared services through SwiftUI environment injection, including haptic
 feedback, and emits only the selected scan ID to the Scans route owner. Every
 production file in this folder remains below the 600-line review guard.
 
+Place search applies the selected result's geographic viewport when available,
+so broad places such as states and countries fit in view. The shared Core Maps
+owner validates and pads those bounds; item framing remains the fallback. The
+selected viewport is also installed as the pending visible region so late local
+snapshots cannot replace it before MapKit settles.
+
 ## Surfaces
 
 Collections shows a non-interactive, full-width **Scan map** card only when the

@@ -117,7 +117,7 @@ struct PrivateScanMapView: View {
         .modifier(MapNavigationPresentation(
             navigation: mapNavigation,
             owner: mapAuth.currentUser?.id,
-            onDestination: viewModel.navigate
+            onDestination: { viewModel.navigate(to: $0.item, region: $0.region) }
         ))
     }
 

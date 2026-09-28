@@ -271,7 +271,9 @@ struct CaptureScanDependenciesTests {
                 dismissKeyboard: {},
                 performCancelFeedback: {},
                 hasShownTooltip: { true },
-                markTooltipShown: {}
+                markTooltipShown: {},
+                hasShownSubmitTooltip: { true },
+                markSubmitTooltipShown: {}
             ),
             prepareImage: { _ in nil },
             prepareHistoricalAudio: { _ in nil },

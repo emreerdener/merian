@@ -6,7 +6,7 @@ import SwiftUI
 struct MapNavigationPresentation: ViewModifier {
     @Bindable var navigation: MapNavigationModel
     let owner: UUID?
-    let onDestination: (MKMapItem) -> Void
+    let onDestination: (MapPlaceResult) -> Void
     @Environment(AppSettings.self) private var settings
     @Environment(\.mapPlaceSearchConfiguration) private var configuration
     @Environment(\.openURL) private var openURL
@@ -27,7 +27,7 @@ struct MapNavigationPresentation: ViewModifier {
                 navigation.cancelNavigation()
                 navigation.isSearchPresented = false
                 withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.3)) {
-                    onDestination(result.item)
+                    onDestination(result)
                 }
             }
             .onChange(of: settings.recentPlacesResetGeneration) { _, _ in navigation.reset() }

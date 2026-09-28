@@ -22,6 +22,7 @@ enum UserDefaultsKeys {
     /// Immediate submission is an explicit opt-in independent of legacy settings.
     static let autoSubmitScans = "autoSubmitScans"
     static let hasShownCaptureNoteTip = "hasShownCaptureNoteTip"
+    static let hasShownCaptureSubmitTip = "hasShownCaptureSubmitTip"
     /// Whether the active capture-goal indicator is visible over the Scan camera.
     static let showsCaptureGoalProgress = "showsCaptureGoalProgress"
     /// Legacy pre-migration key for the old multi-image scan mode toggle.

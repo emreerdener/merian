@@ -34,7 +34,7 @@ TestFlight, App Store, support, and QA.
   text remains readable, and tray transitions respect Reduce Motion.
 - Identify and Analyze float outside the staged-media capsule, alongside the
   separate Discard control, with matching 48 pt diameters. VoiceOver retains
-  Identify and Analyze labels; the submission arrow has no visual tooltip.
+  Identify and Analyze labels.
 - Staged media nodes have more opaque backgrounds over the camera preview. Empty
   notes use an outlined message icon and dashed border; saved notes use a filled
   icon and solid border.
@@ -42,6 +42,8 @@ TestFlight, App Store, support, and QA.
   15-second limit. Tap its audio node for playback, boost, or removal.
 - Describe-first drafts show all available media slots: two for Pro and one for
   Free, in addition to the shared note.
+- A one-time tip above the submit arrow explains how to identify when all media
+  slots are filled.
 - Expedition mode is now included for everyone in Workspace settings.
 
 ### Species discovery search

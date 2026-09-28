@@ -669,6 +669,7 @@ final class merianUITests: XCTestCase {
             extraArguments: [
                 "-seedStagedAudioReviewFlow", "-captureModeOrder", "audio,visual,describe",
                 "-hasShownCaptureNoteTip", "YES",
+                "-hasShownCaptureSubmitTip", "NO",
                 "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryXXXL"
             ]
         )
@@ -680,6 +681,16 @@ final class merianUITests: XCTestCase {
         )
         XCTAssertTrue(stagedAudioBadge.isHittable)
         XCTAssertTrue(stagedAudioBadge.isEnabled)
+        let submitTip = app.staticTexts["CaptureSubmitTooltip"]
+        XCTAssertTrue(submitTip.waitForExistence(timeout: 2))
+        XCTAssertEqual(submitTip.label, "Submit to identify")
+        XCTAssertLessThanOrEqual(submitTip.frame.maxY, app.buttons["Identify"].frame.minY - 7)
+        XCTAssertLessThanOrEqual(submitTip.frame.maxX, app.frame.width - 16)
+        let tipScreenshot = XCTAttachment(screenshot: app.screenshot())
+        tipScreenshot.name = "First full tray submit guidance above submit button"
+        tipScreenshot.lifetime = .keepAlways
+        add(tipScreenshot)
+        XCTAssertTrue(waitForDisappearance(submitTip))
         let toolbarScreenshot = XCTAttachment(screenshot: app.screenshot())
         toolbarScreenshot.name = "Compact bordered audio and note review nodes"
         let note = app.buttons["Add note"]
@@ -720,6 +731,7 @@ final class merianUITests: XCTestCase {
         closeButton.tap()
         XCTAssertFalse(preview.waitForExistence(timeout: 4.0))
         XCTAssertTrue(stagedAudioBadge.waitForExistence(timeout: 4.0))
+        XCTAssertFalse(submitTip.exists, "The one-time submit tip must not return after preview")
     }
 
     @MainActor

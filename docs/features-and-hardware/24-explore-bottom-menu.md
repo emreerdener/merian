@@ -159,30 +159,37 @@ use private scan coordinates as search hints. Queries debounce for 300 ms, and
 cancelled, dismissed, or superseded work cannot publish results.
 
 Selecting a resolved place dismisses search, clears a discovery preview,
-preserves filters, and frames the map item without automatic pitch. No
-destination marker or discovery is created. Explore automatically searches the
-destination as soon as the camera settles, using the final viewport and current
-filters without requiring **Search this area** or waiting for the normal pan
-debounce or an older viewport request. Repeated camera-settle callbacks do not
-restart the pan delay, and adjusted destination bounds search immediately. Even
-a nearby selected place triggers this search; subsequent manual pans retain
-their debounce. The private map projects its local points. Reduce Motion
-disables the transition. Locate me uses the existing one-shot location service
-and exposes progress, Settings for denied permission, and unavailable feedback
-without moving the map on failure. Newer navigation and user gestures invalidate
-older locate requests.
+preserves filters, and frames the selected geographic area without automatic
+pitch. Single-result searches retain MapKit's response bounds with 10%
+clearance; multi-result searches use only item-specific regions, never the
+bounds enclosing all matches. Invalid or missing bounds fall back to MapKit's
+item framing. This lets a state or country open at its geographic scale instead
+of a close view of its center. Bounds remain ephemeral and are not saved to
+recent places. No destination marker or discovery is created. Explore
+automatically searches the destination as soon as the camera settles, using the
+final viewport and current filters without requiring **Search this area** or
+waiting for the normal pan debounce or an older viewport request. Repeated
+camera-settle callbacks do not restart the pan delay, and adjusted destination
+bounds search immediately. Even a nearby selected place triggers this search;
+subsequent manual pans retain their debounce. The private map projects its local
+points. Reduce Motion disables the transition. Locate me uses the existing
+one-shot location service and exposes progress, Settings for denied permission,
+and unavailable feedback without moving the map on failure. Newer navigation and
+user gestures invalidate older locate requests.
 
 In Explore Map, **Locate me** centers on a view roughly 1 km across, preserving
 the current width in meters if already closer. The view widens when necessary to
 include the location fix's horizontal-accuracy diameter. It clears the selected
 preview, preserves filters, and searches the settled viewport immediately. Empty
-discovery results never zoom the camera out. Initial map framing and
-place-search framing retain their existing behavior.
+discovery results never zoom the camera out. Initial map framing retains its
+existing behavior; place search uses the selected place's extent independently
+of the local Locate me zoom.
 
 Recent places store at most ten selected title/subtitle pairs per account,
 newest first with normalized-label deduplication. Both maps share the account's
 list. Typed queries and coordinates are never persisted in history. Tapping a
-recent label searches again: a single match moves the camera; ambiguous results
+recent label searches again: a single match with the same normalized title and
+subtitle moves the camera; ambiguous results or a different returned label
 require a selection. Offline/failure leaves the map unchanged and offers retry.
 Individual removal and **Clear recents** are available. Account changes hide the
 previous account's list; the established account-deletion cleanup clears all

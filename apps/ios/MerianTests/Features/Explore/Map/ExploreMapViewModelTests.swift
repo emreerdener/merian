@@ -6,6 +6,35 @@ import XCTest
 
 @MainActor
 final class ExploreMapViewModelTests: XCTestCase {
+    func testPlaceRegionFramesWholeDestinationAndSearchesFinalViewport() async throws {
+        var loadedRegion: MKCoordinateRegion?
+        let model = ExploreMapViewModel(dependencies: .init(
+            loadPoints: { request in
+                loadedRegion = request.region
+                return ExploreMapPointsResponse(mode: .posts, visibleCount: 0)
+            },
+            now: { Date() },
+            debounceCameraSearch: { XCTFail("Place selection should search on camera settle") }
+        ))
+        let region = MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 1, longitude: 1),
+            span: MKCoordinateSpan(latitudeDelta: 8, longitudeDelta: 10)
+        )
+        model.selectedSpeciesCategories = [.birds]
+        model.selectedPostId = "previous"
+        model.navigate(to: MKMapItem(placemark: MKPlacemark(coordinate: region.center)), region: region)
+        XCTAssertEqual(model.cameraPosition.region?.span.longitudeDelta, 10)
+        XCTAssertNil(model.selectedPostId)
+        XCTAssertEqual(model.selectedSpeciesCategories, [.birds])
+        XCTAssertNil(loadedRegion)
+        var settled = region
+        settled.span.latitudeDelta = 15
+        model.markCameraChanged(region: settled)
+        await model.debounceSearchTask?.value
+        XCTAssertEqual(loadedRegion?.span.latitudeDelta, 15)
+        XCTAssertEqual(loadedRegion?.span.longitudeDelta, 10)
+    }
+
     func testLocateSearchesSettledLocalViewportAndKeepsEmptyResultsLocal() async throws {
         var loadedRegion: MKCoordinateRegion?
         let model = ExploreMapViewModel(dependencies: .init(

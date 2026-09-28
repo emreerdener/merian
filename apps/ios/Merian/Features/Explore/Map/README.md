@@ -180,6 +180,9 @@ The horizontal glass toolbar and search sheet follow the
 Core Maps owns injected MapKit search and cancellable location admission; this
 feature owns camera framing and discovery loading after the camera settles. Both
 map styles preserve filters and selection. Place selection clears the preview.
+Valid search bounds frame the whole selected place with modest clearance;
+results without bounds retain MapKit item framing. The shared Core Maps owner
+validates these ephemeral bounds and carries them through search selection.
 Explore's **Locate me** also clears the preview and requests a view roughly 1 km
 across, preserving a closer viewport's width in meters. The location's
 horizontal-accuracy diameter sets a minimum width when the fix is coarse. Empty

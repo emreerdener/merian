@@ -35,6 +35,7 @@ struct UserDefaultsKeysTests {
         "opensExploreOnLaunch": "opensExploreOnLaunch",
         "autoSubmitScans": "autoSubmitScans",
         "hasShownCaptureNoteTip": "hasShownCaptureNoteTip",
+        "hasShownCaptureSubmitTip": "hasShownCaptureSubmitTip",
         "showsCaptureGoalProgress": "showsCaptureGoalProgress",
         "legacyMultiImageScanMode": "multiImageScanMode",
         "isExpeditionModeActive": "isExpeditionModeActive",

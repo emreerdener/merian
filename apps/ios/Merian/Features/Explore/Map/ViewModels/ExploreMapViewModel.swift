@@ -229,10 +229,14 @@ final class ExploreMapViewModel {
     }
 
     /// Search the settled destination immediately, preserving the selected filters.
-    func navigate(to item: MKMapItem) {
+    func navigate(to item: MKMapItem, region: MKCoordinateRegion? = nil) {
         prepareForNavigation()
         searchesOnNextCameraSettle = true
-        cameraPosition = .item(item, allowsAutomaticPitch: false)
+        if let region {
+            cameraPosition = .region(region)
+        } else {
+            cameraPosition = .item(item, allowsAutomaticPitch: false)
+        }
     }
 
     func navigate(to location: CLLocation) {

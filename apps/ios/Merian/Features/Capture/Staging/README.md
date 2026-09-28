@@ -28,8 +28,8 @@ its remaining-capacity selection limit.
   without consuming a visible tray slot.
 - `Services/CaptureStagingToolbarDependencies.swift` is the sole Staging owner
   of the live Photo Library, keyboard dismissal, cancel feedback, and persisted
-  once-per-install note tooltip effects. The toolbar receives that small
-  dependency value from Capture Shell.
+  once-per-install note and submit tooltip effects. The toolbar receives that
+  small dependency value from Capture Shell.
 - `Components/Toolbar/` owns the staged-media row, cancel and submit controls,
   private modality badges, tooltip, whole-node wrapping in
   `CaptureStagingMediaFlowLayout`, and complete `ActiveScanToolbar` composition.
@@ -170,8 +170,10 @@ tray's existing glass or reduced-effect surface. The empty note uses a plain
 `bubble.left` outline without interior lines or a plus badge; a populated note
 uses the filled symbol. Analyze matches Identify with a 48 pt blue circle and
 white up arrow. Both retain their Identify/Analyze accessibility labels,
-submission hints, and Large Content Viewer labels. Only the note has a
-once-per-install visual tooltip; submission actions have none. See the
+submission hints, and Large Content Viewer labels. The submit button gets a
+separate once-per-install tooltip above its own trailing edge when physical
+capacity is full and submission is ready. It waits for the note tooltip, lasts
+four seconds, and says “Submit to identify” or “Submit to analyze.” See the
 [staged-review contract](../../../../../../docs/features-and-hardware/29-staged-capture-review.md).
 
 Reanalysis keeps historical descriptions alongside its existing primary-media

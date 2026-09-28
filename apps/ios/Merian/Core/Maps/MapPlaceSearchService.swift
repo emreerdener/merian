@@ -15,6 +15,65 @@ struct MapPlaceResult: Identifiable {
     let id = UUID()
     let label: RecentPlace
     let item: MKMapItem
+    let region: MKCoordinateRegion?
+
+    init(label: RecentPlace, item: MKMapItem, region: MKCoordinateRegion? = nil) {
+        self.label = label
+        self.item = item
+        self.region = MapPlaceViewport.region(for: item, responseRegion: region)
+    }
+}
+
+enum MapPlaceViewport {
+    static func region(for item: MKMapItem, responseRegion: MKCoordinateRegion?) -> MKCoordinateRegion? {
+        let coordinate = item.placemark.coordinate
+        if let responseRegion, isValid(responseRegion, containing: coordinate) {
+            return padded(responseRegion)
+        }
+        guard let circle = item.placemark.region as? CLCircularRegion,
+              CLLocationCoordinate2DIsValid(circle.center),
+              circle.radius.isFinite, circle.radius > 0 else { return nil }
+        let diameter = circle.radius * 2
+        guard diameter.isFinite else { return nil }
+        let region = MKCoordinateRegion(
+            center: circle.center,
+            latitudinalMeters: diameter,
+            longitudinalMeters: diameter
+        )
+        return isValid(region, containing: coordinate) ? padded(region) : nil
+    }
+
+    private static func isValid(_ region: MKCoordinateRegion, containing coordinate: CLLocationCoordinate2D) -> Bool {
+        guard CLLocationCoordinate2DIsValid(coordinate), CLLocationCoordinate2DIsValid(region.center),
+              region.span.latitudeDelta.isFinite, region.span.longitudeDelta.isFinite,
+              region.span.latitudeDelta > 0, region.span.latitudeDelta <= 180,
+              region.span.longitudeDelta > 0, region.span.longitudeDelta <= 360 else { return false }
+        let longitudeDistance = abs(coordinate.longitude - region.center.longitude)
+            .truncatingRemainder(dividingBy: 360)
+        return abs(coordinate.latitude - region.center.latitude) <= region.span.latitudeDelta / 2
+            && min(longitudeDistance, 360 - longitudeDistance) <= region.span.longitudeDelta / 2
+    }
+
+    private static func padded(_ region: MKCoordinateRegion) -> MKCoordinateRegion {
+        MKCoordinateRegion(
+            center: region.center,
+            span: MKCoordinateSpan(
+                latitudeDelta: min(region.span.latitudeDelta * 1.1, 180),
+                longitudeDelta: min(region.span.longitudeDelta * 1.1, 360)
+            )
+        )
+    }
+
+    static func results(items: [MKMapItem], boundingRegion: MKCoordinateRegion) -> [MapPlaceResult] {
+        items.filter { CLLocationCoordinate2DIsValid($0.placemark.coordinate) }.map { item in
+            MapPlaceResult(
+                label: RecentPlace(title: item.name ?? "Location", subtitle: item.placemark.title ?? ""),
+                item: item,
+                // A multi-result response encloses every match, not the selected place.
+                region: items.count == 1 ? boundingRegion : nil
+            )
+        }
+    }
 }
 
 @MainActor
@@ -55,17 +114,7 @@ private enum MapPlaceSearchService {
             Task { @MainActor in search.cancel() }
         }
         try Task.checkCancellation()
-        return response.mapItems.filter {
-            CLLocationCoordinate2DIsValid($0.placemark.coordinate)
-        }.map { item in
-            MapPlaceResult(
-                label: RecentPlace(
-                    title: item.name ?? "Location",
-                    subtitle: item.placemark.title ?? ""
-                ),
-                item: item
-            )
-        }
+        return MapPlaceViewport.results(items: response.mapItems, boundingRegion: response.boundingRegion)
     }
 }
 

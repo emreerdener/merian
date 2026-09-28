@@ -188,6 +188,9 @@ struct CaptureDraftSessionTests {
         defaults.set(true, forKey: "isMultiCaptureEnabled")
         let settings = AppSettings(userDefaults: defaults, observeExternalChanges: false)
         #expect(!settings.autoSubmitScans)
+        #expect(!settings.hasShownCaptureSubmitTip)
+        settings.hasShownCaptureSubmitTip = true
+        #expect(AppSettings(userDefaults: defaults, observeExternalChanges: false).hasShownCaptureSubmitTip)
         settings.autoSubmitScans = true
         #expect(AppSettings(userDefaults: defaults, observeExternalChanges: false).autoSubmitScans)
     }

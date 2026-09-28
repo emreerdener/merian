@@ -6,6 +6,37 @@ import Testing
 @MainActor
 @Suite("Map navigation")
 struct MapNavigationTests {
+    @Test func recentSingleMatchPreservesResolvedRegion() async throws {
+        let base = result()
+        let bounds = MKCoordinateRegion(
+            center: base.item.placemark.coordinate,
+            span: MKCoordinateSpan(latitudeDelta: 8, longitudeDelta: 10)
+        )
+        let resolved = MapPlaceResult(label: base.label, item: base.item, region: bounds)
+        let model = MapPlaceSearchModel(dependencies: dependencies(search: { _ in [resolved] }))
+        model.begin(owner: nil)
+        model.resolve(base.label)
+        await drain()
+        let selected = try #require(model.selectedResult)
+        #expect(selected.region?.span.longitudeDelta == resolved.region?.span.longitudeDelta)
+        #expect(selected.item === base.item)
+    }
+
+    @Test func recentWithDifferentSubtitleRequiresExplicitSelection() async {
+        let base = result()
+        let differentPlace = MapPlaceResult(
+            label: RecentPlace(title: base.label.title, subtitle: "Different test region"), item: base.item
+        )
+        let model = MapPlaceSearchModel(dependencies: dependencies(search: { _ in [differentPlace] }))
+        model.begin(owner: nil)
+        model.resolve(base.label)
+        await drain()
+        #expect(model.selectedResult == nil)
+        #expect(model.results.count == 1)
+        model.select(differentPlace)
+        #expect(model.selectedResult?.id == differentPlace.id)
+    }
+
     @Test func dismissedSearchRejectsDelayedResults() async throws {
         let pending = PendingPlaceResults()
         let model = MapPlaceSearchModel(dependencies: dependencies(search: pending.wait))

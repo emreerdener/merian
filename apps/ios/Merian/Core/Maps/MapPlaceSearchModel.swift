@@ -105,7 +105,9 @@ final class MapPlaceSearchModel {
 
     func resolve(_ recent: RecentPlace) {
         retryAction = .recent(recent)
-        run { .results(try await self.dependencies.search(recent.searchText), selectsSingle: true) }
+        run {
+            .results(try await self.dependencies.search(recent.searchText), selectsSingle: true, expectedLabel: recent)
+        }
     }
 
     func select(_ result: MapPlaceResult) {
@@ -129,7 +131,7 @@ final class MapPlaceSearchModel {
 
     private enum Response {
         case suggestions([MapPlaceSuggestion])
-        case results([MapPlaceResult], selectsSingle: Bool)
+        case results([MapPlaceResult], selectsSingle: Bool, expectedLabel: RecentPlace? = nil)
     }
 
     private func run(_ operation: @escaping @MainActor () async throws -> Response) {
@@ -148,9 +150,12 @@ final class MapPlaceSearchModel {
                 hasSearched = true
                 switch response {
                 case .suggestions(let values): suggestions = values
-                case .results(let values, let selectsSingle):
+                case .results(let values, let selectsSingle, let expectedLabel):
                     results = values
-                    if selectsSingle, values.count == 1, let value = values.first { select(value) }
+                    if selectsSingle, values.count == 1, let value = values.first,
+                       expectedLabel == nil || value.label.id == expectedLabel?.id {
+                        select(value)
+                    }
                 }
             } catch {
                 guard let self, !Task.isCancelled, generation == requestGeneration else { return }

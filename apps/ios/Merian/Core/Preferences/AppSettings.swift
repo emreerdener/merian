@@ -39,6 +39,9 @@ final class AppSettings {
     var hasShownCaptureNoteTip: Bool {
         didSet { persistBool(hasShownCaptureNoteTip, oldValue: oldValue, key: UserDefaultsKeys.hasShownCaptureNoteTip) }
     }
+    var hasShownCaptureSubmitTip: Bool {
+        didSet { persistBool(hasShownCaptureSubmitTip, oldValue: oldValue, key: UserDefaultsKeys.hasShownCaptureSubmitTip) }
+    }
     var showsCaptureGoalProgress: Bool {
         didSet {
             persistBool(
@@ -171,6 +174,7 @@ final class AppSettings {
             UserDefaultsKeys.opensExploreOnLaunch: false,
             UserDefaultsKeys.autoSubmitScans: false,
             UserDefaultsKeys.hasShownCaptureNoteTip: false,
+            UserDefaultsKeys.hasShownCaptureSubmitTip: false,
             UserDefaultsKeys.showsCaptureGoalProgress: true,
             UserDefaultsKeys.isExpeditionModeActive: false,
             UserDefaultsKeys.isHapticsEnabled: true,
@@ -208,6 +212,7 @@ final class AppSettings {
         opensExploreOnLaunch = userDefaults.bool(forKey: UserDefaultsKeys.opensExploreOnLaunch)
         autoSubmitScans = userDefaults.bool(forKey: UserDefaultsKeys.autoSubmitScans)
         hasShownCaptureNoteTip = userDefaults.bool(forKey: UserDefaultsKeys.hasShownCaptureNoteTip)
+        hasShownCaptureSubmitTip = userDefaults.bool(forKey: UserDefaultsKeys.hasShownCaptureSubmitTip)
         showsCaptureGoalProgress = userDefaults.bool(forKey: UserDefaultsKeys.showsCaptureGoalProgress)
         isExpeditionModeActive = userDefaults.bool(forKey: UserDefaultsKeys.isExpeditionModeActive)
         isHapticsEnabled = userDefaults.bool(forKey: UserDefaultsKeys.isHapticsEnabled)
@@ -280,6 +285,7 @@ final class AppSettings {
         opensExploreOnLaunch = userDefaults.bool(forKey: UserDefaultsKeys.opensExploreOnLaunch)
         autoSubmitScans = userDefaults.bool(forKey: UserDefaultsKeys.autoSubmitScans)
         hasShownCaptureNoteTip = userDefaults.bool(forKey: UserDefaultsKeys.hasShownCaptureNoteTip)
+        hasShownCaptureSubmitTip = userDefaults.bool(forKey: UserDefaultsKeys.hasShownCaptureSubmitTip)
         showsCaptureGoalProgress = userDefaults.bool(forKey: UserDefaultsKeys.showsCaptureGoalProgress)
         isExpeditionModeActive = userDefaults.bool(forKey: UserDefaultsKeys.isExpeditionModeActive)
         isHapticsEnabled = userDefaults.bool(forKey: UserDefaultsKeys.isHapticsEnabled)

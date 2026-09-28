@@ -22,6 +22,7 @@ struct ActiveScanToolbar: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showTooltip: Bool
+    @State private var showSubmitTooltip = false
     @State private var isPhotoPickerPresented = false
     @State private var photoPickerSelectionLimit = 1
     @State private var isCheckingPhotoImportAdmission = false
@@ -147,6 +148,13 @@ struct ActiveScanToolbar: View {
         .onDisappear {
             photoImportAdmissionTask?.cancel()
         }
+        .task(id: canShowSubmitTooltip) {
+            guard canShowSubmitTooltip, !dependencies.hasShownSubmitTooltip() else { return }
+            showSubmitTooltip = true
+            dependencies.markSubmitTooltipShown()
+            defer { showSubmitTooltip = false }
+            try? await Task.sleep(for: .seconds(4))
+        }
     }
 
     private var discardButton: some View {
@@ -162,6 +170,27 @@ struct ActiveScanToolbar: View {
             isDisabled: presentation.isSubmitDisabled || !isSubmissionReady,
             onSubmit: onSubmit
         )
+        .overlay(alignment: .bottomTrailing) {
+            if showSubmitTooltip && canShowSubmitTooltip {
+                Text(isRefining ? "Submit to analyze" : "Submit to identify")
+                    .font(.caption)
+                    .padding(8)
+                    .frame(width: 140)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+                    .fixedSize(horizontal: false, vertical: true)
+                    // Anchor the bubble's bottom above the 48 pt action plus an 8 pt gap.
+                    .offset(y: -56)
+                    .allowsHitTesting(false)
+                    .accessibilityIdentifier("CaptureSubmitTooltip")
+            }
+        }
+    }
+
+    private var canShowSubmitTooltip: Bool {
+        stagedCapture.physicalItemCount >= stagedCaptureLimit
+            && stagedCaptureLimit > 0 && !presentation.isSubmitDisabled
+            && isSubmissionReady && !isMutationLocked
+            && !isCheckingPhotoImportAdmission && !showTooltip
     }
 
     @ViewBuilder

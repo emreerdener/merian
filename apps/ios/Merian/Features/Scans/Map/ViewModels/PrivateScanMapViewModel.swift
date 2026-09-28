@@ -143,13 +143,17 @@ final class PrivateScanMapViewModel {
         visibleRegion = region
     }
 
-    func navigate(to item: MKMapItem) {
+    func navigate(to item: MKMapItem, region: MKCoordinateRegion? = nil) {
         guard CLLocationCoordinate2DIsValid(item.placemark.coordinate) else { return }
         didSetInitialCamera = true
         selectedPointID = nil
         // Protect the explicit destination from late snapshot fallback before MapKit settles.
-        visibleRegion = PrivateScanMapRegion.centered(on: item.placemark.coordinate, span: 0.02)
-        cameraPosition = .item(item, allowsAutomaticPitch: false)
+        visibleRegion = region ?? PrivateScanMapRegion.centered(on: item.placemark.coordinate, span: 0.02)
+        if let region {
+            cameraPosition = .region(region)
+        } else {
+            cameraPosition = .item(item, allowsAutomaticPitch: false)
+        }
     }
 
     func showAllFilteredScans() {

@@ -130,17 +130,21 @@ follows the app's color scheme consistently across Scan, Record, and Describe.
 **Identify** and **Analyze** both use a white up arrow in a 48 pt primary accent
 blue circle, matching Share’s blue and Discard’s diameter. Both retain their
 context-specific accessibility label and submission hint, disabled behavior, and
-Large Content Viewer label. Submission actions have no visual tooltip. The
-once-per-install note tooltip remains. Action controls remain 48 pt at
-accessibility text sizes, while note-tooltip text can wrap. Media icons retain
-their meanings. Both the note and audio-review nodes have a visible circular
-border. Empty note and add-media nodes share a dashed border and transparent
-background. Populated notes, audio, historical text, and photo/video thumbnail
-backing use opaque primary system backgrounds (white in light appearance) and
-solid borders. Empty nodes reveal the tray beneath, including its
-reduced-transparency or reduced-effect fallback. Audio uses a primary-contrast
-waveform; its appearance does not imply a disabled state. It remains a
-playback-review button, subject to the shared draft/admission locks.
+Large Content Viewer label. Once per install, a full physical-media tray shows
+“Submit to identify” (or “Submit to analyze” for reanalysis) directly above the
+submit button for four seconds. It waits for submission readiness and for the
+note tooltip to finish, and disappears if the tray becomes incomplete or locked.
+The optional note is not required to trigger it. The once-per-install note
+tooltip remains. Action controls remain 48 pt at accessibility text sizes, while
+note-tooltip text can wrap. Media icons retain their meanings. Both the note and
+audio-review nodes have a visible circular border. Empty note and add-media
+nodes share a dashed border and transparent background. Populated notes, audio,
+historical text, and photo/video thumbnail backing use opaque primary system
+backgrounds (white in light appearance) and solid borders. Empty nodes reveal
+the tray beneath, including its reduced-transparency or reduced-effect fallback.
+Audio uses a primary-contrast waveform; its appearance does not imply a disabled
+state. It remains a playback-review button, subject to the shared
+draft/admission locks.
 
 Only the staging tray reports its rendered height (including bottom padding) to
 Shell. `CaptureChromeLayout` retains the baseline 124 pt capture-control inset,

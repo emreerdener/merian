@@ -8,6 +8,25 @@ import Testing
 @Suite("Private Scan Map")
 @MainActor
 struct PrivateScanMapTests {
+    @Test func geographicPlaceRegionSurvivesLateSnapshot() {
+        let model = PrivateScanMapViewModel()
+        let region = MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: 1, longitude: 1),
+            span: MKCoordinateSpan(latitudeDelta: 8, longitudeDelta: 10)
+        )
+        model.selectedCategories = [.birds]
+        model.selectedPointID = "previous"
+        model.navigate(to: MKMapItem(placemark: MKPlacemark(coordinate: region.center)), region: region)
+        model.update(snapshot: PrivateScanMapSnapshot(records: [
+            makeRecord(id: "late-snapshot", latitude: 2, longitude: 2)
+        ]))
+        #expect(model.cameraPosition.region?.span.longitudeDelta == 10)
+        #expect(model.visibleRegion?.span.latitudeDelta == 8)
+        #expect(model.selectedCategories == [.birds])
+        #expect(model.selectedPointID == nil)
+        #expect(model.didSetInitialCamera)
+    }
+
     @Test func placeNavigationPreservesFiltersAndRetiresInitialLocation() {
         let model = PrivateScanMapViewModel()
         model.selectedCategories = [.birds]

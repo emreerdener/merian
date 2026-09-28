@@ -81,7 +81,9 @@ Account-deletion recovery models and local stores live in
 
 `hasShownCaptureNoteTip` is a device-local flag, defaulting false, persisted and
 reloaded through `AppSettings`. Capture Staging uses it for the once-per-install
-note tooltip. The submit button has no visual tooltip or tooltip preference.
+note tooltip. The separate `hasShownCaptureSubmitTip` flag also defaults false
+and persists through `AppSettings`. It records the once-per-install submit tip
+shown when physical media capacity is full and submission is ready.
 
 ## Recording preview preference
 

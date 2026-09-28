@@ -6,6 +6,8 @@ struct CaptureStagingToolbarDependencies {
     let performCancelFeedback: @MainActor @Sendable () -> Void
     let hasShownTooltip: @MainActor @Sendable () -> Bool
     let markTooltipShown: @MainActor @Sendable () -> Void
+    let hasShownSubmitTooltip: @MainActor @Sendable () -> Bool
+    let markSubmitTooltipShown: @MainActor @Sendable () -> Void
 
     @MainActor
     static func live(diContainer: AppDIContainer) -> Self {
@@ -24,6 +26,12 @@ struct CaptureStagingToolbarDependencies {
             },
             markTooltipShown: {
                 diContainer.appSettings.hasShownCaptureNoteTip = true
+            },
+            hasShownSubmitTooltip: {
+                diContainer.appSettings.hasShownCaptureSubmitTip
+            },
+            markSubmitTooltipShown: {
+                diContainer.appSettings.hasShownCaptureSubmitTip = true
             }
         )
     }
