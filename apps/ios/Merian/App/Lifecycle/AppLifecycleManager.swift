@@ -92,7 +92,6 @@ final class AppLifecycleManager {
             let now = Date()
 
             if let context = container.offlineQueueManager.modelContext {
-                await SpeciesPreferredNameRepository.syncCloudPreferences(modelContext: context)
                 await container.scanRepository.purgeExpiredNonBiologicalScans(
                     modelContainer: context.container,
                     referenceDate: now
@@ -103,11 +102,11 @@ final class AppLifecycleManager {
                 let lastSyncDate = UserDefaults.standard.object(forKey: UserDefaultsKeys.lastHistoricalSyncDate) as? Date ?? Date.distantPast
                 if now.timeIntervalSince(lastSyncDate) >= 900
                     || container.appUpdateCoordinator.shouldRetryHistoryAfterUpdate {
-                    // Stamp before starting the sync, not after. Without this, two concurrent
-                    // callers (auth listener + foreground handler) both check the timestamp
-                    // before either writes it and both proceed — doubling the network load.
-                    UserDefaults.standard.set(now, forKey: UserDefaultsKeys.lastHistoricalSyncDate)
-                    await container.scanRepository.syncHistoricalScansDown(modelContext: context)
+                    // Auth completion and foreground activation share one
+                    // session-keyed task, including its timestamp and preferences.
+                    await container.supabaseManager.syncHistoricalSessionForForeground()
+                } else {
+                    await SpeciesPreferredNameRepository.syncCloudPreferences(modelContext: context)
                 }
             }
 

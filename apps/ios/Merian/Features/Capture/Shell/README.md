@@ -42,6 +42,12 @@ request. Backgrounding cancels pending resumes; dismissal stops the player
 before releasing its derivative. Silent video has no Boost audio control. These
 preview services do not mutate staged media, provider inputs, or toolbar layout.
 
+`StagedPreviewAudioBoostTests` awaits the retained source-switch task when
+testing dismissal and background cancellation. Dismissal checks app-owned play
+commands, item removal, and derivative cleanup; a detached AVPlayer's
+instantaneous rate does not establish whether a stale source-switch task
+requested playback.
+
 ## Launch announcement
 
 `CaptureWorkspaceView` can initialize the existing root sheet router with
@@ -180,7 +186,12 @@ fences, and a 600-line ceiling for every production Swift file in this folder.
 staging, mode-specific progress, and latent-audio isolation.
 `CaptureNavigationViewModelTests` locks badge projection, unavailable-count
 preservation, latest-refresh ownership, teardown invalidation, and injected
-feedback. The feature-owned `MediaModeToggleTests` locks selector geometry,
+feedback. `MainTabBar` keys refreshes by account, account-work readiness, and
+its foreground/dismissal trigger. Pending authentication admits no badge read;
+readiness reopening restarts it, and readiness closure fences suspended results.
+Account replacement or readiness closure clears both Explore badge sources;
+unavailable unread counts preserve prior state only within the same ready
+account. The feature-owned `MediaModeToggleTests` locks selector geometry,
 symbols, accessibility, native value-change and primary-action routing,
 duplicate-event suppression, hit testing, and configured-order healing. The
 dependencies suite locks the row's injected entitlement, keyboard, paywall, and

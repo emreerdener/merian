@@ -98,6 +98,10 @@ production submission or public release.
 
 ### Incidents
 
+- **[Startup log triage](./incidents/2026-09-startup-log-triage.md)** —
+  Offerings retry and diagnostics, shared startup history work, badge readiness,
+  and unresolved device/media/UI verification.
+
 - **[First-launch browsing blocked by account setup](./incidents/2026-09-first-launch-auth-transition.md)**
   — Confirmed transition error across Explore and Identify, purchase-readiness
   separation, and initial-load recovery.

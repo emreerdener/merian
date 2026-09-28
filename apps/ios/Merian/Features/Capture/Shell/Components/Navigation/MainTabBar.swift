@@ -8,9 +8,18 @@ struct MainTabBar: View {
     @Binding var isUserProfileOpen: Bool
 
     @Environment(AppSettings.self) private var appSettings
+    @Environment(SupabaseManager.self) private var supabaseManager
     @Environment(\.scenePhase) private var scenePhase
     @State private var navigationViewModel: CaptureNavigationViewModel
     @State private var badgeRefreshID = UUID()
+
+    private var badgeRefreshKey: CaptureNavigationBadgeRefreshKey {
+        CaptureNavigationBadgeRefreshKey(
+            userID: supabaseManager.currentUser?.id,
+            isAccountWorkAllowed: supabaseManager.allowsUnownedAccountBoundWork,
+            refreshID: badgeRefreshID
+        )
+    }
 
     init(
         isExploreOpen: Binding<Bool>,
@@ -65,9 +74,11 @@ struct MainTabBar: View {
                 }
             )
         }
-        .task(id: badgeRefreshID) {
+        .task(id: badgeRefreshKey) {
             await navigationViewModel.refreshBadges(
-                lastSeenSharedAt: appSettings.lastSeenExplorePostSharedAt
+                lastSeenSharedAt: appSettings.lastSeenExplorePostSharedAt,
+                userID: badgeRefreshKey.userID,
+                isAccountWorkAllowed: badgeRefreshKey.isAccountWorkAllowed
             )
         }
         .onChange(of: scenePhase) { _, phase in

@@ -65,6 +65,11 @@ The
 covers the moved endpoint tests; `FeedbackSurveyTests` now contains only prompt
 and cooldown policy, with no shared network override.
 
+When plans are unavailable, the paywall offers **Try again** through its
+existing `PaywallViewModel` dependency. Overlapping view-model fetches are
+rejected, the loading state clears on completion, and retry waits for
+purchase-identity readiness. It does not initiate a purchase or restore.
+
 `SettingsTabView` remains the route and sheet composition owner. Detailed
 screens keep UI-only selection and presentation state locally. Account deletion
 delegates live protocol and recovery effects to `SupabaseManager`, which injects

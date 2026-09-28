@@ -233,22 +233,30 @@ struct StagedPreviewAudioBoostTests {
         ))
         let source = StagedPreviewAudioBoostSource()
         var continuation: CheckedContinuation<AVPlayerItem, Error>?
+        var playRequestCount = 0
         let playback = StagedVideoPreviewPlayback(
             video: .init(filePath: fixture.videoURL.path, sampledImages: [], audioFilePath: audio.fileURL.path),
             boostSource: source, session: makeSession(),
-            dependencies: .init(makeBoostedItem: { _, _ in
+            dependencies: .init(play: { player in
+                playRequestCount += 1
+                player.play()
+            }, makeBoostedItem: { _, _ in
                 try await withCheckedThrowingContinuation { continuation = $0 }
             })
         )
+        defer { playback.stop() }
         await playback.start()
-        playback.toggleBoost()
+        #expect(playRequestCount == 1)
+        let preparation = try #require(playback.toggleBoost())
         try await waitUntil { continuation != nil }
         let result = try await source.prepare(source: audio.fileURL.path)
         playback.stop()
         continuation?.resume(returning: AVPlayerItem(url: fixture.videoURL))
-        await Task.yield()
+        await preparation.value
         #expect(playback.player.currentItem == nil)
-        #expect(playback.player.rate == 0)
+        // With no current item, AVPlayer's rate is not a playback-ownership
+        // signal. Check that the completed stale task issued no play request.
+        #expect(playRequestCount == 1)
         #expect(!playback.isPreparing)
         #expect(!FileManager.default.fileExists(atPath: result.url.path))
     }
@@ -269,11 +277,11 @@ struct StagedPreviewAudioBoostTests {
         )
         defer { playback.stop() }
         await playback.start()
-        playback.toggleBoost()
+        let preparation = try #require(playback.toggleBoost())
         try await waitUntil { continuation != nil }
         playback.pauseForBackground()
         continuation?.resume(returning: true)
-        await Task.yield()
+        await preparation.value
         #expect(playback.isBoostEnabled)
         #expect(!playback.isPreparing)
         #expect(playback.player.rate == 0)

@@ -80,22 +80,24 @@ struct CoreNetworkIntegrationArchitectureTests {
             in: purchaseIdentityFiles
         )
         let facadeLineCount = lineCount(aggregate)
+        // Reviewed startup fix: keyed foreground/listener coalescing and
+        // replacement fencing add 22 Auth lines and 14 facade lines.
         #expect(
-            authProductionLineCount <= 7_734,
-            "Auth production grew beyond its post-consolidation budget"
+            authProductionLineCount <= 7_756,
+            "Auth production grew beyond its reviewed budget"
         )
         #expect(
             purchaseIdentityProductionLineCount <= 2_016,
             "Purchase Identity production grew beyond its reviewed budget"
         )
         #expect(
-            facadeLineCount <= 3_461,
-            "SupabaseManager grew beyond its post-consolidation budget"
+            facadeLineCount <= 3_475,
+            "SupabaseManager grew beyond its reviewed budget"
         )
         #expect(
             authProductionLineCount
                 + purchaseIdentityProductionLineCount
-                + facadeLineCount <= 13_211,
+                + facadeLineCount <= 13_247,
             "The Auth facade extraction surfaces grew in aggregate"
         )
         let models = try networkSource(

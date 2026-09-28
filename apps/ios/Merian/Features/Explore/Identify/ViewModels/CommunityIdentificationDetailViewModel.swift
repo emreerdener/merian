@@ -32,9 +32,13 @@ final class CommunityIdentificationDetailViewModel {
 
     private let dependencies: Dependencies
 
+    convenience init(requestId: String) {
+        self.init(requestId: requestId, dependencies: .live)
+    }
+
     init(
         requestId: String,
-        dependencies: Dependencies = .live
+        dependencies: Dependencies
     ) {
         self.requestId = requestId
         self.dependencies = dependencies

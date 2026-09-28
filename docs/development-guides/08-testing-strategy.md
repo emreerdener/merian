@@ -1380,7 +1380,8 @@ injected closure dependencies for Settings state tests:
   [Core Network notification/public-profile matrix](../../apps/ios/Merian/Core/Network/README.md#notification-and-public-profile-verification).
 - `PlanViewModelTests` covers plan-display policy, restore single-flight,
   cross-action fencing, subscribed dismissal, and provider error feedback for
-  paywall and plan management.
+  paywall and plan management, including single-flight manual offering retries
+  after an unavailable result and rejection of already-cancelled loads.
 - `SettingsPreferenceInteractionTests` covers geoprivacy write serialization and
   latest-selection coalescing plus expedition-mode persist-before-reconcile
   ordering.
@@ -2699,7 +2700,13 @@ prove visual parity, live Auth/provider behavior, or migration execution.
   the production line ceiling, Store Recovery bootstrap delegation,
   Debug/Release UI-test seed separation, root scene and fallback-Auth-task
   ownership, deterministic root presentation and notice composition, and Google
-  → app route → file import → Supabase URL precedence.
+  → app route → file import → Supabase URL precedence. Required-consent UI
+  seeding follows the consent manager's adopted account as well as initial
+  launch, since test mode suppresses cloud evidence binding.
+  `ConsentManagerLedgerDurabilityTests` covers unowned-to-owned fixture consent
+  and verifies a fresh process-memory store cannot inherit those approvals. The
+  existing missing-video UI flow verifies the workspace remains reachable before
+  testing image fallback; it must not bypass the production root policy.
 - **`App/WhatsNewLaunchTests.swift`**: Covers once-per-highlight-set
   acknowledgement, suppression for onboarding-incomplete installations, recovery
   deferral without acknowledgement, test-process isolation, and
@@ -4095,8 +4102,8 @@ import, and permission-denial UI require the physical-device checklist in
   owner in `Auth/`, `Endpoints/`, `Inference/`, `Media/`, `Models/`,
   `Recovery/`, and `Transport/` plus the client façade. It requires the exact
   sixty-one Auth foundation paths and caps Auth, Purchase Identity,
-  `SupabaseManager.swift`, and their combined production surface at 7,734,
-  2,016, 3,461, and 13,211 lines, respectively. It includes the effect-free
+  `SupabaseManager.swift`, and their combined production surface at 7,756,
+  2,016, 3,475, and 13,247 lines, respectively. It includes the effect-free
   observable runtime owner for transition, generation, analytics-token,
   exact-session lease/drain, and local sign-out state; focused
   listener/current-state and historical-sync task owners; lifecycle diagnostics;
@@ -4562,10 +4569,12 @@ import, and permission-denial UI require the physical-device checklist in
   the SDK stream is suspended. Forced bootstrap reconciliation additionally
   proves purchase/entitlement effects without a deferred SDK event and rejects a
   newly admitted transition before replay.
-- **`AuthHistoricalSessionSyncLiveServiceTests.swift`**: Owns three
-  deterministic retained-task cases covering stamp/preference/scan order,
-  session drift after preferred-name synchronization, and teardown cancellation
-  while synchronization is suspended.
+- **`AuthHistoricalSessionSyncLiveServiceTests.swift`**: Owns deterministic
+  retained-task cases covering stamp/preference/scan order, session drift,
+  teardown cancellation, same-session foreground/listener coalescing, and
+  account/generation replacement while cancellation-uncooperative preferences
+  are suspended. Stale admission/completion cannot displace the replacement, and
+  completed work permits a later refresh.
 - **`AuthSessionRecoveryCoordinatorTests.swift`**: Owns eighteen deterministic
   recovery cases for ordinary and transition-owned refresh, cancelled admission
   and in-flight work, expected-session drift, anonymous purchase/entitlement
@@ -4771,19 +4780,21 @@ import, and permission-denial UI require the physical-device checklist in
   Keychain item via `SecItemDelete` before and after the assertion to prevent
   cross-run contamination. `RevenueCatManagerTests` also locks the required
   current-offering product set to `pro_week` plus `pro_annual`, pending-identity
-  mutation fences, and stable-versus-legacy identity policy. Resolver tests lock
-  exact DTO decoding and reject malformed or RevenueCat-anonymous IDs; the
-  interaction and architecture suites separately lock typed operation
-  forwarding, secure-state ownership, and the sole live resolver-route adapter.
-  Source contracts require serialized SDK identity mutation and no stable-mode
-  account PII attributes or receipt sync. `MerianNetworkClientTests` separately
-  proves that a generic `401` cannot rotate an anonymous UUID or discard pending
-  identity evidence. This does not replace dashboard/App Store smoke testing or
-  prove either stable principal continuity or legacy provider transfer on a
-  physical device. `EntitlementManagerTests` lock current-launch verification,
-  buffered replay metadata, stale-version rejection, account isolation, balance
-  validation, exhaustion, and the difference between functional access and
-  new-scan capacity.
+  mutation fences, stable-versus-legacy identity policy, and privacy-safe
+  offerings error classification without provider text or unknown domains.
+  Resolver tests lock exact DTO decoding and reject malformed or
+  RevenueCat-anonymous IDs; the interaction and architecture suites separately
+  lock typed operation forwarding, secure-state ownership, and the sole live
+  resolver-route adapter. Source contracts require serialized SDK identity
+  mutation and no stable-mode account PII attributes or receipt sync.
+  `MerianNetworkClientTests` separately proves that a generic `401` cannot
+  rotate an anonymous UUID or discard pending identity evidence. This does not
+  replace dashboard/App Store smoke testing or prove either stable principal
+  continuity or legacy provider transfer on a physical device.
+  `EntitlementManagerTests` lock current-launch verification, buffered replay
+  metadata, stale-version rejection, account isolation, balance validation,
+  exhaustion, and the difference between functional access and new-scan
+  capacity.
 - **`Core/Security/RevenueCat/RevenueCatArchitectureTests.swift`**: Freezes the
   exact RevenueCat Models/Policies/Coordinators inventory, source-wide
   declaration uniqueness, one production literal per legacy subscriber-attribute

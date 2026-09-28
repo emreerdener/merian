@@ -85,7 +85,12 @@ struct CoreDataIntegrationArchitectureTests {
             "private let historicalCloudClient: HistoricalSyncCloudClient"
         ))
         #expect(repository.contains(
-            "init(historicalCloudClient: HistoricalSyncCloudClient = .live)"
+            "init(historicalCloudClient: HistoricalSyncCloudClient)"
+        ))
+        #expect(repository.contains("convenience init()"))
+        #expect(repository.contains("self.init(historicalCloudClient: .live)"))
+        #expect(!repository.contains(
+            "HistoricalSyncCloudClient = .live"
         ))
         #expect(!repository.contains("SupabaseManager.shared"))
         #expect(!repository.contains(".from(\""))
