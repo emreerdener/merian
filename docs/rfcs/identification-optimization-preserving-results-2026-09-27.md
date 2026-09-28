@@ -1,8 +1,8 @@
 # Identification optimization while preserving current results
 
 Date: 27 September 2026\
-Status: Shared-pipeline audit complete; OpenAI prompt and context review remains
-open. Production remains Gemini.
+Status: Shared-pipeline and OpenAI prompt/context reviews complete; one OpenAI
+clarity candidate selected for implementation. Production remains Gemini.
 
 ## Decision
 
@@ -34,54 +34,53 @@ own baseline. Gemini timing and cache observations cannot establish whether an
 OpenAI-specific change would help. The previous recommendation to move directly
 to audio was premature; this section corrects that scope decision.
 
-Keep the existing profiles as controls while completing the OpenAI review below.
+Keep the existing profiles as controls while implementing the candidate below.
 Preserve all frozen evidence and the separate photo qualification work. The
 concise-explanation experiment remains closed; retaining explanation detail does
 not prevent improving the instructions and context sent to the model.
 
-## Next: OpenAI prompt and context review
+## OpenAI review outcome and next implementation
 
-Start with the actual request produced by
-[buildOpenAIRequestParameters](../../services/supabase/functions/_shared/ai/openaiRequest.ts),
-including its shared instructions, OpenAI-specific additions, strict response
-schema and ordered observation evidence. Review three candidates independently:
+The
+[OpenAI prompt and context review](./identification-openai-prompt-review-2026-09-27.md)
+is complete. It maps shared identification requirements, OpenAI-specific wire
+instructions, context sources and cache behavior. Its exact offline candidate
+changes four visual-prompt directions from omitting fields to returning `null`,
+matching OpenAI's existing strict schema. The baseline, Gemini prompt, complete
+observation and explanation definition remain unchanged.
 
-1. **Instruction clarity and duplication.** Map requirements across the shared
-   prompt, appended OpenAI guidance and schema. Identify genuinely repeated or
-   conflicting directions and propose clearer OpenAI-specific wording. Preserve
-   identification rules, required fields, abstention, uncertainty, safety and
-   the current explanation structure and detail. Fewer input instructions do not
-   require shorter explanations.
-2. **Context organization.** Trace which observation and environmental facts
-   reach the model, how they are labelled, and whether facts are repeated or
-   mixed with instructions. Distinguish supplied evidence from missing or
-   inferred context. Preserve all legitimate observation content, optional
-   descriptions and media ordering; no evidence removal is selected by this
-   plan.
-3. **OpenAI cache reuse.** Verify which instructions and schema remain identical
-   between requests, then inspect supported cache boundaries and actual OpenAI
-   usage evidence. Stable instructions already exist; their presence alone does
-   not prove optimal reuse or justify a new cache setting. Compare read/write
-   cost and cold behavior before predicting a benefit, using the
-   [OpenAI caching guidance](https://developers.openai.com/api/docs/guides/prompt-caching).
+Three synthetic visual requests confirmed that only the candidate `instructions`
+field changes; all 14 affected fields already support null. The selected target
+is four conflicting field-omission directions removed and zero other
+native-request changes. This is a consistency improvement, not evidence of
+faster or more accurate identification. The completed OpenAI comparison had no
+normalization failures; actual model benefit is unmeasured.
 
-The first deliverable is an offline requirement map and one concrete candidate
-request/prompt diff, or a specific finding that a candidate is already handled.
+The proposed prompt/profile are not registered or callable. Next:
+
+1. Implement the separately versioned OpenAI candidate and preserve the frozen
+   baselines. Use the requirement map and exact edit manifest for parity and
+   drift checks.
+2. Extend the existing evaluator's profile, controller, reporting and accounting
+   support for this hypothesis before any live execution. Do not reuse the
+   closed concise experiment's identity or allocation.
+3. Prepare one bounded matched OpenAI comparison and its acceptance criteria.
+   Preserve identity/rank, uncertainty, abstention, non-biological handling,
+   explanation grounding/detail and safety. Measure native cache read/write
+   usage and retain failures; neither equal code settings nor Gemini timings
+   establish equal cache conditions or a model benefit.
+
+Context organization and cache reuse were reviewed as independent candidates.
+User notes and capture facts have no demonstrated safe deduplication; plain
+photo ordinal labels are a later hypothesis with explicit focus/lineage limits.
+Stable OpenAI instructions and schema already exist, while optimal cache reuse
+is unproven. Neither candidate is combined with the four wording edits.
+
 Keep model choice, reasoning effort, image detail, output limits and explanation
-format fixed while selecting a prompt/context change. No new paid benchmark is
-needed for this review.
-
-For the selected candidate, document its expected benefit and measurable target
-before implementation or live comparison. Offline validation must preserve the
-complete evidence and result contract. Any quality, latency or cost claim needs
-an appropriate OpenAI baseline/candidate comparison with the existing evaluation
-controls; the historical Gemini app measurements cannot substitute for it.
-Existing paid allocations are not reopened by this plan.
-
-The sequence remains: finish this OpenAI review, implement and validate one
-justified change (or explicitly retain the baseline based on that review), then
-plan OpenAI audio evaluation. Photo activation and iOS distribution retain their
-separate gates.
+format fixed. No new paid benchmark ran for this review, and existing
+allocations are not reopened. Finish implementation and candidate validation
+before closing optimization and planning OpenAI audio. Photo activation and iOS
+distribution retain their separate gates.
 
 ## Initial infrastructure milestone is complete
 

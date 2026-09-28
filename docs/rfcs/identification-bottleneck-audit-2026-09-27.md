@@ -14,11 +14,16 @@ against its baseline. Gemini app timings and Gemini cache counts cannot rule out
 an OpenAI-specific improvement.
 
 The
-[current optimization plan](./identification-optimization-preserving-results-2026-09-27.md#next-openai-prompt-and-context-review)
-keeps instruction clarity, context organization and OpenAI cache reuse open for
-an offline review before audio. It supersedes the closure and next-step
+[current optimization plan](./identification-optimization-preserving-results-2026-09-27.md#openai-review-outcome-and-next-implementation)
+reopened instruction clarity, context organization and OpenAI cache reuse for an
+offline review before audio. It supersedes the closure and next-step
 recommendations below, while preserving the historical measurements. Explanation
 format and detail remain unchanged; the concise experiment stays closed.
+
+The subsequent
+[OpenAI review](./identification-openai-prompt-review-2026-09-27.md) selected an
+explicit-null wording candidate and verified its offline request diff. Candidate
+implementation and evaluation remain pending.
 
 ## Decision
 
