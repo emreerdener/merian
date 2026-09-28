@@ -590,11 +590,6 @@ extension OfflineQueueManager {
         scanId: String,
         in context: ModelContext
     ) throws -> OfflineJobRecord? {
-        let jobId = Self.scanIngestionJobId(scanId: scanId)
-        var descriptor = FetchDescriptor<OfflineJobRecord>(
-            predicate: #Predicate { $0.id == jobId }
-        )
-        descriptor.fetchLimit = 1
-        return try context.fetch(descriptor).first
+        try context.fetchOfflineJob(id: Self.scanIngestionJobId(scanId: scanId))
     }
 }
