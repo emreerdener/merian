@@ -493,7 +493,23 @@ jobs:
         env:
           SUPABASE_DB_PUSH_URL: ${{ steps.database-url.outputs.url }}
           SUPABASE_AUTH_EXTERNAL_APPLE_SECRET: ci-config-parse-placeholder
-        run: supabase db push --db-url "$SUPABASE_DB_PUSH_URL"
+        run: |
+          migration_mode="$(deno run --quiet --frozen --no-prompt \
+            --config supabase/functions/deno.json \
+            --allow-env=SUPABASE_DB_PUSH_URL,PGHOST,PGPORT,PGUSERNAME,PGUSER,PGDATABASE,PGPASSWORD,PGSSL,PGMAX_PIPELINE,PGBACKOFF,PGKEEP_ALIVE,PGPUBLICATIONS,PGTARGET_SESSION_ATTRS,PGAPPNAME,PGTARGETSESSIONATTRS --allow-net \
+            --allow-read=supabase/migrations \
+            supabase/scripts/plan_database_migration_push.ts)"
+          push_args=(--db-url "$SUPABASE_DB_PUSH_URL")
+          case "$migration_mode" in
+            normal) ;;
+            reviewed-backfill)
+              echo "Applying the reviewed Explore report-visibility migration gap."
+              push_args+=(--include-all)
+              ;;
+            *) echo "Invalid migration preflight result." >&2; exit 1 ;;
+          esac
+          supabase db push "${push_args[@]}" --dry-run
+          supabase db push "${push_args[@]}"
         if: steps.production-scope.outputs.should_deploy == 'true'
 
       - name: Enforce production privileged routine ACLs

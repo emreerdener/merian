@@ -433,6 +433,9 @@ jobs:
       - name: Validate Supabase migration contracts
         run: bash supabase/scripts/validate_migration_contracts.sh
 
+      - name: Validate reviewed out-of-order migration recovery
+        run: bash supabase/scripts/test_migration_recovery_replay.sh
+
       - name: Start disposable database for privileged-routine validation
         env:
           # config.toml keeps Apple auth available for local integration tests,

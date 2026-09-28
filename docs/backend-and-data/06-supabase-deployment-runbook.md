@@ -126,6 +126,36 @@ the normal exact-SHA authorization and release controls; this source change
 provides no deployment or provider-activation authorization. See the
 [accounting contract](./04-database-schema.md#primary-identification-attempt-accounting).
 
+### Reviewed out-of-order migration recovery
+
+The production push first runs `scripts/plan_database_migration_push.ts` against
+read-only migration-version metadata. Ordinary forward migrations use the normal
+push. The only reviewed backfill is
+`20260927220537_hide_reported_explore_posts.sql` when the remote tip is exactly
+`20260927230801_account_identification_invocations.sql` and no other earlier
+migration is missing. The planner verifies both checked-in SQL file names and
+SHA-256 digests before allowing `--include-all`. Remote-only versions, duplicate
+or malformed history, another gap, a later remote tip with this gap still open,
+or changed recovery SQL fail closed. An already-recovered database returns to
+normal push behavior. No migration is renamed and no history entry is repaired.
+
+The workflow runs `db push --dry-run` with the selected mode before applying it,
+under the existing Production concurrency lock and exact-current-main controls.
+The missing migration patches Explore report visibility; the later migration
+adds identification invocation accounting without replacing those readers.
+`test_migration_recovery_replay.sh` proves that specific delayed order in a
+private disposable database: replay through the reviewed tip without the missing
+migration, verify the ordinary push refuses it, apply the reviewed gap, then run
+report-visibility, invocation-accounting, and privileged-routine catalog tests.
+Candidate Validation runs this regression in addition to normal chronological
+replay and the complete catalog suite.
+
+A superseded candidate remains blocked by the current-main check; use the newest
+validated candidate instead of retrying an older SHA. A green candidate or a
+checked-in recovery does not establish production application. Production
+execution still requires the normal release authorization and post-deploy
+checks.
+
 ### Scan admission preview release order
 
 Migration `20260809155517_add_scan_admission_preview.sql` must reach the target

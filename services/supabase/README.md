@@ -123,6 +123,15 @@ pinned CLI to build the disposable database and run every `tests/*.sql` catalog
 fixture on the exact candidate SHA. That validation-only run has no production
 access or mutation. The separate production job requires it before `db push`.
 
+Production migration pushes use `scripts/plan_database_migration_push.ts` to
+reject unknown history gaps. Its one digest-pinned exception recovers the
+missing `20260927220537_hide_reported_explore_posts.sql` after remote tip
+`20260927230801_account_identification_invocations.sql`. The separate
+`scripts/test_migration_recovery_replay.sh` exercises that delayed order on a
+private disposable database before the ordinary candidate replay. Follow the
+[reviewed recovery contract](../../docs/backend-and-data/06-supabase-deployment-runbook.md#reviewed-out-of-order-migration-recovery);
+this is not a general authorization to use `--include-all` or repair history.
+
 ### Validation-Only Candidate Workflow
 
 The liked-feed invoker requires the forward repair
