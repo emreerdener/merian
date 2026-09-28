@@ -491,12 +491,13 @@ the Gemini consent fence. A saved OpenAI pause has no automatic retry deadline
 and is excluded from `resumeMostRecentConsentBlockedScan`, including when it is
 the newest owned/funded scan. Live inference writes this pause before release
 through `InferenceLiveQueueService`; background completion uses its existing
-generation claim and completion lock. Scans explains the missing OpenAI
-processing permission and offers **Review permission** in the app. A current
-local grant enables an explicit eligible online retry; saving permission itself
-never resumes the row or selects a provider. The retry reuses consent
-synchronization and recipient preflight before dispatch. The canonical recipient
-and activation contract is in
+generation claim and completion lock. During beta, Scans displays generic
+saved/paused copy and offers an explicit eligible online retry, with current
+account and retained funding ownership checks. OpenAI history does not restrict
+beta retry; no permission sheet is shown and no receipt is fabricated.
+Navigation or policy changes never resume the row or select a provider. The
+retry reuses consent synchronization and recipient preflight before dispatch.
+The canonical recipient and activation contract is in
 [API contracts](../../../../../docs/backend-and-data/05-api-contracts.md#independent-openai-consent-evidence).
 
 After foreground or background result persistence, inference-driven queue

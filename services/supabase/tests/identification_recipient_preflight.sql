@@ -272,8 +272,8 @@ BEGIN
     UPDATE internal.identification_provider_bindings SET processor_permission = 'openai'
         WHERE effective_plan = 'pro_paid' AND input_profile = 'multimodal_photo_v1';
     SELECT * INTO STRICT preview FROM public.get_my_identification_preflight('scan_identification','multimodal_photo_v1',FALSE,scan_id,3);
-    IF preview.decision <> 'permission_required' OR preview.processor_permission <> 'openai' THEN
-        RAISE EXCEPTION 'recipient preflight reused Gemini permission for OpenAI';
+    IF preview.decision <> 'ready' OR preview.processor_permission <> 'openai' THEN
+        RAISE EXCEPTION 'beta preflight blocked the app-assigned recipient';
     END IF;
     denied := FALSE;
     BEGIN

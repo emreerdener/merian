@@ -15,7 +15,7 @@ struct InferenceFailurePresentationTests {
     @Test(arguments: [true, false])
     func openAIConsentExplainsThePauseWithoutPromisingOnboardingOrRetry(hasQueuedScan: Bool) throws {
         let value = try #require(InferenceFailurePresentation.make(
-            for: .openAIConsentRequired, hasQueuedScan: hasQueuedScan
+            for: .openAIConsentRequired, hasQueuedScan: hasQueuedScan, openAIBetaAccessEnabled: false
         ))
         #expect(value.title == "Permission needed")
         #expect(value.subtitle == (hasQueuedScan ? "Scan saved" : "Identification paused"))
@@ -23,6 +23,17 @@ struct InferenceFailurePresentationTests {
         #expect(!value.reasoning.contains("Gemini"))
         #expect(!value.reasoning.contains("automatically"))
         #expect(!value.reasoning.contains("Settings"))
+    }
+
+    @Test(arguments: [true, false])
+    func betaLegacyPauseHasNoPermissionBlockOrAutomaticResubmission(hasQueuedScan: Bool) throws {
+        let value = try #require(InferenceFailurePresentation.make(
+            for: .openAIConsentRequired, hasQueuedScan: hasQueuedScan
+        ))
+        #expect(value.title == "Scan paused")
+        #expect(!value.reasoning.localizedCaseInsensitiveContains("permission"))
+        #expect(!value.reasoning.contains("automatically"))
+        #expect(value.reasoning.contains(hasQueuedScan ? "Retry now" : "try again"))
     }
 
     @Test func specialFailuresPreserveTheirExactCopy() throws {

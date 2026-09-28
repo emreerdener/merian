@@ -145,10 +145,12 @@ publish the intended disclosure/purpose before enabling collection; a material
 copy/purpose change requires a new version and fresh action. Complete
 provider-aware inference admission and recovery with the same consent owner; do
 not relabel historical Gemini receipts. The current owner-authorized beta photo
-policy separately allows processing without a new opt-in and still honors an
-explicit all-version withdrawal. It does not convert existing Gemini receipts
-into OpenAI grants; the strict OpenAI receipt validator remains unchanged. See
-the
+policy defers OpenAI-specific collection and enforcement for every beta account,
+regardless of historical OpenAI choices. It preserves ordinary required consent
+and all immutable receipts; the strict OpenAI receipt validator remains
+unchanged. Before public consent enforcement, ship the matching native/backend
+policy and a direct disclosure action on every permission-required alert,
+returning to the same scan for explicit retry. See the
 [bounded beta decision](../../../../../docs/release-evidence/openai-beta-photo-activation-2026-09-28.md).
 
 Qualify confidence interpretation for every affected consumer: candidate bands,

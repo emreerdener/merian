@@ -193,31 +193,44 @@ BEGIN
     IF EXISTS (SELECT 1 FROM public.user_ai_consent_events WHERE user_id = test_user_id AND provider = 'openai') THEN
         RAISE EXCEPTION 'beta admission wrote consent evidence';
     END IF;
-    -- A real withdrawal, including an older disclosure, closes beta admission.
+    -- Beta admission ignores historic OpenAI choice without editing its receipt.
     PERFORM pg_catalog.SET_CONFIG('role','authenticated',TRUE);
     PERFORM public.append_user_openai_consent_event(withdrawal_id,'2026-09-25','revoked',NOW(),
         'Synthetic disclosure','Synthetic withdrawal','ios','test','1',NULL);
     PERFORM pg_catalog.SET_CONFIG('role','none',TRUE);
     test_request_id := extensions.gen_random_uuid();
     SELECT * INTO STRICT preview FROM public.get_my_identification_preflight('scan_identification','multimodal_photo_v1',FALSE,test_request_id,3,4);
-    IF preview.decision <> 'permission_required' THEN RAISE EXCEPTION 'withdrawal did not close beta admission'; END IF;
-    -- Missing/wrong capability, recipient drift and explicit withdrawal all roll back quota.
+    IF preview.decision <> 'ready' OR preview.processor_permission <> 'openai' THEN
+        RAISE EXCEPTION 'historic withdrawal still blocked beta admission';
+    END IF;
+    SELECT * INTO STRICT admitted FROM public.reserve_identification_quota(test_user_id,'scan_identification',test_request_id,
+        pg_catalog.REPEAT('b',64),test_request_id,FALSE,3,FALSE,'multimodal_photo_v1','openai',4);
+    IF admitted.provider <> 'openai' OR admitted.model <> 'gpt-6-sol' THEN
+        RAISE EXCEPTION 'historic withdrawal changed the beta provider';
+    END IF;
+    PERFORM public.finalize_ai_quota_reservation(admitted.reservation_id,test_user_id,admitted.lease_token,'refunded');
+    IF (SELECT COUNT(*) FROM public.user_ai_consent_events WHERE user_id=test_user_id AND provider='openai') <> 1
+        OR NOT EXISTS (SELECT 1 FROM public.user_ai_consent_events WHERE id=withdrawal_id AND event_kind='revoked') THEN
+        RAISE EXCEPTION 'beta admission altered historic consent';
+    END IF;
+    test_request_id := extensions.gen_random_uuid();
+    -- Missing/wrong capability and recipient drift still roll back quota.
     SELECT pg_catalog.JSONB_BUILD_ARRAY(
         (SELECT COUNT(*) FROM internal.ai_quota_reservations),
         (SELECT COALESCE(SUM(request_count),0) FROM internal.ai_quota_counters),
         (SELECT COUNT(*) FROM internal.identification_provider_attempts),
         (SELECT COUNT(*) FROM internal.complimentary_scan_usage)
     ) INTO before_counts;
-    FOREACH protocol IN ARRAY ARRAY[NULL,3,5,4] LOOP
+    FOREACH protocol IN ARRAY ARRAY[NULL,3,5] LOOP
         denied := FALSE;
         BEGIN
             PERFORM public.reserve_identification_quota(test_user_id,'scan_identification',test_request_id,
                 pg_catalog.REPEAT('b',64),test_request_id,FALSE,3,FALSE,'multimodal_photo_v1','openai',protocol);
         EXCEPTION WHEN SQLSTATE 'P0001' THEN
-            IF SQLERRM <> (CASE WHEN protocol=4 THEN 'ai_openai_consent_required' ELSE 'client_update_required' END) THEN RAISE; END IF;
+            IF SQLERRM <> 'client_update_required' THEN RAISE; END IF;
             denied := TRUE;
         END;
-        IF NOT denied THEN RAISE EXCEPTION 'capability or consent denial missing'; END IF;
+        IF NOT denied THEN RAISE EXCEPTION 'capability denial missing'; END IF;
     END LOOP;
     denied := FALSE;
     BEGIN

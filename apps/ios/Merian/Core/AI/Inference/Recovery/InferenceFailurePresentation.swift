@@ -16,7 +16,8 @@ struct InferenceFailurePresentation: Equatable, Sendable {
 
     static func make(
         for failure: InferenceLiveFailurePolicy.Failure,
-        hasQueuedScan: Bool
+        hasQueuedScan: Bool,
+        openAIBetaAccessEnabled: Bool = ConsentPolicy.openAIBetaAccessEnabled
     ) -> InferenceFailurePresentation? {
         switch failure {
         case .recoverableConflict:
@@ -50,6 +51,15 @@ struct InferenceFailurePresentation: Equatable, Sendable {
                     "If it stays paused, you can retry it from Scans."
             )
         case .openAIConsentRequired:
+            if openAIBetaAccessEnabled {
+                return .init(
+                    title: "Scan paused",
+                    subtitle: hasQueuedScan ? "Scan saved" : "Identification paused",
+                    reasoning: hasQueuedScan
+                        ? "Your scan is saved and paused. Open it in Scans and tap Retry now when available."
+                        : "Identification is paused. Please try again."
+                )
+            }
             return .init(
                 title: "Permission needed",
                 subtitle: hasQueuedScan ? "Scan saved" : "Identification paused",

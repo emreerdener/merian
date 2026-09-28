@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Permission to disclose observations is independent of Naturebook's provider assignment.
-/// Existing evidence remains withdrawable if new collection is later disabled.
+/// Dormant during beta; public-release consent requires a coordinated rollout.
 struct AIProcessingPrivacySection: View {
     @Environment(ConsentManager.self) private var consentManager
     @State private var isShowingDisclosure = false
@@ -16,7 +16,6 @@ struct AIProcessingPrivacySection: View {
     private var permissionStatus: String {
         if permission.hasPendingOpenAIWithdrawal { return "Withdrawal pending" }
         if permission.hasGrantedOpenAI { return "Allowed" }
-        if permission.isOpenAIBetaEligible { return "On during beta" }
         if permission.hasOpenAIGrantToWithdraw { return "Review permission" }
         return "Off"
     }
@@ -38,9 +37,7 @@ struct AIProcessingPrivacySection: View {
             } header: {
                 Text("AI privacy")
             } footer: {
-                Text(permission.isOpenAIBetaOptInDeferred
-                    ? ConsentPolicy.openAIBetaProcessingText
-                    : "Naturebook chooses the AI service for each observation. Allowing OpenAI gives permission to share data when Naturebook uses it; it does not change the service in use.")
+                Text("Naturebook chooses the AI service for each observation. Allowing OpenAI gives permission to share data when Naturebook uses it; it does not change the service in use.")
             }
             .alert("OpenAI identification", isPresented: $isShowingDisclosure) {
                 Button(
@@ -57,8 +54,7 @@ struct AIProcessingPrivacySection: View {
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text(permission.isOpenAIBetaOptInDeferred && !requestedGrant
-                    ? ConsentPolicy.openAIBetaProcessingText : ConsentPolicy.openAIDisclosureText)
+                Text(ConsentPolicy.openAIDisclosureText)
             }
             .onChange(of: permission.ownerUserId) { _, _ in
                 isShowingDisclosure = false

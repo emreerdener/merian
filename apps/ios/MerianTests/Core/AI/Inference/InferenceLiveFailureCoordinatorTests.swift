@@ -188,7 +188,7 @@ struct InferenceLiveFailureCoordinatorTests {
             .telemetry("InferenceOpenAIConsentRequired"),
             .failureLog(.openAIConsentRequired, .visual, "scan-a"),
             .errorFeedback,
-            .publishFailure("Permission needed", "Scan saved")
+            .publishFailure("Scan paused", "Scan saved")
         ])
     }
 

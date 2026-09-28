@@ -394,12 +394,13 @@ records completed infrastructure and verified deployment of the OpenAI key
 synchronization. The primary handler prepares a result policy before quota
 commitment; the photo binding has separate safety, provenance, admission,
 accounting and reader contracts. Beta activation changes only still-photo
-assignment and defers a new opt-in for accounts without an OpenAI choice;
-explicit withdrawals still deny. Description-only, audio and sampled-video
-observations retain Gemini. Released-reader verification, full
-production-profile qualification, TestFlight archive and released-store upgrade
-verification remain separate evidence; source completion does not claim those
-outcomes.
+assignment. The forward correction defers all OpenAI-specific collection and
+enforcement for beta accounts, irrespective of past OpenAI choices, while
+preserving the immutable history and ordinary required consent.
+Description-only, audio and sampled-video observations retain Gemini.
+Released-reader verification, full production-profile qualification, TestFlight
+archive and released-store upgrade verification remain separate evidence; source
+completion does not claim those outcomes.
 
 The implemented admission slice records an exact Gemini
 provider/binding/permission assignment per metered identification attempt and
@@ -408,11 +409,13 @@ rejects unqualified recipients before dispatch. See its
 The subsequent
 [OpenAI consent slice](../rfcs/identification-provider-openai-consent-2026-09-26.md)
 implements independent evidence, strict recipient proof and optional Settings
-choices. Collection is now enabled; beta eligibility is a separate projection
-that never creates evidence. Account changes, failed saves, revocation and
-causal synchronization are covered locally. Required onboarding and the ordinary
-consent gate remain unchanged; photo inference additionally applies the current
-server-owned beta recipient policy. The
+choices. Those controls are now dormant during beta; access is a separate
+current-account projection that never creates evidence. A future public rollout
+must pair enforcement with a direct disclosure action on each permission alert
+and a return to the same saved scan for explicit retry. Account changes, failed
+saves, revocation and causal synchronization are covered locally. Required
+onboarding and the ordinary consent gate remain unchanged; photo inference
+additionally applies the current server-owned beta recipient policy. The
 [server provenance slice](../rfcs/identification-provider-result-provenance-2026-09-26.md)
 now retains successful Gemini provider/model and generation/confidence
 configuration with atomic recovery backups. Historical unknown values stay null.

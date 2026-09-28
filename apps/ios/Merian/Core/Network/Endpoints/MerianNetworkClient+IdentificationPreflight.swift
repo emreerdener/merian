@@ -59,11 +59,11 @@ extension MerianNetworkClient {
             if recipient == .recoveryOnly { return }
             guard consent.hasCurrentRequiredConsent else { throw MerianError.aiConsentRequired }
             if recipient == .openAI {
-                guard consent.aiProcessingPermissions.ownerUserId == expectedAuthUserID,
-                      consent.aiProcessingPermissions.canProcessOpenAI,
-                      !consent.aiProcessingPermissions.hasPendingOpenAIWithdrawal else {
-                    throw MerianError.openAIConsentRequired
+                let permission = consent.aiProcessingPermissions
+                guard permission.ownerUserId == expectedAuthUserID, permission.hasCurrentAccount else {
+                    throw SupabaseAuthTransitionError.signOutSessionChanged
                 }
+                if !permission.canProcessOpenAI { throw MerianError.openAIConsentRequired }
             }
         }
         try await authorization.validate()

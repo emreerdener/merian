@@ -43,6 +43,22 @@ struct InsightQueuedRetryPresentationTests {
         if !isOnline { #expect(value.message.contains("Connect to the internet")) }
     }
 
+    @Test(arguments: [true, false], [true, false])
+    func betaLegacyPauseOffersAnExplicitEligibleRetry(isOnline: Bool, canRetry: Bool) throws {
+        for owned in [true, false] {
+            let value = try #require(QueuedRetryPresentation.resolve(
+                queueState: .failed, nextRetryAt: nil,
+                errorCode: "ai_openai_consent_required", needsAttention: true,
+                canRetryNow: canRetry, isOnline: isOnline, now: Date(),
+                openAIPermission: owned ? .betaAvailable : .betaUnavailable
+            ))
+            #expect(value.action == (owned && isOnline && canRetry ? .retryNow : nil))
+            #expect(value.message.contains("saved and paused"))
+            #expect(!value.message.localizedCaseInsensitiveContains("permission"))
+            #expect(!value.message.contains("automatically"))
+        }
+    }
+
     @Test func optionalPermissionDoesNotOpenRequiredGeminiConsentPause() throws {
         let value = try #require(QueuedRetryPresentation.resolve(
             queueState: .failed, nextRetryAt: nil,

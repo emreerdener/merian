@@ -35,18 +35,21 @@ extension UITestSeedCoordinator {
             let owner = openAIPermissionOwner,
             let defaults = UserDefaults(suiteName: suiteName) else { return nil }
         defaults.removePersistentDomain(forName: suiteName)
+        let store = UserDefaultsConsentLedgerStore(userDefaults: defaults)
+        // Reproduce a legacy revoked receipt without exposing a beta collection action.
+        do {
+            let repository = ConsentLedgerRepository(store: store)
+            try ConsentMutationService(ledgerRepository: repository).setAIProcessingEnabled(
+                false, processor: .openAI, ownerUserId: owner
+            )
+        } catch { return nil }
         let manager = ConsentManager(
-            ledgerStore: UserDefaultsConsentLedgerStore(userDefaults: defaults),
+            ledgerStore: store,
             currentSDKUserIdProvider: { owner },
             analyticsPermissionApplier: { _, _ in },
             synchronizationOperation: { _, _ in }
         )
         manager.adoptCloudSession(owner)
-        // A real local withdrawal keeps this recovery fixture meaningful when
-        // the beta admits accounts that have not made an OpenAI choice.
-        do {
-            try manager.aiProcessingPermissions.setOpenAIEnabled(false, expectedOwnerUserId: owner)
-        } catch { return nil }
         return manager
     }
 }

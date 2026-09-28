@@ -98,6 +98,11 @@ production submission or public release.
 
 ### Incidents
 
+- **[Beta OpenAI consent gate](./incidents/2026-09-beta-openai-consent-gate.md)**
+  — Corrects the residual OpenAI permission block and Settings controls during
+  beta; preserves receipt history and owned explicit retry, and records the
+  future direct disclosure action required before public consent enforcement.
+
 - **[Startup log triage](./incidents/2026-09-startup-log-triage.md)** —
   Offerings retry and diagnostics, shared startup history work, badge readiness,
   and unresolved device/media/UI verification.
@@ -241,9 +246,11 @@ production submission or public release.
   [independent OpenAI consent slice](./rfcs/identification-provider-openai-consent-2026-09-26.md)
   implements separate permission evidence and causal withdrawal. The
   [photo rollout](./rfcs/identification-openai-photo-rollout-2026-09-28.md)
-  enables optional collection and saved-scan permission recovery in source
-  before production activation. Gemini remains required for current onboarding
-  and inference. The subsequent
+  records staged photo activation; the
+  [beta correction](./incidents/2026-09-beta-openai-consent-gate.md) defers all
+  OpenAI-specific collection/enforcement and enables owned explicit retry for
+  legacy pauses. Ordinary Gemini consent remains required for onboarding and
+  inference. The subsequent
   [durable provenance slice](./rfcs/identification-provider-result-provenance-2026-09-26.md)
   preserves each saved Gemini result's configuration, and the
   [app-controlled routing slice](./rfcs/identification-provider-input-routing-2026-09-26.md)
@@ -254,8 +261,8 @@ production submission or public release.
   [Client result provenance](./rfcs/identification-client-result-provenance-2026-09-26.md)
   preserves execution configuration in owner results and V52 local storage, with
   neutral confidence presentation for unknown profiles. Compatible-client
-  distribution, exact production-profile qualification and activation remain
-  ahead.
+  distribution and exact production-profile qualification remain separate; beta
+  still-photo activation is recorded in the rollout evidence.
 - **[Identification optimization while preserving current results](./rfcs/identification-optimization-preserving-results-2026-09-27.md):**
   Current plan following verified completion of the provider infrastructure
   milestone. Preserve explanation format and detail while investigating
@@ -272,7 +279,8 @@ production submission or public release.
   automatic caching. The 28 September comparison closed inconclusive before any
   candidate call because baseline explanation review was not assessable. Retain
   the original prompt and complete the photo rollout before more prompt
-  experiments or OpenAI audio. Production remains Gemini. The
+  experiments or OpenAI audio. The beta assigns still photos to OpenAI and
+  retains Gemini for other input profiles. The
   [earlier provider optimization plan](./rfcs/identification-provider-optimization-plan.md)
   retains implemented measurement and experiment controls. Its
   [26 September concise screen](./rfcs/identification-openai-concise-screen-2026-09-26.md)

@@ -3446,23 +3446,23 @@ shutdown, publishes synchronization merges and restoration state, applies SDK
 permission, and drains account-bound work before Auth replacement.
 `ConsentLedgerStore` remains the raw durable-byte boundary.
 
-`AIProcessingConsentCoordinator` independently presents optional OpenAI
-permissions and validates the dialog's expected account against observed and SDK
-identity, transition state and cancellation. The beta eligibility projection
-allows an absent or granted OpenAI stream without manufacturing a receipt, but
-rejects any-version withdrawal, pending withdrawal or uncertain storage.
-`canProcessOpenAI` combines that projection with the current-account fence;
-`hasGrantedOpenAI` retains its strict receipt meaning. Settings and saved-scan
-recovery share the same controls. Any-version historic grants remain
-withdrawable if collection closes again. Successful changes use verified ledger
-persistence before the existing synchronization pipeline. Its display state is
-not cloud authorization and never satisfies required Gemini onboarding. A local
-grant allows an explicit eligible retry, never automatic resumption or provider
-selection. `ConsentRemoteMapping` owns the extracted pure mapping helpers; the
-live adapter adds the fixed OpenAI append RPC and a separate provider-head read.
-Ordinary required consent restoration is unchanged. Fresh still-photo admission
-uses the server's OpenAI beta assignment; other complete-input profiles retain
-Gemini.
+`AIProcessingConsentCoordinator` separates beta access from receipt evidence.
+`openAIBetaAccessEnabled` admits any OpenAI history for the current observed/SDK
+account outside a transition; `hasGrantedOpenAI` remains a strict receipt
+projection. OpenAI collection and its Settings/recovery UI are suppressed during
+beta, including for existing grants or revocations. Required Gemini consent, its
+storage safety, and cloud synchronization still gate dispatch. Historical
+receipts are preserved without fabrication or deletion. Owned legacy pauses can
+be retried explicitly when otherwise eligible, never automatically from a policy
+or receipt change.
+
+Dormant strict-mode collection retains expected-owner, cancellation, verified
+persistence and causal synchronization checks. Before restoring it for public
+release, every permission alert needs a direct disclosure action and a return to
+the same scan for explicit retry. Native and backend enforcement must be
+restored together. `ConsentRemoteMapping` and the live adapter retain
+fixed-provider append RPCs and separate heads. Fresh still photos use the
+server's OpenAI assignment; other complete-input profiles retain Gemini.
 
 - `ensureCloudConsentForInference()` is the new-account and returning-account
   provider gate exposed by the facade and implemented by
