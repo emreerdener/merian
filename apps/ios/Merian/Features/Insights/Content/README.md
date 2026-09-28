@@ -285,25 +285,25 @@ Models, Services-only live resolution, the render-layer networking ban, retired
 path removal, shared Core name-picker ownership, and the 600-line
 production-file ceiling.
 
-## OpenAI permission recovery
+## Legacy OpenAI pause recovery during beta
 
-A saved scan with `ai_openai_consent_required` offers **Review permission** when
-its current account can manage OpenAI permission. The action opens the in-app
-`AIProcessingPrivacySheet`, including while offline. Cancel or withdrawal keeps
-the observation paused. A current local grant offers **Retry now** only when the
-scan is retryable and online; the copy explicitly describes a device-local
-permission. Saving permission never schedules inference or changes assignment.
-The ordinary retry path synchronizes consent and runs recipient preflight before
-transport, retaining the same scan identity and media.
+OpenAI-specific consent collection and enforcement are deferred during beta. A
+saved scan with `ai_openai_consent_required` displays generic saved/paused copy
+and **Retry now** when online and retryable. It exposes no permission sheet or
+claim that consent was granted. The view and durable retry both require current
+account identity and retained dispatchable funding for that account and scan.
+Missing/released funding, mismatched accounts or scans, and transitions still
+prevent retry. Required Gemini consent and fresh recipient preflight remain in
+the dispatch path.
 
-The view matches the saved job's retained funding owner and scan identity to the
-current permission account before showing either action, checks its current
-action and scan generation on tap, and closes the sheet on account or scan
-replacement. Durable retry repeats the account/grant/ownership check before any
-queue or funding mutation. Required Gemini reapproval still cannot resume an
-OpenAI-paused row. Unavailable/stale account state exposes no action. The
-Debug/UI-test-only `-seedOpenAIPermissionFlow`, combined with the existing
-queued-retry fixture, supplies an isolated synthetic consent ledger. Its UI
-smoke covers cancel, grant, withdrawal, explicit-retry presentation and retained
-scan navigation without calling a provider. Selectors live in the runtime-audit
-manifest.
+Opening the scan does not resume it. Existing media, funding and receipt history
+are preserved. The Debug-only `-seedOpenAIPermissionFlow` uses a synthetic
+legacy withdrawal to verify that beta access does not depend on a receipt. The
+runtime manifest's `testBetaOpenAIResumePreservesPausedScanWithoutConsentUI`
+verifies the retry presentation and retention through navigation without a
+provider call; unit tests cover the explicit durable transition.
+
+Before public consent is enabled, every permission-required alert must provide a
+direct **Review permission** action to the applicable disclosure, return to the
+same saved scan, and require a separate eligible retry. The existing dormant
+sheet is not proof that every future alert has this complete recovery path.

@@ -352,7 +352,7 @@
       ]
     },
     {
-      "selector": "merianUITests/merianUITests/testOpenAIPermissionReviewPreservesPausedScanAndRequiresExplicitRetry",
+      "selector": "merianUITests/merianUITests/testBetaOpenAIResumePreservesPausedScanWithoutConsentUI",
       "suite_names": [
         "merianUITests"
       ],

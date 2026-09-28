@@ -242,19 +242,18 @@ reconciliation.
 and Terms versions `2026-08-03`, Gemini disclosure version `2026-08-04.1`,
 PostHog disclosure version `2026-08-04`, and providers `google_gemini` and
 `posthog`. The optional OpenAI infrastructure separately pins provider `openai`
-and disclosure `2026-09-26`; optional collection is enabled in Settings and a
-paused scan's in-app permission sheet, outside required onboarding. Gemini
-consent never creates OpenAI consent. Naturebook chooses the provider; an OpenAI
-grant allows disclosure when assigned but does not select a service or start a
-saved scan. During the owner-authorized beta, app-assigned still photos can use
-OpenAI without a new opt-in. This is processing eligibility, never a fabricated
-grant: Settings shows **On during beta**, offers **Turn off future OpenAI
-processing**, and an explicit all-version withdrawal remains blocking. Required
-onboarding and its evidence stay unchanged. The exact displayed statement is
-stored with each explicit action, along with a client-generated UUID, device
-action time, platform, app version, and app build. Adult eligibility is
-self-attested on every supported iOS version; Naturebook does not collect a
-birth date or exact age.
+and disclosure `2026-09-26`; its collection UI and enforcement are deferred for
+all beta accounts. Absent, granted, and revoked OpenAI histories do not affect
+beta eligibility and are never rewritten as grants. Settings exposes no OpenAI
+choice. Naturebook assigns still photos to OpenAI and other input profiles to
+Gemini. Legacy permission-paused scans offer a separate explicit eligible retry.
+Before a public consent rollout, every permission-required alert must link
+directly to the applicable disclosure, then return to the same saved scan
+without automatic submission. Required onboarding and its evidence stay
+unchanged. The exact displayed statement is stored with each explicit action,
+along with a client-generated UUID, device action time, platform, app version,
+and app build. Adult eligibility is self-attested on every supported iOS
+version; Naturebook does not collect a birth date or exact age.
 
 `ConsentManager` requests each local transition immediately, including while the
 first anonymous Supabase session is still being created.

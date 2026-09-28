@@ -79,3 +79,14 @@ Production workflow and record its outcome.
 See the
 [deployment runbook](../backend-and-data/06-supabase-deployment-runbook.md#openai-photo-adapter-deployment-order)
 and [rollout record](../rfcs/identification-openai-photo-rollout-2026-09-28.md).
+
+## 28 September correction: default beta access
+
+The owner clarified that all OpenAI-specific consent collection and enforcement
+are deferred during beta, including for historical withdrawals. The prior policy
+above remains the record of the original activation, but is superseded by the
+[beta consent correction](../incidents/2026-09-beta-openai-consent-gate.md). The
+correction preserves ordinary required consent and receipt history, hides OpenAI
+permission controls and makes owned legacy pauses explicitly retryable. Before
+public consent rollout, every permission-required alert must link directly to
+the applicable disclosure and return to the same scan for explicit retry.

@@ -19,14 +19,14 @@ final class AIProcessingConsentCoordinator {
     private(set) var hasPendingOpenAIWithdrawal = false
     private(set) var isOpenAIBetaEligible = false
     let isOpenAICollectionEnabled: Bool
-    let isOpenAIBetaOptInDeferred: Bool
+    let isOpenAIBetaAccessEnabled: Bool
 
     var canProcessOpenAI: Bool {
         hasCurrentAccount && (hasGrantedOpenAI || isOpenAIBetaEligible)
     }
 
     var showsOpenAIChoice: Bool {
-        isOpenAICollectionEnabled || isOpenAIBetaOptInDeferred || hasOpenAIHistory
+        !isOpenAIBetaAccessEnabled && (isOpenAICollectionEnabled || hasOpenAIHistory)
     }
 
     var hasCurrentAccount: Bool {
@@ -37,8 +37,8 @@ final class AIProcessingConsentCoordinator {
     }
 
     var canManageOpenAIPermission: Bool {
-        hasCurrentAccount
-            && (isOpenAICollectionEnabled || isOpenAIBetaOptInDeferred || hasOpenAIGrantToWithdraw || hasPendingOpenAIWithdrawal)
+        hasCurrentAccount && !isOpenAIBetaAccessEnabled
+            && (isOpenAICollectionEnabled || hasOpenAIGrantToWithdraw || hasPendingOpenAIWithdrawal)
     }
 
     @ObservationIgnored private let repository: ConsentLedgerRepository
@@ -51,12 +51,12 @@ final class AIProcessingConsentCoordinator {
         repository: ConsentLedgerRepository,
         mutationService: ConsentMutationService,
         isOpenAICollectionEnabled: Bool = ConsentPolicy.openAIConsentCollectionEnabled,
-        isOpenAIBetaOptInDeferred: Bool = ConsentPolicy.openAIBetaOptInDeferred
+        isOpenAIBetaAccessEnabled: Bool = ConsentPolicy.openAIBetaAccessEnabled
     ) {
         self.repository = repository
         self.mutationService = mutationService
         self.isOpenAICollectionEnabled = isOpenAICollectionEnabled
-        self.isOpenAIBetaOptInDeferred = isOpenAIBetaOptInDeferred
+        self.isOpenAIBetaAccessEnabled = isOpenAIBetaAccessEnabled
     }
 
     func setHandlers(
@@ -77,11 +77,9 @@ final class AIProcessingConsentCoordinator {
             ownerUserId: ownerUserId, processor: .openAI, in: repository.ledger
         )
         hasOpenAIGrantToWithdraw = streamHead?.eventKind == .granted
-        // Eligibility is separate from the receipt projection. Never create a
-        // grant for an absent stream, and honor revocation across all versions.
-        isOpenAIBetaEligible = isOpenAIBetaOptInDeferred && ownerUserId != nil
-            && !repository.isLedgerStorageUncertain && !hasPendingOpenAIWithdrawal
-            && streamHead?.eventKind != .revoked
+        // Beta eligibility is independent of every OpenAI receipt state. The
+        // ordinary required-consent gate still owns consent-storage safety.
+        isOpenAIBetaEligible = isOpenAIBetaAccessEnabled && ownerUserId != nil
         hasGrantedOpenAI =
             !repository.isLedgerStorageUncertain
             && !hasPendingOpenAIWithdrawal
@@ -97,7 +95,7 @@ final class AIProcessingConsentCoordinator {
         else {
             throw ConsentHandoffError.activeAccountChanged
         }
-        guard !enabled || isOpenAICollectionEnabled else {
+        guard !isOpenAIBetaAccessEnabled && (!enabled || isOpenAICollectionEnabled) else {
             throw MerianError.aiConsentRequired
         }
         if !enabled {

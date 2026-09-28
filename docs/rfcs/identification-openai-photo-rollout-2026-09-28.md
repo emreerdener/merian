@@ -143,3 +143,14 @@ outcomes in the pull request and XCResult/Actions evidence; a source record is
 not a substitute for those gates. No live provider request, production mutation
 or iOS distribution is claimed by this implementation. The real released-build
 upgrade remains outstanding.
+
+## 28 September correction: default beta access
+
+The owner clarified that all OpenAI-specific consent collection and enforcement
+are deferred during beta, including for historical withdrawals. The prior policy
+above remains the record of the original activation, but is superseded by the
+[beta consent correction](../incidents/2026-09-beta-openai-consent-gate.md). The
+correction preserves ordinary required consent and receipt history, hides OpenAI
+permission controls and makes owned legacy pauses explicitly retryable. Before
+public consent rollout, every permission-required alert must link directly to
+the applicable disclosure and return to the same scan for explicit retry.

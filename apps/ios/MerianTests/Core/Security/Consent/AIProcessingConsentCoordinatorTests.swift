@@ -8,7 +8,7 @@ final class AIProcessingConsentCoordinatorTests: XCTestCase {
     private let userId = UUID(uuidString: "00000000-0000-0000-0000-00000000c011")!
 
     private func harness(
-        collectionEnabled: Bool = false, betaOptInDeferred: Bool = false, storageUnavailable: Bool = false
+        collectionEnabled: Bool = false, betaAccessEnabled: Bool = false, storageUnavailable: Bool = false
     ) -> (
         FaultInjectingConsentLedgerStore, ConsentLedgerRepository,
         ConsentMutationService, AIProcessingConsentCoordinator
@@ -25,7 +25,7 @@ final class AIProcessingConsentCoordinatorTests: XCTestCase {
         let coordinator = AIProcessingConsentCoordinator(
             repository: repository, mutationService: mutation,
             isOpenAICollectionEnabled: collectionEnabled,
-            isOpenAIBetaOptInDeferred: betaOptInDeferred
+            isOpenAIBetaAccessEnabled: betaAccessEnabled
         )
         coordinator.setHandlers(
             contextProvider: { [userId] in
@@ -35,64 +35,69 @@ final class AIProcessingConsentCoordinatorTests: XCTestCase {
         return (store, repository, mutation, coordinator)
     }
 
-    func testBetaEligibilityNeverManufacturesConsentAndWithdrawalClosesIt() throws {
-        XCTAssertTrue(ConsentPolicy.openAIBetaOptInDeferred)
-        let (_, repository, _, coordinator) = harness(collectionEnabled: true, betaOptInDeferred: true)
+    func testBetaAccessNeverManufacturesConsentOrAllowsCollection() throws {
+        XCTAssertTrue(ConsentPolicy.openAIBetaAccessEnabled)
+        XCTAssertFalse(ConsentPolicy.openAIConsentCollectionEnabled)
+        let (_, repository, _, coordinator) = harness(collectionEnabled: true, betaAccessEnabled: true)
         XCTAssertTrue(coordinator.canProcessOpenAI)
         XCTAssertFalse(coordinator.hasGrantedOpenAI)
-        XCTAssertTrue(repository.ledger.aiConsentEvents.isEmpty)
-        try coordinator.setOpenAIEnabled(false, expectedOwnerUserId: userId)
-        XCTAssertFalse(coordinator.canProcessOpenAI)
-        XCTAssertFalse(coordinator.hasGrantedOpenAI)
-        XCTAssertEqual(repository.ledger.aiConsentEvents.count, 1)
-        XCTAssertEqual(repository.ledger.aiConsentEvents.last?.eventKind, .revoked)
-        XCTAssertNil(repository.ledger.aiConsentEvents.last?.causalParentId)
-        try coordinator.setOpenAIEnabled(true, expectedOwnerUserId: userId)
-        XCTAssertTrue(coordinator.canProcessOpenAI)
-        XCTAssertTrue(coordinator.hasGrantedOpenAI)
-        XCTAssertEqual(repository.ledger.aiConsentEvents.count, 2)
-    }
-
-    func testBetaRespectsHistoricRevocationAndCurrentAccountFence() throws {
-        let (_, repository, _, coordinator) = harness(betaOptInDeferred: true)
-        var ledger = repository.ledger
-        ledger.aiConsentEvents.append(ConsentManager.AIConsentEvent(
-            id: UUID(), ownerUserId: userId, syncedUserId: userId,
-            provider: ConsentPolicy.openAIProvider, disclosureVersion: "2026-09-25",
-            eventKind: .revoked, occurredAt: Date(timeIntervalSince1970: 1_790_000_000),
-            disclosureText: "Synthetic older disclosure", actionText: "Synthetic withdrawal",
-            platform: "ios", appVersion: "test", appBuild: "1", consentRevision: 5
-        ))
-        try repository.persistLedger(ledger)
-        coordinator.refresh(ownerUserId: userId)
-        XCTAssertFalse(coordinator.canProcessOpenAI)
-        coordinator.refresh(ownerUserId: UUID())
-        XCTAssertTrue(coordinator.isOpenAIBetaEligible)
-        XCTAssertFalse(coordinator.canProcessOpenAI)
-        coordinator.refresh(ownerUserId: nil)
-        XCTAssertFalse(coordinator.canProcessOpenAI)
-    }
-
-    func testBetaFailedWithdrawalBlocksAndCannotBecomeAnImplicitGrant() throws {
-        let (store, repository, _, coordinator) = harness(betaOptInDeferred: true)
-        store.failLedgerWrites = true
-        XCTAssertThrowsError(try coordinator.setOpenAIEnabled(false, expectedOwnerUserId: userId))
-        XCTAssertFalse(coordinator.canProcessOpenAI)
-        XCTAssertTrue(coordinator.hasPendingOpenAIWithdrawal)
-        XCTAssertFalse(coordinator.hasGrantedOpenAI)
-        XCTAssertTrue(repository.ledger.aiConsentEvents.isEmpty)
-        store.failLedgerWrites = false
-        try coordinator.setOpenAIEnabled(false, expectedOwnerUserId: userId)
-        XCTAssertFalse(coordinator.canProcessOpenAI)
+        XCTAssertFalse(coordinator.showsOpenAIChoice)
+        XCTAssertFalse(coordinator.canManageOpenAIPermission)
+        for enabled in [true, false] {
+            XCTAssertThrowsError(try coordinator.setOpenAIEnabled(enabled, expectedOwnerUserId: userId))
+        }
         XCTAssertFalse(coordinator.hasPendingOpenAIWithdrawal)
+        XCTAssertTrue(repository.ledger.aiConsentEvents.isEmpty)
     }
 
-    func testBetaDoesNotTreatUnreadableConsentStorageAsAnAbsentChoice() {
-        let (_, repository, _, coordinator) = harness(betaOptInDeferred: true, storageUnavailable: true)
-        XCTAssertTrue(repository.isLedgerStorageUncertain)
+    func testBetaPreservesEveryHistoricReceiptWithoutEnforcingIt() throws {
+        for version in ["2026-09-25", ConsentPolicy.openAIDisclosureVersion] {
+            for granted in [true, false] {
+                let (_, repository, _, coordinator) = harness(betaAccessEnabled: true)
+                var ledger = repository.ledger
+                ledger.aiConsentEvents.append(ConsentManager.AIConsentEvent(
+                    id: UUID(), ownerUserId: userId, syncedUserId: userId,
+                    provider: ConsentPolicy.openAIProvider, disclosureVersion: version,
+                    eventKind: granted ? .granted : .revoked, occurredAt: Date(timeIntervalSince1970: 1_790_000_000),
+                    disclosureText: "Synthetic disclosure", actionText: "Synthetic choice",
+                    platform: "ios", appVersion: "test", appBuild: "1", consentRevision: 5
+                ))
+                try repository.persistLedger(ledger)
+                coordinator.refresh(ownerUserId: userId)
+                XCTAssertTrue(coordinator.canProcessOpenAI)
+                XCTAssertFalse(coordinator.showsOpenAIChoice)
+                XCTAssertFalse(coordinator.canManageOpenAIPermission)
+                XCTAssertEqual(repository.ledger.aiConsentEvents, ledger.aiConsentEvents)
+                XCTAssertEqual(coordinator.hasGrantedOpenAI, granted && version == ConsentPolicy.openAIDisclosureVersion)
+            }
+        }
+    }
+
+    func testBetaStillRequiresTheCurrentAccountAndStableSession() {
+        let (_, _, _, coordinator) = harness(betaAccessEnabled: true)
+        for context in [
+            AIProcessingConsentCoordinator.Context(
+                observedUserId: userId, sdkUserId: UUID(), isAccountTransitionInProgress: false),
+            .init(observedUserId: userId, sdkUserId: userId, isAccountTransitionInProgress: true),
+            .init(observedUserId: nil, sdkUserId: nil, isAccountTransitionInProgress: false),
+        ] {
+            coordinator.setHandlers(contextProvider: { context }, synchronize: {})
+            XCTAssertFalse(coordinator.canProcessOpenAI)
+        }
+        coordinator.refresh(ownerUserId: nil)
         XCTAssertFalse(coordinator.isOpenAIBetaEligible)
         XCTAssertFalse(coordinator.canProcessOpenAI)
+    }
+
+    func testBetaDoesNotUseUnreadableOpenAIHistoryAsPermission() {
+        let (_, repository, _, coordinator) = harness(betaAccessEnabled: true, storageUnavailable: true)
+        XCTAssertTrue(repository.isLedgerStorageUncertain)
+        XCTAssertTrue(coordinator.isOpenAIBetaEligible)
+        XCTAssertTrue(coordinator.canProcessOpenAI)
         XCTAssertFalse(coordinator.hasGrantedOpenAI)
+        XCTAssertFalse(coordinator.showsOpenAIChoice)
+        // ConsentManager's ordinary required-consent gate remains responsible
+        // for withholding dispatch when the required ledger cannot be read.
     }
 
     func testDisabledCollectionNeverCreatesImplicitOpenAIConsent() throws {
@@ -106,10 +111,7 @@ final class AIProcessingConsentCoordinatorTests: XCTestCase {
     }
 
     func testCollectionRequiresExplicitGrantAndDoesNotClaimCloudReceipt() throws {
-        XCTAssertTrue(ConsentPolicy.openAIConsentCollectionEnabled)
-        let (_, repository, mutation, coordinator) = harness(
-            collectionEnabled: ConsentPolicy.openAIConsentCollectionEnabled
-        )
+        let (_, repository, mutation, coordinator) = harness(collectionEnabled: true)
         var syncCount = 0
         coordinator.setHandlers(
             contextProvider: { [userId] in

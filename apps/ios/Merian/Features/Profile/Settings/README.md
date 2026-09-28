@@ -461,24 +461,18 @@ after the complete transition succeeds. The shared **Signed out successfully**
 toast survives replacement of Settings by consent onboarding; failed or
 overlapping attempts do not emit success feedback.
 
-## Optional OpenAI permission
+## Deferred OpenAI consent during beta
 
-`Components/AIProcessingPrivacySection.swift` delegates to the injected
-`ConsentManager.aiProcessingPermissions` coordinator. It owns only disclosure
-presentation, the captured account identity and unsaved-error feedback. An
-explicit displayed action records a grant or withdrawal; cancel records nothing.
+`Components/AIProcessingPrivacySection.swift` remains a dormant disclosure
+component backed by `ConsentManager.aiProcessingPermissions`. During beta the
+coordinator hides the section and rejects collection actions, regardless of past
+OpenAI grants or revocations. Users do not choose the provider: the server
+assigns still photos to OpenAI, while other input profiles retain Gemini.
+Existing receipt history and required Gemini onboarding remain unchanged.
 
-New collection is enabled in source before provider activation. The section
-explains that Naturebook chooses the service and permission only allows sharing
-when that service is used. `AIProcessingPrivacySheet` reuses the same disclosure
-for a saved scan waiting for OpenAI permission. Changing permission never starts
-that scan; an eligible online scan offers a separate **Retry now** action after
-a local grant. Cancel records nothing. Owner changes or account transitions
-close a stale disclosure; saving revalidates its captured account.
-
-Current or older-version grants remain withdrawable if collection is disabled
-again. It never changes required Gemini onboarding or selects a model. The
-[consent owner](../../../Core/Security/Consent/README.md) owns persistence,
-account validation and synchronization. The displayed permission is local state,
-not cloud inference authorization. Production remains on Gemini until a
-separately reviewed activation.
+Before public consent collection is enabled, every permission-required alert
+must provide a direct **Review permission** action, then return to the same
+saved scan for an explicit eligible retry. The existing dormant sheet alone does
+not satisfy that future requirement. Expected-owner validation, causal evidence
+and unsaved-error handling remain in the
+[consent owner](../../../Core/Security/Consent/README.md).

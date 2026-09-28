@@ -35,18 +35,28 @@ extension UITestSeedCoordinator {
             let owner = openAIPermissionOwner,
             let defaults = UserDefaults(suiteName: suiteName) else { return nil }
         defaults.removePersistentDomain(forName: suiteName)
+        let store = UserDefaultsConsentLedgerStore(userDefaults: defaults)
+        // Seed synthetic bytes through the injected store, without reaching
+        // into private consent services or exposing a beta collection action.
+        var ledger = ConsentManager.LocalLedger.empty
+        ledger.activeUserId = owner
+        ledger.aiConsentEvents = [ConsentManager.AIConsentEvent(
+            id: UUID(), ownerUserId: owner, syncedUserId: owner,
+            provider: "openai", disclosureVersion: "2026-09-25", eventKind: .revoked,
+            occurredAt: Date(timeIntervalSince1970: 1_790_000_000),
+            disclosureText: "Synthetic disclosure", actionText: "Synthetic withdrawal",
+            platform: "ios", appVersion: "test", appBuild: "1", consentRevision: 1
+        )]
+        do {
+            try store.saveLedgerData(JSONEncoder().encode(ledger))
+        } catch { return nil }
         let manager = ConsentManager(
-            ledgerStore: UserDefaultsConsentLedgerStore(userDefaults: defaults),
+            ledgerStore: store,
             currentSDKUserIdProvider: { owner },
             analyticsPermissionApplier: { _, _ in },
             synchronizationOperation: { _, _ in }
         )
         manager.adoptCloudSession(owner)
-        // A real local withdrawal keeps this recovery fixture meaningful when
-        // the beta admits accounts that have not made an OpenAI choice.
-        do {
-            try manager.aiProcessingPermissions.setOpenAIEnabled(false, expectedOwnerUserId: owner)
-        } catch { return nil }
         return manager
     }
 }

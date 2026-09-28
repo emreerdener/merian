@@ -2,9 +2,9 @@
 
 This package owns the value, deterministic policy, focused local-persistence,
 and cloud boundaries for Merian's versioned adult, Terms, Google Gemini, and
-optional PostHog consent system, plus independent OpenAI consent collection. It
-is part of [Core Security](../README.md), not a feature-owned presentation
-layer.
+optional PostHog consent system, plus dormant independent OpenAI consent
+machinery. It is part of [Core Security](../README.md), not a feature-owned
+presentation layer.
 
 ## Boundaries
 
@@ -31,12 +31,11 @@ layer.
   owner, required-consent and cloud-readiness gates, pending-upload count,
   reapproval state, and fail-closed analytics SDK permission. It has no live
   effects.
-- `Coordinators/AIProcessingConsentCoordinator.swift` owns optional OpenAI
-  Settings choices, account/SDK/cancellation checks and process-local failed
-  withdrawal state. It requires verified persistence before publishing a grant,
-  permits withdrawal of any-version grant when collection is closed, and
-  schedules the existing synchronization owner. Its choice is not an inference
-  authorization.
+- `Coordinators/AIProcessingConsentCoordinator.swift` owns beta access and
+  dormant strict OpenAI choices. It retains account/SDK/cancellation checks and
+  strict-mode persistence/withdrawal semantics, but suppresses collection and
+  ignores OpenAI receipt history for beta eligibility. Ordinary required consent
+  and server admission still own dispatch.
 - `Coordinators/ConsentManagerRuntime.swift` is the package composition root. It
   constructs the repository, mutation service, and coordinators, then connects
   their narrow callbacks to the observable facade without resolving live
@@ -215,37 +214,34 @@ The wire contract is documented in
 Release readiness remains governed separately by
 [`production-consent-readiness-2026-08-03.md`](../../../../../../docs/legal/production-consent-readiness-2026-08-03.md).
 
-## Optional OpenAI permission
+## OpenAI beta access and future consent
 
-`ConsentPolicy.openAIConsentCollectionEnabled` is `true`; optional permission
-collection remains available independently of beta processing eligibility.
-`openAIBetaOptInDeferred` allows an absent OpenAI choice for beta processing but
-never creates a grant. `canProcessOpenAI` requires a current account, reliable
-storage and no pending or explicit all-version withdrawal; `hasGrantedOpenAI`
-continues to report actual current-version evidence. Required onboarding stays
-unchanged. `AIProcessingPrivacySection` is available in Settings and in the
-saved-scan **Review permission** sheet. Naturebook owns provider assignment;
-granting permission neither selects OpenAI nor retries a scan. Account
-availability is projected from the same observed/SDK identity and transition
-checks used at mutation. Opening the disclosure captures the expected owner;
-account replacement, SDK mismatch, transition or cancellation rejects the
-action. Existing grants remain withdrawable if collection is later disabled.
-Settings displays **On during beta** without claiming a grant and offers a real
-withdrawal from that state. The withdrawal action reads **Turn off future OpenAI
-processing** and the same action text is recorded; existing receipts are never
-rewritten. Successful offline actions persist in the existing ledger and later
-synchronize in causal order. Failed writes show an unsaved error; failed
-withdrawal closes the local choice for this process and stays retryable, without
-claiming durable revocation across restart. The existing separate Keychain
-withdrawal journal remains PostHog-only. OpenAI evidence never becomes Gemini
-required proof.
+`ConsentPolicy.openAIBetaAccessEnabled` is `true` and
+`openAIConsentCollectionEnabled` is `false`. OpenAI permission controls are
+hidden in Settings and saved-scan recovery, and the coordinator rejects
+collection actions during beta even if both flags are enabled.
+`canProcessOpenAI` requires the current observed/SDK account outside a
+transition, independent of OpenAI receipt history. `hasGrantedOpenAI` still
+means an actual valid receipt; beta access never creates, rewrites, or deletes
+evidence. Ordinary required Gemini consent and its storage safety remain the
+dispatch gate.
 
-`AIProcessingConsentCoordinatorTests` covers explicit collection without an
-implicit grant or cloud receipt, independent permissions and parents, closed
-collection, historic withdrawal, account/dialog cancellation, persistence
-failures and ownership rebinding. A local grant only makes explicit retry
-available; the existing inference path synchronizes consent and performs fresh
-recipient preflight before dispatch. The remote tests cover fixed OpenAI
-dispatch, cross-provider ambiguous-write rejection and owner-scoped head
-mapping. See the
-[implementation and remaining rollout work](../../../../../../docs/rfcs/identification-provider-openai-consent-2026-09-26.md).
+Owned legacy OpenAI permission pauses present a normal explicit eligible online
+retry. Opening a scan, changing beta policy, or synchronizing evidence cannot
+submit it. The strict collection/withdrawal machinery remains dormant for a
+future coordinated release; independent stream heads, causal parents and sync
+mapping are preserved.
+
+Before public consent enforcement, every permission-required alert must provide
+a direct **Review permission** action and return to the same saved scan.
+Granting permission must still require a separate retry; cancellation/withdrawal
+preserves the scan. This future UX and matching backend enforcement must ship
+together.
+
+`AIProcessingConsentCoordinatorTests` covers every historical receipt state, no
+fabricated grant, suppressed collection and account fences during beta. It also
+retains strict-mode tests for explicit evidence, cancellation, persistence
+failures and ownership rebinding. `OfflineQueueOpenAIPermissionTests` checks
+account/scan/funding ownership and preserved media through explicit beta retry.
+The current policy is recorded in the
+[API contract](../../../../../../docs/backend-and-data/05-api-contracts.md#independent-openai-consent-evidence).

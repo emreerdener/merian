@@ -7,12 +7,10 @@ enum ConsentPolicy {
     static let analyticsProvider = "posthog"
     static let openAIProvider = "openai"
     static let openAIDisclosureVersion = "2026-09-26"
-    // The beta permits app-assigned photos without a new opt-in; explicit withdrawals still deny.
-    static let openAIBetaOptInDeferred = true
-    static let openAIConsentCollectionEnabled = true
-    static let openAIBetaProcessingText = """
-    During the beta, Naturebook may use OpenAI for eligible photo identification. Photos and related observation context are sent to OpenAI under its API data policies. You can turn off future OpenAI processing here. Naturebook chooses the AI service; this setting does not select a provider.
-    """
+    // OpenAI-specific collection and enforcement are deferred for the beta.
+    // Historical receipts remain intact; this policy never represents a grant.
+    static let openAIBetaAccessEnabled = true
+    static let openAIConsentCollectionEnabled = false
 
     static let openAIDisclosureText = """
     With your permission, Naturebook can send photos, written descriptions, and related observation context to OpenAI for AI-powered identification. OpenAI processes this data under its API data policies. You can withdraw permission for future OpenAI processing in Settings.

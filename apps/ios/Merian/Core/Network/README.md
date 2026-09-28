@@ -311,7 +311,9 @@ and releases its upload fail-safe only after preflight readiness. Background
 requests validate again after task enumeration and durable activation. An
 expired recovery-only hint cannot authorize fresh work at the backend. Current
 Gemini required-consent synchronization and protocol 3 remain unchanged; no
-OpenAI grant or provider choice is introduced.
+OpenAI grant or provider choice is introduced. Beta OpenAI preflight uses
+current-account eligibility without an OpenAI receipt or pending-withdrawal
+veto; ordinary required consent and its storage safety still gate dispatch.
 
 `performAuthenticatedJSONDataPost` serializes an untyped JSON body and returns
 bytes for scan lifecycle's explicit-key decoder. Its optional expected Auth user

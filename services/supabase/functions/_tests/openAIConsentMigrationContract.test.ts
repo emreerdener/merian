@@ -42,7 +42,43 @@ Deno.test("OpenAI consent is independent and cannot change production assignment
       import.meta.url,
     ),
   );
-  assertStringIncludes(policy, "openAIConsentCollectionEnabled = true");
+  assertStringIncludes(policy, "openAIConsentCollectionEnabled = false");
   assertStringIncludes(policy, 'openAIProvider = "openai"');
   assertStringIncludes(policy, 'openAIDisclosureVersion = "2026-09-26"');
+});
+
+Deno.test("beta identification defers OpenAI consent without changing receipt or assignment contracts", async () => {
+  const sql = (await Deno.readTextFile(
+    new URL(
+      "../../migrations/20260928183305_defer_openai_consent_during_beta.sql",
+      import.meta.url,
+    ),
+  )).replace(/\s+/g, " ");
+  for (
+    const fragment of [
+      "STABLE SECURITY INVOKER SET search_path = ''",
+      "p_processor_permission NOT IN ('google_gemini', 'openai')",
+      "PERFORM internal.require_current_ai_consent(p_user_id);",
+      "FROM PUBLIC, anon, authenticated, service_role;",
+      "SET lock_timeout = '10s';",
+      "RESET lock_timeout;",
+      "RESET statement_timeout;",
+    ]
+  ) assertStringIncludes(sql, fragment);
+  for (
+    const forbidden of [
+      "public.user_ai_consent_events",
+      "ai_openai_consent_required",
+      "UPDATE internal.identification_provider_bindings",
+      "UPDATE internal.ai_quota",
+      "CREATE OR REPLACE FUNCTION internal.require_current_ai_consent",
+      "GRANT EXECUTE",
+      "SECURITY DEFINER",
+    ]
+  ) {
+    assert(
+      !sql.includes(forbidden),
+      `Unexpected beta policy change: ${forbidden}`,
+    );
+  }
 });

@@ -13,7 +13,7 @@ struct OfflineQueueOpenAIPermissionTests {
     }
 
     @Test(arguments: Scenario.allCases)
-    func explicitRetryRequiresOwnedFundingAndCurrentPermission(scenario: Scenario) throws {
+    func betaExplicitRetryRequiresOwnedFundingAndCurrentAccount(scenario: Scenario) throws {
         let manager = OfflineQueueManager.shared
         let oldContext = manager.modelContext
         let oldOnline = manager.isOnline
@@ -62,20 +62,22 @@ struct OfflineQueueOpenAIPermissionTests {
         try context.save()
 
         let repository = ConsentLedgerRepository(store: FaultInjectingConsentLedgerStore())
+        let mutation = ConsentMutationService(ledgerRepository: repository)
+        if let currentAccount, scenario != .betaWithoutChoice {
+            try mutation.setAIProcessingEnabled(true, processor: .openAI, ownerUserId: currentAccount)
+            if scenario == .withdrawn {
+                try mutation.setAIProcessingEnabled(false, processor: .openAI, ownerUserId: currentAccount)
+            }
+        }
+        let originalReceipts = repository.ledger.aiConsentEvents
         let permission = AIProcessingConsentCoordinator(
-            repository: repository, mutationService: ConsentMutationService(ledgerRepository: repository),
-            isOpenAICollectionEnabled: true, isOpenAIBetaOptInDeferred: true
+            repository: repository, mutationService: mutation,
+            isOpenAICollectionEnabled: false, isOpenAIBetaAccessEnabled: true
         )
         permission.setHandlers(contextProvider: {
             .init(observedUserId: currentAccount, sdkUserId: currentAccount, isAccountTransitionInProgress: false)
         }, synchronize: {})
         permission.refresh(ownerUserId: currentAccount)
-        if currentAccount != nil && scenario != .betaWithoutChoice {
-            try permission.setOpenAIEnabled(true, expectedOwnerUserId: currentAccount)
-            if scenario == .withdrawn {
-                try permission.setOpenAIEnabled(false, expectedOwnerUserId: currentAccount)
-            }
-        }
         if scenario == .accountTransition {
             permission.setHandlers(contextProvider: {
                 .init(observedUserId: currentAccount, sdkUserId: currentAccount, isAccountTransitionInProgress: true)
@@ -86,11 +88,13 @@ struct OfflineQueueOpenAIPermissionTests {
             #expect(owned == [.matching, .betaWithoutChoice, .withdrawn, .accountTransition].contains(scenario))
         }
         let retried = manager.retryQueuedScanNow(scanId: scanID, openAIPermission: permission)
-        #expect(retried == [.matching, .betaWithoutChoice].contains(scenario))
+        #expect(retried == [.matching, .betaWithoutChoice, .withdrawn].contains(scenario))
+        #expect(repository.ledger.aiConsentEvents == originalReceipts)
+        #expect(!permission.showsOpenAIChoice)
         #expect(scan.inferenceImagePaths == ["synthetic-photo.webp"])
         #expect(job.metadataJSON == metadata)
         #expect(try context.fetchCount(FetchDescriptor<OfflineQueuedScan>()) == 1)
-        if [.matching, .betaWithoutChoice].contains(scenario) {
+        if [.matching, .betaWithoutChoice, .withdrawn].contains(scenario) {
             #expect(scan.queueState == .pending)
             #expect(!scan.queueNeedsAttention)
             #expect(job.status == .pending)

@@ -85,11 +85,14 @@ struct QueuedContentView: View {
     private var openAIPermission: QueuedRetryPresentation.OpenAIPermission {
         guard queuedContext.queueLastErrorCode == "ai_openai_consent_required" else { return .unavailable }
         let permission = consentManager.aiProcessingPermissions
-        guard permission.canManageOpenAIPermission,
-            let accountId = permission.ownerUserId,
+        let unavailable: QueuedRetryPresentation.OpenAIPermission =
+            permission.isOpenAIBetaAccessEnabled ? .betaUnavailable : .unavailable
+        guard permission.hasCurrentAccount, let accountId = permission.ownerUserId,
             offlineQueueManager.ownsOpenAIConsentPausedScan(
                 scanId: queuedContext.id, accountId: accountId
-            ) else { return .unavailable }
+            ) else { return unavailable }
+        if permission.isOpenAIBetaAccessEnabled { return .betaAvailable }
+        guard permission.canManageOpenAIPermission else { return .unavailable }
         return permission.canProcessOpenAI ? .granted : .needsReview
     }
 

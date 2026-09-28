@@ -7,8 +7,10 @@ struct QueuedRetryPresentation: Equatable {
         case reviewOpenAIPermission
     }
 
-    /// Local permission only. Explicit retry still synchronizes consent and runs server preflight.
-    enum OpenAIPermission {
+    /// Beta access is separate from receipt state. Explicit retry still runs server preflight.
+    enum OpenAIPermission: Equatable {
+        case betaAvailable
+        case betaUnavailable
         case unavailable
         case needsReview
         case granted
@@ -76,14 +78,24 @@ struct QueuedRetryPresentation: Equatable {
         permission: OpenAIPermission, canRetryNow: Bool, isOnline: Bool
     ) -> QueuedRetryPresentation {
         switch permission {
+        case .betaAvailable, .betaUnavailable:
+            let eligible = permission == .betaAvailable && canRetryNow
+            return QueuedRetryPresentation(
+                message: "Your scan is saved and paused. " + (
+                    !isOnline ? "Connect to the internet to retry."
+                        : eligible ? "Tap Retry now to continue."
+                        : "Retry is currently unavailable for this scan."
+                ),
+                action: isOnline && eligible ? .retryNow : nil
+            )
         case .unavailable:
-            QueuedRetryPresentation(message: ReasonCategory.openAIConsent.message, action: nil)
+            return QueuedRetryPresentation(message: ReasonCategory.openAIConsent.message, action: nil)
         case .needsReview:
-            QueuedRetryPresentation(
+            return QueuedRetryPresentation(
                 message: ReasonCategory.openAIConsent.message, action: .reviewOpenAIPermission
             )
         case .granted:
-            QueuedRetryPresentation(
+            return QueuedRetryPresentation(
                 message: "Your OpenAI permission is saved on this device. " + (
                     !isOnline ? "Connect to the internet to retry."
                         : canRetryNow ? "Tap Retry now to continue this saved scan."

@@ -9524,35 +9524,40 @@ comparison must have its own frozen V2 input/settings plan.
 
 ## Independent OpenAI consent infrastructure
 
-The optional OpenAI collection and saved-scan permission flow uses the existing
+Beta OpenAI access and the dormant strict consent machinery use the existing
 consent lifecycle and local simulator gate; no provider key or paid inference is
-required. `AIProcessingConsentCoordinatorTests` covers explicit collection
-without an implicit grant/cloud receipt, closed collection, independent
-Gemini/OpenAI parents, withdrawal of current and older grants, stale dialogs,
-SDK mismatch, transitions, cancellation, durable save failure and account
-rebinding. `InsightQueuedRetryPresentationTests` covers unavailable account,
-offline review, local permission and explicit retry eligibility.
-`OfflineQueueOpenAIPermissionTests` verifies the durable scan/funding owner,
-missing or released funding, withdrawal and account transitions before retry
-mutation. The runtime-audit manifest includes these suites and
-`testOpenAIPermissionReviewPreservesPausedScanAndRequiresExplicitRetry`: the
-Debug-only synthetic ledger/UI fixture verifies cancel, grant, withdrawal and
-retention of the paused scan without a provider call. Saving permission alone
-must never start inference. `ConsentRemoteOpenAITests.swift` extends
-`ConsentRemoteServiceTests` with fixed-recipient dispatch, cross-provider
-ambiguous-write rejection and owner-scoped head mapping. Run the complete
-`merianTests` target through `make ios-local-build`, plus generated
-project/privacy validation, after changes.
+required. `AIProcessingConsentCoordinatorTests` covers access for absent,
+granted, revoked and older-version histories, suppressed collection, unchanged
+receipts and current-account fences. Strict-mode tests retain explicit receipt,
+independent parent, stale dialog, cancellation and persistence-failure coverage.
+`InsightQueuedRetryPresentationTests` checks generic beta pause copy and
+explicit online retry, plus dormant permission presentation.
+`InferenceFailurePresentationTests` verifies that beta legacy denial has no
+permission prompt or automatic retry.
+
+`OfflineQueueOpenAIPermissionTests` checks retained media and history through an
+explicit retry, including previously revoked OpenAI consent, and rejects missing
+or released funding, wrong owners/scan IDs and account transitions. The runtime
+audit includes `testBetaOpenAIResumePreservesPausedScanWithoutConsentUI`: the
+Debug-only legacy receipt fixture verifies normal retry and saved-scan
+navigation without a provider call. `ConsentRemoteOpenAITests.swift` retains
+fixed-recipient append, cross-provider replay and owner-head mapping tests. Run
+the complete `merianTests` target through `make ios-local-build`, plus the
+source/project gates; CI retains the full unit, critical UI smoke and Release
+archive requirements.
 
 `openAIConsentMigrationContract.test.ts` is discovered by the migration gate.
 The disposable `openai_consent_security.sql` catalog covers role ACLs,
 provider/version/adult/Terms proof, immutable replay, stale grant rejection,
 independent withdrawal, merge preconditions/reparenting and account deletion.
-`legalConsentConcurrencyDb.test.ts` includes overlapping OpenAI grants and
-revocations and same-ID Gemini/OpenAI collisions in both arrival orders. Set
-`SUPABASE_DB_TEST_URL` to the task-owned disposable database; never use
-production for these fixtures. The complete Supabase candidate gate runs these
-tests.
+`openai_photo_routing.sql` and `identification_recipient_preflight.sql`
+additionally verify beta admission across historical OpenAI choices without
+editing evidence, while preserving ordinary consent, protocol, assignment and
+quota failures. `legalConsentConcurrencyDb.test.ts` includes overlapping OpenAI
+grants and revocations and same-ID Gemini/OpenAI collisions in both arrival
+orders. Set `SUPABASE_DB_TEST_URL` to the task-owned disposable database; never
+use production for these fixtures. The complete Supabase candidate gate runs
+these tests.
 
 These checks prove consent mechanics, not public legal approval, model quality,
 production OpenAI authorization or a live provider rollout. Retain source and
