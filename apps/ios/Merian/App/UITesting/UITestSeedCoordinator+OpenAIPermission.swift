@@ -36,12 +36,19 @@ extension UITestSeedCoordinator {
             let defaults = UserDefaults(suiteName: suiteName) else { return nil }
         defaults.removePersistentDomain(forName: suiteName)
         let store = UserDefaultsConsentLedgerStore(userDefaults: defaults)
-        // Reproduce a legacy revoked receipt without exposing a beta collection action.
+        // Seed synthetic bytes through the injected store, without reaching
+        // into private consent services or exposing a beta collection action.
+        var ledger = ConsentManager.LocalLedger.empty
+        ledger.activeUserId = owner
+        ledger.aiConsentEvents = [ConsentManager.AIConsentEvent(
+            id: UUID(), ownerUserId: owner, syncedUserId: owner,
+            provider: "openai", disclosureVersion: "2026-09-25", eventKind: .revoked,
+            occurredAt: Date(timeIntervalSince1970: 1_790_000_000),
+            disclosureText: "Synthetic disclosure", actionText: "Synthetic withdrawal",
+            platform: "ios", appVersion: "test", appBuild: "1", consentRevision: 1
+        )]
         do {
-            let repository = ConsentLedgerRepository(store: store)
-            try ConsentMutationService(ledgerRepository: repository).setAIProcessingEnabled(
-                false, processor: .openAI, ownerUserId: owner
-            )
+            try store.saveLedgerData(JSONEncoder().encode(ledger))
         } catch { return nil }
         let manager = ConsentManager(
             ledgerStore: store,
