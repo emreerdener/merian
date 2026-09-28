@@ -1,8 +1,10 @@
 # Identification optimization while preserving current results
 
 Date: 27 September 2026\
-Status: Shared-pipeline and OpenAI prompt/context reviews complete; one OpenAI
-clarity candidate selected for implementation. Production remains Gemini.
+Status: Shared-pipeline and OpenAI prompt/context reviews complete; the isolated
+OpenAI clarity candidate and evaluator are implemented and locally validated.
+Required PR checks and live comparison preparation are next. Production remains
+Gemini.
 
 ## Decision
 
@@ -39,7 +41,7 @@ Preserve all frozen evidence and the separate photo qualification work. The
 concise-explanation experiment remains closed; retaining explanation detail does
 not prevent improving the instructions and context sent to the model.
 
-## OpenAI review outcome and next implementation
+## OpenAI review outcome and implemented candidate
 
 The
 [OpenAI prompt and context review](./identification-openai-prompt-review-2026-09-27.md)
@@ -56,19 +58,21 @@ native-request changes. This is a consistency improvement, not evidence of
 faster or more accurate identification. The completed OpenAI comparison had no
 normalization failures; actual model benefit is unmeasured.
 
-The proposed prompt/profile are not registered or callable. Next:
+The
+[implementation record](./identification-openai-null-fields-candidate-2026-09-27.md)
+registers the new photo-only evaluation profile and v4 controller/reporting
+contract. The old baselines and concise experiment remain frozen. Focused
+offline tests cover exact prompt parity, version isolation, accounting,
+explanation review and recovery.
 
-1. Implement the separately versioned OpenAI candidate and preserve the frozen
-   baselines. Use the requirement map and exact edit manifest for parity and
-   drift checks.
-2. Extend the existing evaluator's profile, controller, reporting and accounting
-   support for this hypothesis before any live execution. Do not reuse the
-   closed concise experiment's identity or allocation.
-3. Prepare one bounded matched OpenAI comparison and its acceptance criteria.
-   Preserve identity/rank, uncertainty, abstention, non-biological handling,
-   explanation grounding/detail and safety. Measure native cache read/write
-   usage and retain failures; neither equal code settings nor Gemini timings
-   establish equal cache conditions or a model benefit.
+Next, pass the required PR candidate checks and freeze one bounded comparison:
+the same six existing photos, one unchanged OpenAI baseline and one candidate,
+twelve total calls. Retain automatic caching and the current explanation format.
+The report assesses quality separately from descriptive performance; it has no
+speed threshold or cache-comparability claim. Prepare fresh source, input,
+fact-card, readiness, pricing, time and budget bindings before any paid request.
+No new allocation or live comparison has been authorized by this implementation
+record.
 
 Context organization and cache reuse were reviewed as independent candidates.
 User notes and capture facts have no demonstrated safe deduplication; plain
@@ -156,11 +160,12 @@ versioned profiles and native settings.
 
 The
 [evaluation tooling contract](../../services/supabase/scripts/identification_evaluation/README.md#reusable-profiles-and-experiment-controls-optimization-slice-2)
-currently admits fixed baseline profiles and the retained concise-specific v2/v3
-experiments. It is not an arbitrary candidate runner. Any new hypothesis in
-Slice 3 requires reviewed profile registration and the corresponding controller,
-reporting and accounting support before live use. Existing secrets, packet edits
-or a different experiment ID cannot supply that support.
+admits fixed baseline profiles, the retained concise-specific v2/v3 experiments,
+and the isolated photo-only explicit-null v4 experiment. It is not an arbitrary
+candidate runner. Any further hypothesis in Slice 3 requires its own reviewed
+profile registration and corresponding controller, reporting and accounting
+support. Existing secrets, packet edits or a different experiment ID cannot
+supply that support.
 
 The current OpenAI baseline already uses low reasoning effort and high image
 detail. Both provider builders already separate system instructions from the

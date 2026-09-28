@@ -1,8 +1,15 @@
 # OpenAI identification prompt and context review
 
 Date: 27 September 2026\
-Status: Offline review complete; one candidate specified and checked. Candidate
-implementation and live evaluation remain pending. Production remains Gemini.
+Status at original review: Offline review complete; one candidate specified and
+checked. Candidate implementation and live evaluation remain pending. Production
+remains Gemini.
+
+Implementation follow-up, 27 September 2026: the
+[explicit-null candidate implementation](./identification-openai-null-fields-candidate-2026-09-27.md)
+now registers this exact proposal in a separate photo-only v4 experiment. The
+remainder of this review preserves findings and registration status at the
+original review checkpoint. Live candidate benefit remains unmeasured.
 
 ## Decision
 
@@ -214,9 +221,14 @@ deno run --frozen --no-prompt --cached-only --deny-env --deny-net \
   docs/rfcs/identification-evaluation-evidence/2026-09-27-openai-prompt-review/verify.ts
 ```
 
-Run at the reviewed source or a descendant retaining the same fingerprints.
-`--cached-only` requires the repository's frozen dependencies to be available
-locally; a missing dependency stops before verification.
+Run this historical verifier at review checkpoint
+`f3d0c68e03865fda2e371447e3d41d959db9b9f5`, which contains the verifier and
+still rejects the proposed profile. Its registration assertion intentionally
+does not pass after implementation. Current implementation checks live in
+`openaiNullFields_test.ts` and `identification_evaluation_null_fields_test.ts`,
+with controller coverage in `testing/nullFieldsRunnerTests.ts`. `--cached-only`
+requires the repository's frozen dependencies to be available locally; a missing
+dependency stops before verification.
 
 Verification results are recorded below after running the exact manifest against
 synthetic requests with network and environment access denied. No credentials,

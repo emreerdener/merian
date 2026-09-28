@@ -4,7 +4,7 @@ import { ratingsPass } from "./explanationContracts.ts";
 type Slice = Awaited<
   ReturnType<typeof compareExploratoryRuns>
 >["slices"][number];
-type Comparison = {
+export type CandidateComparison = {
   slices: (
     & Pick<
       Slice,
@@ -21,7 +21,7 @@ type Comparison = {
 };
 /** A fixed eight-case development screen, never production qualification. */
 export function screenCandidate(
-  c: Comparison,
+  c: CandidateComparison,
   assessments: Pick<ExplanationAssessment, "ratings">[],
   state: { live: boolean; complete: boolean; cache: boolean },
 ) {

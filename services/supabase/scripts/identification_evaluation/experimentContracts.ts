@@ -11,17 +11,20 @@ import {
   token,
 } from "./validation.ts";
 import {
+  CANDIDATE_SPEC_VERSION,
   type EvaluationPricing,
   hash,
+  NULL_FIELDS_SPEC_VERSION,
   number,
   parseEvaluationPricing,
+  PROVIDER_SPEC_VERSION,
   type SourceIdentity,
   timestamp,
   unique,
 } from "./runContracts.ts";
 import {
   executionProfile,
-  REUSABLE_PROFILE_IDS,
+  NULL_FIELDS_PROFILES,
   type ReusableProfileId,
 } from "./reusableProfiles.ts";
 
@@ -31,11 +34,31 @@ export const EXPERIMENT_METRICS = {
   improvementPercent: "100_times_baseline_minus_candidate_over_baseline",
   thresholdPercent: 10,
 } as const;
+export const NULL_FIELDS_PLAN_VERSION =
+  "identification_experiment_plan_v4" as const;
+export const NULL_FIELDS_METRICS = {
+  ...EXPERIMENT_METRICS,
+  thresholdPercent: null,
+} as const;
+export function hasAssistantReview(plan: Pick<ExperimentPlan, "version">) {
+  return plan.version === "identification_experiment_plan_v3" ||
+    plan.version === NULL_FIELDS_PLAN_VERSION;
+}
+export function experimentSpecVersion(
+  plan: Pick<ExperimentPlan, "version" | "review">,
+) {
+  return plan.version === NULL_FIELDS_PLAN_VERSION
+    ? NULL_FIELDS_SPEC_VERSION
+    : plan.review
+    ? CANDIDATE_SPEC_VERSION
+    : PROVIDER_SPEC_VERSION;
+}
 export interface ExperimentPlan {
   version:
     | "identification_experiment_plan_v1"
     | "identification_experiment_plan_v2"
-    | "identification_experiment_plan_v3";
+    | "identification_experiment_plan_v3"
+    | typeof NULL_FIELDS_PLAN_VERSION;
   review?: ReviewPlan;
   experimentId: string;
   mode: "offline" | "live";
@@ -49,14 +72,15 @@ export interface ExperimentPlan {
   window: { startsAt: string; expiresAt: string };
   maxCalls: number;
   budgetUsd: number;
-  metrics: typeof EXPERIMENT_METRICS;
+  metrics: typeof EXPERIMENT_METRICS | typeof NULL_FIELDS_METRICS;
   cacheControl:
     | "automatic_uncontrolled_no_extra_requests"
     | "explicit_no_breakpoints_v1";
   candidateDecision:
     | "deferred_cache_isolation_and_explanation_rubric"
     | "concise_explanation_latency_v1"
-    | "concise_explanation_latency_ai_review_v1";
+    | "concise_explanation_latency_ai_review_v1"
+    | "null_fields_consistency_ai_review_v1";
   runs: {
     runId: string;
     profileId: ReusableProfileId;
@@ -79,8 +103,10 @@ export function budgetUnits(usd: number): number {
 }
 
 export function parseExperimentPlan(value: unknown): ExperimentPlan {
-  const assistant = (value as { version?: unknown } | null)?.version ===
-    "identification_experiment_plan_v3";
+  const version = (value as { version?: unknown } | null)?.version;
+  const nullFields = version === NULL_FIELDS_PLAN_VERSION;
+  const assistant = nullFields ||
+    version === "identification_experiment_plan_v3";
   const candidate = assistant ||
     (value as { version?: unknown } | null)?.version ===
       "identification_experiment_plan_v2";
@@ -140,14 +166,17 @@ export function parseExperimentPlan(value: unknown): ExperimentPlan {
       Date.parse(window.expiresAt) - Date.parse(window.startsAt) <= 86400000,
   );
   const metrics = fields(v.metrics, Object.keys(EXPERIMENT_METRICS));
-  check(Object.entries(EXPERIMENT_METRICS).every(([k, n]) => metrics[k] === n));
+  const expectedMetrics = nullFields ? NULL_FIELDS_METRICS : EXPERIMENT_METRICS;
+  check(Object.entries(expectedMetrics).every(([k, n]) => metrics[k] === n));
   check(
     v.cacheControl ===
-        (candidate
+        (candidate && !nullFields
           ? "explicit_no_breakpoints_v1"
           : "automatic_uncontrolled_no_extra_requests") &&
       v.candidateDecision ===
-        (assistant
+        (nullFields
+          ? "null_fields_consistency_ai_review_v1"
+          : assistant
           ? "concise_explanation_latency_ai_review_v1"
           : candidate
           ? "concise_explanation_latency_v1"
@@ -167,11 +196,11 @@ export function parseExperimentPlan(value: unknown): ExperimentPlan {
     token(r.runId);
     member(
       r.profileId,
-      candidate
+      nullFields
+        ? NULL_FIELDS_PROFILES
+        : candidate
         ? OPENAI_CANDIDATE_PROFILES
-        : REUSABLE_PROFILE_IDS.filter((p) =>
-          !OPENAI_CANDIDATE_PROFILES.some((c) => c === p)
-        ),
+        : ["gemini_photo_text_v1", "openai_photo_text_v1"] as const,
     );
     hash(r.profileDigest);
     hash(r.pricingDigest);
@@ -190,10 +219,14 @@ export function parseExperimentPlan(value: unknown): ExperimentPlan {
     check(runs.length === 2 && v.maxCalls === cases.length * 2);
     const rawRuns = v.runs as Record<string, unknown>[];
     check(
-      rawRuns.every((r, i) => r.profileId === OPENAI_CANDIDATE_PROFILES[i]),
+      rawRuns.every((r, i) =>
+        r.profileId ===
+          (nullFields ? NULL_FIELDS_PROFILES : OPENAI_CANDIDATE_PROFILES)[i]
+      ),
     );
     check(rawRuns[0].pricingDigest === rawRuns[1].pricingDigest);
-    if (v.mode === "live") check(cases.length === 8);
+    if (nullFields) check(cases.length <= 6);
+    if (v.mode === "live") check(cases.length === (nullFields ? 6 : 8));
   }
   unique(runs.map((r) => r.runId));
   check(runs.reduce((n, r) => n + r.maxCalls, 0) <= v.maxCalls);

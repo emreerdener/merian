@@ -13,6 +13,7 @@ import {
   CANDIDATE_SPEC_VERSION,
   type EvaluationPricing,
   type EvaluationReadiness,
+  NULL_FIELDS_SPEC_VERSION,
   parseEvaluationPricing,
   parseEvaluationReadiness,
   PROVIDER_SPEC_VERSION,
@@ -51,6 +52,9 @@ export async function validateSelectionFacts(
       referenceLabels(corpus).flatMap((r) => [...r.acceptableTaxa]),
     ),
   );
+  if (spec.version === NULL_FIELDS_SPEC_VERSION) {
+    check(selected.every((c) => c.input.inputGroup === "photos"));
+  }
   if (corpus.kind === "exploratory") {
     check(
       spec.stage === "exploratory" && selected.length === corpus.cases.length,
@@ -92,13 +96,16 @@ export async function validateSelectionFacts(
     );
   }
 }
-/** Standalone admission deliberately cannot opt into controlled v2 live runs. */
+/** Standalone admission cannot opt into controlled candidate runs. */
 export async function validateSelection(
   corpus: RunCorpus,
   spec: RunSpec,
   taxonomy: Taxonomy,
 ): Promise<void> {
-  check(spec.version !== CANDIDATE_SPEC_VERSION);
+  check(
+    spec.version !== CANDIDATE_SPEC_VERSION &&
+      spec.version !== NULL_FIELDS_SPEC_VERSION,
+  );
   check(
     taxonomy.version !== "evaluation_taxonomy_v2" || spec.mode === "offline",
     "evaluation_measurement_live_pending",

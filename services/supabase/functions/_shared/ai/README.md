@@ -144,6 +144,17 @@ dispatch it. See the
 [alternative-provider guide](../../../../../docs/development-guides/22-alternative-identification-provider.md)
 for permissions, pricing/usage mapping, offline demo and live comparison scope.
 
+`openaiNullFields.ts` owns the separately versioned evaluation-only
+`openai_photo_null_fields_v1` visual prompt. Four exact omission directions
+become explicit null directions; baseline/Gemini prompts, schema, evidence,
+explanation detail and native settings stay unchanged. Missing or repeated
+source fragments reject preparation, and the reusable evaluator additionally
+checks the frozen prompt/schema digests. Text-only, video and audio observations
+are unsupported. The
+[v4 experiment contract](../../../scripts/identification_evaluation/README.md#openai-explicit-null-candidate)
+compares this candidate with the unchanged OpenAI baseline; it does not select a
+production adapter or alter the dormant photo binding.
+
 `openaiPhoto.ts` separately prepares the dormant `openai_photo_v1` profile.
 `createOpenAIPhotoAdapter` reuses the bounded transport, adding pinned inline
 input/output moderation to one request and releasing a draft only after its

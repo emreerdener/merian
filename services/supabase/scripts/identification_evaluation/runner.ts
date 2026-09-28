@@ -43,6 +43,8 @@ import {
   type EvaluationReadiness,
   isMeasuredAttempt,
   isOpenAIAttempt,
+  NULL_FIELDS_RUN_VERSION,
+  NULL_FIELDS_SPEC_VERSION,
   parseAttempt,
   parseClaim,
   parseManifest,
@@ -146,7 +148,9 @@ export async function assembleRun(
     }
   }
   const manifest = parseManifest({
-    version: spec.version === CANDIDATE_SPEC_VERSION
+    version: spec.version === NULL_FIELDS_SPEC_VERSION
+      ? NULL_FIELDS_RUN_VERSION
+      : spec.version === CANDIDATE_SPEC_VERSION
       ? CANDIDATE_RUN_VERSION
       : spec.version === PROVIDER_SPEC_VERSION
       ? PROVIDER_RUN_VERSION
@@ -155,7 +159,11 @@ export async function assembleRun(
     createdAt: new Date(now).toISOString(),
     spec,
     source,
-    ...([PROVIDER_SPEC_VERSION, CANDIDATE_SPEC_VERSION].includes(
+    ...([
+        PROVIDER_SPEC_VERSION,
+        CANDIDATE_SPEC_VERSION,
+        NULL_FIELDS_SPEC_VERSION,
+      ].includes(
         spec.version as typeof PROVIDER_SPEC_VERSION,
       )
       ? { transports: providerTransports(spec.profiles, source.sdk) }

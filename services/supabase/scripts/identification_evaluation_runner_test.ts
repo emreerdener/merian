@@ -1,3 +1,4 @@
+import { registerNullFieldsTests } from "./identification_evaluation/testing/nullFieldsRunnerTests.ts";
 import { registerCandidateTests } from "./identification_evaluation/testing/candidateRunnerTests.ts";
 import { registerExperimentTests } from "./identification_evaluation/testing/experimentRunnerTests.ts";
 import { registerHostedTests } from "./identification_evaluation/testing/hostedRunnerTests.ts";
@@ -59,6 +60,7 @@ const scratch = Deno.args[0];
 if (!scratch) throw new Error("evaluation_test_directory_required");
 registerMeasurementTests(scratch);
 registerCandidateTests(scratch);
+registerNullFieldsTests(scratch);
 registerExperimentTests(scratch);
 registerHostedTests(scratch);
 registerAudioPromptPacketTests(scratch);

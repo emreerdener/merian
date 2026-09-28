@@ -4,7 +4,10 @@ import type {
   MultimodalAIRequest,
 } from "../../functions/_shared/ai/contracts.ts";
 import type { EvaluationInput } from "./contracts.ts";
-import type { ExperimentPlan } from "./experimentContracts.ts";
+import {
+  type ExperimentPlan,
+  hasAssistantReview,
+} from "./experimentContracts.ts";
 import { fingerprintJson } from "./evidence.ts";
 import {
   atomicJson,
@@ -37,7 +40,7 @@ export async function reviewInputs(root: string, plan: ExperimentPlan) {
   const facts = parseFactCards(
     await readJson(join(root, "review", "facts.json"), 128 * 1024),
   );
-  if (plan.version === "identification_experiment_plan_v3") {
+  if (hasAssistantReview(plan)) {
     check(
       plan.review.method === "assistant_local_v1" &&
         plan.review.calibrationDigest === null,
