@@ -253,8 +253,11 @@ production submission or public release.
   Current plan following verified completion of the provider infrastructure
   milestone. Preserve explanation format and detail while investigating
   duplicate preparation, serial work, native caching, input instructions and
-  evidence-backed media/model settings. Start with existing measurements and
-  select one bounded improvement; production remains Gemini. The
+  evidence-backed media/model settings. The
+  [Slice 1 bottleneck audit](./rfcs/identification-bottleneck-audit-2026-09-27.md)
+  found provider await dominates the retained app measurements; no supported new
+  code optimization was selected. Retain the baseline and plan OpenAI audio
+  evaluation next; production remains Gemini. The
   [earlier provider optimization plan](./rfcs/identification-provider-optimization-plan.md)
   retains implemented measurement and experiment controls. Its
   [26 September concise screen](./rfcs/identification-openai-concise-screen-2026-09-26.md)
