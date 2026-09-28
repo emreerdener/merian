@@ -221,6 +221,44 @@ performance results above predate this badge follow-up; they were not rerun. At
 review completion, the CI fix and triage changes were local and uncommitted.
 These local results do not establish a passing remote CI run.
 
+### Subsequent CI audio-preview finding, 2026-09-28
+
+GitHub Actions
+[iOS Build and Test run #590](https://github.com/emreerdener/merian/actions/runs/36433811358)
+tested `7bf76630a`. Startup Safety passed, as did the critical scan UI smokes
+and the current-SHA Release archive. The full unit target failed in
+`StagedPreviewAudioBoostTests.dismissalDuringCompositionCannotInstallOrResumeLateItem`:
+after stopping and removing the item, the test observed `AVPlayer.rate == 1`
+instead of zero. This is distinct from the earlier stale initializer assertion.
+
+The unmodified nine-case audio-preview suite passed locally in
+`14b4d1b0116242b981b10f1e63b6f839.xcresult`; the requested Xcode iteration flag
+did not establish repeated Swift Testing execution, so this is one confirmed
+baseline run. Source review found that dismissal invalidates the generation and
+active state before the delayed composition can replace an item or request play.
+The test's single `Task.yield()` did not establish that delayed work had
+finished.
+
+The regression now awaits the exact retained preparation task and counts the
+app's play requests through the existing playback dependency container. After
+dismissal and late composition completion, it requires no additional play
+request, no current item, cleared preparation, and removal of the derivative.
+This replaces only the instantaneous rate check on the detached player. The
+background-during-seek regression also awaits its exact task. Default playback
+and cancellation behavior remain unchanged. Independent read-only review
+endorsed these assertions. The rebuilt nine-case suite passed in two separate
+test invocations, with successful command exits:
+`0087586ecaa447af93afab77406d5f1c.xcresult` and
+`a5f036621d2648739e1044f6da165db7.xcresult`.
+
+The complete unit target then passed **4,528 tests** (1,425 XCTest and 3,103
+Swift Testing cases), including the revised dismissal case, with a successful
+command exit. Evidence: `08b5a33b886840c296f0aa7fe16cae41.xcresult`. Strict
+SwiftLint, project/resource, event-routing, privacy-manifest,
+transport-security, versioning, migration-source, and changed-Markdown checks
+passed. Remote CI must validate the follow-up commit; the earlier successful
+archive and UI jobs apply only to `7bf76630a`.
+
 ### Remaining device checks
 
 - Confirm the original device/OS, interaction sequence, and visible symptoms.

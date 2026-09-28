@@ -42,6 +42,12 @@ request. Backgrounding cancels pending resumes; dismissal stops the player
 before releasing its derivative. Silent video has no Boost audio control. These
 preview services do not mutate staged media, provider inputs, or toolbar layout.
 
+`StagedPreviewAudioBoostTests` awaits the retained source-switch task when
+testing dismissal and background cancellation. Dismissal checks app-owned play
+commands, item removal, and derivative cleanup; a detached AVPlayer's
+instantaneous rate does not establish whether a stale source-switch task
+requested playback.
+
 ## Launch announcement
 
 `CaptureWorkspaceView` can initialize the existing root sheet router with
