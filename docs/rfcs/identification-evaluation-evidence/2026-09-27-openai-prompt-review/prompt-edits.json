@@ -1,0 +1,28 @@
+{
+  "version": "openai_prompt_review_candidate_v1",
+  "status": "offline_proposal_not_registered",
+  "sourceSha": "2bbacb8c895903052d1d60be9eac1fa69deba176",
+  "proposedPrompt": "openai_identify_vision_null_fields_v1",
+  "baselinePrompt": "openai_identify_vision_v1",
+  "replacements": [
+    {
+      "before": "and omit `scientific_name`.",
+      "after": "and set `scientific_name` to null."
+    },
+    {
+      "before": "Omit these for generic debris and manufactured/processed objects.",
+      "after": "Set these fields to null for generic debris and manufactured/processed objects."
+    },
+    {
+      "before": "you MUST omit `scientific_name`.",
+      "after": "you MUST set `scientific_name` to null."
+    },
+    {
+      "before": "All non-biological results MUST omit:",
+      "after": "All non-biological results MUST set the following fields to null:"
+    }
+  ],
+  "baselinePromptDigest": "8f0d9c5e8ef5f2be03fe22696c307f74b0910624878e435728eb5cffda75542e",
+  "schemaDigest": "bda80368f8be0ef9424e22b7f7adfa1c7ecc5098ff68c9e52bc4c8f69182e52e",
+  "proposedProfile": "openai_photo_null_fields_v1"
+}

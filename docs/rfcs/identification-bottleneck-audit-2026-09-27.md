@@ -5,6 +5,26 @@ Date: 27 September 2026
 Status: Offline audit complete; retain the current baseline. No new provider
 requests, runtime changes or deployments.
 
+## Scope correction — 27 September 2026
+
+The measurements and shared-pipeline findings below remain valid. The original
+recommendation to close optimization and proceed directly to OpenAI audio was
+too broad: this audit did not evaluate an OpenAI prompt/context candidate
+against its baseline. Gemini app timings and Gemini cache counts cannot rule out
+an OpenAI-specific improvement.
+
+The
+[current optimization plan](./identification-optimization-preserving-results-2026-09-27.md#openai-review-outcome-and-next-implementation)
+reopened instruction clarity, context organization and OpenAI cache reuse for an
+offline review before audio. It supersedes the closure and next-step
+recommendations below, while preserving the historical measurements. Explanation
+format and detail remain unchanged; the concise experiment stays closed.
+
+The subsequent
+[OpenAI review](./identification-openai-prompt-review-2026-09-27.md) selected an
+explicit-null wording candidate and verified its offline request diff. Candidate
+implementation and evaluation remain pending.
+
 ## Decision
 
 The model request is the largest measured wait. In the six retained photo app

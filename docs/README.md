@@ -255,9 +255,12 @@ production submission or public release.
   duplicate preparation, serial work, native caching, input instructions and
   evidence-backed media/model settings. The
   [Slice 1 bottleneck audit](./rfcs/identification-bottleneck-audit-2026-09-27.md)
-  found provider await dominates the retained app measurements; no supported new
-  code optimization was selected. Retain the baseline and plan OpenAI audio
-  evaluation next; production remains Gemini. The
+  found provider await dominates the retained Gemini app measurements; no
+  supported shared-pipeline optimization was selected. The
+  [OpenAI prompt and context review](./rfcs/identification-openai-prompt-review-2026-09-27.md)
+  selects an isolated explicit-null wording candidate; its exact offline diff
+  preserves context and explanation format. Implementation and controlled
+  evaluation remain ahead of audio work. Production remains Gemini. The
   [earlier provider optimization plan](./rfcs/identification-provider-optimization-plan.md)
   retains implemented measurement and experiment controls. Its
   [26 September concise screen](./rfcs/identification-openai-concise-screen-2026-09-26.md)
