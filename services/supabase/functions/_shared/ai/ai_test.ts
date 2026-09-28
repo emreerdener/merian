@@ -403,7 +403,7 @@ Deno.test("AI snapshots preserve admitted policy and complete describe request p
 });
 
 // Exercise the installed SDK and production composition with intercepted HTTP.
-// This test runs without network permission; no alternate provider is enabled.
+// This test runs without network permission and retains the admitted Gemini route.
 Deno.test("AI Gemini adapter preserves dispatch, usage, finish and timeout behavior", async (t) => {
   const names = [
     "GEMINI_PAID_API_KEY",

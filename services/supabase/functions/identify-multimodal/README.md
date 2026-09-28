@@ -208,10 +208,11 @@ Gemini diagnostic threshold and checks the outcome profile before exposing
 finish/rating signals to moderation. Missing or unsupported policies use the
 existing pre-invocation refund/failure path. OpenAI's evaluation policy remains
 unqualified and cannot reach provider invocation or media promotion through this
-route. The exact dormant photo profile separately checks native OpenAI
-moderation, uses unqualified confidence, and promotes allowed media without
-Gemini ratings or strikes. A false source gate prevents production OpenAI
-dispatch and refunds the unused lease. All current assignments remain Gemini.
+route. The exact photo profile separately checks native OpenAI moderation, uses
+unqualified confidence, and promotes allowed media without Gemini ratings or
+strikes. Its source composition is enabled ahead of a separate catalog
+activation. All current assignments remain Gemini; only an admitted exact OpenAI
+photo assignment can read the credential and dispatch.
 
 Native callers carry identification capability 4 in a separate header, leaving
 entitlement protocol 3 unchanged. Saved usage preserves reported cached tokens
@@ -725,7 +726,10 @@ report leaves a durable witness for bounded unknown reconciliation and never
 repeats inference. New saved scans mark this accounting owner to prevent the
 legacy scan trigger from recording the call again.
 
-The migration must precede the new bundle. OpenAI remains source-disabled and
-all assignments remain Gemini. The completed benchmark is unchanged; no paid
-experiment is run by this infrastructure. See the
+The accounting migration preceded the bundle that introduced this accounting
+contract. For OpenAI traffic activation, deploy and verify the enabled Function
+bundle before a separate photo assignment migration: deployment applies
+migrations before Functions. Current assignments remain Gemini. The completed
+benchmark is unchanged; no paid experiment is run by this infrastructure. See
+the
 [database/API ownership and pricing contract](../../../../docs/backend-and-data/04-database-schema.md#primary-identification-attempt-accounting).

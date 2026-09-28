@@ -151,7 +151,7 @@ export function createOpenAIEvaluationAdapter(
   }));
 }
 
-/** Photo-only transport; the production composition independently blocks dispatch. */
+/** Photo-only transport; production requires the exact database-admitted binding. */
 export function createOpenAIPhotoAdapter(
   credential: string,
   fetcher: typeof fetch = fetch,

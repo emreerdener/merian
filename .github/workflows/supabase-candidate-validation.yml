@@ -333,12 +333,21 @@ jobs:
             supabase/functions/insight-chat/prompt_test.ts \
             supabase/functions/scan-media-health/health_test.ts
 
-      - name: Test disabled OpenAI identification adapter without network or credentials
+      - name: Test OpenAI identification adapters without network or credentials
         run: |
           deno test --frozen --no-prompt --deny-net --deny-env \
             --config supabase/functions/deno.json \
             supabase/functions/_shared/ai/openai_test.ts \
             supabase/functions/_shared/ai/openaiPhoto_test.ts
+
+      # Shared SDK imports read these three non-secret feature flags at module load.
+      # The test itself restricts environment access to the synthetic OpenAI key.
+      - name: Test admitted OpenAI photo production composition without network
+        run: |
+          deno test --frozen --no-prompt --deny-net \
+            --allow-env=NATUREBOOK_OPENAI_API_KEY,GOOGLE_SDK_NODE_LOGGING,WS_NO_BUFFER_UTIL,WS_NO_UTF_8_VALIDATE \
+            --config supabase/functions/deno.json \
+            supabase/functions/_shared/ai/production_test.ts
 
       - name: Test internal service credential boundary
         run: |

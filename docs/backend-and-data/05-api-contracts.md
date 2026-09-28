@@ -412,11 +412,12 @@ synchronization and fresh recipient preflight. Account/scan replacement closes
 stale disclosure presentation, and mutation/dispatch retain their own account
 checks.
 
-Production OpenAI dispatch remains source-disabled and assignments remain
-Gemini. Recipient-aware preflight, client-version gating, model admission and
-provenance are implemented; compatible-reader distribution and qualification of
-the exact production photo binding still precede activation. A consent receipt
-or a catalog row alone cannot enable OpenAI. See the
+The production composition supports the exact OpenAI photo adapter; assignments
+remain Gemini until a separate catalog activation. Recipient-aware preflight,
+client-version gating, model admission and provenance are implemented;
+compatible-reader distribution and qualification of the exact production photo
+binding still precede activation. A consent receipt or a catalog row alone
+cannot enable OpenAI. See the
 [photo rollout](../rfcs/identification-openai-photo-rollout-2026-09-28.md).
 
 ## Fleet-Wide Outbound Provider Contract
@@ -2437,7 +2438,8 @@ remain unchanged.
 The backend chooses the assignment. End-user processing permission gates that
 assignment; it cannot select a different provider or fallback. All current
 catalog rows remain Gemini. The registry recognizes the exact dormant OpenAI
-photo tuple, but a separate constant-false composition gate prevents dispatch.
+photo tuple, and the production composition supports it. Deploy that enabled
+Function bundle before any forward migration selects the photo tuple.
 `identificationInput.ts` distinguishes descriptions, photos, audio, combined
 photos/audio and video-derived frames/audio; compatibility request variants have
 separate profiles. Capture indications and lineage conservatively keep sampled

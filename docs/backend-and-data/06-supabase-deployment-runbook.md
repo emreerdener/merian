@@ -17,6 +17,23 @@ identity. Local `supabase login` is useful for emergency maintenance, but
 production deploys should be repeatable from CI with explicit secrets and
 validation.
 
+## OpenAI photo adapter deployment order
+
+Deploy the source-enabled `openai_photo_v1` adapter while the identification
+catalog still assigns Gemini. Confirm the exact-SHA Function deployment before
+merging any migration that assigns `multimodal_photo_v1` to OpenAI. The ordinary
+workflow pushes migrations before Function deployment; combining first-time
+adapter enablement and assignment activation would expose the new assignment to
+an older disabled Function bundle.
+
+The later activation must change only still-photo assignments, preserving quota
+policy keys, native moderation, original-attempt recovery, result readers, and
+separate audio/video/text assignments. Provider credentials never select a
+route. The
+[photo rollout](../rfcs/identification-openai-photo-rollout-2026-09-28.md)
+records the beta scope and remaining source/runtime evidence. This staged
+adapter release alone makes no OpenAI identification request.
+
 ## Legacy Location-Label Repair
 
 If a scan has exact coordinates but no `semantic_location`, changing an Explore
@@ -6759,16 +6776,18 @@ CLI's stored digest must match the exact GitHub value. Logs contain only a fixed
 validation, skip, verification or failure status. Digest verification proves
 transfer, not OpenAI authentication, billing or model access.
 
-The credential remains optional while the OpenAI source gate is false. An absent
-GitHub value leaves any existing Supabase copy untouched; deleting the GitHub
-secret does not revoke the runtime key. A failed verification stops the release
-without automatically deleting or restoring runtime credentials. Retry through
-the reviewed deployment workflow after correcting the cause; credential rotation
-or revocation remains a separately authorized operation.
+The credential remains optional while catalog assignments select Gemini. OpenAI
+photo activation requires a valid runtime credential. An absent GitHub value
+leaves any existing Supabase copy untouched; deleting the GitHub secret does not
+revoke the runtime key. A failed verification stops the release without
+automatically deleting or restoring runtime credentials. Retry through the
+reviewed deployment workflow after correcting the cause; credential rotation or
+revocation remains a separately authorized operation.
 
-The dormant photo composition names this credential, but its constant-false
-source gate still runs before lookup. Synchronization does not activate OpenAI,
-change provider assignments, collect permission or make identification requests.
+The enabled photo composition reads this credential only after an exact OpenAI
+photo assignment has been admitted. Synchronization does not change provider
+assignments, collect permission or make identification requests. Deploy this
+enabled Function bundle before a separate photo catalog activation migration.
 The
 [alternative-provider guide](../development-guides/22-alternative-identification-provider.md#credential-storage-and-future-deployment)
 owns evaluation injection and runtime storage. The manual **Compare

@@ -1,8 +1,10 @@
 # Adding a provider later
 
-The current production composition enables only Gemini. This procedure describes
-the implementation and qualification needed for a future service; changing a
-provider name or environment variable cannot activate one today. The
+The production composition supports Gemini and the exact OpenAI still-photo
+binding; the routing catalog remains Gemini until the separate activation. This
+procedure describes the implementation and qualification needed for a future
+service; changing a provider name or environment variable cannot activate one
+today. The
 [PRD](../../../../../docs/product/03-identification-foundation-prd.md) and
 [SRD](../../../../../docs/rfcs/identification-foundation-srd.md#8-infrastructure-release-and-later-provider-changes)
 own scope and acceptance. Existing tasks, admission, persistence, and recovery
@@ -35,12 +37,13 @@ observation jobs retain user authority even when a service invokes the worker.
 2. For production assignment, extend the production attempt/model unions in
    `contracts.ts` and approved profiles in `registry.ts` / `contentRegistry.ts`
    for the qualified variants. The unions and registry include the exact dormant
-   OpenAI photo binding; actual production dispatch and catalog rows remain
-   Gemini. The separate `OpenAIEvaluationSnapshot` and local evaluator profiles
-   do not create production authority. Keep the evidence/result contracts
-   independent of the new SDK. Reuse `identify/contract.ts` for common
-   validation and add a provider-specific schema projection alongside the
-   existing Google projection when necessary.
+   OpenAI photo binding. Its production adapter is enabled in source before the
+   separate catalog activation; catalog rows still remain Gemini. The separate
+   `OpenAIEvaluationSnapshot` and local evaluator profiles do not create
+   production authority. Keep the evidence/result contracts independent of the
+   new SDK. Reuse `identify/contract.ts` for common validation and add a
+   provider-specific schema projection alongside the existing Google projection
+   when necessary.
 3. Extend authoritative database model/operation admission and the Edge registry
    together. Identification has an exact per-input binding catalog, currently
    assigned only to Gemini, and immutable quota-attempt snapshots, accessed
@@ -106,12 +109,15 @@ observation jobs retain user authority even when a service invokes the worker.
    client-selected providers/URLs, or widen the allowlist speculatively.
    Snapshot each admitted attempt; only existing recovery/admission can
    authorize a later attempt under a changed policy.
-4. Enable dispatch in `production.ts` only when qualification and disclosure
-   prerequisites below are met. The OpenAI photo branch is source-disabled
-   before credential lookup and cannot be enabled by an environment variable.
-   Keep deterministic adapters test-only. Add the new SDK/dispatch owner to the
-   reviewed inventory in `_tests/aiQuotaCoverage.test.ts`, update dependency
-   pins and graphs, and keep deferred consumers explicit.
+4. Deploy adapter support in `production.ts` before changing any assignment. The
+   OpenAI photo branch is enabled in source; no environment variable or
+   credential selects it. The separate catalog activation owns live traffic,
+   qualification and recipient authorization. Migrations run before Function
+   deployment, so the activating migration must follow a confirmed deployment of
+   the enabled adapter. Keep deterministic adapters test-only. Add the new
+   SDK/dispatch owner to the reviewed inventory in
+   `_tests/aiQuotaCoverage.test.ts`, update dependency pins and graphs, and keep
+   deferred consumers explicit.
 
 The primary handler also requires a qualified `multimodalResultPolicy.ts`
 profile before commitment. It binds Gemini candidate thresholds and native
@@ -123,20 +129,21 @@ See the
 [photo integration plan](../../../../../docs/rfcs/identification-openai-photo-integration-2026-09-27.md)
 for slice status. The dormant OpenAI photo adapter now requires pinned inline
 moderation and has V2 provenance readers. Its exact result policy,
-capability-aware admission and promotion are connected behind the false
-composition gate. No assignment row enables it; these helpers do not activate a
-lane. The quota-policy model is independent of the immutable provider execution
-model, so assigning photos cannot reroute audio or frames.
+capability-aware admission and promotion are connected to the enabled
+composition. Existing assignment rows still choose Gemini; deploy the enabled
+bundle before the separate photo assignment change. The quota-policy model is
+independent of the immutable provider execution model, so assigning photos
+cannot reroute audio or frames.
 
 ## Complete disclosure, result, and accounting work
 
 Before sending real observation data, complete processor/purpose permission,
 processing terms, account settings, region/subprocessor, retention/deletion, and
 abuse-log review. Existing `google_gemini` receipts do not authorize another
-recipient. The independent OpenAI stream and source-disabled Settings flow
-implement local deny/revoke/account-switch and causal synchronization behavior.
-Review and publish the intended disclosure/purpose before enabling collection; a
-material copy/purpose change requires a new version and fresh action. Complete
+recipient. The independent OpenAI stream and Settings flow implement local
+deny/revoke/account-switch and causal synchronization behavior. Review and
+publish the intended disclosure/purpose before enabling collection; a material
+copy/purpose change requires a new version and fresh action. Complete
 provider-aware inference admission and recovery with the same consent owner; do
 not relabel historical Gemini receipts.
 

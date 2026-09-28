@@ -63,10 +63,11 @@ split into extra provider calls or silently reduced to photos.
   tool use, background job or stored conversation. Preparation performs no
   disclosure; the common executor permits one invocation.
 - `scripts/identification_evaluation/providers.ts` selects evaluation profiles.
-  Production `production.ts` contains a separate dormant photo composition,
-  using `openaiPhoto.ts` and the exact registered binding; its false source gate
-  rejects before credential lookup. Evaluation profiles are not production
-  assignments. The
+  Production `production.ts` contains a separate enabled photo composition,
+  using `openaiPhoto.ts` and the exact registered binding. Credential lookup
+  follows admitted catalog assignment; current catalog rows still select Gemini.
+  Deploy the enabled bundle before a separate photo assignment migration.
+  Evaluation profiles are not production assignments. The
   [photo integration record](../rfcs/identification-openai-photo-integration-2026-09-27.md)
   owns the implemented admission, safety, provenance and compatible-reader work.
 - Required fields, bounds and enums still pass the common Identify parser.
@@ -139,9 +140,11 @@ source and Supabase is the runtime store. The
 [deployment runbook](../backend-and-data/06-supabase-deployment-runbook.md#required-and-optional-github-secrets)
 owns the env-backed CLI transport, digest verification and failure handling.
 Successful synchronization proves only that the key was copied; it does not
-validate provider access or enable OpenAI. The photo source gate remains false,
-Gemini retains every assignment, and permission collection is deferred. Provider
-activation, qualification, rollout and rollback remain separate decisions.
+validate provider access or activate OpenAI traffic. The photo composition is
+source-enabled ahead of catalog activation; Gemini retains every assignment.
+Settings can collect optional permission, while the owner-requested beta opt-in
+deferral belongs to the subsequent activation change. Provider qualification,
+traffic activation and rollback remain separate decisions.
 
 ### Private local key entry
 

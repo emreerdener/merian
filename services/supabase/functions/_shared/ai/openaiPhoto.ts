@@ -1,4 +1,4 @@
-/** Dormant photo binding. Admission/production do not select this adapter yet. */
+/** Photo-only binding. Production selection belongs to database admission. */
 import type { AIRequest, MultimodalAIRequest } from "./contracts.ts";
 import {
   assertOpenAIInput,

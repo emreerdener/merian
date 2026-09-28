@@ -189,7 +189,7 @@ moderated against the canonical original recording.
 
 ## Dormant OpenAI photo policy
 
-`_shared/ai/openaiPhoto.ts` defines the disabled `openai_photo_v1` binding and
+`_shared/ai/openaiPhoto.ts` defines the `openai_photo_v1` binding and
 `openai_photo_moderation_v1` policy. It accepts still photos with their optional
 observation text; description-only, audio and sampled video remain excluded. The
 measured identification prompt and generation settings are retained. Only this
@@ -216,14 +216,15 @@ coverage. No score threshold is borrowed from Gemini.
 The adapter exposes only the policy and disposition, not moderation scores,
 diagnostics or content. It makes no separate moderation request and performs no
 automatic retry. Added latency, actual billing and safety effectiveness remain
-unqualified. Offline fixtures establish control flow only. Production still
-rejects this binding before commitment through a constant-false composition gate
-and refunds the unused lease. The dormant admission/result path is connected:
-only a matching allowed native disposition can reach media promotion, without
-Gemini ratings or strikes. Historical-reader compatibility, end-to-end
-qualification, accounting completeness and explicit activation remain pending.
-Video-frame support is planned as a separate visual binding; moderation of five
-submitted snapshots cannot assert safety of every instant of the playback clip.
+unqualified. Offline fixtures establish control flow only. The production
+composition is enabled in source ahead of the separate photo assignment
+activation; all current catalog rows still choose Gemini. Preparation failures
+refund unused leases. The exact admission/result path remains connected: only a
+matching allowed native disposition can reach media promotion, without Gemini
+ratings or strikes. Historical-reader compatibility, end-to-end qualification,
+accounting completeness and explicit activation remain pending. Video-frame
+support is planned as a separate visual binding; moderation of five submitted
+snapshots cannot assert safety of every instant of the playback clip.
 
 ## Gemini Safety Ratings Evaluation
 

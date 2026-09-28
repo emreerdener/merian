@@ -5,6 +5,23 @@ Status: optional permission collection and saved-scan recovery implemented in
 source and ready for review. Distribution and activation remain pending;
 production remains Gemini.
 
+## Adapter enablement follow-up — 28 September 2026
+
+PR 95 merged the optional permission UI and saved-scan recovery. The owner then
+requested enabling OpenAI still-photo identification during beta, deferring the
+new opt-in step. Adapter deployment and traffic assignment must be separate:
+Supabase applies migrations before deploying Functions, so an assignment-first
+release would select OpenAI through an older disabled adapter.
+
+This first change enables the production photo adapter without changing routing
+rows, prompts, quotas, native moderation, permission records or client checks.
+The routing catalog still selects Gemini. Deploy and verify this Function bundle
+before the follow-up photo-only catalog activation. Keep the historical
+benchmark results; source enablement is not a new benchmark or a claim that the
+production binding has completed live qualification. The beta permission-policy
+change is separate from this adapter preparation and must preserve explicit
+withdrawals without manufacturing affirmative consent.
+
 ## Decision and current position
 
 Finish still-photo rollout before further prompt optimization or OpenAI audio.
@@ -19,7 +36,7 @@ evidence. The explicit-null prompt experiment is closed inconclusive without a
 candidate call. Neither substitutes for qualification of `openai_photo_v1`,
 which adds native input/output moderation to the measured baseline.
 
-## This implementation
+## Permission and recovery implementation (PR 95)
 
 - Enable optional OpenAI collection in Settings using disclosure `2026-09-26`
   and its existing statement. Gemini onboarding stays required.
@@ -41,12 +58,13 @@ which adds native input/output moderation to the measured baseline.
   publish permission; failed withdrawal stays locally blocked and retryable
   without claiming durable revocation across restart.
 
-No database migration, wire/schema change, assignment update, model/prompt
-change or production request is part of this slice. The source dispatch gate in
-`production.ts` remains false and every production input profile remains Gemini.
-The UI and ledger tests use synthetic local evidence without provider keys. The
-Release archive rejects the new fixture marker, and the workflow contract checks
-markers from every Swift fixture file in `App/UITesting/`.
+PR 95 made no database migration, wire/schema change, assignment update,
+model/prompt change or production request. Its source dispatch gate remained
+false. The adapter follow-up above now enables that composition; every catalog
+assignment still selects Gemini until the separate activation migration. The UI
+and ledger tests use synthetic local evidence without provider keys. The Release
+archive rejects the new fixture marker, and the workflow contract checks markers
+from every Swift fixture file in `App/UITesting/`.
 
 ## Remaining release sequence
 

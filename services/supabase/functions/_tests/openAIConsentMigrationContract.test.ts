@@ -43,13 +43,6 @@ Deno.test("OpenAI consent is independent and cannot change production assignment
     ),
   );
   assertStringIncludes(policy, "openAIConsentCollectionEnabled = true");
-  const production = await Deno.readTextFile(
-    new URL("../_shared/ai/production.ts", import.meta.url),
-  );
-  assertStringIncludes(
-    production,
-    "OPENAI_PHOTO_DISPATCH_ENABLED: boolean = false",
-  );
   assertStringIncludes(policy, 'openAIProvider = "openai"');
   assertStringIncludes(policy, 'openAIDisclosureVersion = "2026-09-26"');
 });

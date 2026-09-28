@@ -26,6 +26,7 @@ import type {
   AIProviderOutcome,
   AIRequest,
 } from "../_shared/ai/contracts.ts";
+import { openAIResponseFixture } from "../_shared/ai/testing/openaiFixtures.ts";
 import { openAIEvaluationSnapshot } from "../_shared/ai/openaiRequest.ts";
 import { createAIExecution } from "../_shared/ai/execution.ts";
 import { resolveAIClaim } from "../_shared/ai/registry.ts";
@@ -1270,23 +1271,74 @@ Deno.test("multimodal handler preserves admission, evidence and recovery through
       ]);
     });
     await t.step(
-      "dormant OpenAI composition refunds the admitted lease before reading a credential or dispatching",
+      "enabled OpenAI composition without a credential refunds before commitment or dispatch",
       async () => {
+        const key = Deno.env.get("NATUREBOOK_OPENAI_API_KEY");
+        const fetcher = globalThis.fetch;
+        let calls = 0;
+        try {
+          Deno.env.delete("NATUREBOOK_OPENAI_API_KEY");
+          globalThis.fetch = () => {
+            calls++;
+            throw new Error("Missing credential must not dispatch");
+          };
+          const db = database({ openAI: true });
+          const response = await handleIdentifyMultimodalRequest(
+            request({ imageBase64s: ["AQ=="] }),
+            user,
+            db.client,
+            0,
+          );
+          assertEquals(response.status, 503);
+          assertEquals(db.events, [
+            "reserve",
+            "ledger",
+            "refunded",
+            "failed_retryable",
+          ]);
+          assertEquals(db.inserted(), null);
+          assertEquals(calls, 0);
+        } finally {
+          globalThis.fetch = fetcher;
+          if (key === undefined) Deno.env.delete("NATUREBOOK_OPENAI_API_KEY");
+          else Deno.env.set("NATUREBOOK_OPENAI_API_KEY", key);
+        }
+      },
+    );
+    await t.step(
+      "enabled OpenAI handler commits before one dispatch and closes missing native safety without fallback",
+      async () => {
+        const key = Deno.env.get("NATUREBOOK_OPENAI_API_KEY");
+        const fetcher = globalThis.fetch;
         const db = database({ openAI: true });
-        const response = await handleIdentifyMultimodalRequest(
-          request({ imageBase64s: ["AQ=="] }),
-          user,
-          db.client,
-          0,
-        );
-        assertEquals(response.status, 503);
-        assertEquals(db.events, [
-          "reserve",
-          "ledger",
-          "refunded",
-          "failed_retryable",
-        ]);
-        assertEquals(db.inserted(), null);
+        let calls = 0;
+        try {
+          Deno.env.set("NATUREBOOK_OPENAI_API_KEY", "synthetic-handler-key");
+          globalThis.fetch = (input) => {
+            assertEquals(String(input), "https://api.openai.com/v1/responses");
+            assertEquals(db.events, ["reserve", "ledger", "committed"]);
+            calls++;
+            db.events.push("invoke");
+            return Promise.resolve(Response.json(openAIResponseFixture()));
+          };
+          const response = await handleIdentifyMultimodalRequest(
+            request({ imageBase64s: ["AQ=="] }, undefined, {
+              "X-Merian-Identification-Protocol": "4",
+              "X-Merian-Identification-Recipient": "openai",
+            }),
+            user,
+            db.client,
+            0,
+          );
+          assertEquals(response.status, 503);
+          assertEquals(calls, 1);
+          assertEquals(db.inserted(), null);
+          assertEquals(db.events.includes("refunded"), false);
+        } finally {
+          globalThis.fetch = fetcher;
+          if (key === undefined) Deno.env.delete("NATUREBOOK_OPENAI_API_KEY");
+          else Deno.env.set("NATUREBOOK_OPENAI_API_KEY", key);
+        }
       },
     );
     await t.step(

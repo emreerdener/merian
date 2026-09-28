@@ -8,10 +8,10 @@ import { geminiAdapter } from "./gemini.ts";
 import { resolveAIClaim } from "./registry.ts";
 import { createOpenAIPhotoAdapter } from "./openai.ts";
 
-// Reviewed source gate, independent of credentials and database assignments.
-// Remove only with compatible history readers, qualified evidence and an
-// explicitly authorized activation. This is never a client/environment switch.
-const OPENAI_PHOTO_DISPATCH_ENABLED: boolean = false;
+// Deploy the enabled adapter before assigning photos in the database.
+// Admission still owns the exact input, recipient permission and client minimum;
+// credentials and client input never choose or override the provider.
+const OPENAI_PHOTO_DISPATCH_ENABLED: boolean = true;
 
 /** The sole production composition. No adapter argument or runtime override. */
 export function prepareAIExecution(
