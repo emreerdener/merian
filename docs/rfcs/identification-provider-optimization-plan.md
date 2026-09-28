@@ -8,6 +8,17 @@ after one control result, concise candidate deferred\
 Scope: Shared identification foundation, OpenAI photo/text tuning, and Gemini
 photo/text tuning, with a later path to qualified production use
 
+## Direction update — 27 September 2026
+
+The
+[new optimization plan](./identification-optimization-preserving-results-2026-09-27.md)
+now owns future priorities, following verified completion of the provider
+infrastructure milestone. Preserve the current explanation format and detail;
+concise OpenAI explanations are not a selected next step. The existing
+measurement implementation, experiment controls and historical outcomes below
+remain unchanged. References below to the first candidate or next optimization
+slices describe the earlier plan, not the current work order.
+
 ## Decision
 
 Use one optimization effort with a shared foundation and separate, versioned

@@ -249,17 +249,17 @@ production submission or public release.
   preserves execution configuration in owner results and V52 local storage, with
   neutral confidence presentation for unknown profiles. Provider qualification,
   deliberate permission collection and rollout remain ahead.
-- **[Identification provider optimization plan](./rfcs/identification-provider-optimization-plan.md):**
-  Shared measurement repairs are implemented with versioned mapping, reports and
-  descriptive comparisons. Versioned baseline profiles and experiment-wide
-  budgets/stops are implemented. The first candidate is concise OpenAI
-  explanations, with implemented delegated AI review, optional owner review and
-  uncached profiles for a 16-request comparison. The
-  [26 September screen](./rfcs/identification-openai-concise-screen-2026-09-26.md)
-  stopped after one reference-matching control result because explanation facts
-  did not cover lookalike comparisons; 15 assignments remain unattempted and the
-  concise candidate is deferred. Includes the later production qualification
-  path; production remains Gemini.
+- **[Identification optimization while preserving current results](./rfcs/identification-optimization-preserving-results-2026-09-27.md):**
+  Current plan following verified completion of the provider infrastructure
+  milestone. Preserve explanation format and detail while investigating
+  duplicate preparation, serial work, native caching, input instructions and
+  evidence-backed media/model settings. Start with existing measurements and
+  select one bounded improvement; production remains Gemini. The
+  [earlier provider optimization plan](./rfcs/identification-provider-optimization-plan.md)
+  retains implemented measurement and experiment controls. Its
+  [26 September concise screen](./rfcs/identification-openai-concise-screen-2026-09-26.md)
+  remains closed and inconclusive after one control result; concise explanations
+  are not a selected next step and the unused assignments are not resumed.
 - **Identification evaluation readiness:**
   [PRD](./product/04-identification-evaluation-prd.md) and
   [SRD](./rfcs/identification-evaluation-srd.md) plan the next milestone: an

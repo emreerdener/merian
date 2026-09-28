@@ -65,6 +65,24 @@ connection slice below adds its separate capability contract. The runtime
 fingerprint is regenerated for each implementation; the completed comparison
 retains its original source and hash.
 
+## Provider infrastructure closeout — 27 September 2026
+
+[PR 87](https://github.com/emreerdener/merian/pull/87) merged at
+`2f733e83ae24fa90d8a222cf6635905fda265720` and
+[production deployment 1819](https://github.com/emreerdener/merian/actions/runs/36363524196)
+passed candidate validation, deployment and backend smoke checks. The deployment
+log confirms the existing GitHub Production `NATUREBOOK_OPENAI_API_KEY` was
+synchronized to Supabase project `qlarqavoqhkuwzmevrmf` and its stored digest
+was verified. This closes the current infrastructure milestone; the optional
+secret synchronization was not skipped.
+
+OpenAI dispatch remains source-disabled and assignments remain Gemini.
+Permission collection, released-reader verification, held-out qualification and
+activation below remain deferred, separate work. The
+[new optimization plan](./identification-optimization-preserving-results-2026-09-27.md)
+can now proceed while preserving the current explanation format. It does not
+require repeating the closed concise-explanation experiment.
+
 ## Remaining slices
 
 1. **Finish activation prerequisites.** The dormant connection described below
@@ -73,13 +91,12 @@ retains its original source and hash.
    follow-up implements primary multimodal failed/uncertain coverage and native
    pricing; see the
    [current accounting contract](../backend-and-data/04-database-schema.md#primary-identification-attempt-accounting).
-   Source implementation does not establish deployed readiness. The deployment
-   workflow now prepares GitHub-to-Supabase synchronization of the existing
-   Naturebook OpenAI key with stored-digest verification; its successful
-   deployment is separate evidence. Permission collection is deferred at the
-   owner's request and remains an activation prerequisite. The source gate
-   remains false and all assignments remain Gemini. A secret, consent grant or
-   catalog edit cannot enable dispatch.
+   Source implementation alone does not establish deployed readiness. The
+   closeout above records successful deployment and verified GitHub-to-Supabase
+   synchronization of the existing Naturebook OpenAI key. Permission collection
+   is deferred at the owner's request and remains an activation prerequisite.
+   The source gate remains false and all assignments remain Gemini. A secret,
+   consent grant or catalog edit cannot enable dispatch.
 
 2. **Qualification and controlled activation.** Freeze the precise supported
    photo envelope, quality/safety/failure/latency/cost acceptance limits and a
