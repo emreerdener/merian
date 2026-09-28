@@ -1,15 +1,16 @@
 # Identification optimization while preserving current results
 
 Date: 27 September 2026\
-Status: Planning only; provider infrastructure milestone verified before this
-plan was started. Production remains Gemini.
+Status: Slice 1 audit complete; current baseline retained. Provider
+infrastructure milestone verified before this plan was started. Production
+remains Gemini.
 
 ## Decision
 
 Improve identification speed, cost and reliability while retaining the current
 explanation format and level of detail. Shortening OpenAI explanations is not a
-selected optimization. We will first identify the remaining bottleneck, then
-implement and measure one justified change at a time.
+selected optimization. Use measured bottlenecks to decide whether a change is
+worthwhile, then implement and measure one justified change at a time.
 
 This is the current optimization plan. The
 [earlier plan](./identification-provider-optimization-plan.md) remains the
@@ -17,6 +18,27 @@ record of implemented measurement and experiment controls. Its
 [concise-explanation screen](./identification-openai-concise-screen-2026-09-26.md)
 stays closed and inconclusive. We will not repair or repeat that experiment as a
 prerequisite to this work.
+
+## Slice 1 outcome
+
+The [bottleneck audit](./identification-bottleneck-audit-2026-09-27.md) used the
+existing six-photo app records and matched provider comparison, with no new paid
+requests. Provider await accounts for a median **82.2%** of each historical app
+pipeline. Current source already contains the media-preparation, schema-reuse
+and parallel-lookup improvements considered first; no safely removable wait is
+established by these measurements.
+
+Retain the current baseline and skip a speculative shared-code change in
+Slice 2. No new provider-specific setting is selected for Slice 3. Native cache
+reuse is already observed, and missing cache counts are not misses. The existing
+OpenAI photo profile remains the measured qualification candidate under its
+separate integration plan, not a new prompt optimization.
+
+This closes the offline selection pass without shortening explanations or
+repeating benchmarks. If later validation exposes a specific removable wait,
+reopen only that candidate using the audit's measurement and acceptance bounds.
+Proceed next to the separate OpenAI audio evaluation plan; photo activation and
+iOS distribution keep their existing gates.
 
 ## Initial infrastructure milestone is complete
 
