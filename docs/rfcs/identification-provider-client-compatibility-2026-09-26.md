@@ -3,6 +3,17 @@
 Status: implemented and verified locally. Every production assignment remains
 Gemini. No deployment or paid evaluation is included.
 
+**Follow-up — 27 September 2026:** The
+[photo integration record](./identification-openai-photo-integration-2026-09-27.md)
+owns the subsequent recipient, reader, dormant binding and deployment work. The
+[matched comparison](./identification-gemini-openai-matched-results-2026-09-27.md)
+and
+[current optimization plan](./identification-optimization-preserving-results-2026-09-27.md)
+supply later development evidence and priorities. The protocol, benchmark and
+remaining-work statements below are the 26 September checkpoint, not a request
+to repeat completed work or reopen the concise screen. Production remains
+Gemini.
+
 ## Decision and scope
 
 The app owns provider assignment. Each exact backend input/model binding can

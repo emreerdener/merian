@@ -90,6 +90,14 @@ request construction, adapters and result policy. Shared optimizations should
 benefit the common path where possible; Gemini and OpenAI retain separate,
 versioned profiles and native settings.
 
+The
+[evaluation tooling contract](../../services/supabase/scripts/identification_evaluation/README.md#reusable-profiles-and-experiment-controls-optimization-slice-2)
+currently admits fixed baseline profiles and the retained concise-specific v2/v3
+experiments. It is not an arbitrary candidate runner. Any new hypothesis in
+Slice 3 requires reviewed profile registration and the corresponding controller,
+reporting and accounting support before live use. Existing secrets, packet edits
+or a different experiment ID cannot supply that support.
+
 The current OpenAI baseline already uses low reasoning effort and high image
 detail. Both provider builders already separate system instructions from the
 observation, and the shared identification schema is cached. The app already

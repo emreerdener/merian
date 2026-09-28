@@ -12,6 +12,14 @@ reused examples. The dated status above describes the earlier collection
 checkpoint. Formal reference counts and qualification requirements remain
 unchanged.
 
+Update, 27 September 2026: the
+[matched Gemini/OpenAI comparison](../rfcs/identification-gemini-openai-matched-results-2026-09-27.md)
+completed all sixteen attempts. The
+[current optimization plan](../rfcs/identification-optimization-preserving-results-2026-09-27.md)
+starts with existing evidence; it does not require repeating these collection
+steps or the closed concise-explanation screen. This guide remains the procedure
+for new intake when additional evidence is actually needed.
+
 This is the collection workflow for Slice 4 of the
 [evaluation PRD](../product/04-identification-evaluation-prd.md) and
 [SRD](../rfcs/identification-evaluation-srd.md). Those documents own the scope

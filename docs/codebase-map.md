@@ -1776,7 +1776,13 @@ measurement modules are `measurementCost.ts` (usage-based cost),
 `exploratoryMeasurement.ts` (versioned provisional reports) and
 `exploratoryComparison.ts` (descriptive paired comparisons). The tooling README
 owns the opt-in v2 measurement and v2/v3 review contracts; historical v1 reports
-remain unchanged. These modules are not production imports.
+remain unchanged. These modules are not production imports. The concise
+candidate and review modules retain the closed experiment's contract and
+regression coverage; they are not the next scheduled optimization. The
+[current optimization plan](./rfcs/identification-optimization-preserving-results-2026-09-27.md)
+owns future work while preserving the current explanation format and detail. New
+hypotheses require explicit profile/controller support; packet JSON cannot turn
+these fixed profiles into arbitrary provider settings.
 
 `scripts/identification_evaluation/audioPromptComparison.ts` builds the frozen
 audio uncertainty candidate and hash-only assignments; `frozenAudioPacket.ts`

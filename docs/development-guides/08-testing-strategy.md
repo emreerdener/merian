@@ -7012,9 +7012,10 @@ covered. The local OpenAI launcher suite additionally checks controlled-run
 selection, pre-key provider rejection and real Deno permission admission with a
 fake transport. These checks perform no paid provider requests.
 
-The concise candidate adds `identification_evaluation_explanation_test.ts` and
-isolated `identification_evaluation/testing/candidateRunnerTests.ts`. These
-verify baseline/control/candidate native parity, distinct prompt versions,
+The retained concise-candidate implementation adds
+`identification_evaluation_explanation_test.ts` and isolated
+`identification_evaluation/testing/candidateRunnerTests.ts`. These verify
+baseline/control/candidate native parity, distinct prompt versions,
 complete-input rejection, bounded ratings and calibration, local capability and
 origin checks, escaped text and no cached response, v1/v2 rejection of new
 identities, cache/read/write stops, missing/failed review, durable settlement
@@ -7030,6 +7031,13 @@ and no provider requests. Actual loopback lifecycle checks cover saving,
 cancellation, opener failure and timeout without aborting an already closed
 server. These tests do not establish AI assessor accuracy, actual owner
 calibration, live account cache behavior or production qualification.
+
+These remain regression tests for the closed concise experiment. The
+[current optimization plan](../rfcs/identification-optimization-preserving-results-2026-09-27.md)
+preserves current explanations and begins with an offline bottleneck audit.
+Keeping these tests does not schedule another paid comparison or owner practice
+exercise. Future changes use the relevant affected-surface gates and a bounded,
+separately specified comparison only when new model evidence is needed.
 
 Authoritative AI quota and entitlement security has four complementary base
 checks:

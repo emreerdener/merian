@@ -6,6 +6,17 @@ and two descriptions. It makes at most sixteen first attempts. Production
 identification routing stays Gemini; this workflow does not deploy Supabase or
 the app. Existing benchmarks remain unchanged.
 
+The
+[27 September comparison](../rfcs/identification-gemini-openai-matched-results-2026-09-27.md)
+completed all sixteen attempts. This remains the operator procedure for its
+fixed baseline pair, not a pending run or an arbitrary optimization runner. The
+[current optimization plan](../rfcs/identification-optimization-preserving-results-2026-09-27.md)
+starts with offline analysis of existing evidence. A new hypothesis needs
+reviewed profile and workflow support, a new bounded plan and applicable run
+authorization; changing a bundle or experiment ID cannot repurpose this
+completed comparison. Existing secret configuration does not authorize another
+run.
+
 The owner accepted public test materials on 27 September 2026. Use the existing
 R2 `merian` bucket under `benchmarks/identification/`. This procedure owns the
 hosted execution boundary; the
@@ -18,12 +29,12 @@ owns the underlying measurement and accounting contracts.
 
 Use `emreerdener/merian` → environment **Production**:
 
-| Setting                                               | Purpose                                                                             |
-| ----------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `GEMINI_PAID_API_KEY` secret                          | Existing paid Gemini key                                                            |
-| `NATUREBOOK_OPENAI_API_KEY` secret                    | Existing Naturebook OpenAI key; mapped only to `OPENAI_EVALUATION_API_KEY`          |
-| `R2_ACCOUNT_ID` variable or secret                    | Cloudflare account containing `merian`; exactly 32 lowercase hexadecimal characters |
-| `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY` secrets | Authenticated object read/write access to `merian` for claims and summaries         |
+| Setting                                               | Purpose                                                                                |
+| ----------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `GEMINI_PAID_API_KEY` secret                          | Existing paid Gemini key                                                               |
+| `NATUREBOOK_OPENAI_API_KEY` secret                    | Existing Naturebook OpenAI key; mapped to `OPENAI_EVALUATION_API_KEY` in this workflow |
+| `R2_ACCOUNT_ID` variable or secret                    | Cloudflare account containing `merian`; exactly 32 lowercase hexadecimal characters    |
+| `R2_ACCESS_KEY_ID` and `R2_SECRET_ACCESS_KEY` secrets | Authenticated object read/write access to `merian` for claims and summaries            |
 
 Reuse existing suitable storage credentials where available. The read-only
 `R2_READ_*` pair cannot create claims. Standard R2 Object Read/Write credentials

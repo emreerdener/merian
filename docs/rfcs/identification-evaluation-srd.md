@@ -1,21 +1,42 @@
 # Naturebook Identification Evaluation Readiness — SRD
 
 Document ID: NB-SRD-IDENTIFICATION-EVAL-001\
-Version: 0.19\
-Date: 23 September 2026\
-Status: Slices 1–3 and exploratory automation implemented; photo, description,
-first video and expanded audio app checks completed; reviewed baseline pending\
+Version: 0.20\
+Date: 27 September 2026\
+Status: Slices 1–3, controlled provider evaluation and matched exploratory
+comparison completed; formal reviewed baseline pending\
 Product authority:
 [Evaluation Readiness PRD](../product/04-identification-evaluation-prd.md)
 
+## Current checkpoint — 27 September 2026
+
+The
+[alternative-provider guide](../development-guides/22-alternative-identification-provider.md)
+and
+[tooling contract](../../services/supabase/scripts/identification_evaluation/README.md)
+own the implemented OpenAI evaluation adapter, versioned exploratory reports and
+controlled local/hosted comparisons. The
+[matched comparison](./identification-gemini-openai-matched-results-2026-09-27.md)
+completed all sixteen first attempts. Formal reviewed-corpus counts remain 0/60
+development and 0/240 held-out groups; development agreement is not
+qualification. Production assignment remains Gemini.
+
+The
+[current optimization plan](./identification-optimization-preserving-results-2026-09-27.md)
+now owns future optimization priorities and preserves current explanation
+format/detail. Its first slice reuses existing evidence without provider calls.
+The closed concise experiment and dated implementation checkpoints below remain
+historical records; they do not define the next run. New hypotheses need
+reviewed profile and controller support, while formal qualification continues to
+follow this SRD and the PRD.
+
 ## 1. Scope and evidence boundary
 
-Implement a local evaluation tool for the existing primary identification path.
-Both live profiles remain Gemini: `gemini-2.5-flash` with the free-tier policy
-and `gemini-2.5-pro` with the Pro-tier policy. Use their current registry
-settings, including prompt selection by actual evidence. Do not hand-copy
-settings or silently substitute a newer model if an approved model becomes
-unavailable.
+The original formal baseline covers the existing primary identification path.
+Its two Gemini profiles are: `gemini-2.5-flash` with the free-tier policy and
+`gemini-2.5-pro` with the Pro-tier policy. Use their current registry settings,
+including prompt selection by actual evidence. Do not hand-copy settings or
+silently substitute a newer model if an approved model becomes unavailable.
 
 The formal live corpus covers still images, descriptions, audio, sampled frames,
 frames with audio, and still images with audio. Compatibility endpoints and
@@ -499,7 +520,8 @@ time and usage estimates are meaningful only for actual live calls; synthetic
 reports explicitly record mechanics-only evidence. Local verification and run
 artifacts are recorded in the
 [exploratory experiment record](./identification-exploratory-benchmark-2026-09-22.md).
-No paid direct-evaluator run has occurred. A subsequent
+At that 22 September checkpoint, no paid direct-evaluator run had occurred. A
+subsequent
 [production-app checkpoint](./identification-production-app-benchmark-2026-09-22.md)
 completed two owner-approved photo submissions through the ordinary production
 workflow, recording first visible results and client timing. Its separate
