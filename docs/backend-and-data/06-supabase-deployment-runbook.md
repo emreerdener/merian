@@ -17,6 +17,23 @@ identity. Local `supabase login` is useful for emergency maintenance, but
 production deploys should be repeatable from CI with explicit secrets and
 validation.
 
+## OpenAI photo adapter deployment order
+
+Deploy the source-enabled `openai_photo_v1` adapter while the identification
+catalog still assigns Gemini. Confirm the exact-SHA Function deployment before
+merging any migration that assigns `multimodal_photo_v1` to OpenAI. The ordinary
+workflow pushes migrations before Function deployment; combining first-time
+adapter enablement and assignment activation would expose the new assignment to
+an older disabled Function bundle.
+
+The later activation must change only still-photo assignments, preserving quota
+policy keys, native moderation, original-attempt recovery, result readers, and
+separate audio/video/text assignments. Provider credentials never select a
+route. The
+[photo rollout](../rfcs/identification-openai-photo-rollout-2026-09-28.md)
+records the beta scope and remaining source/runtime evidence. This staged
+adapter release alone makes no OpenAI identification request.
+
 ## Legacy Location-Label Repair
 
 If a scan has exact coordinates but no `semantic_location`, changing an Explore

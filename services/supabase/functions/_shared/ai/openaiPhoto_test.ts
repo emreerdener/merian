@@ -14,70 +14,11 @@ import {
   openAIEvaluationSnapshot,
 } from "./openaiRequest.ts";
 import {
+  openAIPhotoModerationFixture as moderationFixture,
+  openAIPhotoRequestFixture as photoRequest,
   openAIResponseFixture,
   openAITextFixture,
 } from "./testing/openaiFixtures.ts";
-
-function photoRequest(): MultimodalAIRequest {
-  return {
-    ...openAITextFixture(),
-    evidence: [{
-      kind: "image",
-      order: 0,
-      inputIndex: 0,
-      lineage: { kind: "image", sourceIndex: 0 },
-      mimeType: "image/png",
-      data: "AQID",
-    }, {
-      kind: "text",
-      source: "observation_context",
-      order: 1,
-      text: "An invented observation note.",
-    }],
-  };
-}
-
-const imageCategories = [
-  "sexual",
-  "self-harm",
-  "self-harm/intent",
-  "self-harm/instructions",
-  "violence",
-  "violence/graphic",
-];
-const allCategories = [
-  ...imageCategories,
-  "sexual/minors",
-  "harassment",
-  "harassment/threatening",
-  "hate",
-  "hate/threatening",
-  "illicit",
-  "illicit/violent",
-];
-function moderationResult(input: boolean) {
-  return {
-    type: "moderation_result",
-    model: OPENAI_PHOTO_MODERATION_MODEL,
-    flagged: false,
-    categories: Object.fromEntries(allCategories.map((key) => [key, false])),
-    category_scores: Object.fromEntries(
-      allCategories.map((key) => [key, 0.001]),
-    ),
-    category_applied_input_types: Object.fromEntries(
-      allCategories.map((
-        key,
-      ) => [
-        key,
-        input && imageCategories.includes(key) ? ["text", "image"] : ["text"],
-      ]),
-    ),
-  };
-}
-const moderationFixture = () => ({
-  input: moderationResult(true),
-  output: moderationResult(false),
-});
 
 Deno.test("photo candidate keeps all evidence and measured generation settings with one inline moderation request", async () => {
   const base = photoRequest(),
@@ -203,8 +144,8 @@ Deno.test("photo safety requires complete native input and output evidence witho
   assertEquals(openAIPhotoSafety(noText, false).disposition, "allowed");
   assertEquals(openAIPhotoSafety(noText, true).disposition, "unavailable");
   const invalid: unknown[] = [undefined, null, {}, {
-    input: moderationResult(true),
-  }, { output: moderationResult(false) }];
+    input: moderationFixture().input,
+  }, { output: moderationFixture().output }];
   for (const side of ["input", "output"] as const) {
     for (
       const change of [
@@ -275,7 +216,7 @@ Deno.test("photo adapter removes drafts on denial or unavailable moderation and 
   await assertOutcome(
     {
       input: { type: "error", message: "PRIVATE_DIAGNOSTIC" },
-      output: moderationResult(false),
+      output: moderationFixture().output,
     },
     "invalid_output",
     "unavailable",

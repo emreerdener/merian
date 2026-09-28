@@ -5,6 +5,23 @@ Status: optional permission collection and saved-scan recovery implemented in
 source and ready for review. Distribution and activation remain pending;
 production remains Gemini.
 
+## Adapter enablement follow-up — 28 September 2026
+
+PR 95 merged the optional permission UI and saved-scan recovery. The owner then
+requested enabling OpenAI still-photo identification during beta, deferring the
+new opt-in step. Adapter deployment and traffic assignment must be separate:
+Supabase applies migrations before deploying Functions, so an assignment-first
+release would select OpenAI through an older disabled adapter.
+
+This first change enables the production photo adapter without changing routing
+rows, prompts, quotas, native moderation, permission records or client checks.
+The routing catalog still selects Gemini. Deploy and verify this Function bundle
+before the follow-up photo-only catalog activation. Keep the historical
+benchmark results; source enablement is not a new benchmark or a claim that the
+production binding has completed live qualification. The beta permission-policy
+change is separate from this adapter preparation and must preserve explicit
+withdrawals without manufacturing affirmative consent.
+
 ## Decision and current position
 
 Finish still-photo rollout before further prompt optimization or OpenAI audio.

@@ -1,6 +1,6 @@
 import { assert, assertStringIncludes } from "@std/assert";
 
-Deno.test("primary accounting migration preserves dispatch holds and append-only billing authority", async () => {
+Deno.test("primary accounting migration preserves assignments and append-only billing authority", async () => {
   const sql = await Deno.readTextFile(
     new URL(
       "../../migrations/20260927230801_account_identification_invocations.sql",
@@ -28,12 +28,5 @@ Deno.test("primary accounting migration preserves dispatch holds and append-only
   assert(!/REFERENCES internal.ai_quota/.test(sql));
   assert(
     !/(INSERT INTO|UPDATE) internal.identification_provider_bindings/.test(sql),
-  );
-  const production = await Deno.readTextFile(
-    new URL("../_shared/ai/production.ts", import.meta.url),
-  );
-  assertStringIncludes(
-    production,
-    "OPENAI_PHOTO_DISPATCH_ENABLED: boolean = false",
   );
 });

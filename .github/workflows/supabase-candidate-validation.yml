@@ -333,7 +333,7 @@ jobs:
             supabase/functions/insight-chat/prompt_test.ts \
             supabase/functions/scan-media-health/health_test.ts
 
-      - name: Test disabled OpenAI identification adapter without network or credentials
+      - name: Test OpenAI identification adapters without network or credentials
         run: |
           deno test --frozen --no-prompt --deny-net --deny-env \
             --config supabase/functions/deno.json \

@@ -4,6 +4,7 @@ import {
   merianModelContract,
 } from "../../identify/contract.ts";
 import type { MultimodalAIRequest } from "../contracts.ts";
+import { OPENAI_PHOTO_MODERATION_MODEL } from "../openaiPhoto.ts";
 export const openAITextFixture = (): MultimodalAIRequest => ({
   task: "identify",
   variant: "multimodal",
@@ -73,3 +74,64 @@ export function openAIResponseFixture() {
     },
   };
 }
+
+export function openAIPhotoRequestFixture(): MultimodalAIRequest {
+  return {
+    ...openAITextFixture(),
+    evidence: [{
+      kind: "image",
+      order: 0,
+      inputIndex: 0,
+      lineage: { kind: "image", sourceIndex: 0 },
+      mimeType: "image/png",
+      data: "AQID",
+    }, {
+      kind: "text",
+      source: "observation_context",
+      order: 1,
+      text: "An invented observation note.",
+    }],
+  };
+}
+
+const imageCategories = [
+  "sexual",
+  "self-harm",
+  "self-harm/intent",
+  "self-harm/instructions",
+  "violence",
+  "violence/graphic",
+];
+const allCategories = [
+  ...imageCategories,
+  "sexual/minors",
+  "harassment",
+  "harassment/threatening",
+  "hate",
+  "hate/threatening",
+  "illicit",
+  "illicit/violent",
+];
+function moderationResult(input: boolean) {
+  return {
+    type: "moderation_result",
+    model: OPENAI_PHOTO_MODERATION_MODEL,
+    flagged: false,
+    categories: Object.fromEntries(allCategories.map((key) => [key, false])),
+    category_scores: Object.fromEntries(
+      allCategories.map((key) => [key, 0.001]),
+    ),
+    category_applied_input_types: Object.fromEntries(
+      allCategories.map((
+        key,
+      ) => [
+        key,
+        input && imageCategories.includes(key) ? ["text", "image"] : ["text"],
+      ]),
+    ),
+  };
+}
+export const openAIPhotoModerationFixture = () => ({
+  input: moderationResult(true),
+  output: moderationResult(false),
+});

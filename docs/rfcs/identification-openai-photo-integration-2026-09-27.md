@@ -6,6 +6,12 @@ saved-result usage integration and result-reader checks implemented. Optional
 permission collection/recovery follows on 28 September; production remains
 Gemini.
 
+> **28 September adapter follow-up:** Production composition now supports the
+> exact photo adapter in source, ahead of a separate catalog activation. The
+> source-disabled descriptions below record earlier milestones. See the
+> [rollout follow-up](./identification-openai-photo-rollout-2026-09-28.md#adapter-enablement-follow-up--28-september-2026)
+> for the deployment order and current scope.
+
 ## Decision
 
 Advance the existing OpenAI baseline toward an app-controlled **still-photo**

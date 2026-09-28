@@ -349,7 +349,7 @@ Deno.test("provider attempts consume quota while pre-provider no-ops can refund"
   assert(!exploreEdit.includes("requestId: crypto.randomUUID()"));
 });
 
-Deno.test("production composition retains Gemini and source-disables OpenAI before credentials", async () => {
+Deno.test("production composition retains Gemini and admits exact OpenAI photos before credentials", async () => {
   const source = await Deno.readTextFile(
     new URL("../identify-describe/index.ts", import.meta.url),
   );
@@ -381,7 +381,7 @@ Deno.test("production composition retains Gemini and source-disables OpenAI befo
   );
   assertStringIncludes(
     production,
-    "OPENAI_PHOTO_DISPATCH_ENABLED: boolean = false",
+    "OPENAI_PHOTO_DISPATCH_ENABLED: boolean = true",
   );
   assertStringIncludes(
     production,
@@ -617,7 +617,7 @@ Deno.test("public dictionary fallback and webhook contain no hidden isolate auth
   );
 });
 
-Deno.test("OpenAI dispatch remains source-disabled in production composition and its offline adapter tests remain in CI", async () => {
+Deno.test("OpenAI dispatch stays confined to production composition and its offline adapter tests remain in CI", async () => {
   const root = new URL("../", import.meta.url);
   for (const file of await runtimeTypeScriptFiles(root)) {
     if (/(?:_test|[.]test)[.]ts$/.test(file.pathname)) continue;
@@ -629,7 +629,7 @@ Deno.test("OpenAI dispatch remains source-disabled in production composition and
           "_shared/ai/openaiPhoto.ts",
           "_shared/ai/production.ts",
         ].some((path) => file.pathname === new URL(path, root).pathname),
-        "Only reviewed adapters and the source-disabled composition may import OpenAI",
+        "Only reviewed adapters and the admitted production composition may import OpenAI",
       );
     }
   }
