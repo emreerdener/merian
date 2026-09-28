@@ -8,6 +8,7 @@ struct AccountScopedPreferencesTests {
         #expect(AccountScopedPreferences.cacheKeyPrefixes == [
             UserDefaultsKeys.recentPlacesPrefix,
             UserDefaultsKeys.captureGoalContextPrefix,
+            UserDefaultsKeys.clientUpdateRequirementPrefix,
             UserDefaultsKeys.firstFieldTripAchievementProgressPrefix,
             UserDefaultsKeys.dismissedUnavailableMediaOverviewSignaturePrefix,
             UserDefaultsKeys

@@ -2,13 +2,30 @@ import type {
   AIAttemptSnapshot,
   AIExecutionAuthority,
   AIRequest,
+  GeminiAttemptSnapshot,
+  ServiceJobAuthority,
+  UserRequestAuthority,
 } from "./contracts.ts";
-import { isIdentificationProviderAssignment } from "./admission.ts";
+import {
+  assignmentMatchesModel,
+  isIdentificationProviderAssignment,
+} from "./admission.ts";
 import { identificationInputProfile } from "./identificationInput.ts";
 import { diagnosticTriggerForTier } from "../identify/thresholds.ts";
 import { resolveContentClaim } from "./contentRegistry.ts";
+import { openAIPhotoSnapshot } from "./openaiPhoto.ts";
 
 /** Static server policy: no environment/client provider, model or URL override. */
+export function resolveAIClaim(
+  request: AIRequest,
+  authority:
+    | ServiceJobAuthority
+    | (UserRequestAuthority & { readonly permission: "google_gemini" }),
+): GeminiAttemptSnapshot;
+export function resolveAIClaim(
+  request: AIRequest,
+  authority: AIExecutionAuthority,
+): AIAttemptSnapshot;
 export function resolveAIClaim(
   request: AIRequest,
   authority: AIExecutionAuthority,
@@ -42,7 +59,6 @@ export function resolveAIClaim(
   if (
     authority.kind !== "user_request" ||
     authority.operation !== operation ||
-    authority.permission !== "google_gemini" ||
     !isIdentificationProviderAssignment(authority.reservation.assignment) ||
     authority.permission !== authority.reservation.assignment.permission ||
     authority.reservation.assignment.inputProfile !== inputProfile ||
@@ -55,6 +71,20 @@ export function resolveAIClaim(
   ) throw new Error("ai_authority_mismatch");
 
   const { model, policyVersion } = authority.reservation;
+  if (!assignmentMatchesModel(authority.reservation.assignment, model)) {
+    throw new Error("ai_model_not_enabled");
+  }
+  if (authority.reservation.assignment.provider === "openai") {
+    if (
+      authority.audioPromptComparison !== undefined ||
+      !["free", "pro"].includes(
+        authority.reservation.tier?.effective_tier ?? "",
+      )
+    ) {
+      throw new Error("ai_authority_mismatch");
+    }
+    return openAIPhotoSnapshot(request, policyVersion);
+  }
   if (model !== "gemini-2.5-flash" && model !== "gemini-2.5-pro") {
     throw new Error("ai_model_not_enabled");
   }

@@ -3041,7 +3041,7 @@ consults that Keychain entry.
   AppEvent cases. Framework publishers with unknown originating executors use
   `sinkOnMainActor`; lifecycle-owned SwiftUI `.onReceive` subscriptions apply
   explicit main-queue delivery before mutating view state.
-- Raw `.sink` is separately fail-closed to five exact lifetime owners. Those
+- Raw `.sink` is separately fail-closed to six exact lifetime owners. Those
   subscriptions store or return their cancellable, avoid strong owner cycles,
   and preserve the bus/framework actor contract. Any new owner requires a
   capture, cancellation, ordering, and actor-isolation review; the exact matrix

@@ -78,13 +78,21 @@ and nonvisual submission; a staged description uses the later Identify tap. The
 first-render probe remains correlated to the active scan and records at most
 once.
 
-`preflight_seconds` logs visual encode/auth work in
-`InferenceLiveRequestService.dispatchVisual`; the nonvisual path has no
-equivalent marker. The earlier description pilot used a build that omitted the
-immediate Describe clock and emitted five events. Its absent preflight and
-first-render values remain null. No missing value can be reconstructed from
-other spans or treated as zero. A complete observer window does not mean every
-input path has the same instrumentation coverage.
+`preflight_seconds` is emitted by `InferenceLiveRequestService.dispatchVisual`
+after visual Base64 encoding and before observation serialization, recipient
+preflight and authenticated request construction. Its legacy log label says
+`encode+auth`, but it does not cover all of that work. A rounded zero is not
+proof that media preparation or authorization took no time. Capture/import
+preparation precedes this pipeline, and the nonvisual path has no equivalent
+marker.
+
+The earlier description pilot used a build that omitted the immediate Describe
+clock and emitted five events. Its absent preflight and first-render values
+remain null. No missing value can be reconstructed from other spans or treated
+as zero. A complete observer window does not mean every input path has the same
+instrumentation coverage. The
+[27 September bottleneck audit](../rfcs/identification-bottleneck-audit-2026-09-27.md)
+reuses the frozen measurements with these boundary and source-version limits.
 
 ## Controlled audio and video replay in the simulator
 

@@ -59,13 +59,15 @@ successful fetch proves the row is absent.
 mirrored scan/job error markers, attempt counts, and required-video count from
 one fresh throwing context.
 `Services/BackgroundInference/OfflineQueueManager+InferenceRecovery.swift` owns
-server-result hydration/recovery and retryable server-status persistence, while
-its `InferenceReconciliation` sibling owns the durable-authority projection used
-to identify server-owned inferencing rows, and its `InferenceRetry` sibling owns
-compare-before-clear poll validation, general transport-retry persistence, and
-server-poll execution. The existing manager and durability file remain the other
-live orchestration owners; there is no longer a queue, sync, or URLSession
-aggregate.
+server-status recovery, durable result ownership, and retryable server-status
+persistence. Its `InferenceHydration` sibling owns completed-result history
+hydration, compatibility checks, local promotion, and cleanup before completion
+effects; its `InferenceReconciliation` sibling owns the durable-authority
+projection used to identify server-owned inferencing rows, and its
+`InferenceRetry` sibling owns compare-before-clear poll validation, general
+transport-retry persistence, and server-poll execution. The existing manager and
+durability file remain the other live orchestration owners; there is no longer a
+queue, sync, or URLSession aggregate.
 `Core/Data/Database/BackgroundDatabaseActor+BackgroundAccountWork.swift` is the
 separate persistence-only owner for background-account activation, exact-owner
 validation, candidate projection, and durable retirement. It does not own Auth
@@ -1002,6 +1004,16 @@ as needs-attention on the first attempt. That code deliberately shares the
 completed-result prefix, so relaunch, orphan reconciliation, and manual retry
 continue to treat the scan as server-owned and can never redispatch Identify.
 
+An exact PostgREST `PT426` / `client_update_required` response produces a
+separate `clientUpdateRequired` outcome after the account-lease check. It skips
+full-history fallback and records `server_result_local_recovery_update_required`
+as needs-attention. The shared update coordinator pauses subsequent history
+reads for that account and installed build. Same-build manual retry reopens the
+update prompt without claiming funding or resetting attempts. A changed
+installed release/build lets history retry automatically; saved identification
+scans require explicit retry from Scans. Completed-result retries retain server
+ownership throughout.
+
 **`ScanQueueState` enum (SchemaV33)**: `OfflineQueuedScan` uses a single
 `scanStateRaw: Int` column (added in V32→V33 custom migration, replacing the old
 `isUploaded: Bool` + `isDeleted: Bool` pair) to encode all pipeline states:
@@ -1403,14 +1415,17 @@ private task-owner validation/adoption plus main-actor terminal routing, and
 nonisolated delegate callbacks. Accepted upload callbacks enter
 `Services/MediaUpload/OfflineQueueManager+UploadCompletion.swift`.
 `Services/BackgroundInference/OfflineQueueManager+InferenceRecovery.swift` owns
-server recovery, hydration, and retryable server-status persistence, while
+server recovery and retryable server-status persistence, while
+`OfflineQueueManager+InferenceHydration.swift` owns compatible completed-result
+hydration, promotion, and queue cleanup before completion effects.
 `OfflineQueueManager+InferenceRetry.swift` owns general transport-retry and
-server-poll processing. Both services delegate their durable retry mutation to
-`Database/BackgroundDatabaseActor+InferenceRetry.swift`; the actor extension
-does not own the scheduler or network policy. Generation lifecycle, request
-dispatch, accepted task completion, and delayed status-probe/task-retirement
-handling live in the other four focused `Services/BackgroundInference` owners.
-This source split does not change the sequence:
+server-poll processing. The recovery and retry services delegate their durable
+retry mutation to `Database/BackgroundDatabaseActor+InferenceRetry.swift`; the
+actor extension does not own the scheduler or network policy. Generation
+lifecycle, request dispatch, accepted task completion, and delayed
+status-probe/task-retirement handling live in the other four focused
+`Services/BackgroundInference` owners. This source split does not change the
+sequence:
 
 - **Step A**: iOS transmits the staged file to the Cloudflare R2 staging bucket.
 - **Step B**: `urlSession(_:task:didCompleteWithError:)` and inference

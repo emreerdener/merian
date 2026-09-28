@@ -12,6 +12,7 @@ export type ContractKind =
   | "integer"
   | "number"
   | "object"
+  | "union"
   | "string";
 
 interface ContractNodeBase {
@@ -25,6 +26,7 @@ export interface StringContract extends ContractNodeBase {
   readonly enum?: readonly string[];
   readonly minLength?: number;
   readonly maxLength?: number;
+  readonly pattern?: string;
 }
 
 export interface BooleanContract extends ContractNodeBase {
@@ -89,11 +91,20 @@ export interface ObjectContract extends ContractNodeBase {
   readonly swift?: SwiftObjectMetadata;
 }
 
+/** Closed wire-only union selected by a required integer discriminator. */
+export interface UnionContract extends ContractNodeBase {
+  readonly kind: "union";
+  readonly discriminator: string;
+  readonly variants: Readonly<Record<number, ObjectContract>>;
+  readonly swift: SwiftObjectMetadata;
+}
+
 export type ContractNode =
   | ArrayContract
   | BooleanContract
   | NumberContract
   | ObjectContract
+  | UnionContract
   | StringContract;
 
 function field<C extends ContractNode>(
@@ -824,7 +835,7 @@ const speciesInsightsContract = object(
 );
 
 /** Content-free execution facts; never part of a provider/model schema. */
-const identificationProvenanceContract = object(
+export const identificationProvenanceV1Contract = object(
   {
     version: field(integer(1, 1), true),
     provider: field(text({ minLength: 1, maxLength: 80 }), true),
@@ -856,7 +867,7 @@ const identificationProvenanceContract = object(
           unknownKeys: "reject",
           swift: {
             name: "Generation",
-            parent: "IdentificationProvenanceDTO",
+            parent: "IdentificationProvenanceV1DTO",
             declarationOrder: 31,
             preserveRequiredNulls: true,
           },
@@ -868,12 +879,85 @@ const identificationProvenanceContract = object(
   {
     unknownKeys: "reject",
     swift: {
-      name: "IdentificationProvenanceDTO",
+      name: "IdentificationProvenanceV1DTO",
       declarationOrder: 30,
       preserveRequiredNulls: true,
     },
   },
 );
+
+const provenanceIdentifier = text({
+  minLength: 1,
+  maxLength: 80,
+  pattern: "^[a-z][a-z0-9_.-]{0,79}$",
+});
+
+export const identificationProvenanceV2Contract = object(
+  {
+    ...identificationProvenanceV1Contract.fields,
+    version: field(integer(2, 2), true),
+    provider: field(text({ enum: ["openai"], maxLength: 80 }), true),
+    binding: field(provenanceIdentifier, true),
+    model: field(provenanceIdentifier, true),
+    variant: field(
+      text({
+        ...provenanceIdentifier,
+        enum: [
+          "multimodal",
+          "description_compat",
+          "vision_compat",
+          "audio_compat",
+        ],
+      }),
+      true,
+    ),
+    operation: field(
+      text({
+        ...provenanceIdentifier,
+        enum: ["scan_identification", "scan_audio_identification"],
+      }),
+      true,
+    ),
+    prompt: field(provenanceIdentifier, true),
+    schema: field(provenanceIdentifier, true),
+    confidence: field(provenanceIdentifier, true),
+    safety: field(text({ ...provenanceIdentifier, nullable: true }), true),
+    generation: field(
+      object({
+        max_output_tokens: field(integer(1, 999_999_999), true),
+        reasoning_effort: field(provenanceIdentifier, true),
+        image_detail: field(provenanceIdentifier, true),
+      }, {
+        unknownKeys: "reject",
+        swift: {
+          name: "OpenAIGeneration",
+          parent: "IdentificationProvenanceV2DTO",
+          declarationOrder: 33,
+          preserveRequiredNulls: true,
+        },
+      }),
+      true,
+    ),
+  },
+  {
+    unknownKeys: "reject",
+    swift: {
+      name: "IdentificationProvenanceV2DTO",
+      declarationOrder: 32,
+      preserveRequiredNulls: true,
+    },
+  },
+);
+
+export const identificationProvenanceContract = {
+  kind: "union",
+  discriminator: "version",
+  variants: {
+    1: identificationProvenanceV1Contract,
+    2: identificationProvenanceV2Contract,
+  },
+  swift: { name: "IdentificationProvenanceDTO", declarationOrder: 34 },
+} as const satisfies UnionContract;
 
 const edgeResponseContract = object(
   {
@@ -1113,6 +1197,12 @@ export type InferContract<N extends ContractNode> = WithContractNullability<
   } ? E
     : N extends { readonly kind: "string" } ? string
     : N extends {
+      readonly kind: "union";
+      readonly variants: infer V extends Readonly<
+        Record<number, ObjectContract>
+      >;
+    } ? InferContract<Extract<V[keyof V], ContractNode>>
+    : N extends {
       readonly kind: "boolean";
       readonly const: infer B extends boolean;
     } ? B
@@ -1193,6 +1283,10 @@ export function providerSchemaFromContract(
     ...(contract.description ? { description: contract.description } : {}),
   };
   switch (contract.kind) {
+    case "union":
+      throw new Error(
+        "Wire-only versioned contracts cannot become provider schemas.",
+      );
     case "string":
       return {
         type: "STRING",
@@ -1285,6 +1379,23 @@ function parseNode(
   }
 
   switch (contract.kind) {
+    case "union": {
+      const discriminator = isJsonObject(value)
+        ? value[contract.discriminator]
+        : undefined;
+      const variant =
+        typeof discriminator === "number" && Number.isSafeInteger(discriminator)
+          ? contract.variants[discriminator]
+          : undefined;
+      if (!variant) {
+        issues.push({
+          path: childPath(path, contract.discriminator),
+          message: "unsupported version",
+        });
+        return undefined;
+      }
+      return parseNode(variant, value, path, issues);
+    }
     case "string": {
       if (typeof value !== "string") {
         issues.push({ path, message: "expected a string" });
@@ -1312,6 +1423,15 @@ function parseNode(
         issues.push({
           path,
           message: `expected one of ${contract.enum.join(", ")}`,
+        });
+      }
+      if (
+        contract.pattern &&
+        new RegExp(contract.pattern).exec(value)?.[0] !== value
+      ) {
+        issues.push({
+          path,
+          message: "must match the required identifier pattern",
         });
       }
       return value;

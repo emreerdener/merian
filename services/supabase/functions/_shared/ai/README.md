@@ -29,25 +29,37 @@ still use Gemini; see the
   fresh work. Durable quota-attempt snapshots preserve each metered generation.
   The additive caller-bound recipient preflight is advisory. Edge accepts an
   optional denial-only recipient expectation and uses a ten-argument admission
-  overload to stop fresh work if assignment changed. Native preparation now
-  validates that result, preserves the expectation across retries and rechecks
-  local permission before dispatch; Gemini remains the sole active assignment.
-  See the
+  overload to stop fresh work if assignment changed. Identification capability 4
+  selects the eleven-argument overload independently of entitlement protocol 3.
+  Native preparation now validates that result, preserves the expectation across
+  retries and rechecks local permission before dispatch; Gemini remains the sole
+  active assignment. See the
   [admission contract](../../../../../docs/backend-and-data/05-api-contracts.md#provider-bound-identification-reservations).
 - `registry.ts` independently checks that identification assignment and resolves
-  the fixed `gemini_baseline_v1` binding from the quota-selected model and,
-  where applicable, the admitted tier. It checks task, representation,
-  operation, Gemini permission dependency, and reservation metadata before
-  commitment. No client field, environment variable, provider name, or URL can
-  select another adapter.
+  `gemini_baseline_v1` or the exact dormant `openai_photo_v1` from the
+  database-selected execution model and, where applicable, the admitted tier. It
+  checks task, complete representation, operation, recipient permission and
+  reservation metadata before commitment. No client field, environment variable,
+  provider name, or URL can select another adapter.
 - `contentRegistry.ts` binds the three content tasks to their existing quota
   operations and generation settings. User authority carries its admitted model,
   permission, and reservation. Service authority carries a claimed job, matching
   public-fact task, bounded attempt, and the fixed Flash model; its permission
   and user quota policy version are null.
-- `production.ts` composes the registry and Gemini adapter. Tests inject their
-  deterministic adapter through internal handler injection and the shared
-  executor; its implementation is confined to a test file.
+- `production.ts` composes the registry and Gemini adapter. Its OpenAI branch is
+  behind a constant-false source gate before credential lookup; handler
+  rejection refunds unused quota. Tests inject their deterministic adapter
+  through internal handler injection and the shared executor; its implementation
+  is confined to a test file.
+- `multimodalResultPolicy.ts` independently qualifies primary result handling
+  before quota commitment. It derives the normalization threshold from the
+  admitted snapshot and exposes Gemini safety signals only for a matching
+  supported profile. The exact dormant OpenAI photo profile uses unqualified
+  confidence and requires its own allowed native moderation before promotion.
+  Unknown policies, including OpenAI evaluation snapshots, cannot invoke or
+  reach durable media promotion. Adapter registration alone cannot qualify
+  confidence or safety; see the
+  [photo integration plan](../../../../../docs/rfcs/identification-openai-photo-integration-2026-09-27.md).
 - `execution.ts` permits one invocation per prepared attempt and records its
   duration. It owns no quota, persistence, retry, failover, or cancellation
   based on a disconnected foreground request.
@@ -81,8 +93,10 @@ their distinct terminal/retryable responses.
 versioned value saved with the scan by all four identification producers. It
 records the requested model, binding, prompt/schema/confidence references,
 policy version, variant, operation, thresholds, safety profile, timeout and
-generation settings. Unset settings are explicit nulls. It never serializes
-model output, returned model text, observation context, media, owner/attempt
+generation settings. V1 preserves Gemini's five generation fields and explicit
+nulls. V2 records OpenAI `max_output_tokens`, `reasoning_effort` and
+`image_detail`, without manufacturing Gemini settings. It never serializes model
+output, returned model text, observation context, media, owner/attempt
 identifiers or timing.
 
 Migration `20260926160249_persist_identification_result_provenance.sql`
@@ -107,19 +121,39 @@ and
 [client record](../../../../../docs/rfcs/identification-client-result-provenance-2026-09-26.md)
 for rollout order, compatibility and remaining activation work.
 
+Migration `20260927165545_accept_openai_identification_provenance_v2.sql`
+extends only the pure bounded validator. V1, recovery/immutability triggers,
+privileges and existing rows remain unchanged. Generated Swift decodes by
+version, rejects cross-version settings and preserves both versions in the
+existing opaque V52 storage. V2 receives no Gemini confidence or metric bands.
+Future admission must require a client protocol that can decode V2 before any
+OpenAI production result is emitted.
+
 ## Alternative-provider evaluation
 
 `openaiRequest.ts` and `openai.ts` implement an evaluation-only `gpt-6-sol`
 photo/text binding through the same generic single-invocation interface.
-Production snapshot/authority defaults remain Gemini-only. The pure request
-builder derives strict JSON from the common Identify contract; the bounded REST
-adapter accepts only an explicit evaluator-supplied credential. Scripts select
-it only through `identification_evaluation/providers.ts`. Unsupported
-audio/snapshots reject the whole observation. OpenAI confidence is unqualified
-and never inherits Gemini bands. No deployed entrypoint imports this adapter.
-See the
+Production dispatch remains Gemini-only; the photo snapshot is a separate
+dormant user-request binding. The pure request builder derives strict JSON from
+the common Identify contract; the bounded REST adapter accepts only an explicit
+evaluator-supplied credential. Scripts select it only through
+`identification_evaluation/providers.ts`. Unsupported audio/snapshots reject the
+whole observation. OpenAI confidence is unqualified and never inherits Gemini
+bands. The source-disabled composition imports the photo adapter, but cannot
+dispatch it. See the
 [alternative-provider guide](../../../../../docs/development-guides/22-alternative-identification-provider.md)
 for permissions, pricing/usage mapping, offline demo and live comparison scope.
+
+`openaiPhoto.ts` separately prepares the dormant `openai_photo_v1` profile.
+`createOpenAIPhotoAdapter` reuses the bounded transport, adding pinned inline
+input/output moderation to one request and releasing a draft only after its
+native safety policy allows it. Moderation rejection remains a refusal even if
+generated JSON is invalid. Missing evidence cannot become Gemini safety ratings.
+The registry, capability-aware admission and media-promotion path support this
+exact binding; no catalog row selects it, and the source gate independently
+blocks dispatch. Saved usage retains native output/cache-write counts and
+reported cached tokens, without a Gemini tariff; see the
+[safety contract](../../../../../docs/development-guides/10-safety-and-moderation.md#dormant-openai-photo-policy).
 
 ## Scoped audio prompt authority
 
@@ -275,8 +309,9 @@ Returned token counts retain Gemini's existing interpretation, including null
 for missing counts; modality breakdown retains its existing meaning. New primary
 scan ledger entries use saved execution model/provider references; absent legacy
 provenance alone falls back to tier-derived Gemini attribution. Historical rows
-remain unchanged. Pricing eligibility is Gemini-contract-specific and unknown
-prices remain null. Admin aggregates expose priced/unpriced coverage; see the
+remain unchanged. Legacy-writer pricing eligibility is Gemini-contract-specific
+and unknown prices remain null. Admin aggregates expose priced/unpriced
+coverage; see the
 [accounting record](../../../../../docs/rfcs/identification-provider-usage-attribution-2026-09-26.md).
 The image compatibility route retains cached-token counts; legacy audio keeps
 its existing null cached-token scan field. Bounded execution/version fields are
@@ -286,8 +321,16 @@ added to the existing optional `ScanCompleted` telemetry for image/description,
 measures native invocation only, excluding decoding. They contain no evidence,
 owner/attempt identifiers, provider diagnostics, or credentials. This telemetry
 adds no cross-retry configuration pin or new billing record. Successful scan
-configuration is separately persisted as described above. Failed/uncertain
-attempts and disabled telemetry retain their existing accounting gaps.
+configuration is separately persisted as described above. Compatibility routes
+retain their existing failed/uncertain-attempt gaps. The primary multimodal
+route uses `identificationUsage.ts`: quota commit and a unique invocation
+witness are atomic, usage reporting is awaited independently of scan
+persistence, and a private reconciler records missing reports as
+unknown/unpriced. Native OpenAI photo pricing freezes the effective tariff
+before dispatch. See the
+[accounting contract](../../../../../docs/backend-and-data/04-database-schema.md#primary-identification-attempt-accounting).
+This accounting is independent of optional telemetry and never invokes a model
+again.
 
 Content adds `ai_task`, provider/binding/prompt/schema references, nullable user
 policy version, context kind, returned model, native duration, and outcome to
@@ -358,7 +401,10 @@ qualification, common-contract extensions, database/Edge admission, disclosure,
 confidence, usage, cache, and activation work. The app owns a private
 complete-input routing catalog, currently seeded only with Gemini. There is no
 end-user provider selector or percentage-routing control. The OpenAI adapter is
-available only to explicitly gated local evaluation.
+available to explicitly gated evaluation; the separate production photo branch
+remains source-disabled. Ordered video frames have their own input profile and a
+planned separately qualified OpenAI binding; audio is never dropped to fit a
+route.
 
 ## Metric interpretation
 

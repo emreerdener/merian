@@ -17,7 +17,14 @@ final class ExploreContentVisibilityStore {
     private(set) var generation: UInt64 = 0
     private(set) var reportedPostIDs: Set<String> = []
     @ObservationIgnored var didInvalidate: () -> Void = {}
-    @ObservationIgnored let changes = PassthroughSubject<Context, Never>()
+    @ObservationIgnored private let subject: PassthroughSubject<Context, Never>
+    @ObservationIgnored let changes: AnyPublisher<Context, Never>
+
+    init() {
+        let subject = PassthroughSubject<Context, Never>()
+        self.subject = subject
+        changes = subject.eraseToAnyPublisher()
+    }
 
     var context: Context { Context(viewerID: viewerID, generation: generation, accountGeneration: accountGeneration) }
 
@@ -28,7 +35,7 @@ final class ExploreContentVisibilityStore {
         reportedPostIDs.removeAll()
         generation &+= 1
         didInvalidate()
-        changes.send(context)
+        subject.send(context)
     }
 
     func isVisible(postID: String) -> Bool {
@@ -41,7 +48,7 @@ final class ExploreContentVisibilityStore {
               reportedPostIDs.insert(postID.lowercased()).inserted else { return false }
         generation &+= 1
         didInvalidate()
-        changes.send(context)
+        subject.send(context)
         return true
     }
 }

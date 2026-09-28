@@ -239,13 +239,17 @@ final class ExploreFeedViewModel {
         store = ExplorePostStore(visibility: dependencies.visibility)
         visibilityViewerID = dependencies.visibility.viewerID
         visibilitySubscription = dependencies.visibility.changes.sink { [weak self] context in
-            guard let self else { return }
-            if self.visibilityViewerID != context.viewerID {
-                self.visibilityViewerID = context.viewerID
-                self.blockedAuthorUserIDs.removeAll()
+            // Only the visibility store's main-actor mutations can publish.
+            // Clear account/content state before the invalidating call returns.
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                if self.visibilityViewerID != context.viewerID {
+                    self.visibilityViewerID = context.viewerID
+                    self.blockedAuthorUserIDs.removeAll()
+                }
+                for id in self.visibility.reportedPostIDs { self.removePost(id: id) }
+                self.resetFeedForVisibilityChange()
             }
-            for id in dependencies.visibility.reportedPostIDs { self.removePost(id: id) }
-            self.resetFeedForVisibilityChange()
         }
     }
 

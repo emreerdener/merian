@@ -5,6 +5,70 @@ import Testing
 @Suite("Reported content visibility")
 @MainActor
 struct ExploreContentVisibilityTests {
+    @Test func accountSwitchSynchronouslyClearsFeedAndAuthorSuppression() {
+        let visibility = ExploreContentVisibilityStore()
+        visibility.activate(viewerID: UUID())
+        let model = ExploreFeedViewModel(
+            appSettings: ExploreFeedTestFixtures.appSettings(),
+            dependencies: ExploreFeedTestFixtures.dependencies(visibility: visibility)
+        )
+        model.store.setFeedPosts([ExploreFeedTestFixtures.post(id: "previous-account")])
+        model.blockedAuthorUserIDs.insert("blocked-by-previous-account")
+        model.hasLoadedFeedOnce = true
+        let previousRequest = model.activeFeedRequestId
+
+        visibility.activate(viewerID: UUID())
+
+        #expect(model.blockedAuthorUserIDs.isEmpty)
+        #expect(model.store.allPosts.isEmpty)
+        #expect(!model.hasLoadedFeedOnce)
+        #expect(model.activeFeedRequestId != previousRequest)
+    }
+
+    @Test func reportSynchronouslyClearsProjectionsAndFencesPendingFeedWork() {
+        let visibility = ExploreContentVisibilityStore()
+        let viewer = UUID()
+        visibility.activate(viewerID: viewer)
+        let model = ExploreFeedViewModel(
+            appSettings: ExploreFeedTestFixtures.appSettings(),
+            dependencies: ExploreFeedTestFixtures.dependencies(visibility: visibility)
+        )
+        model.store.setFeedPosts([
+            ExploreFeedTestFixtures.post(id: "reported"),
+            ExploreFeedTestFixtures.post(id: "reference-fallback")
+        ])
+        model.store.upsert(ExploreFeedTestFixtures.post(id: "supplemental"))
+        model.activeCommentsPostId = "reported"
+        model.unreadNotificationCount = 3
+        model.blockedAuthorUserIDs.insert("blocked")
+        let previousRequest = model.activeFeedRequestId
+
+        #expect(visibility.hide(postID: "reported", for: viewer))
+
+        #expect(model.store.allPosts.isEmpty)
+        #expect(model.store.supplementalPostsById.isEmpty)
+        #expect(model.activeCommentsPostId == nil)
+        #expect(model.unreadNotificationCount == 0)
+        #expect(model.activeFeedRequestId != previousRequest)
+        #expect(model.blockedAuthorUserIDs == ["blocked"])
+    }
+
+    @Test func visibilitySubscriptionDoesNotRetainFeedOrStore() {
+        weak var releasedModel: ExploreFeedViewModel?
+        weak var releasedVisibility: ExploreContentVisibilityStore?
+        do {
+            let visibility = ExploreContentVisibilityStore()
+            let model = ExploreFeedViewModel(
+                appSettings: ExploreFeedTestFixtures.appSettings(),
+                dependencies: ExploreFeedTestFixtures.dependencies(visibility: visibility)
+            )
+            releasedModel = model
+            releasedVisibility = visibility
+        }
+        #expect(releasedModel == nil)
+        #expect(releasedVisibility == nil)
+    }
+
     @Test func sharedStoresRejectLateHydrationAndPagination() {
         let visibility = ExploreContentVisibilityStore()
         let viewer = UUID()

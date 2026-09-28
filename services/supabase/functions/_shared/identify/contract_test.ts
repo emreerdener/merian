@@ -363,8 +363,8 @@ Deno.test("wire provenance is optional, bounded, immutable and never a model fie
     provider: "gemini",
     binding: "gemini_baseline_v1",
     model: "gemini-2.5-pro",
-    variant: "multimodal",
-    operation: "scan_identification",
+    variant: "multimodal" as const,
+    operation: "scan_identification" as const,
     policy_version: 1,
     prompt: "identify_vision_v1",
     schema: "merian_identify_v1",
@@ -391,11 +391,71 @@ Deno.test("wire provenance is optional, bounded, immutable and never a model fie
   const parsed = parseIdentifySuccessEnvelope(envelope);
   assertEquals(parsed.data.identification_provenance, provenance);
   assert(Object.isFrozen(parsed.data.identification_provenance?.generation));
+  const openai = {
+    ...provenance,
+    version: 2,
+    provider: "openai" as const,
+    generation: {
+      max_output_tokens: 8192,
+      reasoning_effort: "low",
+      image_detail: "high",
+    },
+  };
+  assertEquals(
+    parseIdentifySuccessEnvelope({
+      ...envelope,
+      data: { ...data, identification_provenance: openai },
+    }).data.identification_provenance,
+    openai,
+  );
   for (
-    const malformed of [null, {}, { ...provenance, provider: "x".repeat(81) }, {
-      ...provenance,
-      generation: { ...provenance.generation, seed: -1 },
-    }, { ...provenance, observation: "forbidden" }]
+    const malformed of [
+      null,
+      {},
+      { ...provenance, provider: "x".repeat(81) },
+      {
+        ...provenance,
+        generation: { ...provenance.generation, seed: -1 },
+      },
+      { ...provenance, observation: "forbidden" },
+      { ...provenance, version: 2 },
+      { ...openai, version: 1 },
+      { ...openai, version: "2" },
+      { ...openai, version: 3 },
+      { ...openai, provider: "gemini" },
+      { ...openai, variant: "future_variant" },
+      { ...openai, operation: "future_operation" },
+      ...[
+        "binding",
+        "model",
+        "variant",
+        "operation",
+        "prompt",
+        "schema",
+        "confidence",
+        "safety",
+      ].flatMap((key) =>
+        ["free text", "token\n"].map((value) => ({ ...openai, [key]: value }))
+      ),
+      { ...openai, generation: { ...openai.generation, seed: null } },
+      { ...openai, generation: { ...openai.generation, image_detail: null } },
+      { ...openai, generation: { ...openai.generation, reasoning_effort: "" } },
+      {
+        ...openai,
+        generation: {
+          ...openai.generation,
+          reasoning_effort: "arbitrary free text",
+        },
+      },
+      {
+        ...openai,
+        generation: { ...openai.generation, image_detail: "high\n" },
+      },
+      {
+        ...openai,
+        generation: { max_output_tokens: 8192, image_detail: "high" },
+      },
+    ]
   ) {
     assertThrows(() =>
       parseIdentifySuccessEnvelope({

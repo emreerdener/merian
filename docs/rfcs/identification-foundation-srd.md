@@ -17,7 +17,16 @@ Gemini-only foundation and its dated implementation history. A subsequent
 uses the shared boundary locally; its paid exploratory evidence does not grant
 production authority. The
 [implementation review](./identification-provider-flexibility-review-2026-09-26.md)
-records the current source boundary and later activation work.
+records the source boundary and later activation work at that checkpoint.
+
+**Follow-up — 27 September 2026:** The
+[photo integration record](./identification-openai-photo-integration-2026-09-27.md)
+now owns the later dormant OpenAI binding, completed infrastructure deployment
+and remaining qualification/activation gates. Gemini remains active. The
+[current optimization plan](./identification-optimization-preserving-results-2026-09-27.md)
+preserves explanation format and detail. The requirements and statements about
+future integration below retain their original Gemini-foundation scope; they do
+not imply that the later infrastructure still needs implementation.
 
 Create the shared interfaces, explicit Gemini task bindings, execution metadata,
 and verification needed for a later provider change. **All production

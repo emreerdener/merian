@@ -191,10 +191,10 @@ production submission or public release.
   current release identifiers, and high-impact corrections to the retired
   product document.
 - **[`/product/03-identification-foundation-prd.md`](./product/03-identification-foundation-prd.md)**
-  — Active provider-flexibility infrastructure plan: Gemini remains on all
-  identification and supporting content tasks while shared interfaces, explicit
-  bindings, and parity tests prepare for a later provider change. Video capture
-  supplies sampled images and any included companion audio to inference.
+  — Completed Gemini-only provider-flexibility foundation and its original
+  acceptance contract, with links to later dormant OpenAI infrastructure and
+  optimization work. Gemini remains on production tasks. Video capture supplies
+  sampled images and any included companion audio to inference.
 - **[`/rfcs/identification-foundation-srd.md`](./rfcs/identification-foundation-srd.md)**
   — Companion system requirements for the Gemini adapter, actual-input
   capability checks, existing consent/confidence and recovery behavior, and a
@@ -213,9 +213,19 @@ production submission or public release.
   [alternative-provider evaluation guide](./development-guides/22-alternative-identification-provider.md)
   documents the implemented, production-disabled OpenAI photo/text adapter and
   how to use the existing evaluator for a bounded comparison. The
+  [hosted comparison procedure](./development-guides/23-hosted-identification-comparison.md)
+  reuses GitHub environment secrets and the existing R2 bucket for approved
+  public tests, with conditional claims preventing duplicate paid runs. The
   [first OpenAI pilot](./rfcs/identification-openai-photo-text-pilot-2026-09-25.md)
   retains seven normalized results and one unknown across eight examples,
   including the unmatched-name scoring limitation; production remains Gemini.
+  The
+  [completed matched comparison](./rfcs/identification-gemini-openai-matched-results-2026-09-27.md)
+  records all 16 Gemini/OpenAI results, descriptive timing and cost limitations.
+  The
+  [photo integration plan](./rfcs/identification-openai-photo-integration-2026-09-27.md)
+  advances the OpenAI candidate with a Gemini-preserving result-policy boundary
+  and separate safety, provenance, admission and activation slices.
 - **[Provider-flexibility implementation review](./rfcs/identification-provider-flexibility-review-2026-09-26.md):**
   No runtime blockers identified for the evaluation-only OpenAI adapter and
   controlled evaluator. Corrects original-phase documentation scope and records
@@ -239,24 +249,34 @@ production submission or public release.
   preserves execution configuration in owner results and V52 local storage, with
   neutral confidence presentation for unknown profiles. Provider qualification,
   deliberate permission collection and rollout remain ahead.
-- **[Identification provider optimization plan](./rfcs/identification-provider-optimization-plan.md):**
-  Shared measurement repairs are implemented with versioned mapping, reports and
-  descriptive comparisons. Versioned baseline profiles and experiment-wide
-  budgets/stops are implemented. The first candidate is concise OpenAI
-  explanations, with implemented delegated AI review, optional owner review and
-  uncached profiles for a 16-request comparison. The
-  [26 September screen](./rfcs/identification-openai-concise-screen-2026-09-26.md)
-  stopped after one reference-matching control result because explanation facts
-  did not cover lookalike comparisons; 15 assignments remain unattempted and the
-  concise candidate is deferred. Includes the later production qualification
-  path; production remains Gemini.
-- **Identification evaluation readiness:**
+- **[Identification optimization while preserving current results](./rfcs/identification-optimization-preserving-results-2026-09-27.md):**
+  Current plan following verified completion of the provider infrastructure
+  milestone. Preserve explanation format and detail while investigating
+  duplicate preparation, serial work, native caching, input instructions and
+  evidence-backed media/model settings. The
+  [Slice 1 bottleneck audit](./rfcs/identification-bottleneck-audit-2026-09-27.md)
+  found provider await dominates the retained Gemini app measurements; no
+  supported shared-pipeline optimization was selected. The
+  [OpenAI prompt and context review](./rfcs/identification-openai-prompt-review-2026-09-27.md)
+  selects an isolated explicit-null wording candidate; its exact offline diff
+  preserves context and explanation format. Implementation and controlled
+  evaluation remain ahead of audio work. Production remains Gemini. The
+  [earlier provider optimization plan](./rfcs/identification-provider-optimization-plan.md)
+  retains implemented measurement and experiment controls. Its
+  [26 September concise screen](./rfcs/identification-openai-concise-screen-2026-09-26.md)
+  remains closed and inconclusive after one control result; concise explanations
+  are not a selected next step and the unused assignments are not resumed.
+- **Identification evaluation readiness:** Current progress includes the
+  completed exploratory Gemini/OpenAI comparison; the current optimization plan
+  above reuses that evidence. Formal independently reviewed qualification
+  remains a separate milestone. The
   [PRD](./product/04-identification-evaluation-prd.md) and
-  [SRD](./rfcs/identification-evaluation-srd.md) plan the next milestone: an
-  independently reviewed corpus, shared result normalization, and a repeatable
-  Gemini quality/time/cost baseline. Includes five implementation slices; Slices
-  1–3 now supply offline contracts, shared production request/normalization
-  rules, a guarded runner, durable attempts and reproducible reports; the
+  [SRD](./rfcs/identification-evaluation-srd.md) define that formal milestone:
+  an independently reviewed corpus, shared result normalization, and a
+  repeatable Gemini quality/time/cost baseline. Includes five implementation
+  slices; Slices 1–3 now supply offline contracts, shared production
+  request/normalization rules, a guarded runner, durable attempts and
+  reproducible reports; the
   [Slice 4 collection packet](./development-guides/20-identification-evaluation-pilot.md)
   supplies a solo phone/computer workflow, automated exploratory preflight and
   provisional reporting, proposed formal coverage and blank intake/reviewer

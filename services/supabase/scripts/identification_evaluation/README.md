@@ -23,6 +23,16 @@ direct evaluator's dry schedule. Gemini remains the only production provider;
 video evidence is ordered snapshots and included WAV audio, never a playback
 video.
 
+Current direction, 27 September 2026: the
+[matched Gemini/OpenAI comparison](../../../../docs/rfcs/identification-gemini-openai-matched-results-2026-09-27.md)
+completed all sixteen scheduled attempts. The
+[current optimization plan](../../../../docs/rfcs/identification-optimization-preserving-results-2026-09-27.md)
+preserves explanation format and detail and starts with existing measurements.
+The earlier concise screen remains closed; the commands and profiles below
+remain executable contracts, not instructions to restart it or spend its unused
+allocation. Formal reviewed-corpus counts and qualification requirements are
+unchanged.
+
 The later
 [description app benchmark](../../../../docs/rfcs/identification-description-app-benchmark-2026-09-22.md)
 adds two source-derived descriptions, one provisional genus agreement and one
@@ -63,6 +73,17 @@ existing preflight/live commands without saving the key. Its procedure is in the
 provider guide. Historical Gemini specifications, corpus permissions and audio
 records remain unchanged. OpenAI raw confidence has no Gemini Strong/diagnostic
 interpretation.
+
+The manual **Compare identification providers** workflow can now use both
+existing GitHub Production secrets with a reviewed public test bundle in the
+existing `merian` R2 bucket. `hosted.ts`, `hostedStorage.ts`,
+[`host_identification_comparison.ts`](../host_identification_comparison.ts) and
+[`run_hosted_identification.sh`](../run_hosted_identification.sh) wrap this
+controller without changing provider assignment or measurement. The
+[hosted procedure](../../../../docs/development-guides/23-hosted-identification-comparison.md)
+owns public export, exact-source validation, per-provider credential binding,
+conditional remote claims, interruption behavior and summary publication. Source
+implementation does not establish that a hosted comparison has run.
 
 ## Shared measurement repair (optimization Slice 1)
 
@@ -155,10 +176,13 @@ Both commands use synthetic outcomes with no credentials/provider calls. The
 comparison JSON filename includes both run IDs and profiles. The existing
 `report` command regenerates either report version from saved records without
 media or inference. Real experiments still require the independent live
-admission and budget contract; the eight-case development campaign remains
-pending. The
-[optimization plan](../../../../docs/rfcs/identification-provider-optimization-plan.md)
-owns its remaining slices and production qualification path.
+admission and budget contract. The
+[completed matched comparison](../../../../docs/rfcs/identification-gemini-openai-matched-results-2026-09-27.md)
+is the eight-case development outcome; it does not qualify production use. The
+[current optimization plan](../../../../docs/rfcs/identification-optimization-preserving-results-2026-09-27.md)
+owns future priorities, while the
+[earlier plan](../../../../docs/rfcs/identification-provider-optimization-plan.md)
+retains the history of these measurement controls.
 
 ## Reusable profiles and experiment controls (optimization Slice 2)
 
@@ -176,6 +200,14 @@ behavior recorded as uncontrolled. The separate v2 candidate contract below adds
 the uncached control and concise OpenAI profile with mandatory private review.
 No packet can supply arbitrary native settings. Neither contract adds
 prewarming, cache objects, paid judge calls, retries or a production selector.
+
+These are code-defined allowlists. V2/v3 admit only their existing concise
+hypothesis and review contract; they are not a generic candidate runner. A new
+cache, prompt, media or native-setting hypothesis requires reviewed profile
+registration and compatible plan/report/accounting support before live
+admission. Do not repurpose a completed packet, change a frozen profile or relax
+validation to fit a new candidate. The hosted wrapper likewise accepts only its
+fixed baseline pair.
 
 ### Frozen plan and accounting
 
@@ -196,6 +228,15 @@ records. The active provider's key, readiness, input permissions, pricing age
 and consent review are revalidated through the existing admission before each
 invocation. The controller never obtains both provider keys. Preparation of all
 frozen inputs and profile settings precedes dispatch.
+
+For a shared paid Gemini application project, use the explicit
+`evaluation_gemini_processor_v1` readiness record described below. The
+[matched photo/text comparison plan](../../../../docs/rfcs/identification-gemini-openai-matched-comparison-2026-09-27.md)
+uses these two existing baselines and keeps preparation separate from live
+approval. `experiment-preflight` requires complete readiness records even though
+it does not dispatch. While reviews or the run window are pending, retain a
+non-executable draft and use ordinary corpus `preflight` without `spec.json`; do
+not fabricate readiness hashes or approvals to make controller preflight pass.
 
 The controller creates immutable `experiment/manifest.json`, linking the plan,
 profile descriptors and existing per-run manifests. Both the input marker and
@@ -296,6 +337,12 @@ comparability. Cache comparability remains `not_established`, screening is
 development reports.
 
 ## Concise OpenAI candidate and private review
+
+This retained contract belongs to the
+[closed 26 September screen](../../../../docs/rfcs/identification-openai-concise-screen-2026-09-26.md).
+Concise explanations are not selected in the current plan. Keep its profiles,
+tests and immutable outcomes; do not resume the fifteen unattempted assignments
+or treat their unused budget as available for a different experiment.
 
 The two additional code-defined profiles are `openai_photo_text_uncached_v1`
 (control) and `openai_photo_text_concise_uncached_v1` (candidate). Both use
@@ -1101,7 +1148,7 @@ records instead require null eligibility and synthetic curation.
 A legacy Gemini run uses `identification_exploratory_run_spec_v1`,
 `stage: exploratory`, all selected corpus groups, one repeat, and both existing
 Gemini profiles. The maximum is twelve groups and twenty-four calls. It retains
-every live gate below: dedicated reviewed project/key, processor readiness,
+every live gate below: reviewed paid project/key, explicit processor readiness,
 fresh reviewed pricing, retention, exact immutable inputs/source, a positive
 authorized USD budget, durable claims and no automatic retry of unknown
 executions. Synthetic evidence cannot run live, and real evidence cannot be
@@ -1246,14 +1293,16 @@ evidence.
 
 ## Future explicitly approved Gemini live use
 
-The following dedicated-project and SDK rules apply to Gemini. OpenAI uses the
+The following processor-review and SDK rules apply to Gemini. OpenAI uses the
 [alternative-provider contract](../../../../docs/development-guides/22-alternative-identification-provider.md),
-which also supports a reviewed shared application project/key.
+which has its own recipient-specific review.
 
-Only `--live DIRECTORY` can select paid execution. Before using it, approve an
-eligible real reference or exploratory corpus, its exact digest and both
-profiles, a dedicated evaluation project/key, call cap and USD budget in
-`spec.json`. `readiness.json` binds that corpus to opaque
+Paid execution requires `--live DIRECTORY` or the separately controlled
+`--experiment-live DIRECTORY RUN_ID`. Before using either, approve an eligible
+real reference or exploratory corpus, its exact digest and selected profiles,
+the actual paid project/key, call cap and USD budget. Standalone `spec.json` or
+the controller's `experiment.json` binds these limits. `readiness.json` (or
+`approvals/<runId>.json` in a controller packet) binds that corpus to opaque
 project/credential/review references, a SHA-256 credential fingerprint,
 review/expiry dates, paid service eligibility and reviewed terms, purpose, data
 use, regional/subprocessor and retention/abuse-log treatment. This attestation
@@ -1263,8 +1312,22 @@ rates across modalities/context tiers, thinking and reviewed model token
 ceilings. The spec binds both files by canonical digest. Their parsers in
 `runContracts.ts` are the authoritative field definitions.
 
-Read the dedicated key only from `GEMINI_PAID_API_KEY`; never put it in a
-command argument or file. Grant only `generativelanguage.googleapis.com:443` for
+The legacy `evaluation_processor_v1` record remains dedicated-project-only. New
+`evaluation_gemini_processor_v1` records require `provider: gemini`, an explicit
+Boolean `dedicatedEvaluationProject`, and
+`inputPermission: {provider, corpusDigest, caseIds, reviewRef, approved}`. Use
+`false` for an explicitly reviewed shared paid application project. The
+permission must name Gemini, approve the exact corpus and selected case set, and
+have `approved: true`. Paid-service, actual-credential fingerprint, source
+retention and review/expiry checks still apply before every invocation. Neither
+Gemini record authorizes OpenAI. Review references are operator assertions, not
+independent proof of account settings or rights. A shared project's other
+traffic consumes the same vendor limits; the evaluator accounts only for its own
+calls. This local contract does not enable production routing or authorize
+access to a hosted secret.
+
+Read the reviewed key only from `GEMINI_PAID_API_KEY`; never put it in a command
+argument or file. Grant only `generativelanguage.googleapis.com:443` for
 network, the controlled directory/repository for reads, controlled directory for
 writes, and Git for source identity. Do not grant broad environment or network
 access. Explicitly deny environment access to `SUPABASE_URL`,
@@ -1279,10 +1342,9 @@ testing.
 Working identification in the simulator establishes access through the ordinary
 authenticated Supabase app path. Its provider key stays on the backend; the
 app's scan allowance does not give this local runner a Gemini credential or a
-USD run budget. Connect the reviewed evaluation project/key to the local runner
-and retain any already granted user spend authorization. Do not extract
-simulator session state or describe the production key as an evaluation
-credential.
+USD run budget. Connect the reviewed paid project/key to the local runner and
+retain any already granted user spend authorization. Do not extract simulator
+session state or falsely mark a shared application project as dedicated.
 
 Live preparation and each dispatch recheck the actual key, corpus and readiness
 validity. All assets preflight before the first call, and request hashes are

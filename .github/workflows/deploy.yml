@@ -245,6 +245,7 @@ jobs:
           SUPABASE_DB_POOLER_HOST: ${{ secrets.SUPABASE_DB_POOLER_HOST }}
           AI_QUOTA_IP_HASH_SECRET: ${{ secrets.AI_QUOTA_IP_HASH_SECRET }}
           GEMINI_PAID_API_KEY: ${{ secrets.GEMINI_PAID_API_KEY }}
+          NATUREBOOK_OPENAI_API_KEY: ${{ secrets.NATUREBOOK_OPENAI_API_KEY }}
           DWCA_PSEUDONYM_HMAC_KEY_V1: ${{ secrets.DWCA_PSEUDONYM_HMAC_KEY_V1 }}
           REVENUECAT_SECRET_API_KEY: ${{ secrets.REVENUECAT_SECRET_API_KEY }}
           REVENUECAT_WEBHOOK_SECRET: ${{ secrets.REVENUECAT_WEBHOOK_SECRET }}
@@ -314,6 +315,11 @@ jobs:
               ;;
           esac
           bash ../scripts/supabase-db-url.sh --require >/dev/null
+          deno run --quiet --frozen --no-prompt --deny-net \
+            --config supabase/functions/deno.json \
+            --allow-env=NATUREBOOK_OPENAI_API_KEY \
+            supabase/scripts/sync_openai_edge_secret.ts \
+            --project-ref "$PROJECT_ID" --validate-only
         if: steps.production-scope.outputs.should_deploy == 'true'
 
       - name: Plan affected Edge Function deployment
@@ -487,7 +493,23 @@ jobs:
         env:
           SUPABASE_DB_PUSH_URL: ${{ steps.database-url.outputs.url }}
           SUPABASE_AUTH_EXTERNAL_APPLE_SECRET: ci-config-parse-placeholder
-        run: supabase db push --db-url "$SUPABASE_DB_PUSH_URL"
+        run: |
+          migration_mode="$(deno run --quiet --frozen --no-prompt \
+            --config supabase/functions/deno.json \
+            --allow-env=SUPABASE_DB_PUSH_URL,PGHOST,PGPORT,PGUSERNAME,PGUSER,PGDATABASE,PGPASSWORD,PGSSL,PGMAX_PIPELINE,PGBACKOFF,PGKEEP_ALIVE,PGPUBLICATIONS,PGTARGET_SESSION_ATTRS,PGAPPNAME,PGTARGETSESSIONATTRS --allow-net \
+            --allow-read=supabase/migrations \
+            supabase/scripts/plan_database_migration_push.ts)"
+          push_args=(--db-url "$SUPABASE_DB_PUSH_URL")
+          case "$migration_mode" in
+            normal) ;;
+            reviewed-backfill)
+              echo "Applying the reviewed Explore report-visibility migration gap."
+              push_args+=(--include-all)
+              ;;
+            *) echo "Invalid migration preflight result." >&2; exit 1 ;;
+          esac
+          supabase db push "${push_args[@]}" --dry-run
+          supabase db push "${push_args[@]}"
         if: steps.production-scope.outputs.should_deploy == 'true'
 
       - name: Enforce production privileged routine ACLs
@@ -585,6 +607,19 @@ jobs:
         run: |
           supabase secrets set \
             "GEMINI_PAID_API_KEY=$GEMINI_PAID_API_KEY" \
+            --project-ref "$PROJECT_ID"
+        if: steps.production-scope.outputs.should_deploy == 'true'
+
+      - name: Synchronize optional OpenAI API key and verify digest
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          NATUREBOOK_OPENAI_API_KEY: ${{ secrets.NATUREBOOK_OPENAI_API_KEY }}
+        run: |
+          deno run --quiet --frozen --no-prompt --deny-net \
+            --config supabase/functions/deno.json \
+            --allow-env=PATH,SUPABASE_ACCESS_TOKEN,NATUREBOOK_OPENAI_API_KEY \
+            --allow-run=supabase \
+            supabase/scripts/sync_openai_edge_secret.ts \
             --project-ref "$PROJECT_ID"
         if: steps.production-scope.outputs.should_deploy == 'true'
 

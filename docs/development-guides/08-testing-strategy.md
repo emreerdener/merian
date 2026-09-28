@@ -2562,10 +2562,14 @@ make ios-local-build ARGS="simulator -- test-without-building \
 `IOSHygieneClosureArchitectureTests` scans the complete main-app Swift tree and
 requires the oversized inventory to remain exactly the Debug-only UI-test seed
 coordinator, the measured residual `SupabaseManager` facade, and the cohesive
-ordered migration registry. It therefore catches a new ordinary production file
-crossing the 600-line review ceiling even when a local domain suite has not yet
-been added. Domain architecture tests still own imports, live-effect placement,
-inventories, retired paths, and tighter budgets.
+ordered migration registry, together with the immutable V51 model snapshot and
+`InferenceEdgeDTOs.swift`. The DTO file's generated V1/V2 wire decoders share
+one executable contract; `make validate-edge-dto-contract` verifies their
+generated content. This explicit generated-file entry does not exempt ordinary
+source files or permit hand edits to DTOs. The inventory therefore catches a new
+ordinary production file crossing the 600-line review ceiling even when a local
+domain suite has not yet been added. Domain architecture tests still own
+imports, live-effect placement, inventories, retired paths, and tighter budgets.
 
 The shared source counter treats a trailing newline as a line terminator rather
 than an additional empty physical line. The closure suite locks empty,
@@ -2798,11 +2802,15 @@ prove visual parity, live Auth/provider behavior, or migration execution.
   sources; `make test-ios-event-routing` exercises missing canonical model/bus,
   multiline, alias, application-name/post, duplicate-subject, singleton,
   allowlist, and test-target-exclusion fixtures. An adversarial leaky-owner
-  fixture also proves a raw Combine `.sink` outside the five exact reviewed
-  lifetime owners is rejected. These fixtures are part of
-  `make test-ios-ci-tooling`. The fast `ios-project-guardrails.yml` lane and the
-  compiled iOS workflow both validate the live repository, and both are
-  path-sensitive to the checker, its exact allowlist, and its fixture script.
+  fixture also proves a raw Combine `.sink` outside the six exact reviewed
+  lifetime owners is rejected. The reviewed-feed fixture accepts the exact
+  `ExploreFeedViewModel.swift` owner and rejects the same subscription in a
+  neighboring unreviewed file. Native visibility tests prove same-turn account
+  and report invalidation, request fencing, and subscription teardown. These
+  fixtures are part of `make test-ios-ci-tooling`. The fast
+  `ios-project-guardrails.yml` lane and the compiled iOS workflow both validate
+  the live repository, and both are path-sensitive to the checker, its exact
+  allowlist, and its fixture script.
 - **Verification tiers**: A recursive `swiftc -frontend -parse` catches syntax
   errors quickly. A direct iOS module/test-target type-check can add useful
   compile evidence when CoreSimulator is unavailable, but neither runs XCTest,
@@ -6741,6 +6749,18 @@ completion and replay without another provider call. These tests also run
 without network permission; they do not establish database concurrency, hosted
 recovery, real model quality, or full-flow performance.
 
+Primary invocation accounting adds `_shared/ai/identificationUsage_test.ts`,
+`_tests/identificationInvocationAccountingMigrationContract.test.ts`, and
+`tests/identification_invocation_accounting.sql`. These cover atomic quota and
+witness admission, duplicate dispatch fencing, all provider outcomes, missing
+reports, immutable completion, native pricing eligibility and tariff boundaries,
+scan-writer deduplication, and account deletion.
+`_tests/identificationInvocationConcurrencyDb.test.ts` also races duplicate
+commitments and completion against account deletion. Provider bodies and errors
+never enter the durable usage projection. These checks use synthetic inputs and
+a disposable local database; they do not rerun or replace the existing model
+benchmark.
+
 Slice 4 adds sixteen intercepted SDK request cases for legacy image/audio
 profiles across both models and tiers, including independent model/tier
 selection, explicit image safety settings, and first-part text fallback.
@@ -7008,9 +7028,10 @@ covered. The local OpenAI launcher suite additionally checks controlled-run
 selection, pre-key provider rejection and real Deno permission admission with a
 fake transport. These checks perform no paid provider requests.
 
-The concise candidate adds `identification_evaluation_explanation_test.ts` and
-isolated `identification_evaluation/testing/candidateRunnerTests.ts`. These
-verify baseline/control/candidate native parity, distinct prompt versions,
+The retained concise-candidate implementation adds
+`identification_evaluation_explanation_test.ts` and isolated
+`identification_evaluation/testing/candidateRunnerTests.ts`. These verify
+baseline/control/candidate native parity, distinct prompt versions,
 complete-input rejection, bounded ratings and calibration, local capability and
 origin checks, escaped text and no cached response, v1/v2 rejection of new
 identities, cache/read/write stops, missing/failed review, durable settlement
@@ -7026,6 +7047,13 @@ and no provider requests. Actual loopback lifecycle checks cover saving,
 cancellation, opener failure and timeout without aborting an already closed
 server. These tests do not establish AI assessor accuracy, actual owner
 calibration, live account cache behavior or production qualification.
+
+These remain regression tests for the closed concise experiment. The
+[current optimization plan](../rfcs/identification-optimization-preserving-results-2026-09-27.md)
+preserves current explanations and begins with an offline bottleneck audit.
+Keeping these tests does not schedule another paid comparison or owner practice
+exercise. Future changes use the relevant affected-surface gates and a bounded,
+separately specified comparison only when new model evidence is needed.
 
 Authoritative AI quota and entitlement security has four complementary base
 checks:

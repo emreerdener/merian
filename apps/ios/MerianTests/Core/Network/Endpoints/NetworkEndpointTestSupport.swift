@@ -12,12 +12,13 @@ enum NetworkEndpointTestSupport {
         let input = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
         #expect(Set(input.keys) == Set([
             "p_operation", "p_input_profile", "p_flash_fallback_eligible",
-            "p_original_analysis_id", "p_client_protocol"
+            "p_original_analysis_id", "p_client_protocol", "p_identification_protocol"
         ]))
         #expect(input["p_operation"] as? String == "scan_identification")
         #expect(input["p_client_protocol"] as? Int == 3)
+        #expect(input["p_identification_protocol"] as? Int == 4)
         let profile = try #require(input["p_input_profile"] as? String)
-        let json = "[{\"input_profile\":\"\(profile)\",\"decision\":\"ready\",\"processor_permission\":\"google_gemini\",\"minimum_client_protocol\":0}]"
+        let json = "[{\"input_profile\":\"\(profile)\",\"decision\":\"ready\",\"processor_permission\":\"google_gemini\",\"minimum_client_protocol\":0,\"minimum_identification_protocol\":0}]"
         return try response(to: request, json: json)
     }
 

@@ -441,8 +441,8 @@ Deno.test("describe handler executes the shared boundary and preserves recovery"
         assertEquals(provenance.prompt, "identify_describe_v1");
         assertEquals(provenance.confidence, "gemini_describe_v1");
         assertEquals(provenance.variant, "description_compat");
+        assert(provenance.version === 1);
         assertEquals(provenance.generation.temperature, 0.15);
-        assertEquals(provenance.version, 1);
         assertEquals(identification_provenance, provenance);
         assertEquals([
           row.llm_prompt_tokens,

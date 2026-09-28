@@ -365,20 +365,29 @@ export interface OpenAIPricing
   }[];
 }
 export type EvaluationPricing = Pricing | OpenAIPricing;
-export interface OpenAIReadiness
+interface ProviderReadiness<P extends "gemini" | "openai">
   extends Omit<Readiness, "version" | "dedicatedEvaluationProject"> {
-  version: "evaluation_openai_processor_v1";
-  provider: "openai";
+  provider: P;
   dedicatedEvaluationProject: boolean;
   inputPermission: {
-    provider: "openai";
+    provider: P;
     corpusDigest: string;
     caseIds: string[];
     reviewRef: string;
     approved: true;
   };
 }
-export type EvaluationReadiness = Readiness | OpenAIReadiness;
+export interface OpenAIReadiness extends ProviderReadiness<"openai"> {
+  version: "evaluation_openai_processor_v1";
+}
+/** Explicit recipient/case review permits a shared paid Gemini project. */
+export interface GeminiReadiness extends ProviderReadiness<"gemini"> {
+  version: "evaluation_gemini_processor_v1";
+}
+export type EvaluationReadiness =
+  | Readiness
+  | OpenAIReadiness
+  | GeminiReadiness;
 export function parseEvaluationPricing(value: unknown): EvaluationPricing {
   if (
     (value as { version?: unknown } | null)?.version !==
@@ -435,10 +444,14 @@ export function parseEvaluationPricing(value: unknown): EvaluationPricing {
   return structuredClone(v) as unknown as OpenAIPricing;
 }
 export function parseEvaluationReadiness(value: unknown): EvaluationReadiness {
+  const version = (value as { version?: unknown } | null)?.version;
   if (
-    (value as { version?: unknown } | null)?.version !==
-      "evaluation_openai_processor_v1"
+    version !== "evaluation_openai_processor_v1" &&
+    version !== "evaluation_gemini_processor_v1"
   ) return parseReadiness(value);
+  const expectedProvider = version === "evaluation_openai_processor_v1"
+    ? "openai"
+    : "gemini";
   const { provider, inputPermission, dedicatedEvaluationProject, ...rest } =
     fields(value, [
       "version",
@@ -460,7 +473,8 @@ export function parseEvaluationReadiness(value: unknown): EvaluationReadiness {
       "retentionAbuseLogRef",
     ]);
   check(
-    provider === "openai" && typeof dedicatedEvaluationProject === "boolean",
+    provider === expectedProvider &&
+      typeof dedicatedEvaluationProject === "boolean",
   );
   const permission = fields(inputPermission, [
     "provider",
@@ -469,21 +483,35 @@ export function parseEvaluationReadiness(value: unknown): EvaluationReadiness {
     "reviewRef",
     "approved",
   ]);
-  check(permission.provider === "openai" && permission.approved === true);
+  check(
+    permission.provider === expectedProvider && permission.approved === true,
+  );
   hash(permission.corpusDigest);
   token(permission.reviewRef);
   const caseIds = array(permission.caseIds, 1, 240);
   caseIds.forEach((value) => id(value, "c"));
   unique(caseIds);
-  return {
+  const review = {
     ...parseReadinessReview(rest),
-    version: "evaluation_openai_processor_v1",
-    provider,
     dedicatedEvaluationProject,
-    inputPermission: structuredClone(
-      permission,
-    ) as unknown as OpenAIReadiness["inputPermission"],
   };
+  return expectedProvider === "openai"
+    ? {
+      ...review,
+      version: "evaluation_openai_processor_v1",
+      provider: "openai",
+      inputPermission: structuredClone(
+        permission,
+      ) as unknown as OpenAIReadiness["inputPermission"],
+    }
+    : {
+      ...review,
+      version: "evaluation_gemini_processor_v1",
+      provider: "gemini",
+      inputPermission: structuredClone(
+        permission,
+      ) as unknown as GeminiReadiness["inputPermission"],
+    };
 }
 
 export interface SourceIdentity {

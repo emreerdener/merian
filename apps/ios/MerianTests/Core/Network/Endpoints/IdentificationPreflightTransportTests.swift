@@ -17,10 +17,11 @@ struct IdentificationPreflightTransportTests {
                     #"[{"input_profile":"multimodal_text_v1","decision":"recovery_only","processor_permission":null,"minimum_client_protocol":null}]"#)
             }
             return try NetworkEndpointTestSupport.response(to: request, json:
-                "[{\"input_profile\":\"multimodal_text_v1\",\"decision\":\"ready\",\"processor_permission\":\"\(recipient)\",\"minimum_client_protocol\":3}]")
+                "[{\"input_profile\":\"multimodal_text_v1\",\"decision\":\"ready\",\"processor_permission\":\"\(recipient)\",\"minimum_client_protocol\":3,\"minimum_identification_protocol\":\(recipient == "openai" ? 4 : 0)}]")
         }
         fixture.transport.register(path: "/identify-multimodal") { request in
             #expect(request.value(forHTTPHeaderField: IdentificationRecipientExpectation.header) == recipient)
+            #expect(request.value(forHTTPHeaderField: IdentificationDispatchAuthorization.protocolHeader) == "4")
             return try NetworkEndpointTestSupport.response(to: request, json: #"{"success":true}"#)
         }
         let prepared = try await fixture.client.buildMultiModalRequest(
@@ -51,7 +52,7 @@ struct IdentificationPreflightTransportTests {
             }
             let minimum = decision == "client_update_required" ? 4 : 3
             return try NetworkEndpointTestSupport.response(to: request, json:
-                "[{\"input_profile\":\"multimodal_text_v1\",\"decision\":\"\(decision)\",\"processor_permission\":\"openai\",\"minimum_client_protocol\":\(minimum)}]")
+                "[{\"input_profile\":\"multimodal_text_v1\",\"decision\":\"\(decision)\",\"processor_permission\":\"openai\",\"minimum_client_protocol\":\(minimum),\"minimum_identification_protocol\":4}]")
         }
         do {
             _ = try await fixture.client.identifyMultiModal(

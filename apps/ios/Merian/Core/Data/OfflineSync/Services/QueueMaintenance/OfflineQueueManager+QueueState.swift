@@ -191,6 +191,12 @@ extension OfflineQueueManager {
         updateUnsyncedItemCount()
         OfflineJobScheduler.shared.scheduleNextPersistedWake(using: self)
 
+        if needsAttention, errorCode == "client_update_required" {
+            appUpdateCoordinator?.record(
+                .identification,
+                accountID: job.flatMap { OfflineScanJobMetadataContract.funding(in: $0.metadataJSON)?.accountId }
+            )
+        }
         if AppSettings.shared.isPushNotificationsEnabled {
             #if canImport(UIKit)
             if UIApplication.shared.applicationState != .active {

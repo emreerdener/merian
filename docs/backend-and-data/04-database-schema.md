@@ -1293,7 +1293,7 @@ The transaction log for every successful identification.
 - `species_id` (UUID - Foreign Key nullable)
 - `ai_confidence_score` (Float): 0.0 to 1.0. Bounded explicitly within the
   Gemini schema description ruleset.
-- `identification_provenance` (JSONB, nullable): Immutable, version-1
+- `identification_provenance` (JSONB, nullable): Immutable, versioned
   configuration projected only from the admitted successful server execution.
   Contains provider, binding, requested model, variant, operation, policy,
   prompt/schema/confidence references, diagnostic thresholds, safety profile,
@@ -1307,6 +1307,21 @@ The transaction log for every successful identification.
   matching ingestion job. Existing rows remain null; updates, including guessed
   legacy backfills, are rejected. See the
   [provenance record](../rfcs/identification-provider-result-provenance-2026-09-26.md).
+  Forward migration
+  `20260927165545_accept_openai_identification_provenance_v2.sql` preserves the
+  exact V1 validator and adds V2 OpenAI settings (`max_output_tokens`,
+  `reasoning_effort`, `image_detail`). The 2 KiB bound, existing columns,
+  triggers, privileges and rows remain unchanged. V2 receives no Gemini metric
+  interpretation and enables no provider assignment.
+- Result-reader compatibility: migration
+  `20260927185833_require_identification_result_reader.sql` adds an invoker
+  capability check inside the original owner/public SELECT policy predicates.
+  Visible V2 results require `X-Merian-Identification-Protocol: 4`; unsupported
+  readers receive `PT426` / `client_update_required` for the whole query.
+  Null/V1 reads, visibility predicates, service-role reads and write grants are
+  unchanged. No row, score or provenance is rewritten. See the
+  [reader contract](./05-api-contracts.md#identification-result-readers) for
+  current-request replay checks and the required reader-first release order.
 - Metric interpretation: the service-only pure helper
   `internal.identification_metrics_are_gemini_compatible(jsonb,text)` recognizes
   the exact existing profiles, including Pro audio comparison B. This is a
@@ -4140,8 +4155,8 @@ Append-only source of truth for internal AI analytics:
 
 `effective_plan` is `free`, `pro_paid`, `pro_complimentary`, historical
 `pro_trial`, or `unknown`; `input_modality` is `text`, `image`, `audio`,
-`video`, `mixed`, or `unknown`; `outcome` is `success`, `refusal`, or `error`.
-Token/cost values are nullable but cannot be negative.
+`video`, `mixed`, or `unknown`; `outcome` is `success`, `refusal`, `error`, or
+`unknown`. Token/cost values are nullable but cannot be negative.
 
 Despite its legacy column name, `prompt_tokens_by_modality` stores the complete
 normalized modality breakdown:
@@ -4160,8 +4175,8 @@ content belongs in this field. New primary scan events copy model/provider and
 bounded execution references from saved `identification_provenance` into the
 existing model/metadata fields; only absent legacy provenance infers Gemini from
 tier. `ai_attribution` distinguishes recorded provenance from that fallback.
-Historical rows remain unchanged. The pricing writer requires the Gemini usage
-contract, a known modality, prompt/candidate counts and consistent cached
+Historical rows remain unchanged. The legacy pricing writer requires the Gemini
+usage contract, a known modality, prompt/candidate counts and consistent cached
 counts. An unsupported provider (even with a Gemini model name), usage mapping
 or tariff retains a null estimate/version. Provider attribution survives account
 anonymization without identifying linkage.
@@ -4176,6 +4191,70 @@ rewrite: transaction-local source/target settings permit changing only
 intentionally has no `auth.users` foreign key; an `ON DELETE SET NULL` action
 would reach the append-only trigger outside the account-deletion trigger's
 authorized anonymization context.
+
+### Primary identification attempt accounting
+
+Migration `20260927230801_account_identification_invocations.sql` adds
+`internal.identification_invocations` and `internal.ai_native_token_prices`.
+Both have RLS and no direct API-role grants. The current primary
+`identify-multimodal` route uses this owner for every supported input and
+provider; compatibility routes and other AI operations keep their previous
+writers and coverage limits.
+
+`commit_identification_invocation(uuid,uuid,uuid,integer,jsonb)` is
+service-only. It checks the owner, current quota lease/generation, immutable
+input assignment and bounded V1/V2 execution provenance. In one transaction it
+commits quota and creates one witness per reservation/generation. Only the first
+call returns `may_dispatch=true`; a duplicate returns the existing UUID with
+false. An ambiguous response grants no dispatch authority. The witness means a
+call **may have been dispatched**, since a worker can stop between commitment
+and network execution. No accounting routine grants retries or refunds.
+
+`complete_identification_invocation(uuid,uuid,uuid,text,jsonb)` validates the
+owner and hashed lease, then appends one `ai_usage_events` record with source
+type `identification_invocation`. It accepts only bounded native counters and
+processing-tier facts. It retains the admitted provider/model/binding, exact
+execution configuration, input profile, tier and original commitment time.
+`success` means a provider draft was returned; it does not prove that downstream
+validation or observation persistence succeeded. Refusals, invalid output,
+operational failure and unknown execution are recorded independently of scan
+persistence. Missing units and prices remain null.
+
+The private minute cron `reconcile_identification_usage` processes at most 1,000
+witnesses per pass using `FOR UPDATE SKIP LOCKED`. After five minutes without a
+report it appends one `unknown`, unpriced event at the original commitment time.
+A late callback returns that existing event without replacing it or dispatching
+another call. This bounds accounting lag but cannot recover missing provider
+usage. Quota pruning never cascades into these records. Completed witnesses are
+pruned in batches after 30 days; usage events retain the existing ledger policy.
+
+New scan writes set only the content-free
+`llm_usage_metadata.accounting_contract=identification_invocation_v1` marker.
+The scan trigger requires a matching witness or invocation event and skips its
+legacy success write. This remains idempotent after witness retention. Older
+bundles omit the marker and retain their previous scan-trigger accounting.
+Account deletion locks/settles pending witnesses before the existing event
+anonymizer, then clears user, scan, reservation and lease-hash linkage. The
+controlled Ghost merge reparents witnesses with usage events.
+
+Native tariffs are scoped by provider, model, usage contract, actual service
+tier, endpoint profile, modality and input ceiling. Database range exclusion
+prevents overlapping effective periods. The exact tariff is frozen before OpenAI
+dispatch; no effective tariff means no commitment or provider call. The initial
+photo tariff uses Standard global `gpt-6-sol`, at most 272,000 input tokens,
+effective 2026-09-27 23:08:01 UTC: $2 input, $0.20 cached read, $2.50 cache
+write and $10 output per million tokens. Cache read/write are disjoint parts of
+input; output already includes reasoning. Sources reviewed September 27:
+[OpenAI model pricing](https://developers.openai.com/api/docs/models/gpt-6-sol)
+and
+[cache semantics](https://developers.openai.com/api/docs/guides/prompt-caching).
+
+Pricing requires reported input/read/write/output counts, zero tool usage,
+consistent counts, the exact returned model and actual `default` service tier.
+Unsupported context, tiers, tools or unknown counts stay unpriced. Regional,
+Batch/Flex/Fast, taxes, credits and discounts are outside this tariff. Existing
+Gemini estimate semantics and historical estimates are unchanged. This is cost
+estimation, not invoice reconciliation.
 
 ### `internal.ai_quota_policies`, counters, and reservations
 
@@ -4212,11 +4291,12 @@ private, RLS-enabled tables with no direct API-role grants:
   migration `20260926174645_add_identification_input_routing.sql`. Only enabled,
   allowed existing identification policies seed
   Gemini/baseline/Gemini-permission rows. A new policy version or assignment
-  requires an explicit matching catalog row; the catalog and quota model
-  constraints still reject OpenAI. Migration
-  `20260926200227_add_identification_client_compatibility.sql` adds a bounded
-  `minimum_client_protocol`, defaulting to zero for every current Gemini row.
-  Zero adds no route-specific cutoff to the existing global entitlement gate.
+  requires an explicit matching catalog row. The quota-model constraints remain
+  Gemini-only; the dormant connection adds a separately constrained execution
+  model. Migration `20260926200227_add_identification_client_compatibility.sql`
+  adds a bounded `minimum_client_protocol`, defaulting to zero for every current
+  Gemini row. Zero adds no route-specific cutoff to the existing global
+  entitlement gate.
 - `internal.identification_provider_attempts`: one insert-only application
   snapshot per `(reservation_id, attempt_count)`, including operation, plan,
   model, policy version, provider, binding and processor permission. The later
@@ -4243,6 +4323,32 @@ and return shapes are preserved. Every current route is Gemini. Legacy catalog
 rows use `legacy_v1`; new rows distinguish the three compatibility
 representations plus six primary text/photo/audio/video combinations. No API
 role can read or write either table directly.
+
+Migration `20260927175708_prepare_openai_photo_routing.sql` adds nullable
+`provider_model` to bindings and attempts. NULL is valid only for the exact
+Gemini tuple and uses that saved quota `model`. The exact OpenAI photo tuple
+requires `gpt-6-sol`, its OpenAI recipient and identification capability 4.
+Binding keys, quota policies and current assignments remain unchanged.
+Photo-only model selection therefore does not change audio/video/content quota
+policy.
+
+The same migration adds binding `minimum_identification_protocol` (0 or 4), and
+attempt minimum/accepted capability snapshots (historical NULL remains unknown).
+The new eleven-argument service reservation snapshots the selected execution
+model and capability atomically, returns the saved execution model, and retains
+all quota-model/policy invariants. The new six-argument authenticated preflight
+returns the separate capability minimum. Old ABIs cannot freshly admit an
+alternate provider. Private `require_identification_capability` scopes internal
+replay proof to the original owner/operation/observation/profile/current
+attempt; worker headers cannot upgrade missing proof. Entitlement protocol stays
+1–3.
+
+The scan usage trigger remains the single successful primary ledger writer.
+OpenAI uses `openai_responses_tokens_v1` and retains bounded native output and
+cache-write counts in event metadata from `llm_usage_metadata`. Reported cached
+counts are stored in `llm_cached_tokens`; absent units remain NULL. Even
+entirely missing OpenAI usage creates one unpriced event. No new tariff,
+historical rewrite, or failed-attempt ledger owner is introduced.
 
 The routing migration extracts the established four- and eight-argument quota
 algorithms into ungranted `internal.reserve_ai_quota_core` invoker overloads.
@@ -4310,8 +4416,12 @@ held/consumed funding for that exact scan. It reports recipient, compatibility
 and permission readiness; it never creates or modifies admission, consent or
 usage state. It is not a quota-availability check. Profile/Flash hints are not
 trusted dispatch evidence. The final Edge request independently derives its
-shape, and its optional expectation chooses only the denial-capable ten-argument
-ABI. The native preflight caller is not included in this backend slice. The
+shape. An expectation alone uses the denial-capable ten-argument reservation;
+capability-aware requests and internal retries use the eleven-argument ABI.
+Headerless internal retries supply no capability claim or recipient expectation;
+only the original saved attempt can establish capability. The native preflight
+caller uses the capability-aware six-argument overload; legacy clients retain
+this five-argument contract. The
 [API contract](./05-api-contracts.md#assigned-recipient-preflight) defines the
 closed result and header shapes.
 
@@ -5228,7 +5338,8 @@ reversible comment moderation columns are reused.
 
 `scans` and `insight_chat_messages` add non-null
 `llm_usage_metadata JSONB DEFAULT '{}'`. Durable insert triggers normalize these
-values into `ai_usage_events` transactionally.
+values into `ai_usage_events` transactionally for legacy scan/message writers.
+Primary multimodal scans use the invocation accounting contract above.
 
 For authorization, review behavior, anonymization, retention boundaries, and
 pricing semantics, see [`10-internal-admin.md`](./10-internal-admin.md).

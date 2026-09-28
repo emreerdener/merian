@@ -4,7 +4,7 @@
 export const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, idempotency-key, x-merian-constrained-network, x-merian-entitlement-protocol, x-merian-identification-recipient",
+    "authorization, x-client-info, apikey, content-type, idempotency-key, x-merian-constrained-network, x-merian-entitlement-protocol, x-merian-identification-recipient, x-merian-identification-protocol",
   "Access-Control-Allow-Methods": "POST, GET, OPTIONS, PUT, DELETE",
   "Access-Control-Expose-Headers":
     "Retry-After, Server-Timing, X-Merian-Edge-Region, X-Merian-Field-Chat-Bundle-SHA256, X-Merian-Field-Chat-Contract, X-Merian-Handler, X-Request-ID",

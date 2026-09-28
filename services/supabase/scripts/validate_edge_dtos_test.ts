@@ -63,8 +63,11 @@ Deno.test("contract definitions fail closed through bounded numeric coverage", (
     "Generation",
     "IdentificationCandidate",
     "IdentificationProvenanceDTO",
+    "IdentificationProvenanceV1DTO",
+    "IdentificationProvenanceV2DTO",
     "ImageQuality",
     "Insight",
+    "OpenAIGeneration",
     "PetIdentificationDTO",
     "ScanEntitlementMetadataDTO",
     "SpeciesInsights",
@@ -103,8 +106,8 @@ Deno.test("Swift generation owns nested structure, types, keys, and decoders", (
   assert.match(generated, /struct IdentificationCandidate: Codable/);
   assert.strictEqual(
     generated.match(/rawContainer\.allKeys\.allSatisfy/g)?.length,
-    2,
-    "Only the two strict provenance objects reject unknown wire keys",
+    4,
+    "Both provenance versions and their generation objects reject unknown wire keys",
   );
   assert.match(
     generated,
@@ -130,6 +133,26 @@ Deno.test("Swift generation owns nested structure, types, keys, and decoders", (
     generated,
     /try container\.encodeIfPresent\(distinguishing_feature, forKey: \.distinguishing_feature\)/,
   );
+});
+
+Deno.test("versioned metadata generates a strict discriminator without changing its JSON envelope", () => {
+  const generated = renderGeneratedSwiftDTOBlock();
+  assert.match(generated, /enum IdentificationProvenanceDTO: Codable/);
+  assert.match(
+    generated,
+    /case 1: self = \.v1\(try IdentificationProvenanceV1DTO\(from: decoder\)\)/,
+  );
+  assert.match(
+    generated,
+    /case 2: self = \.v2\(try IdentificationProvenanceV2DTO\(from: decoder\)\)/,
+  );
+  assert.match(generated, /Unsupported identification metadata version/);
+  assert.match(
+    generated,
+    /case \.v2\(let value\): try value.encode\(to: encoder\)/,
+  );
+  assert.match(generated, /reasoning_effort\.utf16\.count >= 1/);
+  assert.match(generated, /\["openai"\]\.contains\(provider\)/);
 });
 
 Deno.test("checked-in Swift block must exactly match generated output", async () => {

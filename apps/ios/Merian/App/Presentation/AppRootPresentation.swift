@@ -139,3 +139,32 @@ struct StartupRecoveryNoticeView: View {
         #endif
     }
 }
+
+/// One root alert owner keeps compatibility prompts behind account recovery.
+enum AppRootAlert: String, Identifiable {
+    case manualAppleRevocation
+    case appUpdate
+    var id: String { rawValue }
+}
+
+enum AppRootAlertPolicy {
+    static func next(
+        hasUsableStore: Bool,
+        isAccountDeletionPending: Bool,
+        needsAppleRevocation: Bool,
+        isWorkspaceReady: Bool,
+        needsAppUpdate: Bool
+    ) -> AppRootAlert? {
+        guard hasUsableStore, !isAccountDeletionPending else { return nil }
+        if needsAppleRevocation { return .manualAppleRevocation }
+        return isWorkspaceReady && needsAppUpdate ? .appUpdate : nil
+    }
+}
+
+enum AppUpdatePresentation {
+    static let title = "Update Naturebook"
+    static let message = "Update Naturebook to finish identification or sync newer observations. Your saved observations are safe."
+    // Naturebook's reviewed App Store Connect app ID. Activation requires a
+    // compatible public release to be available at this listing first.
+    static let appStoreURL = URL(string: "https://apps.apple.com/app/id6760208440")!
+}

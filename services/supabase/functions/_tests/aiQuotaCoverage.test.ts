@@ -235,8 +235,9 @@ Deno.test("provider attempts consume quota while pre-provider no-ops can refund"
     ]
   ) {
     const source = await Deno.readTextFile(new URL(path, import.meta.url));
-    const invocation =
-      /await quotaLease[.]commit[(][)];\s*providerAttempted = true;\s*(?:const providerStart = performance[.]now[(][)];\s*)?result = await execution[.]invoke[(][)]/;
+    const invocation = path === "../identify-multimodal/index.ts"
+      ? /await quotaLease[.]commit[(][)];\s*providerAttempted = true;\s*const providerStart = performance[.]now[(][)];\s*result = await accounted[.]invoke[(][)]/
+      : /await quotaLease[.]commit[(][)];\s*providerAttempted = true;\s*(?:const providerStart = performance[.]now[(][)];\s*)?result = await execution[.]invoke[(][)]/;
     assert(
       invocation.test(source),
       `${path} must commit immediately before dispatching paid provider work`,
@@ -348,7 +349,7 @@ Deno.test("provider attempts consume quota while pre-provider no-ops can refund"
   assert(!exploreEdit.includes("requestId: crypto.randomUUID()"));
 });
 
-Deno.test("migrated provider composition is fixed to Gemini and excludes test providers", async () => {
+Deno.test("production composition retains Gemini and source-disables OpenAI before credentials", async () => {
   const source = await Deno.readTextFile(
     new URL("../identify-describe/index.ts", import.meta.url),
   );
@@ -378,7 +379,19 @@ Deno.test("migrated provider composition is fixed to Gemini and excludes test pr
     production,
     "createAIExecution(geminiAdapter, request, snapshot)",
   );
-  assert(!production.includes("Deno.env"));
+  assertStringIncludes(
+    production,
+    "OPENAI_PHOTO_DISPATCH_ENABLED: boolean = false",
+  );
+  assertStringIncludes(
+    production,
+    'throw new Error("ai_provider_not_enabled")',
+  );
+  assertEquals(production.match(/Deno\.env\.get\(/g)?.length, 1);
+  assert(
+    production.indexOf('throw new Error("ai_provider_not_enabled")') <
+      production.indexOf('Deno.env.get("NATUREBOOK_OPENAI_API_KEY")'),
+  );
   assert(!production.includes("test_only"));
   for (
     const name of [
@@ -457,7 +470,7 @@ Deno.test("every scan-producing route coalesces quota replays into an owner-scop
     assertStringIncludes(source, "waitForCompletedIdentifyResponse(");
     assertStringIncludes(source, '"ai_request_already_completed"');
     assertStringIncludes(source, '"ai_request_in_progress"');
-    assertStringIncludes(source, '"X-Merian-Idempotent-Replay"');
+    assertStringIncludes(source, "return completedIdentifyResponse(");
     assertStringIncludes(source, "parseIdentifySuccessEnvelope(");
     assertStringIncludes(source, "responseEnvelope");
   }
@@ -604,15 +617,19 @@ Deno.test("public dictionary fallback and webhook contain no hidden isolate auth
   );
 });
 
-Deno.test("OpenAI dispatch stays outside production composition and its offline adapter tests remain in CI", async () => {
+Deno.test("OpenAI dispatch remains source-disabled in production composition and its offline adapter tests remain in CI", async () => {
   const root = new URL("../", import.meta.url);
   for (const file of await runtimeTypeScriptFiles(root)) {
     if (/(?:_test|[.]test)[.]ts$/.test(file.pathname)) continue;
     const source = await Deno.readTextFile(file);
     if (/from ["'][^"']*openai(?:Request)?[.]ts["']/.test(source)) {
-      assertEquals(
-        file.pathname,
-        new URL("_shared/ai/openai.ts", root).pathname,
+      assert(
+        [
+          "_shared/ai/openai.ts",
+          "_shared/ai/openaiPhoto.ts",
+          "_shared/ai/production.ts",
+        ].some((path) => file.pathname === new URL(path, root).pathname),
+        "Only reviewed adapters and the source-disabled composition may import OpenAI",
       );
     }
   }
@@ -626,5 +643,9 @@ Deno.test("OpenAI dispatch stays outside production composition and its offline 
   assertStringIncludes(
     workflow,
     "supabase/functions/_shared/ai/openai_test.ts",
+  );
+  assertStringIncludes(
+    workflow,
+    "supabase/functions/_shared/ai/openaiPhoto_test.ts",
   );
 });

@@ -9,6 +9,7 @@ enum AccountScopedPreferences {
     static let cacheKeyPrefixes: Set<String> = [
         UserDefaultsKeys.recentPlacesPrefix,
         UserDefaultsKeys.captureGoalContextPrefix,
+        UserDefaultsKeys.clientUpdateRequirementPrefix,
         UserDefaultsKeys.firstFieldTripAchievementProgressPrefix,
         UserDefaultsKeys.dismissedUnavailableMediaOverviewSignaturePrefix,
         UserDefaultsKeys.dismissedProfilePublicationRecoverySignaturePrefix

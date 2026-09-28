@@ -12,6 +12,14 @@ reused examples. The dated status above describes the earlier collection
 checkpoint. Formal reference counts and qualification requirements remain
 unchanged.
 
+Update, 27 September 2026: the
+[matched Gemini/OpenAI comparison](../rfcs/identification-gemini-openai-matched-results-2026-09-27.md)
+completed all sixteen attempts. The
+[current optimization plan](../rfcs/identification-optimization-preserving-results-2026-09-27.md)
+starts with existing evidence; it does not require repeating these collection
+steps or the closed concise-explanation screen. This guide remains the procedure
+for new intake when additional evidence is actually needed.
+
 This is the collection workflow for Slice 4 of the
 [evaluation PRD](../product/04-identification-evaluation-prd.md) and
 [SRD](../rfcs/identification-evaluation-srd.md). Those documents own the scope
@@ -116,10 +124,10 @@ no need to invent a second reviewer or label real observations synthetic.
    It checks actual assets and reports coverage and planned calls without a key
    or inference. `demo-exploratory DIRECTORY` supplies invented examples for
    verifying the automation itself.
-3. Review the exact corpus, dedicated evaluation project/key, processor
-   readiness, current pricing and run specification. Authorize the concrete USD
-   budget before `--live DIRECTORY`. The exploratory specification schedules
-   each existing Gemini profile once per group: at most twenty-four calls.
+3. Review the exact corpus, actual paid project/key, processor readiness,
+   current pricing and run specification. Authorize the concrete USD budget
+   before `--live DIRECTORY`. The exploratory specification schedules each
+   existing Gemini profile once per group: at most twenty-four calls.
 4. Keep `manifest.json`, claims/results, `summary.json` and `report.md`
    together. The report records reference agreement, failed/unknown/unattempted
    cases, successful-call timing and estimated usage cost.

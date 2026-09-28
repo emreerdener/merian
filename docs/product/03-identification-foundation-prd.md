@@ -17,6 +17,17 @@ production scan assignments. The
 [implementation review](../rfcs/identification-provider-flexibility-review-2026-09-26.md)
 separates source readiness from future provider activation.
 
+**Follow-up — 27 September 2026:** The
+[photo integration record](../rfcs/identification-openai-photo-integration-2026-09-27.md)
+now records the later dormant OpenAI infrastructure and verified deployment,
+including GitHub-to-Supabase key synchronization. Production remains Gemini;
+permission collection, released-client qualification and activation remain
+separate. The
+[current optimization plan](../rfcs/identification-optimization-preserving-results-2026-09-27.md)
+preserves current explanations and owns future optimization priorities. These
+later milestones do not rewrite this PRD's original Gemini-only acceptance
+scope.
+
 All six implementation slices have local source and verification evidence in the
 [completion record](../rfcs/identification-foundation-verification.md). The
 [21 September deployment record](../release-evidence/provider-flexibility-deployment-2026-09-21.md)

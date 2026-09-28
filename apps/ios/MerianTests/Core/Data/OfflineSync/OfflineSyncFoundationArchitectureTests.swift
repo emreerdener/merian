@@ -418,7 +418,7 @@ struct OfflineSyncFoundationArchitectureTests {
     private static let preferredGoalHintConsumers: Set<String> = [
         "Persistence/ModelContext+FieldTripGoalHints.swift",
         "Persistence/OfflineQueueManager+QueuedScanExtraction.swift",
-        "Services/BackgroundInference/OfflineQueueManager+InferenceRecovery.swift"
+        "Services/BackgroundInference/OfflineQueueManager+InferenceHydration.swift"
     ]
 
     private static let queuedScanExtractionConsumers: Set<String> = [

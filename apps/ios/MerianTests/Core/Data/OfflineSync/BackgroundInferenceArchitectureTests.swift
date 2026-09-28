@@ -6,7 +6,7 @@ struct BackgroundInferenceArchitectureTests {
     @Test func completedBackgroundResultsNotifyAfterQueueCommitBeforeMilestones() throws {
         let root = try offlineSyncRoot()
         for (path, guardToken, resultToken) in [
-            (Self.recoveryPath, "guard didDeleteQueue else", "recoveredLocalRecord.commonName"),
+            (Self.hydrationPath, "guard didDeleteQueue else", "recoveredLocalRecord.commonName"),
             (Self.completionPath, "guard didDeleteQueuedScan else", "speciesName: speciesName")
         ] {
             let contents = try source(path, below: root)
@@ -22,7 +22,7 @@ struct BackgroundInferenceArchitectureTests {
             // admission must not wait on asynchronous milestone processing.
             let admission = contents[commitGuard.upperBound..<notification.lowerBound]
             #expect(admission.contains("return"))
-            if path == Self.recoveryPath {
+            if path == Self.hydrationPath {
                 #expect(!admission.contains("await"))
             }
         }
@@ -82,6 +82,7 @@ struct BackgroundInferenceArchitectureTests {
         let finalization = try source(Self.finalizationPath, below: root)
         let watchdog = try source(Self.watchdogPath, below: root)
         let recovery = try source(Self.recoveryPath, below: root)
+        let hydration = try source(Self.hydrationPath, below: root)
         let reconciliation = try source(
             Self.reconciliationPath,
             below: root
@@ -165,15 +166,20 @@ struct BackgroundInferenceArchitectureTests {
         #expect(!watchdog.contains("task.resume()"))
 
         #expect(recovery.contains(
-            "enum CompletedServerResultHydrationOutcome"
-        ))
-        #expect(recovery.contains(
             "func recoverCompletedInferenceFromServer("
         ))
-        #expect(recovery.contains("func recoverFoundScanFromServer("))
         #expect(recovery.contains("MerianNetworkClient.shared"))
-        #expect(recovery.contains("AppDIContainer.shared.scanRepository"))
+        #expect(!recovery.contains("AppDIContainer"))
         #expect(!recovery.contains("backgroundSession"))
+        #expect(!recovery.contains("import SwiftData"))
+
+        #expect(hydration.contains("enum CompletedServerResultHydrationOutcome"))
+        #expect(hydration.contains("func recoverFoundScanFromServer("))
+        #expect(hydration.contains("private func promoteRecoveredLocalScan("))
+        #expect(hydration.contains("AppDIContainer.shared.scanRepository"))
+        #expect(!hydration.contains("MerianNetworkClient"))
+        #expect(!hydration.contains("backgroundSession"))
+        #expect(!hydration.contains("scheduleServerIngestionPoll("))
 
         #expect(reconciliation.contains(
             "func serverOwnedInferencingScanIds("
@@ -466,6 +472,8 @@ struct BackgroundInferenceArchitectureTests {
         "Services/BackgroundInference/OfflineQueueManager+InferenceWatchdog.swift"
     private static let recoveryPath =
         "Services/BackgroundInference/OfflineQueueManager+InferenceRecovery.swift"
+    private static let hydrationPath =
+        "Services/BackgroundInference/OfflineQueueManager+InferenceHydration.swift"
     private static let reconciliationPath =
         "Services/BackgroundInference/OfflineQueueManager+InferenceReconciliation.swift"
     private static let retryPath =
@@ -486,7 +494,8 @@ struct BackgroundInferenceArchitectureTests {
         completionPath: ["import Foundation"],
         finalizationPath: ["import Foundation"],
         watchdogPath: ["import Foundation"],
-        recoveryPath: ["import Foundation", "import SwiftData"],
+        recoveryPath: ["import Foundation"],
+        hydrationPath: ["import Foundation", "import SwiftData"],
         reconciliationPath: ["import Foundation"],
         retryPath: ["import Foundation"]
     ]
@@ -519,14 +528,14 @@ struct BackgroundInferenceArchitectureTests {
         "func isLiveInferenceTask": watchdogPath,
         "func cancelActiveInferenceTasks": watchdogPath,
         "func activeInferenceTaskCount": watchdogPath,
-        "enum CompletedServerResultHydrationOutcome": recoveryPath,
+        "enum CompletedServerResultHydrationOutcome": hydrationPath,
         "func clearServerIngestionState": recoveryPath,
         "func scheduleRetryableServerFailure": recoveryPath,
         "func recoverCompletedInferenceFromServer": recoveryPath,
-        "func recoverFoundScanFromServer": recoveryPath,
+        "func recoverFoundScanFromServer": hydrationPath,
         "func deferCompletedServerResultRecovery": recoveryPath,
         "func serverOwnedInferencingScanIds": reconciliationPath,
-        "func promoteRecoveredLocalScan": recoveryPath,
+        "func promoteRecoveredLocalScan": hydrationPath,
         "func isServerIngestionPollCurrent": retryPath,
         "func scheduleServerIngestionPoll": retryPath,
         "func handleInferenceRetry": retryPath
@@ -539,6 +548,7 @@ struct BackgroundInferenceArchitectureTests {
             lifecyclePath
         ],
         "isInferenceGenerationCurrent(": [
+            hydrationPath,
             completionPath,
             dispatchPath,
             lifecyclePath,
@@ -564,7 +574,12 @@ struct BackgroundInferenceArchitectureTests {
             retryPath,
             watchdogPath
         ],
+        "recoverFoundScanFromServer(": [
+            recoveryPath,
+            hydrationPath
+        ],
         "isServerIngestionPollCurrent(": [
+            hydrationPath,
             recoveryPath,
             retryPath
         ],

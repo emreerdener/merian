@@ -208,6 +208,8 @@ struct AuthenticatedRequestExecutor {
             )
         }
         if let authorization = request.identificationAuthorization {
+            urlRequest.setValue(String(authorization.identificationProtocol),
+                                forHTTPHeaderField: IdentificationDispatchAuthorization.protocolHeader)
             urlRequest.setValue(authorization.recipient.rawValue,
                                 forHTTPHeaderField: IdentificationRecipientExpectation.header)
         }

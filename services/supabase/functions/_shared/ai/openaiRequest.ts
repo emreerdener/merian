@@ -154,6 +154,10 @@ export function openAISchemaFromContract(
     ...(node.description ? { description: node.description } : {}),
   };
   switch (node.kind) {
+    case "union":
+      throw new Error(
+        "Wire-only versioned contracts cannot become OpenAI schemas.",
+      );
     case "object":
       schema.properties = Object.fromEntries(
         Object.entries(node.fields).map((

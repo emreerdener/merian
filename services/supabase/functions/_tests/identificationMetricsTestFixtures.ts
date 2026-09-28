@@ -33,7 +33,9 @@ export function recordedMetricProvenance(
   pro = false,
   comparison?: "B",
 ) {
-  const authority: UserRequestAuthority = {
+  const authority: UserRequestAuthority & {
+    readonly permission: "google_gemini";
+  } = {
     kind: "user_request",
     userId: "synthetic-owner",
     permission: "google_gemini",

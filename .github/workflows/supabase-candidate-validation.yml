@@ -337,7 +337,8 @@ jobs:
         run: |
           deno test --frozen --no-prompt --deny-net --deny-env \
             --config supabase/functions/deno.json \
-            supabase/functions/_shared/ai/openai_test.ts
+            supabase/functions/_shared/ai/openai_test.ts \
+            supabase/functions/_shared/ai/openaiPhoto_test.ts
 
       - name: Test internal service credential boundary
         run: |
@@ -431,6 +432,9 @@ jobs:
 
       - name: Validate Supabase migration contracts
         run: bash supabase/scripts/validate_migration_contracts.sh
+
+      - name: Validate reviewed out-of-order migration recovery
+        run: bash supabase/scripts/test_migration_recovery_replay.sh
 
       - name: Start disposable database for privileged-routine validation
         env:

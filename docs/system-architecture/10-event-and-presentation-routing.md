@@ -578,15 +578,16 @@ without an equally explicit owner and teardown path.
 ## Reviewed Raw Combine Sink Owners
 
 Raw `.sink` is a retention and executor boundary. Production source is
-fail-closed to these five reviewed owners:
+fail-closed to these six reviewed owners:
 
-| Owner file                                                          | Purpose                                           | Required lifetime and actor contract                                                                                        |
-| ------------------------------------------------------------------- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `Core/Media/MediaPlaybackObservation.swift`                         | AVPlayer KVO publisher state                      | Stored optional cancellables; weak observation/player/item captures; main-queue delivery plus player/item generation checks |
-| `Core/Hardware/Utilities/Publisher+MainActor.swift`                 | The framework-to-main-actor bridge implementation | Returns the cancellable to its caller; main-queue delivery occurs before `MainActor.assumeIsolated`                         |
-| `Features/Capture/Shell/ViewModels/CaptureWorkspaceViewModel.swift` | App lifecycle invalidation                        | Stored set, weak owner capture, synchronous main-actor app-event delivery                                                   |
-| `Features/Scans/Library/ViewModels/ScansManager.swift`              | Targeted scan-index invalidation                  | Stored set, weak owner capture, synchronous main-actor app-event delivery                                                   |
-| `Features/Scans/Map/Services/PrivateScanMapStore.swift`             | Private-map invalidation                          | Stored set, weak owner capture, synchronous main-actor app-event delivery                                                   |
+| Owner file                                                          | Purpose                                           | Required lifetime and actor contract                                                                                                                                    |
+| ------------------------------------------------------------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Core/Media/MediaPlaybackObservation.swift`                         | AVPlayer KVO publisher state                      | Stored optional cancellables; weak observation/player/item captures; main-queue delivery plus player/item generation checks                                             |
+| `Core/Hardware/Utilities/Publisher+MainActor.swift`                 | The framework-to-main-actor bridge implementation | Returns the cancellable to its caller; main-queue delivery occurs before `MainActor.assumeIsolated`                                                                     |
+| `Features/Capture/Shell/ViewModels/CaptureWorkspaceViewModel.swift` | App lifecycle invalidation                        | Stored set, weak owner capture, synchronous main-actor app-event delivery                                                                                               |
+| `Features/Scans/Library/ViewModels/ScansManager.swift`              | Targeted scan-index invalidation                  | Stored set, weak owner capture, synchronous main-actor app-event delivery                                                                                               |
+| `Features/Scans/Map/Services/PrivateScanMapStore.swift`             | Private-map invalidation                          | Stored set, weak owner capture, synchronous main-actor app-event delivery                                                                                               |
+| `Features/Explore/Feed/ViewModels/ExploreFeedViewModel.swift`       | Account/report visibility invalidation            | Stored optional cancellable; weak owner capture; private main-actor producer with a cached read-only publisher; synchronous delivery through `MainActor.assumeIsolated` |
 
 SwiftUI `.onReceive` remains mounted-view-owned and framework producers use
 `sinkOnMainActor`. A new raw sink requires an explicit review of capture
@@ -708,3 +709,39 @@ Future feedback or routing changes must preserve all of these invariants:
 6. Prefer view-owned `.onReceive` or the reviewed `sinkOnMainActor` bridge. A
    new raw `.sink` must satisfy the lifetime/actor review and update the
    executable guard plus this document in the same change.
+
+## Update-required presentation
+
+`AppDIContainer` injects one observable `AppUpdateCoordinator`, owned by
+`App/Lifecycle`, into foreground failure, the offline queue, and historical
+sync. Its preference store records the installed release/build and affected
+operation (identification or history) per account. It stores no response bodies
+or observation content. Account cleanup removes the registered preference
+prefix. Appearance, foreground activation, and account changes reload the
+requirement; a process-local event is not required to recover it.
+
+`MerianApp` composes one `AppRootAlertHost` with injected actions and a single
+selected root alert. Its UIKit bridge presents above the existing sheet, waits
+behind other alerts or presentation transitions, and dismisses only its own
+alert. The sheet router retains its navigation state. Account-deletion recovery
+and unavailable local storage defer presentation; Apple-revocation cleanup takes
+priority, and the update alert waits until onboarding/consent is complete. The
+alert says **Update Naturebook**, explains that saved observations are safe, and
+offers **Update app** and **Not now**. It never names a provider or exposes
+protocol details. Dismissal suppresses repeated prompts for that account during
+the process, without clearing the persisted pause or restricting local library
+access. An explicit retry can reopen the prompt.
+
+**Update app** opens Naturebook's verified App Store listing,
+`https://apps.apple.com/app/id6760208440`. Opening or returning from the store
+does not prove an update was installed. Only a changed bundle release/build
+permits affected requests to retry. History gets a foreground retry after that
+change; paused identification scans remain available for explicit retry from
+Scans, preserving quota and completed-result ownership. No automatic model
+request burst is introduced.
+
+Before enabling a reader requirement, release and verify a compatible app at
+that listing, including the previous-release upgrade check. TestFlight and
+development installs still require their normal installation channel. This UX
+cannot be added to binaries that users already have installed; those retain
+their existing error behavior until updated.

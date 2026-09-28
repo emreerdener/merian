@@ -93,6 +93,7 @@ import SwiftData
     @ObservationIgnored var isCloudDeletionSyncing: Bool = false
     /// SwiftData context injected at app startup via `ScanRepository.configure(with:)`.
     var modelContext: ModelContext?
+    @ObservationIgnored var appUpdateCoordinator: AppUpdateCoordinator?
     /// Hardware constraints injected for tests/previews; production uses the shared orchestrator.
     @ObservationIgnored var hardwareOrchestrator = HardwareOrchestrator.shared
 
