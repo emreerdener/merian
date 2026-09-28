@@ -60,7 +60,7 @@ extension MerianNetworkClient {
             guard consent.hasCurrentRequiredConsent else { throw MerianError.aiConsentRequired }
             if recipient == .openAI {
                 guard consent.aiProcessingPermissions.ownerUserId == expectedAuthUserID,
-                      consent.aiProcessingPermissions.hasGrantedOpenAI,
+                      consent.aiProcessingPermissions.canProcessOpenAI,
                       !consent.aiProcessingPermissions.hasPendingOpenAIWithdrawal else {
                     throw MerianError.openAIConsentRequired
                 }

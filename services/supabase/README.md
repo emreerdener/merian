@@ -31,9 +31,11 @@ and shared owners by product area. The
 the current dependency map and proposed follow-up slices.
 
 The identification provider boundary is documented in
-[`functions/_shared/ai/`](functions/_shared/ai/README.md). The catalog still
-assigns Gemini. The exact OpenAI still-photo adapter is enabled in source for
-deployment before a separate catalog activation. The
+[`functions/_shared/ai/`](functions/_shared/ai/README.md). The beta catalog
+assigns still photos to `openai_photo_v1` / `gpt-6-sol` and retains Gemini for
+other complete-input profiles. Deploy the enabled adapter before the activation
+migration; beta eligibility defers a new OpenAI opt-in while preserving explicit
+withdrawal and ordinary required consent. The
 [local verification record](../../docs/rfcs/identification-foundation-verification.md)
 and [future-provider procedure](functions/_shared/ai/ADDING_PROVIDERS.md)
 distinguish completed source/local checks from candidate and production

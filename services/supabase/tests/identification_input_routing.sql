@@ -1,5 +1,13 @@
 \set ON_ERROR_STOP on
 BEGIN;
+-- This fixture verifies the supported Gemini/legacy routing configuration.
+-- Activation defaults are asserted independently by openai_photo_routing.sql.
+UPDATE internal.identification_provider_bindings
+SET provider = 'gemini', binding = 'gemini_baseline_v1',
+    processor_permission = 'google_gemini', provider_model = NULL,
+    minimum_identification_protocol = 0, minimum_client_protocol = 0
+WHERE operation = 'scan_identification' AND input_profile = 'multimodal_photo_v1';
+
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SELECT extensions.plan(1);
 DO $test$
@@ -194,15 +202,16 @@ BEGIN
         denied := TRUE;
     END;
     IF NOT denied THEN RAISE EXCEPTION 'missing account admitted'; END IF;
-    -- A Gemini grant cannot authorize OpenAI or produce a Gemini recovery code.
+    -- Beta processing without an OpenAI choice does not create a receipt.
+    PERFORM internal.require_identification_processor_consent(test_user_id, 'openai');
     denied := FALSE;
     BEGIN
-        PERFORM internal.require_identification_processor_consent(test_user_id, 'openai');
+        PERFORM internal.require_current_ai_consent(test_user_id, 'openai');
     EXCEPTION WHEN SQLSTATE 'P0001' THEN
-        IF SQLERRM <> 'ai_openai_consent_required' THEN RAISE; END IF;
+        IF SQLERRM <> 'ai_consent_required' THEN RAISE; END IF;
         denied := TRUE;
     END;
-    IF NOT denied THEN RAISE EXCEPTION 'Gemini grant authorized OpenAI'; END IF;
+    IF NOT denied THEN RAISE EXCEPTION 'beta eligibility fabricated an OpenAI grant'; END IF;
     PERFORM internal.require_identification_processor_consent(test_user_id, 'google_gemini');
     UPDATE public.users SET subscription_tier = 'pro' , subscription_expires_at = NULL WHERE id = test_user_id;
     IF EXISTS (SELECT 1 FROM internal.identification_provider_bindings WHERE provider <> 'gemini' OR processor_permission <> 'google_gemini') THEN

@@ -121,19 +121,18 @@ observation jobs retain user authority even when a service invokes the worker.
 
 The primary handler also requires a qualified `multimodalResultPolicy.ts`
 profile before commitment. It binds Gemini candidate thresholds and native
-media-safety signals to the admitted snapshot, and accepts the exact dormant
-OpenAI photo profile with unqualified confidence and native moderation. A new
+media-safety signals to the admitted snapshot, and accepts the exact OpenAI
+photo profile with unqualified confidence and native moderation. A new
 adapter/binding cannot bypass that boundary. OpenAI's evaluation score is
 unqualified, and absent Gemini ratings provide no OpenAI media-safety verdict.
 See the
 [photo integration plan](../../../../../docs/rfcs/identification-openai-photo-integration-2026-09-27.md)
-for slice status. The dormant OpenAI photo adapter now requires pinned inline
-moderation and has V2 provenance readers. Its exact result policy,
-capability-aware admission and promotion are connected to the enabled
-composition. Existing assignment rows still choose Gemini; deploy the enabled
-bundle before the separate photo assignment change. The quota-policy model is
-independent of the immutable provider execution model, so assigning photos
-cannot reroute audio or frames.
+for slice status. The OpenAI photo adapter requires pinned inline moderation and
+has V2 provenance readers. Its exact result policy, capability-aware admission
+and promotion are connected to the enabled composition. The beta catalog assigns
+still photos to this tuple; deploy the enabled bundle before the separate photo
+assignment migration. The quota-policy model is independent of the immutable
+provider execution model, so assigning photos cannot reroute audio or frames.
 
 ## Complete disclosure, result, and accounting work
 
@@ -145,7 +144,12 @@ deny/revoke/account-switch and causal synchronization behavior. Review and
 publish the intended disclosure/purpose before enabling collection; a material
 copy/purpose change requires a new version and fresh action. Complete
 provider-aware inference admission and recovery with the same consent owner; do
-not relabel historical Gemini receipts.
+not relabel historical Gemini receipts. The current owner-authorized beta photo
+policy separately allows processing without a new opt-in and still honors an
+explicit all-version withdrawal. It does not convert existing Gemini receipts
+into OpenAI grants; the strict OpenAI receipt validator remains unchanged. See
+the
+[bounded beta decision](../../../../../docs/release-evidence/openai-beta-photo-activation-2026-09-28.md).
 
 Qualify confidence interpretation for every affected consumer: candidate bands,
 history, queued results, older clients, public projections, SQL decisions, and

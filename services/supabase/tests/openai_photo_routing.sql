@@ -4,6 +4,7 @@ CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SELECT extensions.plan(1);
 DO $test$
 DECLARE
+    withdrawal_id UUID := extensions.gen_random_uuid();
     test_user_id UUID := '00000000-0000-0000-0000-00000000b941';
     test_request_id UUID;
     replay_id UUID;
@@ -138,15 +139,21 @@ BEGIN
     );
 
 
+    IF NOT EXISTS (SELECT 1 FROM internal.identification_provider_bindings
+        WHERE operation = 'scan_identification' AND input_profile = 'multimodal_photo_v1')
+       OR EXISTS (SELECT 1 FROM internal.identification_provider_bindings
+        WHERE operation = 'scan_identification' AND input_profile = 'multimodal_photo_v1'
+        AND (provider <> 'openai' OR binding <> 'openai_photo_v1' OR processor_permission <> 'openai'
+            OR provider_model IS DISTINCT FROM 'gpt-6-sol' OR minimum_identification_protocol <> 4)) THEN
+        RAISE EXCEPTION 'not every photo plan and policy selects the exact OpenAI binding';
+    END IF;
     IF EXISTS (SELECT 1 FROM internal.identification_provider_bindings
-        WHERE provider <> 'gemini' OR provider_model IS NOT NULL OR minimum_identification_protocol <> 0) THEN
-        RAISE EXCEPTION 'dormant migration changed routing';
+        WHERE NOT (operation = 'scan_identification' AND input_profile = 'multimodal_photo_v1')
+        AND (provider <> 'gemini' OR provider_model IS NOT NULL OR minimum_identification_protocol <> 0)) THEN
+        RAISE EXCEPTION 'photo activation changed another input profile';
     END IF;
     UPDATE public.users SET subscription_tier = 'pro', subscription_expires_at = NULL WHERE id = test_user_id;
     UPDATE internal.entitlement_rollout_config SET entitlement_mode = 'complimentary', required_client_protocol = 3 WHERE config_key = 'current';
-    UPDATE internal.identification_provider_bindings SET provider='openai', binding='openai_photo_v1',
-        processor_permission='openai', provider_model='gpt-6-sol', minimum_identification_protocol=4
-        WHERE effective_plan='pro_paid' AND input_profile='multimodal_photo_v1';
     -- Enforced tuples cannot select audio/video or mismatch model/recipient.
     FOREACH column_name IN ARRAY ARRAY['provider_model','processor_permission','input_profile','minimum_identification_protocol'] LOOP
         denied := FALSE;
@@ -166,10 +173,35 @@ BEGIN
     SELECT * INTO STRICT preview FROM public.get_my_identification_preflight('scan_identification','multimodal_photo_v1',FALSE,test_request_id,3);
     IF preview.decision <> 'client_update_required' THEN RAISE EXCEPTION 'old preview admitted OpenAI'; END IF;
     SELECT * INTO STRICT preview FROM public.get_my_identification_preflight('scan_identification','multimodal_photo_v1',FALSE,test_request_id,3,4);
-    IF preview.decision <> 'permission_required' OR preview.minimum_identification_protocol <> 4 OR preview.minimum_client_protocol <> 3 THEN
-        RAISE EXCEPTION 'capability preview bypassed consent or mixed protocols';
+    IF preview.decision <> 'ready' OR preview.processor_permission <> 'openai'
+       OR preview.minimum_identification_protocol <> 4 OR preview.minimum_client_protocol <> 3 THEN
+        RAISE EXCEPTION 'beta photo without opt-in not ready or protocols conflated';
     END IF;
-    -- Missing/wrong capability, recipient drift and missing permission all roll back quota.
+    denied := FALSE;
+    BEGIN
+        PERFORM internal.require_current_ai_consent(test_user_id, 'openai');
+    EXCEPTION WHEN SQLSTATE 'P0001' THEN
+        IF SQLERRM <> 'ai_consent_required' THEN RAISE; END IF; denied := TRUE;
+    END;
+    IF NOT denied THEN RAISE EXCEPTION 'beta eligibility manufactured strict OpenAI consent'; END IF;
+    SELECT * INTO STRICT admitted FROM public.reserve_identification_quota(test_user_id,'scan_identification',test_request_id,
+        pg_catalog.REPEAT('b',64),test_request_id,FALSE,3,FALSE,'multimodal_photo_v1','openai',4);
+    IF admitted.provider <> 'openai' OR admitted.model <> 'gpt-6-sol' THEN
+        RAISE EXCEPTION 'beta photo without opt-in did not admit exact OpenAI model';
+    END IF;
+    PERFORM public.finalize_ai_quota_reservation(admitted.reservation_id,test_user_id,admitted.lease_token,'refunded');
+    IF EXISTS (SELECT 1 FROM public.user_ai_consent_events WHERE user_id = test_user_id AND provider = 'openai') THEN
+        RAISE EXCEPTION 'beta admission wrote consent evidence';
+    END IF;
+    -- A real withdrawal, including an older disclosure, closes beta admission.
+    PERFORM pg_catalog.SET_CONFIG('role','authenticated',TRUE);
+    PERFORM public.append_user_openai_consent_event(withdrawal_id,'2026-09-25','revoked',NOW(),
+        'Synthetic disclosure','Synthetic withdrawal','ios','test','1',NULL);
+    PERFORM pg_catalog.SET_CONFIG('role','none',TRUE);
+    test_request_id := extensions.gen_random_uuid();
+    SELECT * INTO STRICT preview FROM public.get_my_identification_preflight('scan_identification','multimodal_photo_v1',FALSE,test_request_id,3,4);
+    IF preview.decision <> 'permission_required' THEN RAISE EXCEPTION 'withdrawal did not close beta admission'; END IF;
+    -- Missing/wrong capability, recipient drift and explicit withdrawal all roll back quota.
     SELECT pg_catalog.JSONB_BUILD_ARRAY(
         (SELECT COUNT(*) FROM internal.ai_quota_reservations),
         (SELECT COALESCE(SUM(request_count),0) FROM internal.ai_quota_counters),
@@ -204,7 +236,7 @@ BEGIN
     IF before_counts IS DISTINCT FROM after_counts THEN RAISE EXCEPTION 'denial mutated quota'; END IF;
     PERFORM pg_catalog.SET_CONFIG('role','authenticated',TRUE);
     PERFORM public.append_user_openai_consent_event(extensions.gen_random_uuid(),'2026-09-26','granted',NOW(),
-        'Synthetic disclosure','Synthetic choice','ios','test','1',NULL);
+        'Synthetic disclosure','Synthetic choice','ios','test','1',withdrawal_id);
     PERFORM pg_catalog.SET_CONFIG('role','none',TRUE);
     SELECT * INTO STRICT preview FROM public.get_my_identification_preflight('scan_identification','multimodal_photo_v1',FALSE,test_request_id,3,4);
     IF preview.decision <> 'ready' THEN RAISE EXCEPTION 'exact capability and consent not recognized'; END IF;

@@ -939,8 +939,10 @@ policy. Durable generation replacement prevents stale writes.
 
 The failure publishes **Permission needed / Scan saved**, stays outside the
 network circuit, and does not reopen Gemini onboarding. Gemini approval never
-resumes an OpenAI-paused row. OpenAI collection remains disabled; activation
-work is recorded in the
+resumes an OpenAI-paused row. During beta, an absent OpenAI choice is eligible
+without a grant; an explicit withdrawal still pauses processing. Settings and
+in-app review can persist explicit changes, with a separate owned, eligible
+retry afterward. Current policy is recorded in the
 [canonical API contract](../../../../../docs/backend-and-data/05-api-contracts.md#independent-openai-consent-evidence).
 
 Identification now checks the app-assigned recipient before sending its

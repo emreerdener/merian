@@ -1,7 +1,7 @@
 import Foundation
 import Observation
 
-/// Optional processor permissions, not authorization to dispatch an AI request.
+/// Processor choices and beta eligibility; server admission still owns dispatch.
 /// ConsentManager retains the required Gemini onboarding and inference gate.
 @MainActor
 @Observable
@@ -17,9 +17,17 @@ final class AIProcessingConsentCoordinator {
     private(set) var hasOpenAIGrantToWithdraw = false
     private(set) var hasOpenAIHistory = false
     private(set) var hasPendingOpenAIWithdrawal = false
+    private(set) var isOpenAIBetaEligible = false
     let isOpenAICollectionEnabled: Bool
+    let isOpenAIBetaOptInDeferred: Bool
 
-    var showsOpenAIChoice: Bool { isOpenAICollectionEnabled || hasOpenAIHistory }
+    var canProcessOpenAI: Bool {
+        hasCurrentAccount && (hasGrantedOpenAI || isOpenAIBetaEligible)
+    }
+
+    var showsOpenAIChoice: Bool {
+        isOpenAICollectionEnabled || isOpenAIBetaOptInDeferred || hasOpenAIHistory
+    }
 
     var hasCurrentAccount: Bool {
         guard let ownerUserId, let context = contextProvider() else { return false }
@@ -30,7 +38,7 @@ final class AIProcessingConsentCoordinator {
 
     var canManageOpenAIPermission: Bool {
         hasCurrentAccount
-            && (isOpenAICollectionEnabled || hasOpenAIGrantToWithdraw || hasPendingOpenAIWithdrawal)
+            && (isOpenAICollectionEnabled || isOpenAIBetaOptInDeferred || hasOpenAIGrantToWithdraw || hasPendingOpenAIWithdrawal)
     }
 
     @ObservationIgnored private let repository: ConsentLedgerRepository
@@ -42,11 +50,13 @@ final class AIProcessingConsentCoordinator {
     init(
         repository: ConsentLedgerRepository,
         mutationService: ConsentMutationService,
-        isOpenAICollectionEnabled: Bool = ConsentPolicy.openAIConsentCollectionEnabled
+        isOpenAICollectionEnabled: Bool = ConsentPolicy.openAIConsentCollectionEnabled,
+        isOpenAIBetaOptInDeferred: Bool = ConsentPolicy.openAIBetaOptInDeferred
     ) {
         self.repository = repository
         self.mutationService = mutationService
         self.isOpenAICollectionEnabled = isOpenAICollectionEnabled
+        self.isOpenAIBetaOptInDeferred = isOpenAIBetaOptInDeferred
     }
 
     func setHandlers(
@@ -63,10 +73,15 @@ final class AIProcessingConsentCoordinator {
             $0.ownerUserId == ownerUserId && $0.provider == ConsentPolicy.openAIProvider
         }
         hasPendingOpenAIWithdrawal = failedWithdrawalUserIds.contains { $0 == ownerUserId }
-        hasOpenAIGrantToWithdraw =
-            ConsentAuthorityPolicy.currentAIConsentStreamHead(
-                ownerUserId: ownerUserId, processor: .openAI, in: repository.ledger
-            )?.eventKind == .granted
+        let streamHead = ConsentAuthorityPolicy.currentAIConsentStreamHead(
+            ownerUserId: ownerUserId, processor: .openAI, in: repository.ledger
+        )
+        hasOpenAIGrantToWithdraw = streamHead?.eventKind == .granted
+        // Eligibility is separate from the receipt projection. Never create a
+        // grant for an absent stream, and honor revocation across all versions.
+        isOpenAIBetaEligible = isOpenAIBetaOptInDeferred && ownerUserId != nil
+            && !repository.isLedgerStorageUncertain && !hasPendingOpenAIWithdrawal
+            && streamHead?.eventKind != .revoked
         hasGrantedOpenAI =
             !repository.isLedgerStorageUncertain
             && !hasPendingOpenAIWithdrawal

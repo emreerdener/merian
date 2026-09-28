@@ -218,13 +218,13 @@ diagnostics or content. It makes no separate moderation request and performs no
 automatic retry. Added latency, actual billing and safety effectiveness remain
 unqualified. Offline fixtures establish control flow only. The production
 composition is enabled in source ahead of the separate photo assignment
-activation; all current catalog rows still choose Gemini. Preparation failures
-refund unused leases. The exact admission/result path remains connected: only a
-matching allowed native disposition can reach media promotion, without Gemini
-ratings or strikes. Historical-reader compatibility, end-to-end qualification,
-accounting completeness and explicit activation remain pending. Video-frame
-support is planned as a separate visual binding; moderation of five submitted
-snapshots cannot assert safety of every instant of the playback clip.
+activation; the beta catalog selects OpenAI only for still photos. Preparation
+failures refund unused leases. The exact admission/result path remains
+connected: only a matching allowed native disposition can reach media promotion,
+without Gemini ratings or strikes. Historical-reader compatibility, end-to-end
+qualification, accounting completeness and explicit activation remain pending.
+Video-frame support is planned as a separate visual binding; moderation of five
+submitted snapshots cannot assert safety of every instant of the playback clip.
 
 ## Gemini Safety Ratings Evaluation
 

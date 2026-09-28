@@ -26,13 +26,26 @@ workflow pushes migrations before Function deployment; combining first-time
 adapter enablement and assignment activation would expose the new assignment to
 an older disabled Function bundle.
 
-The later activation must change only still-photo assignments, preserving quota
+Migration `20260928165412_activate_openai_beta_photo_identification.sql` is the
+second deployment. It changes only still-photo assignments, preserving quota
 policy keys, native moderation, original-attempt recovery, result readers, and
-separate audio/video/text assignments. Provider credentials never select a
-route. The
+separate audio/video/text assignments. The owner-authorized beta policy defers
+new OpenAI opt-in for accounts without a choice; explicit withdrawal and
+ordinary required consent remain authoritative. No consent receipts are created
+by the migration. The matching native build uses the same eligibility rule;
+older binaries retain local checks until updated. Provider credentials never
+select a route. The
 [photo rollout](../rfcs/identification-openai-photo-rollout-2026-09-28.md)
 records the beta scope and remaining source/runtime evidence. This staged
-adapter release alone makes no OpenAI identification request.
+adapter release alone makes no OpenAI identification request. After the second
+deployment, retain the exact SHA, target, successful deployment and catalog
+evidence. For rollback, use a reviewed forward migration restoring only photo
+rows to `gemini` / `gemini_baseline_v1` / `google_gemini`, NULL provider model
+and identification minimum 0; preserve quota keys, stored attempts and V2
+readers. Never reinterpret an already committed OpenAI attempt or automatically
+resubmit it to Gemini. The
+[beta activation record](../release-evidence/openai-beta-photo-activation-2026-09-28.md)
+owns current evidence and full-release gaps.
 
 ## Legacy Location-Label Repair
 

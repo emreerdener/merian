@@ -3,9 +3,9 @@
 All four identification routes (`identify-multimodal`, `identify-describe`,
 `identify`, and `audio-spec`) and the biological overview, lookalike, and
 group-tag helpers use this boundary. Their user enrichment and claimed
-public-job callers retain separate admission paths. All current catalog
-assignments select Gemini; the enabled OpenAI photo composition awaits a
-separate assignment activation. See the
+public-job callers retain separate admission paths. The beta catalog selects
+OpenAI only for still-photo identification; audio, video snapshots, mixed
+observations, text-only, legacy routes and enrichment remain Gemini. See the
 [slice tracker](../../../../../docs/rfcs/identification-foundation-srd.md#implementation-slices).
 
 ## Ownership
@@ -57,11 +57,11 @@ separate assignment activation. See the
 - `multimodalResultPolicy.ts` independently qualifies primary result handling
   before quota commitment. It derives the normalization threshold from the
   admitted snapshot and exposes Gemini safety signals only for a matching
-  supported profile. The exact dormant OpenAI photo profile uses unqualified
-  confidence and requires its own allowed native moderation before promotion.
-  Unknown policies, including OpenAI evaluation snapshots, cannot invoke or
-  reach durable media promotion. Adapter registration alone cannot qualify
-  confidence or safety; see the
+  supported profile. The exact OpenAI photo profile uses unqualified confidence
+  and requires its own allowed native moderation before promotion. Unknown
+  policies, including OpenAI evaluation snapshots, cannot invoke or reach
+  durable media promotion. Adapter registration alone cannot qualify confidence
+  or safety; see the
   [photo integration plan](../../../../../docs/rfcs/identification-openai-photo-integration-2026-09-27.md).
 - `execution.ts` permits one invocation per prepared attempt and records its
   duration. It owns no quota, persistence, retry, failover, or cancellation
@@ -157,17 +157,18 @@ checks the frozen prompt/schema digests. Text-only, video and audio observations
 are unsupported. The
 [v4 experiment contract](../../../scripts/identification_evaluation/README.md#openai-explicit-null-candidate)
 compares this candidate with the unchanged OpenAI baseline; it does not select a
-production adapter or alter the dormant photo binding.
+production adapter or alter the photo binding.
 
-`openaiPhoto.ts` separately prepares the dormant `openai_photo_v1` profile.
+`openaiPhoto.ts` separately prepares the production `openai_photo_v1` profile.
 `createOpenAIPhotoAdapter` reuses the bounded transport, adding pinned inline
 input/output moderation to one request and releasing a draft only after its
 native safety policy allows it. Moderation rejection remains a refusal even if
 generated JSON is invalid. Missing evidence cannot become Gemini safety ratings.
 The registry, capability-aware admission and media-promotion path support this
-exact binding; no catalog row selects it, and the source gate independently
-blocks dispatch. Saved usage retains native output/cache-write counts and
-reported cached tokens, without a Gemini tariff; see the
+exact binding. Beta catalog rows select it only for still photos; other profiles
+remain Gemini. The source composition must be deployed before catalog
+activation. Saved usage retains native output/cache-write counts and reported
+cached tokens, without a Gemini tariff; see the
 [safety contract](../../../../../docs/development-guides/10-safety-and-moderation.md#dormant-openai-photo-policy).
 
 ## Scoped audio prompt authority
@@ -414,12 +415,12 @@ it measures neither provider latency nor end-to-end product timing.
 Follow [Adding a provider later](ADDING_PROVIDERS.md) for exact input/task
 qualification, common-contract extensions, database/Edge admission, disclosure,
 confidence, usage, cache, and activation work. The app owns a private
-complete-input routing catalog, currently seeded only with Gemini. There is no
-end-user provider selector or percentage-routing control. The OpenAI adapter is
-available to explicitly gated evaluation; the separate production photo branch
-is enabled ahead of catalog activation. Ordered video frames have their own
-input profile and a planned separately qualified OpenAI binding; audio is never
-dropped to fit a route.
+complete-input routing catalog: beta still photos select OpenAI and other
+profiles select Gemini. There is no end-user provider selector or
+percentage-routing control. Evaluation and the production photo binding retain
+separate identities. Deploy the enabled adapter before the activation migration.
+Ordered video frames have their own input profile and a planned separately
+qualified OpenAI binding; audio is never dropped to fit a route.
 
 ## Metric interpretation
 

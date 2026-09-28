@@ -170,11 +170,16 @@ envelopes without that optional metadata remain valid. The normative contract is
 
 Each provider-owning attempt makes one primary identification call through
 [`_shared/ai/`](../_shared/ai/README.md). Completed replays make none. The fixed
-Gemini adapter owns the native SDK dispatch. The model comes from the atomic
-`scan_identification` database policy; the current policy is:
+Gemini adapter owns its native SDK dispatch, while the exact OpenAI photo
+binding uses Responses with inline moderation. The atomic `scan_identification`
+policy retains these quota-model keys:
 
 - Free: `gemini-2.5-flash`
 - Pro: `gemini-2.5-pro`
+
+Still-photo beta execution uses the separate `provider_model` value `gpt-6-sol`
+for every plan, preserving those quota keys. Other complete-input profiles
+retain their Gemini execution models. No caller chooses a provider or model.
 
 The same transaction resolves the durable plan and entitlement version, applies
 the plan's UTC-day scan ceiling, and consumes the shared per-user/IP minute
@@ -210,9 +215,11 @@ existing pre-invocation refund/failure path. OpenAI's evaluation policy remains
 unqualified and cannot reach provider invocation or media promotion through this
 route. The exact photo profile separately checks native OpenAI moderation, uses
 unqualified confidence, and promotes allowed media without Gemini ratings or
-strikes. Its source composition is enabled ahead of a separate catalog
-activation. All current assignments remain Gemini; only an admitted exact OpenAI
-photo assignment can read the credential and dispatch.
+strikes. Its source composition is enabled before beta catalog activation. The
+catalog selects OpenAI only for still photos with identification protocol 4.
+Only an admitted exact OpenAI photo assignment can read the credential and
+dispatch. Beta eligibility does not require a new opt-in, but explicit
+withdrawals remain blocking; consent evidence is never synthesized.
 
 Native callers carry identification capability 4 in a separate header, leaving
 entitlement protocol 3 unchanged. Saved usage preserves reported cached tokens
@@ -729,7 +736,7 @@ legacy scan trigger from recording the call again.
 The accounting migration preceded the bundle that introduced this accounting
 contract. For OpenAI traffic activation, deploy and verify the enabled Function
 bundle before a separate photo assignment migration: deployment applies
-migrations before Functions. Current assignments remain Gemini. The completed
-benchmark is unchanged; no paid experiment is run by this infrastructure. See
-the
+migrations before Functions. Beta catalog assignments select OpenAI only for
+still photos. The completed benchmark is unchanged; no paid experiment is run by
+this infrastructure. See the
 [database/API ownership and pricing contract](../../../../docs/backend-and-data/04-database-schema.md#primary-identification-attempt-accounting).

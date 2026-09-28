@@ -293,7 +293,7 @@ extension OfflineQueueManager {
         if scan.queueLastErrorCode == "ai_openai_consent_required"
             || job?.lastErrorCode == "ai_openai_consent_required" {
             let permission = openAIPermission ?? AppDIContainer.shared.consentManager.aiProcessingPermissions
-            guard permission.hasCurrentAccount, permission.hasGrantedOpenAI,
+            guard permission.hasCurrentAccount, permission.canProcessOpenAI,
                 let accountId = permission.ownerUserId,
                 ownsOpenAIConsentPausedScan(scanId: scanId, accountId: accountId)
             else { return false }
