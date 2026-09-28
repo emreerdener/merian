@@ -43,8 +43,14 @@ evaluates the deterministic `App/Presentation/AppRootPresentation.swift` policy
 before mounting either the onboarding flow or Capture workspace:
 
 1. Incomplete onboarding presents `OnboardingView` immediately.
-2. Completed onboarding plus current required consent presents
-   `CaptureWorkspaceView`.
+2. Completed onboarding plus current required consent mounts
+   `CaptureWorkspaceView`. Eligible existing installations use What’s New as its
+   initial root-sheet destination, so the camera workspace remains mounted
+   throughout announcement dismissal. Fresh installs skip the announcement. The
+   [in-app changelog contract](./12-in-app-changelog.md#whats-new-sheet) owns
+   acknowledgement, recovery deferral, Settings replay, and the subsequent
+   Explore preference. Authorized lifecycle work and queued app routes retain
+   their existing owners.
 3. Completed onboarding plus missing local evidence presents
    `ConsentRestorationView` while `ConsentManager` is awaiting the initial auth
    result, waiting for an expired cached session to refresh, reconciling the

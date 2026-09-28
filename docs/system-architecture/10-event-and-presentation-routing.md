@@ -284,6 +284,12 @@ immediately close their sheet.
 
 ## Single Root Presentation Host
 
+What’s New uses the same mounted Workspace root sheet host as other
+presentations. It never replaces Workspace with a placeholder root. Its exact
+dismissal callback reports the destination for App-owned acknowledgement; queued
+routes take precedence over the one-shot Explore launch preference. See the
+[announcement contract](../development-guides/12-in-app-changelog.md#whats-new-sheet).
+
 `CameraSheetRouter` owns one `.sheet(item:)` keyed by
 `CaptureWorkspaceViewModel.PresentedRoute`. Paywall, Insight, Scans, Profile,
 Explore, achievement detail, and the post-identification notification prompt all
@@ -572,15 +578,16 @@ without an equally explicit owner and teardown path.
 ## Reviewed Raw Combine Sink Owners
 
 Raw `.sink` is a retention and executor boundary. Production source is
-fail-closed to these five reviewed owners:
+fail-closed to these six reviewed owners:
 
-| Owner file                                                          | Purpose                                           | Required lifetime and actor contract                                                                                        |
-| ------------------------------------------------------------------- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `Core/Media/MediaPlaybackObservation.swift`                         | AVPlayer KVO publisher state                      | Stored optional cancellables; weak observation/player/item captures; main-queue delivery plus player/item generation checks |
-| `Core/Hardware/Utilities/Publisher+MainActor.swift`                 | The framework-to-main-actor bridge implementation | Returns the cancellable to its caller; main-queue delivery occurs before `MainActor.assumeIsolated`                         |
-| `Features/Capture/Shell/ViewModels/CaptureWorkspaceViewModel.swift` | App lifecycle invalidation                        | Stored set, weak owner capture, synchronous main-actor app-event delivery                                                   |
-| `Features/Scans/Library/ViewModels/ScansManager.swift`              | Targeted scan-index invalidation                  | Stored set, weak owner capture, synchronous main-actor app-event delivery                                                   |
-| `Features/Scans/Map/Services/PrivateScanMapStore.swift`             | Private-map invalidation                          | Stored set, weak owner capture, synchronous main-actor app-event delivery                                                   |
+| Owner file                                                          | Purpose                                           | Required lifetime and actor contract                                                                                                                                    |
+| ------------------------------------------------------------------- | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Core/Media/MediaPlaybackObservation.swift`                         | AVPlayer KVO publisher state                      | Stored optional cancellables; weak observation/player/item captures; main-queue delivery plus player/item generation checks                                             |
+| `Core/Hardware/Utilities/Publisher+MainActor.swift`                 | The framework-to-main-actor bridge implementation | Returns the cancellable to its caller; main-queue delivery occurs before `MainActor.assumeIsolated`                                                                     |
+| `Features/Capture/Shell/ViewModels/CaptureWorkspaceViewModel.swift` | App lifecycle invalidation                        | Stored set, weak owner capture, synchronous main-actor app-event delivery                                                                                               |
+| `Features/Scans/Library/ViewModels/ScansManager.swift`              | Targeted scan-index invalidation                  | Stored set, weak owner capture, synchronous main-actor app-event delivery                                                                                               |
+| `Features/Scans/Map/Services/PrivateScanMapStore.swift`             | Private-map invalidation                          | Stored set, weak owner capture, synchronous main-actor app-event delivery                                                                                               |
+| `Features/Explore/Feed/ViewModels/ExploreFeedViewModel.swift`       | Account/report visibility invalidation            | Stored optional cancellable; weak owner capture; private main-actor producer with a cached read-only publisher; synchronous delivery through `MainActor.assumeIsolated` |
 
 SwiftUI `.onReceive` remains mounted-view-owned and framework producers use
 `sinkOnMainActor`. A new raw sink requires an explicit review of capture

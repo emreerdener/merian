@@ -10,9 +10,9 @@ struct CaptureWorkspaceView: View {
     @Environment(SpeechManager.self) private var speechManager
     @Environment(AudioCaptureManager.self) private var audioCaptureManager
     @Environment(\.modelContext) private var modelContext
-    @Environment(\.colorScheme) private var colorScheme
 
     // MARK: - View Model & State
+    private let showsWhatsNewOnFreshLaunch: Bool
     @State private var viewModel: CaptureWorkspaceViewModel
 
     @State private var coordinator = CaptureActionCoordinator()
@@ -31,6 +31,12 @@ struct CaptureWorkspaceView: View {
     @State private var describePromptViewModel = DescribePromptViewModel()
     @State private var isDescribeQuestionsSheetPresented = false
     @State private var isKeyboardVisible: Bool = false
+    @State private var stagedToolbarHeight: CGFloat = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var chromeLayout: CaptureChromeLayout {
+        CaptureChromeLayout(toolbarHeight: viewModel.shouldPresentActiveScanToolbar ? stagedToolbarHeight : 0)
+    }
     @State private var captureGoalIndicatorExpansionState:
         CaptureGoalIndicatorExpansionState = .collapsed
 
@@ -64,12 +70,17 @@ struct CaptureWorkspaceView: View {
     @MainActor
     init(
         appSettings: AppSettings? = nil,
-        opensExploreOnFreshLaunch: Bool = false
+        opensExploreOnFreshLaunch: Bool = false,
+        showsWhatsNewOnFreshLaunch: Bool = false
     ) {
+        self.showsWhatsNewOnFreshLaunch = showsWhatsNewOnFreshLaunch
         let raw = (appSettings ?? AppSettings.shared).captureModeOrderRaw
         let mode = CaptureMode.userOrder(from: raw).first ?? .visual
         _viewModel = State(initialValue: CaptureWorkspaceViewModel(
-            initialActiveSheet: opensExploreOnFreshLaunch ? .explore : nil
+            initialActiveSheet: showsWhatsNewOnFreshLaunch
+                ? .whatsNew : (opensExploreOnFreshLaunch ? .explore : nil),
+            opensExploreAfterWhatsNew: showsWhatsNewOnFreshLaunch
+                && opensExploreOnFreshLaunch
         ))
         _captureMode = State(initialValue: mode)
         _scrollPageMode = State(initialValue: mode)
@@ -101,6 +112,17 @@ struct CaptureWorkspaceView: View {
     // MARK: - View Hierarchy
     var body: some View {
         workspaceContent
+            .environment(\.captureChromeLayout, chromeLayout)
+            .onPreferenceChange(CaptureToolbarHeightKey.self) { height in
+                guard height.isFinite, abs(stagedToolbarHeight - height) > 0.5 else { return }
+                stagedToolbarHeight = height
+            }
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: chromeLayout)
+            .onChange(of: showsWhatsNewOnFreshLaunch) { _, isEligible in
+                if !isEligible, viewModel.activeSheet == .whatsNew {
+                    viewModel.dismissActivePresentation()
+                }
+            }
             .modifier(CaptureWorkspaceOrchestrationModifier(
                 viewModel: viewModel,
                 coordinator: coordinator,
@@ -163,6 +185,7 @@ struct CaptureWorkspaceView: View {
                                                 audioHintsEnabled:
                                                     appSettings.audioHintsEnabled
                                             ),
+                                            showsIdlePrompt: viewModel.canUseCaptureControls(in: .audio),
                                             dependencies: .live(
                                                 audioCaptureManager:
                                                     audioCaptureManager
@@ -236,11 +259,16 @@ struct CaptureWorkspaceView: View {
                         .onAppear {
                             // Measure the composing zone: the open area between the mode toggle
                             // (top overlay, 16pt padding + 64pt height) and the capture button row.
-                            // Crop framing intentionally keeps a 16pt margin above the control
-                            // bar's 124pt bottom inset; update this geometry if the fixed
-                            // CaptureControlBarLayout dimensions change.
+                            // Crop framing keeps a 16pt margin above the control row,
+                            // including clearance for an expanded staging tray.
                             // proxy uses the full-screen frame (.ignoresSafeArea on the GeometryReader)
                             // so safe-area insets must be accounted for explicitly.
+                            updateComposingZoneVerticalCenter(from: proxy)
+                        }
+                        .onChange(of: chromeLayout) { _, _ in
+                            updateComposingZoneVerticalCenter(from: proxy)
+                        }
+                        .onChange(of: proxy.size) { _, _ in
                             updateComposingZoneVerticalCenter(from: proxy)
                         }
                     }
@@ -324,8 +352,7 @@ struct CaptureWorkspaceView: View {
                 }
 
                 // MARK: Fixed Overlay — Capture Controls (bottom, independent of toolbar)
-                // Pinned to a fixed absolute bottom offset so toolbar height changes
-                // (MainTabBar vs ActiveScanToolbar) never shift the shutter row.
+                // Preserve the standard offset unless staging needs additional clearance.
                 if viewModel.canUseCaptureControls(in: captureMode) {
                     CaptureControlBar(
                         viewModel: viewModel,
@@ -382,12 +409,11 @@ struct CaptureWorkspaceView: View {
                             onVideoTap: { index in stagedVideoReviewIndex = index },
                             dependencies: viewModel.dependencies.stagingToolbar
                         )
-                        .environment(\.colorScheme, captureMode == .describe ? colorScheme : .dark)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                     }
                 }
                 .animation(
-                    .spring(response: 0.35, dampingFraction: 0.8),
+                    reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.8),
                     value: viewModel.shouldPresentActiveScanToolbar
                 )
                 .opacity(shouldHideBottomChrome ? 0 : 1)
@@ -462,7 +488,7 @@ struct CaptureWorkspaceView: View {
             + 16
             + CaptureModeSelectorStyle.controlHeight
         let captureButtonTop = proxy.size.height
-            - CaptureControlBarLayout.reservedHeight
+            - chromeLayout.reservedHeight
             - 16
         let verticalCenter = ((toggleBottom + captureButtonTop) / 2) / proxy.size.height
         guard verticalCenter.isFinite else { return }

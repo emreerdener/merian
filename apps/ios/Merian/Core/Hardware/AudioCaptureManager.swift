@@ -6,6 +6,7 @@ import Foundation
 enum AudioCaptureError: LocalizedError {
     case microphonePermissionDenied
     case hardwareSampleRateZero
+    case recordingBusy
 
     var errorDescription: String? {
         switch self {
@@ -13,6 +14,8 @@ enum AudioCaptureError: LocalizedError {
             return "Microphone access required. Check device settings."
         case .hardwareSampleRateZero:
             return "Audio hardware unavailable."
+        case .recordingBusy:
+            return "Finish your current recording before starting another."
         }
     }
 }
@@ -32,11 +35,9 @@ final class AudioCaptureManager {
     private(set) var recordingProgress: Double = 0
     private(set) var spectrogramColumns: [SpectrogramColumn] = []
     private(set) var snrLevel: SNRLevel = .clear
-    /// Non-nil after the user confirms in review, or after a max-duration recording auto-submits.
-    /// Setting this triggers `onChange(of: audioFilePath)` in CaptureWorkspaceView → submitAudio.
+    /// A finished original WAV awaiting an identity-fenced transfer into the draft.
     private(set) var audioFilePath: String?
-    /// Non-nil after recording finishes, before the user confirms or discards.
-    /// Drives the review state in AudioRecordingView.
+    /// Retained only for recoverable draft-handoff failure; never the normal finish path.
     private(set) var pendingPlaybackPath: String?
     private(set) var isPlaying = false
     private(set) var isPaused = false
@@ -66,12 +67,12 @@ final class AudioCaptureManager {
     private var isStartingRecording = false
     private var resumeTask: Task<Void, Never>?
     private var transitionState = AudioCaptureTransitionState()
-    private var autoSubmitOnMaxDuration = false
     private let maxDurationFeedback: @MainActor () -> Void
     private let recordingController: AudioRecordingEngineController
     private let playbackController: AudioReviewPlaybackController
     private let reviewBoostController: AudioReviewBoostController
-    private var boostRecordingPreview = false
+    private(set) var boostRecordingPreview = false
+    private(set) var recordingID: UUID?
 
     var reviewBoostState: AudioReviewBoostState { reviewBoostController.state }
 
@@ -100,12 +101,14 @@ final class AudioCaptureManager {
     }
 
     func startRecording(
-        autoSubmitOnMaxDuration: Bool = false,
+        recordingID: UUID = UUID(),
         boostRecordingPreview: Bool = false
     ) async throws {
-        guard !isRecording, !isStartingRecording else { return }
+        guard !isRecording, !isStartingRecording, audioFilePath == nil, pendingPlaybackPath == nil else {
+            throw AudioCaptureError.recordingBusy
+        }
+        self.recordingID = recordingID
         isStartingRecording = true
-        self.autoSubmitOnMaxDuration = autoSubmitOnMaxDuration
         defer { isStartingRecording = false }
 
         discardPending()
@@ -113,13 +116,9 @@ final class AudioCaptureManager {
 
         // Permission prompts belong exclusively to the explicit action above.
         guard AVAudioApplication.shared.recordPermission == .granted else {
-            self.autoSubmitOnMaxDuration = false
             throw AudioCaptureError.microphonePermissionDenied
         }
-        if Task.isCancelled {
-            self.autoSubmitOnMaxDuration = false
-            return
-        }
+        try Task.checkCancellation()
 
         reconcileCancelledRecordingFile(
             recordingController.cancelRecording()
@@ -157,12 +156,12 @@ final class AudioCaptureManager {
         )
     }
 
-    /// Stops early and always routes the partial clip to review.
+    /// Finishes the original WAV and hands it to the owning capture draft.
     func stopRecordingEarly() {
         guard isRecording else { return }
         recordingTask?.cancel()
         recordingTask = nil
-        finishRecording(reachedMaxDuration: false)
+        finishRecording()
     }
 
     /// Pauses without discarding the installed tap or partial WAV.
@@ -212,7 +211,7 @@ final class AudioCaptureManager {
             self.isPaused = false
             let startTick = Int((self.recordingProgress * 100).rounded())
             guard startTick < 100 else {
-                self.finishRecording(reachedMaxDuration: true)
+                self.finishRecording()
                 return
             }
             self.scheduleRecordingCountdown(
@@ -239,7 +238,6 @@ final class AudioCaptureManager {
             isRecording = false
             isPaused = false
             recordingProgress = 0
-            autoSubmitOnMaxDuration = false
             resetSpectrogramState()
             return
         }
@@ -248,10 +246,12 @@ final class AudioCaptureManager {
             recordingController.cancelRecording()
         )
         cleanupPendingFile()
+        if let name = audioFilePath { deleteTemporaryFile(named: name) }
+        audioFilePath = nil
+        recordingID = nil
         isRecording = false
         isPaused = false
         recordingProgress = 0
-        autoSubmitOnMaxDuration = false
         discardPending()
     }
 
@@ -269,9 +269,9 @@ final class AudioCaptureManager {
             )
             cleanupPendingFile()
         }
-        if let name = pendingPlaybackPath {
-            deleteTemporaryFile(named: name)
-        }
+        if let name = pendingPlaybackPath { deleteTemporaryFile(named: name) }
+        if let name = audioFilePath { deleteTemporaryFile(named: name) }
+        recordingID = nil
         isRecording = false
         isPaused = false
         recordingProgress = 0
@@ -281,7 +281,6 @@ final class AudioCaptureManager {
         if !startupWasInProgress {
             pendingFileName = nil
         }
-        autoSubmitOnMaxDuration = false
     }
 
     // MARK: - Review / Playback
@@ -352,15 +351,21 @@ final class AudioCaptureManager {
         playbackProgress = clamped
     }
 
-    /// Moves from review to the established submission handoff.
-    func confirmAndSubmit() {
+    /// Retries a recording retained only because draft handoff failed.
+    func retryStaging() {
         stopPlayback()
         audioFilePath = pendingPlaybackPath
         pendingPlaybackPath = nil
         reviewBoostController.reset()
     }
 
-    /// Restores a failed direct submission without deleting its recording.
+    /// Releases file ownership only after the draft has accepted the original.
+    func acknowledgeStagedRecording() {
+        audioFilePath = nil
+        reset()
+    }
+
+    /// Restores a failed draft handoff without deleting its recording.
     func restoreSubmissionForReview() {
         guard pendingPlaybackPath == nil,
               let submittedPath = audioFilePath else { return }
@@ -446,22 +451,16 @@ final class AudioCaptureManager {
         spectrogramColumns = spectrogramHistory.elements
     }
 
-    private func finishRecording(reachedMaxDuration: Bool) {
+    private func finishRecording() {
+        guard isRecording else { return }
         invalidateRecordingTransitions()
         recordingTask?.cancel()
-        let retainedFileName = recordingController.finishRecording()
-        let completedFileName = retainedFileName ?? pendingFileName
-        if reachedMaxDuration, autoSubmitOnMaxDuration {
-            audioFilePath = completedFileName
-        } else {
-            pendingPlaybackPath = completedFileName
-            configureReviewBoost()
-        }
+        audioFilePath = recordingController.finishRecording()
+        if audioFilePath == nil { cleanupPendingFile() }
         pendingFileName = nil
         isRecording = false
         isPaused = false
         recordingTask = nil
-        autoSubmitOnMaxDuration = false
     }
 
     private func configureReviewBoost() {
@@ -473,8 +472,9 @@ final class AudioCaptureManager {
     }
 
     private func completeMaximumDurationRecording() {
+        guard isRecording else { return }
         maxDurationFeedback()
-        finishRecording(reachedMaxDuration: true)
+        finishRecording()
     }
 
     private func reconcileCancelledRecordingFile(_ fileName: String?) {
@@ -503,7 +503,6 @@ final class AudioCaptureManager {
         isRecording = false
         isPaused = false
         recordingProgress = 0
-        autoSubmitOnMaxDuration = false
         resetSpectrogramState()
     }
 
@@ -552,17 +551,23 @@ final class AudioCaptureManager {
 
     func debugStageRecordingForFinish(
         fileName: String,
-        autoSubmitOnMaxDuration: Bool,
-        boostRecordingPreview: Bool = false
+        recordingID: UUID = UUID(),
+        boostRecordingPreview: Bool = false,
+        hasRetainedRecording: Bool = true
     ) {
         self.boostRecordingPreview = boostRecordingPreview
+        self.recordingID = recordingID
+        if hasRetainedRecording {
+            recordingController.debugStageStartup(
+                fileURL: FileManager.default.temporaryDirectory.appendingPathComponent(fileName), dspTask: nil
+            )
+        }
         pendingFileName = fileName
         isRecording = true
-        self.autoSubmitOnMaxDuration = autoSubmitOnMaxDuration
     }
 
     func debugFinishRecording(reachedMaxDuration: Bool) {
-        finishRecording(reachedMaxDuration: reachedMaxDuration)
+        if reachedMaxDuration { completeMaximumDurationRecording() } else { stopRecordingEarly() }
     }
 
     func debugCompleteMaximumDurationRecording() {

@@ -73,6 +73,7 @@ import SwiftUI
     // MARK: - Dependencies (Core Services)
     @ObservationIgnored
     var environmentContextManager = EnvironmentContextManager.shared
+    let exploreContentVisibility = ExploreContentVisibilityStore()
     let appEventPublisher: AppEventPublisher
     let appUpdateCoordinator: AppUpdateCoordinator
     let appRouteCoordinator = AppRouteCoordinator()
@@ -253,6 +254,12 @@ import SwiftUI
         )
 
         if bindGlobalManagers {
+            exploreContentVisibility.didInvalidate = { [weak exploreContentVisibility] in
+                guard let visibility = exploreContentVisibility else { return }
+                MerianNetworkClient.shared.invalidateSpeciesDictionaryVisibility()
+                AppIconBadgeCoordinator.clearExploreUnreadNotificationCount()
+                ExploreWidgetSnapshotWriter.invalidate(visibility: visibility)
+            }
             scanRepository.appUpdateCoordinator = appUpdateCoordinator
             offlineQueueManager.appUpdateCoordinator = appUpdateCoordinator
             supabaseManager.bindAppRouteSessionController(appRouteCoordinator)

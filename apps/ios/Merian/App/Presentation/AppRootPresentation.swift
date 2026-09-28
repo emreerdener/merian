@@ -58,6 +58,10 @@ private struct StartupStoreStateKey: EnvironmentKey {
     static let defaultValue: StartupStoreState = .normal
 }
 
+private struct WhatsNewAcknowledgementKey: EnvironmentKey {
+    static let defaultValue: @MainActor () -> Void = {}
+}
+
 private struct SignOutCompletionFeedbackKey: EnvironmentKey {
     static let defaultValue: @MainActor @Sendable () -> Void = {}
 }
@@ -67,6 +71,11 @@ private struct StartupRecoveryNoticeKey: EnvironmentKey {
 }
 
 extension EnvironmentValues {
+    var acknowledgeWhatsNew: @MainActor () -> Void {
+        get { self[WhatsNewAcknowledgementKey.self] }
+        set { self[WhatsNewAcknowledgementKey.self] = newValue }
+    }
+
     var showSignOutConfirmation: @MainActor @Sendable () -> Void {
         get { self[SignOutCompletionFeedbackKey.self] }
         set { self[SignOutCompletionFeedbackKey.self] = newValue }

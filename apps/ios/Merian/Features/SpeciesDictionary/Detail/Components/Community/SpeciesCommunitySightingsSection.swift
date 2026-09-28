@@ -34,9 +34,9 @@ struct SpeciesCommunitySightingsSection: View {
         // starts loading. A conditional-only Group can collapse to EmptyView,
         // preventing the task that triggers the request from ever attaching.
         VStack(alignment: .leading, spacing: 0) {
-            if viewModel.isLoadingInitial && viewModel.posts.isEmpty {
+            if viewModel.isLoadingInitial && visiblePosts.isEmpty {
                 loadingSection
-            } else if !viewModel.posts.isEmpty {
+            } else if !visiblePosts.isEmpty {
                 sightingsSection
             }
         }
@@ -51,6 +51,10 @@ struct SpeciesCommunitySightingsSection: View {
                 postDetail(for: selectedPostRoute)
             }
         }
+    }
+
+    private var visiblePosts: [ExplorePost] {
+        viewModel.posts.filter { exploreViewModel.visibility.isVisible(postID: $0.id) }
     }
 
     private var sightingsSection: some View {
@@ -79,7 +83,7 @@ struct SpeciesCommunitySightingsSection: View {
             .accessibilityAddTraits(.isHeader)
 
             LazyVGrid(columns: columns, spacing: 2) {
-                ForEach(Array(viewModel.posts.prefix(previewLimit).enumerated()), id: \.element.id) { index, post in
+                ForEach(Array(visiblePosts.prefix(previewLimit).enumerated()), id: \.element.id) { index, post in
                     Button {
                         openPost(post)
                     } label: {
@@ -89,7 +93,7 @@ struct SpeciesCommunitySightingsSection: View {
                         )
                         .publishedScanTileCorners(
                             index: index,
-                            itemCount: min(viewModel.posts.count, previewLimit),
+                            itemCount: min(visiblePosts.count, previewLimit),
                             columnCount: 2
                         )
                     }
@@ -188,7 +192,7 @@ private struct SpeciesCommunitySightingsGrid: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             LazyVGrid(columns: columns, spacing: 2) {
-                ForEach(viewModel.posts) { post in
+                ForEach(viewModel.posts.filter { exploreViewModel.visibility.isVisible(postID: $0.id) }) { post in
                     Button {
                         openPost(post)
                     } label: {

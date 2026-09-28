@@ -32,7 +32,7 @@ extension MerianNetworkClient {
         limit: Int = 40,
         cursor: SpeciesDictionaryCatalogCursor? = nil
     ) async throws -> SpeciesDictionaryCatalogResponse {
-        try validateEndpointConfiguration("species-dictionary")
+        try validateEndpointConfiguration("species-dictionary-for-viewer")
         var payload: [String: Any] = ["mode": "catalog", "limit": limit]
         if category != .all {
             payload["category"] = category.rawValue
@@ -58,7 +58,7 @@ extension MerianNetworkClient {
         }
 
         let response = try await performAuthenticatedJSONPost(
-            function: "species-dictionary",
+            function: "species-dictionary-for-viewer",
             payload: payload,
             responseType: SpeciesDictionaryCatalogResponse.self
         )
@@ -81,7 +81,7 @@ extension MerianNetworkClient {
     }
 
     func getSpeciesDictionaryOverview(userRegion: String? = nil) async throws -> SpeciesDictionaryOverviewResponse {
-        try validateEndpointConfiguration("species-dictionary")
+        try validateEndpointConfiguration("species-dictionary-for-viewer")
         var payload: [String: Any] = [
             "mode": "overview",
             "cache_buster": UUID().uuidString
@@ -91,7 +91,7 @@ extension MerianNetworkClient {
         }
 
         let response = try await performAuthenticatedJSONPost(
-            function: "species-dictionary",
+            function: "species-dictionary-for-viewer",
             payload: payload,
             responseType: SpeciesDictionaryOverviewResponse.self
         )
@@ -121,7 +121,7 @@ extension MerianNetworkClient {
         speciesId: String?,
         scientificName: String?
     ) async throws -> SpeciesDictionaryEntry {
-        try validateEndpointConfiguration("species-dictionary")
+        try validateEndpointConfiguration("species-dictionary-for-viewer")
         let requestedSpeciesId = SpeciesDictionaryIdentity.canonicalSpeciesID(speciesId)
         let requestedScientificName = SpeciesDictionaryIdentity.normalizedScientificName(scientificName)
         guard requestedSpeciesId != nil || requestedScientificName != nil else {

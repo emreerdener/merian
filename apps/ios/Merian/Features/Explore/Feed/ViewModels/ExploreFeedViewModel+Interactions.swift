@@ -1,6 +1,8 @@
 import Foundation
 
 enum ExploreShareMessageFormatter {
+    static let previewMaxDimension = 1024
+
     static func title(
         commonName: String,
         primaryMediaKind: ExploreMediaKind?
@@ -11,6 +13,30 @@ enum ExploreShareMessageFormatter {
 
     static func url(postId: String) -> URL {
         PublicBrand.websiteURL(path: "explore/post/\(postId)")
+    }
+
+    static func itemSource(
+        post: ExplorePost,
+        commonName: String,
+        images: ExploreHeroImageDependencies = .live
+    ) -> LinkShareItemSource {
+        let poster = previewImageURL(heroImageURL: post.heroImageUrl, mediaItems: post.resolvedMediaItems)
+        let title = title(commonName: commonName, primaryMediaKind: post.resolvedMediaItems.first?.kind)
+        guard let poster else {
+            return LinkShareItemSource(url: url(postId: post.id), title: title)
+        }
+        let loadImage = images.loadImage
+        return LinkShareItemSource(url: url(postId: post.id), title: title) {
+            await loadImage(poster, previewMaxDimension)
+        }
+    }
+
+    static func previewImageURL(heroImageURL: String, mediaItems: [ExploreMediaItem]) -> String? {
+        let hero = heroImageURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !hero.isEmpty { return hero }
+        return mediaItems.sorted { $0.orderIndex < $1.orderIndex }.compactMap { item in
+            item.posterImageUrl(fallback: item.kind == .image ? item.url : "")
+        }.first
     }
 }
 
@@ -97,8 +123,15 @@ extension ExploreFeedViewModel {
 
     @discardableResult
     func report(_ post: ExplorePost) async -> Bool {
+        let viewer = dependencies.comments.currentViewer().userID
+        guard let viewerID = viewer.flatMap(UUID.init(uuidString:)), visibility.viewerID == viewerID else { return false }
+        let context = visibility.context
         do {
             try await dependencies.interactions.reportPost(post.id)
+            guard viewer == dependencies.comments.currentViewer().userID,
+                  visibility.viewerID == viewerID,
+                  context.accountGeneration == visibility.context.accountGeneration else { return false }
+            visibility.hide(postID: post.id, for: context.viewerID)
             removePost(id: post.id)
             dependencies.feedback.success()
             toastMessage = .success("Report submitted. Thanks!")
@@ -124,13 +157,9 @@ extension ExploreFeedViewModel {
     }
 
     func share(_ post: ExplorePost, playbackCoordinator: ExploreVideoPlaybackCoordinator? = nil) {
-        let title = ExploreShareMessageFormatter.title(
-            commonName: resolvedSpeciesCommonName(for: post),
-            primaryMediaKind: post.resolvedMediaItems.first?.kind
-        )
-        let item = LinkShareItemSource(
-            url: ExploreShareMessageFormatter.url(postId: post.id),
-            title: title
+        let item = ExploreShareMessageFormatter.itemSource(
+            post: post,
+            commonName: resolvedSpeciesCommonName(for: post)
         )
 
         let overlayToken = playbackCoordinator?.beginOverlay(reason: "explore-share-sheet")

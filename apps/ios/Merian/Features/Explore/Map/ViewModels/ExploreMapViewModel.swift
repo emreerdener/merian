@@ -236,11 +236,13 @@ final class ExploreMapViewModel {
     }
 
     func navigate(to location: CLLocation) {
+        let region = ExploreMapCameraPolicy.locateRegion(
+            for: location,
+            currentRegion: visibleRegion ?? lastCommittedRegion
+        )
         prepareForNavigation()
-        cameraPosition = .region(MKCoordinateRegion(
-            center: location.coordinate,
-            span: MKCoordinateSpan(latitudeDelta: 0.45, longitudeDelta: 0.45)
-        ))
+        searchesOnNextCameraSettle = true
+        cameraPosition = .region(region)
     }
 
     private func prepareForNavigation() {

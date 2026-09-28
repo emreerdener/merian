@@ -1,14 +1,8 @@
-import Photos
-import PhotosUI
 import SwiftUI
 
 struct CaptureStagingToolbarMediaRow: View {
     let presentation: CaptureStagingToolbarPresentation
-    @Binding var selectedPhotoItems: [PhotosPickerItem]
-    @Binding var isPhotoPickerPresented: Bool
     let isCheckingPhotoImportAdmission: Bool
-    let showTooltip: Bool
-    let photoLibrary: PHPhotoLibrary
     let onRequestPhotoPickerPresentation: (Int) -> Void
     let onThumbnailTap: (Int) -> Void
     let onDescriptionTap: (Int) -> Void
@@ -16,60 +10,37 @@ struct CaptureStagingToolbarMediaRow: View {
     let onVideoTap: (Int) -> Void
 
     var body: some View {
-        HStack(spacing: 16) {
+        Group {
             ForEach(presentation.visibleNodes) { node in
                 mediaButton(for: node)
             }
 
-            if let selectionCount = presentation.photoSelectionCount {
+            ForEach(0..<presentation.emptyMediaSlotCount, id: \.self) { slot in
                 Button {
-                    onRequestPhotoPickerPresentation(selectionCount)
+                    onRequestPhotoPickerPresentation(presentation.emptyMediaSlotCount)
                 } label: {
-                    Circle()
-                        .strokeBorder(
-                            Color.primary.opacity(0.5),
-                            style: StrokeStyle(lineWidth: 1.5, dash: [4])
-                        )
-                        .frame(width: 48, height: 48)
-                        .overlay(
-                            Group {
-                                if isCheckingPhotoImportAdmission {
-                                    ProgressView()
-                                        .tint(.white)
-                                } else {
-                                    Image(systemName: "plus")
-                                        .font(.system(size: 20, weight: .medium))
-                                        .foregroundColor(.primary.opacity(0.5))
-                                }
-                            }
-                            .accessibilityHidden(true)
-                        )
+                    Group {
+                        if isCheckingPhotoImportAdmission {
+                            ProgressView().tint(.primary)
+                        } else {
+                            Image(systemName: "plus")
+                                .font(.system(size: 20, weight: .medium))
+                                .foregroundStyle(.primary.opacity(0.5))
+                        }
+                    }
+                    .frame(width: 48, height: 48)
+                    .modifier(CaptureStagingNodeSurface(isEmpty: true))
+                    .accessibilityHidden(true)
                 }
                 .buttonStyle(PlainButtonStyle())
+                .accessibilityIdentifier("StagedMediaPlaceholder_\(slot)")
                 .disabled(isCheckingPhotoImportAdmission)
                 .accessibilityLabel(
                     isCheckingPhotoImportAdmission
                         ? "Checking scan availability"
                         : "Add photo"
                 )
-                .photosPicker(
-                    isPresented: $isPhotoPickerPresented,
-                    selection: $selectedPhotoItems,
-                    maxSelectionCount: selectionCount,
-                    matching: .images,
-                    photoLibrary: photoLibrary
-                )
-            }
-        }
-        .overlay(alignment: .bottom) {
-            if showTooltip {
-                ActiveScanTooltipOverlay()
-                    .transition(
-                        .move(edge: .bottom)
-                            .combined(with: .opacity)
-                            .combined(with: .scale(scale: 0.95))
-                    )
-                    .allowsHitTesting(false)
+
             }
         }
     }
@@ -86,12 +57,7 @@ struct CaptureStagingToolbarMediaRow: View {
                     .scaledToFill()
                     .frame(width: 48, height: 48)
                     .clipShape(Circle())
-                    .overlay(
-                        Circle().stroke(
-                            Color.primary.opacity(0.5),
-                            lineWidth: 1
-                        )
-                    )
+                    .modifier(CaptureStagingNodeSurface())
             }
             .buttonStyle(PlainButtonStyle())
             .accessibilityLabel("Review photo \(index + 1)")
@@ -126,12 +92,7 @@ struct CaptureStagingToolbarMediaRow: View {
                             .scaledToFill()
                             .frame(width: 48, height: 48)
                             .clipShape(Circle())
-                            .overlay(
-                                Circle().stroke(
-                                    Color.primary.opacity(0.5),
-                                    lineWidth: 1
-                                )
-                            )
+                            .modifier(CaptureStagingNodeSurface())
 
                         Image(systemName: "play.fill")
                             .font(.system(size: 9, weight: .bold))
@@ -153,9 +114,9 @@ private struct StagedDescriptionBadge: View {
     var body: some View {
         Image(systemName: "text.alignleft")
             .font(.system(size: 18, weight: .medium))
-            .foregroundStyle(Color(UIColor.systemBackground))
+            .foregroundStyle(.primary)
             .frame(width: 48, height: 48)
-            .background(Circle().fill(Color.primary))
+            .modifier(CaptureStagingNodeSurface())
             .transition(.scale(scale: 0.8).combined(with: .opacity))
     }
 }
@@ -163,10 +124,10 @@ private struct StagedDescriptionBadge: View {
 private struct StagedAudioBadge: View {
     var body: some View {
         Image(systemName: "waveform")
-            .font(.system(size: 18, weight: .medium))
-            .foregroundStyle(Color(UIColor.systemBackground))
+            .font(.system(size: 18, weight: .semibold))
+            .foregroundStyle(.primary)
             .frame(width: 48, height: 48)
-            .background(Circle().fill(Color.primary))
+            .modifier(CaptureStagingNodeSurface())
             .transition(.scale(scale: 0.8).combined(with: .opacity))
     }
 }

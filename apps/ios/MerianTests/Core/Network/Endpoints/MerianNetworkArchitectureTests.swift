@@ -423,7 +423,7 @@ struct MerianNetworkArchitectureTests {
 
         for (method, configuration, cacheBridge) in [
             ("func getSpeciesObservationStats(", "species-observation-stats", "performCachedSpeciesObservationStatsRequest("),
-            ("private func performSpeciesDictionaryRequest(", "species-dictionary", "performCachedSpeciesDictionaryRequest(")
+            ("private func performSpeciesDictionaryRequest(", "species-dictionary-for-viewer", "performCachedSpeciesDictionaryRequest(")
         ] {
             let start = try #require(endpoint.range(of: method))
             let end = try #require(endpoint.range(of: "\n    }", range: start.upperBound..<endpoint.endIndex))
@@ -461,9 +461,13 @@ struct MerianNetworkArchitectureTests {
         for method in ["catalog", "overview", "dictionaryEntry", "observationStats"] {
             #expect(validator.contains("static func \(method)("))
         }
-        for source in [cache, validator] {
+        let coordinator = try String(
+            contentsOf: root.appendingPathComponent("Caching/SpeciesDictionaryRequestCoordinator.swift"), encoding: .utf8
+        )
+        for source in [cache, validator, coordinator] {
             #expect(source.split(separator: "\n", omittingEmptySubsequences: false).count <= 600)
-            for token in ["static let shared", "static var", "URLSession", "Supabase", "MerianNetworkClient", "Task", "@MainActor"] {
+            if source != coordinator { #expect(!source.contains("Task")) }
+            for token in ["static let shared", "static var", "URLSession", "Supabase", "MerianNetworkClient", "@MainActor"] {
                 #expect(!source.contains(token), "Dictionary response owners must not own \(token)")
             }
         }
@@ -475,7 +479,7 @@ struct MerianNetworkArchitectureTests {
             contentsOf: networkRoot().appendingPathComponent("MerianNetworkClient.swift"), encoding: .utf8
         )
         for (method, function, response, result, read, validation, write) in [
-            ("performCachedSpeciesDictionaryRequest", "species-dictionary", "SpeciesDictionaryResponse", "SpeciesDictionaryEntry",
+            ("performCachedSpeciesDictionaryRequest", "species-dictionary-for-viewer", "SpeciesDictionaryResponse", "SpeciesDictionaryEntry",
              "dictionaryEntry", "dictionaryEntry", "storeDictionaryEntry"),
             ("performCachedSpeciesObservationStatsRequest", "species-observation-stats", "SpeciesObservationStatsResponse",
              "SpeciesObservationStatsEntry", "observationStatsEntry", "observationStats", "storeObservationStatsEntry")
@@ -491,18 +495,34 @@ struct MerianNetworkArchitectureTests {
             }
             #expect(bridge.contains(#"function: "\#(function)""#))
             #expect(bridge.contains("responseType: \(response).self"))
-            let lookup = try #require(bridge.range(of: "speciesDictionaryResponses.\(read)("))
-            let hit = try #require(bridge.range(of: "return cached"))
-            let transport = try #require(bridge.range(of: "try await performAuthenticatedJSON"))
-            let validated = try #require(bridge.range(of: "try SpeciesDictionaryResponseValidator.\(validation)("))
-            let inserted = try #require(bridge.range(of: "speciesDictionaryResponses.\(write)("))
+            let isDictionary = method == "performCachedSpeciesDictionaryRequest"
+            let cacheBridge: String
+            if isDictionary {
+                #expect(bridge.contains("SpeciesDictionaryRequestCoordinator.loadEntry("))
+                cacheBridge = try String(
+                    contentsOf: networkRoot().appendingPathComponent("Caching/SpeciesDictionaryRequestCoordinator.swift"),
+                    encoding: .utf8
+                )
+                #expect(cacheBridge.contains("Task.checkCancellation()"))
+                #expect(cacheBridge.contains("cache.dictionaryGeneration == generation"))
+                #expect(cacheBridge.contains("latestViewerID == viewerID"))
+            } else {
+                cacheBridge = bridge
+            }
+            let cacheOwner = isDictionary ? "cache" : "speciesDictionaryResponses"
+            let lookup = try #require(cacheBridge.range(of: "\(cacheOwner).\(read)("))
+            let hit = try #require(cacheBridge.range(of: "return cached"))
+            let transportCall = isDictionary ? "try await loadResponse(" : "try await performAuthenticatedJSON"
+            let transport = try #require(cacheBridge.range(of: transportCall))
+            let validated = try #require(cacheBridge.range(of: "try SpeciesDictionaryResponseValidator.\(validation)("))
+            let inserted = try #require(cacheBridge.range(of: "\(cacheOwner).\(write)("))
             #expect(lookup.upperBound < hit.lowerBound && hit.upperBound < transport.lowerBound)
             #expect(transport.upperBound < validated.lowerBound && validated.upperBound < inserted.lowerBound)
             for token in ["Task", "catch", "URLSession", "Supabase", "onSuccess", "@escaping"] {
                 #expect(!bridge.contains(token), "Cache bridge must not add \(token)")
             }
         }
-        #expect(client.components(separatedBy: "speciesDictionaryResponses.").count == 6)
+        #expect(client.components(separatedBy: "speciesDictionaryResponses.").count == 5)
         #expect(!client.contains("-> SpeciesDictionaryResponseCache"))
     }
 

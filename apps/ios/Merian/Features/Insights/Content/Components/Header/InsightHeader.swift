@@ -7,7 +7,7 @@ struct InsightHeader: View {
     let paragraphs: [String]
     let confidenceScore: Double?
     let inferenceTier: String?
-    var provenance: IdentificationResultProvenance? = nil
+    var provenance: IdentificationResultProvenance?
     var userIdentificationOverride: String?
     var userConfirmedIdentification: Bool = false
     var isFlagged: Bool = false
@@ -93,7 +93,7 @@ struct InsightHeader: View {
                 if !paragraphs.isEmpty {
                     VStack(spacing: 12) {
                         ForEach(paragraphs, id: \.self) { paragraph in
-                            Text(styledParagraph(text: paragraph, scientificName: subtitle))
+                            analysisParagraph(paragraph)
                                 .font(.system(.body))
                                 .foregroundColor(.secondary)
                                 .multilineTextAlignment(.center)
@@ -120,6 +120,29 @@ struct InsightHeader: View {
         )
     }
 
+    @ViewBuilder
+    private func analysisParagraph(_ paragraph: String) -> some View {
+        let attributed = styledParagraph(text: paragraph, scientificName: subtitle)
+        if #available(iOS 18.0, *) {
+            roundedHighlightText(attributed)
+                .textRenderer(ScientificNameHighlightRenderer())
+        } else {
+            Text(attributed)
+        }
+    }
+
+    @available(iOS 18.0, *)
+    private func roundedHighlightText(_ attributed: AttributedString) -> Text {
+        attributed.runs.reduce(Text(verbatim: "")) { result, run in
+            var segment = AttributedString(attributed[run.range])
+            let isHighlighted = segment.backgroundColor != nil
+            segment.backgroundColor = nil
+            let text = Text(segment)
+            let styled = isHighlighted ? text.customAttribute(ScientificNameHighlight()) : text
+            return Text("\(result)\(styled)")
+        }
+    }
+
     private func styledParagraph(text: String, scientificName: String) -> AttributedString {
         let cleanText = text.replacingOccurrences(of: "*", with: "").replacingOccurrences(of: "_", with: "")
         var result = AttributedString(cleanText)
@@ -134,6 +157,26 @@ struct InsightHeader: View {
         }
 
         return result
+    }
+}
+
+@available(iOS 18.0, *)
+private struct ScientificNameHighlight: TextAttribute {}
+
+@available(iOS 18.0, *)
+private struct ScientificNameHighlightRenderer: TextRenderer {
+    func draw(layout: Text.Layout, in context: inout GraphicsContext) {
+        for line in layout {
+            for run in line {
+                if run[ScientificNameHighlight.self] != nil {
+                    // Each wrapped segment keeps its own subtly rounded background.
+                    let background = RoundedRectangle(cornerRadius: 3)
+                        .path(in: run.typographicBounds.rect)
+                    context.fill(background, with: .color(.secondary.opacity(0.15)))
+                }
+                context.draw(run)
+            }
+        }
     }
 }
 

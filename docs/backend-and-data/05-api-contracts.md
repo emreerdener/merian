@@ -5873,6 +5873,11 @@ changing the underlying identification review state.
   actions use this endpoint. The Community adapter sends the detail's exact
   `postId`, fixed `Inappropriate content` reason, and
   `Reported from Community request` context.
+- Confirmed reports hide the post for that account across authenticated Explore,
+  Community Identification, discussions, notifications and interactions,
+  including reused reference photos. Pending, dismissed and actioned reports all
+  apply. See
+  [reported content visibility](../features-and-hardware/30-reported-content-visibility.md).
 - Duplicate reports collapse on `(post_id, reporter_user_id)` and preserve an
   existing moderation status rather than reopening dismissed or actioned work.
 - Writes only `explore_post_reports`; it never calls `/flag-issue`, inserts an
@@ -11755,3 +11760,15 @@ privacy. iOS hand-written DTOs live in `SpeciesDiscoverySearchAPIModels.swift`;
 `SpeciesSearchResponseValidator` validates the version, request identity, result
 type, context, record identities, and cursor before publishing a page. Existing
 Identify generated DTOs and web/admin consumers are unaffected.
+
+## Authenticated Naturebook dictionary projection
+
+`POST /functions/v1/species-dictionary-for-viewer` accepts the same detail,
+catalog and overview requests as `/species-dictionary` and returns the same
+schema-version-1 envelopes. Authentication is required (`401` without it); the
+trusted handler identity selects the viewer, never a request body field.
+Responses use `Cache-Control: private, no-store` and `Vary: Authorization`.
+Reference images exclude media belonging to that viewer's reported posts;
+missing eligible media produces the existing empty/null image representation
+without dropping the species. Native callers use this route. The anonymous
+endpoint and its public contract are preserved.

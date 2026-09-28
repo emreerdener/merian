@@ -3,20 +3,24 @@ import SwiftData
 struct SimilarSpeciesGalleryDependencies {
     let imageDependencies: SimilarSpeciesImageDependencies
     let selectionFeedback: @MainActor () -> Void
+    var visibilityGeneration: @MainActor () -> UInt64 = { 0 }
 
     init(
         imageDependencies: SimilarSpeciesImageDependencies,
-        selectionFeedback: @escaping @MainActor () -> Void
+        selectionFeedback: @escaping @MainActor () -> Void,
+        visibilityGeneration: @escaping @MainActor () -> UInt64 = { 0 }
     ) {
         self.imageDependencies = imageDependencies
         self.selectionFeedback = selectionFeedback
+        self.visibilityGeneration = visibilityGeneration
     }
 
     static let live = Self(
         imageDependencies: .live,
         selectionFeedback: {
             AppDIContainer.shared.hapticManager.triggerSelectionPulse()
-        }
+        },
+        visibilityGeneration: { AppDIContainer.shared.exploreContentVisibility.generation }
     )
 }
 

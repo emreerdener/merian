@@ -79,10 +79,15 @@ final class IdentificationComparisonCapture {
                   species.scanId == scanId, species.confidenceScore == confidenceScore,
                   species.isBiological == isBiological, species.userIdentificationOverride == nil else { return }
             let state: String
-            if species.isHumanSubject { state = "human" }
-            else if !isBiological { state = "non_biological" }
-            else if species.hasResolvedBiologicalIdentification { state = "identified_non_human" }
-            else { state = "unidentified_non_human" }
+            if species.isHumanSubject {
+                state = "human"
+            } else if !isBiological {
+                state = "non_biological"
+            } else if species.hasResolvedBiologicalIdentification {
+                state = "identified_non_human"
+            } else {
+                state = "unidentified_non_human"
+            }
             extra["subjectState"] = state
             if state == "identified_non_human" {
                 let name = species.scientificName.split { $0.isWhitespace }.joined(separator: " ").lowercased()

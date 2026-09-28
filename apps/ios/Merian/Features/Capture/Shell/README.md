@@ -22,6 +22,38 @@ controls stops review playback and invalidates pending boost playback intent.
 See
 [Audio Listen Mode](../../../../../../docs/features-and-hardware/12-audio-listen-mode.md#recording-review-audio-boost).
 
+## Staged media listening boost
+
+`StagedAudioPreviewModal` supplies local boost state to the shared audio page.
+`StagedPreviewAudioBoostSource` owns an uncached listening copy and releases it
+only after playback retires. Closing, removing, or replacing the preview fences
+late preparation and deletes the derivative; original staged files remain owned
+by the draft. Preview selection resets when the preview closes; reopening starts
+from the recording-start preference carried in
+`StagedAudio.prefersBoostedPreview`.
+
+`StagedVideoPreviewPlayback` owns the native video player, playback-session
+lease, cancellable source swap, and boost state. For video with companion audio,
+`StagedVideoPreviewComposition` combines the original picture track with the
+boosted soundtrack without exporting or modifying the video. Switching captures
+the current playhead and play/pause intent after preparation, waits for the new
+item to become ready before seeking, and then resumes only for the still-mounted
+request. Backgrounding cancels pending resumes; dismissal stops the player
+before releasing its derivative. Silent video has no Boost audio control. These
+preview services do not mutate staged media, provider inputs, or toolbar layout.
+
+## Launch announcement
+
+`CaptureWorkspaceView` can initialize the existing root sheet router with
+`.whatsNew`. Workspace remains mounted behind it and during dismissal. The
+router reports the completed destination to the App-owned acknowledgement
+callback. Explore-on-launch is a one-shot follow-up only when navigation,
+another presentation, or an import crop does not take precedence. Camera modal
+pause/resume rules remain intact, and initial environment permission/tracking
+work waits until the announcement closes. The
+[What’s New contract](../../../../../../docs/development-guides/12-in-app-changelog.md#whats-new-sheet)
+owns eligibility, acknowledgement, and Settings replay.
+
 ## Ownership
 
 The Shell is organized by responsibility rather than as a pair of aggregate
@@ -118,6 +150,10 @@ Camera/video completion, imports, audio admission/completion, and picker counts
 share that policy. Ordinary Free scans allow one physical photo/audio item plus
 one note; Pro allows two media items plus one note.
 
+The top media-mode selector stays visible at full capacity in both ordinary
+capture and reanalysis. Capacity hides physical capture controls, while Scan,
+Record, and Describe navigation remains available for shared-note editing.
+
 `submitActiveStagedCapture` synchronizes shared text through Submission's
 `prepareActiveStagedSubmission(descriptionDraft:)`. Rejection retains text,
 presents the existing error toast, and prevents dispatch. Ordinary typing and
@@ -128,9 +164,9 @@ historical descriptions.
 Starting refinement cancels previous preparation and clears the prior draft,
 picker selection, and environment lookup. Submission, historical-editor entry,
 and capture-mode changes stop dictation; request and draft-generation checks
-reject late transcripts. Staging supplies horizontal media overflow while
-Discard and Identify/Analyze remain visible. Removing all ordinary content
-returns Describe to its initial unstaged entry state.
+reject late transcripts. Staging supplies adaptive media rows while Discard and
+Identify/Analyze remain visible. Removing all ordinary content returns Describe
+to its initial unstaged entry state.
 
 ## Verification
 
@@ -213,18 +249,19 @@ coordinator, or haptic singleton lookup.
 
 Describe keeps its vertical scrolling behind a UIKit `UIScrollView` hosting
 boundary. Its prompt/dictation lifecycle observer and questions sheet are owned
-by `CaptureWorkspaceView`, outside the horizontal pager. Capture chrome derives
-its clearance from fixed `CaptureControlBarLayout` geometry instead of feeding a
-measured child height back into parent layout. Camera and Audio use the fixed
-250 pt full-screen overlay clearance because the full-bleed pager reports a zero
-bottom safe-area inset. The primary and secondary capture controls share one
-vertical centerline across every mode. Describe reserves the row's matching 204
-pt height at the bottom of its UIKit-hosted content. Its flexible rounded editor
-fills the space above the row and retains a 24 pt visual gap. At the top, the
-hosted page uses an 82 pt selector band without adding another safe-area inset;
-UIKit automatic content-inset adjustment is disabled. Together these boundaries
-prevent the nested scroll, sheet, and preference feedback that previously formed
-a startup AttributeGraph cycle when Description was the configured first mode.
+by `CaptureWorkspaceView`, outside the horizontal pager. Capture chrome retains
+`CaptureControlBarLayout` baseline dimensions and consumes the width-dependent
+staging tray's measured height through `CaptureChromeLayout`. The control inset
+is the greater of 124 pt or tray height plus 16 pt. Camera/Audio preserve their
+250 pt full-screen baseline and add the same expansion delta; Describe adds that
+delta to its 204 pt reservation. Only the tray reports height; capture controls
+and UIKit-hosted Describe content do not feed back into that measurement. The
+primary and secondary controls retain their common vertical centerline. At the
+top, the hosted page uses an 82 pt selector band without adding another
+safe-area inset; UIKit automatic content-inset adjustment is disabled. Together
+these boundaries prevent the nested scroll, sheet, and preference feedback that
+previously formed a startup AttributeGraph cycle when Description was the
+configured first mode.
 
 Automatic single-capture submission owns its chrome transition explicitly.
 Camera, video, and crop-confirmed commits set
@@ -454,3 +491,14 @@ later draft size. Auto-submit off/on cycles cannot rearm a capture. Recording
 failures release readiness without clearing existing content. The current
 [staged-review contract](../../../../../../docs/features-and-hardware/29-staged-capture-review.md)
 defines settings, provider dependencies, acceptance, and validation.
+
+## Finished audio handoff
+
+Checkmark and maximum-duration completion both publish the original WAV directly
+to `stageFinishedAudio`. Shell verifies recording identity, live draft
+generation, and capacity, takes ownership once, acknowledges the recorder, then
+resolves the operation. Only the draft decides Auto-submit eligibility.
+Successful staging never opens the intermediate recorder review; it returns
+Record to idle and makes the audio node available. Current-draft capacity
+failure retains recovery playback/discard and manual retry. Stale completion
+cleanup never clears a newer operation or deletes an already-staged original.

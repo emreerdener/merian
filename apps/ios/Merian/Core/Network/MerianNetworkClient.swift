@@ -96,17 +96,22 @@ final class MerianNetworkClient {
         responseType: Response.Type,
         timeoutInterval: TimeInterval = 30.0,
         idempotencyKey: String? = nil,
-        decodingFailure: MerianError? = nil
+        decodingFailure: MerianError? = nil,
+        expectedAuthUserID: UUID? = nil
     ) async throws -> Response {
         let url = try endpointURL(function)
         let body = try JSONSerialization.data(withJSONObject: payload)
-        let (data, _) = try await performAuthenticatedRequest(
-            url: url,
-            method: "POST",
-            body: body,
-            timeoutInterval: timeoutInterval,
-            idempotencyKey: idempotencyKey
-        )
+        let (data, _) = try await SpeciesDictionaryRequestCoordinator.performRequest(
+            function: function, cache: speciesDictionaryResponses,
+            expectedAuthUserID: expectedAuthUserID,
+            currentViewerID: { [self] in try await authenticatedTransport.requestPayloadAuthUserID() }
+        ) { [self] viewerID in
+            try await performAuthenticatedRequest(
+                url: url, method: "POST", body: body,
+                timeoutInterval: timeoutInterval, idempotencyKey: idempotencyKey,
+                expectedAuthUserID: viewerID
+            )
+        }
         do {
             return try makeExploreDecoder().decode(responseType, from: data)
         } catch {
@@ -395,6 +400,11 @@ final class MerianNetworkClient {
         _ = try endpointURL(function)
     }
 
+    /// Called by the composition root after a report or account transition.
+    func invalidateSpeciesDictionaryVisibility() {
+        speciesDictionaryResponses.invalidateDictionary()
+    }
+
     /// Keeps memo access inside the client. Callers supply request values, never
     /// a cache entry or loader that could bypass authenticated response validation.
     func performCachedSpeciesDictionaryRequest(
@@ -402,25 +412,17 @@ final class MerianNetworkClient {
         requestedSpeciesId: String?,
         requestedScientificName: String?
     ) async throws -> SpeciesDictionaryEntry {
-        if let cached = speciesDictionaryResponses.dictionaryEntry(
-            speciesId: requestedSpeciesId,
-            scientificName: requestedScientificName
-        ) {
-            return cached
-        }
-
-        let response = try await performAuthenticatedJSONPost(
-            function: "species-dictionary",
-            payload: payload,
-            responseType: SpeciesDictionaryResponse.self
+        try await SpeciesDictionaryRequestCoordinator.loadEntry(
+            cache: speciesDictionaryResponses,
+            requestedSpeciesId: requestedSpeciesId, requestedScientificName: requestedScientificName,
+            currentViewerID: { [self] in try await authenticatedTransport.requestPayloadAuthUserID() },
+            loadResponse: { [self] viewerID in
+                try await performAuthenticatedJSONPost(
+                    function: "species-dictionary-for-viewer", payload: payload,
+                    responseType: SpeciesDictionaryResponse.self, expectedAuthUserID: viewerID
+                )
+            }
         )
-        let entry = try SpeciesDictionaryResponseValidator.dictionaryEntry(
-            response,
-            requestedSpeciesId: requestedSpeciesId,
-            requestedScientificName: requestedScientificName
-        )
-        speciesDictionaryResponses.storeDictionaryEntry(entry)
-        return entry
     }
 
     /// A warm memo hit intentionally precedes transport cancellation and Auth.

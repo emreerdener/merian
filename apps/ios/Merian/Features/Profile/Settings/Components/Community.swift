@@ -7,6 +7,7 @@ struct Community: View {
     @State private var isShowingConsentSaveError = false
 
     @Binding var changelogActive: Bool
+    @Binding var showWhatsNew: Bool
     @Binding var safariUrl: URL?
     @Binding var showSafari: Bool
     @Binding var showFeedbackSurvey: Bool
@@ -49,6 +50,12 @@ struct Community: View {
 
             Button(action: dependencies.presentShareSheet) {
                 Label("Share Naturebook", systemImage: "square.and.arrow.up")
+            }
+
+            Button {
+                showWhatsNew = true
+            } label: {
+                Label("What’s new", systemImage: "sparkles")
             }
 
             Button {

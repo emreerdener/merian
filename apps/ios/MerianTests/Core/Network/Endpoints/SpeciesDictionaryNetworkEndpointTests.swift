@@ -14,11 +14,41 @@ struct SpeciesDictionaryNetworkEndpointTests {
         try await testCase.withResponse { client in try await testCase.invoke(client) }
     }
 
+    @Test(arguments: SpeciesDictionaryNetworkRequestCase.operations.filter { $0.kind != .stats })
+    func visibilityChangeRejectsInFlightViewerDictionaryResults(_ testCase: SpeciesDictionaryNetworkRequestCase) async {
+        let fixture = NetworkEndpointFixture()
+        defer { fixture.close() }
+        fixture.transport.register(path: testCase.path) { request in
+            fixture.client.invalidateSpeciesDictionaryVisibility()
+            return try NetworkEndpointTestSupport.response(to: request, json: testCase.responseJSON)
+        }
+        await #expect(throws: CancellationError.self) {
+            try await testCase.invoke(fixture.client)
+        }
+    }
+
+    @Test func dictionaryCacheIsIsolatedAcrossAccountsAndReportInvalidation() async throws {
+        let fixture = NetworkEndpointFixture()
+        defer { fixture.close() }
+        try await confirmation("Each account or visibility change requires a fresh read", expectedCount: 3) { sent in
+            fixture.transport.register(path: "/species-dictionary-for-viewer") { request in
+                sent()
+                return try NetworkEndpointTestSupport.response(to: request, json: Fixtures.dictionaryJSON)
+            }
+            _ = try await fixture.client.getSpeciesDictionary(speciesId: Fixtures.speciesID)
+            _ = try await fixture.client.getSpeciesDictionary(speciesId: Fixtures.speciesID)
+            fixture.client.overridingAuthUserID = UUID()
+            _ = try await fixture.client.getSpeciesDictionary(speciesId: Fixtures.speciesID)
+            fixture.client.invalidateSpeciesDictionaryVisibility()
+            _ = try await fixture.client.getSpeciesDictionary(speciesId: Fixtures.speciesID)
+        }
+    }
+
     @Test func invalidInputsFailBeforeDispatch() async {
         let fixture = NetworkEndpointFixture()
         defer { fixture.close() }
         await confirmation("No invalid lookup dispatch", expectedCount: 0) { sent in
-            for path in ["/species-dictionary", "/species-observation-stats"] {
+            for path in ["/species-dictionary-for-viewer", "/species-observation-stats"] {
                 fixture.transport.register(path: path) { request in
                     sent()
                     return try NetworkEndpointTestSupport.response(to: request, json: "{}")
@@ -53,10 +83,10 @@ struct SpeciesDictionaryNetworkEndpointTests {
         let dictionaryJSON = Fixtures.dictionaryJSON.replacingOccurrences(of: Fixtures.scientificName, with: name)
         let statsJSON = Fixtures.statsJSON.replacingOccurrences(of: Fixtures.scientificName, with: name)
         try await confirmation("One request per supported lookup", expectedCount: 2) { sent in
-            fixture.transport.register(path: "/species-dictionary") { request in
+            fixture.transport.register(path: "/species-dictionary-for-viewer") { request in
                 sent()
                 try NetworkEndpointTestSupport.expectPOST(
-                    request, function: "species-dictionary", json: #"{"scientific_name":"\#(name)"}"#
+                    request, function: "species-dictionary-for-viewer", json: #"{"scientific_name":"\#(name)"}"#
                 )
                 return try NetworkEndpointTestSupport.response(to: request, json: dictionaryJSON)
             }
@@ -84,7 +114,7 @@ struct SpeciesDictionaryNetworkEndpointTests {
             let attempts = OSAllocatedUnfairLock(initialState: 0)
             var response = try #require(JSONSerialization.jsonObject(with: Data(testCase.responseJSON.utf8)) as? [String: Any])
             if let schema { response["schema_version"] = schema } else { response.removeValue(forKey: "schema_version") }
-            let invalidJSON = String(decoding: try JSONSerialization.data(withJSONObject: response), as: UTF8.self)
+            let invalidJSON = try #require(String(bytes: JSONSerialization.data(withJSONObject: response), encoding: .utf8))
 
             try await confirmation("A rejected schema cannot satisfy the next lookup", expectedCount: 2) { sent in
                 fixture.transport.register(path: testCase.path) { request in
@@ -127,7 +157,7 @@ struct SpeciesDictionaryNetworkEndpointTests {
                     ])
                 } else {
                     try NetworkEndpointTestSupport.expectPOST(
-                        request, function: "species-dictionary", json: #"{"species_id":"\#(Fixtures.alternateID)"}"#
+                        request, function: "species-dictionary-for-viewer", json: #"{"species_id":"\#(Fixtures.alternateID)"}"#
                     )
                 }
                 return try NetworkEndpointTestSupport.response(to: request, json: responseJSON)
@@ -146,14 +176,18 @@ struct SpeciesDictionaryNetworkEndpointTests {
     }
 
     @Test(arguments: SpeciesDictionaryNetworkRequestCase.operations.filter(\.isCacheable))
-    func cachedReadsKeepBypassingTransportEvenInCancelledTasks(_ testCase: SpeciesDictionaryNetworkRequestCase) async throws {
+    func cachedDictionaryHonorsCancellationWhileStatsKeepsItsExistingBehavior(_ testCase: SpeciesDictionaryNetworkRequestCase) async throws {
         try await testCase.withResponse { client in
             try await testCase.invoke(client)
             let task = Task { @MainActor in
                 withUnsafeCurrentTask { $0?.cancel() }
                 try await testCase.invoke(client)
             }
-            try await task.value
+            if testCase.kind == .dictionary {
+                await #expect(throws: CancellationError.self) { try await task.value }
+            } else {
+                try await task.value
+            }
         }
     }
 

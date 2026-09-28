@@ -8,6 +8,98 @@ import XCTest
 @testable import Merian
 
 extension CaptureWorkspaceViewModelRefinementTests {
+    func testExternalImportHandoffFromWhatsNewSuppressesLaunchExplore() {
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: .preview,
+            preparedImageLoader: { _ in nil },
+            prewarmHeadersOnInit: false,
+            initialActiveSheet: .whatsNew,
+            opensExploreAfterWhatsNew: true
+        )
+        XCTAssertTrue(viewModel.prepareForExternalImageImportPresentation())
+        viewModel.operationState.deferExternalImageImportUntilSheetDismissal()
+        XCTAssertEqual(viewModel.handleRootSheetDismissed(), .whatsNew)
+        XCTAssertNil(viewModel.activeSheet, "Explore cannot take the slot reserved for the resuming import")
+    }
+
+    func testSessionTimeoutPreservesUnreadWhatsNewAndExploreFollowup() {
+        let container = AppDIContainer.preview
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: container,
+            preparedImageLoader: { _ in nil },
+            prewarmHeadersOnInit: false,
+            initialActiveSheet: .whatsNew,
+            opensExploreAfterWhatsNew: true
+        )
+        let presentationID = viewModel.activePresentation?.id
+        container.appEventPublisher.send(.appDidResumeAfterTimeout)
+        XCTAssertEqual(viewModel.activePresentation?.id, presentationID)
+        XCTAssertEqual(viewModel.activeSheet, .whatsNew)
+        XCTAssertFalse(viewModel.isRootPresentationDismissing)
+        XCTAssertNil(viewModel.handleRootSheetDismissed())
+        viewModel.dismissActivePresentation()
+        XCTAssertEqual(viewModel.handleRootSheetDismissed(), .whatsNew)
+        XCTAssertEqual(viewModel.activeSheet, .explore)
+    }
+
+    func testWhatsNewDismissalReportsOnceAndRevealsCapture() {
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: .preview,
+            preparedImageLoader: { _ in nil },
+            prewarmHeadersOnInit: false,
+            initialActiveSheet: .whatsNew
+        )
+        XCTAssertEqual(viewModel.activeSheet, .whatsNew)
+        XCTAssertNil(viewModel.handleRootSheetDismissed())
+        XCTAssertEqual(viewModel.activeSheet, .whatsNew)
+        viewModel.dismissActivePresentation()
+        XCTAssertTrue(viewModel.isRootPresentationDismissing)
+        XCTAssertEqual(viewModel.handleRootSheetDismissed(), .whatsNew)
+        XCTAssertNil(viewModel.activeSheet)
+        XCTAssertFalse(viewModel.isRootPresentationDismissing)
+        XCTAssertNil(viewModel.handleRootSheetDismissed())
+    }
+
+    func testWhatsNewPreservesExplorePreferenceUntilExactDismissal() {
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: .preview,
+            preparedImageLoader: { _ in nil },
+            prewarmHeadersOnInit: false,
+            initialActiveSheet: .whatsNew,
+            opensExploreAfterWhatsNew: true
+        )
+        XCTAssertEqual(viewModel.activeSheet, .whatsNew)
+        viewModel.dismissActivePresentation()
+        XCTAssertNil(viewModel.activeSheet)
+        XCTAssertEqual(viewModel.handleRootSheetDismissed(), .whatsNew)
+        XCTAssertEqual(viewModel.activeSheet, .explore)
+        viewModel.dismissActivePresentation()
+        viewModel.handleRootSheetDismissed()
+        XCTAssertNil(viewModel.activeSheet)
+    }
+
+    func testDeepLinkDuringWhatsNewWinsOverExplorePreference() {
+        let container = AppDIContainer.preview
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: container,
+            preparedImageLoader: { _ in nil },
+            prewarmHeadersOnInit: false,
+            initialActiveSheet: .whatsNew,
+            opensExploreAfterWhatsNew: true
+        )
+        container.appRouteCoordinator.request(.scansLibrary, source: .deepLink)
+        viewModel.consumeNextAppRoute()
+        XCTAssertNil(viewModel.activeSheet)
+        XCTAssertTrue(viewModel.isRootPresentationDismissing)
+        XCTAssertEqual(viewModel.handleRootSheetDismissed(), .whatsNew)
+        XCTAssertNil(viewModel.activeSheet)
+        viewModel.consumeNextAppRoute()
+        XCTAssertEqual(viewModel.activeSheet, .scans)
+        viewModel.dismissActivePresentation()
+        viewModel.handleRootSheetDismissed()
+        XCTAssertNil(viewModel.activeSheet, "Launch Explore must not appear after the requested route")
+    }
+
     func testExploreDeepLinkSurvivesImmediateSessionTimeoutReset() async throws {
         let postId = "widget-post-123"
         let diContainer = AppDIContainer.preview

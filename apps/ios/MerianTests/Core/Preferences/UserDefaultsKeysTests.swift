@@ -22,6 +22,7 @@ struct UserDefaultsKeysTests {
     }
 
     private static let expectedValues: [String: String] = [
+        "lastSeenWhatsNewRelease": "lastSeenWhatsNewRelease.v1",
         "clientUpdateRequirementPrefix": "clientUpdateRequirement.v1.",
         "mapAppearance": "mapAppearance.v1",
         "recentPlacesPrefix": "recentPlaces.v1.",

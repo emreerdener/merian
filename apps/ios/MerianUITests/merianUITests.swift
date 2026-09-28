@@ -630,9 +630,47 @@ final class merianUITests: XCTestCase {
     }
 
     @MainActor
+    func testFinishedRecordingJoinsTrayWithoutIntermediateReview() throws {
+        for paused in [false, true] {
+            let app = UITestAppLauncher.launchConfiguredApp(extraArguments: [
+                "-seedAudioFinishFlow", "-autoSubmitScans", "NO",
+                "-captureModeOrder", "audio,visual,describe", "-hasShownCaptureNoteTip", "YES",
+                "-boostRecordingPreviewsEnabled", "YES"
+            ] + (paused ? ["-seedAudioFinishPaused"] : []))
+            let finish = app.buttons["Finish recording"]
+            XCTAssertTrue(finish.waitForExistence(timeout: 8))
+            XCTAssertFalse(app.buttons["StagedAudioBadge_0"].exists)
+            finish.tap()
+            let audio = app.buttons["StagedAudioBadge_0"]
+            XCTAssertTrue(audio.waitForExistence(timeout: 8))
+            XCTAssertFalse(finish.exists)
+            XCTAssertFalse(app.buttons["Retry adding recording"].exists)
+            XCTAssertTrue(app.buttons["Identify"].isEnabled)
+            let screenshot = XCTAttachment(screenshot: app.screenshot())
+            screenshot.name = paused ? "Paused recording finished directly into tray" : "Recording finished directly into tray"
+            screenshot.lifetime = .keepAlways
+            add(screenshot)
+            audio.tap()
+            XCTAssertTrue(app.buttons["Remove audio recording"].waitForExistence(timeout: 8))
+            XCTAssertTrue(app.buttons["Turn off audio boost"].waitForExistence(timeout: 8))
+            app.buttons["Close audio preview"].tap()
+            XCTAssertTrue(audio.waitForExistence(timeout: 4))
+            audio.tap()
+            app.buttons["Remove audio recording"].tap()
+            XCTAssertTrue(waitForDisappearance(audio))
+            XCTAssertTrue(app.buttons["Record audio"].waitForExistence(timeout: 4))
+            app.terminate()
+        }
+    }
+
+    @MainActor
     func testStagedAudioBadgeOpensPlaybackReview() throws {
         let app = UITestAppLauncher.launchConfiguredApp(
-            extraArguments: ["-seedStagedAudioReviewFlow"]
+            extraArguments: [
+                "-seedStagedAudioReviewFlow", "-captureModeOrder", "audio,visual,describe",
+                "-hasShownCaptureNoteTip", "YES",
+                "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryXXXL"
+            ]
         )
 
         let stagedAudioBadge = app.buttons["StagedAudioBadge_0"]
@@ -641,6 +679,24 @@ final class merianUITests: XCTestCase {
             "Seeded staged audio did not appear in the active scan toolbar"
         )
         XCTAssertTrue(stagedAudioBadge.isHittable)
+        XCTAssertTrue(stagedAudioBadge.isEnabled)
+        let toolbarScreenshot = XCTAttachment(screenshot: app.screenshot())
+        toolbarScreenshot.name = "Compact bordered audio and note review nodes"
+        let note = app.buttons["Add note"]
+        XCTAssertTrue(note.isHittable)
+        XCTAssertEqual(note.frame.midY, stagedAudioBadge.frame.midY, accuracy: 1)
+        XCTAssertEqual(app.buttons["Identify"].frame.midY, note.frame.midY, accuracy: 1)
+        XCTAssertEqual(app.buttons["Identify"].frame.height, 48, accuracy: 1)
+        XCTAssertEqual(app.buttons["Identify"].frame.width, 48, accuracy: 1)
+        let discard = app.buttons["Discard scan"]
+        XCTAssertEqual(discard.frame.width, 48, accuracy: 1)
+        XCTAssertEqual(discard.frame.height, note.frame.height, accuracy: 1)
+        XCTAssertEqual(discard.frame.minY, app.buttons["Identify"].frame.minY, accuracy: 1)
+        XCTAssertEqual(discard.frame.maxY, app.buttons["Identify"].frame.maxY, accuracy: 1)
+        XCTAssertEqual(app.buttons["Identify"].frame.minX - note.frame.maxX, 24, accuracy: 1)
+        XCTAssertGreaterThanOrEqual(note.frame.minX - stagedAudioBadge.frame.maxX, 8)
+        toolbarScreenshot.lifetime = .keepAlways
+        add(toolbarScreenshot)
         stagedAudioBadge.tap()
 
         let preview = app.otherElements[
@@ -813,22 +869,60 @@ final class merianUITests: XCTestCase {
     func testNoteAtMediaCapacityWithLargerText() throws {
         let app = UITestAppLauncher.launchConfiguredApp(extraArguments: [
             "-seedStagedAudioReviewFlow", "-autoSubmitScans", "NO",
+            "-captureModeOrder", "audio,visual,describe",
             "-hasShownCaptureNoteTip", "YES",
             "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"
         ])
         let note = app.buttons["Add note"]
         XCTAssertTrue(note.waitForExistence(timeout: 8))
         XCTAssertTrue(app.buttons["Identify"].isHittable)
+        XCTAssertEqual(app.buttons["Identify"].frame.height, 48, accuracy: 1)
+        XCTAssertEqual(app.buttons["Identify"].frame.width, 48, accuracy: 1)
         XCTAssertTrue(app.buttons["Discard scan"].isHittable)
-        if !note.isHittable { app.scrollViews["StagedMediaRowScroll"].swipeLeft() }
+        XCTAssertFalse(app.scrollViews["StagedMediaRowScroll"].exists)
+        XCTAssertGreaterThanOrEqual(note.frame.width, 48)
+        XCTAssertGreaterThanOrEqual(note.frame.height, 48)
+        XCTAssertEqual(note.frame.midY, app.buttons["Identify"].frame.midY, accuracy: 1)
+        let audio = app.buttons["StagedAudioBadge_0"]
+        XCTAssertTrue(audio.isHittable)
+        XCTAssertFalse(app.buttons["CaptureShutter"].isHittable, "The Free media slot is already full")
+        XCTAssertFalse(app.staticTexts["AudioIdlePrompt"].exists, "A full tray must hide the recording invitation")
+        let modeToggle = app.segmentedControls["CaptureModeToggle"]
+        XCTAssertTrue(modeToggle.waitForExistence(timeout: 4))
+        for mode in ["Scan", "Describe", "Record"] {
+            let segment = modeToggle.buttons[mode]
+            XCTAssertTrue(segment.isHittable, "Mode navigation must remain available at media capacity")
+            segment.tap()
+            XCTAssertTrue(waitForSelectedState(segment))
+            XCTAssertFalse(app.buttons["CaptureShutter"].isHittable)
+        }
+        XCTAssertFalse(app.staticTexts["AudioIdlePrompt"].exists, "Returning to Record must keep the full-tray hint hidden")
         XCTAssertTrue(note.isHittable)
+        let recordScreenshot = XCTAttachment(screenshot: app.screenshot())
+        recordScreenshot.name = "Staged toolbar in Record with empty note"
+        recordScreenshot.lifetime = .keepAlways
+        add(recordScreenshot)
         note.tap()
         let input = app.descendants(matching: .any)["DescribeTextInput"]
         XCTAssertTrue(input.waitForExistence(timeout: 4))
         XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout: 4))
+        // Fresh earlier-iOS simulators can cover the keyboard with Apple's QuickPath intro.
+        let keyboardIntroduction = app.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS %@", "Speed up your typing")
+        ).firstMatch
+        if keyboardIntroduction.exists {
+            app.buttons["Continue"].tap()
+            XCTAssertTrue(waitForDisappearance(keyboardIntroduction))
+        }
         input.typeText("Beside a pond")
+        let keyboardScreenshot = XCTAttachment(screenshot: app.screenshot())
+        keyboardScreenshot.name = "Describe keyboard at accessibility text size"
+        keyboardScreenshot.lifetime = .keepAlways
+        add(keyboardScreenshot)
         app.buttons["DescribeKeyboardDone"].tap()
+        XCTAssertTrue(waitForDisappearance(app.keyboards.firstMatch))
         XCTAssertTrue(app.buttons["Edit note"].waitForExistence(timeout: 3))
+        XCTAssertTrue(modeToggle.isHittable, "A full tray including its note must preserve mode navigation")
         XCTAssertTrue(app.buttons["Identify"].isHittable)
         XCTAssertTrue(app.buttons["Discard scan"].isHittable)
         XCTAssertFalse(app.buttons["CaptureShutter"].isHittable)
@@ -836,6 +930,56 @@ final class merianUITests: XCTestCase {
         screenshot.name = "Note at capacity with accessibility text size"
         screenshot.lifetime = .keepAlways
         add(screenshot)
+    }
+
+    @MainActor
+    func testWrappedReanalysisTrayKeepsEveryNodeAndActionVisible() throws {
+        let app = UITestAppLauncher.launchConfiguredApp(extraArguments: [
+            "-seedStagedAudioReviewFlow", "-seedWrappedStagedReanalysis",
+            "-captureModeOrder", "describe,audio,visual", "-hasShownCaptureNoteTip", "YES"
+        ])
+        let analyze = app.buttons["Analyze"]
+        XCTAssertTrue(analyze.waitForExistence(timeout: 8))
+        XCTAssertTrue(analyze.isHittable)
+        let note = app.buttons["Add note"]
+        XCTAssertTrue(note.isHittable)
+        let first = app.buttons["Edit historical description 1"]
+        let last = app.buttons["Edit historical description 7"]
+        for index in 1...7 {
+            let node = app.buttons["Edit historical description \(index)"]
+            XCTAssertTrue(node.isHittable)
+            XCTAssertGreaterThanOrEqual(node.frame.width, 48)
+            XCTAssertGreaterThanOrEqual(node.frame.minX, 16)
+            XCTAssertLessThanOrEqual(node.frame.maxX, app.frame.width - 16)
+        }
+        XCTAssertGreaterThan(last.frame.minY, first.frame.minY)
+        XCTAssertGreaterThanOrEqual(analyze.frame.minY - note.frame.maxY, 8)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Wrapped historical evidence above Analyze and Discard"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+        app.buttons["Discard scan"].tap()
+        XCTAssertTrue(app.alerts["Discard reanalysis?"].waitForExistence(timeout: 3))
+        app.buttons["Keep editing"].tap()
+        XCTAssertTrue(last.isHittable)
+        XCTAssertTrue(analyze.isHittable)
+
+        // Reanalysis has the same two physical slots as Pro, with one still open.
+        // Exercise both capture surfaces so a hidden shutter cannot skip clearance coverage.
+        let modeToggle = app.segmentedControls["CaptureModeToggle"]
+        for mode in ["Record", "Scan"] {
+            let segment = modeToggle.buttons[mode]
+            segment.tap()
+            XCTAssertTrue(waitForSelectedState(segment))
+            let shutter = app.buttons["CaptureShutter"]
+            XCTAssertTrue(shutter.isHittable, "Capture must remain available in \(mode)")
+            XCTAssertGreaterThanOrEqual(first.frame.minY - 8 - shutter.frame.maxY, 15)
+            XCTAssertTrue(analyze.isHittable)
+            XCTAssertTrue(app.buttons["Discard scan"].isHittable)
+        }
+        modeToggle.buttons["Describe"].tap()
+        XCTAssertTrue(waitForSelectedState(modeToggle.buttons["Describe"]))
+        XCTAssertTrue(note.isHittable)
     }
 
     @MainActor
@@ -858,6 +1002,8 @@ final class merianUITests: XCTestCase {
         shutter.tap()
         let note = app.buttons["Edit note"]
         XCTAssertTrue(note.waitForExistence(timeout: 4))
+        XCTAssertTrue(app.buttons["StagedMediaPlaceholder_0"].isHittable)
+        XCTAssertFalse(app.buttons["StagedMediaPlaceholder_1"].exists)
         XCTAssertFalse(app.buttons["CaptureShutter"].isHittable)
         XCTAssertTrue(app.buttons["Identify"].isEnabled)
         app.buttons["Discard scan"].tap()

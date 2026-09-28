@@ -167,12 +167,16 @@
     },
     {
       "selector": "merianTests/SpeciesSearchViewModelTests",
-      "suite_names": ["SpeciesSearchViewModelTests"],
+      "suite_names": [
+        "SpeciesSearchViewModelTests"
+      ],
       "owner": "apps/ios/MerianTests/Features/SpeciesDictionary/Search/SpeciesSearchViewModelTests.swift"
     },
     {
       "selector": "merianTests/SpeciesSearchResponseTests",
-      "suite_names": ["SpeciesSearchResponseTests"],
+      "suite_names": [
+        "SpeciesSearchResponseTests"
+      ],
       "owner": "apps/ios/MerianTests/Features/SpeciesDictionary/Search/SpeciesSearchResponseTests.swift"
     },
     {
@@ -272,6 +276,12 @@
   ],
   "ui": [
     {
+      "selector": "merianUITests/WhatsNewUITests/testLaunchDismissalRevealsMountedWorkspace",
+      "suite_names": [
+        "WhatsNewUITests"
+      ]
+    },
+    {
       "selector": "merianUITests/merianUITests/testAnalyzingPillProgressesWithoutEscapingAccessibilityWindow",
       "suite_names": [
         "merianUITests"
@@ -303,6 +313,19 @@
     },
     {
       "selector": "merianUITests/merianUITests/testPrivateScanMapCollectionNavigationFiltersAndInsight",
+      "suite_names": [
+        "merianUITests"
+      ]
+    },
+    {
+      "selector": "merianUITests/merianUITests/testWrappedReanalysisTrayKeepsEveryNodeAndActionVisible",
+      "suite_names": [
+        "merianUITests"
+      ],
+      "owner": "apps/ios/MerianUITests/merianUITests.swift"
+    },
+    {
+      "selector": "merianUITests/merianUITests/testFinishedRecordingJoinsTrayWithoutIntermediateReview",
       "suite_names": [
         "merianUITests"
       ]

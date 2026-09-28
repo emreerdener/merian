@@ -518,12 +518,11 @@ path.
   `activeScanImages.count >= 2` via `MainOverlayView`'s conditional — the same
   guard that hides the `ZoomSliderView`.
 - The camera page spans the physical screen while the shutter is positioned
-  relative to the safe area. `MainOverlayView` uses the fixed 250 pt
-  `CaptureControlBarLayout.fullScreenOverlayClearance`, then applies the
-  existing 16 pt visual spacing. This restores the position used before
-  capture-bar measurement was removed. Do not derive the value from the
-  full-bleed pager's `GeometryProxy`; that proxy reports a zero bottom safe-area
-  inset and places the badge over the shutter.
+  relative to the safe area. `MainOverlayView` uses the baseline 250 pt
+  full-screen clearance plus the adaptive staging delta from
+  `CaptureChromeLayout`, then applies the existing 16 pt visual spacing. Do not
+  derive the value from the full-bleed pager's `GeometryProxy`; that proxy
+  reports a zero bottom safe-area inset and places the badge over the shutter.
   `testCameraHintPreservesClearanceAboveShutter` launches the real workspace and
   asserts at least 8 pt between the rendered accessibility frames.
 
@@ -770,16 +769,14 @@ unaffected by page position:
 - **Capture bar** (`PhotoLibraryButton` · `CapturePrimaryActionButton` ·
   `CaptureFlashButton`) is owned by `Capture/Shell/Components/CaptureControls`;
   it and the **toolbar** (`MainTabBar` / `ActiveScanToolbar`) live in **two
-  independent `VStack` overlays**, each with its own `Spacer()` and fixed bottom
-  padding. `CaptureControlBarLayout` in `Capture/Shared/Models` defines the 80
-  pt primary control, 124 pt bottom inset, and 204 pt safe-area-relative
-  reservation. The Shell-owned `HStack` center-aligns the 80 pt primary control
-  with its 50 pt auxiliary controls in all capture modes. Full-screen Camera and
-  Audio overlays use a separate fixed 250 pt clearance that preserves their
-  pre-regression position without consulting the safe-area-ignoring pager. No
-  child-height preference is written back into the workspace, avoiding a layout
-  feedback loop while keeping the shutter row fixed when the taller
-  `ActiveScanToolbar` slides in.
+  independent `VStack` overlays**. `CaptureControlBarLayout` retains the
+  baseline 80 pt primary control, 124 pt bottom inset, and 204 pt reservation.
+  The Shell center-aligns primary and auxiliary controls. Only the staging tray
+  reports its height; `CaptureChromeLayout` raises the control inset to that
+  height plus 16 pt when needed. Camera/Audio add the same delta to their 250 pt
+  full-screen baseline, and Describe adds it to its content reservation. Capture
+  controls and Describe do not report heights back, keeping measurement one-way.
+  See the [adaptive tray contract](29-staged-capture-review.md).
 - `MainTabBar` lives under `Capture/Shell/Components/Navigation`, and its
   generation-fenced view model receives Explore badge loading, app-badge
   coordination, settings mutation, and route feedback from Shell Services.
@@ -1260,9 +1257,10 @@ A dedicated `PHPhotoLibrary` handler.
   editor entry stop dictation; late transcripts are fenced by request and draft
   generation. Replacement refinement cancels prior preparation and clears its
   staging, picker selection, and environment lookup before loading the new
-  original. The glass tray's media row scrolls to keep Discard and Analyze
-  visible. No local supplement marker enters the queue or network payload. See
-  the [Describe contract](11-describe-and-voice-dictation.md).
+  original. The glass tray adapts into wrapped media above visible Discard and
+  Analyze actions when the compact row cannot fit. No local supplement marker
+  enters the queue or network payload. See the
+  [Describe contract](11-describe-and-voice-dictation.md).
 - **Pinned Connection + Auth Pre-warm (`CaptureWorkspaceDependencies`)**: The
   live Shell service adapter refreshes auth and calls
   `MerianNetworkClient.prewarmInferenceEndpoint()` before the user composes a

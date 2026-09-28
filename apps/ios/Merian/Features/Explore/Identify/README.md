@@ -353,3 +353,14 @@ JSON/architecture checks, and candidate iOS runtime results separately. The
 [cleanup record](../../../../../../docs/rfcs/codebase-cleanup.md#phase-2-behavior-preserving-file-splits)
 tracks the local build restrictions and remaining runtime acceptance; a prior
 merged feature's CI result is not evidence for a new endpoint slice.
+
+## Account-wide post report visibility
+
+Confirmed Community detail reports publish the backing `postId` to the shared
+`ExploreContentVisibilityStore` and clear the detail. The shared presentation
+owner closes the associated media/discussion. Loading checks the captured
+visibility context before accepting a detail. Failed reports leave the content
+visible; account changes reject late report completions. Pending, dismissed and
+actioned report rows all filter Community list/detail/activity on the server.
+See the
+[visibility contract](../../../../../../docs/features-and-hardware/30-reported-content-visibility.md).

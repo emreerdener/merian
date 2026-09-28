@@ -381,6 +381,13 @@ metadata and the mail subject. AirDrop and Copy receive the URL itself, without
 an extra text file. Sharing does not attach the underlying public media as
 separate files.
 
+The native link preview includes the public hero image, with ordered image or
+persisted video/audio posters as a fallback when the hero is blank.
+`ExploreShareMessageFormatter.itemSource` supplies a lazy image loader through
+the existing image cache, capped at 1,024 pixels. Opening the share sheet does
+not wait for the image download; failure leaves the canonical link shareable.
+Raw video and audio files are never used as preview images.
+
 Feed post options include Share for both the viewer's own posts and other
 authors' posts. This uses the same external sharing flow as detail, including
 video playback suspension until the system share sheet finishes.
@@ -478,6 +485,11 @@ Dictionary community sightings.
 
 ## Emoji reactions
 
+The shared emoji picker offers a horizontal category filter row below search for
+posts, comments, and replies. All is selected initially; choosing a category
+limits browsing and search to that category and returns the grid to the top. The
+category row remains visible while browsing emoji.
+
 Post, comment, and reply reactions use the shared bare emoji/count styling:
 20-point emoji and body-text counts (17 points) in a 44-point row at the default
 text size. Reaction counts match the comment and heart counts, and all support
@@ -485,8 +497,12 @@ Dynamic Type. Neither selected nor unselected reactions have a background or
 border; counts turn blue when the viewer has contributed that reaction and
 otherwise use the default text color. VoiceOver retains the selected state.
 Comment and reply Add reaction buttons also omit their capsule background and
-outline, with a 20-point smiley and a minimum 44-point tap target. They retain
-the shared picker and selection feedback.
+outline. They match the post's outline smiley with a bottom-right plus-circle
+badge, using secondary gray and a badge backing that matches the comment card.
+The 20-point smiley and badge scale together with Dynamic Type. The icon aligns
+with the comment text and Reply action without horizontal padding, inside a
+leading-aligned minimum 44-point tap target. They retain the shared picker and
+selection feedback.
 
 Feed and hashtag cards omit Share from the action row, letting emoji chips
 extend to the right edge while retaining overflow fades. Share remains available
@@ -566,3 +582,9 @@ line. See the
 [product contract](../../../../../../docs/rfcs/explore-page.md#detail-reaction-people-2026-09-18)
 and
 [verification matrix](../../../../../../docs/development-guides/08-testing-strategy.md#post-reaction-people-verification).
+
+## Reported posts
+
+`ExplorePostStore` filters every public projection and upsert against the
+injected visibility store. Confirmed reports publish account-scoped
+invalidation; delayed feed hydration cannot reintroduce a hidden post.

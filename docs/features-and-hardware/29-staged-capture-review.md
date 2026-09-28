@@ -4,7 +4,9 @@ This is the current product and lifecycle contract for the Scan, Record, and
 Describe workspace. It describes repository behavior, not deployment status. The
 [implementation record](../rfcs/staged-review-shared-describe-2026-09-26.md)
 retains the pinned provider/provenance checkpoint, exact implementation commits,
-validation results, and outstanding distribution evidence.
+validation results, and outstanding distribution evidence. The
+[adaptive-toolbar follow-up](../rfcs/adaptive-staged-toolbar-2026-09-27.md)
+records the later layout changes and their local validation separately.
 
 ## Capacity and settings
 
@@ -22,6 +24,12 @@ companion audio. This table defines composition capacity, not available funding.
 The [scan allowance contract](../backend-and-data/18-complimentary-pro-scans.md)
 owns Free eligibility, Pro-first funding, quotas, and
 exhausted-Pro/remaining-Free fallback. Placeholders never enter payloads.
+
+The tray renders one placeholder per unused physical slot. A Describe-first Pro
+draft shows two empty media nodes followed by its note; Free shows one empty
+media node followed by its note. Adding media replaces those placeholders
+without changing the separate text allowance or depending on the starting
+capture mode.
 
 Staged review is the default on new and existing installations. Workspace's
 **Auto-submit scans** uses the new `autoSubmitScans` key, registered as `false`;
@@ -70,25 +78,84 @@ local copy: **Done** commits, swipe-dismiss discards unsaved edits, and
 edits never replace or clear the current supplement. See the
 [Describe and dictation contract](./11-describe-and-voice-dictation.md).
 
+## Audio completion
+
+**Finish recording** and the 15-second limit both add the completed original WAV
+directly to the staged tray, including completion while paused. Recording and
+handoff keep submission blocked. The accepted clip returns Record to idle;
+playback, scrubbing, boost, and removal are available from its node. Another
+recording is available only while capacity remains. Eligible Auto-submit uses
+the existing capture-attempt policy after staging, including early completion.
+
+Completion is checked against the recording ID and draft generation, committed
+once, and acknowledged before recorder reset. Capacity loss in a valid draft
+retains exceptional recovery with an error and manual retry; stale completion
+cannot restore cancelled content. The recording-start boost preference is
+preview-only staged metadata. See the
+[audio contract](./12-audio-listen-mode.md).
+
 ## Tray and protected discard
 
 The media row displays physical captures and an add-media placeholder while
-capacity remains. One note node follows it: message-plus when empty, filled
-message bubble when populated, with **Add note** / **Edit note** accessibility
-labels. Text-only scans use that same note node once. Reanalysis may also show
-historical text nodes. The once-per-install tooltip says “Add a note about what
-you noticed.”
+capacity remains. One note node follows it: outlined message bubble when empty,
+filled message bubble when populated, with **Add note** / **Edit note**
+accessibility labels. Text-only scans use that same note node once. Reanalysis
+may also show historical text nodes. The once-per-install tooltip says “Add a
+note about what you noticed.”
 
 Physical capture controls remain available while capacity remains; the note
-remains reachable at full capacity. The media row scrolls horizontally while
-Discard and Identify/Analyze stay visible. On iOS 26+, the tray capsule and
-circular discard control use native Liquid Glass. Earlier iOS uses material;
-Reduce Transparency or the existing Expedition/thermal effect policy selects an
-opaque adaptive background. **Identify** is text-only, system blue, and 48
-points high, with its existing disabled appearance. **Analyze** retains its
-green styling and sparkles. Media icons retain their meanings.
+remains reachable at full capacity. The top Scan / Record / Describe selector
+stays visible and usable even when every media slot and the note are populated.
+Nodes retain 48 pt touch targets with 8 pt spacing. The tray uses one row only
+when all nodes and the submission button fit at their ideal sizes. Otherwise,
+complete media nodes wrap in chronological order in a separate rounded glass
+container above the action row; the note remains last. Discard stays on the left
+and Identify/Analyze on the right, with 8 pt between rows. There is no clipped
+horizontal media viewport or hidden discard gesture.
 
-The neutral discard surface has a red trash icon. Tapping it presents:
+Compact layout places the media-only glass capsule between the independently
+floating Discard and Identify/Analyze buttons, with a 16 pt gap on each side.
+Both circular action controls use 48 pt diameters in compact and expanded
+layouts, centered alongside the media capsule. The capsule retains 8 pt internal
+padding and the toolbar retains 16 pt outer horizontal margins. Expanded layout
+retains that padding and those outer margins, with 8 pt between complete media
+rows and between the media container and action row. Both layouts keep 24 pt
+bottom padding. Selection is based on actual available width and ideal content
+sizes, not a node-count or device-model threshold.
+
+On iOS 26+, the tray and circular discard control use native Liquid Glass.
+Earlier iOS uses material; Reduce Transparency or the existing
+Expedition/thermal effect policy selects an opaque adaptive background. The tray
+follows the app's color scheme consistently across Scan, Record, and Describe.
+**Identify** and **Analyze** both use a white up arrow in a 48 pt primary accent
+blue circle, matching Share’s blue and Discard’s diameter. Both retain their
+context-specific accessibility label and submission hint, disabled behavior, and
+Large Content Viewer label. Submission actions have no visual tooltip. The
+once-per-install note tooltip remains. Action controls remain 48 pt at
+accessibility text sizes, while note-tooltip text can wrap. Media icons retain
+their meanings. Both the note and audio-review nodes have a visible circular
+border. Empty note and add-media nodes share a dashed border and transparent
+background. Populated notes, audio, historical text, and photo/video thumbnail
+backing use opaque primary system backgrounds (white in light appearance) and
+solid borders. Empty nodes reveal the tray beneath, including its
+reduced-transparency or reduced-effect fallback. Audio uses a primary-contrast
+waveform; its appearance does not imply a disabled state. It remains a
+playback-review button, subject to the shared draft/admission locks.
+
+Only the staging tray reports its rendered height (including bottom padding) to
+Shell. `CaptureChromeLayout` retains the baseline 124 pt capture-control inset,
+or uses the tray height plus 16 pt when larger. Describe's content reservation,
+camera/audio overlay clearance, and composing center follow this same increment.
+Capture controls and UIKit-hosted Describe never report heights back into this
+calculation. Compact layouts preserve ordinary positions; expanded layouts
+animate unless Reduce Motion is enabled, including tray appearance and tooltip
+dismissal. Keyboard editing in Describe continues to hide bottom chrome and
+restores the measured layout on dismissal.
+
+The neutral discard surface has a semibold trash icon with a deeper red in light
+appearance and a brighter red in dark appearance for contrast. The empty note
+icon uses the plain `bubble.left` outline without interior lines or a plus
+badge; a populated note uses `text.bubble.fill`. Tapping discard presents:
 
 - **Discard this scan?**
 - “Your staged media and description will be removed.”
@@ -165,6 +232,13 @@ admission and visual/nonvisual entry points connect to the Core durable queue.
 Settings owns preference/paywall presentation, while `HardwareOrchestrator` owns
 effect constraints and `IdentificationEvidenceAllowance` owns the shared native
 Free evidence rule.
+
+`CaptureStagingMediaFlowLayout` wraps complete evidence nodes without changing
+their source order. `CaptureChromeLayout` owns the shared clearance calculation;
+`CaptureChromeLayoutEnvironment` carries its value and the tray-height
+preference between Staging, Shell, and the three capture modes. These are
+internal UI interfaces, with no payload, entitlement, queue, persistence, or
+schema changes.
 
 The
 [verification matrix](../development-guides/08-testing-strategy.md#staged-review-and-shared-describe-validation)

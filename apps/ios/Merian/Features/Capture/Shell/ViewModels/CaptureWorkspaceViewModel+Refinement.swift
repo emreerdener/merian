@@ -202,7 +202,7 @@ extension CaptureWorkspaceViewModel {
                     return
                 }
 
-                let didStage = await MainActor.run { () -> Bool in
+                let didStage = await MainActor.run { [preparedOrder] () -> Bool in
                     guard self.draftSession.generation == draftGeneration,
                               self.baseRefinementContext?.scanId == scanId,
                           self.hasAvailableStagedCaptureSlot else {

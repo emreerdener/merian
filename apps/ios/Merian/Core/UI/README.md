@@ -49,6 +49,11 @@ titles live in Link Presentation metadata and the optional mail subject, not in
 a separate text attachment. Explore post and app-invitation shares use this
 source; file exports retain their file payloads.
 
+Callers may supply an asynchronous preview-image loader. Link Presentation loads
+that image lazily through a cancellable `NSItemProvider`; missing images
+complete with an error while the URL remains shareable. The image is metadata,
+never a second activity item. The feature owns image selection and size limits.
+
 ## Capture ownership boundary
 
 Core UI owns only visual primitives reused across product areas. Capture's mode

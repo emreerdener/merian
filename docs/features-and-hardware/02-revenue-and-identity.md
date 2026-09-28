@@ -536,11 +536,11 @@ preference semantics.
 
 `ProPlanValueProps` in `PaywallPresentation.swift` supplies the current paywall:
 four slides, multi-capture copy explaining two media items plus an optional
-note, and a Media per scan comparison of `1 + optional note` /
-`2 + optional note`. Expedition reads **Included** for both tiers. Paid-plan
-summaries and carousel exclude it, and the former attributed Expedition
-testimonial is removed rather than rewritten. Other benefits, prices,
-purchase/restore behavior, and integrated provider claims remain unchanged.
+note, and a Media per scan comparison of `1` for Free and `2` for Pro.
+Expedition reads **Included** for both tiers. Paid-plan summaries and carousel
+exclude it, and the former attributed Expedition testimonial is removed rather
+than rewritten. Other benefits, prices, purchase/restore behavior, and
+integrated provider claims remain unchanged.
 
 ### Entitlement and identity ownership
 

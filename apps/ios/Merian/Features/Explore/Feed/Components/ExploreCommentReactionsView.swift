@@ -14,15 +14,16 @@ struct ExploreCommentReactionsView: View {
                 HapticManager.shared.triggerSheetSpring(source: "explore.reaction.comment.open")
                 reactingCommentId = comment.id
             } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "face.smiling")
-                    Image(systemName: "plus")
-                        .font(.caption.weight(.bold))
+                Image(systemName: "face.smiling").overlay(alignment: .bottomTrailing) {
+                    Image(systemName: "plus.circle")
+                        .font(.system(size: iconSize * 0.45))
+                        .background(Color(uiColor: .secondarySystemBackground), in: Circle())
+                        .offset(x: iconSize * 0.2, y: iconSize * 0.1)
                 }
+                .environment(\.symbolVariants, .none)
                 .font(.system(size: iconSize))
-                .padding(.horizontal, 6)
                 .foregroundStyle(.secondary)
-                .frame(minWidth: 44, minHeight: 44)
+                .frame(minWidth: 44, minHeight: 44, alignment: .leading)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain).accessibilityLabel("Add reaction to comment")

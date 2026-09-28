@@ -534,6 +534,9 @@ production submission or public release.
   [implementation record](./rfcs/staged-review-shared-describe-2026-09-26.md)
   retains pinned dependencies, exact commits, local validation, and release
   gaps.
+  [Adaptive-toolbar follow-up](./rfcs/adaptive-staged-toolbar-2026-09-27.md)
+  records complete-node wrapping, matching submission buttons, measured capture
+  clearance, and the September 27 simulator checks.
 
 - **[`/features-and-hardware/01-camera-and-hardware.md`](./features-and-hardware/01-camera-and-hardware.md)**
   — AVFoundation bindings, LiDAR depth logic, Pro video stabilization
@@ -778,3 +781,6 @@ backend-before-app delivery; the
 [verification matrix](./development-guides/08-testing-strategy.md#explore-emoji-reaction-verification)
 separates automated gates from manual device checks. These describe current
 source, not evidence of deployment or app distribution.
+
+- [Reported content visibility](features-and-hardware/30-reported-content-visibility.md)
+  owns account-wide report hiding, reused reference media and cache lifecycle.

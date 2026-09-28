@@ -85,7 +85,9 @@ struct ExplorePostDetailView: View {
 
     var body: some View {
         Group {
-            if let post = currentPost {
+            if !viewModel.visibility.isVisible(postID: postId) {
+                ContentUnavailableView("Discovery unavailable", systemImage: "eye.slash")
+            } else if let post = currentPost {
                 ExplorePostDetailContentView(
                     viewModel: viewModel,
                     detailViewModel: detailViewModel,
@@ -145,6 +147,13 @@ struct ExplorePostDetailView: View {
         .onDisappear {
             reactorsModel.invalidate()
             pendingReactorProfileRoute = nil
+        }
+        .onChange(of: viewModel.visibility.generation) { _, _ in
+            if !viewModel.visibility.isVisible(postID: postId) {
+                presentedSheet = nil
+                cancelPendingAsyncPresentations()
+                dismiss()
+            }
         }
         .onChange(of: offlineQueueManager.isOnline, initial: true) { _, isOnline in
             exploreChatViewModel.updateConnectivity(isOnline: isOnline)

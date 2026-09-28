@@ -1902,3 +1902,10 @@ border and use a 20-point smiley. Tap targets remain at least 44 points. Feed,
 hashtag, detail, Map previews, comments, and notification reply threads all
 consume this styling. Toggle behavior, pagination, overflow fades, and the
 second post row at large text sizes remain unchanged.
+
+## Status note — 2026-09-27
+
+The earlier local-only reporting behavior is superseded by the current
+[reported content visibility contract](../features-and-hardware/30-reported-content-visibility.md).
+Successful reports now hide the post and its reused photos for the reporting
+account across authenticated reads. The original RFC remains historical context.

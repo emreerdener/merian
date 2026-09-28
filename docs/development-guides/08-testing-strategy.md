@@ -2700,6 +2700,17 @@ prove visual parity, live Auth/provider behavior, or migration execution.
   Debug/Release UI-test seed separation, root scene and fallback-Auth-task
   ownership, deterministic root presentation and notice composition, and Google
   → app route → file import → Supabase URL precedence.
+- **`App/WhatsNewLaunchTests.swift`**: Covers once-per-highlight-set
+  acknowledgement, suppression for onboarding-incomplete installations, recovery
+  deferral without acknowledgement, test-process isolation, and
+  onboarding/consent priority. `CaptureWorkspaceViewModelRefinementTests`
+  additionally covers announcement dismissal, one-shot Explore launch, and
+  deep-link precedence.
+  `WhatsNewUITests/testLaunchDismissalRevealsMountedWorkspace` verifies
+  Continue, Close, and swipe with retained screenshots. Manually verify device
+  camera restart, relaunch suppression, Settings replay, light/dark appearance,
+  and accessibility text sizes against the
+  [What’s New contract](./12-in-app-changelog.md#whats-new-sheet).
 - **`AppDIContainerTests.swift`**: Proves preview graphs receive independent
   event publishers, route coordinators, milestone presenters, and host
   registries. The event-routing source guard separately rejects any shared
@@ -2791,11 +2802,15 @@ prove visual parity, live Auth/provider behavior, or migration execution.
   sources; `make test-ios-event-routing` exercises missing canonical model/bus,
   multiline, alias, application-name/post, duplicate-subject, singleton,
   allowlist, and test-target-exclusion fixtures. An adversarial leaky-owner
-  fixture also proves a raw Combine `.sink` outside the five exact reviewed
-  lifetime owners is rejected. These fixtures are part of
-  `make test-ios-ci-tooling`. The fast `ios-project-guardrails.yml` lane and the
-  compiled iOS workflow both validate the live repository, and both are
-  path-sensitive to the checker, its exact allowlist, and its fixture script.
+  fixture also proves a raw Combine `.sink` outside the six exact reviewed
+  lifetime owners is rejected. The reviewed-feed fixture accepts the exact
+  `ExploreFeedViewModel.swift` owner and rejects the same subscription in a
+  neighboring unreviewed file. Native visibility tests prove same-turn account
+  and report invalidation, request fencing, and subscription teardown. These
+  fixtures are part of `make test-ios-ci-tooling`. The fast
+  `ios-project-guardrails.yml` lane and the compiled iOS workflow both validate
+  the live repository, and both are path-sensitive to the checker, its exact
+  allowlist, and its fixture script.
 - **Verification tiers**: A recursive `swiftc -frontend -parse` catches syntax
   errors quickly. A direct iOS module/test-target type-check can add useful
   compile evidence when CoreSimulator is unavailable, but neither runs XCTest,
@@ -3789,12 +3804,13 @@ For mounted Record selection or accessibility changes, also keep
 `merianUITests.testAudioFirstLaunchSelectsRecordMode` in the simulator matrix.
 Simulator success does not replace Record's physical-device acceptance pass:
 verify first-use microphone permission, Camera-to-Audio startup, real input,
-record/pause/resume and early-stop review, mode/background preservation, both
-15-second confirmation branches, feedback, review playback/scrubbing, and the
-Audio-to-Describe handoff on a signed build. The same pass must prove that an
-idle Insight or Explore audio page does not interrupt recording or dictation,
-then exercise first play, seek-resume, owner replacement and reacquisition,
-background/disappearance during activation, and headphone or route changes.
+record/pause/resume and early-stop direct staging, mode/background preservation,
+15-second direct staging with Auto-submit on and off, feedback, review
+playback/scrubbing, and the Audio-to-Describe handoff on a signed build. The
+same pass must prove that an idle Insight or Explore audio page does not
+interrupt recording or dictation, then exercise first play, seek-resume, owner
+replacement and reacquisition, background/disappearance during activation, and
+headphone or route changes.
 
 Run the focused Capture Describe matrix after changing prompts, subject
 inference, text/tag composition, dictation orchestration, the UIKit scroll host,
@@ -7726,31 +7742,31 @@ main actor; physical-device review playback must still be checked with Xcode
 Thread Performance Checker, including rapid Play/Stop, scrubbing, boost source
 switches, and recording-to-playback session handoff. Run
 `AudioCaptureManagerTests` for facade state, startup cleanup, injected
-maximum-duration feedback, review routing, and duplicate-resume coalescing; its
-activation gate also proves lifecycle cancellation fences a late result. Run
-`SpectrogramActorTests` for bounded FFT/noise-floor behavior and reset
-semantics. Run `AudioCaptureTransitionStateTests` for generation
-replacement/invalidation, `AudioSessionCoordinatorTests` for successful
-replacement, failed-activation configuration restoration, first-activation
-cleanup, and rollback-failure invalidation plus cancellation before session
-mutation. Run the Core Media-owned `AudioPlaybackSessionControllerTests` for
-idle-mount isolation, lazy activation coalescing and retry, stale-token
-reacquisition, immediate teardown, cancellation before coordinator mutation,
-cancellation-ignoring late acquisition, teardown during lease validation, and
-replacement-safe cleanup, and session release after player stop.
-`AudioPlaybackFilePlayerTests` covers off-main construction/control/disposal,
-silent loading, stop during an uncancellable play, stale time sampling after
-seek, ordered pause/seek/resume, and completion after a stopped sample while
-ignoring teardown callbacks. Run `AudioSpectrogramRendererTests` for reusable
-palette, raster orientation, live-horizon, and fit-to-data behavior. The
-playback-session architecture check also requires reusable Core UI and Explore
-audio to await exact-token validation before every audible start and keeps
-generic media dependencies free of direct AVAudioSession mutation. These suites
-live under mirrored `Features/Capture/Record`, `Core/Hardware`, and `Core/Media`
-test paths; do not move playback, hardware, or reusable renderer assertions back
-into an aggregate manager suite. Keep
-`merianUITests.testAudioFirstLaunchSelectsRecordMode` in the focused matrix for
-the real pager selection and mounted Audio presentation.
+maximum-duration feedback, direct staging handoff, recovery routing, and
+duplicate-resume coalescing; its activation gate also proves lifecycle
+cancellation fences a late result. Run `SpectrogramActorTests` for bounded
+FFT/noise-floor behavior and reset semantics. Run
+`AudioCaptureTransitionStateTests` for generation replacement/invalidation,
+`AudioSessionCoordinatorTests` for successful replacement, failed-activation
+configuration restoration, first-activation cleanup, and rollback-failure
+invalidation plus cancellation before session mutation. Run the Core Media-owned
+`AudioPlaybackSessionControllerTests` for idle-mount isolation, lazy activation
+coalescing and retry, stale-token reacquisition, immediate teardown,
+cancellation before coordinator mutation, cancellation-ignoring late
+acquisition, teardown during lease validation, and replacement-safe cleanup, and
+session release after player stop. `AudioPlaybackFilePlayerTests` covers
+off-main construction/control/disposal, silent loading, stop during an
+uncancellable play, stale time sampling after seek, ordered pause/seek/resume,
+and completion after a stopped sample while ignoring teardown callbacks. Run
+`AudioSpectrogramRendererTests` for reusable palette, raster orientation,
+live-horizon, and fit-to-data behavior. The playback-session architecture check
+also requires reusable Core UI and Explore audio to await exact-token validation
+before every audible start and keeps generic media dependencies free of direct
+AVAudioSession mutation. These suites live under mirrored
+`Features/Capture/Record`, `Core/Hardware`, and `Core/Media` test paths; do not
+move playback, hardware, or reusable renderer assertions back into an aggregate
+manager suite. Keep `merianUITests.testAudioFirstLaunchSelectsRecordMode` in the
+focused matrix for the real pager selection and mounted Audio presentation.
 
 Capture startup diagnostics must also exercise the user-configurable first-mode
 matrix. For each of Camera, Audio, and Description, persist that mode first,
@@ -9567,21 +9583,39 @@ repository wrapper and checkout-local caches. Use an installed simulator UUID:
 make ios-local-build ARGS='simulator test -configuration Debug -destination "platform=iOS Simulator,id=<SIMULATOR_UUID>" -only-testing:merianTests -parallel-testing-enabled NO -collect-test-diagnostics never'
 ```
 
-The four mounted UI selectors are:
+The mounted UI selectors are:
+
+- `merianUITests/merianUITests/testFinishedRecordingJoinsTrayWithoutIntermediateReview`
 
 - `merianUITests/merianUITests/testDescribeFirstLaunchRendersAndOpensPrompts`
 - `merianUITests/merianUITests/testDescribeTextAreaFocusesFromLowerRegion`
 - `merianUITests/merianUITests/testSharedDescribeReviewAndConfirmedDiscard`
 - `merianUITests/merianUITests/testNoteAtMediaCapacityWithLargerText`
+- `merianUITests/merianUITests/testStagedAudioBadgeOpensPlaybackReview`
+- `merianUITests/merianUITests/testWrappedReanalysisTrayKeepsEveryNodeAndActionVisible`
 
 Run them with `make ios-local-build ARGS='simulator test ...'`, passing one
 `-only-testing:<selector>` for each and the same destination/diagnostics
 options. The lower-area test explicitly waits for keyboard readiness before
 typing. The capacity test verifies the fixed actions and note access at
-accessibility XXXL; the shared-text test verifies initial staging, retained
-edits, Keep editing, and confirmed discard. Captured screenshots supplement the
-assertions. They do not establish physical-device VoiceOver, older-iOS material
-rendering, or thermal behavior.
+accessibility XXXL without horizontal scrolling. The audio-review test covers
+the compact row and 48 pt circular submission action at the largest standard
+text size; the capacity test checks the same diameter at accessibility XXXL; the
+reanalysis test seeds historical evidence that wraps to multiple media rows and
+checks every node plus both actions remain reachable. It switches to Record and
+Scan with a remaining physical slot and requires a visible capture control with
+at least 16 pt clearance above the media container (allowing 1 pt for rendered
+geometry rounding). The shared-text test verifies initial staging, retained
+edits, Keep editing, and confirmed discard. Run the wrapped cases on a
+small-screen earlier-iOS simulator as well as iOS 26 to check material and
+Liquid Glass rendering. Captured screenshots supplement the assertions; they do
+not establish physical-device VoiceOver or thermal behavior.
+
+The
+[September 27 adaptive-toolbar validation record](../rfcs/adaptive-staged-toolbar-2026-09-27.md)
+records the tested source state, retained local results, review fixes, and
+outstanding device/exact-SHA checks. It is local working-tree evidence, not
+release approval.
 
 Full native validation must retain admission, recipient-preflight, consent,
 provenance, migration, and durable same-scan recovery suites. Backend evidence
@@ -9607,3 +9641,39 @@ iterations (12 executions). Exact commits and retained result bundles are in the
 dated implementation record. These results do not imply server deployment, app
 distribution, or completion of the remaining physical-device and database
 checks.
+
+### Reported content visibility regression coverage
+
+Run `reportedPostVisibilityDb.test.ts`, `reported_post_visibility.sql`, the
+`species-dictionary-for-viewer/handler_test.ts` and dictionary viewer-media
+tests, then the complete database catalogs and Deno suite. Native
+visibility/store and dictionary cache tests accompany the iOS gates. Manual
+acceptance covers immediate removal, presentation/media dismissal, stale
+requests, cached map regions, widget writes, account switches and cross-device
+next reads, as specified in
+[the visibility contract](../features-and-hardware/30-reported-content-visibility.md).
+
+### Direct audio staging validation
+
+`AudioCaptureManagerTests` covers early/paused/maximum completion without normal
+review, duplicate completion, and acknowledged versus unclaimed file cleanup.
+`CaptureDraftSessionTests` covers exactly-once audio staging, original-byte and
+boost-default preservation, stale-generation cleanup without clearing a newer
+operation, failed completion with existing text, and capacity-loss manual retry.
+Existing draft tests retain attempt-bound Auto-submit and preference revocation.
+Recovery playback/boost controller tests explicitly enter the exceptional path.
+The audio completion matrix exercises early and maximum-duration completion with
+Auto-submit enabled initially, enabled mid-recording, disabled then re-enabled,
+new or existing text, and reanalysis.
+
+`testFinishedRecordingJoinsTrayWithoutIntermediateReview` seeds a bounded WAV
+and active recording identity, then taps the production Finish recording control
+from recording and paused states. It checks direct staging, enabled submission,
+absence of intermediate retry, staged boost selection, preview removal, and
+restored recording capacity. The fixture never requests microphone hardware or
+provider inference. Real microphone routes, duration-limit timing, and
+background/interruption behavior still require physical-device verification.
+
+The [direct-audio validation record](../rfcs/direct-audio-staging-2026-09-27.md)
+records the source base, retained simulator results and screenshots, and
+remaining device checks.

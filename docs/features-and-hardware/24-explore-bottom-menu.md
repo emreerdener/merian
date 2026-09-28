@@ -127,6 +127,30 @@ maps. Missing or invalid preferences mean satellite. Sign-out, account changes,
 and account deletion preserve this presentation preference. The passive
 Collections map preview remains a standard-map snapshot.
 
+Explore Map keeps the native user-location dot above observation thumbnails and
+clusters, including the selected observation. Its system appearance and size are
+preserved so it remains a compact orientation reference among discoveries.
+
+The bottom Explore Map discovery carousel uses rounded Liquid Glass cards on iOS
+26 and later, matching the floating map controls. Older supported versions keep
+the existing material cards. Card content, actions, and swipe behavior stay the
+same. The discoveries-list sheet uses material cards with a full-content-width
+4:3 image stacked above the species details, location, reactions, and discovery
+action. The image retains rounded corners and the card's content inset; the
+overflow menu sits beside the species details. Floating carousel cards keep
+their compact side-by-side image and text layout.
+
+Tapping the discoveries count opens a list for the snapshotted map area and
+filters. Cluster counts do not imply that individual cards are already loaded:
+the sheet loads those rows separately through the existing map-points endpoint,
+without moving the camera or replacing clusters. The reported count remains in
+the title while loading; failures offer Retry and empty results explain that no
+discoveries remain. Dismissed requests cannot replace a later sheet's content.
+The endpoint's existing 500-candidate and 160-post caps remain in force, with
+**Showing X of Y discoveries** guidance when only a subset is returned. Existing
+post-mode cards appear immediately, and successful moderation or unpublishing
+removes affected cards from the sheet too.
+
 Search opens a medium/large sheet at medium height, with recent places and no
 keyboard. Focusing the field expands to large. MapKit autocomplete and full-text
 search support cities, states, addresses, and places without requiring location
@@ -147,6 +171,13 @@ disables the transition. Locate me uses the existing one-shot location service
 and exposes progress, Settings for denied permission, and unavailable feedback
 without moving the map on failure. Newer navigation and user gestures invalidate
 older locate requests.
+
+In Explore Map, **Locate me** centers on a view roughly 1 km across, preserving
+the current width in meters if already closer. The view widens when necessary to
+include the location fix's horizontal-accuracy diameter. It clears the selected
+preview, preserves filters, and searches the settled viewport immediately. Empty
+discovery results never zoom the camera out. Initial map framing and
+place-search framing retain their existing behavior.
 
 Recent places store at most ten selected title/subtitle pairs per account,
 newest first with normalized-label deduplication. Both maps share the account's

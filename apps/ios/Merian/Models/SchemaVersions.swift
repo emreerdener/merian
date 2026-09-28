@@ -4317,7 +4317,6 @@ enum MerianReleasedActiveV50MigrationPlan: SchemaMigrationPlan {
     }
 }
 
-
 /// Installed V51 stores need only the additive provenance hop.
 enum MerianRecentV51MigrationPlan: SchemaMigrationPlan {
     static var schemas: [any VersionedSchema.Type] {

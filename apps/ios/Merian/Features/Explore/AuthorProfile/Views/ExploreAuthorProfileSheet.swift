@@ -60,6 +60,8 @@ struct ExploreAuthorProfileSheet: View {
                 )
             }
         }
+        .id(viewModel.visibility.generation)
+        .onChange(of: viewModel.visibility.generation) { _, _ in navigationPath = NavigationPath() }
         .presentationBackground(Color(uiColor: .systemGroupedBackground))
     }
 }

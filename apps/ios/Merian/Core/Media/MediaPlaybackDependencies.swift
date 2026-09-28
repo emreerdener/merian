@@ -30,6 +30,7 @@ struct MediaPlaybackDependencies {
     let prepareAudioBoost: @MainActor (
         _ source: String
     ) async throws -> AudioBoostResult
+    let releaseAudioBoost: @MainActor (_ source: String) async -> Void
     let invalidateAudioBoost: @MainActor (_ source: String) async -> Void
     let trackAudioBoost: @MainActor (
         _ event: String,
@@ -58,6 +59,7 @@ struct MediaPlaybackDependencies {
         ) async throws -> AudioBoostResult = { _ in
             throw CocoaError(.fileReadCorruptFile)
         },
+        releaseAudioBoost: @escaping @MainActor (_ source: String) async -> Void = { _ in },
         invalidateAudioBoost: @escaping @MainActor (
             _ source: String
         ) async -> Void = { _ in },
@@ -83,6 +85,7 @@ struct MediaPlaybackDependencies {
         self.activatePlaybackAudio = activatePlaybackAudio
         self.acquireAudioSource = acquireAudioSource
         self.prepareAudioBoost = prepareAudioBoost
+        self.releaseAudioBoost = releaseAudioBoost
         self.invalidateAudioBoost = invalidateAudioBoost
         self.trackAudioBoost = trackAudioBoost
         self.selectionFeedback = selectionFeedback
@@ -136,6 +139,7 @@ struct MediaPlaybackDependencies {
             activatePlaybackAudio: activatePlaybackAudio,
             acquireAudioSource: acquireAudioSource,
             prepareAudioBoost: prepareAudioBoost,
+            releaseAudioBoost: releaseAudioBoost,
             invalidateAudioBoost: invalidateAudioBoost,
             trackAudioBoost: tracker,
             selectionFeedback: selectionFeedback,

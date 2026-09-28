@@ -7,6 +7,64 @@ import UIKit
 @MainActor
 @Suite("Capture staging toolbar presentation")
 struct CaptureStagingToolbarPresentationTests {
+    @Test("Describe-first and media-first drafts show every unused physical slot")
+    func allPhysicalSlotsRemainVisibleWithSharedText() {
+        for limit in [1, 2] {
+            for hasNote in [false, true] {
+                for mediaCount in 0...limit {
+                    var capture = StagedCapture()
+                    capture.images = (0..<mediaCount).map { _ in stagedImage() }
+                    if hasNote {
+                        capture.observationContexts = [StagedObservationContext(
+                            context: ObservationContext(freeText: "A bird")
+                        )]
+                    }
+                    let presentation = CaptureStagingToolbarPresentation(
+                        stagedCapture: capture, isRefining: false, stagedCaptureLimit: limit
+                    )
+                    #expect(presentation.emptyMediaSlotCount == limit - mediaCount)
+                    #expect(presentation.visibleNodes.count + presentation.emptyMediaSlotCount == limit)
+                }
+            }
+        }
+    }
+
+    @Test("Media wraps at complete-node boundaries and retains chronological positions")
+    func mediaWrapsWithoutClipping() {
+        let sizes = Array(repeating: CGSize(width: 48, height: 48), count: 7)
+        let frames = CaptureStagingMediaFlowLayout.frames(sizes: sizes, width: 160)
+        #expect(frames.map(\.minX) == [0, 56, 112, 0, 56, 112, 0])
+        #expect(frames.map(\.minY) == [0, 0, 0, 56, 56, 56, 112])
+        #expect(frames.allSatisfy { $0.width == 48 && $0.height == 48 && $0.maxX <= 160 })
+        let narrow = CaptureStagingMediaFlowLayout.frames(sizes: sizes, width: 159)
+        #expect(narrow[2].minY == 56)
+        #expect(narrow[6].minY == 168)
+        #expect(CaptureStagingMediaFlowLayout.frames(sizes: [], width: 160).isEmpty)
+    }
+
+    @Test("Expanded tray clearance moves all content together and restores the baseline")
+    func toolbarClearanceTracksMeasuredHeight() {
+        for height: CGFloat in [0, 88, 108] {
+            let layout = CaptureChromeLayout(toolbarHeight: height)
+            #expect(layout.bottomInset == 124)
+            #expect(layout.reservedHeight == 204)
+            #expect(layout.fullScreenOverlayClearance == 250)
+        }
+        for height: CGFloat in [144, 200, 264] {
+            let layout = CaptureChromeLayout(toolbarHeight: height)
+            #expect(layout.bottomInset - height == 16)
+            #expect(layout.reservedHeight - layout.bottomInset == 80)
+            #expect(layout.fullScreenOverlayClearance - layout.reservedHeight == 46)
+        }
+    }
+
+    @Test("Both note states resolve to drawable system symbols")
+    func noteSymbolsAreAvailable() {
+        for name in [CaptureStagingNoteIcon.emptySymbol, CaptureStagingNoteIcon.populatedSymbol] {
+            #expect(UIImage(systemName: name) != nil)
+        }
+    }
+
     @Test("Refinement description reserves capacity without admitting a third physical item")
     func refinementSupplementCapacityAndThreeItemTray() {
         var capture = StagedCapture()

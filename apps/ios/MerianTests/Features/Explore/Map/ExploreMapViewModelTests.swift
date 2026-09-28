@@ -6,6 +6,35 @@ import XCTest
 
 @MainActor
 final class ExploreMapViewModelTests: XCTestCase {
+    func testLocateSearchesSettledLocalViewportAndKeepsEmptyResultsLocal() async throws {
+        var loadedRegion: MKCoordinateRegion?
+        let model = ExploreMapViewModel(dependencies: .init(
+            loadPoints: { request in
+                loadedRegion = request.region
+                return ExploreMapPointsResponse(mode: .posts, visibleCount: 0)
+            },
+            now: { Date() },
+            debounceCameraSearch: { XCTFail("Locate should search immediately after camera settle") }
+        ))
+        model.selectedSpeciesCategories = [.birds]
+        model.selectedPostId = "previous"
+        model.navigate(to: CLLocation(latitude: 1, longitude: 1))
+        let requested = try XCTUnwrap(model.cameraPosition.region)
+        XCTAssertLessThan(requested.span.longitudeDelta, 0.02)
+        XCTAssertEqual(model.selectedSpeciesCategories, [.birds])
+        XCTAssertNil(model.selectedPostId)
+        XCTAssertNil(loadedRegion)
+
+        var settled = requested
+        settled.span.latitudeDelta *= 2
+        model.markCameraChanged(region: settled)
+        await model.debounceSearchTask?.value
+        XCTAssertEqual(loadedRegion?.span.latitudeDelta, settled.span.latitudeDelta)
+        XCTAssertEqual(loadedRegion?.span.longitudeDelta, settled.span.longitudeDelta)
+        XCTAssertEqual(model.cameraPosition.region?.span.longitudeDelta, requested.span.longitudeDelta)
+        XCTAssertTrue(model.visiblePosts.isEmpty)
+    }
+
     func testManualAreaSearchClearsPendingImmediateDestination() async {
         var debounceCount = 0
         let model = ExploreMapViewModel(dependencies: .init(
@@ -628,6 +657,36 @@ final class ExploreMapViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.posts.isEmpty)
         XCTAssertNil(viewModel.selectedPostId)
         XCTAssertNil(viewModel.selectedPost)
+    }
+
+    func testReportInvalidationFencesLateResultsAndCachedRegionReuse() async {
+        let post = makeMapPost(id: "reported-map", latitude: 1)
+        var pending: CheckedContinuation<ExploreMapPointsResponse, Never>?
+        var calls = 0
+        let model = ExploreMapViewModel { _ in
+            calls += 1
+            if calls == 1 {
+                return await withCheckedContinuation { pending = $0 }
+            }
+            return ExploreMapPointsResponse(mode: .posts, visibleCount: 0)
+        }
+        let region = MKCoordinateRegion(center: post.coordinate,
+            span: MKCoordinateSpan(latitudeDelta: 0.1, longitudeDelta: 0.1))
+        model.visibleRegion = region
+        model.lastCommittedRegion = region
+        let stale = Task { await model.searchCurrentArea() }
+        while pending == nil { await Task.yield() }
+        model.invalidateReportedContent([post.id])
+        pending?.resume(returning: ExploreMapPointsResponse(mode: .posts, visibleCount: 1, posts: [post]))
+        await stale.value
+        XCTAssertTrue(model.posts.isEmpty)
+        XCTAssertEqual(model.visibleCount, 0)
+        await model.fetchMapPoints(for: region)
+        XCTAssertEqual(calls, 2)
+        model.invalidateReportedContent([post.id])
+        await model.fetchMapPoints(for: region)
+        XCTAssertEqual(calls, 3)
+        XCTAssertTrue(model.posts.isEmpty)
     }
 
     func testFocusSuppressesOlderInFlightMapResponse() async {

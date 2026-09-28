@@ -9,6 +9,11 @@ owns executable selectors. Initial validation limitations below are historical;
 the follow-up section records their later resolution and remaining release
 gates.
 
+The
+[September 27 adaptive-toolbar follow-up](./adaptive-staged-toolbar-2026-09-27.md)
+supersedes this record's original horizontal-overflow and Analyze icon/color
+decisions. The original design and validation history below remain unchanged.
+
 ## Integration checkpoint
 
 Implementation is based on reviewed commit

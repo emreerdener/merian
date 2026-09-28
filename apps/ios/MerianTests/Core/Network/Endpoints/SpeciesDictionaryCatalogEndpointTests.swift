@@ -40,7 +40,7 @@ struct SpeciesDictionaryCatalogEndpointTests {
             headerFields: nil
         )!
 
-        mockTransport.register(path: "/species-dictionary") { request in
+        mockTransport.register(path: "/species-dictionary-for-viewer") { request in
             #expect(request.httpMethod == "POST")
             let body = try #require(MockURLProtocol.bodyData(for: request))
             let payload = try #require(
@@ -104,7 +104,7 @@ struct SpeciesDictionaryCatalogEndpointTests {
             headerFields: nil
         )!
 
-        mockTransport.register(path: "/species-dictionary") { request in
+        mockTransport.register(path: "/species-dictionary-for-viewer") { request in
             #expect(request.httpMethod == "POST")
             let body = try #require(MockURLProtocol.bodyData(for: request))
             let payload = try #require(
@@ -127,7 +127,7 @@ struct SpeciesDictionaryCatalogEndpointTests {
 
     @Test func endpointsRejectMissingOrUnsupportedSchemaVersions() async throws {
         var requestCount = 0
-        mockTransport.register(path: "/species-dictionary") { request in
+        mockTransport.register(path: "/species-dictionary-for-viewer") { request in
             requestCount += 1
             let body = try #require(MockURLProtocol.bodyData(for: request))
             let payload = try #require(

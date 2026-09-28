@@ -84,6 +84,14 @@ recovery invoke the `showSignOutConfirmation` environment callback only after
 success; the shared top toast remains mounted when consent onboarding replaces
 the workspace. The callback does not alter Auth or consent state.
 
+`Presentation/WhatsNewLaunchStore.swift` owns the device-local highlight-set
+acknowledgement. After required consent, the root mounts Workspace with the
+announcement as its initial `CameraSheetRouter` destination. The App-owned
+`acknowledgeWhatsNew` callback persists only after dismissal and rechecks
+consent and recovery state. Workspace stays mounted; Settings reuses the content
+view. See the
+[What’s New contract](../../../../docs/development-guides/12-in-app-changelog.md#whats-new-sheet).
+
 `Lifecycle/AppUpdateCoordinator` owns the account/build-scoped compatibility
 pause and prompt dismissal state. The root uses `Presentation/AppRootAlertHost`
 and one `AppRootAlertPolicy` to defer the update prompt behind account-deletion

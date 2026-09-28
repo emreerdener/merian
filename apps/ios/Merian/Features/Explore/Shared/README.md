@@ -94,17 +94,22 @@ detail sheet host retain presentation ownership.
 
 The picker starts at the medium detent, supports large, and expands on search
 focus. Its compact cells show only native emoji glyphs, with catalog names
-retained for search, VoiceOver, and help. Category filters and the search-field
-Done button are omitted. The grid uses 6-point gaps and at least 44-point-tall
-tap targets. `ExploreEmojiCatalog.pickerEntries` excludes skin-tone modifiers
-from browsing and search, while the full catalog preserves existing toned
-reaction identities. Selection or a downward swipe dismisses the picker. It uses
-the existing video-overlay suspension lifecycle. Picker selection adds; chip
-taps toggle. The strip reveals new selections, leaves later page updates in
-place, and offers More for explicit pagination/retry. Its height scales with
-Dynamic Type, with post chips moving below fixed controls at `xxxLarge` and
-accessibility sizes. Post red-heart mapping belongs to Feed state, not this
-generic comment-capable strip.
+retained for search, VoiceOver, and help. A shared category filter bar stays
+below search while the grid scrolls. All is selected on each presentation; the
+nine bundled categories appear in catalog order and filter locally. Search
+matches within the selected category, and changing either filter or search
+returns the grid to the top. Category selection retains the query and does not
+dismiss the picker. The search-field Done button is omitted. The grid uses
+6-point gaps and at least 44-point-tall tap targets.
+`ExploreEmojiCatalog.pickerEntries` excludes skin-tone modifiers from browsing
+and search, while the full catalog preserves existing toned reaction identities.
+Selection or a downward swipe dismisses the picker. It uses the existing
+video-overlay suspension lifecycle. Picker selection adds; chip taps toggle. The
+strip reveals new selections, leaves later page updates in place, and offers
+More for explicit pagination/retry. Its height scales with Dynamic Type, with
+post chips moving below fixed controls at `xxxLarge` and accessibility sizes.
+Post red-heart mapping belongs to Feed state, not this generic comment-capable
+strip.
 
 Added reactions show bare emoji and counts, with no background or border in any
 selection state. Emoji use 20-point text within the default 44-point row. Counts
@@ -113,9 +118,12 @@ Emoji, counts, and row height support Dynamic Type. Counts turn blue when the
 viewer has contributed that reaction and otherwise use the default text color.
 VoiceOver retains selection traits; each reaction keeps a minimum 44-point-wide
 tap target. Comment/reply Add reaction buttons also omit their capsule
-background and outline, using a 20-point smiley that scales with Dynamic Type.
-The shared strip applies to posts, hashtag feeds, detail, Map previews,
-comments, and notification replies.
+background and outline, using the post's outline smiley and bottom-right
+plus-circle badge in secondary gray. The badge backing matches the comment card,
+and both symbols scale with Dynamic Type from a 20-point smiley. The icon has no
+horizontal padding and aligns with comment text and Reply inside a
+leading-aligned minimum 44-point tap target. The shared strip applies to posts,
+hashtag feeds, detail, Map previews, comments, and notification replies.
 
 Post action icons use 20-point symbols inside 44-point tap targets. Add reaction
 and the comment/heart labels each use 12-point horizontal hit padding with no
@@ -169,3 +177,10 @@ haptics preference and expedition-mode suppression. Search typing, scrolling,
 sheet lifecycle updates, pagination results, and background reconciliation do
 not emit haptics. Shared picker/chip components apply this behavior to feed,
 detail, Map, hashtag, comment/reply, and notification reply surfaces.
+
+## Account visibility
+
+`Visibility/ExploreContentVisibilityStore.swift` owns account and content
+generations plus locally confirmed reported IDs. `AppDIContainer` injects the
+shared instance into report/post owners and binds dictionary/widget
+invalidation.

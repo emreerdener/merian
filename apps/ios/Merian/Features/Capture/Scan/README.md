@@ -36,6 +36,11 @@ still-photo and video-request lifetime owners, respectively.
 workspace container. Do not add a Scan singleton, a broad service protocol, or
 direct service lookup in a view.
 
+`MainOverlayView` consumes Shell's shared `captureChromeLayout` environment for
+viewfinder-hint clearance. Expanded staging adds the same measured offset used
+by the primary capture controls; Scan does not measure or size the tray. See the
+[staged-review contract](../../../../../../docs/features-and-hardware/29-staged-capture-review.md#tray-and-protected-discard).
+
 ## Media lifecycle
 
 Still capture performs bounded inference and display downsampling, applies the

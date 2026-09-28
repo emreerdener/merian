@@ -58,7 +58,8 @@ struct CaptureControlBarPresentation: Equatable {
         showsDictation = captureMode == .describe
         showsAudioDone = captureMode == .audio && isAudioRecording
         showsAudioReview = captureMode == .audio && hasPendingAudio
-        willStageOnly = hasStagedVisualMedia
+        willStageOnly = hasPendingAudio
+            || hasStagedVisualMedia
             || hasStagedAudio
             || hasStagedDescription
             || isRefining

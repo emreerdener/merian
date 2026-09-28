@@ -97,6 +97,9 @@ struct ExploreFeedDependencies {
         _ modelContext: ModelContext
     ) -> [String: String]
 
+    let visibility: ExploreContentVisibilityStore
+
+    @MainActor
     init(
         feed: Feed,
         interactions: Interactions,
@@ -105,11 +108,13 @@ struct ExploreFeedDependencies {
         notifications: Notifications,
         errorMessage: @escaping @MainActor (Error) -> String,
         reactions: ExploreReactionDependencies = .unavailable,
+        visibility: ExploreContentVisibilityStore? = nil,
         loadPreferredSpeciesNames: @escaping @MainActor (
             _ scientificNames: [String],
             _ modelContext: ModelContext
         ) -> [String: String] = { _, _ in [:] }
     ) {
+        self.visibility = visibility ?? ExploreContentVisibilityStore()
         self.feed = feed
         self.interactions = interactions
         self.comments = comments
@@ -126,6 +131,7 @@ extension ExploreFeedViewModel {
 }
 
 extension ExploreFeedDependencies {
+    @MainActor
     static var live: Self {
         let notificationService = ExploreUnreadNotificationService()
         return Self(
@@ -249,6 +255,7 @@ extension ExploreFeedDependencies {
             ),
             errorMessage: ExploreErrorFormatter.message(for:),
             reactions: .live,
+            visibility: AppDIContainer.shared.exploreContentVisibility,
             loadPreferredSpeciesNames: { scientificNames, modelContext in
                 guard let ownerUserID = SupabaseManager.shared.currentUser?.id
                 else {

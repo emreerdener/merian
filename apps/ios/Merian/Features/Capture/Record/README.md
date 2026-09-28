@@ -1,8 +1,20 @@
 # Capture Record
 
 The `Record` directory owns the Audio Listen Mode presentation used by the
-Capture pager. It presents idle, recording, paused, and review state without
-owning the audio engine, Capture lifecycle controls, or submission.
+Capture pager. It presents idle, recording, paused, and exceptional recovery
+state without owning the audio engine, Capture lifecycle controls, or
+submission.
+
+`AudioRecordingView` consumes Shell's shared `captureChromeLayout` environment
+for spectrogram and guidance clearance. It uses the same expansion as the
+primary capture controls when the staged tray grows; Record does not measure or
+size the tray. See the
+[staged-review contract](../../../../../../docs/features-and-hardware/29-staged-capture-review.md#tray-and-protected-discard).
+
+Shell supplies idle-prompt visibility from the same capacity rule as the Record
+capture button. A full media tray hides **Record nearby sounds** while keeping
+the idle artwork and media-mode selector visible; freeing a slot restores the
+prompt.
 
 ## Ownership
 
@@ -14,25 +26,29 @@ owning the audio engine, Capture lifecycle controls, or submission.
   and builds the narrow closure dependencies used by the view model.
 - `ViewModels/` owns only idle-artwork selection and review scrubbing state. It
   receives seeking and feedback actions through its initializer.
-- `Views/` composes idle, recording, and review presentation from immutable
-  input. It performs no networking and does not resolve global services.
+- `Views/` composes idle, recording, and exceptional recovery presentation from
+  immutable input. It performs no networking and does not resolve global
+  services.
 - `Components/` owns the idle artwork/prompt, spectrogram interaction, and
   signal-quality guidance surfaces.
 
 `Capture/Shell` is the composition boundary. It resolves the environment-owned
 `AudioCaptureManager`, creates the Record presentation and dependency values,
 and keeps the pager state. The Shell-owned Capture control bar retains
-microphone permission, start, pause, resume, stop, discard, playback, and
-confirmation actions. `Capture/Submission` retains live/offline analysis
+microphone permission, start, pause, resume, stop, discard, playback, and manual
+recovery retry actions. `Capture/Submission` retains live/offline analysis
 orchestration.
 
 ## Review boost
 
-Finished-recording spectrograms expose **Boost audio** independently of
-scrubbing. The presentation snapshot carries immutable boost state; the Services
-adapter routes the toggle and explicit-action haptics through the existing
-injected view model seam. The selected default is announced even before its lazy
-preparation. Record views never process files or change the submission source.
+Normal completion stages directly; the staged audio node owns playback, boost,
+and removal. The recording-start boost default travels in ephemeral staged
+metadata. Only exceptional-recovery spectrograms expose **Boost audio**
+independently of scrubbing. The presentation snapshot carries immutable boost
+state; the Services adapter routes the toggle and explicit-action haptics
+through the existing injected view model seam. The selected default is announced
+even before its lazy preparation. Record views never process files or change the
+submission source.
 
 Core Hardware's `AudioReviewBoostController` prepares and retires a temporary
 listening copy. Manual activation prepares without autoplay; the optional Audio
@@ -41,15 +57,18 @@ analysis unchanged. See
 [Audio Listen Mode](../../../../../../docs/features-and-hardware/12-audio-listen-mode.md#recording-review-audio-boost)
 for lifecycle, fallback, and preference semantics.
 
-## Reanalysis staging
+## Completed audio and reanalysis staging
 
 Shell checks the same evidence capacity at audio admission and
-completed-recording handoff. Refinement always stages confirmed audio instead of
-launching a separate solo analysis. Its two-physical-item budget can include the
-original and one new audio clip. Historical descriptions and the shared current
-supplement have separate text budgets. A clip that loses capacity returns to
-review. Analyze includes pending Describe text even while Record is selected;
-Record itself owns neither the text nor dispatch. See the
+completed-recording handoff. Finish recording and the 15-second limit both stage
+audio immediately, without an intermediate review. Refinement always stages
+audio instead of launching a separate solo analysis. Its two-physical-item
+budget can include the original and one new audio clip. Historical descriptions
+and the shared current supplement have separate text budgets. A valid current
+clip that loses capacity enters exceptional recovery with playback, discard, and
+manual retry. Stale completions are cleaned up. Analyze includes pending
+Describe text even while Record is selected; Record itself owns neither the text
+nor dispatch. See the
 [Describe handoff](../Describe/README.md#reanalysis-description-handoff) and
 [canonical audio guide](../../../../../../docs/features-and-hardware/12-audio-listen-mode.md).
 
@@ -82,8 +101,9 @@ Record itself owns neither the text nor dispatch. See the
 UI-sensitive timing remains with the mounted components: idle artwork advances
 every six seconds, the one-per-process recording prompt lasts 3.5 seconds with a
 350 ms handoff, and review drag gestures determine scrub animation timing. The
-15-second duration, 360-column display bound, visible copy, accessibility,
-control semantics, and queue-before-inference behavior are unchanged.
+15-second duration, 360-column display bound, and queue-before-inference
+behavior are unchanged. Finish recording now contributes directly to the staged
+draft.
 
 ## Verification
 
@@ -110,9 +130,9 @@ Simulator suites cover presentation, state transitions, cancellation, and
 dependency behavior, but they do not validate a real microphone route or
 process-wide `AVAudioSession` handoff. Before release, verify on a physical
 device: first-use permission, Camera-to-Audio startup, record/pause/resume and
-early-stop review, mode/background preservation, both 15-second confirmation
-branches, feedback, review playback/scrubbing, and the Audio-to-Describe
-handoff.
+early-stop staging, mode/background preservation, 15-second direct staging and
+attempt-bound auto-submit, feedback, review playback/scrubbing, and the
+Audio-to-Describe handoff.
 
 See
 [Audio Listen Mode](../../../../../../docs/features-and-hardware/12-audio-listen-mode.md)

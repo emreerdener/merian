@@ -1150,6 +1150,7 @@ jobs:
             insight-chat
             explore-post-chat
             species-dictionary-chat
+            species-dictionary-for-viewer
             species-discovery-search
             resolve-species-dictionary
             request-community-identification

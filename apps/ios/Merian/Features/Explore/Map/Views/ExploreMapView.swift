@@ -21,7 +21,7 @@ struct ExploreMapView: View {
     @Environment(\.accessibilityReduceMotion) var reduceMotion
     @State var mapNavigation = MapNavigationModel()
     @State var ignoreNextBackgroundTap = false
-    @State var isShowingDiscoveriesSheet = false
+    @State var discoveries: ExploreMapDiscoveriesViewModel?
     @State var isShowingFilterSheet = false
     @State var cardDragOffset: CGSize = .zero
     @State var activeCardDragAxis: PreviewCardDragAxis?
@@ -72,8 +72,14 @@ struct ExploreMapView: View {
                 modelContext: modelContext
             )
         }
+        .onChange(of: feedViewModel.visibility.generation) { _, _ in
+            let hidden = feedViewModel.visibility.reportedPostIDs
+            discoveries?.cancelLoading()
+            for id in hidden { discoveries?.removePost(id: id) }
+        }
         .onChange(of: postStore.changeVersion) { _, _ in
             viewModel.syncPosts(from: postStore.allPosts)
+            discoveries?.syncVisibility(from: postStore.allPosts)
         }
         .onChange(of: viewModel.posts) { _, posts in
             feedViewModel.refreshPreferredSpeciesNames(
@@ -104,11 +110,10 @@ struct ExploreMapView: View {
             owner: mapAuth.currentUser?.id,
             onDestination: viewModel.navigate
         ))
-        .sheet(isPresented: $isShowingDiscoveriesSheet) {
+        .sheet(item: $discoveries) { discoveries in
             ExploreMapDiscoveriesSheet(
-                viewModel: viewModel,
+                discoveries: discoveries,
                 feedViewModel: feedViewModel,
-                isPresented: $isShowingDiscoveriesSheet,
                 onOpen: openPost,
                 onOpenAuthorProfile: onOpenAuthorProfile,
                 onLike: { post in Task { await toggleLike(for: post) } },
@@ -127,7 +132,6 @@ struct ExploreMapView: View {
 
     private var mapLayer: some View {
         Map(position: $viewModel.cameraPosition) {
-            if environmentContextManager.isAuthorized { UserAnnotation() }
             if let selectedPost = viewModel.selectedPost,
                selectedPost.coordinateVisibility == .obscured {
                 MapCircle(
@@ -159,6 +163,11 @@ struct ExploreMapView: View {
 
             if let selectedPost = viewModel.selectedPost {
                 waypointAnnotation(for: selectedPost)
+            }
+
+            // Keep the native location dot above discovery markers, including the selected post.
+            if environmentContextManager.isAuthorized {
+                UserAnnotation()
             }
         }
         .mapStyle(appSettings.mapAppearance == .satellite ? .imagery : .standard)
@@ -310,7 +319,7 @@ struct ExploreMapView: View {
 
         return Button {
             HapticManager.shared.triggerSelectionPulse()
-            isShowingDiscoveriesSheet = true
+            discoveries = ExploreMapDiscoveriesViewModel(mapViewModel: viewModel)
         } label: {
             MapCountPillLabel(
                 fullLabel: label,

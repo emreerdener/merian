@@ -12,6 +12,7 @@ final class CaptureWorkspaceOperationState {
     private var routeRequestIDBeingApplied: UUID?
     private var dismissingPresentation: CaptureWorkspaceViewModel.PresentedRoute?
     private var deferredRouteRequestID: UUID?
+    private var opensExploreAfterWhatsNew = false
     private var pendingLocalSheet: CaptureWorkspaceViewModel.ActiveSheet?
     private var requiredGalleryCropImageIDs: [UUID] = []
     private var refinementStagingTask: Task<Void, Never>?
@@ -63,6 +64,15 @@ final class CaptureWorkspaceOperationState {
         return deferredRouteRequestID
     }
 
+    func prepareWhatsNewFollowup(opensExplore: Bool) {
+        opensExploreAfterWhatsNew = opensExplore
+    }
+
+    func takeWhatsNewFollowup() -> Bool {
+        defer { opensExploreAfterWhatsNew = false }
+        return opensExploreAfterWhatsNew
+    }
+
     func queueLocalSheet(_ sheet: CaptureWorkspaceViewModel.ActiveSheet) {
         pendingLocalSheet = sheet
     }
@@ -73,6 +83,7 @@ final class CaptureWorkspaceOperationState {
     }
 
     func clearPendingRoutes() {
+        opensExploreAfterWhatsNew = false
         deferredRouteRequestID = nil
         pendingLocalSheet = nil
     }

@@ -50,8 +50,8 @@ struct SpeciesDictionaryDetailEndpointTests {
             headerFields: nil
         )!
 
-        mockTransport.register(path: "/species-dictionary") { request in
-            #expect(request.url?.path.hasSuffix("/species-dictionary") == true)
+        mockTransport.register(path: "/species-dictionary-for-viewer") { request in
+            #expect(request.url?.path.hasSuffix("/species-dictionary-for-viewer") == true)
             #expect(request.httpMethod == "POST")
 
             let body = try #require(MockURLProtocol.bodyData(for: request))
@@ -95,7 +95,7 @@ struct SpeciesDictionaryDetailEndpointTests {
             headerFields: nil
         )!
 
-        mockTransport.register(path: "/species-dictionary") { request in
+        mockTransport.register(path: "/species-dictionary-for-viewer") { request in
             let body = try #require(MockURLProtocol.bodyData(for: request))
             let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
             #expect(payload["species_id"] as? String == "1cf79982-e5ee-4e3d-8d65-274527e6ae01")
@@ -141,7 +141,7 @@ struct SpeciesDictionaryDetailEndpointTests {
         )!
         var requestCount = 0
 
-        mockTransport.register(path: "/species-dictionary") { request in
+        mockTransport.register(path: "/species-dictionary-for-viewer") { request in
             requestCount += 1
             let body = try #require(MockURLProtocol.bodyData(for: request))
             let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
@@ -178,7 +178,7 @@ struct SpeciesDictionaryDetailEndpointTests {
             )
         ]
         var requestCount = 0
-        mockTransport.register(path: "/species-dictionary") { _ in
+        mockTransport.register(path: "/species-dictionary-for-viewer") { _ in
             requestCount += 1
             return (mockResponse, responses.removeFirst())
         }
@@ -214,7 +214,7 @@ struct SpeciesDictionaryDetailEndpointTests {
             )
         ]
         var requestCount = 0
-        mockTransport.register(path: "/species-dictionary") { _ in
+        mockTransport.register(path: "/species-dictionary-for-viewer") { _ in
             requestCount += 1
             return (Self.okResponse, responses.removeFirst())
         }
@@ -243,7 +243,7 @@ struct SpeciesDictionaryDetailEndpointTests {
             scientificName: "Recovery testus"
         )
         var requestCount = 0
-        mockTransport.register(path: "/species-dictionary") { _ in
+        mockTransport.register(path: "/species-dictionary-for-viewer") { _ in
             requestCount += 1
             return (Self.okResponse, responseData)
         }
@@ -273,7 +273,7 @@ struct SpeciesDictionaryDetailEndpointTests {
             scientificName: "Externalis exemplaris"
         )
         var requestCount = 0
-        mockTransport.register(path: "/species-dictionary") { request in
+        mockTransport.register(path: "/species-dictionary-for-viewer") { request in
             requestCount += 1
             let body = try #require(MockURLProtocol.bodyData(for: request))
             let payload = try #require(

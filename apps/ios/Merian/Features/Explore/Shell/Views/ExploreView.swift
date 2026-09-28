@@ -104,6 +104,20 @@ struct ExploreView: View {
             onOpenPost: openPostDetail,
             onOpenCommunityIdentificationRequest: openCommunityIdentificationRequest
         )
+        .id(viewModel.visibility.generation)
+        .onChange(of: viewModel.visibility.generation) { _, _ in
+            navigationPath = NavigationPath()
+            selectedInsightRoute = nil
+            dictionarySearchViewModel.refreshVisibility()
+            dictionaryOverviewViewModel = SpeciesDictionaryOverviewViewModel()
+            mapViewModel.invalidateReportedContent(viewModel.visibility.reportedPostIDs)
+            Task {
+                await viewModel.refreshUnreadNotificationCount(force: true)
+            }
+            if let region = mapViewModel.visibleRegion ?? mapViewModel.lastCommittedRegion {
+                Task { await mapViewModel.fetchMapPoints(for: region, forceRefresh: true) }
+            }
+        }
         .onDisappear { dictionarySearchViewModel.newSearch() }
         .onChange(of: searchAuth.currentUser?.id) { _, _ in
             dictionarySearchViewModel.newSearch()

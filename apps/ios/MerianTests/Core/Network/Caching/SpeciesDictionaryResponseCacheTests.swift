@@ -7,6 +7,23 @@ import Testing
 struct SpeciesDictionaryResponseCacheTests {
     private typealias Fixtures = SpeciesDictionaryNetworkFixtures
 
+    @Test func dictionaryVisibilityInvalidationAndAccountScopesAreIndependentOfStats() {
+        let cache = SpeciesDictionaryResponseCache()
+        let entry = Fixtures.dictionaryEntry()
+        let stats = Fixtures.statsEntry()
+        cache.storeDictionaryEntry(entry, scope: "viewer-a:0")
+        cache.storeObservationStatsEntry(stats, requestedSpeciesId: stats.speciesId,
+                                        requestedScientificName: stats.scientificName)
+        #expect(cache.dictionaryEntry(speciesId: entry.id, scientificName: nil, scope: "viewer-a:0") == entry)
+        #expect(cache.dictionaryEntry(speciesId: entry.id, scientificName: nil, scope: "viewer-b:0") == nil)
+        #expect(cache.dictionaryEntry(speciesId: nil, scientificName: entry.scientificName, scope: "viewer-a:1") == nil)
+        let generation = cache.dictionaryGeneration
+        cache.invalidateDictionary()
+        #expect(cache.dictionaryGeneration != generation)
+        #expect(cache.dictionaryEntry(speciesId: entry.id, scientificName: nil, scope: "viewer-a:0") == nil)
+        #expect(cache.observationStatsEntry(speciesId: stats.speciesId, scientificName: nil) == stats)
+    }
+
     @Test func dictionaryStoresReturnedAliasesAndPrefersIDWithoutNameFallback() {
         let cache = SpeciesDictionaryResponseCache()
         let entry = Fixtures.dictionaryEntry()

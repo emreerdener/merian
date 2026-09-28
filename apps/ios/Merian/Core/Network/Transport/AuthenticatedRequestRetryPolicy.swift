@@ -31,7 +31,7 @@ enum AuthenticatedRequestRetryPolicy {
         "get-explore-unread-notification-count",
         "get-scan-explore-share-state",
         "search-community-taxa",
-        "species-dictionary",
+        "species-dictionary-for-viewer",
         "species-observation-stats"
     ]
     private static let idempotencyAwareFunctionNames: Set<String> = [

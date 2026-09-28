@@ -10,10 +10,59 @@ private struct ExploreWidgetSourcePost: Sendable, Equatable {
     let speciesScientificName: String
 }
 
+/// A suspended image request can commit only for the current write and account.
+@MainActor
+final class ExploreWidgetWriteGate {
+    struct Token {
+        let generation: UInt64
+        let visibility: ExploreContentVisibilityStore.Context
+    }
+    private var generation: UInt64 = 0
+
+    func invalidate() { generation &+= 1 }
+
+    func begin(visibility: ExploreContentVisibilityStore.Context) -> Token {
+        invalidate()
+        return Token(generation: generation, visibility: visibility)
+    }
+
+    func accepts(_ token: Token, visibility: ExploreContentVisibilityStore.Context) -> Bool {
+        !Task.isCancelled && token.generation == generation && token.visibility == visibility
+    }
+}
+
+@MainActor
 enum ExploreWidgetSnapshotWriter {
+    private static var pendingWrite: Task<Void, Never>?
+    private static let writeGate = ExploreWidgetWriteGate()
+    private static var snapshotViewerID: UUID?
+
+    static func invalidate(visibility: ExploreContentVisibilityStore) {
+        pendingWrite?.cancel()
+        writeGate.invalidate()
+        let accountChanged = snapshotViewerID != visibility.viewerID
+        snapshotViewerID = visibility.viewerID
+        let items = accountChanged ? [] : (ExploreWidgetCache.loadSnapshot()?.items ?? []).filter {
+            visibility.isVisible(postID: $0.postId)
+        }
+        let snapshot = ExploreWidgetSnapshot(updatedAt: Date(), items: items)
+        do {
+            try ExploreWidgetCache.writeSnapshot(snapshot)
+            ExploreWidgetCache.removeImagesNotInSnapshot(snapshot)
+            WidgetCenter.shared.reloadTimelines(ofKind: ExploreWidgetConstants.kind)
+        } catch {
+            // Remove the stale manifest if replacing it fails.
+            if let url = ExploreWidgetConstants.snapshotURL() { try? FileManager.default.removeItem(at: url) }
+            WidgetCenter.shared.reloadTimelines(ofKind: ExploreWidgetConstants.kind)
+        }
+    }
+
     @MainActor
     static func refreshRecentFeedSnapshot(from posts: [ExplorePost]) {
-        let sourcePosts = posts
+        let visibility = AppDIContainer.shared.exploreContentVisibility
+        pendingWrite?.cancel()
+        let token = writeGate.begin(visibility: visibility.context)
+        let sourcePosts = posts.filter { visibility.isVisible(postID: $0.id) }
             .filter { post in
                 post.resolvedMediaItems.contains {
                     $0.kind == .image || $0.kind == .video
@@ -31,14 +80,15 @@ enum ExploreWidgetSnapshotWriter {
                 )
             }
 
-        guard !sourcePosts.isEmpty else { return }
-
-        Task.detached(priority: .utility) {
-            await writeSnapshot(from: sourcePosts)
+        pendingWrite = Task(priority: .utility) {
+            await writeSnapshot(from: sourcePosts, visibility: visibility, token: token)
         }
     }
 
-    private static func writeSnapshot(from sourcePosts: [ExploreWidgetSourcePost]) async {
+    private static func writeSnapshot(
+        from sourcePosts: [ExploreWidgetSourcePost], visibility: ExploreContentVisibilityStore,
+        token: ExploreWidgetWriteGate.Token
+    ) async {
         let fileManager = FileManager.default
         guard let imageDirectoryURL = ExploreWidgetConstants.imageDirectoryURL(fileManager: fileManager) else {
             return
@@ -60,6 +110,7 @@ enum ExploreWidgetSnapshotWriter {
                 continue
             }
 
+            guard writeGate.accepts(token, visibility: visibility.context) else { return }
             let filename = ExploreWidgetConstants.imageFilename(
                 postId: post.postId,
                 index: index
@@ -82,7 +133,7 @@ enum ExploreWidgetSnapshotWriter {
             }
         }
 
-        guard !items.isEmpty else { return }
+        guard writeGate.accepts(token, visibility: visibility.context) else { return }
 
         let snapshot = ExploreWidgetSnapshot(updatedAt: Date(), items: items)
 

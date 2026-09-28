@@ -175,7 +175,13 @@ struct SpeciesCatalogArchitectureTests {
             "apps/ios/Merian/Features/Explore/Identify/Views/ExploreCommunityIdentificationView.swift"
         ] {
             let source = try String(contentsOf: repository.appendingPathComponent(path), encoding: .utf8)
-            #expect(source.contains(".task(id: supabase.allowsUnownedAccountBoundWork)"))
+            if path.hasSuffix("ExploreShellLifecycleModifier.swift") {
+                #expect(source.contains(".task(id: ExploreNotificationSessionKey("))
+                #expect(source.contains("authTransitionInProgress: !supabase.allowsUnownedAccountBoundWork"))
+                #expect(source.contains("visibilityGeneration: feedViewModel.visibility.generation"))
+            } else {
+                #expect(source.contains(".task(id: supabase.allowsUnownedAccountBoundWork)"))
+            }
         }
         let overview = try String(
             contentsOf: catalogSourceRoot().appendingPathComponent("Views/SpeciesDictionaryOverviewView.swift"),

@@ -423,10 +423,10 @@ struct AudioReviewPlaybackControllerTests {
             )
         )
         manager.debugStageRecordingForFinish(
-            fileName: "review.wav",
-            autoSubmitOnMaxDuration: false
+            fileName: "review.wav"
         )
         manager.debugFinishRecording(reachedMaxDuration: false)
+        manager.restoreSubmissionForReview()
         manager.seekPlayback(to: 0.25)
 
         manager.playPendingRecording()
@@ -472,10 +472,10 @@ struct AudioReviewPlaybackControllerTests {
             )
         )
         manager.debugStageRecordingForFinish(
-            fileName: "reset-review.wav",
-            autoSubmitOnMaxDuration: false
+            fileName: "reset-review.wav"
         )
         manager.debugFinishRecording(reachedMaxDuration: false)
+        manager.restoreSubmissionForReview()
         manager.playPendingRecording()
         try await waitUntil {
             let waiterCount = await completionGate.waiterCount

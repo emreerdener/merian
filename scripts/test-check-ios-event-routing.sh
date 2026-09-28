@@ -184,6 +184,19 @@ assert_fails_with \
   "$raw_sink_fixture" \
   "$tmp_dir/unreviewed-raw-sink/allowlist.txt"
 
+reviewed_feed_fixture="$(make_fixture reviewed-feed-sink)"
+reviewed_feed_owner="$reviewed_feed_fixture/Features/Explore/Feed/ViewModels/ExploreFeedViewModel.swift"
+mkdir -p "$(dirname "$reviewed_feed_owner")"
+cp "$repo_root/apps/ios/Merian/Features/Explore/Feed/ViewModels/ExploreFeedViewModel.swift" \
+  "$reviewed_feed_owner"
+run_check "$reviewed_feed_fixture" "$tmp_dir/reviewed-feed-sink/allowlist.txt"
+# Admission is exact-file scoped; another owner in the same directory still fails.
+mv "$reviewed_feed_owner" "$(dirname "$reviewed_feed_owner")/UnreviewedFeedOwner.swift"
+assert_fails_with \
+  'Raw Combine .sink is allowed only in a reviewed lifetime owner' \
+  "$reviewed_feed_fixture" \
+  "$tmp_dir/reviewed-feed-sink/allowlist.txt"
+
 route_fixture="$(make_fixture route-in-event)"
 printf '%s\n' \
   'enum AppEvent {' \

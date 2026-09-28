@@ -24,6 +24,21 @@ enum ExploreEmojiCatalog {
     static let pickerEntries = entries.filter { entry in
         !entry.emoji.unicodeScalars.contains { (0x1F3FB...0x1F3FF).contains($0.value) }
     }
+    static let pickerCategories: [String] = {
+        var seen = Set<String>()
+        return pickerEntries.compactMap { seen.insert($0.category).inserted ? $0.category : nil }
+    }()
+
+    static func pickerEntries(matching query: String, category: String?) -> [ExploreEmojiEntry] {
+        let search = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        return pickerEntries.filter { entry in
+            guard category == nil || entry.category == category else { return false }
+            return search.isEmpty || entry.emoji == search || entry.name.localizedStandardContains(search)
+                || entry.keywords.localizedStandardContains(search)
+                || entry.category.localizedStandardContains(search)
+        }
+    }
+
     static func name(for emoji: String) -> String { byEmoji[emoji]?.name ?? emoji }
     static func order(for emoji: String) -> Int { byEmoji[emoji]?.order ?? Int.max }
 }

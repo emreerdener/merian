@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import Observation
 import SwiftData
@@ -51,7 +52,14 @@ struct ExploreReplyThreadRenderState: Equatable {
 @MainActor
 @Observable
 final class ExplorePostStore {
-    private(set) var feedPosts: [ExplorePost] = []
+    private var storedFeedPosts: [ExplorePost] = []
+    let visibility: ExploreContentVisibilityStore
+
+    init(visibility: ExploreContentVisibilityStore? = nil) {
+        self.visibility = visibility ?? ExploreContentVisibilityStore()
+    }
+
+    var feedPosts: [ExplorePost] { storedFeedPosts.filter { visibility.isVisible(postID: $0.id) } }
     private(set) var supplementalPostsById: [String: ExplorePost] = [:]
     private(set) var mediaReloadGeneration: UInt64 = 0
     private(set) var changeVersion: UInt64 = 0
@@ -60,7 +68,7 @@ final class ExplorePostStore {
         var seenIds = Set(feedPosts.map(\.id))
         var combinedPosts = feedPosts
 
-        for post in supplementalPostsById.values where seenIds.insert(post.id).inserted {
+        for post in supplementalPostsById.values where visibility.isVisible(postID: post.id) && seenIds.insert(post.id).inserted {
             combinedPosts.append(post)
         }
 
@@ -68,16 +76,24 @@ final class ExplorePostStore {
     }
 
     func post(id: String) -> ExplorePost? {
-        feedPosts.first(where: { $0.id == id }) ?? supplementalPostsById[id]
+        guard visibility.isVisible(postID: id) else { return nil }
+        return feedPosts.first(where: { $0.id == id }) ?? supplementalPostsById[id]
     }
 
     func containsFeedPost(id: String) -> Bool {
         feedPosts.contains(where: { $0.id == id })
     }
 
+    func removeAll() {
+        storedFeedPosts = []
+        supplementalPostsById = [:]
+        mediaReloadGeneration &+= 1
+        changeVersion &+= 1
+    }
+
     func setFeedPosts(_ posts: [ExplorePost]) {
         let existingPostsById = Dictionary(uniqueKeysWithValues: allPosts.map { ($0.id, $0) })
-        feedPosts = posts.map { post in
+        storedFeedPosts = posts.filter { visibility.isVisible(postID: $0.id) }.map { post in
             post.mergingExistingMedia(from: existingPostsById[post.id])
         }
         for post in posts {
@@ -91,10 +107,10 @@ final class ExplorePostStore {
         guard !posts.isEmpty else { return }
 
         let existingIds = Set(feedPosts.map(\.id))
-        let uniquePosts = posts.filter { existingIds.contains($0.id) == false }
+        let uniquePosts = posts.filter { !existingIds.contains($0.id) && visibility.isVisible(postID: $0.id) }
         guard !uniquePosts.isEmpty else { return }
 
-        feedPosts.append(contentsOf: uniquePosts.map { post in
+        storedFeedPosts.append(contentsOf: uniquePosts.map { post in
             post.mergingExistingMedia(from: supplementalPostsById[post.id])
         })
         for post in uniquePosts {
@@ -104,12 +120,13 @@ final class ExplorePostStore {
     }
 
     func upsert(_ post: ExplorePost, includeInFeed: Bool = false) {
-        if let index = feedPosts.firstIndex(where: { $0.id == post.id }) {
-            feedPosts[index] = post.mergingExistingMedia(from: feedPosts[index])
+        guard visibility.isVisible(postID: post.id) else { return }
+        if let index = storedFeedPosts.firstIndex(where: { $0.id == post.id }) {
+            storedFeedPosts[index] = post.mergingExistingMedia(from: storedFeedPosts[index])
             supplementalPostsById.removeValue(forKey: post.id)
         } else if includeInFeed {
             let existingPost = supplementalPostsById[post.id]
-            feedPosts.append(post.mergingExistingMedia(from: existingPost))
+            storedFeedPosts.append(post.mergingExistingMedia(from: existingPost))
             supplementalPostsById.removeValue(forKey: post.id)
         } else {
             supplementalPostsById[post.id] = post.mergingExistingMedia(from: supplementalPostsById[post.id])
@@ -120,7 +137,7 @@ final class ExplorePostStore {
 
     func removePost(id: String) {
         let originalFeedCount = feedPosts.count
-        feedPosts.removeAll { $0.id == id }
+        storedFeedPosts.removeAll { $0.id == id }
         let removedSupplemental = supplementalPostsById.removeValue(forKey: id) != nil
 
         guard feedPosts.count != originalFeedCount || removedSupplemental else { return }
@@ -129,7 +146,7 @@ final class ExplorePostStore {
 
     func removePosts(byAuthorUserId authorUserId: String) {
         let originalFeedCount = feedPosts.count
-        feedPosts.removeAll { $0.authorUserId == authorUserId }
+        storedFeedPosts.removeAll { $0.authorUserId == authorUserId }
 
         let supplementalIdsToRemove = supplementalPostsById.values
             .filter { $0.authorUserId == authorUserId }
@@ -176,10 +193,10 @@ final class ExplorePostStore {
     }
 
     private func mutate(postId: String, _ transform: (inout ExplorePost) -> Void) {
-        if let index = feedPosts.firstIndex(where: { $0.id == postId }) {
-            var post = feedPosts[index]
+        if let index = storedFeedPosts.firstIndex(where: { $0.id == postId }) {
+            var post = storedFeedPosts[index]
             transform(&post)
-            feedPosts[index] = post
+            storedFeedPosts[index] = post
             supplementalPostsById.removeValue(forKey: postId)
             changeVersion &+= 1
             return
@@ -214,13 +231,32 @@ final class ExploreFeedViewModel {
 
     init(
         appSettings: AppSettings? = nil,
-        dependencies: Dependencies = .live
+        dependencies: Dependencies? = nil
     ) {
+        let dependencies = dependencies ?? .live
         self.appSettings = appSettings ?? AppSettings.shared
         self.dependencies = dependencies
+        store = ExplorePostStore(visibility: dependencies.visibility)
+        visibilityViewerID = dependencies.visibility.viewerID
+        visibilitySubscription = dependencies.visibility.changes.sink { [weak self] context in
+            // Only the visibility store's main-actor mutations can publish.
+            // Clear account/content state before the invalidating call returns.
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                if self.visibilityViewerID != context.viewerID {
+                    self.visibilityViewerID = context.viewerID
+                    self.blockedAuthorUserIDs.removeAll()
+                }
+                for id in self.visibility.reportedPostIDs { self.removePost(id: id) }
+                self.resetFeedForVisibilityChange()
+            }
+        }
     }
 
-    let store = ExplorePostStore()
+    @ObservationIgnored private var visibilityViewerID: UUID?
+    @ObservationIgnored private var visibilitySubscription: AnyCancellable?
+    let store: ExplorePostStore
+    var visibility: ExploreContentVisibilityStore { dependencies.visibility }
     var activeFilter: ExploreFeedFilter = .recent
     var advancedFilters = ExploreFeedAdvancedFilters()
     var isLoadingInitialFeed = false

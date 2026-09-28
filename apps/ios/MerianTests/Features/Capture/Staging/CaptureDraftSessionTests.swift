@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import UIKit
+
 @testable import Merian
 
 @MainActor
@@ -189,6 +190,137 @@ struct CaptureDraftSessionTests {
         #expect(!settings.autoSubmitScans)
         settings.autoSubmitScans = true
         #expect(AppSettings(userDefaults: defaults, observeExternalChanges: false).autoSubmitScans)
+    }
+
+    @Test func audioCompletionStagesExactlyOnceAndPreservesBoostAndOriginal() throws {
+        let vm = makeViewModel()
+        vm.updateDescriptionDraft(ObservationContext(freeText: "Beside a pond"))
+        let operation = try #require(vm.beginDraftOperation())
+        vm.audioDraftOperation = operation
+        let manager = AudioCaptureManager()
+        let fileName = "\(UUID().uuidString).wav"
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+        try Data([1, 2, 3]).write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+        manager.debugStageRecordingForFinish(
+            fileName: fileName, recordingID: operation.id, boostRecordingPreview: true
+        )
+        manager.stopRecordingEarly()
+        #expect(!vm.canSubmitDraft)
+        vm.stageFinishedAudio(from: manager, expectedPath: fileName)
+        vm.stageFinishedAudio(from: manager, expectedPath: fileName)
+        #expect(vm.stagedCapture.audios.count == 1)
+        #expect(vm.stagedCapture.audios.first?.prefersBoostedPreview == true)
+        #expect(vm.stagedCapture.observationContexts.count == 1)
+        #expect(vm.canSubmitDraft)
+        #expect(vm.audioDraftOperation == nil)
+        #expect(manager.pendingPlaybackPath == nil)
+        #expect(try Data(contentsOf: url) == Data([1, 2, 3]))
+    }
+
+    @Test func audioCompletionUsesOnlyTheOriginalAutomaticAttempt() throws {
+        for maximum in [false, true] {
+            for scenario in ["eligible", "enableDuring", "offThenOn", "addNote", "existingNote", "reanalysis"] {
+                let vm = makeViewModel()
+                vm.diContainer.appSettings.autoSubmitScans = scenario != "enableDuring"
+                if scenario == "existingNote" {
+                    vm.updateDescriptionDraft(ObservationContext(freeText: "Existing context"))
+                }
+                if scenario == "reanalysis" {
+                    vm.baseRefinementContext = RefinementScanContext(record: LocalScanRecord(
+                        speciesId: "test-audio", scientificName: "Test subject", commonName: "Test subject"
+                    ))
+                }
+                let operation = try #require(vm.beginDraftOperation())
+                vm.audioDraftOperation = operation
+                if scenario == "enableDuring" { vm.diContainer.appSettings.autoSubmitScans = true }
+                if scenario == "offThenOn" {
+                    vm.diContainer.appSettings.autoSubmitScans = false
+                    vm.diContainer.appSettings.autoSubmitScans = true
+                }
+                if scenario == "addNote" { vm.updateDescriptionDraft(ObservationContext(freeText: "New context")) }
+                let manager = AudioCaptureManager()
+                let fileName = "\(UUID().uuidString).wav"
+                manager.debugStageRecordingForFinish(fileName: fileName, recordingID: operation.id)
+                manager.debugFinishRecording(reachedMaxDuration: maximum)
+                vm.stageFinishedAudio(from: manager, expectedPath: fileName)
+                #expect(vm.stagedCapture.audios.count == 1)
+                #expect(vm.isAutomaticStagedSubmissionPending == (scenario == "eligible"))
+            }
+        }
+    }
+
+    @Test func staleAudioCompletionCannotEnterAnotherDraft() throws {
+        let vm = makeViewModel()
+        let old = try #require(vm.beginDraftOperation())
+        let manager = AudioCaptureManager()
+        let fileName = "\(UUID().uuidString).wav"
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+        try Data([1, 2, 3]).write(to: url)
+        manager.debugStageRecordingForFinish(fileName: fileName, recordingID: old.id)
+        manager.stopRecordingEarly()
+        vm.draftSession.reset()
+        let current = try #require(vm.beginDraftOperation())
+        vm.audioDraftOperation = current
+        vm.stageFinishedAudio(from: manager, expectedPath: fileName)
+        #expect(vm.stagedCapture.isEmpty)
+        #expect(vm.audioDraftOperation == current)
+        #expect(vm.draftSession.contains(current))
+        #expect(!FileManager.default.fileExists(atPath: url.path))
+        #expect(manager.pendingPlaybackPath == nil)
+    }
+
+    @Test func failedAudioFinishReleasesOperationWithoutChangingExistingText() throws {
+        let vm = makeViewModel()
+        vm.updateDescriptionDraft(ObservationContext(freeText: "Existing note"))
+        vm.isReviewActive = true
+        vm.synchronizeSharedDescription()
+        let operation = try #require(vm.beginDraftOperation())
+        vm.audioDraftOperation = operation
+        let manager = AudioCaptureManager()
+        let fileName = "\(UUID().uuidString).wav"
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+        try Data([1, 2, 3]).write(to: url)
+        manager.debugStageRecordingForFinish(
+            fileName: fileName, recordingID: operation.id, hasRetainedRecording: false
+        )
+        manager.stopRecordingEarly()
+        vm.reconcileEndedAudioOperation(
+            isRecording: manager.isRecording,
+            hasPendingReview: manager.pendingPlaybackPath != nil,
+            hasSubmittedAudio: manager.audioFilePath != nil
+        )
+        #expect(manager.audioFilePath == nil)
+        #expect(vm.stagedCapture.audios.isEmpty)
+        #expect(vm.descriptionDraft.freeText == "Existing note")
+        #expect(vm.canSubmitDraft)
+        #expect(!FileManager.default.fileExists(atPath: url.path))
+    }
+
+    @Test func capacityLossRetainsAudioForManualRetry() throws {
+        let vm = makeViewModel()
+        let operation = try #require(vm.beginDraftOperation())
+        vm.audioDraftOperation = operation
+        let manager = AudioCaptureManager()
+        let fileName = "\(UUID().uuidString).wav"
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+        try Data([1, 2, 3]).write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+        manager.debugStageRecordingForFinish(fileName: fileName, recordingID: operation.id)
+        manager.stopRecordingEarly()
+        vm.stagedCapture.audios = (0..<vm.stagedCaptureLimit).map { StagedAudio(filePath: "occupied-\($0).wav") }
+        vm.stageFinishedAudio(from: manager, expectedPath: fileName)
+        #expect(manager.pendingPlaybackPath == fileName)
+        #expect(FileManager.default.fileExists(atPath: url.path))
+        #expect(vm.draftSession.hasUnresolvedWork)
+        #expect(vm.draftSession.automaticAttempt == nil)
+        #expect(!vm.canSubmitDraft)
+        vm.stagedCapture.audios.removeLast()
+        manager.retryStaging()
+        vm.stageFinishedAudio(from: manager, expectedPath: fileName)
+        #expect(vm.stagedCapture.audios.last?.filePath == fileName)
+        #expect(manager.pendingPlaybackPath == nil)
+        #expect(vm.canSubmitDraft)
     }
 
     private func makeViewModel() -> CaptureWorkspaceViewModel {

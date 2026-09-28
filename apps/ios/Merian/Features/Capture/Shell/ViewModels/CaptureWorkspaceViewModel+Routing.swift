@@ -264,7 +264,8 @@ extension CaptureWorkspaceViewModel {
         self.activePresentation = nil
     }
 
-    func handleRootSheetDismissed(now: Date = Date()) {
+    @discardableResult
+    func handleRootSheetDismissed(now: Date = Date()) -> ActiveSheet? {
         let dismissed = operationState.takeDismissedPresentation()
         if let dismissed {
             if dismissed.destination == .achievement {
@@ -284,7 +285,8 @@ extension CaptureWorkspaceViewModel {
             diContainer.appRouteCoordinator.resumeDeferredRequest(deferredRouteRequestID)
         }
 
-        if operationState.takeExternalImageImportResumeRequest() {
+        let resumesExternalImport = operationState.takeExternalImageImportResumeRequest()
+        if resumesExternalImport {
             importPendingExternalImageIfPossible()
         }
 
@@ -292,6 +294,16 @@ extension CaptureWorkspaceViewModel {
            activePresentation == nil,
            let pendingLocalSheet = operationState.takePendingLocalSheet() {
             activeSheet = pendingLocalSheet
+        }
+
+        if dismissed?.destination == .whatsNew,
+           operationState.takeWhatsNewFollowup(),
+           !resumesExternalImport,
+           diContainer.appRouteCoordinator.inFlightRequest == nil,
+           diContainer.appRouteCoordinator.nextRequestID == nil,
+           activePresentation == nil,
+           imageToCrop == nil {
+            activeSheet = .explore
         }
 
         // Close, interactive dismissal, and binding-driven dismissal all reach
@@ -309,6 +321,7 @@ extension CaptureWorkspaceViewModel {
             diContainer.appSettings.hasPromptedForNotificationsPostIdent = true
             activeSheet = .notificationPrompt
         }
+        return dismissed?.destination
     }
 
     /// Called only by a feature-local sheet/cover's exact `onDismiss` callback.

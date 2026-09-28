@@ -221,28 +221,32 @@ extension ExploreMapView {
         previewCarouselStepWidth = newValue
     }
 
+    @ViewBuilder
     private func previewCard(
         for source: ExplorePost,
         isInteractive: Bool
     ) -> some View {
-        let post = feedViewModel.post(id: source.id) ?? source
-        return ExploreMapPreviewCard(
-            post: post,
-            speciesDisplayName: feedViewModel.resolvedSpeciesCommonName(for: post),
-            mediaReloadGeneration: feedViewModel.mediaReloadGeneration,
-            onOpen: { openPost(post, focusCommentComposer: false) },
-            onOpenAuthorProfile: { onOpenAuthorProfile(post) },
-            onComments: { openPost(post, focusCommentComposer: true) },
-            onLike: { Task { await toggleLike(for: post) } },
-            onUnshare: { Task { await unshare(post) } },
-            onBlock: { Task { await blockAuthor(of: post) } },
-            onReport: { Task { await report(post) } },
-            onReaction: { emoji, selected in Task { await feedViewModel.setPostReaction(for: post, emoji: emoji, selected: selected) } },
-            onLoadMoreReactions: { Task { await feedViewModel.loadMorePostReactions(for: post) } }
-        )
-        .task(id: post.id) { if isInteractive { await feedViewModel.hydratePostReactions(for: post) } }
-        .allowsHitTesting(isInteractive)
-        .accessibilityHidden(!isInteractive)
+        if feedViewModel.visibility.isVisible(postID: source.id) {
+            let post = feedViewModel.post(id: source.id) ?? source
+            ExploreMapPreviewCard(
+                post: post,
+                speciesDisplayName: feedViewModel.resolvedSpeciesCommonName(for: post),
+                mediaReloadGeneration: feedViewModel.mediaReloadGeneration,
+                onOpen: { openPost(post, focusCommentComposer: false) },
+                onOpenAuthorProfile: { onOpenAuthorProfile(post) },
+                onComments: { openPost(post, focusCommentComposer: true) },
+                onLike: { Task { await toggleLike(for: post) } },
+                onUnshare: { Task { await unshare(post) } },
+                onBlock: { Task { await blockAuthor(of: post) } },
+                onReport: { Task { await report(post) } },
+                onReaction: { emoji, selected in Task { await feedViewModel.setPostReaction(for: post, emoji: emoji, selected: selected) } },
+                onLoadMoreReactions: { Task { await feedViewModel.loadMorePostReactions(for: post) } },
+                usesGlassBackground: true
+            )
+            .task(id: post.id) { if isInteractive { await feedViewModel.hydratePostReactions(for: post) } }
+            .allowsHitTesting(isInteractive)
+            .accessibilityHidden(!isInteractive)
+        }
     }
 
     private func resolvedPost(for mapPost: ExploreMapPost?) -> ExplorePost? {

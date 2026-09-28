@@ -77,6 +77,12 @@ Account-deletion recovery models and local stores live in
   device-global legacy names and sync markers are discarded, never adopted by
   the next signed-in account.
 
+## Capture guidance preference
+
+`hasShownCaptureNoteTip` is a device-local flag, defaulting false, persisted and
+reloaded through `AppSettings`. Capture Staging uses it for the once-per-install
+note tooltip. The submit button has no visual tooltip or tooltip preference.
+
 ## Recording preview preference
 
 `AppSettings.boostRecordingPreviewsEnabled` is a device-local Boolean,

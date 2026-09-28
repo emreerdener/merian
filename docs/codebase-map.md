@@ -435,7 +435,7 @@ identity, unresolved-operation tokens, and attempt-bound automatic eligibility.
 text, readiness, confirmed discard, and gallery selection limits. Root Describe
 edits ordinary notes and reanalysis supplements; `StagedDescriptionSheet` is
 reserved for historical descriptions. `ActiveScanToolbar` presents a single note
-node and horizontal media overflow beside fixed actions.
+node and adaptive compact/wrapped media rows with visible actions.
 `Models/Media/IdentificationEvidenceAllowance.swift` owns the shared native Free
 media-plus-note predicate used by entry, queue, replay, and recipient preflight.
 `Core/Data/OfflineSync/Services/CaptureAdmission` retains durable ownership
@@ -496,11 +496,17 @@ disablement, and disappearance changes, while visual Pro eligibility is sampled
 only when a hold matures. Mirrored tests under
 `apps/ios/MerianTests/Features/Capture/Shell/` lock these boundaries, feature
 ownership of the control surface, raw-notification confinement, deterministic
-Models, and the folder's 600-line production-file ceiling. Fixed control-row
-geometry, the pure `CaptureMode` value, and the platform-neutral haptic
-vocabulary shared by Shell, Scan, Record, and Describe live in
-`Capture/Shared/Models`; the composing-center SwiftUI environment contract lives
-in `Capture/Shared/Utilities` because Shell supplies it and Record consumes it.
+Models, and the folder's 600-line production-file ceiling. Baseline control-row
+geometry, adaptive `CaptureChromeLayout`, the pure `CaptureMode` value, and the
+platform-neutral haptic vocabulary shared by Shell, Scan, Record, and Describe
+live in `Capture/Shared/Models`; the composing-center SwiftUI environment
+contract lives in `Capture/Shared/Utilities` because Shell supplies it and
+Record consumes it.
+`Capture/Shared/Components/CaptureChromeLayoutEnvironment.swift` owns the
+SwiftUI environment and height-preference bridge for that pure clearance model.
+`Capture/Staging/Components/Toolbar/CaptureStagingMediaFlowLayout.swift` wraps
+whole evidence nodes in chronological order; `ActiveScanToolbar` chooses the
+compact or expanded layout and reports its rendered height to Shell.
 `Capture/Shared/Components/CaptureAuxiliaryControlModifier.swift` supplies the
 shared circular glass and material-fallback appearance for Shell's secondary
 controls and Scan's photo-library button. The immutable `SendableCGImage`
@@ -2876,3 +2882,12 @@ private Scan Map. `Core/UI/Components/Maps` owns reusable presentation;
 The
 [current map navigation contract](features-and-hardware/24-explore-bottom-menu.md#shared-map-navigation)
 keeps each feature's point projection, filters, and camera application separate.
+
+### Reported content visibility
+
+`Features/Explore/Shared/Visibility/ExploreContentVisibilityStore.swift` is the
+native account/content-generation owner. The canonical backend card projection,
+independent readers and viewer-aware reference-media helpers enforce durable
+hiding. `species-dictionary-for-viewer` is the native authenticated dictionary
+boundary. See
+[the current contract](features-and-hardware/30-reported-content-visibility.md).

@@ -134,6 +134,27 @@ extension ExploreMapViewModel {
         }
     }
 
+    func invalidateReportedContent(_ hiddenIDs: Set<String>) {
+        debounceSearchTask?.cancel()
+        debounceSearchTask = nil
+        needsRefreshAfterCurrentLoad = false
+        needsForcedRefreshAfterCurrentLoad = false
+        immediateSearchRegion = nil
+        requestGeneration &+= 1
+        activeLoadID = nil
+        isLoading = false
+        responseCache.removeAll()
+        clusters = []
+        categoryCounts = []
+        mediaTypeCounts = []
+        for id in hiddenIDs { removePost(id: id) }
+        posts = []
+        invalidateFocusedPost()
+        selectedPostId = nil
+        visibleCount = 0
+        needsSearchInArea = true
+    }
+
     func removePost(id: String) {
         posts.removeAll { $0.id == id }
         if focusedPost?.id == id {

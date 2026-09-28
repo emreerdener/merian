@@ -10,18 +10,14 @@ struct SettingsTabView: View {
     // MARK: - State
     @State private var isExporting = false
     @State private var exportUrl: URL?
-    @State private var showSafari = false
     @State private var safariUrl: URL?
-    @State private var showDeleteConfirmation = false
     @State private var managePlanActive = false
     @State private var notificationSettingsActive = false
     @State private var changelogActive = false
     @State private var cameraSettingsActive = false
     @State private var audioRecordingSettingsActive = false
     @State private var captureModeOrderSettingsActive = false
-    @State private var showTestExploreOnboarding = false
-    @State private var showPaywall = false
-    @State private var showFeedbackSurvey = false
+    @State private var activeSheet: SettingsSheet?
     @State private var toastMessage: ToastPayload?
 
     var body: some View {
@@ -34,8 +30,8 @@ struct SettingsTabView: View {
                     cameraSettingsActive: $cameraSettingsActive,
                     audioRecordingSettingsActive: $audioRecordingSettingsActive,
                     captureModeOrderSettingsActive: $captureModeOrderSettingsActive,
-                    showPaywall: $showPaywall,
-                    showTestExploreOnboarding: $showTestExploreOnboarding,
+                    showPaywall: isPresenting(.paywall),
+                    showTestExploreOnboarding: isPresenting(.exploreOnboarding),
                     geoprivacyDependencies: geoprivacyDependencies,
                     preferenceActions: preferenceActions
                 )
@@ -57,14 +53,15 @@ struct SettingsTabView: View {
 
                 Community(
                     changelogActive: $changelogActive,
+                    showWhatsNew: isPresenting(.whatsNew),
                     safariUrl: $safariUrl,
-                    showSafari: $showSafari,
-                    showFeedbackSurvey: $showFeedbackSurvey
+                    showSafari: isPresenting(.safari),
+                    showFeedbackSurvey: isPresenting(.feedback)
                 )
 
                 DangerZone(
                     supabase: supabase,
-                    showDeleteConfirmation: $showDeleteConfirmation
+                    showDeleteConfirmation: isPresenting(.deleteAccount)
                 )
             }
             .transparentTopToolbar()
@@ -90,26 +87,27 @@ struct SettingsTabView: View {
             .listStyle(InsetGroupedListStyle())
             .contentMargins(.top, 16, for: .scrollContent)
             .containerRelativeFrame(.horizontal)
-            .sheet(isPresented: $showSafari) {
-                if let url = safariUrl {
-                    SafariView(url: url)
+            .sheet(item: $activeSheet) { sheet in
+                switch sheet {
+                case .safari:
+                    if let url = safariUrl {
+                        SafariView(url: url)
+                    }
+                case .deleteAccount:
+                    DeleteAccountSheet(supabase: supabase)
+                case .paywall:
+                    PaywallView()
+                        .environment(revenueCatManager)
+                case .feedback:
+                    FeedbackSurveyView()
+                case .whatsNew:
+                    WhatsNewSheet()
+                case .exploreOnboarding:
+                    ExploreOnboardingPrompt(
+                        onShare: { activeSheet = nil },
+                        onDismiss: { activeSheet = nil }
+                    )
                 }
-            }
-            .sheet(isPresented: $showDeleteConfirmation) {
-                DeleteAccountSheet(supabase: supabase)
-            }
-            .sheet(isPresented: $showPaywall) {
-                PaywallView()
-                    .environment(revenueCatManager)
-            }
-            .sheet(isPresented: $showFeedbackSurvey) {
-                FeedbackSurveyView()
-            }
-            .sheet(isPresented: $showTestExploreOnboarding) {
-                ExploreOnboardingPrompt(
-                    onShare: { showTestExploreOnboarding = false },
-                    onDismiss: { showTestExploreOnboarding = false }
-                )
             }
         }
         .merianSystemFeedback(
@@ -117,4 +115,24 @@ struct SettingsTabView: View {
             milestoneAlignment: .top
         )
     }
+
+    private func isPresenting(_ sheet: SettingsSheet) -> Binding<Bool> {
+        Binding(
+            get: { activeSheet == sheet },
+            set: { isPresented in
+                if isPresented {
+                    guard activeSheet == nil else { return }
+                    activeSheet = sheet
+                } else if activeSheet == sheet {
+                    activeSheet = nil
+                }
+            }
+        )
+    }
+}
+
+private enum SettingsSheet: String, Identifiable {
+    case safari, deleteAccount, paywall, feedback, whatsNew, exploreOnboarding
+
+    var id: String { rawValue }
 }

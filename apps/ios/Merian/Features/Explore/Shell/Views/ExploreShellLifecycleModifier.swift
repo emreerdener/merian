@@ -4,6 +4,7 @@ import SwiftUI
 private struct ExploreNotificationSessionKey: Hashable {
     let userID: UUID?
     let authTransitionInProgress: Bool
+    let visibilityGeneration: UInt64
 }
 
 struct ExploreShellLifecycleModifier: ViewModifier {
@@ -20,7 +21,11 @@ struct ExploreShellLifecycleModifier: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .task(id: supabase.allowsUnownedAccountBoundWork) {
+            .task(id: ExploreNotificationSessionKey(
+                userID: supabase.currentUser?.id,
+                authTransitionInProgress: !supabase.allowsUnownedAccountBoundWork,
+                visibilityGeneration: feedViewModel.visibility.generation
+            )) {
                 feedViewModel.bindSettings(appSettings)
                 await feedViewModel.resumeInitialFeed()
                 feedViewModel.refreshPreferredSpeciesNames(modelContext: modelContext)
@@ -47,7 +52,8 @@ struct ExploreShellLifecycleModifier: ViewModifier {
             }
             .task(id: ExploreNotificationSessionKey(
                 userID: supabase.currentUser?.id,
-                authTransitionInProgress: supabase.isAuthTransitionInProgress
+                authTransitionInProgress: supabase.isAuthTransitionInProgress,
+                visibilityGeneration: feedViewModel.visibility.generation
             )) {
                 feedViewModel.stopUnreadNotificationUpdates()
                 guard supabase.allowsUnownedAccountBoundWork else { return }

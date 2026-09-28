@@ -260,11 +260,12 @@ text removes the note. Historical descriptions remain separate and alone use the
 local-copy editor sheet. Reanalysis has two physical slots, historical text, and
 one current supplement; it always submits manually.
 
-The tray uses native Liquid Glass where supported, a text-only blue Identify, a
-red trash icon with discard confirmation, and horizontal media-row overflow
-beside fixed actions. Analyze retains its existing styling. Media preparation
-blocks submission, automatic eligibility belongs to the capture attempt, and
-queue rejection preserves the draft for manual retry. The
+The tray uses native Liquid Glass where supported, a blue circular submission
+arrow, a red trash icon with discard confirmation, and adaptive media rows above
+visible actions when the compact row cannot fit. Identify and Analyze share the
+arrow styling while retaining their contextual accessibility labels. Media
+preparation blocks submission, automatic eligibility belongs to the capture
+attempt, and queue rejection preserves the draft for manual retry. The
 [staged-review contract](../features-and-hardware/29-staged-capture-review.md)
 owns the complete state transitions and durable handoff. The
 [Describe guide](../features-and-hardware/11-describe-and-voice-dictation.md)

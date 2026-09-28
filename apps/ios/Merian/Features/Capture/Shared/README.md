@@ -10,11 +10,12 @@ canonical image preparation, focus, and handoff behavior is documented in the
 
 - `Models/` contains shared Capture values such as the file-backed Photos
   transfer wrapper and `IdentifiableImage` source context, provenance, distance,
-  and resumable crop geometry. It also owns the fixed `CaptureControlBarLayout`
-  consumed by Shell, Scan, Record, and Describe, plus the platform-neutral
-  feedback and source vocabulary in `CaptureControlHapticPolicy.swift`, shared
-  by Shell controls and Scan's video-start transition. These values do not
-  invoke platform effects.
+  and resumable crop geometry. It also owns the baseline
+  `CaptureControlBarLayout` and adaptive `CaptureChromeLayout` consumed by
+  Shell, Scan, Record, and Describe, plus the platform-neutral feedback and
+  source vocabulary in `CaptureControlHapticPolicy.swift`, shared by Shell
+  controls and Scan's video-start transition. These values do not invoke
+  platform effects.
 - `ViewModels/` contains the action coordinator shared by the Shell and capture
   modes.
 - `Services/ImageFocusRegionDetector.swift` owns the Capture-only Vision
@@ -25,6 +26,9 @@ canonical image preparation, focus, and handoff behavior is documented in the
   outcome, duration, and a coarse area bucket; no image content or region
   coordinates are logged or sent to telemetry. The service owns no endpoint or
   mutable singleton.
+- `Components/CaptureChromeLayoutEnvironment.swift` owns the SwiftUI environment
+  and tray-height preference bridge; the shared clearance models remain
+  independent of SwiftUI.
 - `Components/RecordingCountdownBadge.swift` owns the passive countdown
   treatment shared by Record audio and Scan video capture. Each caller supplies
   its duration, progress, and accessibility prefix.
@@ -48,3 +52,9 @@ persistence, historical loading, and Insights all consume it.
 and the Shared architecture guard. The guard freezes the detector's sole Capture
 owner, exact framework imports, retired Utilities paths, test ownership,
 live-service exclusions, and the 600-line production-file ceiling.
+
+`CaptureStagingToolbarPresentationTests` verifies `CaptureChromeLayout` retains
+the 124 pt baseline inset and applies the same measured expansion to capture
+controls, Describe content, and camera/audio overlays. The environment and
+preference bridge remains in `Components`; the clearance values in `Models` must
+not import SwiftUI.

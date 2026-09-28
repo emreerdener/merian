@@ -131,7 +131,7 @@ extension ExploreFeedViewModel {
 
             markRecentFeedSeen(latestSharedAt: freshPosts.first?.sharedAt)
             if isCanonicalRecentFeed {
-                ExploreWidgetSnapshotWriter.refreshRecentFeedSnapshot(from: freshPosts)
+                ExploreWidgetSnapshotWriter.refreshRecentFeedSnapshot(from: store.feedPosts)
             }
         } catch is CancellationError {
             // Silently absorb cancellation
@@ -228,6 +228,16 @@ extension ExploreFeedViewModel {
 
     private func setNearbyLocationSnapshot(_ snapshot: ExploreNearbyLocationSnapshot?) {
         nearbyLocationSnapshot = snapshot
+    }
+
+    func resetFeedForVisibilityChange() {
+        // Unrelated posts can contain reference-image fallbacks from the report.
+        // Drop those projections and fence all pending feed/detail work as well.
+        for post in store.allPosts { removePost(id: post.id) }
+        store.removeAll()
+        stopUnreadNotificationUpdates()
+        unreadNotificationCount = 0
+        resetFeedStateForFilterChange()
     }
 
     private func resetFeedStateForFilterChange() {

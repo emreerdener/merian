@@ -63,11 +63,12 @@ area recreates the duplicated empty band.
 
 The flexible rounded editor retains the stable `DescribeTextArea` and
 `DescribeTextInput` accessibility identifiers and reserves
-`CaptureControlBarLayout.describeContentBottomClearance`, owned by
-`Capture/Shared/Models`, beneath it. Its entire rounded region remains tappable,
-including the space below the multiline field. `DescribeQuestionNavigation` and
-`CaptureModeToggle` remain stable UI-test identifiers with their documented
-8...32 pt rendered spacing.
+`CaptureChromeLayout.reservedHeight`, owned by `Capture/Shared/Models`, beneath
+it. Shell supplies this shared clearance from the measured staging tray height,
+preserving the baseline reservation when no expansion is needed. Its entire
+rounded region remains tappable, including the space below the multiline field.
+`DescribeQuestionNavigation` and `CaptureModeToggle` remain stable UI-test
+identifiers with their documented 8...32 pt rendered spacing.
 
 ## Lifecycle and cancellation
 
