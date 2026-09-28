@@ -205,6 +205,14 @@ function database(
             stage: "claimed",
             already_complete: false,
           });
+        case "commit_identification_invocation":
+          events.push("committed");
+          return response([{
+            invocation_id: "00000000-0000-4000-8000-000000000501",
+            may_dispatch: !options.commitDenied,
+          }]);
+        case "complete_identification_invocation":
+          return response("00000000-0000-4000-8000-000000000601");
         case "finalize_ai_quota_reservation":
           events.push(String(args.p_final_state));
           return response(
@@ -1352,6 +1360,7 @@ Deno.test("multimodal handler preserves admission, evidence and recovery through
           assertEquals(saved.llm_thinking_tokens, 10);
           assertEquals(saved.llm_total_tokens, 140);
           assertEquals(saved.llm_usage_metadata, {
+            accounting_contract: "identification_invocation_v1",
             output_tokens: 40,
             cache_write_tokens: 5,
           });
@@ -1709,7 +1718,10 @@ Deno.test("multimodal handler preserves admission, evidence and recovery through
           row.llm_thinking_tokens,
           row.llm_cached_tokens,
         ], [100, 20, 127, 7, 5]);
-        assertEquals(row.llm_usage_metadata, { prompt: { text: 100 } });
+        assertEquals(row.llm_usage_metadata, {
+          prompt: { text: 100 },
+          accounting_contract: "identification_invocation_v1",
+        });
         assert(db.events.indexOf("complete") > db.events.indexOf("insert"));
         assertEquals(db.events.filter((event) => event === "invoke").length, 1);
       },

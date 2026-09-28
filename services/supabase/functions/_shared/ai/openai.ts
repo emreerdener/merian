@@ -60,13 +60,21 @@ function decode(
   timing: Pick<AIResponseFacts, "providerDurationMs" | "providerCompletedAt">,
 ): AIProviderOutcome {
   const raw = object(value), status = raw?.status;
+  const usage = usageFrom(raw?.usage);
+  const unexpectedOutput = Array.isArray(raw?.output) &&
+    raw.output.some((item) =>
+      !["message", "reasoning"].includes(String(object(item)?.type))
+    );
   const facts: AIResponseFacts = {
     ...timing,
+    serviceTier: raw?.service_tier === "default" && raw?.model === "gpt-6-sol"
+      ? "default"
+      : null,
     returnedModel: typeof raw?.model === "string" &&
         /^gpt-6-sol(?:-[a-zA-Z0-9.-]{1,80})?$/.test(raw.model)
       ? raw.model
       : null,
-    usage: usageFrom(raw?.usage),
+    usage: usage && unexpectedOutput ? { ...usage, toolTokens: null } : usage,
     finishReason: typeof status === "string" &&
         [
           "completed",
@@ -102,7 +110,12 @@ function decode(
       message?.type !== "message" || message.role !== "assistant" ||
       message.status !== "completed" || !Array.isArray(message.content)
     ) {
-      return { ...facts, kind: "invalid_output", reason: "finish" };
+      return {
+        ...facts,
+        usage: facts.usage ? { ...facts.usage, toolTokens: null } : null,
+        kind: "invalid_output",
+        reason: "finish",
+      };
     }
     messages++;
     for (const partValue of message.content) {

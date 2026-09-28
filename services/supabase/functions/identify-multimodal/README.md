@@ -715,3 +715,17 @@ Only the service-authenticated primary replay worker bypasses client decoding.
 See the
 [result-reader contract](../../../../docs/backend-and-data/05-api-contracts.md#identification-result-readers)
 for direct-history protection and reader-first release requirements.
+
+## Primary invocation accounting
+
+`_shared/ai/identificationUsage.ts` wraps the admitted execution with an atomic
+quota commit and durable invocation witness. The handler awaits one native usage
+report for every provider outcome before continuing result processing. A failed
+report leaves a durable witness for bounded unknown reconciliation and never
+repeats inference. New saved scans mark this accounting owner to prevent the
+legacy scan trigger from recording the call again.
+
+The migration must precede the new bundle. OpenAI remains source-disabled and
+all assignments remain Gemini. The completed benchmark is unchanged; no paid
+experiment is run by this infrastructure. See the
+[database/API ownership and pricing contract](../../../../docs/backend-and-data/04-database-schema.md#primary-identification-attempt-accounting).

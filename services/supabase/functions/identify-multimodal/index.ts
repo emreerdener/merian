@@ -1,3 +1,4 @@
+import { prepareAccountedIdentification } from "../_shared/ai/identificationUsage.ts";
 import { identificationProvenance } from "../_shared/ai/provenance.ts";
 import {
   AUDIO_PROMPT_COMPARISON_CONFIG_ENV,
@@ -1101,11 +1102,18 @@ export async function handleIdentifyMultimodalRequest(
       );
       requireComparisonReservation(audioComparison, quotaLease.reservation);
     }
+    const accounted = prepareAccountedIdentification(
+      supabaseAdmin,
+      user.id,
+      quotaLease.reservation,
+      execution,
+    );
+    quotaLease = accounted.lease;
     const quotaCommitStart = performance.now();
     await quotaLease.commit();
     providerAttempted = true;
     const providerStart = performance.now();
-    result = await execution.invoke();
+    result = await accounted.invoke();
     providerMs = result.providerDurationMs;
     quotaCommitMs = providerStart - quotaCommitStart;
     geminiLatencyMs = result.providerCompletedAt - geminiStart;
@@ -1134,6 +1142,7 @@ export async function handleIdentifyMultimodalRequest(
       llmTotalTokens = usage.totalTokens;
       llmCachedTokens = usage.cachedTokens;
     }
+    llmUsageMetadata.accounting_contract = "identification_invocation_v1";
   } catch (genErr) {
     if (providerAttempted) {
       await quotaLease.fail();

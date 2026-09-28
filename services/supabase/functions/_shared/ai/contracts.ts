@@ -205,6 +205,8 @@ export interface AIUsage {
 }
 
 export interface AIResponseFacts {
+  /** Actual OpenAI processing tier, when reported; missing is unpriced. */
+  readonly serviceTier?: "default" | null;
   /** Native invocation only, excluding response normalization/JSON parsing. */
   readonly providerDurationMs: number;
   readonly providerCompletedAt: number;

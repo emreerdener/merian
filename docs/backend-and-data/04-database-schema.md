@@ -4144,8 +4144,8 @@ Append-only source of truth for internal AI analytics:
 
 `effective_plan` is `free`, `pro_paid`, `pro_complimentary`, historical
 `pro_trial`, or `unknown`; `input_modality` is `text`, `image`, `audio`,
-`video`, `mixed`, or `unknown`; `outcome` is `success`, `refusal`, or `error`.
-Token/cost values are nullable but cannot be negative.
+`video`, `mixed`, or `unknown`; `outcome` is `success`, `refusal`, `error`, or
+`unknown`. Token/cost values are nullable but cannot be negative.
 
 Despite its legacy column name, `prompt_tokens_by_modality` stores the complete
 normalized modality breakdown:
@@ -4164,8 +4164,8 @@ content belongs in this field. New primary scan events copy model/provider and
 bounded execution references from saved `identification_provenance` into the
 existing model/metadata fields; only absent legacy provenance infers Gemini from
 tier. `ai_attribution` distinguishes recorded provenance from that fallback.
-Historical rows remain unchanged. The pricing writer requires the Gemini usage
-contract, a known modality, prompt/candidate counts and consistent cached
+Historical rows remain unchanged. The legacy pricing writer requires the Gemini
+usage contract, a known modality, prompt/candidate counts and consistent cached
 counts. An unsupported provider (even with a Gemini model name), usage mapping
 or tariff retains a null estimate/version. Provider attribution survives account
 anonymization without identifying linkage.
@@ -4180,6 +4180,70 @@ rewrite: transaction-local source/target settings permit changing only
 intentionally has no `auth.users` foreign key; an `ON DELETE SET NULL` action
 would reach the append-only trigger outside the account-deletion trigger's
 authorized anonymization context.
+
+### Primary identification attempt accounting
+
+Migration `20260927230801_account_identification_invocations.sql` adds
+`internal.identification_invocations` and `internal.ai_native_token_prices`.
+Both have RLS and no direct API-role grants. The current primary
+`identify-multimodal` route uses this owner for every supported input and
+provider; compatibility routes and other AI operations keep their previous
+writers and coverage limits.
+
+`commit_identification_invocation(uuid,uuid,uuid,integer,jsonb)` is
+service-only. It checks the owner, current quota lease/generation, immutable
+input assignment and bounded V1/V2 execution provenance. In one transaction it
+commits quota and creates one witness per reservation/generation. Only the first
+call returns `may_dispatch=true`; a duplicate returns the existing UUID with
+false. An ambiguous response grants no dispatch authority. The witness means a
+call **may have been dispatched**, since a worker can stop between commitment
+and network execution. No accounting routine grants retries or refunds.
+
+`complete_identification_invocation(uuid,uuid,uuid,text,jsonb)` validates the
+owner and hashed lease, then appends one `ai_usage_events` record with source
+type `identification_invocation`. It accepts only bounded native counters and
+processing-tier facts. It retains the admitted provider/model/binding, exact
+execution configuration, input profile, tier and original commitment time.
+`success` means a provider draft was returned; it does not prove that downstream
+validation or observation persistence succeeded. Refusals, invalid output,
+operational failure and unknown execution are recorded independently of scan
+persistence. Missing units and prices remain null.
+
+The private minute cron `reconcile_identification_usage` processes at most 1,000
+witnesses per pass using `FOR UPDATE SKIP LOCKED`. After five minutes without a
+report it appends one `unknown`, unpriced event at the original commitment time.
+A late callback returns that existing event without replacing it or dispatching
+another call. This bounds accounting lag but cannot recover missing provider
+usage. Quota pruning never cascades into these records. Completed witnesses are
+pruned in batches after 30 days; usage events retain the existing ledger policy.
+
+New scan writes set only the content-free
+`llm_usage_metadata.accounting_contract=identification_invocation_v1` marker.
+The scan trigger requires a matching witness or invocation event and skips its
+legacy success write. This remains idempotent after witness retention. Older
+bundles omit the marker and retain their previous scan-trigger accounting.
+Account deletion locks/settles pending witnesses before the existing event
+anonymizer, then clears user, scan, reservation and lease-hash linkage. The
+controlled Ghost merge reparents witnesses with usage events.
+
+Native tariffs are scoped by provider, model, usage contract, actual service
+tier, endpoint profile, modality and input ceiling. Database range exclusion
+prevents overlapping effective periods. The exact tariff is frozen before OpenAI
+dispatch; no effective tariff means no commitment or provider call. The initial
+photo tariff uses Standard global `gpt-6-sol`, at most 272,000 input tokens,
+effective 2026-09-27 23:08:01 UTC: $2 input, $0.20 cached read, $2.50 cache
+write and $10 output per million tokens. Cache read/write are disjoint parts of
+input; output already includes reasoning. Sources reviewed September 27:
+[OpenAI model pricing](https://developers.openai.com/api/docs/models/gpt-6-sol)
+and
+[cache semantics](https://developers.openai.com/api/docs/guides/prompt-caching).
+
+Pricing requires reported input/read/write/output counts, zero tool usage,
+consistent counts, the exact returned model and actual `default` service tier.
+Unsupported context, tiers, tools or unknown counts stay unpriced. Regional,
+Batch/Flex/Fast, taxes, credits and discounts are outside this tariff. Existing
+Gemini estimate semantics and historical estimates are unchanged. This is cost
+estimation, not invoice reconciliation.
 
 ### `internal.ai_quota_policies`, counters, and reservations
 
@@ -5263,7 +5327,8 @@ reversible comment moderation columns are reused.
 
 `scans` and `insight_chat_messages` add non-null
 `llm_usage_metadata JSONB DEFAULT '{}'`. Durable insert triggers normalize these
-values into `ai_usage_events` transactionally.
+values into `ai_usage_events` transactionally for legacy scan/message writers.
+Primary multimodal scans use the invocation accounting contract above.
 
 For authorization, review behavior, anonymization, retention boundaries, and
 pricing semantics, see [`10-internal-admin.md`](./10-internal-admin.md).

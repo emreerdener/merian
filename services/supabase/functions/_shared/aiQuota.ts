@@ -652,6 +652,7 @@ export function createAIProviderQuotaLease<
   supabaseAdmin: SupabaseClient,
   userId: string,
   reservation: Reservation,
+  commitReservation?: () => Promise<boolean>,
 ): AIProviderQuotaLease<Reservation> {
   let finalState: "committed" | "failed" | "refunded" | null = null;
 
@@ -666,12 +667,14 @@ export function createAIProviderQuotaLease<
           "AI service is temporarily unavailable.",
         );
       }
-      const finalized = await finalizeReservation(
-        supabaseAdmin,
-        userId,
-        reservation,
-        "committed",
-      );
+      const finalized = commitReservation
+        ? await commitReservation()
+        : await finalizeReservation(
+          supabaseAdmin,
+          userId,
+          reservation,
+          "committed",
+        );
       if (!finalized) {
         throw new AIQuotaError(
           503,

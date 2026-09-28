@@ -235,8 +235,9 @@ Deno.test("provider attempts consume quota while pre-provider no-ops can refund"
     ]
   ) {
     const source = await Deno.readTextFile(new URL(path, import.meta.url));
-    const invocation =
-      /await quotaLease[.]commit[(][)];\s*providerAttempted = true;\s*(?:const providerStart = performance[.]now[(][)];\s*)?result = await execution[.]invoke[(][)]/;
+    const invocation = path === "../identify-multimodal/index.ts"
+      ? /await quotaLease[.]commit[(][)];\s*providerAttempted = true;\s*const providerStart = performance[.]now[(][)];\s*result = await accounted[.]invoke[(][)]/
+      : /await quotaLease[.]commit[(][)];\s*providerAttempted = true;\s*(?:const providerStart = performance[.]now[(][)];\s*)?result = await execution[.]invoke[(][)]/;
     assert(
       invocation.test(source),
       `${path} must commit immediately before dispatching paid provider work`,
