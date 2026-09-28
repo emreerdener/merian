@@ -51,6 +51,39 @@ extension CaptureWorkspaceViewModel {
         audioDraftOperation = nil
     }
 
+    /// Accepts only the completed recording belonging to the current draft operation.
+    func stageFinishedAudio(from recorder: AudioCaptureManager, expectedPath: String) {
+        guard recorder.audioFilePath == expectedPath else { return }
+        // A repeated observer delivery must never delete an already-owned original.
+        guard !draftOwnedFiles.contains(expectedPath) else {
+            recorder.acknowledgeStagedRecording()
+            return
+        }
+        guard let operation = audioDraftOperation,
+              operation.id == recorder.recordingID,
+              draftSession.contains(operation) else {
+            if let operation = audioDraftOperation, operation.id == recorder.recordingID {
+                completeDraftOperation(operation, succeeded: false)
+                audioDraftOperation = nil
+            }
+            recorder.reset()
+            return
+        }
+        guard hasAvailableStagedCaptureSlot else {
+            revokeAutomaticSubmission()
+            recorder.restoreSubmissionForReview()
+            offlineToastMessage = .error("Recording couldn’t be added. Free a media slot, then try again.")
+            return
+        }
+        stagedCapture.audios.append(StagedAudio(
+            filePath: expectedPath, prefersBoostedPreview: recorder.boostRecordingPreview
+        ))
+        draftOwnedFiles.insert(expectedPath)
+        audioDraftOperation = nil
+        recorder.acknowledgeStagedRecording()
+        completeDraftOperation(operation, succeeded: true)
+    }
+
     func updateDescriptionDraft(_ context: ObservationContext) {
         guard !isDraftMutationLocked else { return }
         descriptionDraft = context

@@ -475,7 +475,7 @@ extension CaptureWorkspaceViewModelRefinementTests {
         XCTAssertTrue(viewModel.shouldShowMediaModeToggle)
     }
 
-    func testMediaModeToggleStillHidesAtCapacityOutsideRefinement() {
+    func testMediaModeToggleRemainsVisibleAtCapacityOutsideRefinement() {
         let viewModel = CaptureWorkspaceViewModel(
             diContainer: .preview,
             preparedImageLoader: { _ in nil },
@@ -485,7 +485,16 @@ extension CaptureWorkspaceViewModelRefinementTests {
         viewModel.stagedCapture.audios = (0..<viewModel.stagedCaptureLimit).map { StagedAudio(filePath: "existing-\($0).wav") }
 
         XCTAssertFalse(viewModel.hasAvailableStagedCaptureSlot)
-        XCTAssertFalse(viewModel.shouldShowMediaModeToggle)
+        XCTAssertTrue(viewModel.shouldShowMediaModeToggle)
+        XCTAssertFalse(viewModel.canUseCaptureControls(in: .visual))
+        XCTAssertFalse(viewModel.canUseCaptureControls(in: .audio))
+        XCTAssertTrue(viewModel.canUseCaptureControls(in: .describe))
+
+        viewModel.stagedCapture.observationContexts = [
+            StagedObservationContext(context: ObservationContext(freeText: "Beside a pond"))
+        ]
+        XCTAssertTrue(viewModel.shouldShowMediaModeToggle, "Adding the note must not hide mode navigation")
+        XCTAssertTrue(viewModel.canUseCaptureControls(in: .describe))
     }
 
 }

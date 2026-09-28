@@ -23,6 +23,8 @@ struct CaptureWorkspaceOrchestrationModifier: ViewModifier {
         order: .reverse
     ) private var messageShareCacheRecords: [LocalScanRecord]
 
+    @State private var hasStartedEnvironmentContext = false
+
     let viewModel: CaptureWorkspaceViewModel
     let coordinator: CaptureActionCoordinator
     @Binding var captureMode: CaptureMode
@@ -106,8 +108,7 @@ struct CaptureWorkspaceOrchestrationModifier: ViewModifier {
                 cameraManager.startSession()
             }
             photoLibraryManager.startObservingAndFetch()
-            viewModel.validateEnvironmentContextPermissions()
-            viewModel.startLiveEnvironmentContextTracking()
+            startEnvironmentContextIfPossible()
             viewModel.importPendingExternalImageIfPossible()
             activeCaptureGoalStore.activate(accountId: currentAccountId)
             if FeatureFlags.isEnabled(.fieldTrips) {
@@ -123,6 +124,7 @@ struct CaptureWorkspaceOrchestrationModifier: ViewModifier {
             cameraManager.stopSession()
             audioCaptureManager.reset()
             viewModel.stopLiveEnvironmentContextTracking()
+            hasStartedEnvironmentContext = false
         }
         .onReceive(
             CaptureWorkspaceKeyboardService.willShowNotifications
@@ -319,17 +321,7 @@ struct CaptureWorkspaceOrchestrationModifier: ViewModifier {
         .onChange(of: audioCaptureManager.audioFilePath) { _, fileName in
             guard let fileName else { return }
 
-            guard let operation = viewModel.audioDraftOperation,
-                  viewModel.draftSession.contains(operation),
-                  viewModel.hasAvailableStagedCaptureSlot else {
-                audioCaptureManager.restoreSubmissionForReview()
-                return
-            }
-            viewModel.stagedCapture.audios.append(StagedAudio(filePath: fileName))
-            viewModel.draftOwnedFiles.insert(fileName)
-            audioCaptureManager.reset()
-            viewModel.audioDraftOperation = nil
-            viewModel.completeDraftOperation(operation, succeeded: true)
+            viewModel.stageFinishedAudio(from: audioCaptureManager, expectedPath: fileName)
         }
 
         .onPhysicalCameraShutter(
@@ -355,7 +347,16 @@ struct CaptureWorkspaceOrchestrationModifier: ViewModifier {
         restoreCameraAfterPresentationIfPossible()
     }
 
+    private func startEnvironmentContextIfPossible() {
+        guard !hasStartedEnvironmentContext,
+              viewModel.activeSheet != .whatsNew else { return }
+        hasStartedEnvironmentContext = true
+        viewModel.validateEnvironmentContextPermissions()
+        viewModel.startLiveEnvironmentContextTracking()
+    }
+
     private func handleRootPresentationDismissed() {
+        startEnvironmentContextIfPossible()
         presentPendingFeedbackSurveyIfReady()
         restoreCameraAfterPresentationIfPossible()
     }

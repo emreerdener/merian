@@ -183,3 +183,14 @@ xcodebuild -project Merian.xcodeproj -scheme Merian \
   -only-testing:merianTests/SpeciesDictionaryNetworkTransportTests \
   -only-testing:merianTests/LocalImageLoaderTests test
 ```
+
+## Viewer-projected lookalike images
+
+The shared lookalike gallery loads reference images through the authenticated
+viewer dictionary instead of trusting a persisted lookalike URL or falling back
+to direct provider fetching. The gallery remounts when account/report visibility
+changes, and image completions check the same context. Naturebook supplies
+already filtered lookalike URLs with `loadsViewerImages: false`; an empty URL is
+an authoritative no-image result and retains the species card. The standalone
+provider parsing service remains independently testable, but is not the live
+gallery fallback. This does not rewrite a user's private captured scan media.

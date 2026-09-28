@@ -101,6 +101,10 @@ and its full wrapped height inside the Insight scroll view. The response must
 remain readable inline without layout truncation or an expansion action;
 existing inference limits and fallback messages remain unchanged.
 
+Scientific names in the header's AI response retain their monospaced styling and
+secondary-color highlight. On iOS 18 and later, each wrapped highlighted segment
+has a 3-point corner radius; iOS 17 retains the attributed-text background.
+
 Completed biological results place the **Your scan** context card after the
 species reference cards, followed by the separate **Field notes** card and then
 **Tags**. Field notes retains its existing visibility, dismissal, and editing

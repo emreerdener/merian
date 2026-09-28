@@ -587,6 +587,15 @@ export async function assertCanInteractWithExplorePost(
   requesterUserId: string,
   supabaseAdmin: SupabaseClient,
 ): Promise<{ id: string; ownerUserId: string }> {
+  const { data: report, error: reportError } = await supabaseAdmin
+    .from("explore_post_reports")
+    .select("post_id")
+    .eq("post_id", postId)
+    .eq("reporter_user_id", requesterUserId)
+    .maybeSingle();
+  if (reportError) throw new Error("Could not resolve Explore post visibility");
+  if (report) throw makeHttpError(404, "Explore post is no longer available.");
+
   const post = await fetchInteractiveExplorePost(postId, supabaseAdmin);
 
   if (

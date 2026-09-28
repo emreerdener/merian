@@ -49,10 +49,12 @@ ordered; pause and stop invalidate suspended playback results, while newer seeks
 fence stale time samples without cancelling play intent. Replacement playback
 joins the previous player’s stop before starting. Progress projects elapsed time
 between background samples only while playing. Teardown joins in-flight playback
-before releasing the exact session lease or source file, and boost recovery
-waits for stop before invalidating the boosted file.
-`AudioPlaybackFilePlayerTests` covers silent loading, executor confinement, late
-play rejection, seek/sample races, command ordering, and completion delivery.
+before releasing the exact session lease or source file. The injected
+`releaseAudioBoost` callback then retires preview-owned derivatives;
+shared-cache callers keep the default no-op. Boost recovery waits for stop
+before invalidating the boosted file. `AudioPlaybackFilePlayerTests` covers
+silent loading, executor confinement, late play rejection, seek/sample races,
+command ordering, and completion delivery.
 
 Deterministic lease-lifecycle coverage lives in
 `MerianTests/Core/Media/AudioPlaybackSessionControllerTests.swift`; keep those

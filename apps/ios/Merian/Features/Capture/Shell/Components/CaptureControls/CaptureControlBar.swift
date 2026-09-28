@@ -5,6 +5,7 @@ import SwiftUI
 /// It orchestrates the primary capture action and the mode-specific secondary
 /// controls while retaining view-owned task and lifecycle timing.
 struct CaptureControlBar: View {
+    @Environment(\.captureChromeLayout) private var chromeLayout
     @Bindable var viewModel: CaptureWorkspaceViewModel
     let captureMode: CaptureMode
     @Binding var observationContext: ObservationContext
@@ -97,7 +98,7 @@ struct CaptureControlBar: View {
                 Spacer()
                 trailingControls(presentation)
             }
-            .padding(.bottom, CaptureControlBarLayout.bottomInset)
+            .padding(.bottom, chromeLayout.bottomInset)
         }
         .onChange(of: captureMode) { _, newMode in
             if newMode != .audio {
@@ -309,7 +310,7 @@ struct CaptureControlBar: View {
 
     private func handleAudioAction() {
         if audioCaptureManager.pendingPlaybackPath != nil {
-            confirmPendingAudio()
+            retryPendingAudio()
         } else if audioCaptureManager.isRecording {
             if audioCaptureManager.isPaused {
                 audioCaptureManager.resumeRecording()
@@ -321,12 +322,16 @@ struct CaptureControlBar: View {
         }
     }
 
-    private func confirmPendingAudio() {
+    private func retryPendingAudio() {
         guard audioRecordingStartTask == nil else { return }
         audioRecordingStartTask = Task {
             defer { audioRecordingStartTask = nil }
             guard await requestAudioScanAdmission() else { return }
-            audioCaptureManager.confirmAndSubmit()
+            guard let operation = viewModel.audioDraftOperation,
+                  viewModel.draftSession.contains(operation),
+                  operation.id == audioCaptureManager.recordingID else { return }
+            viewModel.revokeAutomaticSubmission()
+            audioCaptureManager.retryStaging()
         }
     }
 
@@ -354,8 +359,7 @@ struct CaptureControlBar: View {
                 try Task.checkCancellation()
                 guard scenePhase == .active, viewModel.draftSession.contains(operation) else { return }
                 try await audioCaptureManager.startRecording(
-                    autoSubmitOnMaxDuration:
-                        viewModel.draftSession.automaticAttempt != nil && appSettings.autoSubmitScans,
+                    recordingID: operation.id,
                     boostRecordingPreview:
                         appSettings.boostRecordingPreviewsEnabled
                 )

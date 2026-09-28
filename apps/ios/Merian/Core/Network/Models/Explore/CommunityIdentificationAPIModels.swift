@@ -253,8 +253,7 @@ struct CommunityIdentificationDetail: Decodable, Identifiable, Equatable {
     let locationSharing: ExplorePostLocationSharing?
     let inferenceTier: String?
     /// Omitted only by the legacy Gemini projection; false forbids score/tier claims.
-    // swiftlint:disable:next implicit_optional_initialization
-    var aiConfidenceQualified: Bool? = nil
+    var aiConfidenceQualified: Bool?
     let suggestedTaxa: [CommunityTaxonSearchResult]?
     let identifications: [CommunityIdentification]
     // swiftlint:disable:next implicit_optional_initialization

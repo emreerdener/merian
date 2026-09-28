@@ -15,3 +15,18 @@ enum CaptureControlBarLayout {
     /// space; its own 24 pt bottom padding provides the visual separation.
     static let describeContentBottomClearance = reservedHeight
 }
+
+/// Only the width-dependent staging tray reports a height. Capture controls and
+/// UIKit-hosted Describe content consume this value without feeding back into it.
+struct CaptureChromeLayout: Equatable {
+    var toolbarHeight: CGFloat = 0
+
+    var bottomInset: CGFloat {
+        max(CaptureControlBarLayout.bottomInset, toolbarHeight + 16)
+    }
+    var reservedHeight: CGFloat { CaptureControlBarLayout.primaryControlSize + bottomInset }
+    var fullScreenOverlayClearance: CGFloat {
+        CaptureControlBarLayout.fullScreenOverlayClearance
+            + bottomInset - CaptureControlBarLayout.bottomInset
+    }
+}

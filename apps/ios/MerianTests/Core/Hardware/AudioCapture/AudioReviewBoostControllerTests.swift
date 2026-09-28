@@ -98,10 +98,10 @@ private struct ReviewBoostFixture {
         ))
         manager.debugStageRecordingForFinish(
             fileName: original.lastPathComponent,
-            autoSubmitOnMaxDuration: autoSubmit,
             boostRecordingPreview: enabled
         )
         manager.debugFinishRecording(reachedMaxDuration: autoSubmit)
+        if !autoSubmit { manager.restoreSubmissionForReview() }
         return manager
     }
 }
@@ -276,7 +276,7 @@ struct AudioReviewBoostControllerTests {
         defer { manager.reset() }
         manager.playPendingRecording()
         try await waitUntil { fixture.probe.waiters.count == 1 }
-        manager.confirmAndSubmit()
+        manager.retryStaging()
         #expect(manager.audioFilePath == fixture.original.lastPathComponent)
         #expect(manager.pendingPlaybackPath == nil)
         #expect(try Data(contentsOf: fixture.original) == Data([1, 2, 3, 4]))

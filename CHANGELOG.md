@@ -6,6 +6,15 @@ TestFlight, App Store, support, and QA.
 
 ## Unreleased
 
+### What’s New
+
+- A short update sheet introduces 2.2× faster AI identifications, location
+  search in Scans and Explore maps, descriptions available to everyone to help
+  improve accuracy, emoji reactions on Explore posts, and louder previews for
+  quiet recordings.
+- Existing users see each set of highlights once after updating. Reopen it from
+  Settings → Resources → What’s new.
+
 ### First-launch reliability
 
 - Browsing and sign-in become available after account setup without waiting for
@@ -19,6 +28,20 @@ TestFlight, App Store, support, and QA.
   media items plus a note. Auto-submit scans remains an optional convenience.
 - The staged tray uses adaptive Liquid Glass where supported, a blue Identify
   button, and confirmation before discarding your scan.
+- Crowded capture trays now wrap media above the actions instead of clipping
+  items in a scrolling row. Analyze uses the same circular blue submission arrow
+  as Identify. Capture controls move clear of taller trays, larger accessibility
+  text remains readable, and tray transitions respect Reduce Motion.
+- Identify and Analyze float outside the staged-media capsule, alongside the
+  separate Discard control, with matching 48 pt diameters. VoiceOver retains
+  Identify and Analyze labels; the submission arrow has no visual tooltip.
+- Staged media nodes have more opaque backgrounds over the camera preview. Empty
+  notes use an outlined message icon and dashed border; saved notes use a filled
+  icon and solid border.
+- Finished audio now joins the staged tray immediately after the checkmark or
+  15-second limit. Tap its audio node for playback, boost, or removal.
+- Describe-first drafts show all available media slots: two for Pro and one for
+  Free, in addition to the shared note.
 - Expedition mode is now included for everyone in Workspace settings.
 
 ### Species discovery search
@@ -53,6 +76,9 @@ TestFlight, App Store, support, and QA.
   describe unreleased source work.
 
 ### Interface
+
+- What’s New now opens over the camera workspace and dismisses without a blank
+  background while the workspace loads.
 
 - Capture's auxiliary buttons now share circular Liquid Glass styling, with
   colored dictation and audio-confirmation states and adaptive neutral icons.

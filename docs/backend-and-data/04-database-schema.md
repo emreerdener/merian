@@ -1928,6 +1928,17 @@ item. RLS is enabled with no public policies; the authenticated
 rows default to `PENDING_REVIEW`; repeat submissions preserve an existing
 `DISMISSED` or `ACTIONED` status. This table never changes `scans.is_flagged`.
 
+Rows also provide the durable per-reporter visibility preference, irrespective
+of status. `idx_explore_post_reports_reporter_post` supports viewer-first
+filtering; `internal.explore_post_is_reported` restricts canonical and
+independent readers before aggregation/pagination.
+`internal.explore_media_is_reported` matches scan, published-media and
+provenance URLs; service-only viewer reference-image helpers and
+`filter_reported_explore_media` apply the same preference to reused images. The
+latter is a guarded, allowlisted SECURITY DEFINER routine; no report-table
+access is granted to authenticated or anonymous clients. See the
+[visibility contract](../features-and-hardware/30-reported-content-visibility.md).
+
 ### `internal.dwca_export_release_control`
 
 Private singleton installed by

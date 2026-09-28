@@ -3,6 +3,8 @@ import Foundation
 /// A staged audio recording track with its captured file path.
 struct StagedAudio {
     let filePath: String
+    /// Listening preference only; never serialized into scan evidence.
+    var prefersBoostedPreview: Bool = false
     var addedAt: Date = Date()
     #if DEBUG && targetEnvironment(simulator)
     var debugReplayProfile: DebugIdentificationReplayProfile?

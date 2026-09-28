@@ -117,7 +117,9 @@ struct AudioPlaybackCarouselPage: View {
             let lease = originalAudioLease
             originalAudioLease = nil
             sessionController.deactivate(after: stopping)
-            Task { await stopping?.value; lease?.release() }
+            let releaseBoost = dependencies.releaseAudioBoost
+            let source = filePath
+            Task { await stopping?.value; lease?.release(); await releaseBoost(source) }
         }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .background {

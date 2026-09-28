@@ -20,9 +20,23 @@ struct SimilarSpeciesImageDependencies {
     }
 
     static let live = Self { scientificName in
-        await SimilarSpeciesImageService.live.loadImages(
-            scientificName: scientificName
-        )
+        do {
+            let visibility = AppDIContainer.shared.exploreContentVisibility
+            let context = visibility.context
+            let species = try await MerianNetworkClient.shared.getSpeciesDictionary(scientificName: scientificName)
+            var images: [UIImage] = []
+            for reference in species.referenceImages.prefix(3) {
+                if let image = await LocalImageLoader.shared.loadImage(
+                    fromPath: nil, fallbackUrl: reference.url, maxDimension: 500
+                ) { images.append(image) }
+                guard !Task.isCancelled, context == visibility.context else {
+                    return SimilarSpeciesImageLoadOutput(images: [], commonName: nil)
+                }
+            }
+            return SimilarSpeciesImageLoadOutput(images: images, commonName: species.commonName)
+        } catch {
+            return SimilarSpeciesImageLoadOutput(images: [], commonName: nil)
+        }
     }
 }
 

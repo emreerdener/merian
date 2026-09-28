@@ -98,11 +98,11 @@ effects, and wait gates through the existing dependency value.
 review-only boost selection, cancellable preparation generation, and temporary
 derivative. It invokes the shared DSP through an uncached local-preview entry
 point so retirement cannot invalidate Explore or Insight caches. The manager
-keeps original WAV paths for review confirmation, staging, persistence, and
-inference; only the playback controller switches sources while retaining
-position and playback intent. Late results are deleted after disable, submit,
-discard, reset, or lifecycle exit. The Audio preference defaults off and is
-sampled per recording; automatic preview boost waits for Play. See the
+keeps original WAV paths for direct staging, exceptional-recovery retry,
+persistence, and inference; only the playback controller switches sources while
+retaining position and playback intent. Late results are deleted after disable,
+submit, discard, reset, or lifecycle exit. The Audio preference defaults off and
+is sampled per recording; automatic preview boost waits for Play. See the
 [canonical review boost contract](../../../../../docs/features-and-hardware/12-audio-listen-mode.md#recording-review-audio-boost).
 
 `AudioSessionCoordinator` is the cross-feature, token-aware lease owner for

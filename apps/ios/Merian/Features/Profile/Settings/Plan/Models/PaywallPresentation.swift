@@ -78,8 +78,8 @@ enum ProPlanValueProps {
         ),
         PaywallFeatureComparison(
             title: "Media per scan",
-            freeValue: "1 + optional note",
-            proValue: "2 + optional note"
+            freeValue: "1",
+            proValue: "2"
         ),
         PaywallFeatureComparison(
             title: "Apple Watch logging",

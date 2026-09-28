@@ -10,13 +10,14 @@ struct StagedVideoPreviewModal: View {
     let onRemove: () -> Void
 
     @Environment(\.dismiss) private var dismiss
-    @State private var player: AVPlayer
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var playback: StagedVideoPreviewPlayback
     @State private var dismissDragOffset: CGFloat = 0
 
     init(video: StagedVideo, onRemove: @escaping () -> Void) {
         self.video = video
         self.onRemove = onRemove
-        _player = State(initialValue: AVPlayer(url: URL(fileURLWithPath: video.filePath)))
+        _playback = State(initialValue: StagedVideoPreviewPlayback(video: video))
     }
 
     var body: some View {
@@ -31,23 +32,47 @@ struct StagedVideoPreviewModal: View {
         }
         .contentShape(Rectangle())
         .simultaneousGesture(dismissDragGesture, including: .all)
-        .onAppear {
-            player.seek(to: .zero)
-            player.play()
+        .task { await playback.start() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .background { playback.pauseForBackground() }
         }
-        .onDisappear {
-            player.pause()
-        }
+        .onDisappear { playback.stop() }
     }
 
     private var previewContent: some View {
         ZStack {
-            VideoPlayer(player: player)
+            VideoPlayer(player: playback.player)
+                .allowsHitTesting(!playback.isSwitchingSource)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .ignoresSafeArea()
         }
         .overlay(alignment: .top) {
             controlsOverlay
+        }
+        .safeAreaInset(edge: .bottom) {
+            if playback.canBoost {
+                VStack(alignment: .leading, spacing: 8) {
+                    Button { playback.toggleBoost() } label: {
+                        Text(playback.boostTitle)
+                            .font(.subheadline.weight(.semibold))
+                            .padding(.horizontal, 14)
+                            .frame(minHeight: 44)
+                            .background(.ultraThinMaterial, in: Capsule())
+                    }
+                    .disabled(playback.isPreparing)
+                    .accessibilityLabel(playback.boostAccessibilityLabel)
+                    .accessibilityIdentifier("StagedVideoAudioBoost")
+                    if playback.hasBoostFailure {
+                        Text("Audio boost unavailable. Keeping current audio.")
+                            .font(.caption)
+                    }
+                }
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .environment(\.colorScheme, .dark)
+            }
         }
     }
 
@@ -67,7 +92,7 @@ struct StagedVideoPreviewModal: View {
             Spacer()
 
             Button(role: .destructive) {
-                player.pause()
+                playback.stop()
                 onRemove()
                 dismiss()
             } label: {
@@ -98,7 +123,7 @@ struct StagedVideoPreviewModal: View {
                 }
 
                 if shouldDismiss(for: value) {
-                    player.pause()
+                    playback.stop()
                     dismiss()
                 } else {
                     resetDismissDragOffset()
@@ -139,9 +164,30 @@ struct StagedAudioPreviewModal: View {
     let onRemove: () -> Void
 
     @Environment(\.dismiss) private var dismiss
+    @State private var isBoostEnabled = false
+    @State private var boostActionToken: UUID?
+    @State private var boostSource = StagedPreviewAudioBoostSource()
+
+    init(audio: StagedAudio, onRemove: @escaping () -> Void) {
+        self.audio = audio
+        self.onRemove = onRemove
+        _isBoostEnabled = State(initialValue: audio.prefersBoostedPreview)
+    }
 
     var body: some View {
-        AudioPlaybackCarouselPage(filePath: audio.filePath)
+        AudioPlaybackCarouselPage(
+            filePath: audio.filePath,
+            isAudioBoostEnabled: $isBoostEnabled,
+            audioBoostActionToken: boostActionToken,
+            onAudioBoostActionFinished: { token in
+                if boostActionToken == token { boostActionToken = nil }
+            },
+            onAudioBoostToggleRequested: {
+                boostActionToken = isBoostEnabled ? nil : UUID()
+                isBoostEnabled.toggle()
+            },
+            dependencies: boostSource.playbackDependencies()
+        )
             .ignoresSafeArea()
             .overlay(alignment: .top) {
                 controlsOverlay

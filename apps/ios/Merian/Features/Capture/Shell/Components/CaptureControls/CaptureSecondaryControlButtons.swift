@@ -98,6 +98,7 @@ struct CaptureAudioDoneButton: View {
                 .captureAuxiliaryControl(tint: .accentColor)
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("Finish recording")
         .padding(.trailing, 32)
     }
 }

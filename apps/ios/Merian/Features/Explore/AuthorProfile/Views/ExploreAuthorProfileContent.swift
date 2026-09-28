@@ -178,7 +178,7 @@ struct ExploreAuthorProfileContent: View {
 
                 ExploreAuthorProfilePublishedPreview(
                     profile: profile,
-                    posts: Array(profile.previewPosts.prefix(ExploreAuthorProfilePresentation.previewLimit)),
+                    posts: Array(profile.previewPosts.filter { viewModel.visibility.isVisible(postID: $0.id) }.prefix(ExploreAuthorProfilePresentation.previewLimit)),
                     mediaReloadGeneration: viewModel.mediaReloadGeneration,
                     localReferenceUrl: localReferenceUrl,
                     resolvedCommonName: viewModel.resolvedSpeciesCommonName,
@@ -201,7 +201,7 @@ struct ExploreAuthorProfileContent: View {
     private func libraryContent(_ profile: ExploreAuthorProfile) -> some View {
         ExploreAuthorProfileLibraryView(
             profile: profile,
-            posts: profileViewModel.libraryPosts,
+            posts: profileViewModel.libraryPosts.filter { viewModel.visibility.isVisible(postID: $0.id) },
             isLoading: profileViewModel.isLoadingLibrary,
             mediaReloadGeneration: viewModel.mediaReloadGeneration,
             localReferenceUrl: localReferenceUrl,

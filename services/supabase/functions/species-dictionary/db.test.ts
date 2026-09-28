@@ -1240,3 +1240,36 @@ function speciesRow(
     is_public_biological: overrides.is_public_biological,
   };
 }
+
+Deno.test("viewer dictionary filters known reported URLs from external fallback without removing the species", async () => {
+  const mock = lookupSupabaseMock([]);
+  Object.assign(mock.client, {
+    rpc: () =>
+      Promise.resolve({
+        data: ["https://example.com/eligible.jpg"],
+        error: null,
+      }),
+  });
+  const payload = await fetchSpeciesDictionary(
+    { scientificName: "Externalis exemplaris" },
+    mock.client,
+    {
+      fetchExternalSpeciesDictionary: (name) =>
+        Promise.resolve(buildExternalSpeciesDictionaryPayload(name, {
+          wikipediaUrl: null,
+          wikiExtract: null,
+          gbifKey: null,
+          referenceImageUrl:
+            "https://example.com/reported.jpg,https://example.com/eligible.jpg",
+          alternativeCommonNames: [],
+          wikiTitle: null,
+          gbifTaxonomy: null,
+        })),
+    },
+    "00000000-0000-4000-8000-000000000001",
+  );
+  assertEquals(payload?.id, "external:externalis%20exemplaris");
+  assertEquals(payload?.reference_images.map((image) => image.url), [
+    "https://example.com/eligible.jpg",
+  ]);
+});

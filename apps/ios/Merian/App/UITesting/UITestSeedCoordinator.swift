@@ -39,6 +39,7 @@ enum UITestSeedCoordinator {
         let timestamp: Date
     }
 
+    private static let whatsNewLaunchArgument = "-seedWhatsNewLaunch"
     private static let requiredConsentArgument = "-seedCurrentRequiredConsent"
     private static let achievementDeletionRefreshArgument = "-seedAchievementDeletionRefreshFlow"
     private static let queuedAudioHandoffArgument = "-seedQueuedAudioHandoffFlow"
@@ -81,6 +82,10 @@ enum UITestSeedCoordinator {
 
     static var isEnabled: Bool {
         return TestExecutionCoordinator.isRunningUITests
+    }
+
+    static var isWhatsNewLaunchSeedEnabled: Bool {
+        isEnabled && ProcessInfo.processInfo.arguments.contains(whatsNewLaunchArgument)
     }
 
     static var isLocationPermissionPromptSuppressed: Bool {
@@ -141,9 +146,9 @@ enum UITestSeedCoordinator {
     static func prepareStagedAudioReviewIfNeeded(
         viewModel: CaptureWorkspaceViewModel
     ) {
-        guard isEnabled,
-              ProcessInfo.processInfo.arguments.contains(stagedAudioReviewArgument),
-              !hasSeededStagedAudioReview else {
+        let arguments = ProcessInfo.processInfo.arguments
+        let shouldSeed = arguments.contains(stagedAudioReviewArgument) || arguments.contains("-seedAudioFinishFlow")
+        guard isEnabled, shouldSeed, !hasSeededStagedAudioReview else {
             return
         }
 
@@ -154,9 +159,40 @@ enum UITestSeedCoordinator {
 
         do {
             try queuedAudioHandoffWAVData().write(to: audioURL, options: .atomic)
+            if ProcessInfo.processInfo.arguments.contains("-seedAudioFinishFlow") {
+                guard let operation = viewModel.beginDraftOperation() else { return }
+                viewModel.audioDraftOperation = operation
+                let recorder = viewModel.diContainer.audioCaptureManager
+                recorder.debugStageRecordingForFinish(
+                    fileName: stagedAudioReviewFilename,
+                    recordingID: operation.id,
+                    boostRecordingPreview: viewModel.diContainer.appSettings.boostRecordingPreviewsEnabled
+                )
+                if ProcessInfo.processInfo.arguments.contains("-seedAudioFinishPaused") {
+                    recorder.pauseRecording()
+                }
+                hasSeededStagedAudioReview = true
+                return
+            }
             viewModel.stagedCapture.audios = [
                 StagedAudio(filePath: stagedAudioReviewFilename)
             ]
+            if ProcessInfo.processInfo.arguments.contains("-seedWrappedStagedReanalysis") {
+                viewModel.baseRefinementContext = RefinementScanContext(
+                    record: LocalScanRecord(
+                        speciesId: "ui-test-staged-subject",
+                        scientificName: "Test subject",
+                        commonName: "Test subject"
+                    )
+                )
+                viewModel.stagedCapture.observationContexts = (0..<7).map { index in
+                    StagedObservationContext(
+                        context: ObservationContext(freeText: "Historical observation \(index + 1)"),
+                        addedAt: Date(timeIntervalSince1970: Double(index)),
+                        isRefinementSupplement: false
+                    )
+                }
+            }
             hasSeededStagedAudioReview = true
             MerianLog.general.debug(
                 "UITestSeedCoordinator seeded staged audio review flow."
@@ -879,6 +915,7 @@ enum UITestSeedCoordinator {
 #else
 enum UITestSeedCoordinator {
     static var isEnabled: Bool { return false }
+    static var isWhatsNewLaunchSeedEnabled: Bool { return false }
     static var isLocationPermissionPromptSuppressed: Bool { return false }
     static var captureGoalAccountId: String? { return nil }
 

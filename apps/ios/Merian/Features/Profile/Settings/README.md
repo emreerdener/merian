@@ -24,7 +24,10 @@ for the Profile tab.
   host.
 - **Notifications** owns notification preference models, authorization and
   remote-registration adapters, observable permission state, and its view.
-- **Changelog** owns bundled release-note models and presentation.
+- **Changelog** owns bundled release-note models and presentation, plus the
+  curated `WhatsNewSheet` shared with App launch. Settings → Resources → What’s
+  new reopens it without changing launch acknowledgement. `SettingsTabView`
+  serializes its modal destinations through one item-based sheet host.
 
 ## Ownership boundaries
 

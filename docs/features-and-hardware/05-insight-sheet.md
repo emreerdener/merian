@@ -396,6 +396,10 @@ Completed biological and non-biological results show the full available AI
 response inline in the scroll view. Response text has no line cap and takes its
 full wrapped height, preventing layout compression from replacing the ending
 with an ellipsis. Existing inference limits and fallback messages still apply.
+Scientific-name highlights in the biological header use a subtle 3-point corner
+radius on each wrapped segment on iOS 18 and later. iOS 17 retains the standard
+attributed-text background; typography, highlight color, and wrapping are
+unchanged.
 
 `InsightSheetView` records tap-to-first-render with a one-shot 1x1 UIKit draw
 probe installed on the result hierarchy. The measurement closes only after an

@@ -7,6 +7,9 @@ struct CaptureStagingToolbarPresentation {
     let submitTitle: String
     let isSubmitDisabled: Bool
 
+    /// Every unused physical-media slot is visible, independently of shared text.
+    var emptyMediaSlotCount: Int { photoSelectionCount ?? 0 }
+
     init(
         stagedCapture: StagedCapture,
         isRefining: Bool,

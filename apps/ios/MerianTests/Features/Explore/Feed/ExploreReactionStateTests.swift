@@ -90,6 +90,44 @@ final class ExploreReactionStateTests: XCTestCase {
         }
     }
 
+    func testPickerCategoriesCoverCatalogInBrowsingOrder() {
+        XCTAssertEqual(ExploreEmojiCatalog.pickerCategories, [
+            "Smileys & Emotion", "People & Body", "Animals & Nature", "Food & Drink",
+            "Travel & Places", "Activities", "Objects", "Symbols", "Flags",
+        ])
+        let all = ExploreEmojiCatalog.pickerEntries(matching: " \n ", category: nil)
+        XCTAssertEqual(all.map(\.emoji), ExploreEmojiCatalog.pickerEntries.map(\.emoji))
+        let grouped = ExploreEmojiCatalog.pickerCategories.flatMap { category in
+            ExploreEmojiCatalog.pickerEntries(matching: "", category: category)
+        }
+        XCTAssertEqual(grouped.map(\.emoji), all.map(\.emoji))
+    }
+
+    func testPickerSearchCombinesWithCategoryAndAllRestoresResults() {
+        let animals = ExploreEmojiCatalog.pickerEntries(matching: "", category: "Animals & Nature")
+        XCTAssertTrue(animals.contains { $0.emoji == "🐀" })
+        XCTAssertFalse(animals.contains { $0.emoji == "😀" })
+        XCTAssertTrue(ExploreEmojiCatalog.pickerEntries(matching: " RAT ", category: "Animals & Nature")
+            .contains { $0.emoji == "🐀" })
+        XCTAssertEqual(
+            ExploreEmojiCatalog.pickerEntries(matching: "🐀", category: "Animals & Nature").map(\.emoji), ["🐀"])
+        XCTAssertTrue(ExploreEmojiCatalog.pickerEntries(matching: "🐀", category: "Flags").isEmpty)
+        XCTAssertEqual(ExploreEmojiCatalog.pickerEntries(matching: "🐀", category: nil).map(\.emoji), ["🐀"])
+        XCTAssertTrue(ExploreEmojiCatalog.pickerEntries(matching: "no-such-emoji-123", category: nil).isEmpty)
+        XCTAssertTrue(ExploreEmojiCatalog.pickerEntries(matching: "biologist", category: "People & Body")
+            .contains { $0.emoji == "👩‍🔬" })
+        XCTAssertTrue(ExploreEmojiCatalog.pickerEntries(matching: "flags", category: "Flags")
+            .contains { $0.emoji == "🇹🇷" })
+    }
+
+    func testPickerCategorySearchStillExcludesToneVariants() {
+        let people = ExploreEmojiCatalog.pickerEntries(matching: "", category: "People & Body")
+        XCTAssertTrue(people.contains { $0.emoji == "👍" })
+        XCTAssertFalse(people.contains { $0.emoji == "👍🏽" })
+        XCTAssertTrue(ExploreEmojiCatalog.pickerEntries(matching: "👍🏽", category: "People & Body").isEmpty)
+        XCTAssertNotNil(ExploreEmojiCatalog.byEmoji["👍🏽"])
+    }
+
     func testPostReconcilesAuthoritativeCountAndMultipleSelections() async {
         let post = ExploreFeedTestFixtures.post(id: "post")
         let vm = model(

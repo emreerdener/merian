@@ -73,6 +73,7 @@ import SwiftUI
     // MARK: - Dependencies (Core Services)
     @ObservationIgnored
     var environmentContextManager = EnvironmentContextManager.shared
+    let exploreContentVisibility = ExploreContentVisibilityStore()
     let appEventPublisher: AppEventPublisher
     let appRouteCoordinator = AppRouteCoordinator()
     let milestoneToastClock: any MilestoneToastClock
@@ -247,6 +248,12 @@ import SwiftUI
         )
 
         if bindGlobalManagers {
+            exploreContentVisibility.didInvalidate = { [weak exploreContentVisibility] in
+                guard let visibility = exploreContentVisibility else { return }
+                MerianNetworkClient.shared.invalidateSpeciesDictionaryVisibility()
+                AppIconBadgeCoordinator.clearExploreUnreadNotificationCount()
+                ExploreWidgetSnapshotWriter.invalidate(visibility: visibility)
+            }
             supabaseManager.bindAppRouteSessionController(appRouteCoordinator)
             supabaseManager.bindMilestoneToastSessionController(scanMilestoneCoordinator)
         }

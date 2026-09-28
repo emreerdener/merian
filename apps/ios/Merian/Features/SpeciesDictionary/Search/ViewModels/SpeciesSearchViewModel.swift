@@ -11,7 +11,7 @@ final class SpeciesSearchViewModel {
             errorMessage: { _ in "Species suggestions are unavailable." }
         )
     }
-    let starterCatalog: SpeciesDictionaryCatalogViewModel
+    private(set) var starterCatalog: SpeciesDictionaryCatalogViewModel
     private(set) var suggestedPrompts: [String]
     private(set) var illustrationName = "bird-magnifier"
     private static let illustrationPool = [
@@ -59,6 +59,19 @@ final class SpeciesSearchViewModel {
         draft = text
         begin(question: text, context: clarificationContext ?? context, cursor: nil, replacement: true)
     }
+    func refreshVisibility() {
+        starterCatalog = SpeciesDictionaryCatalogViewModel(pageLimit: 6, dependencies: dependencies.starterCatalog)
+        species = []
+        sightings = []
+        loadedSections = []
+        cursors = [:]
+        if let context {
+            begin(question: nil, context: context, cursor: nil, replacement: true)
+        } else {
+            newSearch()
+        }
+    }
+
     func retry() {
         guard let request else { return }
         begin(question: request.question, context: request.context, cursor: request.cursor,

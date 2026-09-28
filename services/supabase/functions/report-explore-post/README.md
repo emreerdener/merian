@@ -48,9 +48,13 @@ expose the service-role key to either iOS or the public web client.
 
 ## Client behavior
 
-- Native Explore calls this endpoint. Feed/card owners locally remove reported
-  content where they already own that collection; Community detail preserves its
-  existing screen and confirms success with feedback.
+- A successful report hides the post for the reporting account across
+  authenticated reads, regardless of moderation status. Native report owners
+  publish to the shared visibility store, remove loaded content and dismiss its
+  detail/media presentations. Reused reference images are excluded as described
+  in the
+  [visibility contract](../../../../docs/features-and-hardware/30-reported-content-visibility.md).
+  Failed submissions leave visibility unchanged.
 - The anonymous public web detail page does not call this endpoint. Its centered
   **Report this post** action opens a support email containing the immutable
   public post id.

@@ -83,7 +83,7 @@ struct ExploreHashtagPostsView: View {
     private var postsGrid: some View {
         ScrollView(showsIndicators: false) {
             LazyVStack(spacing: 16) {
-                ForEach(postsViewModel.posts) { source in
+                ForEach(postsViewModel.posts.filter { viewModel.visibility.isVisible(postID: $0.id) }) { source in
                     let post = viewModel.post(id: source.id) ?? source
                     VStack(spacing: 0) {
                     Button {

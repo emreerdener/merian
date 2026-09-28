@@ -5,6 +5,7 @@ import SwiftUI
 /// The view only produces an `ObservationContext` value. Submission and
 /// multi-modal routing remain owned by `CaptureWorkspaceViewModel`.
 struct DescribeInputView: View {
+    @Environment(\.captureChromeLayout) private var chromeLayout
     let promptFlow: DescribePromptFlow
     @Binding var context: ObservationContext
     let promptViewModel: DescribePromptViewModel
@@ -95,7 +96,7 @@ struct DescribeInputView: View {
 
                     // Reserve the fixed capture row and global tab-bar clearance.
                     Spacer().frame(
-                        height: CaptureControlBarLayout.describeContentBottomClearance
+                        height: chromeLayout.reservedHeight
                     )
                 }
             }

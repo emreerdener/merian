@@ -275,6 +275,7 @@ set-explore-post-reaction
 set-user-follow
 share-scan-to-explore
 species-dictionary
+species-dictionary-for-viewer
 species-dictionary-chat
 species-discovery-search
 resolve-species-dictionary
@@ -338,3 +339,11 @@ before bounded admission, exact GBIF verification, or canonical insertion. It
 uses separate non-AI request counters and leaves public dictionary reads
 read-only. This inventory records source scope, not deployment evidence. See the
 [resolver contract](../../services/supabase/functions/resolve-species-dictionary/README.md).
+
+## Inventory update — 2026-09-27
+
+The current fleet inventory includes `species-dictionary-for-viewer`, an
+authenticated, private/no-store projection sharing the anonymous dictionary
+schemas. This is a subsequent implementation addition; it does not extend the
+original review or constitute deployment evidence. See the
+[visibility contract](../features-and-hardware/30-reported-content-visibility.md).

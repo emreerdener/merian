@@ -428,7 +428,8 @@ MerianNetworkClient.shared.getSpeciesDictionary(scientificName:)
 MerianNetworkClient.shared.getSpeciesDictionary(speciesId:scientificName:)
 ```
 
-That method POSTs to the `species-dictionary` Edge Function:
+That method POSTs to the authenticated `species-dictionary-for-viewer` Edge
+Function:
 
 ```json
 {
@@ -552,8 +553,8 @@ cursor and is removed from card payloads.
 
 ### Overview and Catalog Modes
 
-The same `/species-dictionary` function also supports the Explore Dictionary
-landing view through overview mode:
+The same `/species-dictionary-for-viewer` function also supports the Explore
+Dictionary landing view through overview mode:
 
 ```json
 {
@@ -830,8 +831,8 @@ contract, cache behavior, annotation mappings, and privacy rules.
 
 ## Caching
 
-Successful detail and catalog `/species-dictionary` responses are public and
-slow-changing, so the Edge Function sends:
+Successful anonymous detail and catalog `/species-dictionary` responses are
+public and slow-changing, so the Edge Function sends:
 
 ```http
 Cache-Control: public, max-age=300, s-maxage=86400, stale-while-revalidate=604800
@@ -841,6 +842,10 @@ Vary: Accept-Encoding
 Overview responses send `Cache-Control: no-store` and `Vary: Accept-Encoding`.
 `400`, `404`, and `500` responses do not opt into public caching, so missing
 rows and transient errors can recover immediately after data is added or fixed.
+
+All authenticated `/species-dictionary-for-viewer` responses use
+`Cache-Control: private, no-store` and `Vary: Authorization`. Native callers use
+this route so report-specific image projections cannot enter shared HTTP caches.
 
 Separately, the iOS overview model retains its last successful result for the
 current Explore presentation. Its five-minute navigation freshness policy is
@@ -860,10 +865,13 @@ are stored under the returned canonical `species_id` and normalized returned
 scientific name, so an Insight or Explore tap that carries a dictionary ID can
 warm a later scientific-name route for the same species. A stale requested UUID,
 malformed identity, unsupported/missing schema version, and `external:` ID never
-become cache aliases. The cache is cleared in DEBUG whenever tests swap the
-injected `URLSession`; that reset does not cancel or generation-fence an already
-dispatched response. Validated cache hits still precede Auth/transport and
-cancellation checks; feature state owners retain their own generation fences.
+become cache aliases. Dictionary aliases are scoped by authenticated account and
+visibility generation. Authentication precedes cache lookup, and cancellation,
+account, and generation checks reject stale hits and response completions.
+Successful reports and account changes invalidate the dictionary memo and loaded
+reference-media projections; the independent stats memo retains its existing
+policy. The cache is also cleared in DEBUG whenever tests swap the injected
+`URLSession`.
 
 Community sightings are not part of either cache. Their endpoint requires the
 current viewer so blocked authors and other visibility state are evaluated on
@@ -871,7 +879,7 @@ every request; a failure remains supplemental and never blocks dictionary
 content. The Detail Services adapter owns that authenticated endpoint call;
 Community views and state owners consume only its injected page-loader closure.
 
-Invalidation is currently TTL-based: rows refreshed by the scheduled species
+Content refresh remains TTL-based: rows refreshed by the scheduled species
 workers (`refresh-species-content`, `refresh-species-model-content`, and
 `refresh-merian-reference-images`) become visible after the iOS memo TTL and the
 HTTP freshness window expire. Future curation tooling that needs immediate
@@ -880,8 +888,8 @@ write.
 
 ## Content Quality States
 
-Every current `/species-dictionary` response includes additive
-`content_quality`:
+Every current `/species-dictionary` and `/species-dictionary-for-viewer`
+response includes additive `content_quality`:
 
 - `complete`: reference imagery, overview, habitat/distribution, and meaningful
   taxonomy are present.
@@ -1392,10 +1400,11 @@ at accessibility text sizes. Cards align at the top and match the tallest card
 in each row, with uniform 1.25:1 images. Tiles show common/scientific names and
 open the existing species detail route directly. The retained Catalog view model
 loads one six-item `recently_added` page through the existing
-`/species-dictionary` endpoint, independently of AI search and its allowance.
-Successful rows survive New search and detail navigation during the session.
-Loading and retry are local to the grid; missing images use the existing leaf
-placeholder and an empty page omits the grid without blocking questions.
+`/species-dictionary-for-viewer` endpoint, independently of AI search and its
+allowance. Successful rows survive New search and detail navigation during the
+session, but reports and account changes discard them and reload eligible
+images. Loading and retry are local to the grid; missing images use the existing
+leaf placeholder and an empty page omits the grid without blocking questions.
 
 The single bottom input changes from **Ask Naturebook…** to **Refine your
 search…** after successful results. Submissions are explicit; the current source
@@ -1467,3 +1476,16 @@ contains source ownership; the
 [verification matrix](../development-guides/08-testing-strategy.md#species-discovery-search-verification)
 owns automated selectors and remaining manual acceptance. The existing Field
 Chat beta exception does not authorize discovery-search deployment.
+
+## Reported reference media in signed-in Naturebook
+
+Native dictionary reads use `species-dictionary-for-viewer` with the existing
+schema-version-1 shapes. Galleries, catalog/overview/search tiles,
+similar-species images and Explore fallback thumbnails exclude known media
+belonging to the viewer's reported posts, including legacy URLs and reassigned
+promotions. The next eligible image is selected, or the species remains with no
+image. Loaded native projections and account-scoped response memos invalidate on
+report success and account changes. Public anonymous dictionary consumers retain
+the existing route. See
+[reported content visibility](30-reported-content-visibility.md) for the
+authoritative lifecycle and backend boundary.

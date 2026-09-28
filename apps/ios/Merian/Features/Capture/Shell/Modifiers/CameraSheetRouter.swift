@@ -6,8 +6,10 @@ struct CameraSheetRouter: ViewModifier {
     var onDismiss: () -> Void = {}
     @Environment(InferenceEngine.self) var inferenceEngine
     @Environment(AppSettings.self) private var appSettings
+    @Environment(\.acknowledgeWhatsNew) private var acknowledgeWhatsNew
     @Environment(\.modelContext) private var modelContext
     @State private var isPresentingInsight = false
+    @State private var hasDisplayedWhatsNew = false
 
     func body(content: Content) -> some View {
         content
@@ -35,7 +37,11 @@ struct CameraSheetRouter: ViewModifier {
                     inferenceEngine.dismissAnalyzingPresentation()
                     isPresentingInsight = false
                 }
-                viewModel.handleRootSheetDismissed()
+                if viewModel.handleRootSheetDismissed() == .whatsNew,
+                   hasDisplayedWhatsNew {
+                    acknowledgeWhatsNew()
+                }
+                hasDisplayedWhatsNew = false
                 onDismiss()
             }) { presentation in
                 Group {
@@ -56,6 +62,9 @@ struct CameraSheetRouter: ViewModifier {
                             appSettings.hasUnseenScan = false
                             AppIconBadgeCoordinator.updateAppIconBadge()
                         }
+                    case .whatsNew:
+                        WhatsNewSheet()
+                            .onAppear { hasDisplayedWhatsNew = true }
                     case .paywall:
                         PaywallView()
                     case .profile:
@@ -118,7 +127,9 @@ struct CameraSheetRouter: ViewModifier {
                     }
                 }
                 .id(presentation.id)
-                .presentationDragIndicator(.hidden)
+                .presentationDragIndicator(
+                    presentation.destination == .whatsNew ? .visible : .hidden
+                )
             }
     }
 }

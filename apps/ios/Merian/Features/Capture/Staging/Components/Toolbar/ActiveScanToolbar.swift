@@ -20,8 +20,10 @@ struct ActiveScanToolbar: View {
 
     private let dependencies: CaptureStagingToolbarDependencies
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showTooltip: Bool
     @State private var isPhotoPickerPresented = false
+    @State private var photoPickerSelectionLimit = 1
     @State private var isCheckingPhotoImportAdmission = false
     @State private var photoImportAdmissionTask: Task<Void, Never>?
 
@@ -64,32 +66,34 @@ struct ActiveScanToolbar: View {
     }
 
     var body: some View {
-        HStack(alignment: .center, spacing: 16) {
-            CaptureStagingCancelButton {
-                dependencies.performCancelFeedback()
-                onCancel()
-            }
-
+        ViewThatFits(in: .horizontal) {
             HStack(spacing: 16) {
-                ScrollView(.horizontal) {
-                    mediaRow
-                }
-                .transparentTopToolbar()
-                .scrollIndicators(.hidden)
-                .scrollBounceBehavior(.basedOnSize, axes: .horizontal)
-                .frame(maxWidth: CGFloat(mediaNodeCount * 64 - 16))
-                .frame(height: 48)
-                .accessibilityIdentifier("StagedMediaRowScroll")
-
-                CaptureStagingSubmitButton(
-                    title: presentation.submitTitle,
-                    isDisabled: presentation.isSubmitDisabled || !isSubmissionReady,
-                    onSubmit: onSubmit
-                )
+                discardButton
+                HStack(spacing: 8) { mediaNodes }
+                .padding(8)
+                .modifier(CaptureTrayGlass())
+                .disabled(isCheckingPhotoImportAdmission)
+                submitButton
+                    .disabled(isCheckingPhotoImportAdmission)
             }
-            .padding(8)
-            .modifier(CaptureTrayGlass())
-            .disabled(isCheckingPhotoImportAdmission)
+            // Report the complete ideal width; never accept a compressed media row.
+            .fixedSize(horizontal: true, vertical: false)
+
+            VStack(spacing: 8) {
+                CaptureStagingMediaFlowLayout {
+                    mediaNodes
+                }
+                .padding(8)
+                .modifier(CaptureTrayGlass(isExpanded: true))
+                .disabled(isCheckingPhotoImportAdmission)
+
+                HStack(spacing: 16) {
+                    discardButton
+                    Spacer(minLength: 0)
+                    submitButton
+                        .disabled(isCheckingPhotoImportAdmission)
+                }
+            }
         }
         .overlay(alignment: .top) {
             if showTooltip {
@@ -97,27 +101,40 @@ struct ActiveScanToolbar: View {
                     .font(.caption).padding(8)
                     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
                     .fixedSize(horizontal: false, vertical: true)
-                    .offset(y: -64)
+                    .alignmentGuide(.top) { $0[.bottom] + 8 }
                     .allowsHitTesting(false)
             }
         }
+        // Keep the picker owner stable when width or Dynamic Type changes the layout.
+        .photosPicker(
+            isPresented: $isPhotoPickerPresented,
+            selection: $selectedPhotoItems,
+            maxSelectionCount: photoPickerSelectionLimit,
+            matching: .images,
+            photoLibrary: dependencies.photoLibrary
+        )
         .disabled(isMutationLocked)
         .padding(.horizontal, 16)
         .padding(.bottom, 24)
+        .background {
+            GeometryReader { proxy in
+                Color.clear.preference(key: CaptureToolbarHeightKey.self, value: proxy.size.height)
+            }
+        }
         .animation(
-            .spring(response: 0.4, dampingFraction: 0.75),
+            reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.75),
             value: stagedCapture.images.count
         )
         .animation(
-            .spring(response: 0.4, dampingFraction: 0.75),
+            reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.75),
             value: stagedCapture.observationContexts.count
         )
         .animation(
-            .spring(response: 0.4, dampingFraction: 0.75),
+            reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.75),
             value: stagedCapture.audios.count
         )
         .animation(
-            .spring(response: 0.4, dampingFraction: 0.75),
+            reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.75),
             value: stagedCapture.videos.count
         )
         .task {
@@ -125,43 +142,48 @@ struct ActiveScanToolbar: View {
             dependencies.markTooltipShown()
             try? await Task.sleep(nanoseconds: 3_000_000_000)
             guard !Task.isCancelled else { return }
-            withAnimation { showTooltip = false }
+            withAnimation(reduceMotion ? nil : .default) { showTooltip = false }
         }
         .onDisappear {
             photoImportAdmissionTask?.cancel()
         }
     }
 
-    private var mediaNodeCount: Int {
-        presentation.visibleNodes.count + (presentation.photoSelectionCount == nil ? 0 : 1) + 1
+    private var discardButton: some View {
+        CaptureStagingCancelButton {
+            dependencies.performCancelFeedback()
+            onCancel()
+        }
     }
 
-    private var mediaRow: some View {
-        HStack(spacing: 16) {
-            CaptureStagingToolbarMediaRow(
-                presentation: presentation,
-                selectedPhotoItems: $selectedPhotoItems,
-                isPhotoPickerPresented: $isPhotoPickerPresented,
-                isCheckingPhotoImportAdmission:
-                    isCheckingPhotoImportAdmission,
-                showTooltip: false,
-                photoLibrary: dependencies.photoLibrary,
-                onRequestPhotoPickerPresentation:
-                    requestPhotoPickerPresentation,
-                onThumbnailTap: onThumbnailTap,
-                onDescriptionTap: onDescriptionTap,
-                onAudioTap: onAudioTap,
-                onVideoTap: onVideoTap
-            )
-            Button(action: onNoteTap) {
-                CaptureStagingNoteIcon(hasNote: hasSharedNote)
-                    .frame(width: 48, height: 48)
-                    .background(.primary.opacity(0.08), in: Circle())
-                    .overlay(Circle().strokeBorder(.primary.opacity(0.5), lineWidth: 1))
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(hasSharedNote ? "Edit note" : "Add note")
+    private var submitButton: some View {
+        CaptureStagingSubmitButton(
+            title: presentation.submitTitle,
+            isDisabled: presentation.isSubmitDisabled || !isSubmissionReady,
+            onSubmit: onSubmit
+        )
+    }
+
+    @ViewBuilder
+    private var mediaNodes: some View {
+        CaptureStagingToolbarMediaRow(
+            presentation: presentation,
+            isCheckingPhotoImportAdmission:
+                isCheckingPhotoImportAdmission,
+            onRequestPhotoPickerPresentation:
+                requestPhotoPickerPresentation,
+            onThumbnailTap: onThumbnailTap,
+            onDescriptionTap: onDescriptionTap,
+            onAudioTap: onAudioTap,
+            onVideoTap: onVideoTap
+        )
+        Button(action: onNoteTap) {
+            CaptureStagingNoteIcon(hasNote: hasSharedNote)
+                .frame(width: 48, height: 48)
+                .modifier(CaptureStagingNodeSurface(isEmpty: !hasSharedNote))
         }
+        .buttonStyle(.plain)
+        .accessibilityLabel(hasSharedNote ? "Edit note" : "Add note")
     }
 
     private var hasSharedNote: Bool {
@@ -194,17 +216,17 @@ struct ActiveScanToolbar: View {
             guard shouldPresent, !Task.isCancelled else { return }
 
             dependencies.dismissKeyboard()
+            photoPickerSelectionLimit = selectionCount
             isPhotoPickerPresented = true
         }
     }
 
 }
 
-/// Compose the empty badge from symbols available on every supported iOS version.
+/// Note state uses supported outlined/filled symbols and the node's border treatment.
 struct CaptureStagingNoteIcon: View {
-    static let emptySymbol = "text.bubble"
+    static let emptySymbol = "bubble.left"
     static let populatedSymbol = "text.bubble.fill"
-    static let badgeSymbol = "plus.circle.fill"
 
     let hasNote: Bool
 
@@ -212,15 +234,6 @@ struct CaptureStagingNoteIcon: View {
         Image(systemName: hasNote ? Self.populatedSymbol : Self.emptySymbol)
             .font(.system(size: 20, weight: .medium))
             .foregroundStyle(.primary)
-            .overlay(alignment: .bottomTrailing) {
-                if !hasNote {
-                    Image(systemName: Self.badgeSymbol)
-                        .font(.system(size: 11, weight: .bold))
-                        .symbolRenderingMode(.palette)
-                        .foregroundStyle(.primary, Color(uiColor: .secondarySystemBackground))
-                        .offset(x: 5, y: 4)
-                }
-            }
             .accessibilityHidden(true)
     }
 }

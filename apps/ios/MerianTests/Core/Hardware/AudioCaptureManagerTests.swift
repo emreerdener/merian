@@ -82,64 +82,66 @@ struct AudioCaptureManagerTests {
         #expect(manager.debugPendingFileName == nil)
     }
 
-    @Test("Maximum duration auto-submits only when enabled")
-    func maximumDurationAutoSubmitsOnlyWhenEnabled() {
-        let autoSubmitManager = AudioCaptureManager()
-        let autoSubmitFile = "\(UUID().uuidString).wav"
-        autoSubmitManager.debugStageRecordingForFinish(
-            fileName: autoSubmitFile,
-            autoSubmitOnMaxDuration: true
-        )
-        autoSubmitManager.debugFinishRecording(reachedMaxDuration: true)
-
-        #expect(autoSubmitManager.audioFilePath == autoSubmitFile)
-        #expect(autoSubmitManager.pendingPlaybackPath == nil)
-        #expect(!autoSubmitManager.isRecording)
-
-        let reviewManager = AudioCaptureManager()
-        let reviewFile = "\(UUID().uuidString).wav"
-        reviewManager.debugStageRecordingForFinish(
-            fileName: reviewFile,
-            autoSubmitOnMaxDuration: false
-        )
-        reviewManager.debugFinishRecording(reachedMaxDuration: true)
-
-        #expect(reviewManager.audioFilePath == nil)
-        #expect(reviewManager.pendingPlaybackPath == reviewFile)
-        #expect(!reviewManager.isRecording)
+    @Test("Early, paused, and maximum completion hand off once without review")
+    func completionHandsOffWithoutReview() {
+        for mode in ["early", "paused", "maximum"] {
+            let manager = AudioCaptureManager()
+            let fileName = "\(UUID().uuidString).wav"
+            manager.debugStageRecordingForFinish(fileName: fileName, boostRecordingPreview: true)
+            if mode == "paused" { manager.pauseRecording() }
+            manager.debugFinishRecording(reachedMaxDuration: mode == "maximum")
+            #expect(manager.audioFilePath == fileName)
+            #expect(manager.pendingPlaybackPath == nil)
+            #expect(manager.boostRecordingPreview)
+            #expect(!manager.isRecording)
+            #expect(!manager.isPaused)
+            manager.stopRecordingEarly()
+            #expect(manager.audioFilePath == fileName)
+            manager.reset()
+        }
     }
 
-    @Test("Early stop remains reviewable when auto-submit is enabled")
-    func earlyStopRemainsReviewableWhenAutoSubmitIsEnabled() {
-        let manager = AudioCaptureManager()
-        let fileName = "\(UUID().uuidString).wav"
-
-        manager.debugStageRecordingForFinish(
-            fileName: fileName,
-            autoSubmitOnMaxDuration: true
-        )
-        manager.debugFinishRecording(reachedMaxDuration: false)
-
-        #expect(manager.audioFilePath == nil)
-        #expect(manager.pendingPlaybackPath == fileName)
-        #expect(!manager.isRecording)
-    }
-
-    @Test("Maximum duration feedback is injected and emitted once")
+    @Test("Maximum duration feedback is emitted once even after duplicate completion")
     func maximumDurationFeedbackIsInjectedAndEmittedOnce() {
         var feedbackCount = 0
-        let manager = AudioCaptureManager {
-            feedbackCount += 1
-        }
-        manager.debugStageRecordingForFinish(
-            fileName: "maximum-duration.wav",
-            autoSubmitOnMaxDuration: false
-        )
-
+        let manager = AudioCaptureManager { feedbackCount += 1 }
+        manager.debugStageRecordingForFinish(fileName: "maximum-duration.wav")
         manager.debugCompleteMaximumDurationRecording()
-
+        manager.debugCompleteMaximumDurationRecording()
         #expect(feedbackCount == 1)
-        #expect(manager.pendingPlaybackPath == "maximum-duration.wav")
+        #expect(manager.audioFilePath == "maximum-duration.wav")
+        #expect(manager.pendingPlaybackPath == nil)
+        manager.reset()
+    }
+
+    @Test("Acknowledgement retains the original; unclaimed completion cleanup deletes it")
+    func completionOwnershipRequiresAcknowledgement() throws {
+        for accept in [true, false] {
+            let manager = AudioCaptureManager()
+            let fileName = "\(UUID().uuidString).wav"
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+            try Data([1, 2, 3]).write(to: url)
+            defer { try? FileManager.default.removeItem(at: url) }
+            manager.debugStageRecordingForFinish(fileName: fileName)
+            manager.stopRecordingEarly()
+            if accept { manager.acknowledgeStagedRecording() } else { manager.reset() }
+            #expect(FileManager.default.fileExists(atPath: url.path) == accept)
+            #expect(manager.audioFilePath == nil)
+        }
+    }
+
+    @Test("A completed recording rejects a new start instead of silently succeeding")
+    func unclaimedCompletionRejectsStart() async throws {
+        let manager = AudioCaptureManager()
+        manager.debugStageRecordingForFinish(fileName: "busy.wav")
+        manager.stopRecordingEarly()
+        defer { manager.reset() }
+        do {
+            try await manager.startRecording()
+            Issue.record("Expected busy recording rejection")
+        } catch AudioCaptureError.recordingBusy {
+            #expect(manager.audioFilePath == "busy.wav")
+        }
     }
 
     @Test("Duplicate resumes coalesce and cancellation fences late activation")

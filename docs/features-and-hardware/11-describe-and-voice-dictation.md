@@ -102,8 +102,10 @@ and historical-editor entry stop dictation, and request/draft-generation checks
 reject late callbacks. Admission failure retains shared text and media for
 manual retry.
 
-The glass tray scrolls its media row while keeping Discard and Identify/Analyze
-visible. Automated coverage and remaining manual acceptance are in
+The glass tray uses compact or wrapped media rows while keeping Discard and
+Identify/Analyze visible. See the
+[adaptive tray contract](29-staged-capture-review.md). Automated coverage and
+remaining manual acceptance are in
 [reanalysis description verification](../development-guides/08-testing-strategy.md#reanalysis-description-verification).
 
 ---
@@ -550,12 +552,13 @@ The recognition result handler dispatches back to `@MainActor` via
   Description-first render and sheet route. It also verifies that prompt,
   submit, and dictation controls share a centerline and that the rounded editor
   retains 8...32 pt of rendered clearance above them. The editor reserves the
-  row's fixed 204 pt `CaptureControlBarLayout.describeContentBottomClearance`,
-  owned by `Capture/Shared/Models`, inside its UIKit-hosted scroll content and
-  flexes to consume the remaining height. At the top, the hosted page reserves
-  only a fixed 60 pt selector band because its origin is already safe-area
-  adjusted. UI coverage requires an 8...32 pt gap from `CaptureModeToggle` to
-  `DescribeQuestionNavigation`, preventing duplicate top-safe-area padding.
+  row's baseline 204 pt reservation plus the expanded tray's clearance delta via
+  `CaptureChromeLayout`, owned by `Capture/Shared/Models`, inside its
+  UIKit-hosted scroll content and flexes to consume the remaining height. At the
+  top, the hosted page reserves only a fixed 60 pt selector band because its
+  origin is already safe-area adjusted. UI coverage requires an 8...32 pt gap
+  from `CaptureModeToggle` to `DescribeQuestionNavigation`, preventing duplicate
+  top-safe-area padding.
 - `merianUITests.testDescribeTextAreaFocusesFromLowerRegion` taps below the
   multiline field's intrinsic frame and types through the newly focused input,
   locking the full rounded editor as the interaction target.

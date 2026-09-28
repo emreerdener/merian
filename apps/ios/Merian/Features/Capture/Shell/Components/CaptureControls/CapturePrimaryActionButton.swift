@@ -153,7 +153,7 @@ struct CapturePrimaryActionButton: View {
         case .describe: return presentation.willStageOnly ? "Add description to scan" : "Identify"
         case .visual: return presentation.isVideoRecording ? "Stop recording" : "Take photo"
         case .audio:
-            if presentation.isAudioReview { return presentation.willStageOnly ? "Add recording to scan" : "Identify" }
+            if presentation.isAudioReview { return "Retry adding recording" }
             if presentation.isAudioPaused { return "Resume recording" }
             return presentation.isAudioRecording ? "Pause recording" : "Record audio"
         }

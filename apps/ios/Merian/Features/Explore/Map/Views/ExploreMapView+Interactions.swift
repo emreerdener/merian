@@ -23,16 +23,19 @@ extension ExploreMapView {
     func unshare(_ post: ExplorePost) async {
         guard await feedViewModel.unshare(post) else { return }
         viewModel.removePost(id: post.id)
+        discoveries?.removePost(id: post.id)
     }
 
     func blockAuthor(of post: ExplorePost) async {
         guard await feedViewModel.blockAuthor(of: post) else { return }
         viewModel.removePosts(byAuthorUserId: post.authorUserId)
+        discoveries?.removePosts(byAuthorUserId: post.authorUserId)
     }
 
     func report(_ post: ExplorePost) async {
         guard await feedViewModel.report(post) else { return }
         viewModel.removePost(id: post.id)
+        discoveries?.removePost(id: post.id)
     }
 
     func dismissSelectedPostIfNeeded() {

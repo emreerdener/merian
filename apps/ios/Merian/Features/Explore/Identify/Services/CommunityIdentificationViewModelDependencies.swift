@@ -54,6 +54,7 @@ extension IdentifyActivityFeedViewModel.Dependencies {
 }
 
 extension CommunityIdentificationDetailViewModel.Dependencies {
+    @MainActor
     static let live = Self(
         loadDetail: {
             try await MerianNetworkClient.shared.getCommunityIdentificationDetail(requestId: $0)
@@ -100,7 +101,8 @@ extension CommunityIdentificationDetailViewModel.Dependencies {
         successFeedback: { HapticManager.shared.triggerSuccessPulse() },
         selectionFeedback: { HapticManager.shared.triggerSelectionPulse() },
         errorFeedback: { HapticManager.shared.triggerErrorThump() },
-        errorMessage: { ExploreErrorFormatter.message(for: $0) }
+        errorMessage: { ExploreErrorFormatter.message(for: $0) },
+        visibility: AppDIContainer.shared.exploreContentVisibility
     )
 }
 

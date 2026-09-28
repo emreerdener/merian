@@ -59,11 +59,17 @@ struct SpeciesDictionaryPageContentView: View {
 
     var body: some View {
         content
+            .id(effectiveExploreViewModel.visibility.generation)
+            .onChange(of: effectiveExploreViewModel.visibility.generation) { _, _ in
+                activePresentation = nil
+                pendingDictionaryChatSpeciesID = nil
+                viewModel.invalidateVisibility()
+            }
             .navigationTitle(navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbarBackground(.hidden, for: .navigationBar)
             .toolbar { toolbarContent }
-            .task(id: [speciesId ?? scientificName, String(loadRetry)]) {
+            .task(id: [speciesId ?? scientificName, String(loadRetry), String(effectiveExploreViewModel.visibility.generation)]) {
                 isCommonNameScrolledPast = false
                 if loadRetry == 0 {
                     await viewModel.load()
@@ -379,7 +385,8 @@ struct SpeciesDictionaryPageContentView: View {
                                 currentScientificName: species.scientificName,
                                 currentCommonName: species.commonName,
                                 currentSpeciesId: species.id,
-                                routeForSpecies: speciesDictionaryRoute
+                                routeForSpecies: speciesDictionaryRoute,
+                                loadsViewerImages: false
                             )
                         }
                     }

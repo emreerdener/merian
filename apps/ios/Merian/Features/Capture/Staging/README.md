@@ -6,6 +6,11 @@ two for Pro, plus one optional note. Staging owns neither network, queue, nor
 file deletion work. Reanalysis keeps historical descriptions and its one current
 supplement separately from the two-physical-item budget.
 
+The tray shows every unused physical slot as an empty media node, including both
+slots in a Pro Describe-first draft. The separate note never replaces a media
+placeholder. All placeholders use the existing admitted photo-picker action and
+its remaining-capacity selection limit.
+
 ## Ownership
 
 - `Models/StagedCapturePolicy.swift` owns the current shared capacity constants.
@@ -22,12 +27,13 @@ supplement separately from the two-physical-item budget.
   state. It preserves the established behavior that a coverless video is hidden
   without consuming a visible tray slot.
 - `Services/CaptureStagingToolbarDependencies.swift` is the sole Staging owner
-  of the live Photo Library, keyboard dismissal, cancel feedback, and
-  process-session tooltip effects. The toolbar receives that small dependency
-  value from Capture Shell.
+  of the live Photo Library, keyboard dismissal, cancel feedback, and persisted
+  once-per-install note tooltip effects. The toolbar receives that small
+  dependency value from Capture Shell.
 - `Components/Toolbar/` owns the staged-media row, cancel and submit controls,
-  private modality badges, tooltip, and complete `ActiveScanToolbar`
-  composition. These components resolve no singleton or platform effect.
+  private modality badges, tooltip, whole-node wrapping in
+  `CaptureStagingMediaFlowLayout`, and complete `ActiveScanToolbar` composition.
+  These components resolve no singleton or platform effect.
 - `Views/CropSheetModifier.swift` owns the timing-sensitive crop presentation.
   It replaces the immediate thumbnail synchronously, fences its cancellable
   display-crop/focus task, and reports required-crop completion in the existing
@@ -40,8 +46,19 @@ automatic-submission presentation fences, removes items, and routes disposable
 paths through `FileIOActor`. `ActiveScanToolbar` consumes canonical
 `orderedNodes` through its deterministic presentation without sorting them
 again. Its picker selection, presentation binding, admission task, tooltip
-visibility, and shimmer timing remain component-local so extraction does not
-change focus, animation, or cancellation behavior.
+visibility remain component-local so extraction does not change focus,
+animation, or cancellation behavior.
+
+Finished recordings enter through Shell's identity-fenced audio handoff.
+`StagedAudio.prefersBoostedPreview` carries the recording-start preview
+preference only for this draft; it never enters submission or queue projections.
+Successful handoff immediately returns Record to idle, and the audio node opens
+playback.
+
+The photo picker is attached to the stable outer toolbar, outside its compact
+and expanded layout alternatives. Its selection limit is captured from the
+admitted request before presentation, so a width or Dynamic Type change does not
+move picker ownership between branches.
 
 Capture Submission owns conversion out of staging:
 
@@ -66,8 +83,9 @@ completed media, picker counts, and controls. Its supplementary description is
 marked only in the ephemeral `StagedObservationContext`; the marker never enters
 request or queue JSON. The shared root Describe editor can update it at full
 media capacity. Historical descriptions remain separate and preserve original
-evidence order. The glass tray scrolls its media row while keeping Discard and
-Analyze visible. The ordinary note tooltip appears once per install.
+evidence order. The glass tray adapts from a compact row to wrapped media above
+its actions, keeping Discard and Analyze visible. The ordinary note tooltip
+appears once per install.
 
 Photo-library picks and one-photo document imports enter staging only after
 caller-scoped admission and remain required-crop items until confirmed or
@@ -123,18 +141,37 @@ declarations, the single toolbar ordering source, effect isolation, retired Core
 path, and 600-line production-file guard. Paired Shell and Submission suites
 cover admission/presentation fences and timeline/projection contracts.
 
+The presentation suite also checks exact whole-node wrap boundaries and the
+shared baseline/expanded clearance policy. UI checks cover compact 48 pt
+circular submission buttons at standard and accessibility XXXL, note editing and
+keyboard dismissal, and wrapped historical evidence with capture-control
+clearance in Record and Scan. The
+[testing matrix](../../../../../../docs/development-guides/08-testing-strategy.md#staged-review-and-shared-describe-validation)
+owns selectors and manual acceptance; the
+[adaptive-toolbar record](../../../../../../docs/rfcs/adaptive-staged-toolbar-2026-09-27.md)
+records completed local runs and remaining checks.
+
 ## Review and shared text
 
 The root Describe editor owns the one ordinary note. Note-node taps focus it
 even at physical capacity. Historical descriptions alone retain the local-copy
 sheet. Free has one physical slot plus a note; Pro has two physical slots plus a
-note. The tray scrolls its media row while keeping Identify and confirmed
-Discard visible. Native glass respects Expedition, thermal, and accessibility
-reductions. The tray follows app appearance across capture modes. Identify uses
-the same accent blue as Share, and the neutral discard control uses a
-contrasting semibold red icon. The empty note composes a speech bubble and plus
-badge from supported system symbols. Analyze retains its existing treatment. See
-the
+note. The compact media-only capsule sits between floating Discard and
+Identify/Analyze buttons, separated by 16 pt gaps. The tray uses 48 pt nodes
+with 8 pt gaps; when the compact row does not fit, media wraps above the
+always-visible Identify and confirmed Discard actions. Native glass respects
+Expedition, thermal, and accessibility reductions. The tray follows app
+appearance across capture modes. Identify uses the same accent blue as Share,
+and the neutral discard control uses a contrasting semibold red icon.
+`CaptureStagingNodeSurface` gives populated nodes opaque primary system
+backgrounds (white in light appearance) and solid borders. Empty media and note
+slots use transparent backgrounds and matching dashed borders, revealing the
+tray's existing glass or reduced-effect surface. The empty note uses a plain
+`bubble.left` outline without interior lines or a plus badge; a populated note
+uses the filled symbol. Analyze matches Identify with a 48 pt blue circle and
+white up arrow. Both retain their Identify/Analyze accessibility labels,
+submission hints, and Large Content Viewer labels. Only the note has a
+once-per-install visual tooltip; submission actions have none. See the
 [staged-review contract](../../../../../../docs/features-and-hardware/29-staged-capture-review.md).
 
 Reanalysis keeps historical descriptions alongside its existing primary-media

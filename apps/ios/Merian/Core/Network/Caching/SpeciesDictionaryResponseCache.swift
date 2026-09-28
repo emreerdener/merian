@@ -2,6 +2,22 @@ import Foundation
 
 /// The two per-client response memos share mechanics, not storage or lifetime.
 final class SpeciesDictionaryResponseCache {
+    private let generationLock = NSLock()
+    private var generation: UInt64 = 0
+
+    var dictionaryGeneration: UInt64 {
+        generationLock.lock()
+        defer { generationLock.unlock() }
+        return generation
+    }
+
+    func invalidateDictionary() {
+        generationLock.lock()
+        generation &+= 1
+        dictionary.removeAll()
+        generationLock.unlock()
+    }
+
     private let dictionary: SpeciesResponseMemo<SpeciesDictionaryEntry>
     private let observationStats: SpeciesResponseMemo<SpeciesObservationStatsEntry>
 
@@ -10,13 +26,13 @@ final class SpeciesDictionaryResponseCache {
         observationStats = SpeciesResponseMemo(timeToLive: 5 * 60, limit: 64, now: now)
     }
 
-    func dictionaryEntry(speciesId: String?, scientificName: String?) -> SpeciesDictionaryEntry? {
-        dictionary.value(for: Self.primaryKey(speciesId: speciesId, scientificName: scientificName))
+    func dictionaryEntry(speciesId: String?, scientificName: String?, scope: String = "") -> SpeciesDictionaryEntry? {
+        dictionary.value(for: Self.primaryKey(speciesId: speciesId, scientificName: scientificName).map { scope + "|" + $0 })
     }
 
-    func storeDictionaryEntry(_ entry: SpeciesDictionaryEntry) {
+    func storeDictionaryEntry(_ entry: SpeciesDictionaryEntry, scope: String = "") {
         // Only the returned identity is safe to alias after stale-ID recovery.
-        dictionary.insert(entry, for: Self.keys(speciesId: entry.id, scientificName: entry.scientificName))
+        dictionary.insert(entry, for: Set(Self.keys(speciesId: entry.id, scientificName: entry.scientificName).map { scope + "|" + $0 }))
     }
 
     func observationStatsEntry(speciesId: String?, scientificName: String?) -> SpeciesObservationStatsEntry? {
@@ -123,11 +139,9 @@ private final class SpeciesResponseMemo<Value> {
         }
     }
 
-    #if DEBUG
     func removeAll() {
         lock.lock()
         defer { lock.unlock() }
         entries.removeAll()
     }
-    #endif
 }

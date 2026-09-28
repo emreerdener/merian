@@ -733,3 +733,6 @@ verify_jwt = false
 # parsing or retrieval, matching the viewer-aware Explore routes. Not public.
 [functions.species-discovery-search]
 verify_jwt = false
+
+[functions.species-dictionary-for-viewer]
+verify_jwt = false

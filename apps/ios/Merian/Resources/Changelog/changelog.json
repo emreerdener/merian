@@ -2,6 +2,24 @@
   "schemaVersion": 1,
   "entries": [
     {
+      "id": "2026-09-27-whats-new",
+      "date": "2026-09-27",
+      "title": "Less waiting. More discovering.",
+      "sections": [
+        {
+          "title": "What’s new",
+          "items": [
+            "Get results sooner with 2.2× faster AI identifications.",
+            "Search for locations in your Scans and Explore maps.",
+            "Add a description with details like size, habitat, or behavior to help improve identification accuracy. Available to everyone.",
+            "Add emoji reactions to Explore posts to celebrate discoveries and share how you feel.",
+            "Make quiet bird calls and other sounds easier to hear when reviewing your recordings.",
+            "Revisit the update highlights in Settings → Resources → What’s new."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-09-26-staged-review-and-expedition",
       "date": "2026-09-26",
       "title": "Review scans and add context",

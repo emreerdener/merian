@@ -284,6 +284,12 @@ immediately close their sheet.
 
 ## Single Root Presentation Host
 
+What’s New uses the same mounted Workspace root sheet host as other
+presentations. It never replaces Workspace with a placeholder root. Its exact
+dismissal callback reports the destination for App-owned acknowledgement; queued
+routes take precedence over the one-shot Explore launch preference. See the
+[announcement contract](../development-guides/12-in-app-changelog.md#whats-new-sheet).
+
 `CameraSheetRouter` owns one `.sheet(item:)` keyed by
 `CaptureWorkspaceViewModel.PresentedRoute`. Paywall, Insight, Scans, Profile,
 Explore, achievement detail, and the post-identification notification prompt all

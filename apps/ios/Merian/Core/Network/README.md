@@ -2794,8 +2794,11 @@ refresh age. On capacity overflow, expired keys are pruned before oldest-
 insertion keys are evicted; equal-timestamp tie ordering remains unspecified.
 The DEBUG reset and `overridingSession` replacement clear both stores but do not
 add an in-flight generation fence: an already dispatched valid response can
-repopulate them. Cache hits continue to bypass Auth/transport cancellation; cold
-misses enter the existing cancellation-aware transport. Feature state owners
+repopulate them. Observation-stat cache hits retain their existing
+Auth/transport behavior. Dictionary hits first capture authenticated identity
+and visibility generation, check cancellation and recheck generation before
+returning. Dictionary misses recheck account and generation before caching;
+report/account invalidation advances that generation. Feature state owners also
 retain their own cancellation/generation fences.
 
 Wire tests live in `MerianTests/Core/Network/Decoding/`, endpoint and transport
@@ -3755,3 +3758,19 @@ into automatic safe-read replay. Validate with
 `SpeciesDictionaryResponseValidatorTests`,
 `SpeciesDictionaryDetailServiceTests`, `SpeciesDictionaryPageViewModelTests`,
 and the complete unit target.
+
+## Viewer-scoped dictionary caching
+
+Native detail/catalog/overview requests use `species-dictionary-for-viewer`.
+Dictionary memo aliases are scoped by authenticated account and visibility
+generation. The composition root invalidates the memo on report/account changes;
+pending requests recheck generation and authenticated identity before accepting
+results. Observation-stat caching retains its existing independent lifetime.
+
+The internal `Caching/SpeciesDictionaryRequestCoordinator.swift` owns viewer and
+visibility-generation fences around dictionary requests and validated memo
+reads. The client keeps the cache private and exposes only fixed-route request
+bridges to endpoint extensions. The coordinator receives account and transport
+closures from that private boundary; it does not resolve global network or
+session state. Native retry policy includes the viewer route, while the
+anonymous dictionary route has no native endpoint owner.

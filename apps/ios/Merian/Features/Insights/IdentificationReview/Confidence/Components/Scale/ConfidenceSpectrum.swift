@@ -3,7 +3,7 @@ import SwiftUI
 struct ConfidenceSpectrum: View {
     let inferenceTier: String?
 
-    var provenance: IdentificationResultProvenance? = nil
+    var provenance: IdentificationResultProvenance?
 
     var body: some View {
         VStack(spacing: 0) {

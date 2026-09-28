@@ -3,6 +3,7 @@
 /// Using these constants prevents silent key mismatches across sites that
 /// read and write the same preference value.
 enum UserDefaultsKeys {
+    static let lastSeenWhatsNewRelease = "lastSeenWhatsNewRelease.v1"
     static let mapAppearance = "mapAppearance.v1"
     static let recentPlacesResetGeneration = "recentPlacesResetGeneration.v1"
     static let recentPlacesPrefix = "recentPlaces.v1."

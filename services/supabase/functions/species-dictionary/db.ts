@@ -1,3 +1,4 @@
+import { allowedReferenceMedia, referenceURLs } from "./viewerMedia.ts";
 import { SupabaseClient } from "@supabase/supabase-js";
 import {
   type ExternalEnrichmentData,
@@ -440,6 +441,7 @@ function postgrestFilterLiteral(value: string): string {
 export async function fetchSpeciesDictionaryCatalog(
   request: SpeciesDictionaryCatalogRequest,
   supabaseAdmin: SupabaseClient,
+  viewerId?: string,
 ): Promise<SpeciesDictionaryCatalogResult> {
   const requestedLimit = Math.max(1, Math.min(100, Math.floor(request.limit)));
   const fetchLimit = requestedLimit + 1;
@@ -529,12 +531,14 @@ export async function fetchSpeciesDictionaryCatalog(
   const firstImageBySpeciesId = await fetchFirstReferenceImagesForSpecies(
     visibleRows.map((row) => row.id),
     supabaseAdmin,
+    viewerId,
+    new Map(visibleRows.map((row) => [row.id, row.reference_image_url])),
   );
   const items = visibleRows.map((row) =>
     buildSpeciesDictionaryCatalogItem(
       row,
       firstImageBySpeciesId.get(row.id) ??
-        firstReferenceImageUrl(row.reference_image_url),
+        (viewerId ? null : firstReferenceImageUrl(row.reference_image_url)),
     )
   );
   const lastVisibleRow = visibleRows[visibleRows.length - 1];
@@ -608,6 +612,7 @@ export async function fetchSpeciesDictionaryCountrySummaries(
 export async function fetchSpeciesDictionaryOverview(
   request: SpeciesDictionaryOverviewRequest,
   supabaseAdmin: SupabaseClient,
+  viewerId?: string,
 ): Promise<SpeciesDictionaryOverviewResult> {
   const rows = await fetchAllPublicSpeciesDictionaryRows(supabaseAdmin);
   const userCountryCode = normalizedCountryCode(request.userRegion);
@@ -616,6 +621,8 @@ export async function fetchSpeciesDictionaryOverview(
       fetchFirstReferenceImagesForSpecies(
         rows.map((row) => row.id),
         supabaseAdmin,
+        viewerId,
+        new Map(rows.map((row) => [row.id, row.reference_image_url])),
       ),
       fetchSpeciesDictionaryCountrySummaries(supabaseAdmin),
       userCountryCode
@@ -627,7 +634,9 @@ export async function fetchSpeciesDictionaryOverview(
         : Promise.resolve([]),
     ]);
   return buildSpeciesDictionaryOverview(
-    rows,
+    viewerId
+      ? rows.map((row) => ({ ...row, reference_image_url: null }))
+      : rows,
     firstImageBySpeciesId,
     request.userRegion,
     countrySummaries,
@@ -850,6 +859,7 @@ export async function fetchSpeciesDictionary(
   dependencies: SpeciesDictionaryFetchDependencies = {
     fetchExternalSpeciesDictionary,
   },
+  viewerId?: string,
 ): Promise<SpeciesDictionaryPayload | null> {
   const normalizedLookup = typeof lookup === "string"
     ? { scientificName: lookup }
@@ -879,20 +889,50 @@ export async function fetchSpeciesDictionary(
   }
 
   if (!row) {
-    return !normalizedLookup.speciesId && normalizedLookup.scientificName
-      ? await dependencies.fetchExternalSpeciesDictionary(
-        normalizedLookup.scientificName,
-      )
-      : null;
+    const external =
+      !normalizedLookup.speciesId && normalizedLookup.scientificName
+        ? await dependencies.fetchExternalSpeciesDictionary(
+          normalizedLookup.scientificName,
+        )
+        : null;
+    if (!external || !viewerId) return external;
+    const allowed = await allowedReferenceMedia(
+      [
+        ...external.reference_images.map((image) => image.url),
+        ...external.similar_species.map((species) =>
+          species.reference_image_url
+        ),
+      ],
+      viewerId,
+      supabaseAdmin,
+    );
+    return {
+      ...external,
+      reference_images: external.reference_images.filter((image) =>
+        allowed.has(image.url.trim())
+      ),
+      similar_species: external.similar_species.map((species) => ({
+        ...species,
+        reference_image_url: species.reference_image_url &&
+            allowed.has(species.reference_image_url.trim())
+          ? species.reference_image_url
+          : null,
+      })),
+    };
   }
   if (!isPublicBiologicalSpeciesRow(row)) return null;
 
-  const similarSpecies = await fetchSimilarSpecies(row.id, supabaseAdmin);
+  const similarSpecies = await fetchSimilarSpecies(
+    row.id,
+    supabaseAdmin,
+    viewerId,
+  );
   const referenceImages = await fetchReferenceImages(
     row.id,
     row.reference_image_url,
     row.wikipedia_url,
     supabaseAdmin,
+    viewerId,
   );
   return buildSpeciesDictionaryPayload(row, similarSpecies, referenceImages);
 }
@@ -994,6 +1034,7 @@ async function fetchReferenceImages(
   legacyReferenceImageUrl: string | null | undefined,
   wikipediaUrl: string | null | undefined,
   supabaseAdmin: SupabaseClient,
+  viewerId?: string,
 ): Promise<SpeciesDictionaryReferenceImage[]> {
   const { data, error } = await supabaseAdmin
     .from("species_reference_images")
@@ -1042,18 +1083,29 @@ async function fetchReferenceImages(
     );
   }
 
+  const allowed = await allowedReferenceMedia(
+    [
+      ...rowsWithAuthors.map((row) => row.url),
+      ...referenceURLs(legacyReferenceImageUrl),
+    ],
+    viewerId,
+    supabaseAdmin,
+  );
   const normalizedImages = referenceImagesFromRows(
-    rowsWithAuthors,
+    rowsWithAuthors.filter((row) => allowed.has((row.url ?? "").trim())),
     wikipediaUrl,
   );
-  return normalizedImages.length > 0
-    ? normalizedImages
-    : referenceImagesFrom(legacyReferenceImageUrl, wikipediaUrl);
+  return normalizedImages.length > 0 ? normalizedImages : referenceImagesFrom(
+    referenceURLs(legacyReferenceImageUrl).filter((url) => allowed.has(url))
+      .join(","),
+    wikipediaUrl,
+  );
 }
 
 async function fetchSimilarSpecies(
   speciesId: string,
   supabaseAdmin: SupabaseClient,
+  viewerId?: string,
 ): Promise<SpeciesDictionarySimilarSpecies[]> {
   const { data, error } = await supabaseAdmin
     .from("species_lookalikes")
@@ -1102,6 +1154,10 @@ async function fetchSimilarSpecies(
   const firstImageBySpeciesId = await fetchFirstReferenceImagesForSpecies(
     rows.map((row) => row.species_id),
     supabaseAdmin,
+    viewerId,
+    new Map(
+      rows.map((row) => [row.species_id, row.legacy_reference_image_url]),
+    ),
   );
 
   return rows.map((row) => ({
@@ -1109,7 +1165,9 @@ async function fetchSimilarSpecies(
     scientific_name: row.scientific_name,
     common_name: row.common_name,
     reference_image_url: firstImageBySpeciesId.get(row.species_id) ??
-      firstReferenceImageUrl(row.legacy_reference_image_url),
+      (viewerId
+        ? null
+        : firstReferenceImageUrl(row.legacy_reference_image_url)),
     iucn_red_list_status: row.iucn_red_list_status,
     ...publicSimilarSpeciesMetadata(row.relation),
   }));
@@ -1118,6 +1176,8 @@ async function fetchSimilarSpecies(
 async function fetchFirstReferenceImagesForSpecies(
   speciesIds: string[],
   supabaseAdmin: SupabaseClient,
+  viewerId?: string,
+  legacyImages: Map<string, string | null | undefined> = new Map(),
 ): Promise<Map<string, string>> {
   const uniqueSpeciesIds = Array.from(
     new Set(speciesIds.filter((id) => id.length > 0)),
@@ -1149,7 +1209,24 @@ async function fetchFirstReferenceImagesForSpecies(
     rows.push(...((data ?? []) as SpeciesReferenceImageRow[]));
   }
 
-  return firstReferenceImageUrlsBySpeciesId(rows);
+  const allowed = await allowedReferenceMedia(
+    [
+      ...rows.map((row) => row.url),
+      ...[...legacyImages.values()].flatMap(referenceURLs),
+    ],
+    viewerId,
+    supabaseAdmin,
+  );
+  const result = firstReferenceImageUrlsBySpeciesId(
+    rows.filter((row) => allowed.has((row.url ?? "").trim())),
+  );
+  for (const [id, legacy] of legacyImages) {
+    if (result.has(id)) continue;
+    const url = referenceURLs(legacy).find((url) => allowed.has(url));
+    const first = firstReferenceImageUrl(url);
+    if (first) result.set(id, first);
+  }
+  return result;
 }
 
 export function speciesReferenceImageLookupBatches(

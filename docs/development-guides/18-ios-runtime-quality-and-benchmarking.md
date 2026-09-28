@@ -84,6 +84,11 @@ cannot establish faithfully. It reuses the existing Debug UI-test seeds and
 production-shaped state owners. Every listed case must appear and pass in the
 XCResult; a selected suite passing while a required case is absent is a failure.
 
+`WhatsNewUITests/testLaunchDismissalRevealsMountedWorkspace` covers the launch
+announcement’s Continue, Close, and swipe dismissal over the retained Capture
+workspace, saving screenshots before and after each dismissal. Its Debug-only
+seed exercises the production sheet router without writing acknowledgement.
+
 Debug fixtures must remain excluded from Release behavior. Automated tests must
 not call production endpoints, real providers, personal accounts, or static
 real-world coordinates.

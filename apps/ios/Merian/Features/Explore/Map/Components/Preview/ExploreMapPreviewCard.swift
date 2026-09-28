@@ -13,16 +13,23 @@ struct ExploreMapPreviewCard: View {
     let onReport: () -> Void
     var onReaction: (String, Bool) -> Void = { _, _ in }
     var onLoadMoreReactions: () -> Void = {}
+    var usesGlassBackground = false
+    var stacksImageAboveContent = false
 
     @State private var showUnpublishConfirmation = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
+            if stacksImageAboveContent {
+                imageButton
+                    .aspectRatio(4.0 / 3.0, contentMode: .fit)
+                    .frame(maxWidth: .infinity)
+            }
             header
             actions
             openButton
         }
-        .card()
+        .modifier(ExploreMapPreviewCardSurface(usesGlass: usesGlassBackground))
         .alert("Unpublish Post?", isPresented: $showUnpublishConfirmation) {
             Button("Cancel", role: .cancel) { }
             Button("Unpublish", role: .destructive, action: onUnshare)
@@ -34,24 +41,10 @@ struct ExploreMapPreviewCard: View {
     private var header: some View {
         HStack(alignment: .top, spacing: 0) {
             HStack(alignment: .center, spacing: 12) {
-                Button {
-                    HapticManager.shared.triggerSelectionPulse()
-                    onOpen()
-                } label: {
-                    ExploreHeroImageView(
-                        imageUrl: post.gridThumbnailUrl,
-                        reloadGeneration: mediaReloadGeneration
-                    )
-                    .frame(width: 82, height: 82)
-                    .overlay(alignment: .bottomTrailing) {
-                        if post.hasVideoMedia || post.hasAudioMedia {
-                            ExploreMediaTypeIndicator(kind: post.hasVideoMedia ? .video : .audio)
-                                .padding(8)
-                        }
-                    }
-                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                if !stacksImageAboveContent {
+                    imageButton
+                        .frame(width: 82, height: 82)
                 }
-                .buttonStyle(.plain)
 
                 VStack(alignment: .leading, spacing: 6) {
                     Text(speciesDisplayName)
@@ -78,6 +71,27 @@ struct ExploreMapPreviewCard: View {
 
             overflowMenu
         }
+    }
+
+    private var imageButton: some View {
+        Button {
+            HapticManager.shared.triggerSelectionPulse()
+            onOpen()
+        } label: {
+            ExploreHeroImageView(
+                imageUrl: stacksImageAboveContent ? post.heroImageUrl : post.gridThumbnailUrl,
+                reloadGeneration: mediaReloadGeneration
+            )
+            .overlay(alignment: .bottomTrailing) {
+                if post.hasVideoMedia || post.hasAudioMedia {
+                    ExploreMediaTypeIndicator(kind: post.hasVideoMedia ? .video : .audio)
+                        .padding(8)
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Open discovery: \(speciesDisplayName)")
     }
 
     private var overflowMenu: some View {
@@ -168,5 +182,19 @@ struct ExploreMapPreviewCard: View {
             .clipShape(Capsule(style: .continuous))
         }
         .buttonStyle(.plain)
+    }
+}
+
+private struct ExploreMapPreviewCardSurface: ViewModifier {
+    let usesGlass: Bool
+
+    func body(content: Content) -> some View {
+        if usesGlass, #available(iOS 26.0, *) {
+            content
+                .padding(20)
+                .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 32, style: .continuous))
+        } else {
+            content.card()
+        }
     }
 }

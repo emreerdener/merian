@@ -8,10 +8,16 @@ import UIKit
 final class LinkShareItemSource: NSObject, UIActivityItemSource {
     let url: URL
     let title: String
+    private let previewImageLoader: (@Sendable () async -> UIImage?)?
 
-    init(url: URL, title: String) {
+    init(
+        url: URL,
+        title: String,
+        previewImageLoader: (@Sendable () async -> UIImage?)? = nil
+    ) {
         self.url = url
         self.title = title
+        self.previewImageLoader = previewImageLoader
     }
 
     func activityViewControllerPlaceholderItem(
@@ -41,6 +47,26 @@ final class LinkShareItemSource: NSObject, UIActivityItemSource {
         metadata.originalURL = url
         metadata.url = url
         metadata.title = title
+        if let previewImageLoader {
+            let provider = NSItemProvider()
+            provider.registerObject(ofClass: UIImage.self, visibility: .all) { completion in
+                let progress = Progress(totalUnitCount: 1)
+                let task = Task {
+                    let image = await previewImageLoader()
+                    if Task.isCancelled {
+                        completion(nil, CancellationError())
+                    } else if let image {
+                        completion(image, nil)
+                    } else {
+                        completion(nil, CocoaError(.fileReadUnknown))
+                    }
+                    progress.completedUnitCount = 1
+                }
+                progress.cancellationHandler = { task.cancel() }
+                return progress
+            }
+            metadata.imageProvider = provider
+        }
         return metadata
     }
 }

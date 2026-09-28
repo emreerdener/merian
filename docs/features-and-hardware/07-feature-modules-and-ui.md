@@ -773,10 +773,13 @@ production Shell and Library file remains below the 600-line review guard.
   the detail page keeps its comment thread and composer inline. Comments support
   the same searchable Unicode emoji picker as observation posts and notification
   reply sheets. Chip taps toggle the viewer’s contribution with optimistic
-  feedback, authoritative reconciliation, and rollback on failure. Post actions
-  are Comment → Heart → Add reaction → horizontally scrolling chips → Share;
-  accessibility text sizes move chips to a second row. Post ❤️ remains the
-  existing like. The
+  feedback, authoritative reconciliation, and rollback on failure. The emoji
+  picker has an always-visible category filter row below search, starting with
+  All and followed by the nine bundled categories. Search is scoped to the
+  selected category; changing category or query returns the grid to the top.
+  Post actions are Comment → Heart → Add reaction → horizontally scrolling chips
+  → Share; accessibility text sizes move chips to a second row. Post ❤️ remains
+  the existing like. The
   [reaction contract](../rfcs/explore-page.md#emoji-reactions-update-2026-09-18)
   owns the full behavior and compatibility rules. Feed media supports double-tap
   to like with a transient centered heart overlay; audio/video center double
@@ -1793,23 +1796,20 @@ dependency composition.
   every page an explicit width and height, while fixed top, capture-bar, and
   toolbar overlays remain outside the pager. Describe's vertical content is
   hosted by UIKit, and its prompt/dictation lifecycle observer plus prompt sheet
-  live at workspace scope. The capture bar uses `CaptureControlBarLayout`'s
-  fixed 80 pt control, 124 pt bottom inset, and 204 pt safe-area-relative
-  reservation instead of publishing measured child height into parent layout.
-  Full-screen hint and audio overlays use the fixed 250 pt pre-regression
-  clearance; they do not derive it from the full-bleed pager, whose bottom
-  safe-area inset is zero. The 80 pt primary capture control and 50 pt secondary
-  controls share one vertical centerline in every mode. The UIKit-hosted
-  Describe editor uses a 204 pt bottom content reservation matching the overlaid
-  row. Its flexible rounded field fills the remaining height, with UI coverage
-  requiring 8...32 pt between their rendered frames. Its top spacer is a fixed
-  60 pt selector band and does not add the safe area again; the rendered
-  selector-to-question gap must stay within 8...32 pt. These lazy-construction,
-  scroll-hosting, presentation, and fixed-layout boundaries are the startup
-  AttributeGraph stability contract for all three configurable first modes.
-  Camera-only controls keep their slots hidden in Record; Describe exposes
-  prompt-list and dictation intents through `CaptureActionCoordinator`; and the
-  actual session lifecycle remains keyed to the selected mode. See
+  live at workspace scope. `CaptureControlBarLayout` preserves the baseline 80
+  pt control, 124 pt bottom inset, and 204 pt content reservation.
+  `CaptureChromeLayout` adds clearance when the staging tray's measured height
+  plus 16 pt exceeds the baseline inset. Camera/Audio add the same delta to
+  their 250 pt full-screen clearance; Describe adds it to the 204 pt
+  reservation. Only the width-dependent staging tray reports height, never
+  capture controls or UIKit-hosted Describe content. The primary and auxiliary
+  controls keep a shared centerline. The top selector band still avoids
+  duplicate safe-area padding. These scroll-hosting and one-way layout
+  boundaries preserve startup stability across configurable first modes. See the
+  [adaptive tray contract](29-staged-capture-review.md). Camera-only controls
+  keep their slots hidden in Record; Describe exposes prompt-list and dictation
+  intents through `CaptureActionCoordinator`; and the actual session lifecycle
+  remains keyed to the selected mode. See
   [`01-camera-and-hardware.md`](./01-camera-and-hardware.md) and
   [`11-describe-and-voice-dictation.md`](./11-describe-and-voice-dictation.md)
   for the detailed interaction and verification contracts.
@@ -1936,11 +1936,12 @@ dependency composition.
   ownership is bound. Before submission, `ActiveScanToolbar` presents staged
   review by default. It uses native Liquid Glass on iOS 26+, material on earlier
   systems, and an opaque adaptive fallback under Reduce Transparency or the
-  Expedition/thermal effect policy. The blue, text-only Identify action and
-  confirmed red-trash Discard stay fixed beside a horizontally scrolling media
-  row and shared note node; Analyze retains its existing styling. Video
-  thumbnails carry a play badge and open `StagedVideoPreviewModal`, a
-  full-screen `VideoPlayer` preview with top-bar close and remove actions;
+  Expedition/thermal effect policy. The blue circular up-arrow submission action
+  and confirmed red-trash Discard remain visible. When the compact row cannot
+  fit, complete media nodes wrap above a separate action row, with the shared
+  note last; Analyze matches Identify’s styling with its own accessibility
+  label. Video thumbnails carry a play badge and open `StagedVideoPreviewModal`,
+  a full-screen `VideoPlayer` preview with top-bar close and remove actions;
   removal deletes the staged clip plus companion WAV. Audio waveform badges now
   route their staged index into `StagedAudioPreviewModal`, a full-screen
   spectrogram player with close and remove actions. Closing preserves the

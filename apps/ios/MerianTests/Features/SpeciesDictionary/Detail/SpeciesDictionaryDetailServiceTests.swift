@@ -21,7 +21,7 @@ final class SpeciesDictionaryDetailServiceTests: XCTestCase {
             httpVersion: nil,
             headerFields: nil
         ))
-        transport.register(path: "/species-dictionary") { request in
+        transport.register(path: "/species-dictionary-for-viewer") { request in
             let body = try XCTUnwrap(MockURLProtocol.bodyData(for: request))
             let payload = try XCTUnwrap(
                 JSONSerialization.jsonObject(with: body) as? [String: Any]
@@ -83,7 +83,7 @@ final class SpeciesDictionaryDetailServiceTests: XCTestCase {
             httpVersion: nil,
             headerFields: nil
         ))
-        transport.register(path: "/species-dictionary") { request in
+        transport.register(path: "/species-dictionary-for-viewer") { request in
             let body = try XCTUnwrap(MockURLProtocol.bodyData(for: request))
             let payload = try XCTUnwrap(
                 JSONSerialization.jsonObject(with: body) as? [String: Any]
@@ -123,7 +123,7 @@ final class SpeciesDictionaryDetailServiceTests: XCTestCase {
             {"schema_version":1,"requested_scientific_name":"Testus synonym","species_id":"\(Self.speciesID)","scientific_name":"Testus floridus"}
             """.utf8))
         }
-        transport.register(path: "/species-dictionary") { request in
+        transport.register(path: "/species-dictionary-for-viewer") { request in
             let body = try XCTUnwrap(MockURLProtocol.bodyData(for: request))
             let payload = try XCTUnwrap(JSONSerialization.jsonObject(with: body) as? [String: String])
             XCTAssertEqual(payload["species_id"], Self.speciesID)
@@ -147,7 +147,7 @@ final class SpeciesDictionaryDetailServiceTests: XCTestCase {
             {"schema_version":1,"requested_scientific_name":"Unrelated species","species_id":"\(Self.speciesID)","scientific_name":"Testus floridus"}
             """.utf8))
         }
-        transport.register(path: "/species-dictionary") { _ in
+        transport.register(path: "/species-dictionary-for-viewer") { _ in
             XCTFail("Invalid resolution must not load a different species")
             return (response, Self.responseData)
         }
@@ -173,8 +173,8 @@ final class SpeciesDictionaryDetailServiceTests: XCTestCase {
             """.utf8))
         }
         let replacementID = "33333333-3333-4333-8333-333333333333"
-        transport.register(path: "/species-dictionary") { _ in
-            let json = String(decoding: Self.responseData, as: UTF8.self)
+        transport.register(path: "/species-dictionary-for-viewer") { _ in
+            let json = try XCTUnwrap(String(bytes: Self.responseData, encoding: .utf8))
                 .replacingOccurrences(of: Self.speciesID, with: replacementID)
             return (response, Data(json.utf8))
         }

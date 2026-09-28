@@ -361,6 +361,13 @@ Copy, Messages, Mail, Notes, and third-party extensions receive a URL rather
 than a sentence or an extra text attachment. Species Dictionary already uses a
 URL-valued `ShareLink`. File exports intentionally continue sharing files.
 
+Explore supplies `LPLinkMetadata.imageProvider` with the public post hero (or an
+ordered image/video/audio poster when the hero is missing). The system lazily
+loads a preview capped at 1,024 pixels through the existing native image cache;
+cancellation cancels the provider task and load failure preserves the URL-only
+share. The image is preview metadata, not a separate attachment. This prevents
+the native title-only metadata from omitting the image offered to Messages.
+
 Physical-device acceptance must cover iPhone-to-Mac AirDrop, Copy into a
 browser, Messages link previews, Mail, Notes, and an installed third-party
 messaging app. Check image, audio, video, and mixed-media Explore posts,

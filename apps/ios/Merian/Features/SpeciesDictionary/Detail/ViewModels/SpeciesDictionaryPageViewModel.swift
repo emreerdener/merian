@@ -50,6 +50,13 @@ final class SpeciesDictionaryPageViewModel {
         return nil
     }
 
+    func invalidateVisibility() {
+        requestGeneration &+= 1
+        state = .loading
+        isResolving = false
+        resolutionFailed = false
+    }
+
     func load() async {
         trackOpenIfNeeded()
 

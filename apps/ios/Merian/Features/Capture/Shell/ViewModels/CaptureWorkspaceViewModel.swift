@@ -9,7 +9,7 @@ final class CaptureWorkspaceViewModel {
 
     // MARK: - Types
     enum ActiveSheet: String, Identifiable, Sendable {
-        case insight, paywall, scans, profile, explore, achievement, notificationPrompt
+        case insight, paywall, scans, profile, explore, achievement, notificationPrompt, whatsNew
         var id: String { rawValue }
     }
 
@@ -165,7 +165,8 @@ final class CaptureWorkspaceViewModel {
     }
 
     var shouldShowMediaModeToggle: Bool {
-        hasAvailableStagedCaptureSlot || baseRefinementContext != nil
+        // Capacity limits new physical captures, not navigation or shared-note editing.
+        true
     }
 
     var shouldShowViewfinderHints: Bool {
@@ -199,12 +200,16 @@ final class CaptureWorkspaceViewModel {
     }
 
     // MARK: - Lifecycle
-    convenience init(initialActiveSheet: ActiveSheet? = nil) {
+    convenience init(
+        initialActiveSheet: ActiveSheet? = nil,
+        opensExploreAfterWhatsNew: Bool = false
+    ) {
         self.init(
             diContainer: AppDIContainer.shared,
             preparedImageLoader: CaptureWorkspaceDependencies.livePreparedImageLoader,
             prewarmHeadersOnInit: true,
-            initialActiveSheet: initialActiveSheet
+            initialActiveSheet: initialActiveSheet,
+            opensExploreAfterWhatsNew: opensExploreAfterWhatsNew
         )
     }
 
@@ -215,6 +220,7 @@ final class CaptureWorkspaceViewModel {
             CaptureWorkspaceDependencies.livePreparedHistoricalAudioLoader,
         prewarmHeadersOnInit: Bool = true,
         initialActiveSheet: ActiveSheet? = nil,
+        opensExploreAfterWhatsNew: Bool = false,
         externalImageImportStore: ExternalImageImportStore? = nil
     ) {
         self.init(
@@ -226,7 +232,8 @@ final class CaptureWorkspaceViewModel {
                 externalImageImportStore: externalImageImportStore
             ),
             prewarmHeadersOnInit: prewarmHeadersOnInit,
-            initialActiveSheet: initialActiveSheet
+            initialActiveSheet: initialActiveSheet,
+            opensExploreAfterWhatsNew: opensExploreAfterWhatsNew
         )
     }
 
@@ -234,10 +241,14 @@ final class CaptureWorkspaceViewModel {
         diContainer: AppDIContainer,
         dependencies: CaptureWorkspaceDependencies,
         prewarmHeadersOnInit: Bool = true,
-        initialActiveSheet: ActiveSheet? = nil
+        initialActiveSheet: ActiveSheet? = nil,
+        opensExploreAfterWhatsNew: Bool = false
     ) {
         self.diContainer = diContainer
         self.dependencies = dependencies
+        operationState.prepareWhatsNewFollowup(
+            opensExplore: initialActiveSheet == .whatsNew && opensExploreAfterWhatsNew
+        )
         self.activePresentation = initialActiveSheet.map {
             PresentedRoute(
                 id: UUID(),
@@ -298,6 +309,9 @@ final class CaptureWorkspaceViewModel {
     }
 
     private func resetModalsForSessionTimeout() {
+        // An informational launch sheet is still unread after a background
+        // timeout; keep its presentation and one-shot launch follow-up intact.
+        guard activeSheet != .whatsNew else { return }
         cancelAllVisualCaptureWork()
         activeSheet = nil
         operationState.clearPendingLocalSheet()

@@ -1,3 +1,4 @@
+import Foundation
 import Observation
 
 @MainActor
@@ -16,6 +17,7 @@ final class CommunityIdentificationDetailViewModel {
         let selectionFeedback: @MainActor () -> Void
         let errorFeedback: @MainActor () -> Void
         let errorMessage: @MainActor (Error) -> String
+        var visibility: ExploreContentVisibilityStore?
     }
 
     let requestId: String
@@ -39,11 +41,15 @@ final class CommunityIdentificationDetailViewModel {
     }
 
     func load() async {
+        let context = dependencies.visibility?.context
         isLoading = true
         defer { isLoading = false }
 
         do {
-            detail = try await dependencies.loadDetail(requestId)
+            let loaded = try await dependencies.loadDetail(requestId)
+            guard context == dependencies.visibility?.context,
+                  dependencies.visibility?.isVisible(postID: loaded.postId) != false else { return }
+            detail = loaded
             errorMessage = nil
         } catch {
             errorMessage = dependencies.errorMessage(error)
@@ -85,6 +91,11 @@ final class CommunityIdentificationDetailViewModel {
     }
 
     func report(_ detail: CommunityIdentificationDetail) async {
+        let viewer = dependencies.currentUserId()
+        let context = dependencies.visibility?.context
+        if let context {
+            guard let viewerID = viewer.flatMap(UUID.init(uuidString:)), viewerID == context.viewerID else { return }
+        }
         guard !isReporting else { return }
         isReporting = true
         defer { isReporting = false }
@@ -95,6 +106,14 @@ final class CommunityIdentificationDetailViewModel {
                     postId: detail.postId
                 )
             )
+            guard viewer == dependencies.currentUserId() else { return }
+            if let context {
+                guard dependencies.visibility?.viewerID == context.viewerID,
+                      dependencies.visibility?.context.accountGeneration == context.accountGeneration else { return }
+                dependencies.visibility?.hide(postID: detail.postId, for: context.viewerID)
+            }
+            self.detail = nil
+            errorMessage = "This discovery is no longer available."
             dependencies.successFeedback()
             toastMessage = .success("Report submitted. Thanks!")
         } catch {

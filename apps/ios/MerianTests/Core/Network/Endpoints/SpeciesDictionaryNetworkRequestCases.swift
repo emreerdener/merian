@@ -13,7 +13,7 @@ struct SpeciesDictionaryNetworkRequestCase: Sendable, CustomTestStringConvertibl
     let invoke: @MainActor @Sendable (MerianNetworkClient) async throws -> Void
 
     var testDescription: String { name }
-    var function: String { kind == .stats ? "species-observation-stats" : "species-dictionary" }
+    var function: String { kind == .stats ? "species-observation-stats" : "species-dictionary-for-viewer" }
     var path: String { "/\(function)" }
     var isCacheable: Bool { kind == .dictionary || kind == .stats }
     var responseJSON: String {

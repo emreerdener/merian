@@ -7,6 +7,7 @@ struct SimilarSpeciesGallery: View {
     var currentSpeciesId: String?
     var routeForSpecies: ((SimilarSpeciesEntry) -> SpeciesDictionaryRoute)?
     var onSpeciesSelected: ((SimilarSpeciesEntry) -> Void)?
+    var loadsViewerImages = true
     var dependencies: SimilarSpeciesGalleryDependencies = .live
 
     private var validEntries: [SimilarSpeciesEntry] {
@@ -32,6 +33,7 @@ struct SimilarSpeciesGallery: View {
                                     SimilarSpeciesCard(
                                         entry: entry,
                                         currentCommonName: currentCommonName,
+                                        loadsViewerImages: loadsViewerImages,
                                         dependencies: dependencies
                                     )
                                 }
@@ -46,6 +48,7 @@ struct SimilarSpeciesGallery: View {
                                     entry: entry,
                                     currentCommonName: currentCommonName,
                                     onSpeciesSelected: onSpeciesSelected,
+                                    loadsViewerImages: loadsViewerImages,
                                     dependencies: dependencies
                                 )
                             }
@@ -59,6 +62,7 @@ struct SimilarSpeciesGallery: View {
                 .padding(.horizontal, -16)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .id(dependencies.visibilityGeneration())
         }
     }
 }
@@ -71,16 +75,19 @@ struct SimilarSpeciesCard: View {
     @State private var imageFetcher: SimilarSpeciesImageFetcher
     @State private var remoteImageFailed = false
     private let selectionFeedback: @MainActor () -> Void
+    private let loadsViewerImages: Bool
 
     init(
         entry: SimilarSpeciesEntry,
         currentCommonName: String?,
         onSpeciesSelected: ((SimilarSpeciesEntry) -> Void)? = nil,
+        loadsViewerImages: Bool = true,
         dependencies: SimilarSpeciesGalleryDependencies = .live
     ) {
         self.entry = entry
         self.currentCommonName = currentCommonName
         self.onSpeciesSelected = onSpeciesSelected
+        self.loadsViewerImages = loadsViewerImages
         selectionFeedback = dependencies.selectionFeedback
         _imageFetcher = State(
             initialValue: SimilarSpeciesImageFetcher(
@@ -124,7 +131,7 @@ struct SimilarSpeciesCard: View {
         )
         .shadow(color: Color.black.opacity(0.04), radius: 4, x: 0, y: 2)
         .task(priority: .background) {
-            if entry.referenceImageUrl == nil {
+            if loadsViewerImages {
                 await imageFetcher.fetchImage(for: entry.scientificName)
             }
         }
@@ -135,7 +142,7 @@ struct SimilarSpeciesCard: View {
         ZStack {
             Color(UIColor.systemGray6)
 
-            if !remoteImageFailed,
+            if !loadsViewerImages, !remoteImageFailed,
                let remoteURL = entry.referenceImageUrl {
                 AsyncLocalImageView(
                     path: nil,

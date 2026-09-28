@@ -2,6 +2,7 @@ import PhotosUI
 import SwiftUI
 
 struct MainOverlayView: View {
+    @Environment(\.captureChromeLayout) private var chromeLayout
     // MARK: - Dependencies
     let activeScanImages: [UIImage]
     var isRefining: Bool = false
@@ -27,7 +28,7 @@ struct MainOverlayView: View {
                 )
                     // Keep the pre-regression full-screen offset. The pager ignores safe areas,
                     // so its GeometryProxy cannot supply the home-indicator inset here.
-                    .padding(.bottom, CaptureControlBarLayout.fullScreenOverlayClearance + 16)
+                    .padding(.bottom, chromeLayout.fullScreenOverlayClearance + 16)
                     .transition(.opacity)
             }
         }

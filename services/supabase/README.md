@@ -3021,3 +3021,10 @@ Detail reactor identities use `get-explore-post-reactors` and its guarded
 `get_explore_post_reactors` RPC. Native ownership is
 `ExplorePostReactorsViewModel` plus the typed detail sheet; see the
 [people API](../../docs/backend-and-data/05-api-contracts.md#post-reaction-people).
+
+## Reported content projection
+
+`20260927220537_hide_reported_explore_posts.sql` filters the reporter out of
+canonical/independent post readers and reused reference media without changing
+moderation statuses. The authenticated `species-dictionary-for-viewer` endpoint
+complements the preserved anonymous dictionary route.

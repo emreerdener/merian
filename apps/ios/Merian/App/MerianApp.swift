@@ -90,6 +90,7 @@ struct MerianApp: App {
         ManualAppleRevocationNoticeStore.isPending()
     @State private var isAccountDeletionRecoveryPending: Bool
     @State private var signOutToast: ToastPayload?
+    @State private var hasPendingWhatsNew: Bool
     
     // MARK: - App Dependencies
     let diContainer: AppDIContainer
@@ -135,6 +136,15 @@ struct MerianApp: App {
         startupRecoveryNotice = StartupRecoveryNoticePolicy.combined(
             storeNotice: bootstrapOutcome.startupNotice
         )
+        _hasPendingWhatsNew = State(initialValue: WhatsNewLaunchStore().prepareLaunch(
+            hasCompletedOnboarding: appSettings.hasCompletedOnboarding,
+            isRunningTests: TestExecutionCoordinator.isRunningTests,
+            hasStartupInterruption: bootstrapOutcome.container == nil
+                || bootstrapOutcome.startupStoreState != .normal
+                || startupRecoveryNotice != nil
+                || AccountDeletionLocalCleanupStore.isPending()
+                || ManualAppleRevocationNoticeStore.isPending()
+        ) || UITestSeedCoordinator.isWhatsNewLaunchSeedEnabled)
         if let container {
             let mainContext = container.mainContext
             dependencies.scanRepository.configure(with: mainContext)
@@ -182,8 +192,23 @@ struct MerianApp: App {
                         case .workspace:
                             CaptureWorkspaceView(
                                 appSettings: appSettings,
-                                opensExploreOnFreshLaunch: shouldOpenExploreOnFreshLaunch
+                                opensExploreOnFreshLaunch: shouldOpenExploreOnFreshLaunch,
+                                showsWhatsNewOnFreshLaunch: hasPendingWhatsNew
+                                    && !isAccountDeletionRecoveryPending
+                                    && !isShowingManualAppleRevocationNotice
                             )
+                            .environment(\.acknowledgeWhatsNew) {
+                                guard appSettings.hasCompletedOnboarding,
+                                      consentManager.hasCurrentRequiredConsent,
+                                      !isAccountDeletionRecoveryPending,
+                                      !isShowingManualAppleRevocationNotice else {
+                                    return
+                                }
+                                if !TestExecutionCoordinator.isRunningTests {
+                                    WhatsNewLaunchStore().acknowledge()
+                                }
+                                hasPendingWhatsNew = false
+                            }
                         case .restoringConsent:
                             ConsentRestorationView()
                         case .onboarding:
@@ -244,6 +269,9 @@ struct MerianApp: App {
                     else { return }
                     lifecycleManager.handleActivePhase()
                 }
+            }
+            .onChange(of: diContainer.supabaseManager.currentUser?.id, initial: true) { _, viewerID in
+                diContainer.exploreContentVisibility.activate(viewerID: viewerID)
             }
             .onChange(of: appSettings.themeMode) { _, newTheme in
                 applyTheme(newTheme)
