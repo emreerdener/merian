@@ -101,7 +101,7 @@ BEGIN
     BEGIN
         PERFORM internal.require_identification_processor_consent(test_user_id, 'openai');
     EXCEPTION WHEN SQLSTATE 'P0001' THEN
-        IF SQLERRM <> 'ai_openai_consent_required' THEN RAISE; END IF;
+        IF SQLERRM <> 'ai_consent_required' THEN RAISE; END IF;
         denied := TRUE;
     END;
     IF NOT denied THEN RAISE EXCEPTION 'recipient recovery accepted invalid OpenAI evidence'; END IF;
@@ -184,7 +184,13 @@ BEGIN
     );
 
     PERFORM internal.require_current_ai_consent(test_user_id, 'openai');
-    PERFORM internal.require_identification_processor_consent(test_user_id, 'openai');
+    denied := FALSE;
+    BEGIN
+        PERFORM internal.require_identification_processor_consent(test_user_id, 'openai');
+    EXCEPTION WHEN SQLSTATE 'P0001' THEN
+        IF SQLERRM <> 'ai_consent_required' THEN RAISE; END IF; denied := TRUE;
+    END;
+    IF NOT denied THEN RAISE EXCEPTION 'OpenAI grant bypassed ordinary required consent'; END IF;
     denied := FALSE;
     BEGIN
         PERFORM internal.require_current_ai_consent(test_user_id, 'google_gemini');
@@ -198,6 +204,9 @@ BEGIN
     IF NOT result.accepted OR result.accepted_parent_id IS NOT NULL THEN
         RAISE EXCEPTION 'Gemini grant was influenced by OpenAI history';
     END IF;
+    PERFORM pg_catalog.SET_CONFIG('role', 'none', TRUE);
+    PERFORM internal.require_identification_processor_consent(test_user_id, 'openai');
+    PERFORM pg_catalog.SET_CONFIG('role', 'authenticated', TRUE);
     -- Equal UUID/payload is not idempotence across different processors.
     denied := FALSE;
     BEGIN
@@ -258,6 +267,13 @@ BEGIN
     END;
     IF NOT denied THEN RAISE EXCEPTION 'unexpected processor authorization: %', 'google_gemini'; END IF;
     PERFORM internal.require_current_ai_consent(test_user_id, 'openai');
+    denied := FALSE;
+    BEGIN
+        PERFORM internal.require_identification_processor_consent(test_user_id, 'openai');
+    EXCEPTION WHEN SQLSTATE 'P0001' THEN
+        IF SQLERRM <> 'ai_consent_required' THEN RAISE; END IF; denied := TRUE;
+    END;
+    IF NOT denied THEN RAISE EXCEPTION 'OpenAI grant bypassed Gemini withdrawal'; END IF;
     FOREACH recipient IN ARRAY ARRAY[NULL, '', 'unknown', 'OpenAI'] LOOP
     denied := FALSE;
     BEGIN
@@ -283,7 +299,7 @@ BEGIN
     BEGIN
         PERFORM internal.require_identification_processor_consent(test_user_id, 'openai');
     EXCEPTION WHEN SQLSTATE 'P0001' THEN
-        IF SQLERRM <> 'ai_openai_consent_required' THEN RAISE; END IF;
+        IF SQLERRM <> 'ai_consent_required' THEN RAISE; END IF;
         denied := TRUE;
     END;
     IF NOT denied THEN RAISE EXCEPTION 'recipient recovery accepted invalid OpenAI evidence'; END IF;

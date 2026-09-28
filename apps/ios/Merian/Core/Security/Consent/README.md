@@ -218,19 +218,27 @@ Release readiness remains governed separately by
 ## Optional OpenAI permission
 
 `ConsentPolicy.openAIConsentCollectionEnabled` is `true`; optional permission
-collection precedes provider activation. Onboarding and current production
-inference still require Gemini. `AIProcessingPrivacySection` is available in
-Settings and in the saved-scan **Review permission** sheet. Naturebook owns
-provider assignment; granting permission neither selects OpenAI nor retries a
-scan. Account availability is projected from the same observed/SDK identity and
-transition checks used at mutation. Opening the disclosure captures the expected
-owner; account replacement, SDK mismatch, transition or cancellation rejects the
+collection remains available independently of beta processing eligibility.
+`openAIBetaOptInDeferred` allows an absent OpenAI choice for beta processing but
+never creates a grant. `canProcessOpenAI` requires a current account, reliable
+storage and no pending or explicit all-version withdrawal; `hasGrantedOpenAI`
+continues to report actual current-version evidence. Required onboarding stays
+unchanged. `AIProcessingPrivacySection` is available in Settings and in the
+saved-scan **Review permission** sheet. Naturebook owns provider assignment;
+granting permission neither selects OpenAI nor retries a scan. Account
+availability is projected from the same observed/SDK identity and transition
+checks used at mutation. Opening the disclosure captures the expected owner;
+account replacement, SDK mismatch, transition or cancellation rejects the
 action. Existing grants remain withdrawable if collection is later disabled.
-Successful offline actions persist in the existing ledger and later synchronize
-in causal order. Failed writes show an unsaved error; failed withdrawal closes
-the local choice for this process and stays retryable, without claiming durable
-revocation across restart. The existing separate Keychain withdrawal journal
-remains PostHog-only. OpenAI evidence never becomes Gemini required proof.
+Settings displays **On during beta** without claiming a grant and offers a real
+withdrawal from that state. The withdrawal action reads **Turn off future OpenAI
+processing** and the same action text is recorded; existing receipts are never
+rewritten. Successful offline actions persist in the existing ledger and later
+synchronize in causal order. Failed writes show an unsaved error; failed
+withdrawal closes the local choice for this process and stays retryable, without
+claiming durable revocation across restart. The existing separate Keychain
+withdrawal journal remains PostHog-only. OpenAI evidence never becomes Gemini
+required proof.
 
 `AIProcessingConsentCoordinatorTests` covers explicit collection without an
 implicit grant or cloud receipt, independent permissions and parents, closed

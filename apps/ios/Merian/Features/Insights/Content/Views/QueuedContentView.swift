@@ -90,7 +90,7 @@ struct QueuedContentView: View {
             offlineQueueManager.ownsOpenAIConsentPausedScan(
                 scanId: queuedContext.id, accountId: accountId
             ) else { return .unavailable }
-        return permission.hasGrantedOpenAI ? .granted : .needsReview
+        return permission.canProcessOpenAI ? .granted : .needsReview
     }
 
     private var retryPresentation: QueuedRetryPresentation? {

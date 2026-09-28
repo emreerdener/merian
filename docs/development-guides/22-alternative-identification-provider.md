@@ -1,16 +1,16 @@
 # Alternative identification provider evaluation
 
 The first alternative is `gpt-6-sol` through OpenAI's Responses API. The shared
-adapter is implemented for controlled local and hosted evaluation; **production
-continues to assign every identification and enrichment task to Gemini**. No
-client, environment setting or quota reservation can activate OpenAI in a
-deployed endpoint.
+adapter supports controlled local and hosted evaluation. The separate production
+`openai_photo_v1` binding adds pinned inline moderation and V2 result metadata;
+the owner-authorized beta catalog assigns still photos to it and retains Gemini
+for other complete-input profiles and enrichment. Provider selection stays
+server-owned. See the
+[beta activation record](../release-evidence/openai-beta-photo-activation-2026-09-28.md).
 
-The separate dormant `openai_photo_v1` integration binding now adds pinned
-inline moderation and V2 result metadata. It is not an evaluation profile and
-does not alter the completed baseline requests or their hashes. Its safety and
-end-to-end qualification remain pending; see the
-[integration plan](../rfcs/identification-openai-photo-integration-2026-09-27.md).
+The production binding does not alter the completed baseline requests or their
+hashes. Its separate paid end-to-end qualification remains deferred by the beta
+decision, not reported as complete.
 
 The
 [matched comparison](../rfcs/identification-gemini-openai-matched-results-2026-09-27.md)
@@ -65,9 +65,9 @@ split into extra provider calls or silently reduced to photos.
 - `scripts/identification_evaluation/providers.ts` selects evaluation profiles.
   Production `production.ts` contains a separate enabled photo composition,
   using `openaiPhoto.ts` and the exact registered binding. Credential lookup
-  follows admitted catalog assignment; current catalog rows still select Gemini.
-  Deploy the enabled bundle before a separate photo assignment migration.
-  Evaluation profiles are not production assignments. The
+  follows admitted catalog assignment; the beta catalog assigns only still
+  photos to OpenAI. Deploy the enabled bundle before a separate photo assignment
+  migration. Evaluation profiles are not production assignments. The
   [photo integration record](../rfcs/identification-openai-photo-integration-2026-09-27.md)
   owns the implemented admission, safety, provenance and compatible-reader work.
 - Required fields, bounds and enums still pass the common Identify parser.
@@ -141,10 +141,11 @@ source and Supabase is the runtime store. The
 owns the env-backed CLI transport, digest verification and failure handling.
 Successful synchronization proves only that the key was copied; it does not
 validate provider access or activate OpenAI traffic. The photo composition is
-source-enabled ahead of catalog activation; Gemini retains every assignment.
-Settings can collect optional permission, while the owner-requested beta opt-in
-deferral belongs to the subsequent activation change. Provider qualification,
-traffic activation and rollback remain separate decisions.
+source-enabled ahead of catalog activation; the beta catalog changes only
+still-photo assignments. Settings retains explicit choice collection, while the
+owner-requested beta policy allows an absent OpenAI choice and honors explicit
+withdrawal. Provider qualification, traffic activation and rollback remain
+separate decisions.
 
 ### Private local key entry
 
@@ -391,13 +392,14 @@ The
 [photo integration record](../rfcs/identification-openai-photo-integration-2026-09-27.md#provider-infrastructure-closeout--27-september-2026)
 records completed infrastructure and verified deployment of the OpenAI key
 synchronization. The primary handler prepares a result policy before quota
-commitment; the dormant photo binding has separate safety, provenance,
-admission, accounting and reader contracts. These implemented boundaries do not
-establish OpenAI qualification or activation. All production assignments retain
-Gemini, including description-only, audio and sampled-video observations.
-Permission collection, released-reader verification, held-out qualification and
-explicit activation remain separate follow-up work. TestFlight archive and
-released-store upgrade verification also remain separate iOS release work.
+commitment; the photo binding has separate safety, provenance, admission,
+accounting and reader contracts. Beta activation changes only still-photo
+assignment and defers a new opt-in for accounts without an OpenAI choice;
+explicit withdrawals still deny. Description-only, audio and sampled-video
+observations retain Gemini. Released-reader verification, full
+production-profile qualification, TestFlight archive and released-store upgrade
+verification remain separate evidence; source completion does not claim those
+outcomes.
 
 The implemented admission slice records an exact Gemini
 provider/binding/permission assignment per metered identification attempt and
@@ -406,10 +408,11 @@ rejects unqualified recipients before dispatch. See its
 The subsequent
 [OpenAI consent slice](../rfcs/identification-provider-openai-consent-2026-09-26.md)
 implements independent evidence, strict recipient proof and optional Settings
-choices with collection disabled in source. Account changes, failed saves,
-revocation and causal synchronization are covered locally. Current onboarding,
-client inference admission and the underlying quota delegate still require
-Gemini. The
+choices. Collection is now enabled; beta eligibility is a separate projection
+that never creates evidence. Account changes, failed saves, revocation and
+causal synchronization are covered locally. Required onboarding and the ordinary
+consent gate remain unchanged; photo inference additionally applies the current
+server-owned beta recipient policy. The
 [server provenance slice](../rfcs/identification-provider-result-provenance-2026-09-26.md)
 now retains successful Gemini provider/model and generation/confidence
 configuration with atomic recovery backups. Historical unknown values stay null.

@@ -1563,7 +1563,7 @@ final class merianUITests: XCTestCase {
         XCTAssertTrue(grant.waitForExistence(timeout: 4))
         grant.tap()
         permission.tap()
-        let withdraw = app.buttons["I withdraw permission for OpenAI to process future observations."]
+        let withdraw = app.buttons["Turn off future OpenAI processing."]
         XCTAssertTrue(withdraw.waitForExistence(timeout: 4))
         withdraw.tap()
         app.buttons["AIPrivacy_Done"].tap()

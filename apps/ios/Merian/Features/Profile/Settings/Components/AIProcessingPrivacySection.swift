@@ -16,6 +16,7 @@ struct AIProcessingPrivacySection: View {
     private var permissionStatus: String {
         if permission.hasPendingOpenAIWithdrawal { return "Withdrawal pending" }
         if permission.hasGrantedOpenAI { return "Allowed" }
+        if permission.isOpenAIBetaEligible { return "On during beta" }
         if permission.hasOpenAIGrantToWithdraw { return "Review permission" }
         return "Off"
     }
@@ -25,7 +26,7 @@ struct AIProcessingPrivacySection: View {
             Section {
                 Button {
                     expectedOwnerUserId = permission.ownerUserId
-                    requestedGrant = !permission.hasOpenAIGrantToWithdraw && !permission.hasPendingOpenAIWithdrawal
+                    requestedGrant = !permission.canProcessOpenAI && !permission.hasOpenAIGrantToWithdraw && !permission.hasPendingOpenAIWithdrawal
                     isShowingDisclosure = true
                 } label: {
                     LabeledContent("OpenAI identification") {
@@ -37,7 +38,9 @@ struct AIProcessingPrivacySection: View {
             } header: {
                 Text("AI privacy")
             } footer: {
-                Text("Naturebook chooses the AI service for each observation. Allowing OpenAI gives permission to share data when Naturebook uses it; it does not change the service in use.")
+                Text(permission.isOpenAIBetaOptInDeferred
+                    ? ConsentPolicy.openAIBetaProcessingText
+                    : "Naturebook chooses the AI service for each observation. Allowing OpenAI gives permission to share data when Naturebook uses it; it does not change the service in use.")
             }
             .alert("OpenAI identification", isPresented: $isShowingDisclosure) {
                 Button(
@@ -54,7 +57,8 @@ struct AIProcessingPrivacySection: View {
                 }
                 Button("Cancel", role: .cancel) {}
             } message: {
-                Text(ConsentPolicy.openAIDisclosureText)
+                Text(permission.isOpenAIBetaOptInDeferred && !requestedGrant
+                    ? ConsentPolicy.openAIBetaProcessingText : ConsentPolicy.openAIDisclosureText)
             }
             .onChange(of: permission.ownerUserId) { _, _ in
                 isShowingDisclosure = false

@@ -246,11 +246,15 @@ and disclosure `2026-09-26`; optional collection is enabled in Settings and a
 paused scan's in-app permission sheet, outside required onboarding. Gemini
 consent never creates OpenAI consent. Naturebook chooses the provider; an OpenAI
 grant allows disclosure when assigned but does not select a service or start a
-saved scan. Production assignment remains Gemini pending the reviewed photo
-rollout. The exact displayed statement is stored with each action, along with a
-client-generated UUID, device action time, platform, app version, and app build.
-Adult eligibility is self-attested on every supported iOS version; Naturebook
-does not collect a birth date or exact age.
+saved scan. During the owner-authorized beta, app-assigned still photos can use
+OpenAI without a new opt-in. This is processing eligibility, never a fabricated
+grant: Settings shows **On during beta**, offers **Turn off future OpenAI
+processing**, and an explicit all-version withdrawal remains blocking. Required
+onboarding and its evidence stay unchanged. The exact displayed statement is
+stored with each explicit action, along with a client-generated UUID, device
+action time, platform, app version, and app build. Adult eligibility is
+self-attested on every supported iOS version; Naturebook does not collect a
+birth date or exact age.
 
 `ConsentManager` requests each local transition immediately, including while the
 first anonymous Supabase session is still being created.

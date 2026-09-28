@@ -1,11 +1,11 @@
 # OpenAI photo rollout
 
 Date: 28 September 2026\
-Status: optional permission collection and saved-scan recovery implemented in
-source and ready for review. Distribution and activation remain pending;
-production remains Gemini.
+Status: beta still-photo activation implemented for the owner's requested
+release. Runtime activation requires the ordered deployments below; iOS
+archive/upload and released-build upgrade verification remain separate.
 
-## Adapter enablement follow-up — 28 September 2026
+## Stage 1: adapter enablement — 28 September 2026
 
 PR 95 merged the optional permission UI and saved-scan recovery. The owner then
 requested enabling OpenAI still-photo identification during beta, deferring the
@@ -21,6 +21,27 @@ benchmark results; source enablement is not a new benchmark or a claim that the
 production binding has completed live qualification. The beta permission-policy
 change is separate from this adapter preparation and must preserve explicit
 withdrawals without manufacturing affirmative consent.
+
+## Stage 2: owner-authorized beta activation
+
+The owner explicitly requested enabling the photo adapter and deferring the new
+opt-in because the current audience is beta users. Migration `20260928165412`
+assigns every still-photo plan/policy row to the exact OpenAI photo tuple, keeps
+quota models and policies unchanged, and retains Gemini for every other input
+profile. It must follow a successful Stage 1 Function deployment.
+
+Backend identification and native `canProcessOpenAI` allow accounts with no
+OpenAI choice during beta. Explicit all-version withdrawals still deny; required
+onboarding, account ownership, storage certainty, quota, native moderation and
+protocol-4 reader checks remain. No grant is manufactured. Settings can turn off
+future processing. Old binaries retain local opt-in checks until rebuilt.
+
+This beta decision does not claim completed native-moderation live
+qualification, new benchmark results or a released-build upgrade pass. Keep the
+original OpenAI prompt and full explanation format. The
+[activation evidence and rollback scope](../release-evidence/openai-beta-photo-activation-2026-09-28.md)
+record the operation and target. Reassess the deferred policy before expanding
+beyond the current beta audience.
 
 ## Decision and current position
 
@@ -66,7 +87,11 @@ and ledger tests use synthetic local evidence without provider keys. The Release
 archive rejects the new fixture marker, and the workflow contract checks markers
 from every Swift fixture file in `App/UITesting/`.
 
-## Remaining release sequence
+## Original full-release sequence (before the beta decision)
+
+The sequence below remains the full-release record. The owner-authorized beta
+activation above defers the additional opt-in and separate paid qualification
+packet; it preserves exact-SHA validation and compatibility gates.
 
 1. **Review and distribute the compatible iOS reader and permission flow.**
    Require current CI, archive/upload through the existing release procedure,

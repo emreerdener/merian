@@ -1,5 +1,13 @@
 \set ON_ERROR_STOP on
 BEGIN;
+-- This fixture verifies the supported Gemini/legacy routing configuration.
+-- Activation defaults are asserted independently by openai_photo_routing.sql.
+UPDATE internal.identification_provider_bindings
+SET provider = 'gemini', binding = 'gemini_baseline_v1',
+    processor_permission = 'google_gemini', provider_model = NULL,
+    minimum_identification_protocol = 0, minimum_client_protocol = 0
+WHERE operation = 'scan_identification' AND input_profile = 'multimodal_photo_v1';
+
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SELECT extensions.plan(1);
 DO $test$
@@ -255,7 +263,11 @@ BEGIN
 
     -- Only this rollback-only fixture widens recipient data, without allowing
     -- OpenAI model admission or dispatch. Simulate assignment drift after a
-    -- Gemini preview; even missing OpenAI permission must not mask that drift.
+    -- Gemini preview; even an explicit OpenAI withdrawal must not mask that drift.
+    EXECUTE 'SET LOCAL ROLE authenticated';
+    PERFORM public.append_user_openai_consent_event(extensions.gen_random_uuid(),'2026-09-26','revoked',NOW(),
+        'Synthetic disclosure','Synthetic withdrawal','ios','test','1',NULL);
+    EXECUTE 'RESET ROLE';
     ALTER TABLE internal.identification_provider_bindings DROP CONSTRAINT identification_provider_bindings_recipient_tuple;
     UPDATE internal.identification_provider_bindings SET processor_permission = 'openai'
         WHERE effective_plan = 'pro_paid' AND input_profile = 'multimodal_photo_v1';

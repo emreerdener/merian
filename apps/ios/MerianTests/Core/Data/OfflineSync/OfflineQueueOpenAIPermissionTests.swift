@@ -8,7 +8,7 @@ import Testing
 @MainActor
 struct OfflineQueueOpenAIPermissionTests {
     enum Scenario: CaseIterable, Equatable {
-        case matching, otherAccount, missingAccount, missingFunding, releasedFunding
+        case matching, betaWithoutChoice, otherAccount, missingAccount, missingFunding, releasedFunding
         case mismatchedScan, withdrawn, accountTransition
     }
 
@@ -64,13 +64,13 @@ struct OfflineQueueOpenAIPermissionTests {
         let repository = ConsentLedgerRepository(store: FaultInjectingConsentLedgerStore())
         let permission = AIProcessingConsentCoordinator(
             repository: repository, mutationService: ConsentMutationService(ledgerRepository: repository),
-            isOpenAICollectionEnabled: true
+            isOpenAICollectionEnabled: true, isOpenAIBetaOptInDeferred: true
         )
         permission.setHandlers(contextProvider: {
             .init(observedUserId: currentAccount, sdkUserId: currentAccount, isAccountTransitionInProgress: false)
         }, synchronize: {})
         permission.refresh(ownerUserId: currentAccount)
-        if currentAccount != nil {
+        if currentAccount != nil && scenario != .betaWithoutChoice {
             try permission.setOpenAIEnabled(true, expectedOwnerUserId: currentAccount)
             if scenario == .withdrawn {
                 try permission.setOpenAIEnabled(false, expectedOwnerUserId: currentAccount)
@@ -83,14 +83,14 @@ struct OfflineQueueOpenAIPermissionTests {
         }
         if let currentAccount {
             let owned = manager.ownsOpenAIConsentPausedScan(scanId: scanID, accountId: currentAccount)
-            #expect(owned == [.matching, .withdrawn, .accountTransition].contains(scenario))
+            #expect(owned == [.matching, .betaWithoutChoice, .withdrawn, .accountTransition].contains(scenario))
         }
         let retried = manager.retryQueuedScanNow(scanId: scanID, openAIPermission: permission)
-        #expect(retried == (scenario == .matching))
+        #expect(retried == [.matching, .betaWithoutChoice].contains(scenario))
         #expect(scan.inferenceImagePaths == ["synthetic-photo.webp"])
         #expect(job.metadataJSON == metadata)
         #expect(try context.fetchCount(FetchDescriptor<OfflineQueuedScan>()) == 1)
-        if scenario == .matching {
+        if [.matching, .betaWithoutChoice].contains(scenario) {
             #expect(scan.queueState == .pending)
             #expect(!scan.queueNeedsAttention)
             #expect(job.status == .pending)

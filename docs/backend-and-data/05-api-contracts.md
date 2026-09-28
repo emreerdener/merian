@@ -371,21 +371,27 @@ fresh action.
 
 The optional Settings coordinator is not inference authorization. Required
 onboarding, `ensureCloudConsentForInference`, `ai_consent_required` recovery and
-legacy quota callers still require Gemini. Identification checks its
-database-selected recipient after a processor-neutral private quota core; all
-assignments remain Gemini. Settings permission is not a provider preference: the
-app controls assignments.
+legacy quota callers still require ordinary Gemini consent. Identification
+checks its database-selected recipient after a processor-neutral private quota
+core. The beta catalog assigns only `scan_identification` /
+`multimodal_photo_v1` to OpenAI; other profiles retain Gemini. Settings controls
+future processing eligibility, while Naturebook controls provider assignment.
 
 Migration `20260926182547_add_identification_recipient_recovery.sql` adds the
 private `internal.require_identification_processor_consent(uuid,text)` wrapper
 to both identification RPC overloads, for fresh assignments and saved attempts.
-Gemini denial retains `ai_consent_required`; OpenAI denial returns the distinct
-`ai_openai_consent_required`. Unknown recipients or a missing account raise
-`ai_provider_assignment_unavailable`, mapped to service unavailability, rather
-than asking for permission to an unknown recipient. Both known consent errors
-are matched exactly at the Edge boundary, retain the existing public error
-envelope, and occur before dispatch. The transaction rolls back its quota and
-complimentary holds on denial. No client-selected recipient field is added.
+The beta activation migration `20260928165412` keeps ordinary required-consent
+checks for both recipients. It allows OpenAI processing with an absent or
+granted OpenAI stream head and rejects an explicit all-version withdrawal with
+`ai_openai_consent_required`. Ordinary required-consent denial retains
+`ai_consent_required`. This changes identification eligibility, not the strict
+receipt validator or immutable evidence; no grant is fabricated. Unknown
+recipients or a missing account raise `ai_provider_assignment_unavailable`,
+mapped to service unavailability, rather than asking for permission to an
+unknown recipient. Both known consent errors are matched exactly at the Edge
+boundary, retain the existing public error envelope, and occur before dispatch.
+The transaction rolls back its quota and complimentary holds on denial. No
+client-selected recipient field is added.
 
 On iOS, only `403 ai_consent_required` opens required Gemini reapproval. Exact
 `403 ai_openai_consent_required` becomes `MerianError.openAIConsentRequired`:
@@ -412,12 +418,17 @@ synchronization and fresh recipient preflight. Account/scan replacement closes
 stale disclosure presentation, and mutation/dispatch retain their own account
 checks.
 
-The production composition supports the exact OpenAI photo adapter; assignments
-remain Gemini until a separate catalog activation. Recipient-aware preflight,
-client-version gating, model admission and provenance are implemented;
-compatible-reader distribution and qualification of the exact production photo
-binding still precede activation. A consent receipt or a catalog row alone
-cannot enable OpenAI. See the
+The enabled production composition and beta catalog activation select the exact
+`openai_photo_v1` / `gpt-6-sol` tuple for still photos with identification
+protocol 4. Audio, video snapshots, mixed photo/audio, text-only and legacy
+profiles retain Gemini. `ConsentPolicy.openAIBetaOptInDeferred` mirrors backend
+beta eligibility; `canProcessOpenAI` retains account, storage and
+pending-withdrawal checks while `hasGrantedOpenAI` remains a truthful receipt
+projection. Settings shows **On during beta** for eligibility without a grant
+and can record an explicit withdrawal. No new opt-in is required for that beta
+path. Older app binaries retain their own local checks until updated.
+Distribution and full production-profile qualification are separately tracked;
+beta activation does not claim either. See the
 [photo rollout](../rfcs/identification-openai-photo-rollout-2026-09-28.md).
 
 ## Fleet-Wide Outbound Provider Contract

@@ -42,6 +42,11 @@ extension UITestSeedCoordinator {
             synchronizationOperation: { _, _ in }
         )
         manager.adoptCloudSession(owner)
+        // A real local withdrawal keeps this recovery fixture meaningful when
+        // the beta admits accounts that have not made an OpenAI choice.
+        do {
+            try manager.aiProcessingPermissions.setOpenAIEnabled(false, expectedOwnerUserId: owner)
+        } catch { return nil }
         return manager
     }
 }

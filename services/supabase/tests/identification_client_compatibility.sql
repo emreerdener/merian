@@ -1,5 +1,13 @@
 \set ON_ERROR_STOP on
 BEGIN;
+-- This fixture verifies the supported Gemini/legacy routing configuration.
+-- Activation defaults are asserted independently by openai_photo_routing.sql.
+UPDATE internal.identification_provider_bindings
+SET provider = 'gemini', binding = 'gemini_baseline_v1',
+    processor_permission = 'google_gemini', provider_model = NULL,
+    minimum_identification_protocol = 0, minimum_client_protocol = 0
+WHERE operation = 'scan_identification' AND input_profile = 'multimodal_photo_v1';
+
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SELECT extensions.plan(1);
 DO $test$
