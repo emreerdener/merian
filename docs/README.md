@@ -191,10 +191,10 @@ production submission or public release.
   current release identifiers, and high-impact corrections to the retired
   product document.
 - **[`/product/03-identification-foundation-prd.md`](./product/03-identification-foundation-prd.md)**
-  — Active provider-flexibility infrastructure plan: Gemini remains on all
-  identification and supporting content tasks while shared interfaces, explicit
-  bindings, and parity tests prepare for a later provider change. Video capture
-  supplies sampled images and any included companion audio to inference.
+  — Completed Gemini-only provider-flexibility foundation and its original
+  acceptance contract, with links to later dormant OpenAI infrastructure and
+  optimization work. Gemini remains on production tasks. Video capture supplies
+  sampled images and any included companion audio to inference.
 - **[`/rfcs/identification-foundation-srd.md`](./rfcs/identification-foundation-srd.md)**
   — Companion system requirements for the Gemini adapter, actual-input
   capability checks, existing consent/confidence and recovery behavior, and a
@@ -260,13 +260,17 @@ production submission or public release.
   [26 September concise screen](./rfcs/identification-openai-concise-screen-2026-09-26.md)
   remains closed and inconclusive after one control result; concise explanations
   are not a selected next step and the unused assignments are not resumed.
-- **Identification evaluation readiness:**
+- **Identification evaluation readiness:** Current progress includes the
+  completed exploratory Gemini/OpenAI comparison; the current optimization plan
+  above reuses that evidence. Formal independently reviewed qualification
+  remains a separate milestone. The
   [PRD](./product/04-identification-evaluation-prd.md) and
-  [SRD](./rfcs/identification-evaluation-srd.md) plan the next milestone: an
-  independently reviewed corpus, shared result normalization, and a repeatable
-  Gemini quality/time/cost baseline. Includes five implementation slices; Slices
-  1–3 now supply offline contracts, shared production request/normalization
-  rules, a guarded runner, durable attempts and reproducible reports; the
+  [SRD](./rfcs/identification-evaluation-srd.md) define that formal milestone:
+  an independently reviewed corpus, shared result normalization, and a
+  repeatable Gemini quality/time/cost baseline. Includes five implementation
+  slices; Slices 1–3 now supply offline contracts, shared production
+  request/normalization rules, a guarded runner, durable attempts and
+  reproducible reports; the
   [Slice 4 collection packet](./development-guides/20-identification-evaluation-pilot.md)
   supplies a solo phone/computer workflow, automated exploratory preflight and
   provisional reporting, proposed formal coverage and blank intake/reviewer

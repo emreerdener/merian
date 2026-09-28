@@ -1,9 +1,10 @@
 # Alternative identification provider evaluation
 
 The first alternative is `gpt-6-sol` through OpenAI's Responses API. The shared
-adapter is implemented for local evaluation; **production continues to assign
-every identification and enrichment task to Gemini**. No client, environment
-setting or quota reservation can activate OpenAI in a deployed endpoint.
+adapter is implemented for controlled local and hosted evaluation; **production
+continues to assign every identification and enrichment task to Gemini**. No
+client, environment setting or quota reservation can activate OpenAI in a
+deployed endpoint.
 
 The separate dormant `openai_photo_v1` integration binding now adds pinned
 inline moderation and V2 result metadata. It is not an evaluation profile and
@@ -11,11 +12,16 @@ does not alter the completed baseline requests or their hashes. Its safety and
 end-to-end qualification remain pending; see the
 [integration plan](../rfcs/identification-openai-photo-integration-2026-09-27.md).
 
-The purpose of this slice is to use the existing examples and evaluation harness
-to compare a second provider. It does not require another Gemini-only benchmark
-campaign. Earlier app measurements remain useful reference evidence; a direct
-paired comparison requires the same prepared inputs, source and measurement
-boundary on both sides. Audio experiments cannot establish photo/text quality.
+The
+[matched comparison](../rfcs/identification-gemini-openai-matched-results-2026-09-27.md)
+completed all sixteen scheduled Gemini/OpenAI attempts on 27 September. Earlier
+app measurements and this comparison remain development evidence, with their
+original inputs and limitations. The
+[current optimization plan](../rfcs/identification-optimization-preserving-results-2026-09-27.md)
+starts from that evidence and preserves the current explanation format and
+detail. It does not require another Gemini-only benchmark campaign or a repeat
+of the closed concise-explanation screen. Audio experiments cannot establish
+photo/text quality.
 
 ## Fixed initial assignment
 
@@ -56,10 +62,13 @@ split into extra provider calls or silently reduced to photos.
   decoding and usage. There is no SDK, URL override, retry, remote-media fetch,
   tool use, background job or stored conversation. Preparation performs no
   disclosure; the common executor permits one invocation.
-- `scripts/identification_evaluation/providers.ts` is the only non-test
-  composition selecting this adapter. Production `production.ts`, the Gemini
-  registry, database admission, consent receipts, app responses and saved scans
-  retain their existing behavior.
+- `scripts/identification_evaluation/providers.ts` selects evaluation profiles.
+  Production `production.ts` contains a separate dormant photo composition,
+  using `openaiPhoto.ts` and the exact registered binding; its false source gate
+  rejects before credential lookup. Evaluation profiles are not production
+  assignments. The
+  [photo integration record](../rfcs/identification-openai-photo-integration-2026-09-27.md)
+  owns the implemented admission, safety, provenance and compatible-reader work.
 - Required fields, bounds and enums still pass the common Identify parser.
   Provider-required null optionals map back to the domain contract; missing or
   extra provider fields fail. Domain normalization retains OpenAI candidates
@@ -310,21 +319,26 @@ v1 records keep their original interpretation. The
 owns formats, offline commands, missing-measurement rules and compatibility.
 OpenAI native usage now includes bounded cache-write counts when reported; old
 attempts do not gain those missing values retroactively. Historical attempts
-have no explanation assessment; new candidate runs require the private review
-contract below.
+have no explanation assessment; the retained concise candidate contracts require
+the private review described below.
 
 The
-[provider optimization plan](../rfcs/identification-provider-optimization-plan.md)
-owns the selected concise OpenAI hypothesis, delegated AI or optional owner
-review and uncached control/candidate pair, the bounded 16-request comparison
-and later production qualification. Slice 2 now supplies immutable baseline
-descriptors, a frozen experiment plan, shared allocations/reservations, an
-exclusive controller and a persistent global stop. The
+[current optimization plan](../rfcs/identification-optimization-preserving-results-2026-09-27.md)
+owns the next slices: locate a measured bottleneck, remove unnecessary shared
+work, then consider one provider-specific improvement if justified. Existing
+explanation format and detail stay intact. Its first slice is an offline audit,
+with no new owner practice exercise, corpus collection or paid benchmark.
+
+The [earlier plan](../rfcs/identification-provider-optimization-plan.md) records
+the implemented measurement and experiment controls. Its Slice 2 supplies
+immutable baseline descriptors, a frozen experiment plan, shared
+allocations/reservations, an exclusive controller and a persistent global stop.
+The
 [controller contract](../../services/supabase/scripts/identification_evaluation/README.md#reusable-profiles-and-experiment-controls-optimization-slice-2)
 owns `experiment-preflight`, `experiment-offline`, `--experiment-live` and
 `experiment-report`. The OpenAI hidden-input launcher accepts
 `--experiment-live <packet> <runId>` or `--experiment-session <packet>` for one
-key entry across the ordered OpenAI runs. The new
+key entry across the ordered OpenAI runs. The retained
 [private candidate workflow](../../services/supabase/scripts/identification_evaluation/README.md#concise-openai-candidate-and-private-review)
 adds code-defined uncached control/concise profiles, bounded v3 attempts and
 ephemeral explanation assessment. V2 experiments preserve owner calibration; v3
@@ -344,7 +358,15 @@ matched the provisional reference and observed cache counters were zero, but
 lookalike claims could not be assessed against the frozen facts. Fifteen
 assignments remain unattempted; retain the existing profile and defer the
 concise candidate. The single result does not establish general cache support or
-qualify production use.
+qualify production use. These profiles and tests remain available as historical
+and regression contracts; their presence does not schedule another comparison.
+
+The existing v1 controller accepts the two baseline profiles; v2/v3 are specific
+to the closed concise hypothesis. A different optimization needs a reviewed
+profile and any required controller, accounting and report changes before live
+use. Packet JSON cannot select arbitrary settings. The
+[tooling owner](../../services/supabase/scripts/identification_evaluation/README.md#reusable-profiles-and-experiment-controls-optimization-slice-2)
+remains authoritative for executable admission.
 
 ## Later production assignment
 
@@ -357,21 +379,21 @@ Both configurations agreed with five provisional biological photo references and
 the mineral control. OpenAI's observed photo median was 7.10 seconds versus
 15.81 seconds for Gemini Pro; this small reused corpus remains unqualified.
 
-The next milestone is
-[photo integration](../rfcs/identification-openai-photo-integration-2026-09-27.md).
-The primary handler now independently prepares a result policy before quota
-commitment. Current Gemini profiles retain their diagnostic threshold and
-safety-signal behavior. OpenAI evaluation keeps unqualified confidence, and its
-absence of Gemini ratings cannot authorize production media promotion. A
-separate OpenAI safety contract, versioned provenance, dormant admission/runtime
-wiring and qualification precede activation. Description-only, audio and
-sampled-video assignments remain Gemini. TestFlight archive and released-store
-upgrade verification remain separate iOS release work.
+The
+[photo integration record](../rfcs/identification-openai-photo-integration-2026-09-27.md#provider-infrastructure-closeout--27-september-2026)
+records completed infrastructure and verified deployment of the OpenAI key
+synchronization. The primary handler prepares a result policy before quota
+commitment; the dormant photo binding has separate safety, provenance,
+admission, accounting and reader contracts. These implemented boundaries do not
+establish OpenAI qualification or activation. All production assignments retain
+Gemini, including description-only, audio and sampled-video observations.
+Permission collection, released-reader verification, held-out qualification and
+explicit activation remain separate follow-up work. TestFlight archive and
+released-store upgrade verification also remain separate iOS release work.
 
-Production integration is a separate milestone. The first admission slice now
-records an exact Gemini provider/binding/permission assignment per metered
-identification attempt and rejects unqualified recipients before dispatch. See
-its
+The implemented admission slice records an exact Gemini
+provider/binding/permission assignment per metered identification attempt and
+rejects unqualified recipients before dispatch. See its
 [implementation record](../rfcs/identification-provider-production-admission-2026-09-26.md).
 The subsequent
 [OpenAI consent slice](../rfcs/identification-provider-openai-consent-2026-09-26.md)

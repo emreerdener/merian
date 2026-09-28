@@ -4,6 +4,13 @@ Date: 26 September 2026 (America/Chicago)\
 Status: Closed as inconclusive after one control result; concise candidate
 untested
 
+**Direction update — 27 September 2026:** The
+[current optimization plan](./identification-optimization-preserving-results-2026-09-27.md)
+preserves the existing explanation format and detail. Concise explanations are
+not a selected next step. The measurements, remaining assignments and spending
+closure below remain unchanged; references to candidate selection describe the
+earlier plan.
+
 The single-session OpenAI comparison was approved for eight reused cases across
 two profiles, at most 16 calls and USD 86 (USD 43 per profile). One control
 request completed and matched the provisional saguaro reference. The assistant

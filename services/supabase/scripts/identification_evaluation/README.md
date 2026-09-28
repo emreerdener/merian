@@ -23,6 +23,16 @@ direct evaluator's dry schedule. Gemini remains the only production provider;
 video evidence is ordered snapshots and included WAV audio, never a playback
 video.
 
+Current direction, 27 September 2026: the
+[matched Gemini/OpenAI comparison](../../../../docs/rfcs/identification-gemini-openai-matched-results-2026-09-27.md)
+completed all sixteen scheduled attempts. The
+[current optimization plan](../../../../docs/rfcs/identification-optimization-preserving-results-2026-09-27.md)
+preserves explanation format and detail and starts with existing measurements.
+The earlier concise screen remains closed; the commands and profiles below
+remain executable contracts, not instructions to restart it or spend its unused
+allocation. Formal reviewed-corpus counts and qualification requirements are
+unchanged.
+
 The later
 [description app benchmark](../../../../docs/rfcs/identification-description-app-benchmark-2026-09-22.md)
 adds two source-derived descriptions, one provisional genus agreement and one
@@ -166,10 +176,13 @@ Both commands use synthetic outcomes with no credentials/provider calls. The
 comparison JSON filename includes both run IDs and profiles. The existing
 `report` command regenerates either report version from saved records without
 media or inference. Real experiments still require the independent live
-admission and budget contract; the eight-case development campaign remains
-pending. The
-[optimization plan](../../../../docs/rfcs/identification-provider-optimization-plan.md)
-owns its remaining slices and production qualification path.
+admission and budget contract. The
+[completed matched comparison](../../../../docs/rfcs/identification-gemini-openai-matched-results-2026-09-27.md)
+is the eight-case development outcome; it does not qualify production use. The
+[current optimization plan](../../../../docs/rfcs/identification-optimization-preserving-results-2026-09-27.md)
+owns future priorities, while the
+[earlier plan](../../../../docs/rfcs/identification-provider-optimization-plan.md)
+retains the history of these measurement controls.
 
 ## Reusable profiles and experiment controls (optimization Slice 2)
 
@@ -187,6 +200,14 @@ behavior recorded as uncontrolled. The separate v2 candidate contract below adds
 the uncached control and concise OpenAI profile with mandatory private review.
 No packet can supply arbitrary native settings. Neither contract adds
 prewarming, cache objects, paid judge calls, retries or a production selector.
+
+These are code-defined allowlists. V2/v3 admit only their existing concise
+hypothesis and review contract; they are not a generic candidate runner. A new
+cache, prompt, media or native-setting hypothesis requires reviewed profile
+registration and compatible plan/report/accounting support before live
+admission. Do not repurpose a completed packet, change a frozen profile or relax
+validation to fit a new candidate. The hosted wrapper likewise accepts only its
+fixed baseline pair.
 
 ### Frozen plan and accounting
 
@@ -316,6 +337,12 @@ comparability. Cache comparability remains `not_established`, screening is
 development reports.
 
 ## Concise OpenAI candidate and private review
+
+This retained contract belongs to the
+[closed 26 September screen](../../../../docs/rfcs/identification-openai-concise-screen-2026-09-26.md).
+Concise explanations are not selected in the current plan. Keep its profiles,
+tests and immutable outcomes; do not resume the fifteen unattempted assignments
+or treat their unused budget as available for a different experiment.
 
 The two additional code-defined profiles are `openai_photo_text_uncached_v1`
 (control) and `openai_photo_text_concise_uncached_v1` (candidate). Both use

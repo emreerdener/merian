@@ -1,12 +1,37 @@
 # Naturebook Identification Evaluation Readiness — PRD
 
 Document ID: NB-PRD-IDENTIFICATION-EVAL-001\
-Version: 0.20\
-Date: 23 September 2026\
-Status: Slices 1–3 implemented; photo, description, first video and expanded
-audio app checks completed; reviewed baseline pending\
+Version: 0.21\
+Date: 27 September 2026\
+Status: Evaluation tooling and exploratory Gemini/OpenAI comparison completed;
+formal reviewed baseline pending; production remains Gemini\
 Suggested owners: Product and Backend, with a biological reference reviewer\
 Companion: [Evaluation Readiness SRD](../rfcs/identification-evaluation-srd.md)
+
+## Current checkpoint — 27 September 2026
+
+The [OpenAI pilot](../rfcs/identification-openai-photo-text-pilot-2026-09-25.md)
+and
+[completed matched comparison](../rfcs/identification-gemini-openai-matched-results-2026-09-27.md)
+provide paid exploratory evidence. The matched run completed sixteen first
+attempts using six photos and two descriptions per provider. These reused cases
+and provisional references do not advance the formal 0/60 development or 0/240
+held-out counts. Keep their outcomes and limitations unchanged.
+
+The
+[photo integration record](../rfcs/identification-openai-photo-integration-2026-09-27.md)
+owns completed infrastructure/deployment evidence and remaining activation
+gates. The
+[current optimization plan](../rfcs/identification-optimization-preserving-results-2026-09-27.md)
+owns the next work: use existing measurements to select one improvement while
+preserving explanation format and detail. The concise screen stays closed;
+repeating it or collecting a new formal corpus is not a prerequisite to that
+offline audit. Formal qualification still requires the reviewed evidence below.
+
+## Earlier implementation and app evidence — 22–23 September 2026
+
+The following checkpoint retains its original scope; statements about no paid
+direct-evaluator run describe that earlier date.
 
 Slices 1–3 now have offline contracts, validation, prepared synthetic media,
 shared request/normalization rules, a guarded runner and reproducible reports,
@@ -155,8 +180,9 @@ when we consider a different model, provider, or identification approach.
 
 The [provider-flexibility foundation](./03-identification-foundation-prd.md)
 created the interface for future changes. This milestone supplies the evidence
-for deciding whether a change is worthwhile. **Gemini remains the only live
-provider, with the existing prompts, models, and confidence rules.**
+for deciding whether a change is worthwhile. **Gemini remains the only
+production provider.** The original Gemini baseline and completed exploratory
+profiles keep their recorded prompts, models and confidence rules.
 
 The existing local adapter benchmark measures infrastructure overhead. Simulator
 and contract tests establish working flows. Neither establishes biological
@@ -165,15 +191,15 @@ claiming to replace release verification.
 
 ## 2. Recommended scope
 
-| Decision             | Recommendation                                                                                                                                                                                                                             |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| First models         | Evaluate the current Gemini Flash/free and Pro/Pro identification profiles separately. Preserve the complete settings of each profile.                                                                                                     |
-| First path           | The primary `identify-multimodal` path across its real input combinations. Compatibility endpoints retain regression coverage; their different prompts are not represented by this baseline.                                               |
-| Starting dataset     | One to twelve eligible exploratory groups for the solo owner; the formal pilot remains 60 independently reviewed groups, ten per input group.                                                                                              |
-| Reference baseline   | Add 240 held-out observation groups, forty per input group: 300 total, including the pilot.                                                                                                                                                |
-| Scored result        | The model answer after the same contract validation and identification rules used by the backend, before dictionary hydration and persistence.                                                                                             |
-| Evaluation operation | A developer tool with an offline default and an explicitly requested, bounded Gemini run. No deployed evaluation endpoint or production observation export.                                                                                |
-| Next action          | Connect the Debug app and observer to the disabled server-owned assignments and proof headers, then admit complete outcomes before the bounded same-Gemini run. Preserve the three Strong source disagreements and provisional references. |
+| Decision             | Recommendation                                                                                                                                                                                    |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| First models         | Evaluate the current Gemini Flash/free and Pro/Pro identification profiles separately. Preserve the complete settings of each profile.                                                            |
+| First path           | The primary `identify-multimodal` path across its real input combinations. Compatibility endpoints retain regression coverage; their different prompts are not represented by this baseline.      |
+| Starting dataset     | One to twelve eligible exploratory groups for the solo owner; the formal pilot remains 60 independently reviewed groups, ten per input group.                                                     |
+| Reference baseline   | Add 240 held-out observation groups, forty per input group: 300 total, including the pilot.                                                                                                       |
+| Scored result        | The model answer after the same contract validation and identification rules used by the backend, before dictionary hydration and persistence.                                                    |
+| Evaluation operation | A developer tool with an offline default and an explicitly requested, bounded Gemini run. No deployed evaluation endpoint or production observation export.                                       |
+| Next action          | Use the current optimization plan's offline bottleneck audit. Preserve completed benchmarks and provisional references; formal corpus collection and provider qualification remain separate work. |
 
 The numbers are a practical starting scope, not a guarantee that a small quality
 difference can be established statistically. Report sample counts and
