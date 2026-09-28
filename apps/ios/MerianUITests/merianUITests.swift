@@ -674,6 +674,14 @@ final class merianUITests: XCTestCase {
             ]
         )
 
+        let submitTip = app.staticTexts["CaptureSubmitTooltip"]
+        XCTAssertTrue(submitTip.waitForExistence(timeout: 8))
+        // Capture transient guidance once; subsequent accessibility queries can
+        // otherwise outlast its four-second presentation on a busy simulator.
+        let submitTipSnapshot = try submitTip.snapshot()
+        XCTAssertEqual(submitTipSnapshot.label, "Submit to identify")
+        XCTAssertLessThanOrEqual(submitTipSnapshot.frame.maxY, app.buttons["Identify"].frame.minY - 7)
+        XCTAssertLessThanOrEqual(submitTipSnapshot.frame.maxX, app.frame.width - 16)
         let stagedAudioBadge = app.buttons["StagedAudioBadge_0"]
         XCTAssertTrue(
             stagedAudioBadge.waitForExistence(timeout: 8.0),
@@ -681,16 +689,7 @@ final class merianUITests: XCTestCase {
         )
         XCTAssertTrue(stagedAudioBadge.isHittable)
         XCTAssertTrue(stagedAudioBadge.isEnabled)
-        let submitTip = app.staticTexts["CaptureSubmitTooltip"]
-        XCTAssertTrue(submitTip.waitForExistence(timeout: 2))
-        XCTAssertEqual(submitTip.label, "Submit to identify")
-        XCTAssertLessThanOrEqual(submitTip.frame.maxY, app.buttons["Identify"].frame.minY - 7)
-        XCTAssertLessThanOrEqual(submitTip.frame.maxX, app.frame.width - 16)
-        let tipScreenshot = XCTAttachment(screenshot: app.screenshot())
-        tipScreenshot.name = "First full tray submit guidance above submit button"
-        tipScreenshot.lifetime = .keepAlways
-        add(tipScreenshot)
-        XCTAssertTrue(waitForDisappearance(submitTip))
+        XCTAssertTrue(waitForDisappearance(submitTip, timeout: 6))
         let toolbarScreenshot = XCTAttachment(screenshot: app.screenshot())
         toolbarScreenshot.name = "Compact bordered audio and note review nodes"
         let note = app.buttons["Add note"]
