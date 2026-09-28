@@ -122,3 +122,13 @@ qualification, published disclosure and controlled activation. The legacy quota
 delegate and current client inference gate remain Gemini-only; adding an OpenAI
 receipt or catalog row is insufficient. The optional concise-prompt experiment
 stays deferred and need not be rerun for this work.
+
+## Permission-collection follow-up — 28 September 2026
+
+The earlier source-disabled implementation above remains its historical scope.
+The [photo rollout](./identification-openai-photo-rollout-2026-09-28.md) now
+enables optional collection in source and adds in-app permission recovery for
+saved scans. The existing disclosure version and statement are unchanged. A
+local grant never selects a provider or automatically retries an observation.
+OpenAI production dispatch stays disabled; client distribution, production
+qualification and explicit activation remain outstanding.

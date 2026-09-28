@@ -1533,6 +1533,59 @@ final class merianUITests: XCTestCase {
     }
 
     @MainActor
+    func testOpenAIPermissionReviewPreservesPausedScanAndRequiresExplicitRetry() throws {
+        let app = UITestAppLauncher.launchConfiguredApp(
+            extraArguments: ["-seedQueuedRetryPresentationFlow", "-seedOpenAIPermissionFlow"]
+        )
+        let scansButton = app.buttons["MainTabBar_Scans"]
+        XCTAssertTrue(scansButton.waitForExistence(timeout: 8))
+        scansButton.tap()
+        let tile = app.buttons["QueuedScanTile_ui_test_queued_retry_attention"]
+        XCTAssertTrue(tile.waitForExistence(timeout: 8))
+        tile.tap()
+
+        let review = app.buttons["Review permission"]
+        XCTAssertTrue(review.waitForExistence(timeout: 8))
+        XCTAssertFalse(app.buttons["Retry now"].exists)
+        review.tap()
+        let permission = app.buttons["Settings_OpenAIProcessing"]
+        XCTAssertTrue(permission.waitForExistence(timeout: 4))
+        permission.tap()
+        let grant = app.buttons["I allow OpenAI to process these observations."]
+        XCTAssertTrue(grant.waitForExistence(timeout: 4))
+        app.buttons["Cancel"].tap()
+        app.buttons["AIPrivacy_Done"].tap()
+        XCTAssertTrue(review.waitForExistence(timeout: 4))
+        XCTAssertFalse(app.buttons["Retry now"].exists)
+
+        review.tap()
+        permission.tap()
+        XCTAssertTrue(grant.waitForExistence(timeout: 4))
+        grant.tap()
+        permission.tap()
+        let withdraw = app.buttons["I withdraw permission for OpenAI to process future observations."]
+        XCTAssertTrue(withdraw.waitForExistence(timeout: 4))
+        withdraw.tap()
+        app.buttons["AIPrivacy_Done"].tap()
+        XCTAssertTrue(review.waitForExistence(timeout: 4))
+        XCTAssertFalse(app.buttons["Retry now"].exists)
+
+        review.tap()
+        permission.tap()
+        XCTAssertTrue(grant.waitForExistence(timeout: 4))
+        grant.tap()
+        app.buttons["AIPrivacy_Done"].tap()
+        XCTAssertTrue(app.buttons["Retry now"].waitForExistence(timeout: 4))
+        XCTAssertTrue(app.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS %@", "permission is saved on this device")
+        ).firstMatch.exists)
+        XCTAssertFalse(app.buttons["Review permission"].exists)
+        // Permission alone must never start a provider request or remove the saved scan.
+        app.buttons["Back"].tap()
+        XCTAssertTrue(tile.waitForExistence(timeout: 4))
+    }
+
+    @MainActor
     func testQueuedAudioScanRetainsAudioAcrossCompletionHandoff() throws {
         let app = UITestAppLauncher.launchConfiguredApp(extraArguments: ["-seedQueuedAudioHandoffFlow"])
 

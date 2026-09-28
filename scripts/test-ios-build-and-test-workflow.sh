@@ -152,16 +152,11 @@ assert_release_seed_denylist_matches_debug_source() {
   local unique_workflow_seed_literals
 
   debug_seed_literals="$(
+    # Include focused fixture extensions as well as the original coordinator.
+    # A marker accidentally placed outside DEBUG must still enter the denylist
+    # and fail the archived-binary check; source placement never exempts it.
     awk -F '"' '
-      /^#if DEBUG$/ { pending_debug_block = 1; next }
-      pending_debug_block && /^enum UITestSeedCoordinator/ {
-        in_debug_seed_coordinator = 1
-        pending_debug_block = 0
-        next
-      }
-      pending_debug_block { pending_debug_block = 0 }
-      in_debug_seed_coordinator && /^#else$/ { exit }
-      in_debug_seed_coordinator {
+      {
         for (field = 2; field <= NF; field += 2) {
           if ($field ~ /^-seed[A-Za-z0-9]+$/ \
               || $field ~ /^ui_test_[A-Za-z0-9_.-]+$/) {
@@ -169,7 +164,7 @@ assert_release_seed_denylist_matches_debug_source() {
           }
         }
       }
-    ' "$ui_seed_source" | LC_ALL=C sort -u
+    ' "${ui_seed_source%/*}/"*.swift | LC_ALL=C sort -u
   )"
   workflow_seed_literals="$(
     awk -F '"' '

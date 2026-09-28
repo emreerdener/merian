@@ -7,8 +7,8 @@ enum ConsentPolicy {
     static let analyticsProvider = "posthog"
     static let openAIProvider = "openai"
     static let openAIDisclosureVersion = "2026-09-26"
-    // Source-only candidate: enable collection only with reviewed provider rollout.
-    static let openAIConsentCollectionEnabled = false
+    // Permission collection precedes provider activation; assignment remains server-owned.
+    static let openAIConsentCollectionEnabled = true
 
     static let openAIDisclosureText = """
     With your permission, Naturebook can send photos, written descriptions, and related observation context to OpenAI for AI-powered identification. OpenAI processes this data under its API data policies. You can withdraw permission for future OpenAI processing in Settings.

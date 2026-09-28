@@ -463,9 +463,17 @@ overlapping attempts do not emit success feedback.
 presentation, the captured account identity and unsaved-error feedback. An
 explicit displayed action records a grant or withdrawal; cancel records nothing.
 
-New collection is disabled in source. The section is hidden unless OpenAI
-history exists; current or older-version grants remain withdrawable with the
-gate closed. It never changes required Gemini onboarding or selects a model. The
+New collection is enabled in source before provider activation. The section
+explains that Naturebook chooses the service and permission only allows sharing
+when that service is used. `AIProcessingPrivacySheet` reuses the same disclosure
+for a saved scan waiting for OpenAI permission. Changing permission never starts
+that scan; an eligible online scan offers a separate **Retry now** action after
+a local grant. Cancel records nothing. Owner changes or account transitions
+close a stale disclosure; saving revalidates its captured account.
+
+Current or older-version grants remain withdrawable if collection is disabled
+again. It never changes required Gemini onboarding or selects a model. The
 [consent owner](../../../Core/Security/Consent/README.md) owns persistence,
-account validation and synchronization. The displayed choice is not cloud
-inference authorization.
+account validation and synchronization. The displayed permission is local state,
+not cloud inference authorization. Production remains on Gemini until a
+separately reviewed activation.

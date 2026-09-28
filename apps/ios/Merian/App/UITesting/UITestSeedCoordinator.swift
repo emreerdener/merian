@@ -245,7 +245,9 @@ enum UITestSeedCoordinator {
                 MerianLog.general.debug("UITestSeedCoordinator seeded queued audio handoff flow.")
             } else if arguments.contains(queuedRetryPresentationArgument) {
                 context.insert(queuedRetryScheduledScan())
-                context.insert(queuedRetryAttentionScan())
+                let attentionScan = queuedRetryAttentionScan()
+                context.insert(attentionScan)
+                try seedOpenAIPermissionFunding(scan: attentionScan, context: context)
                 let queueManager = OfflineQueueManager.shared
                 // Queue monitoring is intentionally disabled under tests, so
                 // make this seed's scheduled-retry state explicitly online.
@@ -726,7 +728,8 @@ enum UITestSeedCoordinator {
             locationName: "UITest Retry",
             scanState: .failed,
             queueAttemptCount: 10,
-            queueLastErrorCode: "local_media_missing",
+            queueLastErrorCode: isOpenAIPermissionSeedEnabled
+                ? "ai_openai_consent_required" : "local_media_missing",
             queueLastErrorMessage: "RAW_QUEUE_ERROR_SENTINEL",
             queueNeedsAttention: true
         )

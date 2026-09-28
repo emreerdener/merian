@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Collection is closed until the reviewed OpenAI rollout. Existing evidence
-/// remains visible for withdrawal even when new consent collection is disabled.
+/// Permission to disclose observations is independent of Naturebook's provider assignment.
+/// Existing evidence remains withdrawable if new collection is later disabled.
 struct AIProcessingPrivacySection: View {
     @Environment(ConsentManager.self) private var consentManager
     @State private var isShowingDisclosure = false
@@ -22,7 +22,7 @@ struct AIProcessingPrivacySection: View {
 
     var body: some View {
         if permission.showsOpenAIChoice {
-            Section("AI privacy") {
+            Section {
                 Button {
                     expectedOwnerUserId = permission.ownerUserId
                     requestedGrant = !permission.hasOpenAIGrantToWithdraw && !permission.hasPendingOpenAIWithdrawal
@@ -32,17 +32,14 @@ struct AIProcessingPrivacySection: View {
                         Text(permissionStatus)
                     }
                 }
-                .disabled(
-                    permission.ownerUserId == nil
-                        || (!permission.hasOpenAIGrantToWithdraw && !permission.hasPendingOpenAIWithdrawal
-                            && !permission.isOpenAICollectionEnabled)
-                )
+                .disabled(!permission.canManageOpenAIPermission)
                 .accessibilityIdentifier("Settings_OpenAIProcessing")
+            } header: {
+                Text("AI privacy")
+            } footer: {
+                Text("Naturebook chooses the AI service for each observation. Allowing OpenAI gives permission to share data when Naturebook uses it; it does not change the service in use.")
             }
-            .confirmationDialog(
-                "OpenAI identification", isPresented: $isShowingDisclosure,
-                titleVisibility: .visible
-            ) {
+            .alert("OpenAI identification", isPresented: $isShowingDisclosure) {
                 Button(
                     requestedGrant ? ConsentPolicy.openAIGrantText : ConsentPolicy.openAIWithdrawalText,
                     role: requestedGrant ? nil : .destructive
@@ -59,10 +56,36 @@ struct AIProcessingPrivacySection: View {
             } message: {
                 Text(ConsentPolicy.openAIDisclosureText)
             }
+            .onChange(of: permission.ownerUserId) { _, _ in
+                isShowingDisclosure = false
+            }
+            .onChange(of: permission.hasCurrentAccount) { _, hasCurrentAccount in
+                if !hasCurrentAccount { isShowingDisclosure = false }
+            }
             .alert("Permission change not saved", isPresented: $isShowingSaveError) {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text("Your OpenAI permission change could not be saved. Please try again.")
+            }
+        }
+    }
+}
+
+/// Reuses the Settings disclosure for an observation waiting for permission.
+struct AIProcessingPrivacySheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                AIProcessingPrivacySection()
+            }
+            .navigationTitle("AI privacy")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                        .accessibilityIdentifier("AIPrivacy_Done")
+                }
             }
         }
     }

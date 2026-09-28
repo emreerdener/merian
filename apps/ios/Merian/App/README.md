@@ -68,9 +68,16 @@ the focused source inventory, production line ceiling, Store Recovery
 delegation, DEBUG/Release seed separation, and root scene/Auth-task ownership.
 Presentation and routing tests own their deterministic policy behavior.
 Configuration tests freeze the shared test-execution signals and declaration
-owner. The portable iOS workflow contract extracts every Debug seed marker from
-`UITesting/UITestSeedCoordinator.swift` and requires the Release archive
-denylist to match exactly.
+owner. The portable iOS workflow contract extracts every seed marker from the
+Swift files in `UITesting/`, including focused extensions, and requires the
+Release archive denylist to match exactly. A literal outside DEBUG remains
+forbidden in the archived binary.
+
+`UITestSeedCoordinator+OpenAIPermission.swift` owns the Debug/UI-test-only
+synthetic permission ledger and matching saved-job funding used by the
+permission recovery smoke. `AppDIContainer` selects this fixture only under the
+dedicated UI-test argument. It does not replace a production SDK identity or
+perform provider requests; test-mode synchronization and Realtime stay disabled.
 
 See the canonical
 [app lifecycle contract](../../../../docs/development-guides/02-app-lifecycle.md),

@@ -492,9 +492,11 @@ and is excluded from `resumeMostRecentConsentBlockedScan`, including when it is
 the newest owned/funded scan. Live inference writes this pause before release
 through `InferenceLiveQueueService`; background completion uses its existing
 generation claim and completion lock. Scans explains the missing OpenAI
-processing permission without offering provider choice or directing people to
-the disabled permission UI. The canonical recipient and activation contract is
-in
+processing permission and offers **Review permission** in the app. A current
+local grant enables an explicit eligible online retry; saving permission itself
+never resumes the row or selects a provider. The retry reuses consent
+synchronization and recipient preflight before dispatch. The canonical recipient
+and activation contract is in
 [API contracts](../../../../../docs/backend-and-data/05-api-contracts.md#independent-openai-consent-evidence).
 
 After foreground or background result persistence, inference-driven queue

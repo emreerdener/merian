@@ -19,6 +19,40 @@ struct InsightQueuedRetryPresentationTests {
         #expect(value.action == nil)
     }
 
+    @Test(arguments: [true, false])
+    func openAIConsentCanBeReviewedWithoutNetwork(isOnline: Bool) throws {
+        let value = try #require(QueuedRetryPresentation.resolve(
+            queueState: .failed, nextRetryAt: nil,
+            errorCode: "ai_openai_consent_required", needsAttention: true,
+            canRetryNow: true, isOnline: isOnline, now: Date(), openAIPermission: .needsReview
+        ))
+        #expect(value.action == .reviewOpenAIPermission)
+        #expect(value.message.contains("saved and paused"))
+    }
+
+    @Test(arguments: [true, false], [true, false])
+    func localOpenAIGrantOffersOnlyExplicitEligibleRetry(isOnline: Bool, canRetry: Bool) throws {
+        let value = try #require(QueuedRetryPresentation.resolve(
+            queueState: .failed, nextRetryAt: nil,
+            errorCode: "ai_openai_consent_required", needsAttention: true,
+            canRetryNow: canRetry, isOnline: isOnline, now: Date(), openAIPermission: .granted
+        ))
+        #expect(value.action == (isOnline && canRetry ? .retryNow : nil))
+        #expect(value.message.contains("saved on this device"))
+        #expect(!value.message.contains("automatically"))
+        if !isOnline { #expect(value.message.contains("Connect to the internet")) }
+    }
+
+    @Test func optionalPermissionDoesNotOpenRequiredGeminiConsentPause() throws {
+        let value = try #require(QueuedRetryPresentation.resolve(
+            queueState: .failed, nextRetryAt: nil,
+            errorCode: "ai_consent_required", needsAttention: true,
+            canRetryNow: true, isOnline: true, now: Date(), openAIPermission: .granted
+        ))
+        #expect(value.action == nil)
+        #expect(value.message.contains("required AI consent"))
+    }
+
     @Test func queuedRetryPresentationExplainsScheduledRetryWithoutRawErrors() throws {
         let now = Date(timeIntervalSince1970: 1_700_000_000)
         let presentation = try #require(QueuedRetryPresentation.resolve(

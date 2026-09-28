@@ -242,9 +242,12 @@ reconciliation.
 and Terms versions `2026-08-03`, Gemini disclosure version `2026-08-04.1`,
 PostHog disclosure version `2026-08-04`, and providers `google_gemini` and
 `posthog`. The optional OpenAI infrastructure separately pins provider `openai`
-and disclosure `2026-09-26`; its Settings collection gate is false and it is not
-a required onboarding choice. Gemini consent never creates OpenAI consent. The
-exact displayed statement is stored with each action, along with a
+and disclosure `2026-09-26`; optional collection is enabled in Settings and a
+paused scan's in-app permission sheet, outside required onboarding. Gemini
+consent never creates OpenAI consent. Naturebook chooses the provider; an OpenAI
+grant allows disclosure when assigned but does not select a service or start a
+saved scan. Production assignment remains Gemini pending the reviewed photo
+rollout. The exact displayed statement is stored with each action, along with a
 client-generated UUID, device action time, platform, app version, and app build.
 Adult eligibility is self-attested on every supported iOS version; Naturebook
 does not collect a birth date or exact age.
