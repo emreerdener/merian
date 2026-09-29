@@ -1,3 +1,5 @@
+import { createOpenAISolRankEvaluationAdapter } from "../functions/_shared/ai/openai.ts";
+import { createAIExecution } from "../functions/_shared/ai/execution.ts";
 import { assert, assertEquals, assertRejects, assertThrows } from "@std/assert";
 import {
   buildOpenAIPhotoModelRequestParameters,
@@ -14,7 +16,9 @@ import {
 } from "../functions/_shared/ai/openaiRequest.ts";
 import {
   openAIDraftFixture,
+  openAIPhotoModerationFixture,
   openAIPhotoRequestFixture,
+  openAIResponseFixture,
   openAITextFixture,
 } from "../functions/_shared/ai/testing/openaiFixtures.ts";
 import { normalizeIdentification } from "../functions/_shared/identify/normalizeIdentification.ts";
@@ -315,5 +319,62 @@ Deno.test("catalog repair rejects different canonical names, cross-rank homonyms
     const r = await remap(c, t);
     if (kind === "missing") r.merges[0].to = "missing";
     await assertRejects(() => repairPhotoTaxonomy(c, t, r));
+  }
+});
+
+Deno.test("Sol rank live adapter sends the pinned request once with exact model and native moderation checks", async () => {
+  for (
+    const kind of [
+      "allow",
+      "wrong_model",
+      "missing_moderation",
+      "denied",
+    ] as const
+  ) {
+    let calls = 0;
+    let sent: unknown = null, url: unknown = null;
+    const response = {
+      ...openAIResponseFixture(),
+      service_tier: "default",
+      moderation: openAIPhotoModerationFixture(),
+    };
+    if (kind === "wrong_model") response.model = "gpt-6-luna";
+    if (kind === "denied") {
+      response.moderation.input.flagged = true;
+      response.moderation.input.categories.violence = true;
+    }
+    const body = kind === "missing_moderation"
+      ? openAIResponseFixture()
+      : response;
+    const fetcher = ((_url: unknown, options?: RequestInit) => {
+      calls++;
+      url = _url;
+      sent = JSON.parse(String(options?.body));
+      return Promise.resolve(
+        new Response(JSON.stringify(body), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+    }) as typeof fetch;
+    const execution = createAIExecution(
+      createOpenAISolRankEvaluationAdapter("synthetic-evaluation-key", fetcher),
+      request,
+      solPhotoRankSnapshot(request),
+    );
+    const result = await execution.invoke();
+    assertEquals(url, "https://api.openai.com/v1/responses");
+    assertEquals(sent, JSON.parse(JSON.stringify(candidate())));
+    assertEquals(calls, 1);
+    assertEquals(
+      result.kind,
+      kind === "allow"
+        ? "draft"
+        : kind === "denied"
+        ? "refusal"
+        : "invalid_output",
+    );
+    await assertRejects(() => execution.invoke());
+    assertEquals(calls, 1);
   }
 });

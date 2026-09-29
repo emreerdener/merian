@@ -1,3 +1,5 @@
+import { prepareSolRankComparison } from "./identification_evaluation/solPhotoRankLivePreparation.ts";
+import { executeSolRankComparison } from "./identification_evaluation/solPhotoRankRunner.ts";
 import { preparePhotoModelContinuation } from "./identification_evaluation/photoModelContinuation.ts";
 import {
   executePhotoModelComparison,
@@ -74,6 +76,8 @@ export async function main(args = Deno.args): Promise<void> {
     "demo-providers",
     "demo-measurement",
     "preflight",
+    "preflight-sol-rank-photo",
+    "--sol-rank-photo-live",
     "preflight-free-pro-photo",
     "preflight-free-pro-photo-continuation",
     "--photo-model-live",
@@ -100,7 +104,8 @@ export async function main(args = Deno.args): Promise<void> {
   if (
     mode !== "--live" && mode !== "--experiment-live" &&
     mode !== "calibrate-explanations" && mode !== "--photo-model-live" &&
-    mode !== "--photo-model-continuation-live"
+    mode !== "--photo-model-continuation-live" &&
+    mode !== "--sol-rank-photo-live"
   ) {
     await assertOfflinePermissions();
   }
@@ -125,7 +130,15 @@ export async function main(args = Deno.args): Promise<void> {
         "exploratory"
       ? await saveExploratoryReport(root, runId)
       : await saveReport(root, runId);
-  if (mode === "--photo-model-continuation-live") {
+  if (mode === "preflight-sol-rank-photo") {
+    await prepareSolRankComparison(root, await sourceIdentity(repository));
+  } else if (mode === "--sol-rank-photo-live") {
+    await executeSolRankComparison(
+      root,
+      await sourceIdentity(repository),
+      "live",
+    );
+  } else if (mode === "--photo-model-continuation-live") {
     await executePhotoModelContinuation(
       root,
       await sourceIdentity(repository),

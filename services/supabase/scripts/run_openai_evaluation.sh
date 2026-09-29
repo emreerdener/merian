@@ -20,12 +20,13 @@ import warnings
 
 
 def main():
-    if len(sys.argv) not in (4, 5) or sys.argv[2] not in ("--credential-fingerprint", "--live", "--experiment-live", "--experiment-session", "--photo-model-live", "--photo-model-continuation-live"):
+    if len(sys.argv) not in (4, 5) or sys.argv[2] not in ("--credential-fingerprint", "--live", "--experiment-live", "--experiment-session", "--photo-model-live", "--photo-model-continuation-live", "--sol-rank-photo-live"):
         raise ValueError("arguments")
     session = sys.argv[2] == "--experiment-session"
     experiment = session or sys.argv[2] == "--experiment-live"
     continuation = sys.argv[2] == "--photo-model-continuation-live"
     photo_models = continuation or sys.argv[2] == "--photo-model-live"
+    sol_rank = sys.argv[2] == "--sol-rank-photo-live"
     if len(sys.argv) != (5 if experiment and not session else 4):
         raise ValueError("arguments")
     run_id = sys.argv[4] if experiment and not session else None
@@ -55,13 +56,18 @@ def main():
     environment = {name: os.environ[name] for name in ("PATH", "HOME", "DENO_DIR") if name in os.environ}
     if mode != "--credential-fingerprint":
         # Reject a different provider before even prompting for its credential.
-        spec_path = packet / ("photo-model-plan.json" if photo_models else "experiment.json" if experiment else "spec.json")
+        spec_path = packet / ("sol-rank-plan.json" if sol_rank else "photo-model-plan.json" if photo_models else "experiment.json" if experiment else "spec.json")
         info = spec_path.lstat()
         if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or not 0 < info.st_size <= 65536:
             raise ValueError("spec")
         spec_bytes = spec_path.read_bytes()
         spec = json.loads(spec_bytes)
-        if photo_models:
+        if sol_rank:
+            if (spec.get("version") != "sol_photo_rank_plan_v1" or spec.get("maxCalls") != 18
+                    or spec.get("attemptsPerAssignment") != 1
+                    or spec.get("screeningPolicy") != "sol_rank_mapping_and_reference_gaps_v1"):
+                raise ValueError("provider")
+        elif photo_models:
             if spec.get("version") not in (("photo_model_plan_v2",) if continuation else ("photo_model_plan_v2", "photo_model_plan_v3")) or spec.get("maxCalls") != 18 or spec.get("attemptsPerAssignment") != 1:
                 raise ValueError("provider")
         elif experiment:
@@ -89,20 +95,23 @@ def main():
                   "--allow-write=" + str(packet), "--allow-run=git"]
         entry = "services/supabase/scripts/evaluate_identification.ts"
         # Existing preflight checks all exact inputs; it cannot read keys or call a provider.
-        preflight = subprocess.run(common + ["--deny-net", "--deny-env", entry, "preflight-free-pro-photo-continuation" if continuation else "preflight-free-pro-photo" if photo_models else "experiment-preflight" if experiment else "preflight", str(packet)],
+        preflight = subprocess.run(common + ["--deny-net", "--deny-env", entry, "preflight-sol-rank-photo" if sol_rank else "preflight-free-pro-photo-continuation" if continuation else "preflight-free-pro-photo" if photo_models else "experiment-preflight" if experiment else "preflight", str(packet)],
                                    cwd=repository, env=environment, stdin=subprocess.DEVNULL,
                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         if preflight.returncode != 0:
             raise ValueError("preflight")
-        if photo_models:
-            report_path = packet / ("photo-model-continuation-preflight.json" if continuation else "photo-model-preflight.json")
+        if sol_rank or photo_models:
+            report_path = packet / ("sol-rank-preflight.json" if sol_rank else "photo-model-continuation-preflight.json" if continuation else "photo-model-preflight.json")
             info = report_path.lstat()
             if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or not 0 < info.st_size <= 65536:
                 raise ValueError("preflight")
             report = json.loads(report_path.read_text())
-            if (report.get("version") != ("photo_model_continuation_preflight_v1" if continuation else "photo_model_preflight_v1") or report.get("budgetFitsRegionalReservation") is not True
-                    or report.get("evidenceStatus") != "provisional_reference_pilot"
+            if (report.get("version") != ("sol_photo_rank_preflight_v1" if sol_rank else "photo_model_continuation_preflight_v1" if continuation else "photo_model_preflight_v1") or report.get("budgetFitsRegionalReservation") is not True
+                    or report.get("evidenceStatus") != ("provisional_reused_development_cases" if sol_rank else "provisional_reference_pilot")
                     or not isinstance(report.get("source"), dict) or report["source"].get("dirty") is not False):
+                raise ValueError("preflight")
+            if sol_rank and (report.get("screeningPolicy") != "sol_rank_mapping_and_reference_gaps_v1"
+                    or report.get("recordVersion") != "photo_model_attempt_v2"):
                 raise ValueError("preflight")
             if spec.get("version") == "photo_model_plan_v3" and report.get("screeningPolicy") != "reference_gaps_recorded_v1":
                 raise ValueError("preflight")
@@ -132,7 +141,7 @@ def main():
             os.close(descriptor)
         print("Credential fingerprint saved privately; no API request was made.")
     else:
-        reviewed = photo_models or experiment and spec.get("version") in ("identification_experiment_plan_v2", "identification_experiment_plan_v3", "identification_experiment_plan_v4")
+        reviewed = sol_rank or photo_models or experiment and spec.get("version") in ("identification_experiment_plan_v2", "identification_experiment_plan_v3", "identification_experiment_plan_v4")
         if reviewed:
             # Only the private local view needs a loopback listener and fixed browser opener.
             common = [arg if arg != "--allow-run=git" else "--allow-run=git,/usr/bin/open" for arg in common]
@@ -153,15 +162,18 @@ def main():
                                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 if result.returncode != 0:
                     raise ValueError("evaluation")
-                if photo_models:
-                    state_path = packet / ("photo-model-continuation" if continuation else "photo-model-run") / "state.json"
+                if sol_rank or photo_models:
+                    state_path = packet / ("sol-photo-rank-run" if sol_rank else "photo-model-continuation" if continuation else "photo-model-run") / "state.json"
                     info = state_path.lstat()
                     if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or not 0 < info.st_size <= 65536:
                         raise ValueError("photo_model_stopped")
                     state = json.loads(state_path.read_text())
-                    if (not isinstance(state, dict) or state.get("version") != ("photo_model_state_v2" if continuation else "photo_model_state_v1")
+                    if (not isinstance(state, dict) or state.get("version") != ("sol_photo_rank_state_v1" if sol_rank else "photo_model_state_v2" if continuation else "photo_model_state_v1")
                             or state.get("complete") is not True or state.get("stop") is not None
                             or state.get("claimedCalls") != 18 or state.get("completedCalls") != 18):
+                        raise ValueError("photo_model_stopped")
+                    if sol_rank and (state.get("screeningPolicy") != "sol_rank_mapping_and_reference_gaps_v1"
+                            or state.get("productionActivationAuthorized") is not False):
                         raise ValueError("photo_model_stopped")
                     if spec.get("version") == "photo_model_plan_v3" and (state.get("screeningPolicy") != "reference_gaps_recorded_v1"
                             or state.get("productionActivationAuthorized") is not False):

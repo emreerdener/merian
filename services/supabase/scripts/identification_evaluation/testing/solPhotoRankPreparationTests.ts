@@ -7,7 +7,7 @@ import { SOL_RANK_PROFILE } from "../solPhotoRankCandidate.ts";
 import { parseTaxonomy } from "../taxonomy.ts";
 import { photoModelFixture } from "./photoModelPreparationTests.ts";
 
-async function setup(parent: string) {
+export async function solRankPreparationFixture(parent: string) {
   const source = join(parent, "source");
   await Deno.mkdir(source, { mode: 0o700 });
   const fixture = await photoModelFixture(source, Date.now());
@@ -69,7 +69,9 @@ export function registerSolPhotoRankPreparationTests(scratch: string) {
       prefix: "sol-rank-",
     });
     try {
-      const { source, target, remap, corpus } = await setup(parent);
+      const { source, target, remap, corpus } = await solRankPreparationFixture(
+        parent,
+      );
       const before = await treeDigests(source);
       const report = await prepareSolPhotoRankPacket(source, target, remap);
       assertEquals(await treeDigests(source), before);
@@ -162,7 +164,7 @@ export function registerSolPhotoRankPreparationTests(scratch: string) {
         prefix: "sol-invalid-",
       });
       try {
-        const fixture = await setup(parent);
+        const fixture = await solRankPreparationFixture(parent);
         let { source, target } = fixture;
         const { remap, corpus, facts } = fixture;
         if (kind === "media") {
@@ -203,7 +205,7 @@ export function registerSolPhotoRankPreparationTests(scratch: string) {
   Deno.test("Sol preparation CLI is offline, rejects live flags and reports fixed errors", async () => {
     const parent = await Deno.makeTempDir({ dir: scratch, prefix: "sol-cli-" });
     try {
-      const { source, target, remap } = await setup(parent);
+      const { source, target, remap } = await solRankPreparationFixture(parent);
       const remapPath = join(parent, "remap.json");
       await atomicJson(remapPath, remap);
       const run = (args: string[]) =>

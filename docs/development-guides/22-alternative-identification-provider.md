@@ -350,9 +350,47 @@ settings, mineral rules and the current explanation definition. It is
 evaluation-only and rejected by production and historical live bindings. The
 receipt binds proposed request identities for six screens and six paired
 challenges, but marks live admission, reference review and dispatch unavailable.
-It is not a runnable live plan or a pricing/spending approval. Reference/catalog
-coverage review and a new controller using mapping-aware v2 records come next;
-production rank/enrichment handling and confidence calibration remain later
+It is not a runnable live plan or a pricing/spending approval. A separate live
+contract is now implemented. Before dispatch, create
+`sol-rank-reference-review.json` from assistant input/fact review, retaining
+provisional references and finite-catalog limits; never mark independent truth
+verified. Bind its digest and the unchanged preparation receipt in a fresh
+`sol-rank-plan.json`, alongside corrected inputs and `sol-rank-pricing.json`.
+The plan fixes six candidate screens and six alternating same-model pairs, 18
+calls maximum, one attempt each. The conservative full-context reservation is
+$106.383024 at the reviewed rates; a new $110 cap and fresh bound approval are
+required, not the previous run's $40 allowance.
+
+Run the scoped offline preflight from a clean reviewed checkout:
+
+```bash
+deno run --frozen --no-prompt --cached-only \
+  --config services/supabase/functions/deno.json \
+  --deny-net --deny-env --allow-run=git \
+  --allow-read="$PWD,/absolute/private/sol-rank-packet" \
+  --allow-write="/absolute/private/sol-rank-packet" \
+  services/supabase/scripts/evaluate_identification.ts \
+  preflight-sol-rank-photo /absolute/private/sol-rank-packet
+```
+
+It writes `sol-rank-preflight.json` with rebuilt request hashes, v2 record
+identity, review policy, source and reservation. Fresh `sol-rank-approval.json`
+binds that plan, clean source, credential fingerprint, reviewer/delegation,
+budget and a window no longer than 24 hours. Then use:
+
+```bash
+bash services/supabase/scripts/run_openai_evaluation.sh \
+  --sol-rank-photo-live /absolute/private/sol-rank-packet
+```
+
+The key is entered once through hidden terminal input and retained only in the
+child process. The assistant reviews transient responses; only bounded results
+and ratings are saved. The launcher checks the new final state and never calls a
+stopped run complete. Inspect `sol-photo-rank-run/state.json` and `summary.json`
+for completion, failed attempts, mapping/reference gaps and phase-specific
+denominators. An unknown mapping is `screen_unassessable`, not a wrong taxon. Do
+not erase a claim, retry an interrupted assignment or reuse old approval.
+Production rank/enrichment handling and confidence calibration remain later
 steps in the linked plan.
 
 ## Fixed initial assignment

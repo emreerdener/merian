@@ -24,11 +24,11 @@ identifications and unsupported finer ranks. Retain Sol for both tiers. Next
 complete biological rank consistency before confidence thresholds; do not expand
 this paid run. The original target design below remains a proposal. The
 [rank-consistency follow-up](identification-photo-rank-consistency-2026-09-28.md)
-now implements catalog auditing, a future mapping-aware result projection, an
-isolated Sol candidate and a corrected twelve-case offline packet. It has made
-no new model calls. Reference coverage and live admission remain unfinished, as
-does the explicit rank contract required before broader-rank results can safely
-reach species enrichment.
+now implements catalog auditing, mapping-aware records, an isolated Sol
+candidate, a corrected twelve-case packet, assistant input review and a
+separately versioned live controller. It has made no new model calls. Remaining
+reference limits are explicit; live results and the production rank contract
+required before broader-rank results reach species enrichment remain pending.
 
 Introduce separate, versioned OpenAI photo profiles selected by the backend's
 existing Free/Pro admission decision. Evaluate Luna for Free and retain the

@@ -194,6 +194,16 @@ hash and same-schema tests retain its identity. Only the separate v3 local
 comparison and candidate approval admit execution. Native moderation, exact
 model checks, generation settings and production exclusion remain in place.
 
+`openaiSolRank.ts` owns the isolated Sol biological-rank candidate. It replaces
+conflicting biological instructions and four schema descriptions while retaining
+the strict JSON shape, explanation format, generation and moderation settings.
+`createOpenAISolRankEvaluationAdapter` uses the same bounded transport, exact
+Sol identity and native moderation decoder. Only the separately versioned Sol
+local comparison admits this binding; historical evaluators, the production
+catalog and production result policy reject it. See the
+[rank-consistency plan](../../../../../docs/rfcs/identification-photo-rank-consistency-2026-09-28.md)
+for assistant review, v2 mapping records, spending and interruption controls.
+
 ## Scoped audio prompt authority
 
 The default-off 36-slot prompt lane adds the internal

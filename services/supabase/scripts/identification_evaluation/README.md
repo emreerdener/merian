@@ -195,18 +195,19 @@ only these reviewed duplicate IDs; the original packet remains unchanged.
 `projectMeasuredPhotoModelOutcome` and `parsePhotoModelMeasurementRecord` add
 the isolated `photo_model_attempt_v2` primary mapping field. They retain enum
 status and canonical/synonym match category, never returned taxon names or
-prose. Current photo plans and runners remain on v1 and reject v2 records. A
-future controller must explicitly bind a new plan/manifest/approval before
-selecting this projection; old null taxon records cannot be repaired
-retrospectively. Use `assessMeasuredReference` to keep mapping gaps separate
-from identity errors. There is no live v2 photo mode in this slice.
+prose. Historical photo plans and runners remain on v1 and reject v2 records.
+The separate Sol plan/manifest/approval below binds the new projection; old null
+taxon records cannot be repaired retrospectively. Use `assessMeasuredReference`
+to keep mapping gaps separate from identity errors. Only the separately admitted
+Sol mode writes live v2 photo records.
 
-`solPhotoRankCandidate.ts` projects an isolated Sol prompt and four descriptive
-schema fields. It preserves strict JSON structure, generation settings,
-explanation format and mineral rules. Production and old live evaluation
-constructors reject the new profile. `photoTaxonomyRepair.ts` requires a
-digest-bound explicit remap with equal canonical names and ranks; it preserves
-input evidence, synonyms and supported reference ranks.
+`solPhotoRankCandidate.ts` re-exports `_shared/ai/openaiSolRank.ts`, which
+projects an isolated Sol prompt and four descriptive schema fields. It preserves
+strict JSON structure, generation settings, explanation format and mineral
+rules. Production and old live evaluation constructors reject the new profile.
+`photoTaxonomyRepair.ts` requires a digest-bound explicit remap with equal
+canonical names and ranks; it preserves input evidence, synonyms and supported
+reference ranks.
 
 `prepare_sol_rank_candidate.ts` validates and copies the twelve existing photos
 into a new private packet, preserving completed artifacts and excluding plans,
@@ -217,6 +218,22 @@ The
 [operator instructions](../../../../docs/development-guides/22-alternative-identification-provider.md#offline-photo-catalog-audit-and-rank-consistency)
 cover the remap fields, scoped offline command and incomplete-directory
 handling. No paid run or confidence calibration occurs in this preparation.
+
+`solPhotoRankLivePreparation.ts` rebuilds these exact requests under
+`sol_photo_rank_plan_v1`, checks a new digest-bound assistant reference review,
+and adds a fresh full-context reservation. The new approval binds source, key
+fingerprint, budget and review delegation. `solPhotoRankRunner.ts` uses a
+separate `sol-photo-rank-run/` journal and only `photo_model_attempt_v2`.
+Historical photo controllers and approvals cannot enter it.
+
+The offline command is `preflight-sol-rank-photo`; the hidden-key launcher mode
+is `--sol-rank-photo-live`. Screens stop separately for genuine failures and
+unassessable mapping/identity references. Missing explanation references are
+recorded as gaps; they never become passes. Results are durable before the
+assistant's temporary review. Interrupted or stopped claims are never retried.
+The summary separates screen/challenge denominators, reference agreement,
+mapping, ratings, paired timing and known cost. Completing all 18 calls grants
+no production or confidence-calibration authority. Live results remain pending.
 
 ## Shared measurement repair (optimization Slice 1)
 

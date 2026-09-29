@@ -287,7 +287,7 @@ export type PhotoModelMeasurementRecord =
   & Omit<PhotoModelRecord, "version">
   & { version: "photo_model_attempt_v2"; mapping: IdentityMapping };
 
-/** Future journal contract only: no current runner accepts or emits v2. */
+/** Sol-rank journals bind v2 explicitly; historical runners still reject it. */
 export function parsePhotoModelMeasurementRecord(
   value: unknown,
   a: PhotoModelAssignment,
@@ -316,7 +316,7 @@ export function parsePhotoModelMeasurementRecord(
   return { ...record, version, mapping: parsedMapping };
 }
 
-/** Pure projection for future comparisons; never infer mappings from old records. */
+/** Pure v2 projection; never infer mappings from old records. */
 export function projectMeasuredPhotoModelOutcome(
   ...args: Parameters<typeof projectPhotoModelOutcomeWithMapping>
 ): { record: PhotoModelMeasurementRecord; display: ReviewDisplay | null } {

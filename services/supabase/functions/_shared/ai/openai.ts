@@ -24,6 +24,11 @@ import {
   type OpenAIPhotoModelSnapshot,
 } from "./openaiPhotoModels.ts";
 
+import {
+  buildSolPhotoRankRequest,
+  solPhotoRankSnapshot,
+} from "./openaiSolRank.ts";
+
 export const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 export const OPENAI_RESPONSE_LIMIT = 512 * 1024;
 const object = (v: unknown): Record<string, unknown> | null =>
@@ -195,6 +200,24 @@ export function createOpenAIPhotoModelEvaluationAdapter(
       parameters,
       decode: (value, timing) =>
         decodeModeratedPhoto(value, timing, hasText, expectedModel, true),
+    };
+  });
+}
+
+/** Closed Sol-rank evaluation adapter; never a production catalog binding. */
+export function createOpenAISolRankEvaluationAdapter(
+  credential: string,
+  fetcher: typeof fetch = fetch,
+): AIAdapter<ReturnType<typeof solPhotoRankSnapshot>> {
+  return createOpenAIAdapter(credential, fetcher, (request, snapshot) => {
+    const parameters = buildSolPhotoRankRequest(request, snapshot);
+    const hasText = parameters.input[0].content.some((p) =>
+      p.type === "input_text"
+    );
+    return {
+      parameters,
+      decode: (value, timing) =>
+        decodeModeratedPhoto(value, timing, hasText, "gpt-6-sol", true),
     };
   });
 }

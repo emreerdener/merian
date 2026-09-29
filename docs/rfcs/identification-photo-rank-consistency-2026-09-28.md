@@ -2,12 +2,13 @@
 
 Date: 2026-09-28
 
-Status: Offline measurement, an isolated Sol candidate and a corrected
-development packet are implemented. Reference coverage review, versioned live
-admission and production rank handling remain unfinished. Retain Sol for both
-Free and Pro. No new model calls or production changes have occurred. Complete
-this identification-quality work before returning to confidence thresholds;
-preserve the explanation format and Strong / Possible / Weak labels.
+Status: Offline measurement, an isolated Sol candidate, a corrected development
+packet and a separately versioned live comparison controller are implemented.
+Assistant input review records remaining reference limits. Live results and
+production rank handling remain unfinished. Retain Sol for both Free and Pro. No
+new model calls or production changes have occurred. Complete this
+identification-quality work before returning to confidence thresholds; preserve
+the explanation format and Strong / Possible / Weak labels.
 
 ## Problem and intended behavior
 
@@ -92,19 +93,21 @@ names from synonyms. The parser rejects impossible status/identity combinations
 and extra fields. The existing measured-reference scorer can now distinguish
 mapping gaps from identity disagreement or valid abstention.
 
-Existing plans, runners and journals still accept and emit only
-`photo_model_attempt_v1`. V2 is an offline building block, not an automatic
-upgrade or a live mode. Do not reconstruct a missing mapping from an old null
-taxon, modify old artifacts or rerun an old plan. The new controller must bind
-v2 explicitly to a new manifest/approval before using it.
+Historical photo-model plans, runners and journals still accept and emit only
+`photo_model_attempt_v1`. The new Sol controller below explicitly binds v2;
+there is no automatic journal upgrade. Do not reconstruct a missing mapping from
+an old null taxon, modify old artifacts or rerun an old plan. The new controller
+must bind v2 explicitly to a new manifest/approval before using it.
 
 ## Slice 2: corrected packet and isolated Sol candidate — prepared offline
 
 The offline candidate is `openai_photo_sol_rank_limits_low_v1`, bound to
 `openai_sol_rank_evaluation_v1`, prompt `openai_identify_vision_rank_limits_v1`
-and schema identity `merian_openai_identify_rank_v1`. Its implementation lives
-entirely under the evaluation scripts. Production and historical live profile
-constructors reject it; no existing runner accepts this candidate.
+and schema identity `merian_openai_identify_rank_v1`. Its pure implementation
+now lives in `_shared/ai/openaiSolRank.ts`, with a stable script re-export.
+`createOpenAISolRankEvaluationAdapter` reuses the bounded transport and
+exact-model/native-moderation decoder. Production and historical live profile
+constructors reject it; only the new Sol controller accepts this candidate.
 
 The candidate replaces conflicting biological instructions and four schema field
 descriptions: scientific name, common name, candidates and distinguishing
@@ -185,7 +188,7 @@ isolate the instruction change. See the official
 and
 [model guidance](https://developers.openai.com/api/docs/guides/latest-model).
 
-## Slice 3: measure one model's change at a time
+## Slice 3: measure one model's change at a time — controller implemented
 
 Prioritize Sol because it currently serves both tiers. Prepare the established
 shape of six candidate regression screens, then six challenge pairs against the
@@ -194,17 +197,55 @@ attempt each. Recalculate the conservative reservation with current rates; the
 old $40 allowance and remaining allocation do not authorize this run. Only after
 that decision should a separately bounded Luna comparison be considered.
 
-Before dispatch, version the plan, manifest, approval and record admission so v2
-mapping records cannot mix with historical v1 journals. Bind the corrected
-catalog, references, request profiles and source digest. Preserve spending,
-claim, stop, review and interruption controls. A complete run still does not
-automatically qualify or activate anything.
+The separate `sol_photo_rank_plan_v1`, `sol_photo_rank_approval_v1` and
+`sol_photo_rank_run_v1` contracts bind v2 mapping records without broadening
+historical plan/profile/record parsers. `sol-rank-plan.json` binds the original
+preparation receipt, corrected corpus/catalog, unchanged fact cards, a new
+reference-review record and reviewed prices. Preflight rebuilds every request
+and requires exact agreement with the receipt before adding spending
+reservations.
+
+`sol-rank-reference-review.json` records assistant inspection of all twelve
+inputs and their frozen facts. Source references remain provisional; this is
+neither independent truth verification nor exhaustive taxonomy coverage. For the
+prepared real packet, sunflower, columnar cactus and bark-only references retain
+additional identity limits. A nonmatching identification on a limited reference
+is unassessable unless the explanation review establishes a concrete failure. No
+catalog names are added from model outputs.
+
+The new approval binds the clean source commit/implementation digest, plan,
+Naturebook credential fingerprint, budget, review delegation and at most a
+24-hour window. It cannot inherit an old run's authority. Admission is checked
+under the lock and before each claim. Fresh invalid admission creates no run
+manifest; an existing invalid run retains a terminal configuration stop.
+
+At the reviewed Sol tariff ceilings ($5/M input and $15/M output, including the
+largest published long-context/cache-write rates), eighteen full-context
+reservations plus the 10% regional allowance total **$106.383024**. The new plan
+allows a **$110 ceiling**, subject to its bound approval. This is an
+intentionally conservative full-context reservation, not predicted spend or a
+price per photo. The unchanged output cap is 8,192 tokens. Prices must be
+reviewed within seven days. See the official
+[Sol pricing](https://developers.openai.com/api/docs/models/gpt-6-sol).
+
+The sibling `sol-photo-rank-run/` journal exclusively claims each assignment,
+writes its v2 result before transient assistant review, and retains a terminal
+stop for failure, interruption or a missing review. No retry or continuation
+mode exists. Record parsers and recalculated cost bounds validate resumed
+artifacts; stopped or completed runs never issue additional requests.
+`summary.json` keeps mapping/identity categories, review gaps, failed or
+unreviewed results, per-phase denominators, paired provider time and known cost
+bounds. Claims with no result retain their full reservation in `state.json`. A
+complete run still does not qualify or activate anything.
 
 Predeclare these decisions:
 
-- All six regression screens must remain useful and correctly scoped. Record
-  reference gaps separately; an actual wrong identity or explanation failure
-  stops the screen.
+- All six regression screens must remain useful and correctly scoped. An actual
+  wrong identity or explanation failure stops with `screen_failed`. Unmapped or
+  ambiguous primary names, or nonmatching limited references, stop with
+  `screen_unassessable`. Explanation claims marked `insufficient_reference` may
+  pass the screen only when the primary identity agrees; they remain gaps and
+  never count as passed explanation evidence.
 - On assessable rank-limited challenges, the primary names and explanation must
   respect the reference rank. Unsupported specificity cannot be rescued by a
   disclaimer. Track failures on species-answerable cases so broad abstention
@@ -218,7 +259,10 @@ Predeclare these decisions:
 
 Assistant review remains the operational approach requested by the owner. Where
 available evidence cannot resolve a claim, record it as unassessable. No new
-human review workflow is introduced by this plan.
+human review workflow is introduced by this plan. The hidden-key launcher uses
+`--sol-rank-photo-live`; the offline command is `preflight-sol-rank-photo`. The
+preparation receipt remains an immutable record with its original false
+readiness flags; only the new plan/preflight/approval can admit execution.
 
 ## Slice 4: production contract and model selection
 
@@ -262,3 +306,27 @@ generated-contract validation and all 12 shell suites. No Function runtime or
 public DTO implementation changed in this slice; the earlier Edge-suite result
 above belongs to Slice 1. No new live benchmark, database run, iOS build or
 deployment was performed.
+
+The live-controller slice passed **470 standard tooling tests, 101 isolated
+evaluator tests (47 steps), both DTO suites (20 and 21), and all 12 shell
+suites**. The Edge suite passed **2,171 tests (343 steps), with nine
+database-dependent tests ignored**. The adapter test verifies the unchanged
+pinned request and exact-model/native-moderation behavior. Controller tests
+cover admission, frozen requests, v2-only records, failed/unassessable screens,
+missing reviews, interruption, changed source/inputs, budget bounds and no
+redispatch.
+
+The launcher tests exercise hidden input, scoped child permissions, old/new
+contract rejection, stopped state and cancellation with synthetic credentials
+and zero API calls. An independent read-only review found no remaining blocker
+after admission was revalidated under the run lock. The generated identification
+bundle identity was regenerated and its diff reviewed; the pure-adapter
+ownership guard now explicitly inventories the Sol configuration.
+
+Recursive formatting/lint, all 102 Function config/dependency graphs, generated
+DTO validation, six changed Markdown files, 343 local documentation links and
+diff whitespace passed. All twelve copied images and frozen fact cards still
+match their source inputs. No paid requests, hosted mutations, database run, iOS
+build or production deployment occurred in this slice. The private live plan is
+prepared; the next step is the hidden credential entry and execution against its
+committed source.
