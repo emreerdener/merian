@@ -159,6 +159,8 @@ struct ExploreMapPost: Decodable, Identifiable, Equatable {
     let authorIsPro: Bool?
     let speciesCommonName: String
     let speciesScientificName: String
+    // swiftlint:disable:next implicit_optional_initialization
+    var identification: ExploreIdentification? = nil
     let petIdentification: PetIdentification?
     let taxonomyKingdom: String?
     let taxonomyClass: String?
@@ -210,7 +212,8 @@ struct ExploreMapPost: Decodable, Identifiable, Equatable {
 
         let referenceThumbnail = referenceThumbnailUrl?
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        if let referenceThumbnail, !referenceThumbnail.isEmpty {
+        if identification?.permitsSpeciesPresentation != false,
+           let referenceThumbnail, !referenceThumbnail.isEmpty {
             return referenceThumbnail
         }
 
@@ -240,6 +243,7 @@ struct ExploreMapPost: Decodable, Identifiable, Equatable {
             hashtags: nil,
             speciesCommonName: speciesCommonName,
             speciesScientificName: speciesScientificName,
+            identification: identification,
             petIdentification: petIdentification,
             publicLocationLabel: publicLocationLabel,
             locationSharing: locationSharing,

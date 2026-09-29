@@ -3,12 +3,12 @@
 Date: 2026-09-29
 
 Status: Slice 1 and the native persistence, backend review authority and native
-review acknowledgement checkpoints of Slice 2 are implemented locally. Shared
-consumers remain pending. No deployment, producer activation, model assignment
-or confidence policy change is included. The design baseline below used
-`ca35e74bb` on `codex/openai-free-pro-evaluation`; the dated checkpoint records
-distinguish implemented foundation from pending consumers and model
-qualification.
+review acknowledgement checkpoints of Slice 2 are implemented locally. The
+shared consumer checkpoint is implemented and locally verified. No deployment,
+producer activation, model assignment or confidence policy change is included.
+The design baseline below used `ca35e74bb` on
+`codex/openai-free-pro-evaluation`; the dated checkpoint records distinguish
+implemented foundation from pending consumers and model qualification.
 
 The
 [completed Sol comparison](identification-sol-rank-comparison-results-2026-09-29.md)
@@ -37,12 +37,13 @@ contracts until deliberately migrated. Audio, sampled-video identification,
 model selection, explanation length and Strong / Possible / Weak thresholds are
 outside this implementation sequence.
 
-## Current implementation boundary
+## Design baseline before implementation
 
 The [API contract](../backend-and-data/05-api-contracts.md#scan-response-replay)
 and [database schema](../backend-and-data/04-database-schema.md#scans) describe
-current behavior. The following source owners explain why a prompt-only fix is
-insufficient:
+current behavior. The following table records the original design baseline; the
+dated implementation checkpoints below supersede its gaps and explain why a
+prompt-only fix was insufficient:
 
 | Owner                                                                                                                                                                                                                                                                                                                                                                                | Current behavior                                                                               | Required change for an explicit result                                               |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
@@ -530,11 +531,12 @@ activation. No paid model requests or production mutations were performed.
    same-revision conflicts, replacement, clear, second-device history and
    missing-row recovery while preserving the AI answer and its confidence
    metadata.
-3. **Shared consumers.** Complete rank-aware Share/Explore and public web
-   projections, Field Chat context, immutable DwC-A exports, FieldTrip credit
-   and reference-image promotion. A broader observation remains representable
-   without acquiring species-only effects. Existing community consensus is a
-   separate authority and cannot be silently treated as a verified species.
+3. **Shared consumers — implemented and locally verified.** Complete rank-aware
+   Share/Explore and public web projections, Field Chat context, immutable DwC-A
+   exports, FieldTrip credit and reference-image promotion. A broader
+   observation remains representable without acquiring species-only effects.
+   Existing community consensus is a separate authority and cannot be silently
+   treated as a verified species.
 
 These checkpoints require ordinary implementation and contract review, not a new
 model experiment. Only after all Slice 2 acceptance gates pass may native
@@ -685,12 +687,13 @@ Hosted exact-SHA CI, a Release archive and installed-app deployment/upgrade
 verification remain release gates. The native protocol stays 4 while shared
 consumers are completed.
 
-### Next shared-consumer checkpoint
+### Shared-consumer checkpoint — 2026-09-29
 
-The read-only consumer audit found that the remaining service projections still
-use the legacy `COALESCE(confirmed_species_id, species_id)` convention. Keep
-protocol 4 and current producers until the following coordinated work is
-implemented and validated:
+The consumer audit found service projections using the legacy
+`COALESCE(confirmed_species_id, species_id)` convention. The following
+coordinated scope is implemented locally. Protocol 4 and current producers
+remain unchanged after the local acceptance gates below; production release
+gates remain separate:
 
 1. Define one server-owned effective-identity policy for explicit results. Reuse
    the stored primary/provenance validators and full verified-review validator.
@@ -730,3 +733,94 @@ malformed present authority; missing-row recovery; and unchanged existing export
 jobs. Run actual-role database fixtures, the affected Edge/DTO/native/web gates
 and the complete required surface gates before advertising capability 5. This
 checkpoint needs no new paid model benchmark.
+
+## Shared-consumer implementation decisions
+
+Migration `20260929192008_apply_primary_identity_to_shared_consumers.sql` and
+`_shared/identify/effectiveIdentity.ts` evaluate saved primary/provenance and
+full revisioned review authority. Explicit malformed authority fails closed;
+legacy observations keep their historical behavior. The original AI rank,
+labels, score, explanation and candidates remain immutable.
+
+Public card queries retain their existing invoker and row-policy boundary. They
+derive source and labels from stored fields covered by validated provenance,
+primary shape/subject and review CHECKs; private policy helpers remain
+service-only. No schema access, table grant or definer authority is added.
+Actual-role fixtures preserve anonymous denial and owner-only direct reads,
+while service projections retain viewer blocking and privacy filters.
+
+Explore cards add only the optional public `identification` label projection:
+version, current rank/source and original rank/names. No review envelope, model
+configuration, score or private context is added. Feed, map, detail and web
+labels distinguish broader groups, observer selection and community labels.
+Broader/community projections do not borrow species name preferences or species
+reference imagery. Share and Field Chat support valid unresolved biological
+observations as well as named taxa, without inventing a species association.
+
+Native Insight shows a separate **Your selected species** section. **View
+species details** opens the existing dictionary route and its enrichment owner.
+It does not overwrite the original scan's taxonomy, hazard, imagery or AI
+confidence. Native species totals accept the verified identity; their cache
+fingerprint observes in-place confirmation, replacement and clear.
+Taxonomy-based native achievement evidence remains tied to the original
+qualified result.
+
+Field Trip receipts include primary/provenance, full review/revision and the
+effective species ID. Replacement first withdraws mismatched completed regular
+and Event contributions before recomputing, preserving saved goal preferences.
+Clear cannot retain the old credit. Reference-image promotion still requires
+qualified original AI metrics; explicit rows must have original species rank and
+that original species must match the effective association. Taxonomy
+verification alone does not establish that a photograph depicts that species.
+
+New immutable DwC-A snapshots include rank/name/selection source. Existing
+snapshot rows are never rewritten. The archive retains its existing 20-column
+format, including resumed jobs with previously uploaded chunks. New explicit
+rows preserve broader names in the scientific-name and genus/family fields and
+rank/selection wording in `identificationVerificationStatus`; historical rows
+retain their original numeric/blank status. A dedicated `taxonRank` column is
+deferred until an independently versioned archive format exists. No export is
+activated by this change.
+
+No paid provider calls are needed for these contract checks. This checkpoint
+does not qualify a new producer, change the current Sol/Gemini assignments,
+advertise protocol 5, or authorize deployment.
+
+### Shared-consumer verification — 2026-09-29
+
+- Rebuilt the dedicated disposable PostgreSQL 17 database from the complete
+  migration history with pinned Supabase CLI 2.109.1. All 70 pgTAP catalogs
+  passed: 463 assertions. Database lint found no schema errors; the privileged
+  routine audit found zero violations across 270 definers.
+- Complete Edge suite: 2,211 tests and 343 steps passed, with the disposable
+  database explicitly configured so integration tests could not silently skip.
+  Actual-role tests preserve anonymous `42501` denial, owner-only direct reads,
+  cross-owner denial and service viewer-blocking. They cover explicit ranks,
+  legacy confirmations, Human/placeholders, community species equality/mismatch
+  and genus labels, selected identity and clear. Regular and Event Field Trip
+  tests confirm replacement and clear withdraw completed credit.
+- Recursive checks passed for all 103 Edge entry points. Complete Supabase
+  tooling, 360 migration-contract tests, dependency/deployment identity and
+  generated Edge/captured-media DTO gates passed. Backend formatting and lint
+  passed.
+- Native focused integration tests passed 72 cases. The complete unit target and
+  all four required scan UI smokes then passed 4,578 tests with zero failures or
+  skips in `.artifacts/local-ios/a3f208c3524144c8a139dc90bcb88102.xcresult`. A
+  final review aligned iOS unknown-key rejection with the web decoder; the
+  rebuilt decoder and ownership suites passed all five tests in
+  `.artifacts/local-ios/7c5622487e3e4ea4b23bead882641656.xcresult`.
+  Generated-project changes were regenerated with pinned XcodeGen and reviewed.
+  Native project, event-routing, privacy, transport-security, versioning,
+  migration and portable CI-tooling gates passed.
+- Public web passed all 76 tests, type checking and the production build on
+  Node 24. Dependency audit found zero vulnerabilities. Read-only native/web and
+  database contract reviews were completed and their actionable findings
+  resolved.
+
+This completes the shared-consumer source checkpoint. Keep native protocol 4 and
+the current Sol/Gemini assignments and confidence policy. The signed
+archive/distribution and install-over verification remain release gates; local
+simulator evidence does not replace them. Capability-5 readiness and the
+separate explicit-producer qualification remain the next planned work. No hosted
+mutation, push, paid model evaluation or export activation was performed for
+this checkpoint.

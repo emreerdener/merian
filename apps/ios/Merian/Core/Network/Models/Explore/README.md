@@ -36,3 +36,12 @@ Cross-feature semantic-location redaction belongs to
 `Core/Models/ExploreLocationPrivacy.swift`, not to a wire DTO. The canonical
 payload and response contract remains
 [`docs/backend-and-data/05-api-contracts.md`](../../../../../../../docs/backend-and-data/05-api-contracts.md).
+
+## Rank-aware card metadata
+
+`ExploreIdentification.swift` validates the optional public versioned rank,
+label source and original names. Old payloads decode nil; present invalid rank
+relationships fail. Feed/map conversions retain this metadata. Visible wording
+lives in
+`Features/Explore/Shared/Models/ExploreIdentificationPresentation.swift`, not in
+Core networking.

@@ -46,6 +46,26 @@ enum VerifiedReviewFixtures {
 
 @MainActor
 struct VerifiedSpeciesReviewTests {
+    @Test func selectedSpeciesStaysSeparateFromPrimaryPresentationAndEnrichment() async throws {
+        let context = try ScanRepositoryTestSupport.makeContext()
+        let actor = HistoricalDatabaseActor(modelContainer: context.container)
+        try await actor.reconcileScanPage(responses: [VerifiedReviewFixtures.row(VerifiedReviewFixtures.history(VerifiedReviewFixtures.review()))])
+        let record = try #require(ModelContext(context.container).fetch(FetchDescriptor<LocalScanRecord>()).first)
+        let projection = InferenceHistoricalRecordProjection(record: record, resetLocalLookalikes: false)
+        var displayed = projection.speciesData
+        #expect(displayed.verifiedConfirmedSpeciesIdentity?.scientificName == "Examplea testus")
+        #expect(displayed.scientificName == "Examplea" && displayed.confidenceScore == 0.42)
+        #expect(!displayed.hasSpeciesLevelIdentification && !projection.hydrationPlan.allowsSpeciesHydration)
+        #expect(record.effectiveSpeciesNameForStatistics == "Examplea testus")
+        #expect(displayed.isShareableBiologicalObservation)
+        displayed.userIdentificationOverride = "Pending replacement"
+        #expect(displayed.verifiedConfirmedSpeciesIdentity == nil)
+        displayed.confirmedSpeciesReview = try VerifiedReviewFixtures.decode(VerifiedReviewFixtures.review(2, name: nil))
+        displayed.userIdentificationOverride = nil
+        #expect(displayed.verifiedConfirmedSpeciesIdentity == nil)
+        #expect(displayed.scientificName == "Examplea" && displayed.confidenceScore == 0.42)
+    }
+
     @Test func requestsContainOnlySelectionAndExpectedRevision() throws {
         let mutation = InferenceIdentificationReviewMutation.userOverride(
             scanID: VerifiedReviewFixtures.scanID.uppercased(), scientificName: "Examplea testus", confirmedSpeciesID: "untrusted-id")

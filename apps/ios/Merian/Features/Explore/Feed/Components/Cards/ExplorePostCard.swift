@@ -179,6 +179,9 @@ struct ExplorePostCard: View {
     // MARK: Species Overlay
     private var speciesOverlay: some View {
         VStack(alignment: .leading, spacing: 2) {
+            if let rank = post.identification?.rankDescription {
+                Text(rank).font(.caption2).foregroundStyle(.secondary)
+            }
             Text(displaySpeciesName)
                 .font(.subheadline)
                 .fontWeight(.semibold)

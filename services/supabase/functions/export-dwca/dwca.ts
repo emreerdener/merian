@@ -99,6 +99,7 @@ export async function generateOccurrenceRow(
   pseudonymizer: UserPseudonymizer | null,
 ): Promise<string> {
   const species = scan.species_dictionary;
+  const identity = scan.identification;
   const date = scan.timestamp ? new Date(scan.timestamp).toISOString() : "";
   const ownerUserId = scan.user_id;
   const isTombstoned = ownerUserId === null ||
@@ -162,10 +163,20 @@ export async function generateOccurrenceRow(
     }`;
   }
 
-  const verificationStatus = scan.ai_confidence_qualified !== false &&
+  // Keep the frozen 20-column archive format: a resumed old job may already
+  // have uploaded occurrence chunks. Rank is also retained in the new snapshot
+  // and named genus/family columns; a future taxonRank column needs job versioning.
+  const qualifiedScore = scan.ai_confidence_qualified !== false &&
       scan.ai_confidence_score != null
     ? scan.ai_confidence_score.toFixed(2)
     : "";
+  const verificationStatus = identity?.verified_selection
+    ? "Observer-selected species; taxonomy verified"
+    : identity
+    ? `AI identification rank: ${identity.rank}${
+      qualifiedScore ? `; original AI score: ${qualifiedScore}` : ""
+    }`
+    : qualifiedScore;
 
   // All fields wrapped with csvField() — RFC 4180 quoting handles commas, quotes, newlines.
   return [
@@ -173,13 +184,17 @@ export async function generateOccurrenceRow(
     csvField("HumanObservation"),
     csvField(recordedBy),
     csvField(date),
-    csvField(species?.scientific_name),
+    csvField(identity ? identity.scientific_name : species?.scientific_name),
     csvField(species?.kingdom),
     csvField(species?.phylum),
     csvField(species?.class),
     csvField(species?.order),
-    csvField(species?.family),
-    csvField(species?.genus),
+    csvField(
+      identity?.rank === "family" ? identity.scientific_name : species?.family,
+    ),
+    csvField(
+      identity?.rank === "genus" ? identity.scientific_name : species?.genus,
+    ),
     csvField(lat),
     csvField(lon),
     csvField(uncertainty),

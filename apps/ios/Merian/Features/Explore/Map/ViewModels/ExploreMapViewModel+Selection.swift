@@ -104,6 +104,7 @@ extension ExploreMapViewModel {
                 authorIsPro: canonical.authorIsPro,
                 speciesCommonName: canonical.speciesCommonName,
                 speciesScientificName: canonical.speciesScientificName,
+                identification: canonical.identification,
                 petIdentification: canonical.petIdentification,
                 taxonomyKingdom: mapPost.taxonomyKingdom,
                 taxonomyClass: mapPost.taxonomyClass,

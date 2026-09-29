@@ -33,10 +33,15 @@ All fields are optional:
   Explore post visibility: a post-level `private` location setting can keep the
   post visible without public location, but private backing scans are not
   promoted into Merian species reference imagery.
-- Uses `COALESCE(scans.confirmed_species_id, scans.species_id)`.
+- Uses the validated effective Explore species association. Legacy rows retain
+  their prior confirmed/original-ID behavior. Explicit rows require original
+  species rank and the same original/effective species; a broader/community
+  label cannot invent a species association.
 - Unnests all non-empty `scans.image_storage_urls`.
-- Requires `image_quality_score >= 80` and either `ai_confidence_score >= 0.95`
-  or a non-null `confirmed_species_id` by default.
+- Requires `image_quality_score >= 80` and `ai_confidence_score >= 0.95` by
+  default. Only legacy rows retain the confirmed-ID confidence exception;
+  explicit verified taxonomy selection is not proof of photographic correctness
+  and cannot bypass the original score or become a confirmed-image priority.
 - Both dry-run and live selection require an exact compatible Gemini execution
   or historical absence of provenance. Unknown profiles are excluded even when a
   species is confirmed: confirmation does not qualify a new image-quality scale.

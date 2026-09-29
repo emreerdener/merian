@@ -60,7 +60,7 @@ extension InsightSheetViewModel {
               let speciesData = inferenceEngine?.speciesData,
               presentedLocalRecordScanId != nil,
               let snapshot = toolbarRecordSnapshot,
-              speciesData.hasResolvedBiologicalIdentification,
+              speciesData.isShareableBiologicalObservation,
               !speciesData.isHumanSubject,
               !snapshot.isHumanSubject else {
             return false

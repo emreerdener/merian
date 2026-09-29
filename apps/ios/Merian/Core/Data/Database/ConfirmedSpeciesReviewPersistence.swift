@@ -104,6 +104,16 @@ extension LocalScanRecord {
         return try? ConfirmedSpeciesReview.restoring(confirmedSpeciesIdentityData)
     }
 
+    /// Species totals can use a verified selection while the original AI rank stays unchanged.
+    var effectiveSpeciesNameForStatistics: String? {
+        if primaryIdentification != nil {
+            guard primaryIdentification?.value != nil,
+                  confirmedSpeciesIdentityData == nil || confirmedSpeciesReview != nil else { return nil }
+            if let selected = verifiedConfirmedSpeciesIdentity { return selected.scientificName }
+        }
+        return hasSpeciesLevelIdentification ? scientificName : nil
+    }
+
     /// A pending local change cannot borrow the previous selection's authority.
     var verifiedConfirmedSpeciesIdentity: ConfirmedSpeciesReview.Identity? {
         guard let review = confirmedSpeciesReview,

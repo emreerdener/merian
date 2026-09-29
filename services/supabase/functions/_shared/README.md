@@ -577,3 +577,14 @@ See the
 [API contract](../../../../docs/backend-and-data/05-api-contracts.md#explore-emoji-reactions-2026-09-18),
 [catalog generation guide](../../../../resources/emoji/README.md), and
 [reaction tests](../../../../docs/development-guides/08-testing-strategy.md#explore-emoji-reaction-verification).
+
+## Saved identification consumers
+
+`identify/effectiveIdentity.ts` evaluates authorized saved-row primary,
+provenance and full review state. `identify/speciesReview.ts` owns the strict
+review envelope shared by acknowledgements and saved consumers. They perform no
+I/O and never admit client recovery JSON as authority.
+`exploreIdentification.ts` is the separate public allowlist for rank/source and
+original labels. Adding these dependencies means Identify contract changes also
+affect Insight chat, sharing, community requests and field-note updates; the
+function dependency graph owns deployment selection.

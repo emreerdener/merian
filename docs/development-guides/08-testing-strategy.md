@@ -9755,3 +9755,36 @@ hydration exclusion, and missing-required snapshot recovery failure. The
 complete unit target and source/tooling gates remain required. Native requests
 still advertise protocol 4; these synthetic tests do not admit a producer,
 validate confirmation authority, calibrate confidence or authorize deployment.
+
+### Verified review and shared-consumer coverage
+
+`VerifiedSpeciesReviewTests` exercises independent verified selection,
+revisioned history and acknowledgements, pending-intent separation, competing
+contexts, disk reopening and the separate Insight dictionary entry. The original
+AI identity, alternatives, explanation and confidence remain unchanged.
+`ProfileDatabaseActorTests` checks cached totals after confirmation,
+replacement, reconfirmation and clear from another database actor. Native
+taxonomy-based achievement inputs continue to use qualified original evidence.
+
+`ExploreIdentificationTests`, `ExploreMapViewModelTests` and web
+`exploreIdentification.test.ts` cover optional legacy decoding,
+malformed-present rejection, map conversion and copy preservation, rank/source
+labels, and guarded preferred-name/reference-media fallback.
+
+The disposable-database `primaryIdentityConsumersDb.test.ts` compares SQL and
+Edge saved-row policies, exercises actual service/authenticated roles,
+authenticated cross-owner denial, anonymous insufficient-privilege denial,
+Human/placeholders, community matching/mismatching species and genus labels,
+blocking/unsharing, selection and clear. `primary_identity_consumers.sql` checks
+private helper ACLs, invoker mode, fixed search paths, validated identity CHECKs
+and the Field Trip authority trigger. The completed regular/Event credit
+regression lives in `fieldTripAtomicProgressDb.test.ts`. Run every catalog and
+the complete Edge suite sequentially against the same disposable database to
+avoid fixture lock collisions.
+
+DwC-A tests cover explicit broader/selected snapshots and resumed historical
+20-column chunks. No archive column is added and no existing frozen source row
+is rewritten. These synthetic tests use reserved protocol-5 headers only when
+reading explicit fixtures; production native requests stay on protocol 4. They
+do not qualify a new producer, change model or confidence policy, activate
+exports, or replace the signed install-over release gate.

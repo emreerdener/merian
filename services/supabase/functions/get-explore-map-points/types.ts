@@ -1,3 +1,4 @@
+import type { ExploreIdentification } from "../_shared/exploreIdentification.ts";
 import type { PetIdentification } from "../_shared/identify/types.ts";
 import type { ExplorePostMediaItem } from "../_shared/explore.ts";
 import type {
@@ -25,6 +26,7 @@ export interface ExploreMapPostRow {
   author_is_pro?: boolean;
   species_common_name: string;
   species_scientific_name: string;
+  identification?: ExploreIdentification | null;
   pet_identification?: PetIdentification | null;
   taxonomy_kingdom?: string | null;
   taxonomy_class?: string | null;

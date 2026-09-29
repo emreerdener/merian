@@ -272,6 +272,19 @@ missing service-role `SELECT` on `user_follows` needed by the existing invoker
 Explore author-profile read. It changes no browser-role grant, table RLS, or
 write privilege. Actual-role integration tests cover both public projections.
 
+The prepared shared-primary consumers in
+`20260929192008_apply_primary_identity_to_shared_consumers.sql` preserve those
+privileges. The private saved-row identity helpers remain service-only invokers.
+The historical public card/single-post/hashtag invokers derive identity labels
+from persisted scan fields under the caller's existing row policies, without
+private schema access or new definer authority. The provenance, primary
+shape/schema, primary subject and verified-review CHECKs must remain validated.
+This projection accepts no caller-supplied scan row and exposes only allowlisted
+labels/rank. Authenticated direct reads remain owner-only; cross-owner direct
+reads and the existing anonymous table denial remain in force. Server-side views
+retain their viewer-blocking predicates, and public web continues through its
+service-only projection.
+
 The result-reader helper
 `internal.require_identification_result_reader(jsonb,jsonb)` and its
 one-argument compatibility wrapper are `SECURITY INVOKER`, `VOLATILE`, fixed to

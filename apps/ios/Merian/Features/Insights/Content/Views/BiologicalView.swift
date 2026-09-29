@@ -56,6 +56,23 @@ struct BiologicalView: View {
 
         VStack(spacing: 32) {
 
+            if let identity = inferenceEngine.speciesData?.verifiedConfirmedSpeciesIdentity {
+                VStack(spacing: 8) {
+                    Text("Your selected species").font(.subheadline).foregroundStyle(.secondary)
+                    Text(identity.scientificName).font(.title3).italic()
+                    NavigationLink(value: SpeciesDictionaryRoute(
+                        scientificName: identity.scientificName,
+                        speciesId: identity.speciesID,
+                        entryPoint: .insightConfirmedSpecies
+                    )) {
+                        Label("View species details", systemImage: "book")
+                    }
+                    Text("The AI result and confidence below describe the original identification.")
+                        .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                }
+                .padding(.horizontal)
+            }
+
             // MARK: - Header
             InsightHeader(
                 title: viewModel.resolvedHeaderTitle,

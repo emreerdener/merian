@@ -1,3 +1,4 @@
+import { identificationDescription, originalIdentificationDescription, permitsSpeciesPresentation } from "../../../../lib/exploreIdentification";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -178,7 +179,7 @@ export default async function ExplorePostPage({
           <ExploreMediaCarousel
             mediaItems={post.mediaItems}
             heroImageUrl={post.heroImageUrl}
-            referenceImages={detail?.referenceImages ?? []}
+            referenceImages={permitsSpeciesPresentation(post.identification) ? detail?.referenceImages ?? [] : []}
             altText={title}
             postId={post.postId}
           />
@@ -223,6 +224,12 @@ export default async function ExplorePostPage({
             </Group>
 
             <Stack gap="xs" align="center">
+              {identificationDescription(post.identification) ? (
+                <Text size="sm" c="dimmed" ta="center">{identificationDescription(post.identification)}</Text>
+              ) : null}
+              {originalIdentificationDescription(post.identification) ? (
+                <Text size="sm" c="dimmed" ta="center">{originalIdentificationDescription(post.identification)}</Text>
+              ) : null}
               <Stack gap={0} align="center">
                 {post.speciesScientificName ? (
                   <Text size="lg" c="dimmed" fs="italic" ta="center">

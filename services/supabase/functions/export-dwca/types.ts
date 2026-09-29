@@ -52,6 +52,17 @@ export interface DBScanRow {
   individual_count?: number | null;
   ecological_interactions?: string[];
   ai_confidence_score?: number | null;
+  /** Absent/null for historical immutable snapshots. Never read current scan state. */
+  identification?: {
+    rank:
+      | "species"
+      | "genus"
+      | "family"
+      | "unresolved_biological"
+      | "non_biological";
+    scientific_name: string | null;
+    verified_selection: boolean;
+  } | null;
   /** Omitted only by immutable snapshots created before qualification existed. */
   ai_confidence_qualified?: boolean;
   species_dictionary?: {

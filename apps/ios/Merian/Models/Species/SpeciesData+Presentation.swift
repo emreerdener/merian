@@ -81,6 +81,23 @@ extension SpeciesData {
         !isBiological && !isInferenceErrorPlaceholder
     }
 
+    /// A separate selected taxon, never a replacement for the original AI answer.
+    var verifiedConfirmedSpeciesIdentity: ConfirmedSpeciesReview.Identity? {
+        guard isBiological, primaryIdentification?.value != nil,
+              let review = confirmedSpeciesReview,
+              review.matchesIntent(override: userIdentificationOverride,
+                                   confirmed: userConfirmedIdentification,
+                                   state: userIdentificationOverride != nil ? .userOverridden : userConfirmedIdentification ? .aiConfirmed : .unreviewed) else { return nil }
+        return review.identity
+    }
+
+    /// Broad and unresolved biological observations remain usable without a species association.
+    var isShareableBiologicalObservation: Bool {
+        guard isBiological, !isHumanSubject else { return false }
+        if let primaryIdentification { return primaryIdentification.value != nil }
+        return hasResolvedBiologicalIdentification
+    }
+
     /// This is deliberately separate from a usable genus/family label.
     var hasSpeciesLevelIdentification: Bool {
         if let primaryIdentification {

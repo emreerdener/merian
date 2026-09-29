@@ -311,7 +311,9 @@ extension LocalScanRecord {
     }
 
     var isExploreShareEligible: Bool {
-        hasResolvedBiologicalIdentification && !isHumanSubject
+        guard isBiological, !isHumanSubject else { return false }
+        if let primaryIdentification { return primaryIdentification.value != nil }
+        return hasResolvedBiologicalIdentification
     }
 
     var isHumanSubject: Bool {

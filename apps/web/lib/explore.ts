@@ -1,5 +1,10 @@
 import "server-only";
 
+import {
+  type ExploreIdentification,
+  parseExploreIdentification,
+} from "./exploreIdentification";
+
 import { createAdminSupabaseClient } from "./supabaseAdmin";
 
 const UUID_REGEX =
@@ -23,6 +28,7 @@ type ExplorePostRow = {
   hashtags?: string[] | null;
   species_common_name: string;
   species_scientific_name: string;
+  identification?: unknown;
   pet_identification?: unknown;
   public_location_label?: string | null;
   location_sharing?: "open" | "obscured" | "private" | null;
@@ -157,6 +163,7 @@ export type ExplorePost = {
   hashtags: string[];
   speciesCommonName: string;
   speciesScientificName: string;
+  identification?: ExploreIdentification | null;
   publicLocationLabel?: string | null;
   locationSharing?: "open" | "obscured" | "private" | null;
   timeOfDay?: string | null;
@@ -519,6 +526,7 @@ function mapExplorePost(row: ExplorePostRow): ExplorePost {
     hashtags: normalizedStringList(row.hashtags),
     speciesCommonName: row.species_common_name,
     speciesScientificName: row.species_scientific_name,
+    identification: parseExploreIdentification(row.identification),
     publicLocationLabel: publicDisplayLocationLabel(row.public_location_label),
     locationSharing: row.location_sharing,
     timeOfDay: row.time_of_day,

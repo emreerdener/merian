@@ -48,6 +48,10 @@ export function buildExplorePostContextBlock(
 
   return [
     "[PUBLIC EXPLORE POST CONTEXT]",
+    `Identification labels and ranks: ${
+      JSON.stringify(context.post.identification ?? null)
+    }`,
+    "Community labels are a community outcome, not verified species authority. A verified selection establishes accepted taxonomy only. The explanation remains about the original AI identification; do not transfer its certainty to a later selection.",
     `Common Name: ${clean(post.species_common_name, 160)}`,
     `Scientific Name: ${clean(post.species_scientific_name, 160)}`,
     `Taxonomy: ${taxonomy || "Unavailable"}`,

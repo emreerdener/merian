@@ -21,6 +21,7 @@ struct SpeciesDictionaryRoute: Identifiable, Equatable, Hashable {
 
 enum SpeciesDictionaryEntryPoint: String, Equatable, Hashable {
     case insightSimilarSpecies = "insight_similar_species"
+    case insightConfirmedSpecies = "insight_confirmed_species"
     case exploreDetailDictionary = "explore_detail_dictionary"
     case exploreDetailSimilarSpecies = "explore_detail_similar_species"
     case exploreDictionaryCatalog = "explore_dictionary_catalog"

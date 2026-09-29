@@ -790,7 +790,7 @@ final class ExploreMapViewModelTests: XCTestCase {
 
     func testFocusTargetMapsPublicDetailPointIntoMapPost() throws {
         let mapPost = makeMapPost(id: "mapped-focus", latitude: 0)
-        let canonicalPost = makeCanonicalPost(from: mapPost, locationSharing: .open)
+        var canonicalPost = makeCanonicalPost(from: mapPost, locationSharing: .open)
         let detailData = Data("""
         {
             "post_id": "mapped-focus",
@@ -807,6 +807,8 @@ final class ExploreMapViewModelTests: XCTestCase {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
         let detail = try decoder.decode(ExplorePostDetail.self, from: detailData)
+        canonicalPost.identification = try decoder.decode(ExploreIdentification.self, from: Data(#"{"version":1,"rank":"genus","label_source":"ai_primary","original_rank":"genus","original_scientific_name":"Examplea","original_common_name":null}"#.utf8))
+        canonicalPost.referenceThumbnailUrl = "https://example.invalid/species.webp"
 
         let target = ExploreMapFocusTarget(post: canonicalPost, detail: detail)
 
@@ -816,6 +818,15 @@ final class ExploreMapViewModelTests: XCTestCase {
         XCTAssertEqual(target?.post.coordinateVisibility, .obscured)
         XCTAssertEqual(target?.post.taxonomyKingdom, "Animalia")
         XCTAssertEqual(target?.post.taxonomyClass, "Insecta")
+        XCTAssertEqual(target?.post.identification, canonicalPost.identification)
+        if let target {
+            let viewModel = ExploreMapViewModel()
+            viewModel.focus(on: ExploreMapFocusTarget(post: mapPost))
+            viewModel.syncPosts(from: [canonicalPost])
+            XCTAssertEqual(viewModel.selectedPost?.identification, canonicalPost.identification)
+            XCTAssertNotEqual(target.post.mapThumbnailUrl, canonicalPost.referenceThumbnailUrl)
+            XCTAssertEqual(target.post.asExplorePost.identification, canonicalPost.identification)
+        }
     }
 
     func testObservationMapPresentationFailsClosedAndUsesExactOrApproximatePolicy() throws {

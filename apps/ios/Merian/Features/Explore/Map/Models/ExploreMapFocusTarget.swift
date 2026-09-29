@@ -26,6 +26,7 @@ struct ExploreMapFocusTarget: Equatable {
             authorIsPro: post.authorIsPro,
             speciesCommonName: post.speciesCommonName,
             speciesScientificName: post.speciesScientificName,
+                identification: post.identification,
             petIdentification: post.petIdentification,
             taxonomyKingdom: detail.taxonomyKingdom,
             taxonomyClass: detail.taxonomyClass,

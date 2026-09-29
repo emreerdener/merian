@@ -40,3 +40,10 @@ and follow the
 [organization verification plan](../../../../../docs/rfcs/supabase-functions-organization.md).
 The existing deploy planner can select the full fleet for removed shared paths;
 actual imports alone do not define deployment scope.
+
+## Observation identity
+
+Insight chat uses the saved-row effective-identity policy; Explore chat uses the
+separate public labels/rank projection. Both preserve original AI evidence
+separately from verified selection, pending review or community labels. Bundle
+identities must be regenerated after these context dependencies change.

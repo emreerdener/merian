@@ -2755,8 +2755,11 @@ validation. Broader results retain their labels and a genus/family caption,
 while species hydration, candidates, references, novelty and species statistics
 require species rank. Typed review cannot promote that rank. Validated
 confirmation authority is now consumed by the dormant native review/history
-path. Public/export and other shared consumers remain pending, so the app
-continues to advertise protocol 4. See the
+path. Shared consumers now evaluate original AI evidence separately from
+verified species selection. Public labels, Field Chat, species totals, Field
+Trip credit and new export snapshots retain that distinction. The app continues
+to advertise protocol 4 pending the complete capability and release gates. See
+the
 [implementation sequence](../rfcs/identification-primary-resolution-contract-2026-09-29.md).
 
 Owner history selects `identification_provenance` and `primary_identification`.
@@ -10145,8 +10148,10 @@ both authority columns and the four legacy review fields. Omission preserves a
 saved authority; partial presence is invalid, older revisions are ignored, and
 same-revision conflicts fail. Equal history preserves pending local intent;
 newer authoritative state reconciles it. Preparation and acknowledgement never
-change original AI output or calibrate its confidence. Shared consumers remain
-pending and protocol stays 4. See the
+change original AI output or calibrate its confidence. The shared consumers use
+this authority separately from original AI evidence; see
+[shared identity semantics](#explicit-identity-in-shared-consumers). Protocol
+stays 4. See the
 [endpoint contract](../../services/supabase/functions/confirm-scan-species/README.md)
 and
 [remaining checkpoints](../rfcs/identification-primary-resolution-contract-2026-09-29.md#remaining-consumer-checkpoints).
@@ -11911,3 +11916,39 @@ Reference images exclude media belonging to that viewer's reported posts;
 missing eligible media produces the existing empty/null image representation
 without dropping the species. Native callers use this route. The anonymous
 endpoint and its public contract are preserved.
+
+## Explicit identity in shared consumers
+
+The dormant explicit-primary contract is evaluated from the authorized saved
+row, never from client-supplied recovery fields. The full primary/provenance and
+revisioned species review must validate. Pending typed review or a bare
+confirmed ID cannot confer species authority. Valid genus, family and unresolved
+biological observations remain shareable and eligible for biological Field Chat.
+Legacy reads retain their prior behavior.
+
+Explore card RPCs add nullable `identification` with exactly `version: 1`,
+`rank`, `label_source`, `original_rank`, `original_scientific_name` and
+`original_common_name`. Rank is species, genus, family or unresolved_biological;
+source is ai_primary, verified_selection or community. Original fields are
+required nullable values. Legacy cards omit/null this object unless a community
+label applies. A present malformed object fails decoding. No confidence,
+provider settings or review envelope is public. Cards/detail/map/web keep
+existing privacy predicates and original `ai_reasoning`; presentation names its
+original rank separately when a selection or community label is displayed.
+Broader or community display alone supplies no verified species reference or
+preferred species-name substitution.
+
+Insight Field Chat separates original AI evidence, verified taxonomy selection
+and pending review; it never transfers original confidence to a replacement.
+Field Trip receipts track the primary/review revisions and recompute or withdraw
+regular/Event credit, including completed trips, when the selected species
+changes. Reference promotion requires the original species association and
+qualified original metrics for explicit results.
+
+New DwC-A source snapshots add nullable `identification` containing `rank`,
+`scientific_name` and `verified_selection`. Invalid authority gives no effective
+species and a null identification projection. Existing immutable snapshot rows
+and resumable archive format stay unchanged. The 20-column CSV uses the existing
+scientificName, genus/family and identificationVerificationStatus fields to
+preserve the explicit interpretation; a new taxonRank column requires a future
+versioned archive format. No producer, export gate or client protocol changes.

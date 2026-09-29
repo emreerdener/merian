@@ -1327,8 +1327,9 @@ The transaction log for every successful identification.
   non-species snapshot cannot carry `species_id`, candidates or pet
   identification; the biological flag must agree. Species alternatives require
   their own species rank and at most two entries. Independently verified
-  `confirmed_species_id` is a separate identity; native and shared consumer
-  integration remains pending.
+  `confirmed_species_id` is a separate identity. Native and shared consumers now
+  preserve the original answer while separately evaluating full verified review
+  authority; protocol 4 and current producers remain unchanged.
 - `confirmed_species_identity` (JSONB, nullable) and
   `confirmed_species_identity_revision` (INTEGER, initially 0): Migration
   `20260929170458_prepare_verified_scan_species_review.sql` prepares

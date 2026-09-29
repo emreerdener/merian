@@ -1,3 +1,11 @@
+import {
+  parseSpeciesReview,
+  type SpeciesReview,
+} from "../_shared/identify/speciesReview.ts";
+export type {
+  ConfirmedSpeciesIdentity,
+  SpeciesReview,
+} from "../_shared/identify/speciesReview.ts";
 import { publicHttpError } from "../_shared/http.ts";
 
 export type ReviewAction = "confirm_primary" | "confirm_name" | "clear";
@@ -6,22 +14,6 @@ export interface ReviewRequest {
   expected_revision: number;
   action: ReviewAction;
   scientific_name: string | null;
-}
-export interface ConfirmedSpeciesIdentity {
-  version: 1;
-  species_id: string;
-  scientific_name: string;
-  common_name: null;
-  gbif_taxon_key: number;
-}
-export interface SpeciesReview {
-  version: 1;
-  revision: number;
-  identity: ConfirmedSpeciesIdentity | null;
-  user_identification_override: string | null;
-  user_confirmed_identification: boolean;
-  confirmed_species_id: string | null;
-  user_review_state: "unreviewed" | "ai_confirmed" | "user_overridden";
 }
 export interface ReviewReceipt {
   schema_version: 1;
@@ -104,80 +96,16 @@ export function parseReviewReceipt(
   value: unknown,
   scanID: string,
 ): ReviewReceipt {
-  const invalid = () => new Error("Species review receipt is invalid.");
-  const receipt = object(value), review = object(receipt?.review);
+  const receipt = object(value);
   if (
     !receipt || !exact(receipt, ["schema_version", "scan_id", "review"]) ||
-    receipt.schema_version !== 1 || receipt.scan_id !== scanID ||
-    !review ||
-    !exact(review, [
-      "version",
-      "revision",
-      "identity",
-      "user_identification_override",
-      "user_confirmed_identification",
-      "confirmed_species_id",
-      "user_review_state",
-    ]) ||
-    review.version !== 1 || !revision(review.revision) ||
-    new TextEncoder().encode(JSON.stringify(review)).byteLength > 8192
-  ) throw invalid();
-  const state = review.user_review_state,
-    override = review.user_identification_override;
-  if (
-    (state !== "unreviewed" && state !== "ai_confirmed" &&
-      state !== "user_overridden") ||
-    review.user_confirmed_identification !== (state === "ai_confirmed") ||
-    (state === "user_overridden"
-      ? typeof override !== "string" ||
-        override.replace(/^ +| +$/g, "").length < 1 ||
-        new TextEncoder().encode(override).byteLength > 1024 ||
-        hasControl(override)
-      : override !== null)
-  ) throw invalid();
-  let identity: ConfirmedSpeciesIdentity | null = null;
-  if (review.identity !== null) {
-    const entry = object(review.identity);
-    if (
-      !entry ||
-      !exact(entry, [
-        "version",
-        "species_id",
-        "scientific_name",
-        "common_name",
-        "gbif_taxon_key",
-      ]) ||
-      entry.version !== 1 || typeof entry.species_id !== "string" ||
-      !uuid.test(entry.species_id) ||
-      !isScientificName(entry.scientific_name) ||
-      entry.common_name !== null || !revision(entry.gbif_taxon_key) ||
-      entry.gbif_taxon_key < 1 || state === "unreviewed" ||
-      review.revision === 0
-    ) throw invalid();
-    identity = {
-      version: 1,
-      species_id: entry.species_id,
-      scientific_name: entry.scientific_name,
-      common_name: null,
-      gbif_taxon_key: entry.gbif_taxon_key,
-    };
-  }
-  if (review.confirmed_species_id !== (identity?.species_id ?? null)) {
-    throw invalid();
+    receipt.schema_version !== 1 || receipt.scan_id !== scanID
+  ) {
+    throw new Error("Species review receipt is invalid.");
   }
   return {
     schema_version: 1,
     scan_id: scanID,
-    review: {
-      version: 1,
-      revision: review.revision,
-      identity,
-      user_identification_override: typeof override === "string"
-        ? override
-        : null,
-      user_confirmed_identification: state === "ai_confirmed",
-      confirmed_species_id: identity?.species_id ?? null,
-      user_review_state: state,
-    },
+    review: parseSpeciesReview(receipt.review),
   };
 }

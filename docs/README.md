@@ -302,10 +302,12 @@ production submission or public release.
   The native checkpoint adds V53 save/restore and rank-aware presentation. The
   backend review checkpoint prepares fresh species verification, revisioned
   confirmation/clear and owner-bound recovery. The app remains on protocol 4
-  while shared/public/export consumers are completed. Native confirmation
-  acknowledgements and history now preserve revisioned replacement and clear,
-  keeping pending intent separate from authority. No new model profile,
-  assignment or confidence policy is activated.
+  after local verification of the shared/public/export consumers. Native
+  acknowledgement, history, species totals and public labels preserve revisioned
+  replacement and clear, keeping pending intent and original AI evidence
+  separate. Field Trip credit and immutable exports use the same identity
+  distinction. No new model profile, assignment or confidence policy is
+  activated.
 - **[Identification optimization while preserving current results](./rfcs/identification-optimization-preserving-results-2026-09-27.md):**
   Current plan following verified completion of the provider infrastructure
   milestone. Preserve explanation format and detail while investigating

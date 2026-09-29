@@ -409,3 +409,13 @@ against the disposable local database; never substitute `--linked`.
 The joined durability, media restoration, Field Chat/Explore recovery, and
 deployment guarantees are in
 [`docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md`](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-recovery.md#explore-publication).
+
+## Explicit primary identity
+
+Saved explicit-primary observations use the shared validated identity policy in
+both Edge admission and the row-locked publication transaction. Genus, family
+and unresolved biological observations can be shared without a species FK.
+Malformed authority, non-biological and Human subjects remain ineligible. A
+verified selected species is independent from original AI confidence; pending
+text or an optimistic confirmation flag cannot grant that association. Existing
+legacy observations preserve their prior eligibility.

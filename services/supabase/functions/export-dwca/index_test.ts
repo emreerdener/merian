@@ -213,3 +213,47 @@ Deno.test("DwC-A renders frozen confidence only when its snapshot qualifies or p
     }
   }
 });
+
+Deno.test("DwC-A freezes broader rank and separates verified selection from AI confidence", async () => {
+  for (
+    const rank of [
+      "species",
+      "genus",
+      "family",
+      "unresolved_biological",
+    ] as const
+  ) {
+    const row = await generateDwcARow(
+      {
+        id: "rank-fixture",
+        user_id: null,
+        species_dictionary: null,
+        ai_confidence_score: 0.99,
+        ai_confidence_qualified: false,
+        identification: {
+          rank,
+          scientific_name: rank === "unresolved_biological"
+            ? null
+            : "Fixtureus",
+          verified_selection: rank === "species",
+        },
+      },
+      "personal",
+      false,
+      "fixture-owner",
+      null,
+    );
+    const fields = splitCsvRow(row.occurrenceRow).map(unquote);
+    assertEquals(
+      fields[4],
+      rank === "unresolved_biological" ? "" : "Fixtureus",
+    );
+    assertEquals(fields.length, 20);
+    assertEquals(
+      fields[19],
+      rank === "species"
+        ? "Observer-selected species; taxonomy verified"
+        : `AI identification rank: ${rank}`,
+    );
+  }
+});

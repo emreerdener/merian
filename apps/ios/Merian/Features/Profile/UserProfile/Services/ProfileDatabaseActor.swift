@@ -25,6 +25,7 @@ actor ProfileDatabaseActor {
         let inferenceTier: String?
         let identificationProvenanceData: Data?
         let primaryIdentificationData: Data?
+        let effectiveSpeciesName: String?
     }
 
     private struct ProfileAchievementDetailProjection:
@@ -49,6 +50,7 @@ actor ProfileDatabaseActor {
         let inferenceTier: String?
         let identificationProvenanceData: Data?
         let primaryIdentificationData: Data?
+        let effectiveSpeciesName: String?
         let commonName: String?
         let locationName: String?
         let imagePath: String?
@@ -61,24 +63,28 @@ actor ProfileDatabaseActor {
         let recordCount: Int
         let latestScanId: String?
         let latestTimestamp: Date?
+        let effectiveSpeciesNames: [String?]
 
         static let empty = ProfileProjectionFingerprint(
             recordCount: 0,
             latestScanId: nil,
-            latestTimestamp: nil
+            latestTimestamp: nil,
+            effectiveSpeciesNames: []
         )
 
-        init(recordCount: Int, latestScanId: String?, latestTimestamp: Date?) {
+        init(recordCount: Int, latestScanId: String?, latestTimestamp: Date?, effectiveSpeciesNames: [String?]) {
             self.recordCount = recordCount
             self.latestScanId = latestScanId
             self.latestTimestamp = latestTimestamp
+            self.effectiveSpeciesNames = effectiveSpeciesNames
         }
 
         init(analyticsRecords records: [ProfileAnalyticsProjection]) {
             self.init(
                 recordCount: records.count,
                 latestScanId: records.first?.id,
-                latestTimestamp: records.first?.timestamp
+                latestTimestamp: records.first?.timestamp,
+                effectiveSpeciesNames: records.map(\.effectiveSpeciesName)
             )
         }
 
@@ -86,7 +92,8 @@ actor ProfileDatabaseActor {
             self.init(
                 recordCount: records.count,
                 latestScanId: records.first?.id,
-                latestTimestamp: records.first?.timestamp
+                latestTimestamp: records.first?.timestamp,
+                effectiveSpeciesNames: records.map(\.effectiveSpeciesName)
             )
         }
     }
@@ -106,7 +113,7 @@ actor ProfileDatabaseActor {
 
             for record in records {
                 timestamps.append(record.timestamp)
-                if record.hasSpeciesRankForAchievements { uniqueSpecies.insert(record.scientificName) }
+                if let name = record.effectiveSpeciesName { uniqueSpecies.insert(name) }
             }
 
             self.fingerprint = ProfileProjectionFingerprint(analyticsRecords: records)
@@ -124,24 +131,24 @@ actor ProfileDatabaseActor {
     )?
 
     private func currentProjectionFingerprint() -> ProfileProjectionFingerprint {
-        let descriptor = FetchDescriptor<LocalScanRecord>()
-        let count = (try? modelContext.fetchCount(descriptor)) ?? 0
-        guard count > 0 else { return .empty }
-
-        var latestDescriptor = FetchDescriptor<LocalScanRecord>(
-            sortBy: [
-                SortDescriptor(\.timestamp, order: .reverse),
-                SortDescriptor(\.id, order: .reverse)
-            ]
+        // Review acknowledgements can change an older scan without changing
+        // count or timestamps. Read current authority in a fresh context so
+        // another actor's merge cannot be hidden by this actor's identity map.
+        let context = ModelContext(modelContainer)
+        var descriptor = FetchDescriptor<LocalScanRecord>(
+            sortBy: [SortDescriptor(\.timestamp, order: .reverse), SortDescriptor(\.id, order: .reverse)]
         )
-        latestDescriptor.fetchLimit = 1
-        latestDescriptor.propertiesToFetch = [\.id, \.timestamp]
-
-        let latestRecord = ((try? modelContext.fetch(latestDescriptor)) ?? []).first
+        descriptor.propertiesToFetch = [
+            \.id, \.timestamp, \.speciesId, \.scientificName, \.commonName, \.isBiological,
+            \.identificationProvenanceData, \.primaryIdentificationData, \.confirmedSpeciesIdentityData,
+            \.confirmedSpeciesId, \.userIdentificationOverride, \.userConfirmedIdentification, \.userReviewStateRaw
+        ]
+        let records = (try? context.fetch(descriptor)) ?? []
         return ProfileProjectionFingerprint(
-            recordCount: count,
-            latestScanId: latestRecord?.id,
-            latestTimestamp: latestRecord?.timestamp
+            recordCount: records.count,
+            latestScanId: records.first?.id,
+            latestTimestamp: records.first?.timestamp,
+            effectiveSpeciesNames: records.map(\.effectiveSpeciesNameForStatistics)
         )
     }
 
@@ -193,10 +200,10 @@ actor ProfileDatabaseActor {
             \.id, \.speciesId, \.scientificName, \.userIdentificationOverride, \.confirmedSpeciesId, \.captureDate,
             \.taxonomyKingdom, \.taxonomyClass, \.ecologyType, \.weatherTemperatureF,
             \.gpsElevation, \.timestamp, \.isBiological, \.isInvasive, \.iucnRedListStatus, \.hazardType,
-            \.confidenceScore, \.inferenceTier, \.identificationProvenanceData, \.primaryIdentificationData
+            \.confidenceScore, \.inferenceTier, \.identificationProvenanceData, \.primaryIdentificationData, \.confirmedSpeciesIdentityData, \.userConfirmedIdentification, \.userReviewStateRaw
         ]
 
-        guard let records = try? modelContext.fetch(descriptor) else { return [] }
+        guard let records = try? ModelContext(modelContainer).fetch(descriptor) else { return [] }
         return records.map {
             ProfileAnalyticsProjection(
                 id: $0.id,
@@ -218,7 +225,8 @@ actor ProfileDatabaseActor {
                 confidenceScore: $0.confidenceScore,
                 inferenceTier: $0.inferenceTier,
                 identificationProvenanceData: $0.identificationProvenanceData,
-                primaryIdentificationData: $0.primaryIdentificationData
+                primaryIdentificationData: $0.primaryIdentificationData,
+                effectiveSpeciesName: $0.effectiveSpeciesNameForStatistics
             )
         }
     }
@@ -235,10 +243,10 @@ actor ProfileDatabaseActor {
             \.timestamp, \.captureDate, \.taxonomyKingdom, \.taxonomyClass, \.ecologyType, \.weatherTemperatureF,
             \.gpsElevation, \.isInvasive, \.iucnRedListStatus, \.hazardType, \.confidenceScore,
             \.commonName, \.locationName, \.coverImagePath, \.capturedMediaJSON, \.referenceImageUrl,
-            \.isBiological, \.isLocallyArchived, \.inferenceTier, \.identificationProvenanceData, \.primaryIdentificationData
+            \.isBiological, \.isLocallyArchived, \.inferenceTier, \.identificationProvenanceData, \.primaryIdentificationData, \.confirmedSpeciesIdentityData, \.userConfirmedIdentification, \.userReviewStateRaw
         ]
 
-        guard let records = try? modelContext.fetch(descriptor) else { return [] }
+        guard let records = try? ModelContext(modelContainer).fetch(descriptor) else { return [] }
         return records.map { record in
             let thumbnail = record.scanThumbnailPresentation
             return ProfileAchievementDetailProjection(
@@ -262,6 +270,7 @@ actor ProfileDatabaseActor {
                 inferenceTier: record.inferenceTier,
                 identificationProvenanceData: record.identificationProvenanceData,
                 primaryIdentificationData: record.primaryIdentificationData,
+                effectiveSpeciesName: record.effectiveSpeciesNameForStatistics,
                 commonName: record.commonName,
                 locationName: record.locationName,
                 imagePath: thumbnail.imagePath,

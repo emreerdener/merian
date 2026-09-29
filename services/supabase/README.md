@@ -28,8 +28,12 @@ The separate prepared
 obtains fresh proof before attaching an independent, revisioned species
 selection to a reserved explicit-primary observation. It keeps original AI
 metadata immutable and backs replacement/clear with the owner ingestion job.
-Current legacy results and provider assignments remain unchanged; native
-integration is still pending.
+Native acknowledgements and shared consumers now use that authority while
+preserving original AI evidence. Public labels expose only rank/source/names;
+Field Trip replacement/clear reconciles cached credit, and new export snapshots
+preserve rank without rewriting prior jobs. Current legacy results, protocol 4
+and provider assignments remain unchanged. See the
+[shared-consumer checkpoint](../../docs/rfcs/identification-primary-resolution-contract-2026-09-29.md#shared-consumer-checkpoint--2026-09-29).
 
 ## Structure
 

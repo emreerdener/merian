@@ -1,3 +1,4 @@
+import type { ExploreIdentification } from "../_shared/exploreIdentification.ts";
 import { SupabaseClient } from "@supabase/supabase-js";
 import type { ExplorePostMediaItem } from "../_shared/explore.ts";
 import type { PetIdentification } from "../_shared/identify/types.ts";
@@ -16,6 +17,7 @@ export interface ExploreAuthorPostRow {
   hashtags?: string[];
   species_common_name: string;
   species_scientific_name: string;
+  identification?: ExploreIdentification | null;
   pet_identification?: PetIdentification | null;
   public_location_label?: string | null;
   location_sharing: "open" | "obscured" | "private";
