@@ -2,32 +2,27 @@
 
 Date: 2026-09-28
 
-Status: Slice 1 implementation and local verification complete. Closed Luna/Sol
-profiles, the real 12-photo packet and the durable local controller are
-prepared. The owner approved a $40 maximum for the same 18-call Naturebook
-comparison on 28 September. Execution requires the credential-bound approval and
-existing Naturebook key. The first live screen subsequently stopped after one
-Luna call because an explanatory comparison lacked reference coverage; see the
-[screen result](identification-luna-sol-photo-screen-results-2026-09-28.md). The
-full comparison remains incomplete. The owner subsequently
-approved preserving reference gaps as unassessable and continuing only the
-seventeen unattempted assignments within the same combined 18-call/$40 limit.
-The continuation completed the five remaining screening calls; all six primary
-outcomes matched, but the mineral explanation failed the specificity criterion.
-The protocol stopped before the twelve challenge calls, so no Sol control ran.
-Slice 2's current decision is to retain Sol for both tiers; Luna qualification
-and a comparative Free/Pro advantage are unestablished. Production assignments
-are unchanged. The next
-[Luna evidence-limit candidate](identification-luna-evidence-limits-candidate-2026-09-28.md)
-is implemented as a separate prompt/profile and v3 local comparison plan. It
-preserves the stopped results, uses unchanged Sol as control and has made no
-paid requests. Its new bounded spending approval remains separate.
+Status: Slices 1 and 2 are complete locally: versioned evaluation profiles,
+bounded execution and a documented selection decision. The original Luna screen
+stopped on reference coverage; its approved continuation stopped on mineral
+specificity before any Sol control. Their
+[historical record](identification-luna-sol-photo-screen-results-2026-09-28.md)
+remains intact. A separately approved
+[evidence-limit candidate](identification-luna-evidence-limits-candidate-2026-09-28.md)
+then completed all eighteen requests, including six contemporary challenge
+pairs. Its [results](identification-luna-sol-candidate-results-2026-09-28.md)
+support lower paired provider time and estimated cost, but biological quality
+failures block switching Free users to Luna. Retain the existing Sol profile for
+both tiers. Production assignments, explanations and badge policies remain
+unchanged; the activation slices are not ready to proceed.
 
 ## Proposed tier assignment and current decision
 
-The screening result does not yet support activating Luna. Retain the existing
-Sol assignment while a later candidate addresses non-biological specificity and
-receives its own bounded evaluation. The original target design below remains a
+The completed candidate comparison does not support activating Luna. Its mineral
+wording passed, but the challenge review found incorrect biological
+identifications and unsupported finer ranks. Retain Sol for both tiers. Next
+prepare biological rank consistency and a corrected future evaluation catalog
+offline; do not expand this paid run. The original target design below remains a
 proposal.
 
 Introduce separate, versioned OpenAI photo profiles selected by the backend's
@@ -330,8 +325,9 @@ journal, and permit only seventeen new claims. Their private approval binds the
 new clean source and original artifact digests. Tests cover inherited
 accounting, reference-gap retention, original and sibling locking,
 historical/current approval windows, tamper detection and no repeat of
-interrupted or completed calls. The continuation does not qualify a model; Slice
-2 still requires the combined results and selection record.
+interrupted or completed calls. The continuation did not qualify a model. The
+later separately approved v3 candidate comparison completed Slice 2 with an
+explicit retain-Sol decision and the linked results record.
 
 ## Implementation slices
 

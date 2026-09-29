@@ -2,9 +2,12 @@
 
 Date: 2026-09-28
 
-Status: Implemented and locally verified. The real packet passed offline
-preflight; separate paid-run approval is pending. No paid candidate requests
-have run and no production assignment has changed.
+Status: Implemented, locally verified and evaluated in a separately approved
+eighteen-call comparison. The
+[completed results](identification-luna-sol-candidate-results-2026-09-28.md)
+show the mineral evidence-limit checks passed, with lower paired provider time
+and estimated cost. Biological quality failures block selecting Luna for Free.
+Retain the current Sol assignment for both tiers; production is unchanged.
 
 ## Problem and hypothesis
 
@@ -52,7 +55,7 @@ identification instructions, confidence handling and badge labels remain
 unchanged. The shared prompt, Gemini and production Sol are unchanged. The
 candidate cannot enter production admission or the historical evaluator.
 
-## Next bounded comparison
+## Bounded comparison protocol
 
 Prepare a **new private packet directory**, copying only the twelve existing
 photos, corpus, taxonomy, frozen fact cards and reviewed pricing. Use a new plan
@@ -140,10 +143,12 @@ inside the proposed $40 ceiling and `dispatchAuthorized: false`. All six Sol
 assignment records equal the original preflight; all twelve Luna assignments
 have new profile/request/snapshot identity while retaining evidence and tariff
 bindings. The original plan and all 24 earlier journal artifacts retain their
-byte hashes. No candidate approval or execution journal has been created.
+byte hashes. This describes preparation before the later separate approval. The
+completed run and its journal audit are recorded in the linked results; the
+original preflight remains preparation evidence, not dispatch authority.
 
 Database and iOS suites were not run for this prompt/evaluator change. The local
 Supabase CLI precheck found 2.90.0 instead of the repository's 2.109.1 pin; no
 Supabase database or deployment command was run. The Deno source/config checks
-above do not substitute for a future complete release gate. No paid
-model-quality result is claimed here.
+above do not substitute for a future complete release gate. Software test
+results are separate from the subsequent live model-quality findings.

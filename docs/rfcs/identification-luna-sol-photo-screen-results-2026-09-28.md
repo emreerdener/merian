@@ -216,3 +216,10 @@ The subsequent
 implements that wording hypothesis as a new Luna evaluation profile and separate
 v3 packet. This does not amend either stopped run or establish an improved
 outcome. The candidate retains the current explanation format and Sol control.
+
+The subsequent candidate has now completed its separately approved comparison;
+see the
+[eighteen-call results](identification-luna-sol-candidate-results-2026-09-28.md).
+Its mineral checks passed, while biological quality failures retained the
+decision to keep Sol for both tiers. These later results do not change the
+historical screen, its stops or its ratings.

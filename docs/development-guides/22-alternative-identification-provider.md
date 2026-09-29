@@ -285,6 +285,13 @@ reused screen, six contemporary challenge pairs and every reference gap. Current
 Sol production assignments remain in place pending a separate selection and
 activation decision.
 
+The approved v3 run subsequently completed all eighteen calls and reviews. Its
+[selection report](../rfcs/identification-luna-sol-candidate-results-2026-09-28.md)
+records passed mineral checks, faster and cheaper paired Luna measurements,
+biological quality failures and taxonomy mapping limitations. Retain Sol for
+both tiers. Keep the completed journal immutable; no additional paid calls or
+activation follow from its unused spending ceiling.
+
 ## Fixed initial assignment
 
 | Setting                     | Candidate                                                                    |

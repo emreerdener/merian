@@ -157,7 +157,7 @@ screening result records the combined timing/cost measurements and decision to
 retain the current Sol assignment. Completing those six calls does not qualify
 Luna or establish a comparative Free/Pro advantage.
 
-The next
+The separate
 [Luna evidence-limit candidate](../../../../docs/rfcs/identification-luna-evidence-limits-candidate-2026-09-28.md)
 uses a fresh packet and `photo_model_plan_v3`. Only Luna instructions change;
 Sol, input evidence, facts and model tariffs remain identical. The existing
@@ -166,8 +166,18 @@ Sol, input evidence, facts and model tariffs remain identical. The existing
 `reference_gaps_recorded_v1`. It records gaps separately and still stops on real
 screening failures. The old approvals and continuation cannot authorize the
 candidate. Use the same preflight/hidden-input launcher against the new root;
-never overwrite or restart the stopped journals. No paid candidate result or
-production selection is implied by local verification.
+never overwrite or restart the stopped journals. Local verification alone does
+not qualify the model.
+
+The separately approved v3 run completed all eighteen calls. Its
+[results and selection record](../../../../docs/rfcs/identification-luna-sol-candidate-results-2026-09-28.md)
+retain every rating, reference gap and bounded measurement. Mineral evidence
+limits passed, but biological quality failures block the Free switch; retain Sol
+for both tiers. Three named challenge results per profile lack a machine
+taxonomy mapping, including a correct displayed Sol name made ambiguous by
+duplicate catalog identities. Null mappings are not wrong-identification or
+abstention scores. Preserve these journals and repair mapping coverage only in a
+versioned future packet/result contract. No additional calls are authorized.
 
 ## Shared measurement repair (optimization Slice 1)
 

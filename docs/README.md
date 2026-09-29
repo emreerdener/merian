@@ -278,12 +278,15 @@ production submission or public release.
   [screening results](./rfcs/identification-luna-sol-photo-screen-results-2026-09-28.md)
   preserve the original reference-gap stop and approved continuation. All six
   primary outcomes matched, but the mineral explanation failed the specificity
-  criterion. Paired challenges did not run; retain the current Sol assignment.
+  criterion. Paired challenges did not run in those historical journals.
 - **[Luna evidence-limit candidate](./rfcs/identification-luna-evidence-limits-candidate-2026-09-28.md):**
   A separate Luna prompt candidate addresses mineral specificity while
   preserving explanation format and the Sol control. Its v3 comparison uses a
-  new private packet and separate approval; no paid result or production change
-  is claimed.
+  new private packet and separate approval. The
+  [completed eighteen-call results](./rfcs/identification-luna-sol-candidate-results-2026-09-28.md)
+  show passed mineral checks, faster and cheaper paired Luna calls, and
+  biological quality failures. Retain Sol for both tiers; production is
+  unchanged.
 - **[Identification optimization while preserving current results](./rfcs/identification-optimization-preserving-results-2026-09-27.md):**
   Current plan following verified completion of the provider infrastructure
   milestone. Preserve explanation format and detail while investigating
