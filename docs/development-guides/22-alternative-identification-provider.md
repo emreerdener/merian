@@ -390,8 +390,28 @@ stopped run complete. Inspect `sol-photo-rank-run/state.json` and `summary.json`
 for completion, failed attempts, mapping/reference gaps and phase-specific
 denominators. An unknown mapping is `screen_unassessable`, not a wrong taxon. Do
 not erase a claim, retry an interrupted assignment or reuse old approval.
-Production rank/enrichment handling and confidence calibration remain later
-steps in the linked plan.
+
+The
+[first Sol rank run](../rfcs/identification-sol-rank-screen-results-2026-09-29.md)
+stopped after one request. A source-to-fact audit found omitted publisher
+metadata; the recorded failure cannot establish a model defect. Its append-only
+adjudication binds the original journal and source record. Prospective fact
+corrections are separate inputs, not a runnable plan or a replacement historical
+rating. Preserve publisher labels, visible observations and diagnostic limits as
+distinct evidence. Missing coverage is `insufficient_reference`; it is not
+automatically invented evidence or unsupported specificity. A concrete failure
+needs a resolved contradiction or an applicable reviewed diagnostic requirement.
+For new runs, `sol_photo_rank_summary_v2` reports `identityInterpretation` and
+`identityInterpretationCounts` separately from raw reference comparison fields;
+consult both alongside explanation ratings. Limited-reference mismatches are
+unassessable, while actual explanation failures remain visible. Keep historical
+v1 summaries unchanged. New run bindings freeze v2 reporting; an existing v1
+binding is refused before admission without changing any journal file or
+dispatching another call. The separately prepared corrected comparison rebuilds
+its receipt and reference review, preserves every model-request digest, and
+requires its own clean-source preflight and execution approval. Production
+rank/enrichment handling and confidence calibration remain later steps in the
+linked plan.
 
 ## Fixed initial assignment
 

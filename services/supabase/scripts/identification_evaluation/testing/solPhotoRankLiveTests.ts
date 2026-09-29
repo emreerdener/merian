@@ -22,6 +22,12 @@ import {
 } from "../solPhotoRankLivePreparation.ts";
 import { executeSolRankComparison } from "../solPhotoRankRunner.ts";
 import { validateSolRankApproval } from "../solPhotoRankAdmission.ts";
+import {
+  solRankAssessment,
+  solRankIdentityInterpretation,
+  solRankSummary,
+} from "../solPhotoRankScoring.ts";
+import type { PhotoModelMeasurementRecord } from "../photoModelRecords.ts";
 import { solRankPreparationFixture } from "./solPhotoRankPreparationTests.ts";
 import { pass, source } from "./photoModelRunnerTests.ts";
 
@@ -140,6 +146,209 @@ async function setup(scratch: string) {
   };
 }
 export function registerSolRankLiveTests(scratch: string) {
+  Deno.test("Sol v2 reporting refuses legacy binding without rewriting any stopped v1 evidence", async () => {
+    const s = await setup(scratch);
+    try {
+      s.dependencies.review = () => {
+        const r = pass();
+        r.uncertainty = { status: "fail", reason: "unsupported_specificity" };
+        return Promise.resolve(r);
+      };
+      assertEquals((await s.run()).stop, "screen_failed");
+      const dir = join(s.root, "sol-photo-rank-run");
+      const manifest = await readJson(join(dir, "manifest.json")) as {
+        binding: Record<string, unknown>;
+      };
+      manifest.binding.version = "sol_photo_rank_run_binding_v1";
+      delete manifest.binding.summaryVersion;
+      const runDigest = await fingerprintJson(manifest);
+      await atomicJson(join(dir, "manifest.json"), manifest);
+      // Rebind a complete synthetic stopped journal to the original v1 format.
+      // No real result or production journal is loaded by this regression.
+      for (
+        const name of [
+          "claims/01.json",
+          "results/01.json",
+          "reviews/01.json",
+          "stop.json",
+          "state.json",
+          "summary.json",
+        ]
+      ) {
+        const path = join(dir, name);
+        const value = await readJson(path) as Record<string, unknown>;
+        value.runDigest = runDigest;
+        if (name === "reviews/01.json") {
+          value.resultDigest = await fingerprintJson(
+            await readJson(join(dir, "results/01.json")),
+          );
+        }
+        if (name === "summary.json") {
+          value.version = "sol_photo_rank_summary_v1";
+          for (const a of value.attempts as Record<string, unknown>[]) {
+            delete a.identityInterpretation;
+          }
+          for (const p of value.profiles as Record<string, unknown>[]) {
+            delete p.identityInterpretationCounts;
+          }
+        }
+        await atomicJson(path, value);
+      }
+      const paths = [
+        ".lock",
+        "manifest.json",
+        "claims/01.json",
+        "results/01.json",
+        "reviews/01.json",
+        "state.json",
+        "stop.json",
+        "summary.json",
+      ];
+      const original = new Map<string, Uint8Array>();
+      for (const path of paths) {
+        original.set(path, await Deno.readFile(join(dir, path)));
+      }
+      await assertRejects(() => s.run(), Error, "unsupported_version");
+      // Changed admission inputs must not turn the read-only refusal into a rewrite.
+      await atomicJson(join(s.root, "sol-rank-plan.json"), {});
+      await assertRejects(
+        () =>
+          executeSolRankComparison(
+            s.root,
+            { ...source, digest: "2".repeat(64) },
+            "offline",
+            s.dependencies,
+          ),
+        Error,
+        "unsupported_version",
+      );
+      assertEquals(s.calls.length, 1);
+      for (const [path, bytes] of original) {
+        assertEquals(await Deno.readFile(join(dir, path)), bytes);
+      }
+      assertEquals(
+        (await Array.fromAsync(Deno.readDir(dir))).map((e) => e.name).sort(),
+        [
+          ".lock",
+          "manifest.json",
+          "claims",
+          "results",
+          "reviews",
+          "state.json",
+          "stop.json",
+          "summary.json",
+        ].sort(),
+      );
+      for (const name of ["claims", "results", "reviews"]) {
+        assertEquals(
+          (await Array.fromAsync(Deno.readDir(join(dir, name)))).map((e) =>
+            e.name
+          ),
+          ["01.json"],
+        );
+      }
+    } finally {
+      await Deno.remove(s.parent, { recursive: true });
+    }
+  });
+  Deno.test("Sol summary separates limited-reference conclusions from raw identity and explanation failures", async () => {
+    const s = await setup(scratch);
+    try {
+      await s.run();
+      const packet = await loadSolRankPacket(s.root, source);
+      const a = packet.report.order[6];
+      const record = await readJson(
+        join(s.root, "sol-photo-rank-run", "results", "07.json"),
+      ) as PhotoModelMeasurementRecord;
+      assert(record.prediction.outcome === "normalized");
+      // Invented identities and rank limits exercise interpretation, not biological truth.
+      const c = packet.corpus.cases.find((c) => c.input.caseId === a.caseId)!;
+      c.provisionalReference = {
+        subject: "biological",
+        resolution: "named",
+        supportedRank: "genus",
+        acceptableTaxa: [{ id: "invented-reference", rank: "genus" }],
+      };
+      record.prediction = {
+        ...record.prediction,
+        subject: "biological",
+        resolution: "named",
+        taxon: { id: "invented-returned", rank: "species" },
+      };
+      const limit = packet.referenceReview.cases.find((c) =>
+        c.caseId === a.caseId
+      )!;
+      limit.identitySupport = "limited_reference";
+      const ratings = pass();
+      ratings.grounding = { status: "fail", reason: "invented_evidence" };
+      const raw = solRankAssessment(packet, a, { record });
+      assertEquals(raw.identity, "unsupported_specificity");
+      assertEquals(
+        solRankIdentityInterpretation(raw),
+        "unassessable_limited_reference",
+      );
+      const report = solRankSummary(
+        packet,
+        new Map([[a.ordinal, { record, ratings }]]),
+        new Map([[a.ordinal, record]]),
+      );
+      assertEquals(report.version, "sol_photo_rank_summary_v2");
+      assertEquals(report.attempts[0].assessment, raw);
+      assertEquals(report.attempts[0].ratings, ratings);
+      assertEquals(report.attempts[0].explanationPassed, false);
+      const profile = report.profiles.find((p) =>
+        p.profile === a.profile && p.phase === "challenge"
+      )!;
+      assertEquals(profile.identityCounts, { unsupported_specificity: 1 });
+      assertEquals(profile.identityInterpretationCounts, {
+        unassessable_limited_reference: 1,
+      });
+      assertEquals(profile.explanationFailures, 1);
+      assertEquals(profile.reviewedAttempts, 1);
+      limit.identitySupport = "usable_provisional";
+      assertEquals(
+        solRankIdentityInterpretation(solRankAssessment(packet, a, { record })),
+        "beyond_reviewed_rank",
+      );
+      assertEquals(
+        solRankIdentityInterpretation({ ...raw, subject: "disagreement" }),
+        "subject_disagreement",
+      );
+      assertEquals(
+        solRankIdentityInterpretation({ ...raw, identity: "unmapped" }),
+        "unassessable_mapping",
+      );
+      assertEquals(
+        solRankIdentityInterpretation({ ...raw, identity: "ambiguous" }),
+        "unassessable_mapping",
+      );
+      assertEquals(
+        solRankIdentityInterpretation({ ...raw, identity: "agreement" }),
+        "reference_agreement",
+      );
+      assertEquals(
+        solRankIdentityInterpretation({ ...raw, identity: "valid_abstention" }),
+        "valid_abstention",
+      );
+      assertEquals(
+        solRankIdentityInterpretation({
+          ...raw,
+          subject: "no_result",
+          identity: "no_result",
+        }),
+        "no_result",
+      );
+      const unreviewed = solRankSummary(
+        packet,
+        new Map(),
+        new Map([[a.ordinal, record]]),
+      );
+      assertEquals(unreviewed.attempts[0].ratings, null);
+      assertEquals(unreviewed.attempts[0].explanationPassed, false);
+    } finally {
+      await Deno.remove(s.parent, { recursive: true });
+    }
+  });
   Deno.test("Sol live packet freezes 18 same-model requests, reviewed limits and a separate full reservation", async () => {
     const s = await setup(scratch);
     try {
@@ -241,6 +450,14 @@ export function registerSolRankLiveTests(scratch: string) {
         unknown
       >;
       assertEquals(manifest.version, "sol_photo_rank_run_v1");
+      assertEquals(
+        (manifest.binding as Record<string, unknown>).summaryVersion,
+        "sol_photo_rank_summary_v2",
+      );
+      assertEquals(
+        (manifest.binding as Record<string, unknown>).version,
+        "sol_photo_rank_run_binding_v2",
+      );
       const record = await readJson(join(run, "results", "01.json")) as Record<
         string,
         unknown
@@ -263,6 +480,7 @@ export function registerSolRankLiveTests(scratch: string) {
         string,
         unknown
       >;
+      assertEquals(summary.version, "sol_photo_rank_summary_v2");
       assertEquals(summary.pairedChallengeCases, 6);
       assertEquals(summary.productionActivationAuthorized, false);
       const walk = async (dir: string): Promise<string> => {

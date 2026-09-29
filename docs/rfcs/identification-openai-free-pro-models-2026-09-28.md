@@ -26,9 +26,14 @@ this paid run. The original target design below remains a proposal. The
 [rank-consistency follow-up](identification-photo-rank-consistency-2026-09-28.md)
 now implements catalog auditing, mapping-aware records, an isolated Sol
 candidate, a corrected twelve-case packet, assistant input review and a
-separately versioned live controller. It has made no new model calls. Remaining
-reference limits are explicit; live results and the production rank contract
-required before broader-rank results reach species enrichment remain pending.
+separately versioned live controller. Its
+[first live screen and source
+adjudication](identification-sol-rank-screen-results-2026-09-29.md) are
+inconclusive: one request matched the provisional identity, but incomplete
+reference notes undermine the explanation failure. A corrected reference packet
+and comparison proposal are prepared; no paired Sol comparison completed. The
+production rank contract required before broader-rank results reach species
+enrichment remains pending.
 
 Introduce separate, versioned OpenAI photo profiles selected by the backend's
 existing Free/Pro admission decision. Evaluate Luna for Free and retain the

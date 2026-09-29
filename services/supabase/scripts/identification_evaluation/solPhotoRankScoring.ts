@@ -33,6 +33,30 @@ export function solRankAssessment(
     identityReferenceLimited: review.identitySupport === "limited_reference",
   };
 }
+/** Qualification of a provisional label comparison, separate from explanation ratings. */
+export function solRankIdentityInterpretation(
+  assessment: ReturnType<typeof solRankAssessment>,
+) {
+  if (assessment.subject === "no_result") return "no_result";
+  if (assessment.subject === "unverified") return "unassessable_reference";
+  if (assessment.subject === "disagreement") return "subject_disagreement";
+  const identity = assessment.identity;
+  if (["unmapped", "ambiguous"].includes(identity)) {
+    return "unassessable_mapping";
+  }
+  if (identity === "unverified") return "unassessable_reference";
+  if (identity === "no_result") return "no_result";
+  if (identity === "agreement") return "reference_agreement";
+  if (identity === "valid_abstention" || identity === "not_applicable") {
+    return identity;
+  }
+  if (assessment.identityReferenceLimited) {
+    return "unassessable_limited_reference";
+  }
+  if (identity === "unsupported_specificity") return "beyond_reviewed_rank";
+  if (identity === "disagreement") return "reference_disagreement";
+  return "unresolved";
+}
 export function solRankScreenDecision(
   packet: SolRankPacket,
   a: SolRankAssignment,
@@ -67,6 +91,7 @@ export function solRankSummary(
   const attempts = packet.report.order.filter((a) => records.has(a.ordinal))
     .map((a) => {
       const e = entries.get(a.ordinal), record = records.get(a.ordinal)!;
+      const assessment = solRankAssessment(packet, a, { record });
       return {
         ordinal: a.ordinal,
         caseId: a.caseId,
@@ -74,7 +99,8 @@ export function solRankSummary(
         profile: a.profile,
         reason: record.reason,
         mapping: record.mapping.status,
-        assessment: solRankAssessment(packet, a, { record }),
+        assessment,
+        identityInterpretation: solRankIdentityInterpretation(assessment),
         ratings: e?.ratings ?? null,
         explanationPassed: e ? ratingsPass(e.ratings) : false,
         providerMs: record.providerMs,
@@ -96,7 +122,7 @@ export function solRankSummary(
       : (sorted[half - 1] + sorted[half]) / 2;
   };
   return {
-    version: "sol_photo_rank_summary_v1",
+    version: "sol_photo_rank_summary_v2",
     evidenceStatus: packet.referenceReview.referenceStatus,
     independentTruthVerified: false,
     reusedDevelopmentCases: true,
@@ -129,7 +155,17 @@ export function solRankSummary(
           attempts: selected.length,
           reviewedAttempts: selected.filter((a) => a.ratings !== null).length,
           subjectCounts: counts("subject"),
+          // These are raw reference comparisons, not established model errors.
           identityCounts: counts("identity"),
+          identityInterpretationCounts: Object.fromEntries(
+            [...new Set(selected.map((a) => a.identityInterpretation))].map((
+              category,
+            ) => [
+              category,
+              selected.filter((a) => a.identityInterpretation === category)
+                .length,
+            ]),
+          ),
           explanationPasses: selected.filter((a) => a.explanationPassed).length,
           explanationFailures: selected.filter((a) =>
             Object.values(a.ratings ?? {}).some((r) => r.status === "fail")

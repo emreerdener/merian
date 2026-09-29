@@ -2,11 +2,13 @@
 
 Date: 2026-09-28
 
-Status: Offline measurement, an isolated Sol candidate, a corrected development
-packet and a separately versioned live comparison controller are implemented.
-Assistant input review records remaining reference limits. Live results and
-production rank handling remain unfinished. Retain Sol for both Free and Pro. No
-new model calls or production changes have occurred. Complete this
+Status: The first live Sol candidate screen completed, then stopped. A
+subsequent source audit found incomplete frozen reference notes, so the
+[result is inconclusive for candidate quality](identification-sol-rank-screen-results-2026-09-29.md).
+The original journal is retained; corrected facts, reference review and a new
+comparison proposal are prepared separately. The reporting fix preserves old
+journals and separates reference gaps from model failures. Retain Sol for both
+Free and Pro. Production rank handling remains unfinished. Complete this
 identification-quality work before returning to confidence thresholds; preserve
 the explanation format and Strong / Possible / Weak labels.
 
@@ -264,6 +266,20 @@ human review workflow is introduced by this plan. The hidden-key launcher uses
 preparation receipt remains an immutable record with its original false
 readiness flags; only the new plan/preflight/approval can admit execution.
 
+### First live screen and source adjudication — 29 September
+
+One request and review completed before `screen_failed`; none of the paired
+challenges ran. The primary matched its provisional reference, but the
+explanation rating depended on incomplete notes. The
+[result and source audit](identification-sol-rank-screen-results-2026-09-29.md)
+preserve the original stop and explain why it does not establish a model defect.
+Four prospective fact cards distinguish publisher metadata, visual support and
+reference gaps. No prompt change, resumed run, production promotion or
+confidence qualification follows from this result. Prospective
+`sol_photo_rank_summary_v2` reports raw reference comparisons and qualified
+identity interpretations separately, preserving explanation failures and the
+original v1 journal.
+
 ## Slice 4: production contract and model selection
 
 If the prompt result warrants promotion, implement and verify the explicit rank
@@ -327,6 +343,6 @@ Recursive formatting/lint, all 102 Function config/dependency graphs, generated
 DTO validation, six changed Markdown files, 343 local documentation links and
 diff whitespace passed. All twelve copied images and frozen fact cards still
 match their source inputs. No paid requests, hosted mutations, database run, iOS
-build or production deployment occurred in this slice. The private live plan is
-prepared; the next step is the hidden credential entry and execution against its
-committed source.
+build or production deployment occurred during controller implementation. The
+subsequent live execution and reference adjudication are recorded above and in
+the linked result report.

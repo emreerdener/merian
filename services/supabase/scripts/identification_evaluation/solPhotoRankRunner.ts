@@ -161,8 +161,9 @@ export async function executeSolRankComparison(
     );
     check(reservedNanoUsd <= Math.floor(packet.plan.budgetUsd * 1e9));
     const binding = {
-      version: "sol_photo_rank_run_binding_v1",
+      version: "sol_photo_rank_run_binding_v2",
       recordVersion: "photo_model_attempt_v2",
+      summaryVersion: "sol_photo_rank_summary_v2",
       screeningPolicy: packet.plan.screeningPolicy,
       mode,
       source,
@@ -185,6 +186,28 @@ export async function executeSolRankComparison(
   if (!await exists(join(runPath, "manifest.json"))) await load();
   const directory = await privateDirectory(runPath);
   return await withRunLock(directory, async () => {
+    const manifestPath = join(directory, "manifest.json");
+    if (await exists(manifestPath)) {
+      const previous = fields(await readJson(manifestPath), [
+        "version",
+        "createdAt",
+        "binding",
+      ]);
+      check(
+        previous.version === "sol_photo_rank_run_v1",
+        "unsupported_version",
+      );
+      timestamp(previous.createdAt);
+      const binding = previous.binding;
+      // Refuse historical formats before admission can write a configuration stop.
+      // Their accounting and evidence must remain intact even after inputs expire.
+      check(
+        binding !== null && typeof binding === "object" &&
+          !Array.isArray(binding) && "version" in binding &&
+          binding.version === "sol_photo_rank_run_binding_v2",
+        "unsupported_version",
+      );
+    }
     let initial: Awaited<ReturnType<typeof load>>;
     try {
       initial = await load();
@@ -211,7 +234,6 @@ export async function executeSolRankComparison(
     for (const name of ["claims", "results", "reviews"]) {
       await privateDirectory(join(directory, name));
     }
-    const manifestPath = join(directory, "manifest.json");
     if (!await exists(manifestPath)) {
       for (const name of ["claims", "results", "reviews"]) {
         await onlyEntries(join(directory, name), []);

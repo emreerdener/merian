@@ -289,9 +289,11 @@ production submission or public release.
   unchanged.
 - **[Photo evidence and rank consistency](./rfcs/identification-photo-rank-consistency-2026-09-28.md):**
   Catalog audit, mapping records, an isolated Sol prompt candidate, a corrected
-  twelve-case packet and a versioned live comparison controller. Live results
-  and production rank handling remain pending; preserves explanations and
-  current Sol assignments.
+  twelve-case packet and a versioned live comparison controller. The
+  [first screen and source adjudication](./rfcs/identification-sol-rank-screen-results-2026-09-29.md)
+  are inconclusive because frozen reference notes were incomplete. A corrected
+  comparison packet is prepared; paired results and production rank handling
+  remain pending. Explanations and current Sol assignments are preserved.
 - **[Identification optimization while preserving current results](./rfcs/identification-optimization-preserving-results-2026-09-27.md):**
   Current plan following verified completion of the provider infrastructure
   milestone. Preserve explanation format and detail while investigating

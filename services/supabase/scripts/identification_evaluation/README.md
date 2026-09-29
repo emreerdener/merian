@@ -233,7 +233,21 @@ recorded as gaps; they never become passes. Results are durable before the
 assistant's temporary review. Interrupted or stopped claims are never retried.
 The summary separates screen/challenge denominators, reference agreement,
 mapping, ratings, paired timing and known cost. Completing all 18 calls grants
-no production or confidence-calibration authority. Live results remain pending.
+no production or confidence-calibration authority. The
+[first live screen and
+source adjudication](../../../../docs/rfcs/identification-sol-rank-screen-results-2026-09-29.md)
+retain a one-request stop whose explanation failure is undermined by incomplete
+reference notes. Prospective fact corrections are separate; no historical
+record, request or prompt was changed. Missing source coverage must not be
+promoted into proof of a model error. Prospective `sol_photo_rank_summary_v2`
+retains each raw `assessment` and adds `identityInterpretation`, plus separate
+per-phase `identityCounts` and `identityInterpretationCounts`. Limited-reference
+mismatches are `unassessable_limited_reference`; subject disagreement and
+missing mapping remain distinct. Explanation ratings, failures and missing
+reviews are preserved independently. New `sol_photo_rank_run_binding_v2`
+bindings freeze this summary version. Legacy v1 bindings are rejected before
+admission or summary generation; their complete journal, including state, stop
+and summary, remains unchanged even after source or approval inputs change.
 
 ## Shared measurement repair (optimization Slice 1)
 
