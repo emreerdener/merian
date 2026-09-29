@@ -234,6 +234,14 @@ it does not mean the evidence is complete or a model is qualified. The assistant
 must still write the selection report, and production activation remains a
 separate decision.
 
+The
+[recorded continuation](../rfcs/identification-luna-sol-photo-screen-results-2026-09-28.md#approved-continuation-outcome-28-september)
+completed the remaining five screening calls and stopped on a mineral
+explanation's unsupported specificity. Six combined primary outcomes matched; no
+challenge or Sol request ran. Preserve this terminal stop and the decision to
+retain the current Sol assignment. Another candidate or paid run requires its
+own bounded plan; the unused portion of this budget is not retry authority.
+
 ## Fixed initial assignment
 
 | Setting                     | Candidate                                                                    |

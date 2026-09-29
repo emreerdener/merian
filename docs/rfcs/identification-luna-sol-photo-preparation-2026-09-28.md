@@ -14,8 +14,11 @@ primary reference; a missing comparative reference stopped the screen. See the
 [retained result and limitations](identification-luna-sol-photo-screen-results-2026-09-28.md).
 The owner then approved a separate continuation of only the remaining seventeen
 assignments, retaining reference gaps as unassessable and the same combined
-18-call/$40 cap. That continuation is implemented; its live outcome is pending.
-The preparation facts and verification counts below remain the original
+18-call/$40 cap. The continuation completed the other five screening calls; all
+six primary outcomes matched, but the mineral explanation failed the specificity
+criterion. The twelve paired challenge assignments did not run. The linked
+result records the combined measurements and decision to retain Sol. The
+preparation facts and verification counts below remain the original
 pre-execution record.
 
 ## Frozen scope

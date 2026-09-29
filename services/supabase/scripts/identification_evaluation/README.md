@@ -149,6 +149,14 @@ reports inherited/new calls and `referenceGapOrdinals`; `complete` describes
 finished calls, while `explanationEvidenceComplete` separately requires every
 rating to pass. Neither grants model qualification or production authority.
 
+The approved continuation completed ordinals 2–6, preserving ordinal 1. All six
+primary outcomes matched their provisional references, but the mineral control
+failed the explanation specificity criterion. The retained `screen_failed` stop
+prevented all twelve challenge calls, including every Sol control. The linked
+screening result records the combined timing/cost measurements and decision to
+retain the current Sol assignment. Completing those six calls does not qualify
+Luna or establish a comparative Free/Pro advantage.
+
 ## Shared measurement repair (optimization Slice 1)
 
 New exploratory packets may opt into `evaluation_taxonomy_v2`. Standalone live

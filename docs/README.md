@@ -275,12 +275,10 @@ production submission or public release.
 - **[Luna/Sol photo comparison preparation](./rfcs/identification-luna-sol-photo-preparation-2026-09-28.md):**
   Frozen twelve-photo packet, durable local controller, offline validation and
   approved $40 ceiling. The
-  [first live screen](./rfcs/identification-luna-sol-photo-screen-results-2026-09-28.md)
-  stopped after one correct Luna identification because an explanatory
-  comparison lacked reference coverage. The owner approved a separate
-  seventeen-call continuation preserving unassessable gaps and the same combined
-  18-call/$40 cap; that implementation is ready, but live comparison and model
-  selection remain incomplete.
+  [screening results](./rfcs/identification-luna-sol-photo-screen-results-2026-09-28.md)
+  preserve the original reference-gap stop and approved continuation. All six
+  primary outcomes matched, but the mineral explanation failed the specificity
+  criterion. Paired challenges did not run; retain the current Sol assignment.
 - **[Identification optimization while preserving current results](./rfcs/identification-optimization-preserving-results-2026-09-27.md):**
   Current plan following verified completion of the provider infrastructure
   milestone. Preserve explanation format and detail while investigating

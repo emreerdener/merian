@@ -1,11 +1,14 @@
-# Luna/Sol photo screen: reference coverage stop
+# Luna/Sol photo screening results
 
 Date: 28 September 2026, America/Chicago
 
-Status: One Luna request completed; the approved comparison stopped before its
-second request. The species matched the frozen reference, but explanation
-grounding was not assessable against the supplied notes. No Sol control ran and
-no model selection or production change is justified by this result.
+Status: Six Luna screening calls completed across the original run and approved
+continuation. All five biological identifications and the non-biological control
+matched the provisional references. The mineral explanation failed the
+specificity criterion, so the protocol stopped before all twelve paired
+challenge calls. No Sol control ran. Retain the current Sol photo assignment;
+this screen does not qualify Luna or establish a comparative model advantage.
+The first stop and reference-gap rating remain preserved below.
 
 ## Scope and retained evidence
 
@@ -24,7 +27,7 @@ first claim began at `2026-09-29T01:15:32.664Z`. The private packet is
 terminal stop remain immutable. The derived `photo-model-outcome-summary.json`
 records bounded measurements and the source artifact byte hashes outside Git.
 
-## Observed outcome
+## First request: observed outcome
 
 | Measurement                                 | Result                                     |
 | ------------------------------------------- | ------------------------------------------ |
@@ -53,7 +56,7 @@ The qualitative review was performed by the assistant against the image and
 frozen notes. It is not independent human adjudication. The schedule already
 identified the screen as Luna, so model blinding is not claimed.
 
-## Why the screen stopped
+## Why the first screen stopped
 
 The explanation included a comparison with domestic cattle. The frozen bison
 fact card explicitly leaves those comparative discriminators unverified. The
@@ -75,7 +78,7 @@ projection includes those features. A fact packet covering only a subset of
 plausible comparisons can leave a valid output unassessable. This run does not
 resolve the factual validity of the uncovered comparison.
 
-## Decision and next scope
+## Decision after the first request
 
 Retain the current production Sol photo assignment for both tiers. One
 compatible Luna request does not establish comparative accuracy, explanation
@@ -83,8 +86,7 @@ quality, a cost-saving percentage, median latency, mobile end-to-end speed or
 confidence-badge thresholds. No contemporary Sol result exists in this run.
 
 The owner subsequently approved this protocol revision on 28 September. It is
-implemented in a separate continuation; execution and its outcomes remain to be
-recorded:
+implemented in a separate continuation; the execution outcome is recorded below:
 
 1. Keep the stopped journal and its unassessable rating intact. Do not rerun the
    first request or silently replace its reference facts after seeing output.
@@ -126,3 +128,85 @@ resolved in the operator guide, evaluator README and current plan. Function
 runtime code, database objects and iOS code are unchanged in this continuation;
 their full runtime/database/native suites were not rerun for this scripts-only
 change. The original preparation record retains their earlier evidence.
+
+## Approved continuation outcome: 28 September
+
+The owner entered the existing Naturebook credential and the separate launcher
+ran clean source `2fdb2f9ec1898d9a56caf3b07ca5642dd181661f`, implementation
+digest `02cd7f243245ae6926bcb124841ab9a502ef277bbea7ceeead408922a667717c`. Its
+continuation run digest is
+`3e0376da23bf9c72b1c743188cebe1c25870fe350c1ffb0408ca372bce122b90`. The original
+plan and assignment order were unchanged. The controller inherited ordinal 1 and
+dispatched ordinals 2–6 once each; ordinals 7–18 were never claimed. No
+automatic retry or replacement request occurred.
+
+The original first-call journal's retained byte hashes still match. The private
+`photo-model-continuation-outcome-summary.json` binds both journals, source,
+plan, ratings, measurements and artifact byte hashes. It contains no provider
+prose or credential. Artifact verification acquired both run locks after the
+process stopped, recomputed result/review/cost bindings, and verified the exact
+new claim/result/review inventory.
+
+| Screen case                | Primary reference outcome             | Grounding review            | Uncertainty review            | Provider seconds |
+| -------------------------- | ------------------------------------- | --------------------------- | ----------------------------- | ---------------- |
+| Bison (`c0001`, inherited) | Species matches                       | Unassessable: reference gap | Pass                          | 7.653            |
+| Bald eagle (`c0002`)       | Species matches                       | Unassessable: reference gap | Pass                          | 6.627            |
+| Monarch (`c0003`)          | Species matches                       | Unassessable: reference gap | Pass                          | 8.758            |
+| Sunflower (`c0004`)        | Species matches                       | Unassessable: reference gap | Pass                          | 5.772            |
+| Saguaro (`c0007`)          | Species matches                       | Pass                        | Pass                          | 6.657            |
+| Mineral (`c0008`)          | Non-biological classification matches | Unassessable: reference gap | Fail: unsupported specificity | 5.662            |
+
+Decision-evidence ratings passed for all six. Schema, normalization and native
+moderation were accepted for all six, with the requested `gpt-6-luna` model and
+Standard service tier. The five named biological matches use provisional
+references; this small reused screen is not a general accuracy estimate.
+
+The mineral failure concerns explanation wording, not a false biological
+classification or a proven wrong mineral. The frozen notes support a tentative
+mineral description, but do not establish a particular mineral identity. The
+assistant judged that the explanation treated its specific mineral
+identification as established while limiting uncertainty mainly to the variety.
+It therefore received `fail / unsupported_specificity`. Its physical appearance
+still supported the non-biological decision. The missing factual reference
+separately remained `not_assessable / insufficient_reference` for grounding.
+Neither rating asserts that the specimen cannot be quartz.
+
+Reference-only gaps on the earlier cases continued under the approved revision.
+The actual specificity failure retained the agreed screening stop, giving
+`screen_failed`, `complete: false`, six combined completed calls and five new
+claims. The twelve remaining challenge assignments include six Luna and six Sol
+calls; none ran. The assistant performed all reviews, with no independent human
+adjudication or model blinding claimed.
+
+### Measured timing and cost
+
+- Six-case provider median: **6.642 seconds**, range **5.662–8.758 seconds**.
+  This covers the completed Luna screening subgroup, not the incomplete full
+  comparison or capture-to-result time in the app.
+- Median normalization time: **4.842 milliseconds**.
+- Usage: **28,188 input tokens**, **3,597 output tokens**, including **900
+  reasoning tokens**; **15,624 cached input tokens** and **12,546 cache-write
+  tokens** were reported. No tool calls were reported. Reasoning is included in
+  output and is not counted twice.
+- Combined conservative usage-based cost upper bound: **$0.010719231**, about
+  **1.07 US cents** for all six requests. This uses the frozen pricing and
+  regional multiplier; it is not an invoice or a guaranteed production price.
+- Retained claimed reservation: **$1.7730504**. The full preflight reservation
+  remains $39.0071088 under the approved $40 cap; neither reservation is
+  measured spend.
+
+### Selection decision
+
+Keep the current Sol photo profile for both Free and Pro. Luna showed compatible
+execution and correct primary outcomes on this screen, but did not satisfy all
+of the planned explanation criteria. No contemporary Sol challenge results
+exist, so this run cannot establish a Free/Pro quality advantage, comparative
+latency or cost-saving percentage. It does not establish confidence thresholds
+or justify raising a badge because of a model tier.
+
+The next candidate change should address evidence limits for non-biological
+identifications while preserving the current explanation format. A review of
+that proposed change can proceed locally. Any new paid comparison needs a new
+bounded plan and approval; the unused budget does not authorize clearing this
+terminal stop or repeating completed calls. Audio evaluation remains a later
+milestone. This result makes no production assignment or deployment change.

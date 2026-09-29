@@ -9,13 +9,22 @@ comparison on 28 September. Execution requires the credential-bound approval and
 existing Naturebook key. The first live screen subsequently stopped after one
 Luna call because an explanatory comparison lacked reference coverage; see the
 [screen result](identification-luna-sol-photo-screen-results-2026-09-28.md). The
-full comparison and model selection remain incomplete. The owner subsequently
+full comparison remains incomplete. The owner subsequently
 approved preserving reference gaps as unassessable and continuing only the
 seventeen unattempted assignments within the same combined 18-call/$40 limit.
-The separate continuation is implemented; its live outcome is pending.
-Production assignments are unchanged.
+The continuation completed the five remaining screening calls; all six primary
+outcomes matched, but the mineral explanation failed the specificity criterion.
+The protocol stopped before the twelve challenge calls, so no Sol control ran.
+Slice 2's current decision is to retain Sol for both tiers; Luna qualification
+and a comparative Free/Pro advantage are unestablished. Production assignments
+are unchanged.
 
-## Recommendation
+## Proposed tier assignment and current decision
+
+The screening result does not yet support activating Luna. Retain the existing
+Sol assignment while a later candidate addresses non-biological specificity and
+receives its own bounded evaluation. The original target design below remains a
+proposal.
 
 Introduce separate, versioned OpenAI photo profiles selected by the backend's
 existing Free/Pro admission decision. Evaluate Luna for Free and retain the
