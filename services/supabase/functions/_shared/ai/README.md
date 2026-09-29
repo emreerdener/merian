@@ -220,6 +220,15 @@ remain unchanged. There is no live adapter or runner for this new profile. The
 [candidate checkpoint](../../../../../docs/rfcs/identification-primary-resolution-contract-2026-09-29.md#isolated-explicit-primary-candidate--2026-09-29)
 owns its exact identities, tests and remaining qualification work.
 
+The separate offline
+[`prepare_sol_primary_candidate.ts`](../../../scripts/prepare_sol_primary_candidate.ts)
+builder binds both request projections to reviewed private evidence without
+invoking either provider. Its
+[packet checkpoint](../../../../../docs/rfcs/identification-sol-primary-comparison-preparation-2026-09-29.md)
+records five resolution states, pet/lookalike controls and limited references.
+Source review, candidate/control request hashes and proposed scheduling do not
+qualify a runtime binding or confidence policy.
+
 ## Scoped audio prompt authority
 
 The default-off 36-slot prompt lane adds the internal

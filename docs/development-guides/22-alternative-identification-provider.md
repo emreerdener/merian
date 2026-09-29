@@ -442,6 +442,39 @@ A new live comparison requires its own reviewed packet, bounded plan and
 authorization. The current command only tests implementation; it neither runs an
 identification benchmark nor qualifies a confidence display policy.
 
+The
+[offline comparison packet](../rfcs/identification-sol-primary-comparison-preparation-2026-09-29.md)
+now contains twelve cases, including new dog, cat and unresolved-biological
+examples. All five resolution states are represented; family and unresolved
+references remain limited. Its eighteen proposed assignments do not grant
+spending authority. Existing experiment parsers and production bindings remain
+closed to this profile.
+
+To prepare another immutable copy after reviewing its source records, use the
+two-path offline CLI. Both source and destination parent must be private and
+outside the repository. The destination must not exist:
+
+```bash
+evaluation_parent="$HOME/Developer/merian-evaluation"
+deno run --frozen --no-prompt --deny-net --deny-env \
+  --config services/supabase/functions/deno.json \
+  --allow-read="$evaluation_parent" \
+  --allow-write="$evaluation_parent/NEW-PRIMARY-PREPARATION" \
+  services/supabase/scripts/prepare_sol_primary_candidate.ts \
+  "$evaluation_parent/2026-09-29-sol-primary-source-v2" \
+  "$evaluation_parent/NEW-PRIMARY-PREPARATION"
+```
+
+The source supplies `primary-preparation-plan.json` and
+`primary-reference-review.json` under their separate closed contracts. The
+review binds input/reference/fact digests, support limits, private source
+attribution and role evidence. A lookalike comparator must be a distinct
+reviewed species outside the accepted identities. The builder writes
+`primary-preparation.json` last, with coverage and exact request hashes. It
+copies no historical authorization or results and accepts no key or live flag.
+The existing corpus curation permission token does not authorize disclosure to a
+new provider.
+
 ## Fixed initial assignment
 
 | Setting                     | Candidate                                                                    |

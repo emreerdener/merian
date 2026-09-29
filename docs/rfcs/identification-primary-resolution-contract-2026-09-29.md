@@ -1001,3 +1001,28 @@ No native client, SQL migration, production model assignment or current
 confidence presentation changed. No paid request, hosted mutation or deployment
 ran. These checks establish the offline candidate's implementation, not model
 quality or release qualification.
+
+## Explicit-primary comparison packet — 2026-09-29
+
+The
+[preparation checkpoint](identification-sol-primary-comparison-preparation-2026-09-29.md)
+now freezes twelve no-description photos and both candidate/control request
+projections. Nine cases are retained from the completed experiment; new reviewed
+public images cover domestic dog, domestic cat and a provisional unresolved
+biological subject. All six earlier challenges remain. The schedule proposes six
+candidate screens and six alternating pairs, with no paid requests run.
+
+Coverage includes all five resolution states. Four references are limited, and
+family/unresolved biological have no usable provisional identity reference
+beyond those limits. Those cases can exercise uncertainty and explanation
+behavior; their identity mismatches remain unassessable without further
+evidence. The lookalike review binds a distinct comparison species without
+adding it to the accepted answers. The current explanation rubric and format are
+preserved.
+
+The new offline builder uses separate plan/review contracts, immutable private
+copies and a completion receipt written last. Its report records no dispatch,
+live readiness or quality qualification. Prior source inputs, paid journals and
+historical profiles remain unchanged. Next is the separate live adapter and
+durable evaluation/scoring path, followed by current pricing and a bounded
+execution authorization. Confidence calibration remains later work.
