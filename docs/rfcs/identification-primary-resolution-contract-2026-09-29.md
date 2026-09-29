@@ -1,0 +1,387 @@
+# Explicit primary identification resolution
+
+Date: 2026-09-29
+
+Status: Proposed contract and implementation sequence; no runtime, database,
+model assignment or confidence policy changes are implemented by this document.
+Source inspection used `ca35e74bb` on `codex/openai-free-pro-evaluation`.
+
+The
+[completed Sol comparison](identification-sol-rank-comparison-results-2026-09-29.md)
+does not qualify its candidate for promotion. Keep the current Sol photo profile
+for Free and Pro. This design completes the offline contract-design step in the
+[photo rank plan](identification-photo-rank-consistency-2026-09-28.md); it
+supplies the storage and compatibility foundation a separately qualified future
+result would need.
+
+## Decision and value
+
+Represent the primary answer explicitly as species, genus, family, unresolved
+biological subject, or non-biological subject. Preserve that answer through live
+display, saving, history, replay and recovery. A genus or family answer must
+never become a species result merely because its name is nonempty.
+
+This prevents incorrect dictionary enrichment and loss of broader
+identifications on another device. It does not prove that the model identified
+the right organism or chose an evidence-supported rank. Model quality still
+requires evaluation; rank, model confidence and a person's verification remain
+separate facts.
+
+The contract is provider-neutral. Its first prospective producer is an isolated
+OpenAI photo profile. Current OpenAI and Gemini profiles keep their existing
+contracts until deliberately migrated. Audio, sampled-video identification,
+model selection, explanation length and Strong / Possible / Weak thresholds are
+outside this implementation sequence.
+
+## Current implementation boundary
+
+The [API contract](../backend-and-data/05-api-contracts.md#scan-response-replay)
+and [database schema](../backend-and-data/04-database-schema.md#scans) describe
+current behavior. The following source owners explain why a prompt-only fix is
+insufficient:
+
+| Owner                                                                                                                                                                                                                                                                                                                                                                                | Current behavior                                                                               | Required change for an explicit result                                               |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| [`contract.ts`](../../services/supabase/functions/_shared/identify/contract.ts), `edgeResponseContract`                                                                                                                                                                                                                                                                              | Names and a lineage object; no primary resolution.                                             | Own the versioned result field, validation and generated Swift DTO.                  |
+| [`normalizeIdentification.ts`](../../services/supabase/functions/_shared/identify/normalizeIdentification.ts), `normalizeIdentification`                                                                                                                                                                                                                                             | Sanitizes names and applies subject policies; does not preserve a primary rank.                | Validate explicit resolution against the final normalized subject and names.         |
+| [`identify-multimodal/index.ts`](../../services/supabase/functions/identify-multimodal/index.ts), `isIdentifiedBio`                                                                                                                                                                                                                                                                  | Any biological result with a scientific name can reach species hydration and enrichment.       | Gate primary and candidate species operations independently.                         |
+| [`db.ts`](../../services/supabase/functions/_shared/identify/db.ts), `insertScan`, `upsertSpeciesDictionary`                                                                                                                                                                                                                                                                         | The scan links a species row; name-based dictionary writes have no primary-rank discriminator. | Save a scan-owned primary snapshot and prevent broader taxa entering species writes. |
+| [`completedResponse.ts`](../../services/supabase/functions/_shared/identify/completedResponse.ts), `buildCompletedIdentifyEnvelope`                                                                                                                                                                                                                                                  | Reconstructs from the scan and optional species relation.                                      | Reconstruct the same primary answer without requiring a species relation.            |
+| [`SpeciesData+EdgeResponse.swift`](../../apps/ios/Merian/Core/AI/Models/SpeciesData+EdgeResponse.swift) and [`SpeciesData+Presentation.swift`](../../apps/ios/Merian/Models/Species/SpeciesData+Presentation.swift)                                                                                                                                                                  | Non-placeholder names imply a resolved biological identification.                              | Separate a usable biological taxon from a species-level identification.              |
+| [`LocalScanRecordFactory.swift`](../../apps/ios/Merian/Core/Data/Database/LocalScanRecordFactory.swift), [`HistoricalSyncCloudClient.swift`](../../apps/ios/Merian/Core/Data/Database/HistoricalSync/Services/HistoricalSyncCloudClient.swift), [`HistoricalDatabaseActor.swift`](../../apps/ios/Merian/Core/Data/Database/HistoricalSync/Persistence/HistoricalDatabaseActor.swift) | Local storage has no rank; history depends on the dictionary for names.                        | Persist and merge the same snapshot across local and cloud recovery.                 |
+| [`InferenceHistoricalRecordProjection.swift`](../../apps/ios/Merian/Core/AI/Inference/Hydration/InferenceHistoricalRecordProjection.swift)                                                                                                                                                                                                                                           | Resolved-name checks permit reference images and species enrichment.                           | Apply the same resolution policy after reopening a saved result.                     |
+
+## Proposed wire and model contracts
+
+Add optional `data.primary_identification` to the successful Identify envelope.
+When present, it is a strict object with these required keys:
+
+| Field             | Proposed contract                                                           |
+| ----------------- | --------------------------------------------------------------------------- |
+| `version`         | Integer constant `1`.                                                       |
+| `resolution`      | `species`, `genus`, `family`, `unresolved_biological`, or `non_biological`. |
+| `scientific_name` | Sanitized string, 1–255 characters, or explicit null.                       |
+| `common_name`     | Sanitized string, 1–255 characters, or explicit null.                       |
+
+Use one resolution enum rather than independent status/rank fields that can
+contradict each other. Reject extra keys, unknown versions/resolutions and
+objects larger than 4 KiB after serialization. The names use the existing name
+bounds. This is a proposed identity snapshot, not a new field inside execution
+provenance.
+
+Keep existing top-level names and `is_biological_subject` for the shared
+response shape. For explicit results they are server-generated projections of
+this snapshot, and final validation requires exact agreement. Dictionary
+hydration may normalize a species label only before the snapshot is finalized
+and only after proving that it represents the same species. Stored replay cannot
+update the primary label from today's dictionary or model settings.
+
+| Resolution              | Biological flag | Scientific name | Downstream interpretation                                                                         |
+| ----------------------- | --------------- | --------------- | ------------------------------------------------------------------------------------------------- |
+| `species`               | true            | Required        | Model's species-level answer; eligible for species resolution checks, not automatically verified. |
+| `genus`                 | true            | Required        | Genus-level answer; retain the group label and no species association.                            |
+| `family`                | true            | Required        | Family-level answer; retain the group label and no species association.                           |
+| `unresolved_biological` | true            | null            | Biological presence without a supported primary taxon; use existing unresolved display copy.      |
+| `non_biological`        | false           | String or null  | Preserve existing mineral/object naming behavior; no biological taxon or species association.     |
+
+Genus/family common names must describe the returned group. The deterministic
+validator can check shape, contradictions and reviewed taxonomic mappings; it
+cannot prove a natural-language group label or visual explanation is accurate.
+Do not infer rank by word count, suffix, confidence, subscription tier or an
+existing dictionary hit. Do not synthesize missing lineage values as proof. A
+family result must not carry a more specific genus in its final taxonomy.
+
+Start with species/genus/family because those are the biological ranks covered
+by this work. Other ranks, hybrids, cultivars and infraspecific names need an
+explicit extension or a reviewed mapping to a supported parent. Never truncate a
+name to manufacture that mapping. Pet regressions, including the current
+domestic-dog naming convention, are a qualification requirement before a new
+producer can replace today's profile; legacy pet results remain unchanged.
+
+The future isolated model-output schema adds a required resolution discriminator
+beside its existing names. The server constructs the versioned public snapshot
+after existing subject normalization and any eligible name canonicalization.
+Processed-material or other deterministic subject demotion must update the
+resolution consistently. Other contradictory or missing required values fail
+validation; they never fall back to the old name-only path or become a second
+provider request automatically.
+
+The profile registry must declare whether a result requires this contract.
+Current profiles remain legacy producers. Missing `primary_identification` is
+valid for their old results, but invalid for a new producer that requires it.
+Shared Gemini prompt/schema descriptions are not edited just to add the OpenAI
+candidate. The failed `openai_photo_sol_rank_limits_low_v1` experiment remains
+frozen and must not be repurposed into a different candidate.
+
+### Alternatives and species enrichment
+
+For the first explicit producer, genus/family, unresolved and non-biological
+results return `candidates: null` and `pet_identification: null`. This avoids
+reintroducing unsupported species through the existing species-oriented
+alternative cards. Broader-rank alternative cards are a later extension, not an
+implicit reinterpretation of current candidate UI.
+
+A species primary may have zero to two alternatives. Each new candidate carries
+an explicit `taxon_rank: "species"` beside the existing candidate fields,
+checked in both model and wire contracts. The field remains absent on legacy
+candidates. Every candidate in an explicit result must satisfy the new rule; a
+missing or broader rank cannot authorize candidate hydration or upsert. Existing
+confidence and candidate-selection restrictions still apply. Empty alternatives
+are valid; there is no requirement to invent two names.
+
+For an explicit result, `resolution == species` is necessary for species-only
+work and is not sufficient proof that a dictionary match is correct. Use the
+existing accepted-species resolver's rank/status/key checks before linking an
+identity. `is_public_biological`, a positive GBIF key alone, usable kingdom and
+a name-based cache hit are not species-rank evidence. A taxonomic resolver
+verifies the named taxon's rank and identity, not whether the photograph depicts
+it.
+
+If that lookup is unavailable or inconclusive, preserve the model's species
+answer in the snapshot, keep `species_id` null and skip species enrichment. Do
+not fail an otherwise valid identification simply because optional enrichment is
+unavailable. An accepted synonym may be canonicalized only with affirmative
+same-species evidence before finalization. Broader matches cannot be narrowed by
+enrichment.
+
+For every explicit non-species result, primary cache hydration, dictionary
+creation, species reference images, lookalikes, species-specific summaries and
+the new-species milestone are disabled. Keep `species_id` null and
+`is_new_to_merian_dictionary` false. Deferred/background enrichment must recheck
+the durable result, not trust a client flag or the presence of a label. Ordinary
+observation features remain available under their existing policies.
+
+## Durable storage, recovery and review
+
+Propose nullable `scans.primary_identification` JSONB with a strict bounded
+validator and no default or initial index. It is server-owned observation data,
+unlike the content-free `identification_provenance` field. It follows existing
+scan visibility, retention, deletion and export rules. Do not log names or use
+them in benchmark receipts. No client INSERT/UPDATE grant is added.
+
+Persist the finalized snapshot with the exact owner scan and copy it atomically
+to the matching ingestion-job recovery record, following existing provenance
+ownership and generation checks. It is immutable for that completed generation.
+Client `recovery_scan` JSON cannot assert or replace it. Missing-row recovery
+uses only the matching server-owned backup. Duplicate completion cannot replace
+the first result; no new provider call is needed to recover it.
+
+Keep this snapshot out of the client recovery allowlist in
+[`scanRecovery.ts`](../../services/supabase/functions/_shared/scanRecovery.ts).
+Extend the server-owned recovery trigger/RPC boundary instead, following
+[`guard_scan_identification_provenance`](../../services/supabase/migrations/20260926160249_persist_identification_result_provenance.sql).
+Restored biological flags and species associations must agree with that trusted
+snapshot; conflicting client recovery fields cannot give a genus a species ID.
+The replay worker can finalize with a null response envelope, so testing only
+the stored-envelope path is insufficient.
+
+Update `COMPLETED_SCAN_SELECT`, row decoding, stored-envelope validation and
+reconstruction together. A genus/family result must reconstruct its original
+name from the scan snapshot with no dictionary relation. If a stored envelope is
+unusable, reconstruction may use a valid owned snapshot; missing or damaged
+required snapshot data is an integrity failure, never a guessed legacy result.
+The immutable admitted prompt/schema profile identity records whether this
+contract is required. Preserve that provenance in completion and recovery and
+check both it and the snapshot at read boundaries; loss of the snapshot alone
+cannot make the result legacy. The versioned snapshot does not replace existing
+provenance.
+
+Keep original AI identity separate from user confirmation and community
+identification. A later accepted species confirmation may attach its own
+verified identity through the existing authorized flow, without rewriting the
+original broader AI snapshot or relabeling its score as species confidence.
+Species counts, rewards and public projections must distinguish that confirmed
+identity from the original AI answer.
+
+Enforce this in native policy as well as SQL. Today,
+`LocalScanRecord.hasResolvedBiologicalIdentification`,
+`SpeciesData.hasResolvedBiologicalIdentification` and
+`InferenceHistoricalRecordProjection` can give a typed override species-like
+behavior. For an explicit non-species result, free text,
+`user_confirmed_identification`, `ai_confirmed` and a community genus outcome
+must not enable species references, lookalikes, candidates, novelty or other
+species-only effects. Only a separately server-validated species confirmation
+may supply an effective species identity. Its display/enrichment uses that
+confirmed identity and existing permissions; the original AI rank, alternatives
+and confidence remain attached to the original answer. Confirmation does not
+convert the AI score into confidence in the confirmed species.
+
+Public consumers often select `COALESCE(confirmed_species_id, species_id)`.
+Preserve an independently accepted species confirmation, but never substitute a
+free-text override, a community genus-best-possible vote, or an AI genus label
+for a species FK. Review Field Trip goals, discovery counts, Explore cards,
+species chat context and reference-image eligibility under that distinction. Do
+not hide an otherwise eligible observation merely because it has no species
+association.
+
+The service-side DwC-A producer currently gets names from the dictionary
+relation. Its explicit-result projection must retain the snapshot's primary name
+and actual supported rank with no invented species ID. Add any export column
+deliberately through its versioned DTO/metadata contract; keep already
+materialized export jobs immutable. Public web/admin projections expose only the
+appropriate published or authorized labels, not a wholesale internal JSON dump.
+
+### Native persistence and legacy semantics
+
+Add optional `LocalScanRecord.primaryIdentificationData` containing the
+validated snapshot; map generated DTOs to a small domain value rather than
+persisting a generated wire type. Do not reuse `identificationProvenanceData`
+for labels. Carry the value through live completion, historical
+selection/decoding/merging, single-scan recovery, local reopening and sharing
+projections.
+
+Also close the confirmation persistence gap: `HistoricalSyncCloudClient` does
+not currently select `confirmed_species_id`, and `HistoricalScanResponse` does
+not decode it. Add the ID and a narrow, explicitly disambiguated
+confirmed-species relation/projection, then update `HistoricalDatabaseActor`,
+local factories and historical presentation together. Propose a separate
+optional `LocalScanRecord.confirmedSpeciesIdentityData` for the validated ID and
+bounded canonical display identity, populated only by the authorized
+confirmation response or a validated server projection. Include it in the same
+planned schema migration. A raw local ID or override string is not proof of
+species validation.
+
+Unlike the immutable AI snapshot, confirmation can change through the existing
+authorized review workflow. Its persistence/merge contract must distinguish an
+older payload that omits confirmation from an authoritative clear or
+replacement, and reject stale updates using that workflow's ordering evidence.
+Missing-row recovery must apply the same species-validation boundary before
+restoring a confirmed association. When that confirmation cannot be established,
+preserve the AI snapshot and pending review information without granting species
+effects. Test confirmation, replacement, clearing, relaunch and second-device
+recovery; do not infer this state from the legacy confirmation boolean.
+
+The inspected current schema is V52. At implementation time, re-read the current
+alias and freeze the actual outgoing model and relationship graph before editing
+active models. Compile that snapshot, then introduce the next schema and an
+additive optional-field migration. Extend recent-version startup plans and use
+disk-backed upgrade/relaunch fixtures. Never edit retired snapshots or delete a
+store to bypass a migration error. See the
+[SwiftData workflow](../../skills/merian-swiftdata-migrations/references/schema-update.md).
+
+Missing wire fields and SQL/local null values mean legacy/unknown resolution,
+not species. Preserve existing legacy display and saved observations without
+granting new rank guarantees. Do not bulk-backfill rank from names or
+`species_id`. A missing legacy history value cannot erase an already saved
+explicit snapshot. A conflicting snapshot for the same completed generation must
+surface an integrity failure; it is not a last-write-wins merge. Malformed
+present data follows existing quarantine/recovery handling rather than becoming
+nil.
+
+Use separate domain decisions for a named biological taxon and species-level
+eligibility. Genus/family display retains the returned label, explanation and
+supported lineage, with an ordinary indication of the rank. It does not use the
+unidentified placeholder merely because no species row exists. Unresolved and
+non-biological subjects retain their existing presentation paths.
+
+Keep Strong / Possible / Weak and the current explanation format. No threshold,
+calibration, automatic verification or score inflation is introduced here. The
+existing shipped-profile display policy stays in place. A future prompt/schema
+profile requires an explicit confidence-presentation decision; being another Sol
+profile does not inherit a qualified policy automatically. If a badge is shown
+for a broader result, it must describe that returned rank, not an unseen
+species.
+
+## Compatibility and release order
+
+Optional fields alone are insufficient: old clients ignore them and may treat a
+genus as a species. Propose identification capability **5**, subject to
+confirming that the value remains unused when implementation begins. Entitlement
+protocol **3** remains separate and unchanged. Do not accept arbitrary larger
+integers as compatible readers.
+
+| Stored result                                                     | Legacy reader                     | Recognized capability 4 | Proposed capability 5        |
+| ----------------------------------------------------------------- | --------------------------------- | ----------------------- | ---------------------------- |
+| Null/V1 provenance, no explicit result                            | Existing behavior                 | Existing behavior       | Legacy resolution behavior   |
+| OpenAI V2 provenance, no explicit result                          | Existing update-required response | Existing behavior       | Existing behavior            |
+| Valid explicit primary result, with its required profile metadata | Update required                   | Update required         | Explicit resolution behavior |
+
+Capability 5 readers must also decode all currently supported results. Add
+recognized-4-and-5 handling everywhere current code compares exactly to 4:
+preflight, assignment minima, reservation snapshots, internal retry evidence,
+Edge request validation, final/replayed response checks, Data API reads and
+native header/decision parsing. A new rank-producing assignment requires 5;
+existing bindings retain their existing minima. Do not use a worker's supplied
+header to upgrade the original attempt's accepted capability.
+
+This requires forward SQL migrations of the closed binding and attempt CHECK
+constraints introduced by
+[`20260927175708_prepare_openai_photo_routing.sql`](../../services/supabase/migrations/20260927175708_prepare_openai_photo_routing.sql).
+Their current allowed minima are `0|4`, and the OpenAI tuple fixes
+`openai_photo_v1`, its model and minimum 4. Preserve those original tuple
+semantics and every saved v4 attempt. Add recognized capability-5 claims for new
+requests to existing bindings without rewriting their minima. When a new
+producer qualifies, introduce its own exact profile/binding/model tuple with
+minimum 5 in a separate forward migration; never rename the old binding or relax
+the checks to arbitrary OpenAI profiles or numeric versions. Keep that new tuple
+unassigned until the authorized activation. Update native preflight's `[0, 4]`
+allowlist and OpenAI-minimum equality rule in the same coordinated rollout.
+
+The result reader checks today's requesting device, including stored replay and
+mixed history pages, independently of the original submitter. Preserve existing
+visibility checks before compatibility errors; a hidden row must not reveal its
+existence through an update error. A visible explicit result fails the whole
+unsupported page even if the query omits the new field. Service-role projections
+need their own semantics because they bypass this RLS check.
+
+Release order after implementation and qualification is: additive backend
+read/storage support with all producers unchanged; a compatible app with tested
+store upgrades; then separately authorized activation of a qualified explicit
+profile. Downgrading fresh assignments does not erase explicit saved results:
+retain their storage, reader gate and compatible recovery code. Do not strip the
+new field to make an old app accept a semantically different answer.
+
+Deployment and distribution remain explicit operations under the canonical
+[Supabase runbook](../backend-and-data/06-supabase-deployment-runbook.md) and
+[testing strategy](../development-guides/08-testing-strategy.md). This document
+changes no hosted policy and grants no new paid experiment.
+
+## Implementation slices and acceptance
+
+1. **Add the dormant contract and server storage.** Implement strict types,
+   normalization helpers, profile requirement metadata, forward migrations,
+   immutable owner-bound backup/recovery, reconstruction and recognized-reader
+   support. Generate and inspect the Swift DTO diff. Keep all existing producer
+   profiles unchanged. Prove new cases using synthetic results only.
+2. **Complete consumers and save/restore behavior.** Add the native domain and
+   schema migration, history/queue/replay mappings, species-only operation
+   gates, and reviewed public/admin/export projections. Verify that a
+   genus/family result survives an app relaunch and a second-device fetch
+   without gaining species enrichment. Explicitly update override/confirmation
+   policy and confirmed-species history/persistence owners; existing
+   observations and independently validated user/community confirmations must
+   survive.
+3. **Qualify a separate explicit producer.** Build a new isolated OpenAI photo
+   candidate with its own prompt/schema/provenance identities and required rank
+   output. Check species, broader taxa, unresolved subjects, pets, processed
+   objects and geological names. First validate offline; propose a new bounded
+   comparison only when the candidate and reference coverage justify it. Do not
+   reuse the completed eighteen-call allowance or promote the failed candidate.
+   Only a qualified producer receives a distinct closed production tuple with
+   minimum capability 5, initially unassigned.
+
+Reader and writer changes may span pull requests, but there is no activation
+between incomplete slices. Code readiness, model quality and production release
+are separate recorded decisions. Confidence calibration follows stable,
+qualified identification behavior and adequate labeled evidence.
+
+| Verification                     | Required evidence when implementing                                                                                                                                                                                                                                                             |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Contract and normalization       | Every resolution, contradictory flags/names, null/omitted/unknown values, size bounds, profile requirements and explicit-candidate rank rules.                                                                                                                                                  |
+| Side effects                     | Spies/fixtures prove non-species primary and candidates cause zero species hydration, upserts, reference-image/lookalike work or novelty credit, on live and delayed paths.                                                                                                                     |
+| Database ownership and replay    | Actual-role permission tests, immutable first completion, concurrent duplicate finalization, missing-row recovery, spoofed client data, deleted owners and damaged-required-snapshot cases.                                                                                                     |
+| Readers                          | Capability matrix across fresh responses, all four replay endpoints, preflight, internal retries, direct/mixed history and service-role projections; preserved v4 tuples/attempts, exact distinct v5 tuple, unknown-version rejection and no hidden-row leak or extra provider request.         |
+| iOS persistence and presentation | Generated decoder parity; disk migration from the outgoing schema and supported recent plans; relaunch/history/queue recovery; broader-rank display; typed/boolean override cannot promote rank; validated confirmation replacement/clear survives across devices with AI confidence unchanged. |
+| Repository gates                 | `make validate-edge-dto-contract`, complete affected Supabase tooling/Edge checks, recursive type checks, disposable-database/catalog gates, and affected iOS build/test gates through `make ios-local-build`. Run web/admin package gates if those consumers change.                           |
+
+Update canonical API/database documentation, owning READMEs and release
+procedures with their implementation slices, not as if this proposal were
+already deployed. Formatting and documentation review validate this design only;
+no runtime or migration tests have run for these proposed fields.
+
+The offline design received a read-only source trace and independent contract
+review. Review corrections explicitly cover the closed provider-binding SQL
+constraints and native confirmation/override recovery. The correction review
+found no remaining concrete blocker. Changed-Markdown formatting, 249 local
+file-link targets and diff whitespace checks passed; these are documentation
+checks, not evidence that the proposed runtime behavior exists.

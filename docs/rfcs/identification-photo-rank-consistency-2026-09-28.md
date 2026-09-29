@@ -9,8 +9,10 @@ broader-rank behavior but made two concrete visual-evidence errors, so it is not
 qualified for promotion. Retain the unchanged Sol profile for Free and Pro. The
 [first stopped run and reference adjudication](identification-sol-rank-screen-results-2026-09-29.md)
 remain intact. Production rank handling and confidence calibration are
-unfinished. The next slice is offline rank/resolution contract design; preserve
-the explanation format and Strong / Possible / Weak labels.
+unfinished. The
+[proposed primary-resolution contract](identification-primary-resolution-contract-2026-09-29.md)
+now defines the offline design and implementation sequence. Preserve the
+explanation format and Strong / Possible / Weak labels.
 
 ## Problem and intended behavior
 
@@ -300,18 +302,24 @@ offline without additional provider calls.
 
 ## Slice 4: production contract and model selection
 
-The evaluated candidate is not eligible for production. Begin with an offline
-design of rank/resolution semantics and compatibility; a new paid comparison
-requires a separately scoped candidate and approval. Do not expand or repeat the
-completed packet.
+The evaluated candidate is not eligible for production. The offline
+[primary-resolution design](identification-primary-resolution-contract-2026-09-29.md)
+now proposes a versioned scan-owned answer, species-only enrichment gates,
+reader-before-writer compatibility and preservation through native storage,
+history and recovery. Those fields and migrations are not implemented yet.
 
-If a future prompt result warrants promotion, implement and verify the explicit
-rank contract described above, including saved observations, retries,
-older-client behavior and enrichment. Keep rollout and rollback tied to the
-exact reviewed provider/model/prompt/schema/confidence profile. Production
-activation is a separate operation; no future plan or successful offline test
-changes today's Sol assignments. OpenAI audio evaluation follows the photo
-decision as its own input and model comparison.
+The next implementation slice adds the dormant contract and backend storage/read
+support while existing producer profiles remain unchanged. Complete client and
+downstream consumers before qualifying a separate explicit producer. A new paid
+comparison requires a separately scoped candidate and approval; do not expand or
+repeat the completed packet.
+
+Any future promotion also needs a qualified prompt result and verified saved
+observations, retries, older-client behavior and enrichment. Keep rollout and
+rollback tied to the exact reviewed provider/model/prompt/schema/confidence
+profile. Production activation is a separate operation; no future plan or
+successful offline test changes today's Sol assignments. OpenAI audio evaluation
+follows the photo decision as its own input and model comparison.
 
 ## Verification
 
