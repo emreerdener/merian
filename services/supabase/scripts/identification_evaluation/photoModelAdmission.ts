@@ -10,11 +10,15 @@ export interface PhotoModelParentBinding {
   parentArtifactsDigest: string;
 }
 export interface PhotoModelApproval {
-  version: "photo_model_approval_v1" | "photo_model_continuation_approval_v1";
+  version:
+    | "photo_model_approval_v1"
+    | "photo_model_continuation_approval_v1"
+    | "photo_model_candidate_approval_v1";
   project: "naturebook";
   operation:
     | "18_call_luna_sol_photo_comparison"
-    | "remaining_17_luna_sol_photo_comparison";
+    | "remaining_17_luna_sol_photo_comparison"
+    | "18_call_luna_evidence_limits_sol_photo_comparison";
   parentRunDigest?: string;
   parentArtifactsDigest?: string;
   screeningPolicy?: typeof PHOTO_MODEL_REFERENCE_GAP_POLICY;
@@ -37,6 +41,8 @@ export async function validatePhotoModelApproval(
   now: number,
   parent?: PhotoModelParentBinding,
 ): Promise<PhotoModelApproval> {
+  const candidate = packet.plan.version === "photo_model_plan_v3";
+  check(!candidate || parent === undefined);
   const v = fields(value, [
     "version",
     "project",
@@ -55,22 +61,27 @@ export async function validatePhotoModelApproval(
       ? [
         "parentRunDigest",
         "parentArtifactsDigest",
-        "screeningPolicy",
         "maxAdditionalCalls",
       ]
       : []),
+    ...(parent || candidate ? ["screeningPolicy"] : []),
   ]);
   check(
     v.version ===
         (parent
           ? "photo_model_continuation_approval_v1"
+          : candidate
+          ? "photo_model_candidate_approval_v1"
           : "photo_model_approval_v1") &&
       v.project === "naturebook" &&
       v.operation ===
         (parent
           ? "remaining_17_luna_sol_photo_comparison"
+          : candidate
+          ? "18_call_luna_evidence_limits_sol_photo_comparison"
           : "18_call_luna_sol_photo_comparison"),
   );
+  if (candidate) check(v.screeningPolicy === PHOTO_MODEL_REFERENCE_GAP_POLICY);
   if (parent) {
     hash(v.parentRunDigest);
     hash(v.parentArtifactsDigest);
@@ -82,7 +93,7 @@ export async function validatePhotoModelApproval(
     );
   }
   check(
-    packet.plan.version === "photo_model_plan_v2" &&
+    (packet.plan.version === "photo_model_plan_v2" || candidate) &&
       packet.corpus.evidenceOrigin === "real" &&
       packet.plan.inputApproval !== null && !packet.report.source.dirty,
   );

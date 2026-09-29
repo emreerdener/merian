@@ -1,4 +1,4 @@
-import { assertEquals, assertRejects, assertThrows } from "@std/assert";
+import { assert, assertEquals, assertRejects, assertThrows } from "@std/assert";
 import type { AIAttemptSnapshot, MultimodalAIRequest } from "./contracts.ts";
 import {
   assignmentMatchesModel,
@@ -19,6 +19,12 @@ import {
   OPENAI_PHOTO_MODEL_PROFILES,
   openAIPhotoModelSnapshot,
 } from "./openaiPhotoModels.ts";
+import {
+  OPENAI_LUNA_EVIDENCE_LIMITS_PROFILE,
+  OPENAI_LUNA_EVIDENCE_LIMITS_PROMPT,
+  OPENAI_LUNA_EVIDENCE_LIMITS_PROMPT_DIGEST,
+  openAILunaEvidenceLimitsInstructions,
+} from "./openaiLunaEvidenceLimits.ts";
 import { isOpenAIProfile } from "./openaiRequest.ts";
 import {
   openAIPhotoModerationFixture,
@@ -149,8 +155,13 @@ Deno.test("photo model evaluation rejects profile and representation substitutio
   assertEquals(calls, 0);
 });
 
-Deno.test("both photo model profiles require exact returned identity and complete native moderation", async () => {
-  for (const profile of OPENAI_PHOTO_MODEL_PROFILES) {
+Deno.test("all photo model profiles require exact returned identity and complete native moderation", async () => {
+  for (
+    const profile of [
+      ...OPENAI_PHOTO_MODEL_PROFILES,
+      OPENAI_LUNA_EVIDENCE_LIMITS_PROFILE,
+    ]
+  ) {
     for (
       const failure of [
         null,
@@ -246,4 +257,114 @@ Deno.test("both photo model profiles require exact returned identity and complet
       assertEquals(calls, 1);
     }
   }
+});
+
+Deno.test("Luna evidence-limit candidate changes only two instruction lines and never admits production", () => {
+  const request = openAIPhotoRequestFixture();
+  const original = openAIPhotoModelSnapshot(
+    request,
+    "openai_photo_luna_low_v1",
+  );
+  const baseline = buildOpenAIPhotoModelRequestParameters(request, original);
+  const snapshot = openAIPhotoModelSnapshot(
+    request,
+    OPENAI_LUNA_EVIDENCE_LIMITS_PROFILE,
+  );
+  const candidate = buildOpenAIPhotoModelRequestParameters(request, snapshot);
+  assertEquals(snapshot, {
+    ...original,
+    profile: OPENAI_LUNA_EVIDENCE_LIMITS_PROFILE,
+    prompt: OPENAI_LUNA_EVIDENCE_LIMITS_PROMPT,
+  });
+  assertEquals(candidate, {
+    ...baseline,
+    instructions: openAILunaEvidenceLimitsInstructions(baseline.instructions),
+  });
+  const before = baseline.instructions.split("\n"),
+    after = candidate.instructions.split("\n");
+  assertEquals(after.length, before.length);
+  const changed = before.filter((line, i) => line !== after[i]);
+  assertEquals(changed.length, 2);
+  assert(changed[0].startsWith("- **Geological Exceptions:**"));
+  assert(changed[1].startsWith("1. **Nomenclature:**"));
+  assertEquals(isOpenAIProfile(snapshot.profile), false);
+  assertThrows(() =>
+    prepareMultimodalResultPolicy(snapshot as unknown as AIAttemptSnapshot)
+  );
+  assertThrows(() =>
+    buildOpenAIPhotoRequestParameters(
+      request,
+      snapshot as unknown as ReturnType<typeof openAIPhotoSnapshot>,
+    )
+  );
+  for (
+    const delta of [{ prompt: original.prompt }, { model: "gpt-6-sol" }, {
+      profile: original.profile,
+    }]
+  ) {
+    assertThrows(() =>
+      buildOpenAIPhotoModelRequestParameters(
+        request,
+        { ...snapshot, ...delta } as typeof snapshot,
+      )
+    );
+  }
+  assertThrows(() =>
+    openAIPhotoModelSnapshot(
+      openAITextFixture(),
+      OPENAI_LUNA_EVIDENCE_LIMITS_PROFILE,
+    )
+  );
+});
+
+Deno.test("Luna evidence-limit projection rejects changed or duplicated anchors without modifying the shared prompt", () => {
+  const request = openAIPhotoRequestFixture();
+  const baseline =
+    buildOpenAIPhotoRequestParameters(request, openAIPhotoSnapshot(request, 1))
+      .instructions;
+  for (
+    const changed of [
+      baseline.replace("if identifiable.", "if certain."),
+      baseline.replace(
+        "maximally specific in Title Case.",
+        "specific in Title Case.",
+      ),
+      baseline + "\n" + baseline,
+      openAILunaEvidenceLimitsInstructions(baseline),
+    ]
+  ) {
+    assertThrows(
+      () => openAILunaEvidenceLimitsInstructions(changed),
+      Error,
+      "openai_prompt_revision_mismatch",
+    );
+  }
+  assertEquals(
+    buildOpenAIPhotoRequestParameters(request, openAIPhotoSnapshot(request, 1))
+      .instructions,
+    baseline,
+  );
+});
+
+Deno.test("Luna evidence-limit prompt identity is pinned independently of the unchanged schema", async () => {
+  const request = openAIPhotoRequestFixture();
+  const candidate = buildOpenAIPhotoModelRequestParameters(
+    request,
+    openAIPhotoModelSnapshot(request, OPENAI_LUNA_EVIDENCE_LIMITS_PROFILE),
+  );
+  const digest = Array.from(
+    new Uint8Array(
+      await crypto.subtle.digest(
+        "SHA-256",
+        new TextEncoder().encode(candidate.instructions),
+      ),
+    ),
+  )
+    .map((n) => n.toString(16).padStart(2, "0")).join("");
+  assertEquals(digest, OPENAI_LUNA_EVIDENCE_LIMITS_PROMPT_DIGEST);
+  assertEquals(
+    candidate.text.format.schema,
+    buildOpenAIPhotoRequestParameters(request, openAIPhotoSnapshot(request, 1))
+      .text.format.schema,
+  );
 });

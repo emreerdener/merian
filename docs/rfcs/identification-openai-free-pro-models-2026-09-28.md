@@ -17,7 +17,11 @@ outcomes matched, but the mineral explanation failed the specificity criterion.
 The protocol stopped before the twelve challenge calls, so no Sol control ran.
 Slice 2's current decision is to retain Sol for both tiers; Luna qualification
 and a comparative Free/Pro advantage are unestablished. Production assignments
-are unchanged.
+are unchanged. The next
+[Luna evidence-limit candidate](identification-luna-evidence-limits-candidate-2026-09-28.md)
+is implemented as a separate prompt/profile and v3 local comparison plan. It
+preserves the stopped results, uses unchanged Sol as control and has made no
+paid requests. Its new bounded spending approval remains separate.
 
 ## Proposed tier assignment and current decision
 

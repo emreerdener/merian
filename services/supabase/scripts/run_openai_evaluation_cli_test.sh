@@ -177,9 +177,9 @@ p = packet('runtime-permissions')
 assert terminal('--live', p) == (0, True), 'actual launcher grants must satisfy the real Deno admission gate'
 assert [json.loads(line)['mode'] for line in (p / 'calls.jsonl').read_text().splitlines()] == ['preflight', '--live']
 
-def photo_packet(name):
+def photo_packet(name, version="photo_model_plan_v2"):
     p = packet(name)
-    (p / 'photo-model-plan.json').write_text(json.dumps({'version':'photo_model_plan_v2','maxCalls':18,'attemptsPerAssignment':1}))
+    (p / 'photo-model-plan.json').write_text(json.dumps({'version':version,'maxCalls':18,'attemptsPerAssignment':1}))
     return p
 
 p = photo_packet('photo-models')
@@ -196,6 +196,18 @@ assert terminal('--photo-model-live', p) == (1, False), 'budget preflight must s
 p = photo_packet('photo-models-old-plan')
 (p / 'photo-model-plan.json').write_text(json.dumps({'version':'photo_model_plan_v1','maxCalls':18,'attemptsPerAssignment':1}))
 assert terminal('--photo-model-live', p) == (1, False), 'the original $5 proposal does not authorize an expanded run'
+
+p = photo_packet('photo-candidate', 'photo_model_plan_v3')
+(p / 'check-permissions').touch()
+assert terminal('--photo-model-live', p) == (0, True)
+assert terminal('--photo-model-continuation-live', p) == (1, False), 'the new prompt cannot use old continuation authority'
+for marker in ('stop-after-run', 'missing-state'):
+    p = photo_packet('photo-candidate-' + marker, 'photo_model_plan_v3')
+    (p / marker).touch()
+    assert terminal('--photo-model-live', p) == (1, True)
+p = photo_packet('photo-candidate-insufficient-budget', 'photo_model_plan_v3')
+(p / 'insufficient-budget').touch()
+assert terminal('--photo-model-live', p) == (1, False)
 
 p = photo_packet('photo-continuation')
 (p / 'check-permissions').touch()

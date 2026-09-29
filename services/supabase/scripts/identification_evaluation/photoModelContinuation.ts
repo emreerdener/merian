@@ -74,6 +74,7 @@ export async function loadPhotoModelParent(
   mode: "offline" | "live",
   credential?: string,
 ) {
+  check(packet.plan.version === "photo_model_plan_v2");
   const dir = join(root, "photo-model-run");
   await exactEntries(dir, [
     ".lock",

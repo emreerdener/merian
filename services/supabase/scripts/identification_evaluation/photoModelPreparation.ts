@@ -2,11 +2,13 @@
 import { join } from "node:path";
 import {
   buildOpenAIPhotoModelRequestParameters,
+  OPENAI_PHOTO_CANDIDATE_MODEL_PROFILES,
   OPENAI_PHOTO_MODEL_PROFILES,
   type OpenAIPhotoModelProfile,
   openAIPhotoModelSnapshot,
 } from "../../functions/_shared/ai/openaiPhotoModels.ts";
 import { assertOfflinePermissions } from "./admission.ts";
+import { PHOTO_MODEL_REFERENCE_GAP_POLICY } from "./photoModelAdmission.ts";
 import { prepareEvidence } from "./assets.ts";
 import { fingerprintEvidence, fingerprintJson } from "./evidence.ts";
 import {
@@ -125,6 +127,10 @@ export async function loadPhotoModelPacket(
       "unapproved_evidence",
     );
   }
+  const candidate = plan.version === "photo_model_plan_v3";
+  const selectedProfiles = candidate
+    ? OPENAI_PHOTO_CANDIDATE_MODEL_PROFILES
+    : OPENAI_PHOTO_MODEL_PROFILES;
   const prepared = new Map<string, PreparedCase>();
   for (const c of corpus.cases) {
     check(
@@ -149,7 +155,7 @@ export async function loadPhotoModelPacket(
     }
     const request = await prepareEvidence(root, c.input);
     const profiles = new Map<OpenAIPhotoModelProfile, PreparedProfile>();
-    for (const profile of OPENAI_PHOTO_MODEL_PROFILES) {
+    for (const profile of selectedProfiles) {
       const snapshot = openAIPhotoModelSnapshot(request, profile);
       const parameters = buildOpenAIPhotoModelRequestParameters(
         request,
@@ -189,7 +195,7 @@ export async function loadPhotoModelPacket(
       attempt: 1,
     });
   };
-  const [luna, sol] = OPENAI_PHOTO_MODEL_PROFILES;
+  const [luna, sol] = selectedProfiles;
   for (const caseId of plan.screenCaseIds) append(caseId, "screen", luna);
   for (const [index, caseId] of plan.challengeCaseIds.entries()) {
     for (const profile of index % 2 === 0 ? [luna, sol] : [sol, luna]) {
@@ -199,6 +205,7 @@ export async function loadPhotoModelPacket(
   const reservedNanoUsd = order.reduce((n, a) => n + a.reservedNanoUsd, 0);
   const report = {
     version: "photo_model_preflight_v1",
+    ...(candidate ? { screeningPolicy: PHOTO_MODEL_REFERENCE_GAP_POLICY } : {}),
     dispatchAuthorized: false,
     liveControllerAvailable: true,
     evidenceStatus: synthetic

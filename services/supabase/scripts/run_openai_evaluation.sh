@@ -62,7 +62,7 @@ def main():
         spec_bytes = spec_path.read_bytes()
         spec = json.loads(spec_bytes)
         if photo_models:
-            if spec.get("version") != "photo_model_plan_v2" or spec.get("maxCalls") != 18 or spec.get("attemptsPerAssignment") != 1:
+            if spec.get("version") not in (("photo_model_plan_v2",) if continuation else ("photo_model_plan_v2", "photo_model_plan_v3")) or spec.get("maxCalls") != 18 or spec.get("attemptsPerAssignment") != 1:
                 raise ValueError("provider")
         elif experiment:
             if spec.get("version") not in ("identification_experiment_plan_v1", "identification_experiment_plan_v2", "identification_experiment_plan_v3", "identification_experiment_plan_v4") or spec.get("mode") != "live" or not isinstance(spec.get("runs"), list):
@@ -103,6 +103,8 @@ def main():
             if (report.get("version") != ("photo_model_continuation_preflight_v1" if continuation else "photo_model_preflight_v1") or report.get("budgetFitsRegionalReservation") is not True
                     or report.get("evidenceStatus") != "provisional_reference_pilot"
                     or not isinstance(report.get("source"), dict) or report["source"].get("dirty") is not False):
+                raise ValueError("preflight")
+            if spec.get("version") == "photo_model_plan_v3" and report.get("screeningPolicy") != "reference_gaps_recorded_v1":
                 raise ValueError("preflight")
             if continuation and (report.get("inheritedCalls") != 1 or report.get("maxAdditionalCalls") != 17
                     or report.get("screeningPolicy") != "reference_gaps_recorded_v1"):
@@ -160,6 +162,9 @@ def main():
                     if (not isinstance(state, dict) or state.get("version") != ("photo_model_state_v2" if continuation else "photo_model_state_v1")
                             or state.get("complete") is not True or state.get("stop") is not None
                             or state.get("claimedCalls") != 18 or state.get("completedCalls") != 18):
+                        raise ValueError("photo_model_stopped")
+                    if spec.get("version") == "photo_model_plan_v3" and (state.get("screeningPolicy") != "reference_gaps_recorded_v1"
+                            or state.get("productionActivationAuthorized") is not False):
                         raise ValueError("photo_model_stopped")
                     if continuation and (state.get("inheritedCalls") != 1 or state.get("newlyClaimedCalls") != 17
                             or state.get("screeningPolicy") != "reference_gaps_recorded_v1"

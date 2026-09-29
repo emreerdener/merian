@@ -157,6 +157,18 @@ screening result records the combined timing/cost measurements and decision to
 retain the current Sol assignment. Completing those six calls does not qualify
 Luna or establish a comparative Free/Pro advantage.
 
+The next
+[Luna evidence-limit candidate](../../../../docs/rfcs/identification-luna-evidence-limits-candidate-2026-09-28.md)
+uses a fresh packet and `photo_model_plan_v3`. Only Luna instructions change;
+Sol, input evidence, facts and model tariffs remain identical. The existing
+18-call controller requires a distinct `photo_model_candidate_approval_v1` for
+`18_call_luna_evidence_limits_sol_photo_comparison`, explicitly binding
+`reference_gaps_recorded_v1`. It records gaps separately and still stops on real
+screening failures. The old approvals and continuation cannot authorize the
+candidate. Use the same preflight/hidden-input launcher against the new root;
+never overwrite or restart the stopped journals. No paid candidate result or
+production selection is implied by local verification.
+
 ## Shared measurement repair (optimization Slice 1)
 
 New exploratory packets may opt into `evaluation_taxonomy_v2`. Standalone live

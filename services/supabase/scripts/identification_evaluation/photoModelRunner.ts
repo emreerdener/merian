@@ -224,7 +224,12 @@ async function executePhotoModelRun(
     );
     // Freeze the entire schedule before even the first screening call.
     check(reservedNanoUsd <= Math.floor(packet.plan.budgetUsd * 1e9));
+    const candidate = packet.plan.version === "photo_model_plan_v3";
+    const referenceGaps = continuation || candidate;
     const binding = {
+      ...(candidate
+        ? { screeningPolicy: PHOTO_MODEL_REFERENCE_GAP_POLICY }
+        : {}),
       version: continuation
         ? "photo_model_run_binding_v2"
         : "photo_model_run_binding_v1",
@@ -251,7 +256,7 @@ async function executePhotoModelRun(
       reviewerRef: approval?.reviewerRef ?? "synthetic-reviewer",
       delegationRef: approval?.delegationRef ?? "synthetic-delegation",
     };
-    return { packet, credential, binding, parent };
+    return { packet, credential, binding, parent, referenceGaps };
   };
   const runPath = join(
     root,
@@ -431,7 +436,8 @@ async function executePhotoModelRun(
           gap = true;
         }
         if (
-          a.phase === "screen" && !screenPass(packet, a, entry, continuation)
+          a.phase === "screen" &&
+          !screenPass(packet, a, entry, initial.referenceGaps)
         ) {
           stop ??= "screen_failed";
           gap = true;
@@ -440,7 +446,12 @@ async function executePhotoModelRun(
           check(
             packet.report.order.filter((p) => p.phase === "screen").every((p) =>
               entries.has(p.ordinal) &&
-              screenPass(packet, p, entries.get(p.ordinal)!, continuation)
+              screenPass(
+                packet,
+                p,
+                entries.get(p.ordinal)!,
+                initial.referenceGaps,
+              )
             ),
           );
         }
@@ -460,6 +471,10 @@ async function executePhotoModelRun(
           ? {
             inheritedCalls: initial.parent ? 1 : 0,
             newlyClaimedCalls: claimed - (initial.parent ? 1 : 0),
+          }
+          : {}),
+        ...(initial.referenceGaps
+          ? {
             screeningPolicy: PHOTO_MODEL_REFERENCE_GAP_POLICY,
             referenceGapOrdinals: [...entries].filter(([, e]) =>
               Object.values(e.ratings).some((r) =>
@@ -499,7 +514,12 @@ async function executePhotoModelRun(
         check(
           packet.report.order.filter((p) => p.phase === "screen").every((p) =>
             entries.has(p.ordinal) &&
-            screenPass(packet, p, entries.get(p.ordinal)!, continuation)
+            screenPass(
+              packet,
+              p,
+              entries.get(p.ordinal)!,
+              initial.referenceGaps,
+            )
           ),
         );
       }

@@ -148,6 +148,16 @@ preflight before key entry and reject missing/incomplete state or incorrect
 inherited/new aggregate counts. Full completion still carries no production
 authority.
 
+`photoModelCandidateTests.ts` covers the separately versioned evidence-limit
+candidate: unchanged Sol requests and evidence, same-model pricing reuse,
+distinct v3 approval, preserved reference gaps, hard specificity stops, and
+rejection of attempting a new candidate inside a stopped original journal.
+Adapter tests pin the candidate prompt and prove that only two instruction lines
+change, while schema, request options, native moderation and production
+exclusion remain unchanged. Launcher tests cover v3 preparation and reject its
+use in the original continuation mode. These are offline software checks, not
+model-quality measurements.
+
 The production workflow's cumulative undeployed-source scope separately includes
 the generated inference DTO contract, `Core/Network/SupabaseManager.swift`, the
 exact scan- admission bridge in `Core/Network/MerianNetworkClient.swift`, its

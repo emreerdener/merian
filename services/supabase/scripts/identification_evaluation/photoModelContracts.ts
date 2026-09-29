@@ -2,8 +2,10 @@
 import {
   OPENAI_PHOTO_MODEL_PROFILES,
   OPENAI_PHOTO_MODELS,
+  type OpenAIPhotoBaselineModelProfile,
   type OpenAIPhotoModelProfile,
 } from "../../functions/_shared/ai/openaiPhotoModels.ts";
+import { OPENAI_LUNA_EVIDENCE_LIMITS_PROFILE } from "../../functions/_shared/ai/openaiLunaEvidenceLimits.ts";
 import { type FactCard, parseFactCards } from "./explanationContracts.ts";
 import { hash, number, timestamp, unique } from "./runContracts.ts";
 import {
@@ -15,7 +17,10 @@ import {
 } from "./validation.ts";
 
 export interface PhotoModelPlan {
-  version: "photo_model_plan_v1" | "photo_model_plan_v2";
+  version:
+    | "photo_model_plan_v1"
+    | "photo_model_plan_v2"
+    | "photo_model_plan_v3";
   id: string;
   corpusDigest: string;
   taxonomyDigest: string;
@@ -49,7 +54,9 @@ export function parsePhotoModelPlan(value: unknown): PhotoModelPlan {
     "inputApproval",
   ]);
   check(
-    v.version === "photo_model_plan_v1" || v.version === "photo_model_plan_v2",
+    v.version === "photo_model_plan_v1" ||
+      v.version === "photo_model_plan_v2" ||
+      v.version === "photo_model_plan_v3",
   );
   token(v.id);
   for (
@@ -121,7 +128,7 @@ export interface PhotoModelPricing {
   reviewRef: string;
   currency: "USD";
   billing: "paid_standard_synchronous";
-  profiles: Record<OpenAIPhotoModelProfile, ProfilePrice>;
+  profiles: Record<OpenAIPhotoBaselineModelProfile, ProfilePrice>;
 }
 export function parsePhotoModelPricing(value: unknown): PhotoModelPricing {
   const v = fields(value, [
@@ -155,11 +162,23 @@ export function parsePhotoModelPricing(value: unknown): PhotoModelPricing {
   }
   return structuredClone(v) as unknown as PhotoModelPricing;
 }
+/** Prompt variants of the exact same model retain the reviewed model tariff. */
+export function photoModelPrice(
+  profile: OpenAIPhotoModelProfile,
+  pricing: PhotoModelPricing,
+): ProfilePrice {
+  const billingProfile = profile === OPENAI_LUNA_EVIDENCE_LIMITS_PROFILE
+    ? "openai_photo_luna_low_v1"
+    : profile;
+  const price = pricing.profiles[billingProfile];
+  check(price !== undefined && price.model === OPENAI_PHOTO_MODELS[profile]);
+  return price;
+}
 export function photoModelReservationNanoUsd(
   profile: OpenAIPhotoModelProfile,
   pricing: PhotoModelPricing,
 ): number {
-  const p = pricing.profiles[profile];
+  const p = photoModelPrice(profile, pricing);
   return Math.ceil(
     (PHOTO_MODEL_TOKEN_CEILINGS.input * p.inputCeilingUsdPerMillion +
       PHOTO_MODEL_TOKEN_CEILINGS.output * p.outputCeilingUsdPerMillion) * 1000,

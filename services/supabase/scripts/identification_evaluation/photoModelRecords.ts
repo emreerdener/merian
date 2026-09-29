@@ -11,6 +11,7 @@ import type { FactCard } from "./explanationContracts.ts";
 import type { MultimodalAIRequest } from "../../functions/_shared/ai/contracts.ts";
 import {
   PHOTO_MODEL_TOKEN_CEILINGS,
+  photoModelPrice,
   type PhotoModelPricing,
 } from "./photoModelContracts.ts";
 import type { PhotoModelAssignment } from "./photoModelPreparation.ts";
@@ -95,7 +96,7 @@ export function photoModelCostUpper(
     total !== input + output || reasoning > output ||
     cached + cacheWrite > input || tools !== 0
   ) return null;
-  const p = pricing.profiles[a.profile];
+  const p = photoModelPrice(a.profile, pricing);
   // Output already includes reasoning. No cache discount is assumed for this upper bound.
   return Math.ceil(
     (input * p.inputCeilingUsdPerMillion +

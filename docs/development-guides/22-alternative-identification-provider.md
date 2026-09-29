@@ -242,6 +242,49 @@ challenge or Sol request ran. Preserve this terminal stop and the decision to
 retain the current Sol assignment. Another candidate or paid run requires its
 own bounded plan; the unused portion of this budget is not retry authority.
 
+### Luna evidence-limit candidate comparison
+
+The
+[candidate record](../rfcs/identification-luna-evidence-limits-candidate-2026-09-28.md)
+adds `openai_photo_luna_evidence_limits_low_v1`, a Luna-only projection of two
+instruction lines. Historical `openai_photo_luna_low_v1`, the Sol control,
+production routing and the shared Gemini prompt stay unchanged.
+
+Use a **new private packet root** with the same twelve no-description photos,
+corpus, taxonomy, frozen fact cards and `photo_model_pricing_v1`. Copy only
+required inputs and media, never prior journals, approvals or ratings. Set a new
+plan ID and `version: photo_model_plan_v3`; all other bounded plan fields keep
+their meanings. V3 fixes the candidate Luna profile plus original Sol control,
+18 calls, one attempt per assignment and a ceiling no higher than $40. It uses
+the existing Luna pricing entry only because the exact model is unchanged. The
+six-screen/six-paired-challenge ordering and full reservation are unchanged.
+
+Run the same network/environment-denied `preflight-free-pro-photo` command
+against this **new** packet. V3 preflight includes
+`screeningPolicy: reference_gaps_recorded_v1`. Do not edit the stopped packet to
+v3: its immutable manifest cannot accept different requests and the controller
+will send no new calls. The original continuation mode rejects v3.
+
+After explicit approval of this new experiment, create its private
+`photo-model-approval.json` with `version: photo_model_candidate_approval_v1`,
+`operation: 18_call_luna_evidence_limits_sol_photo_comparison` and
+`screeningPolicy: reference_gaps_recorded_v1`. The other fields are the same
+source/plan/key/budget/time/reviewer bindings as the original approval. Then use
+`--photo-model-live NEW_PRIVATE_PACKET` in the hidden-key launcher. Original and
+continuation approvals cannot authorize this candidate. The implementation does
+not authorize paying for the new comparison from the stopped run's allocation.
+
+This new packet owns its own immutable `photo-model-run/` journal. Its manifest
+binds the screening policy; state separately records reference-gap ordinals and
+whether explanation evidence is complete. Reference gaps stay unassessable;
+actual screen errors, uncertain/unavailable review, safety, provider and billing
+failures still stop. A completed collection is not automatic qualification.
+Assistant review must specifically assess whether the mineral's broader identity
+and variety both respect the evidence limit. The result report must disclose the
+reused screen, six contemporary challenge pairs and every reference gap. Current
+Sol production assignments remain in place pending a separate selection and
+activation decision.
+
 ## Fixed initial assignment
 
 | Setting                     | Candidate                                                                    |

@@ -210,3 +210,9 @@ that proposed change can proceed locally. Any new paid comparison needs a new
 bounded plan and approval; the unused budget does not authorize clearing this
 terminal stop or repeating completed calls. Audio evaluation remains a later
 milestone. This result makes no production assignment or deployment change.
+
+The subsequent
+[candidate plan](identification-luna-evidence-limits-candidate-2026-09-28.md)
+implements that wording hypothesis as a new Luna evaluation profile and separate
+v3 packet. This does not amend either stopped run or establish an improved
+outcome. The candidate retains the current explanation format and Sol control.

@@ -185,6 +185,15 @@ selects no-description photos. The
 owns its offline packet preparation, separately approved durable local runner,
 assistant review and spending limits.
 
+`openaiLunaEvidenceLimits.ts` adds one separately versioned Luna candidate,
+`openai_photo_luna_evidence_limits_low_v1`. Its pure request projection changes
+only the geological evidence-limit and non-biological specificity instructions.
+The two original model profiles, shared prompt and production Sol request remain
+unchanged. Candidate preparation rejects prompt-anchor drift; the pinned prompt
+hash and same-schema tests retain its identity. Only the separate v3 local
+comparison and candidate approval admit execution. Native moderation, exact
+model checks, generation settings and production exclusion remain in place.
+
 ## Scoped audio prompt authority
 
 The default-off 36-slot prompt lane adds the internal

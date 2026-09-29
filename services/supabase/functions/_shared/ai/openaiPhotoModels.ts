@@ -1,4 +1,4 @@
-/** Closed evaluation profiles; neither is a production admission binding. */
+/** Closed evaluation profiles; none is a production admission binding. */
 import type { AIRequest } from "./contracts.ts";
 import {
   assertOpenAIPhotoInput,
@@ -7,17 +7,30 @@ import {
   OPENAI_PHOTO_SAFETY_POLICY,
   openAIPhotoSnapshot,
 } from "./openaiPhoto.ts";
+import {
+  OPENAI_LUNA_EVIDENCE_LIMITS_PROFILE,
+  OPENAI_LUNA_EVIDENCE_LIMITS_PROMPT,
+  openAILunaEvidenceLimitsInstructions,
+} from "./openaiLunaEvidenceLimits.ts";
 import { OPENAI_GENERATION } from "./openaiRequest.ts";
 
 export const OPENAI_PHOTO_MODEL_PROFILES = [
   "openai_photo_luna_low_v1",
   "openai_photo_sol_low_v1",
 ] as const;
-export type OpenAIPhotoModelProfile =
+export type OpenAIPhotoBaselineModelProfile =
   typeof OPENAI_PHOTO_MODEL_PROFILES[number];
+export const OPENAI_PHOTO_CANDIDATE_MODEL_PROFILES = [
+  OPENAI_LUNA_EVIDENCE_LIMITS_PROFILE,
+  "openai_photo_sol_low_v1",
+] as const;
+export type OpenAIPhotoModelProfile =
+  | OpenAIPhotoBaselineModelProfile
+  | typeof OPENAI_LUNA_EVIDENCE_LIMITS_PROFILE;
 export const OPENAI_PHOTO_MODELS = {
   openai_photo_luna_low_v1: "gpt-6-luna",
   openai_photo_sol_low_v1: "gpt-6-sol",
+  [OPENAI_LUNA_EVIDENCE_LIMITS_PROFILE]: "gpt-6-luna",
 } as const;
 export type OpenAIPhotoModel =
   typeof OPENAI_PHOTO_MODELS[OpenAIPhotoModelProfile];
@@ -25,7 +38,8 @@ export type OpenAIPhotoModel =
 export function isOpenAIPhotoModelProfile(
   value: unknown,
 ): value is OpenAIPhotoModelProfile {
-  return OPENAI_PHOTO_MODEL_PROFILES.some((profile) => value === profile);
+  return value === OPENAI_LUNA_EVIDENCE_LIMITS_PROFILE ||
+    OPENAI_PHOTO_MODEL_PROFILES.some((profile) => value === profile);
 }
 
 export function openAIPhotoModelSnapshot(
@@ -44,7 +58,9 @@ export function openAIPhotoModelSnapshot(
     variant: "multimodal" as const,
     profile,
     model: OPENAI_PHOTO_MODELS[profile],
-    prompt: "openai_identify_vision_v1" as const,
+    prompt: profile === OPENAI_LUNA_EVIDENCE_LIMITS_PROFILE
+      ? OPENAI_LUNA_EVIDENCE_LIMITS_PROMPT
+      : "openai_identify_vision_v1" as const,
     schema: "merian_openai_identify_v1" as const,
     confidence: "openai_unqualified_v1" as const,
     safety: OPENAI_PHOTO_SAFETY_POLICY,
@@ -57,7 +73,7 @@ export type OpenAIPhotoModelSnapshot = ReturnType<
   typeof openAIPhotoModelSnapshot
 >;
 
-/** Reuse the complete production photo request; only the reviewed model differs. */
+/** Historical profiles differ only by model; the candidate also projects instructions. */
 export function buildOpenAIPhotoModelRequestParameters(
   request: AIRequest,
   snapshot: OpenAIPhotoModelSnapshot,
@@ -71,5 +87,11 @@ export function buildOpenAIPhotoModelRequestParameters(
     request,
     openAIPhotoSnapshot(request, 1),
   );
-  return { ...baseline, model: snapshot.model };
+  return {
+    ...baseline,
+    model: snapshot.model,
+    instructions: snapshot.profile === OPENAI_LUNA_EVIDENCE_LIMITS_PROFILE
+      ? openAILunaEvidenceLimitsInstructions(baseline.instructions)
+      : baseline.instructions,
+  };
 }
