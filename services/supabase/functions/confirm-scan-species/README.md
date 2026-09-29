@@ -80,10 +80,11 @@ smoke requires an unauthenticated POST to reach this route's own 401 handler;
 the generic OPTIONS probe alone is insufficient. Native acknowledgement/history
 merging preserves revisioned replacement and clear in V53 storage; a 409
 refreshes current owned authority without silently resubmitting the action.
-Shared/public/ export consumers remain a separate checkpoint in the
+Shared/public/export consumers preserve the same authority as recorded in the
 [primary-resolution plan](../../../../docs/rfcs/identification-primary-resolution-contract-2026-09-29.md).
-Native capability remains 4 until all consumers are complete. No model producer,
-provider assignment, confidence threshold or consent behavior changes here.
+Native source advertises capability 5 after consumer implementation. No model
+producer, provider assignment, confidence threshold or consent behavior changes
+here; deploy the additive backend before distributing that app.
 
 Validation covers strict HTTP/auth/cancellation cases, actual database roles,
 legacy review compatibility, identity replacement/clear, stale and simultaneous

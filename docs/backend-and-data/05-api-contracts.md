@@ -424,16 +424,17 @@ enforcement, and backend enforcement together under a reviewed release. The
 current beta does not implement or claim that future UX.
 
 The enabled production composition and beta catalog activation select the exact
-`openai_photo_v1` / `gpt-6-sol` tuple for still photos with identification
-protocol 4. Audio, video snapshots, mixed photo/audio, text-only and legacy
-profiles retain Gemini. `ConsentPolicy.openAIBetaAccessEnabled` mirrors backend
-beta eligibility; `canProcessOpenAI` retains the current-account fence while
-`hasGrantedOpenAI` remains a truthful receipt projection. The ordinary required
-consent gate still handles uncertain consent storage. OpenAI collection actions
-are disabled even if the independent collection flag is accidentally enabled.
-Older app binaries retain their own local checks until updated. Distribution and
-full production-profile qualification are separately tracked; beta activation
-does not claim either. See the
+`openai_photo_v1` / `gpt-6-sol` tuple for still photos with minimum
+identification protocol 4, accepting readers 4 and 5. Audio, video snapshots,
+mixed photo/audio, text-only and legacy profiles retain Gemini.
+`ConsentPolicy.openAIBetaAccessEnabled` mirrors backend beta eligibility;
+`canProcessOpenAI` retains the current-account fence while `hasGrantedOpenAI`
+remains a truthful receipt projection. The ordinary required consent gate still
+handles uncertain consent storage. OpenAI collection actions are disabled even
+if the independent collection flag is accidentally enabled. Older app binaries
+retain their own local checks until updated. Distribution and full
+production-profile qualification are separately tracked; beta activation does
+not claim either. See the
 [photo rollout](../rfcs/identification-openai-photo-rollout-2026-09-28.md).
 
 ## Fleet-Wide Outbound Provider Contract
@@ -2486,8 +2487,8 @@ A binding's `minimum_client_protocol` gates fresh work using the existing
 all current Gemini bindings remain zero. Nonzero minima require a recognized
 protocol at or above the binding requirement; rejection uses the existing
 `426 client_update_required` envelope and rolls back quota/complimentary
-effects. The entitlement protocol range remains 1–3. Identification capability 4
-is a separate contract and does not raise the global cutoff. This is
+effects. The entitlement protocol range remains 1–3. Identification capabilities
+4 and 5 are a separate contract and does not raise the global cutoff. This is
 compatibility evidence, not authentication or end-user provider selection.
 
 Fresh internal retries ignore any worker protocol header. They require accepted
@@ -2509,8 +2510,8 @@ Migration `20260927175708_prepare_openai_photo_routing.sql` adds the exact
 dormant photo tuple and a separate `provider_model`. The quota policy model and
 limits are unchanged; the new reservation returns the saved execution model.
 That migration left rows on Gemini; the later beta activation assigns still
-photos to OpenAI. The native app adds `p_identification_protocol: 4` to the
-six-argument preflight and `X-Merian-Identification-Protocol: 4` to the final
+photos to OpenAI. The native app adds `p_identification_protocol: 5` to the
+six-argument preflight and `X-Merian-Identification-Protocol: 5` to the final
 request alongside the recipient expectation. Edge recognizes exactly 4 or 5 and
 uses the eleven-argument reservation. Missing headers on external requests keep
 legacy ABIs. Internal retries use the eleven-argument ABI with a NULL capability
@@ -2675,7 +2676,7 @@ network circuit failure. A legacy OpenAI denial still saves needs-attention
 before releasing its durable owner, but beta recovery presents an explicit retry
 without permission collection. Required Gemini onboarding/synchronization
 remains in place. These controls cannot choose another provider or manufacture a
-receipt. The photo connection advertises identification capability 4
+receipt. The photo connection advertises identification capability 5
 independently of entitlement protocol 3. Preflight is not an activation path or
 evidence of model qualification. Deploy the additive backend contract before
 distributing a native build that requires it. See the
@@ -2757,9 +2758,13 @@ require species rank. Typed review cannot promote that rank. Validated
 confirmation authority is now consumed by the dormant native review/history
 path. Shared consumers now evaluate original AI evidence separately from
 verified species selection. Public labels, Field Chat, species totals, Field
-Trip credit and new export snapshots retain that distinction. The app continues
-to advertise protocol 4 pending the complete capability and release gates. See
-the
+Trip credit and new export snapshots retain that distinction. The native reader
+source now advertises protocol 5 across preflight, dispatch, retries and SDK
+reads. It accepts existing minimum-0 Gemini and minimum-4 OpenAI assignments,
+and recognizes a future minimum 5 without accepting arbitrary higher versions.
+The capability claim does not register or activate a new producer. Deploy the
+additive backend before distributing this app; signed install-over verification
+remains a release gate. See the
 [implementation sequence](../rfcs/identification-primary-resolution-contract-2026-09-29.md).
 
 Owner history selects `identification_provenance` and `primary_identification`.
@@ -2815,7 +2820,7 @@ as a whole rather than filtering out newer results. Invisible private, non-live
 or tombstoned rows do not trigger a reader error.
 
 The native `MerianSupabaseClientFactory` supplies
-`X-Merian-Identification-Protocol: 4` globally for SDK reads, including history
+`X-Merian-Identification-Protocol: 5` globally for SDK reads, including history
 pages, single-scan recovery and metadata update/readback. The constant is shared
 with identification dispatch. It describes decoder capability only: it grants no
 identity, visibility, processing permission or provider choice. Existing table
@@ -2839,12 +2844,15 @@ paused work, and same-build manual retry cannot re-enable blocked work. The
 [presentation contract](../system-architecture/10-event-and-presentation-routing.md#update-required-presentation)
 owns app-version recovery and the App Store destination.
 
-Ship and verify a capability-4 reader before activating OpenAI. Older binaries
-may show their existing generic history-sync error, retain local observations,
-and fail to hydrate mixed cloud history until updated; this change cannot add an
-upgrade screen to an installed old binary. Null/V1-only reads continue normally.
-Turning fresh assignments back to Gemini does not remove this reader requirement
-while V2 rows exist. Keep the guard and compatible readers during rollback.
+OpenAI V2 needs a verified capability-4-or-5 reader; explicit-primary results
+need capability 5. Deploy the additive reader/storage backend before
+distributing the capability-5 app, and verify its signed upgrade before
+separately activating a qualified explicit producer. Older binaries may show
+their existing generic history-sync error, retain local observations, and fail
+to hydrate mixed cloud history until updated; this change cannot add an upgrade
+screen to an installed old binary. Null/V1-only reads continue normally. Turning
+fresh assignments back to Gemini does not remove this reader requirement while
+V2 rows exist. Keep the guard and compatible readers during rollback.
 
 ### Completed-result recovery
 

@@ -332,7 +332,7 @@ struct IdentificationResultProvenanceTests {
     }
 
     @Test(arguments: ["species", "genus", "family", "unresolved_biological", "non_biological"])
-    func reservedPrimarySnapshotRoundTripsRequiredNullsWithoutClaimingClientSupport(resolution: String) throws {
+    func reservedPrimarySnapshotRoundTripsRequiredNulls(resolution: String) throws {
         let object: [String: Any] = ["version": 1, "resolution": resolution,
             "scientific_name": resolution == "unresolved_biological" ? NSNull() : "Examplea" as Any,
             "common_name": NSNull()]
@@ -342,8 +342,6 @@ struct IdentificationResultProvenanceTests {
         #expect(encoded["resolution"] as? String == resolution)
         #expect(encoded["common_name"] is NSNull)
         #expect(dto.scientific_name == (resolution == "unresolved_biological" ? nil : "Examplea"))
-        // Generated wire support alone does not provide durable native rank semantics.
-        #expect(IdentificationDispatchAuthorization.currentProtocol == 4)
     }
 
     @Test func reservedPrimarySnapshotRejectsUnknownShapesAndExplicitNullEnvelopeFields() throws {

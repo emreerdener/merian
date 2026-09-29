@@ -1380,13 +1380,14 @@ for the current display and admission boundaries.
 The generated `EdgeResponse` now accepts optional non-null
 `PrimaryIdentificationDTO` and optional candidate `taxon_rank`. The version-1
 snapshot has an explicit resolution and required nullable labels; strict keys,
-version, enum and UTF-16 bounds are generated from the Edge contract. This is
-wire preparation only. Native domain interpretation, SwiftData persistence,
-history merging and species-effect policy belong to Slice 2 of the
+version, enum and UTF-16 bounds are generated from the Edge contract. Native
+domain interpretation, SwiftData persistence, history merging and shared
+consumer support are implemented as recorded in the
 [primary-resolution plan](../../../../../docs/rfcs/identification-primary-resolution-contract-2026-09-29.md).
-`IdentificationDispatchAuthorization.currentProtocol` remains 4; the backend
-requires 5 for those future results. Current profiles, explanations and
-confidence display remain unchanged. Do not advertise 5 based on the DTO alone.
+`IdentificationDispatchAuthorization.currentProtocol` now advertises 5, the
+exact reader capability required for these results. Current profiles still do
+not produce the reserved schema. Explanation format, provider assignments and
+confidence display remain unchanged.
 
 ## Dormant primary identification consumers
 
@@ -1405,9 +1406,11 @@ saved review/media state. Older history projections may omit metadata without
 erasing an existing snapshot; a live or queued completion missing that required
 snapshot is rejected. Malformed required local metadata projects as an integrity
 failure. The native confirmation checkpoint now consumes validated revisioned
-review authority without changing these species-only eligibility rules. Protocol
-remains 4 until public/export and other shared consumers complete Slice 2 in the
-[primary-resolution plan](../../../../../docs/rfcs/identification-primary-resolution-contract-2026-09-29.md).
+review authority without changing these species-only eligibility rules. Shared
+consumers preserve the same distinction, and the capability-5 reader remains
+compatible with legacy results and current provider assignments. The
+[primary-resolution plan](../../../../../docs/rfcs/identification-primary-resolution-contract-2026-09-29.md)
+records validation and the separate producer/release gates.
 
 ### Revisioned confirmation acknowledgements
 
@@ -1428,4 +1431,5 @@ presentations cannot receive late callbacks. Auth transitions fence and drain
 the existing review write tail before replacing the account or local store,
 including a suspended local apply. The network account lease rejects results
 from a displaced session. The restored `SpeciesData` carries this authority
-separately; shared species consumers and protocol 5 remain a later checkpoint.
+separately; shared species consumers now preserve this authority, and the native
+reader advertises protocol 5 without activating a new producer.

@@ -22,7 +22,7 @@ struct IdentificationPreflightTests {
         #expect((object["p_original_analysis_id"] as? String)?.lowercased() == scanID)
         #expect(object["p_input_profile"] as? String == "multimodal_photo_v1")
         #expect(object["p_client_protocol"] as? Int == 3)
-        #expect(object["p_identification_protocol"] as? Int == 4)
+        #expect(object["p_identification_protocol"] as? Int == 5)
         #expect(!String(decoding: data, as: UTF8.self).contains("synthetic"))
     }
 
@@ -113,14 +113,22 @@ struct IdentificationPreflightTests {
         func response(_ decision: String, minimum: Int) -> Data {
             Data("[{\"input_profile\":\"multimodal_photo_v1\",\"decision\":\"\(decision)\",\"processor_permission\":\"openai\",\"minimum_client_protocol\":3,\"minimum_identification_protocol\":\(minimum)}]".utf8)
         }
-        #expect(try IdentificationPreflightResponse.recipient(from: response("ready", minimum: 4), for: input) == .openAI)
-        for minimum in [0, 1, 2, 3, 5] {
-            #expect(throws: MerianError.invalidResponse) {
-                try IdentificationPreflightResponse.recipient(from: response("ready", minimum: minimum), for: input)
+        // The new reader remains compatible with today's minimum-4 assignment.
+        for minimum in [4, 5] {
+            #expect(try IdentificationPreflightResponse.recipient(from: response("ready", minimum: minimum), for: input) == .openAI)
+            #expect(throws: MerianError.openAIConsentRequired) {
+                try IdentificationPreflightResponse.recipient(from: response("permission_required", minimum: minimum), for: input)
+            }
+        }
+        for minimum in [-1, 0, 1, 2, 3, 6, 1001] {
+            for decision in ["ready", "permission_required"] {
+                #expect(throws: MerianError.invalidResponse) {
+                    try IdentificationPreflightResponse.recipient(from: response(decision, minimum: minimum), for: input)
+                }
             }
         }
         #expect(throws: MerianError.httpError(statusCode: 426, message: #"{"code":"client_update_required"}"#)) {
-            try IdentificationPreflightResponse.recipient(from: response("client_update_required", minimum: 5), for: input)
+            try IdentificationPreflightResponse.recipient(from: response("client_update_required", minimum: 6), for: input)
         }
         for recipient in ["google_gemini", "openai"] {
             for decision in ["ready", "permission_required"] {

@@ -74,11 +74,12 @@ behavior coverage.
 
 ## Supabase Auth cold-start adoption
 
-The factory also attaches `X-Merian-Identification-Protocol: 4` to SDK requests
+The factory also attaches `X-Merian-Identification-Protocol: 5` to SDK requests
 using the same decoder-capability constant as identification dispatch. This
 covers PostgREST history and single-scan reads, independently of entitlement
 protocol 3 and recipient permission. Unsupported older readers get a query error
-for visible V2 results; the backend preserves their saved observations. See the
+for visible V2 or explicit-primary results they cannot decode; the backend
+preserves their saved observations. See the
 [result-reader contract](../../../../../docs/backend-and-data/05-api-contracts.md#identification-result-readers).
 
 `MerianSupabaseClientFactory` enables `emitLocalSessionAsInitialSession`. The
@@ -441,7 +442,11 @@ outcome. No action is automatically retried at a newer revision. The outer
 account lease and write-tail drain remain authoritative; 401 recovery is
 disabled on this request to avoid recursively draining itself. Local persistence
 and presentation remain Core AI/Data responsibilities. Existing legacy review
-RPC behavior stays unchanged, and the reader capability stays 4.
+RPC behavior stays unchanged. The reader capability is 5 for both inference and
+SDK/history reads. Native preflight accepts exact known minima 0, 4 and 5;
+OpenAI requires 4 or 5. Existing minimum-4 assignments remain valid, unknown
+ready minima fail closed, and a server update-required decision still pauses
+work. Entitlement protocol stays 3; the capability cannot select a provider.
 
 `Transport/` owns pure endpoint URL, classification, account-binding, and
 value-only recovery/replay decisions plus the request-scoped executor that

@@ -31,8 +31,9 @@ observations, text-only, legacy routes and enrichment remain Gemini. See the
   The additive caller-bound recipient preflight is advisory. Edge accepts an
   optional denial-only recipient expectation and uses a ten-argument admission
   overload to stop fresh work if assignment changed. Identification capability 4
-  selects the eleven-argument overload independently of entitlement protocol 3.
-  Native preparation now validates that result, preserves the expectation across
+  or 5 selects the eleven-argument overload independently of entitlement
+  protocol 3. Native source advertises 5; binding minima remain 0 or 4. Native
+  preparation now validates that result, preserves the expectation across
   retries and rechecks the applicable local permission before dispatch. The beta
   catalog assigns still photos to OpenAI and other profiles to Gemini; the
   [beta correction](../../../../../docs/incidents/2026-09-beta-openai-consent-gate.md)

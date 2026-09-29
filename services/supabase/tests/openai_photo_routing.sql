@@ -350,16 +350,38 @@ BEGIN
     IF NOT denied THEN RAISE EXCEPTION 'Gemini attempt accepted OpenAI minimum capability'; END IF;
     PERFORM public.finalize_ai_quota_reservation(repeated.reservation_id,test_user_id,repeated.lease_token,'refunded');
     FOREACH profile IN ARRAY ARRAY['multimodal_text_v1','multimodal_audio_v1','multimodal_photo_audio_v1','multimodal_video_frames_v1','multimodal_video_audio_v1'] LOOP
-        test_request_id := extensions.gen_random_uuid();
-        SELECT * INTO STRICT repeated FROM public.reserve_identification_quota(test_user_id,'scan_identification',test_request_id,
-            pg_catalog.REPEAT('b',64),test_request_id,FALSE,3,FALSE,profile,'google_gemini',4);
-        IF repeated.model <> 'gemini-2.5-pro' OR repeated.provider <> 'gemini' THEN RAISE EXCEPTION 'photo assignment affected another profile'; END IF;
-        IF NOT EXISTS (SELECT 1 FROM internal.identification_provider_attempts AS saved
-            WHERE saved.reservation_id=repeated.reservation_id AND saved.attempt_count=repeated.attempt_count
-              AND saved.minimum_identification_protocol=0 AND saved.accepted_identification_protocol=4) THEN
-            RAISE EXCEPTION 'capable Gemini client lost independent identification capability';
-        END IF;
-        PERFORM public.finalize_ai_quota_reservation(repeated.reservation_id,test_user_id,repeated.lease_token,'refunded');
+        FOREACH protocol IN ARRAY ARRAY[4, 5] LOOP
+            test_request_id := extensions.gen_random_uuid();
+            SELECT * INTO STRICT preview FROM public.get_my_identification_preflight(
+                'scan_identification',profile,FALSE,test_request_id,3,protocol);
+            IF preview.decision <> 'ready' OR preview.processor_permission <> 'google_gemini'
+               OR preview.minimum_identification_protocol <> 0 THEN
+                RAISE EXCEPTION 'capable reader changed Gemini preflight: %, %',profile,protocol;
+            END IF;
+            SELECT * INTO STRICT repeated FROM public.reserve_identification_quota(test_user_id,'scan_identification',test_request_id,
+                pg_catalog.REPEAT('b',64),test_request_id,FALSE,3,FALSE,profile,'google_gemini',protocol);
+            IF repeated.model <> 'gemini-2.5-pro' OR repeated.provider <> 'gemini' THEN RAISE EXCEPTION 'photo assignment affected another profile'; END IF;
+            IF NOT EXISTS (SELECT 1 FROM internal.identification_provider_attempts AS saved
+                WHERE saved.reservation_id=repeated.reservation_id AND saved.attempt_count=repeated.attempt_count
+                  AND saved.minimum_identification_protocol=0 AND saved.accepted_identification_protocol=protocol) THEN
+                RAISE EXCEPTION 'capable Gemini client lost independent identification capability';
+            END IF;
+            IF protocol = 5 THEN
+                PERFORM public.finalize_ai_quota_reservation(repeated.reservation_id,test_user_id,repeated.lease_token,'committed');
+                -- A headerless internal retry inherits the accepted reader, not a new worker claim.
+                replay_id := extensions.gen_random_uuid();
+                SELECT * INTO STRICT admitted FROM public.reserve_identification_quota(test_user_id,'scan_identification',replay_id,
+                    pg_catalog.REPEAT('b',64),test_request_id,FALSE,NULL,TRUE,profile,NULL,NULL);
+                IF admitted.provider <> 'gemini' OR admitted.model <> 'gemini-2.5-pro' OR NOT EXISTS (
+                    SELECT 1 FROM internal.identification_provider_attempts AS saved
+                    WHERE saved.reservation_id=admitted.reservation_id AND saved.attempt_count=admitted.attempt_count
+                      AND saved.minimum_identification_protocol=0 AND saved.accepted_identification_protocol=5
+                ) THEN RAISE EXCEPTION 'headerless Gemini retry lost capability 5: %',profile; END IF;
+                PERFORM public.finalize_ai_quota_reservation(admitted.reservation_id,test_user_id,admitted.lease_token,'refunded');
+            ELSE
+                PERFORM public.finalize_ai_quota_reservation(repeated.reservation_id,test_user_id,repeated.lease_token,'refunded');
+            END IF;
+        END LOOP;
     END LOOP;
 END;
 $test$;

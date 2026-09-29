@@ -31,9 +31,10 @@ metadata immutable and backs replacement/clear with the owner ingestion job.
 Native acknowledgements and shared consumers now use that authority while
 preserving original AI evidence. Public labels expose only rank/source/names;
 Field Trip replacement/clear reconciles cached credit, and new export snapshots
-preserve rank without rewriting prior jobs. Current legacy results, protocol 4
-and provider assignments remain unchanged. See the
-[shared-consumer checkpoint](../../docs/rfcs/identification-primary-resolution-contract-2026-09-29.md#shared-consumer-checkpoint--2026-09-29).
+preserve rank without rewriting prior jobs. The native reader source now
+advertises capability 5. Legacy results, provider assignments and binding minima
+remain unchanged. See the
+[reader checkpoint](../../docs/rfcs/identification-primary-resolution-contract-2026-09-29.md#capability-5-reader-preparation--2026-09-29).
 
 ## Structure
 

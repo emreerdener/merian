@@ -9753,8 +9753,9 @@ zero-score durable results, conflicting duplicate completion, original labels
 through typed review, stale taxonomy removal, species statistics/rewards and
 hydration exclusion, and missing-required snapshot recovery failure. The
 complete unit target and source/tooling gates remain required. Native requests
-still advertise protocol 4; these synthetic tests do not admit a producer,
-validate confirmation authority, calibrate confidence or authorize deployment.
+now advertise protocol 5 after the consumer checkpoint; these synthetic tests do
+not admit a producer, calibrate confidence or authorize deployment. The separate
+review suites below validate confirmation authority.
 
 ### Verified review and shared-consumer coverage
 
@@ -9784,7 +9785,27 @@ avoid fixture lock collisions.
 
 DwC-A tests cover explicit broader/selected snapshots and resumed historical
 20-column chunks. No archive column is added and no existing frozen source row
-is rewritten. These synthetic tests use reserved protocol-5 headers only when
-reading explicit fixtures; production native requests stay on protocol 4. They
-do not qualify a new producer, change model or confidence policy, activate
+is rewritten. These synthetic tests use protocol-5 headers when reading explicit
+fixtures; native dispatch and SDK history now advertise that same capability.
+They do not qualify a new producer, change model or confidence policy, activate
 exports, or replace the signed install-over release gate.
+
+### Capability-5 compatibility coverage
+
+`IdentificationPreflightTests` accepts current OpenAI minimum 4 and future
+minimum 5, rejects unknown or recipient-incompatible ready minima, preserves
+permission/update errors and keeps entitlement protocol 3 separate.
+`IdentificationPreflightTransportTests` exercises prepared/live requests for
+Gemini, both recognized OpenAI minima and recovery-only. Dispatcher, request
+executor and historical SDK tests assert capability 5 survives request building,
+auth/transport retries and page/single-record reads.
+
+The `openai_photo_routing.sql` disposable catalog verifies unchanged OpenAI
+minimum 4 with accepted capability 5, plus Gemini minimum 0 under both readers
+for text, audio, mixed photo/audio and sampled-video profiles. Headerless
+internal Gemini retries retain the original accepted 5. Existing reader tests
+continue to reject unknown versions and capability 4 for explicit rows, preserve
+visibility before compatibility errors, and reject a worker's attempt to upgrade
+original capability. Run these with the full catalog and Edge suites, then the
+complete native unit target and four required scan UI smokes. Current production
+provider profiles remain unchanged throughout this reader preparation.

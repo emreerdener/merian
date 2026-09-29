@@ -4,9 +4,9 @@ Date: 2026-09-29
 
 Status: Slice 1 and the native persistence, backend review authority and native
 review acknowledgement checkpoints of Slice 2 are implemented locally. The
-shared consumer checkpoint is implemented and locally verified. No deployment,
-producer activation, model assignment or confidence policy change is included.
-The design baseline below used `ca35e74bb` on
+shared-consumer and capability-5 reader checkpoints are implemented and locally
+verified. No deployment, producer activation, model assignment or confidence
+policy change is included. The design baseline below used `ca35e74bb` on
 `codex/openai-free-pro-evaluation`; the dated checkpoint records distinguish
 implemented foundation from pending consumers and model qualification.
 
@@ -824,3 +824,67 @@ simulator evidence does not replace them. Capability-5 readiness and the
 separate explicit-producer qualification remain the next planned work. No hosted
 mutation, push, paid model evaluation or export activation was performed for
 this checkpoint.
+
+## Capability-5 reader preparation — 2026-09-29
+
+The native reader now advertises identification protocol 5. This supersedes the
+protocol-4 holds in the earlier implementation checkpoints above. Preflight,
+prepared/live requests, auth and transport retries, and SDK history/recovery
+reads use the same capability owner. Entitlement protocol remains 3.
+
+Native preflight accepts exact known minima 0, 4 and 5; OpenAI requires 4 or 5.
+Current minimum-4 OpenAI and minimum-0 Gemini assignments remain compatible.
+Unknown ready minima still fail closed, and server permission/update decisions
+retain their existing behavior. There is no arbitrary greater-version fallback.
+No binding minimum, profile, model, prompt, confidence policy or consent rule is
+changed by this reader checkpoint.
+
+The existing additive backend already preserves accepted capability 5 in new
+attempts and derives internal retry capability from the original saved attempt.
+Its current-reader gates require exactly 5 for explicit-primary results,
+including stored replay and mixed history, after visibility checks. Old attempts
+are not upgraded by worker headers. The added disposable regression covers
+Gemini text, audio, mixed photo/audio and sampled-video assignments with readers
+4 and 5 and verifies headerless retries retain accepted capability 5. Existing
+OpenAI, unknown-version, immutable replay and legacy-reader tests remain active.
+
+Deploy the additive backend migrations and Edge bundle before distributing a
+capability-5 app. A backend limited to protocol 4 can reject its preflight or
+inference requests. The signed archive/distribution and installation over the
+previous released build remain separate release gates, including preservation of
+saved observations and successful launch.
+
+The next source milestone is Slice 3's isolated explicit-primary OpenAI
+candidate and offline checks. The reserved schema still has no admitted
+producer. A new paid comparison needs its own bounded plan and authorization;
+the completed eighteen-call experiment cannot be reused. Qualification and a
+separate exact minimum-5 production tuple must precede any new assignment.
+
+### Reader-readiness verification
+
+- Native focused compatibility/recovery suites passed all 60 tests in
+  `.artifacts/local-ios/be8e73f2e3e24899bc1367e87de86c36.xcresult`. The complete
+  native unit target and all four required scan UI smokes then passed **4,578
+  tests**, with zero failures or skips, in
+  `.artifacts/local-ios/4f51317a7cf8447f8f57d38a1f92f2ed.xcresult`.
+- Complete Edge suite: **2,211 tests and 343 steps passed**, with the disposable
+  database explicitly enabled. All 103 Edge entry points passed recursive type
+  checks. Generated DTO checks, all 360 migration-contract tests, complete
+  Supabase tooling, backend formatting and lint passed.
+- The first catalog run encountered an existing Field Chat activation fixture in
+  the reused local database. Rebuilding that dedicated disposable database from
+  the full migration history restored the required fresh baseline; all **70
+  catalogs and 463 assertions passed**, and database lint found no schema
+  errors. No production database was used or changed.
+- XcodeGen regeneration produced no project diff. Native project, event-routing,
+  privacy-manifest, transport-security, versioning and migration-source
+  guardrails passed. Changed Markdown was formatted, 685 local documentation
+  targets resolved, and diff whitespace checks passed.
+- Independent read-only native and backend/release-contract reviews completed
+  with no remaining blockers. Current provider binding minima remain 0 and 4;
+  native recognition of future minimum 5 grants no assignment authority.
+
+This completes Slice 2's local reader and consumer preparation. Hosted exact-SHA
+CI, a signed archive and the previous-release install-over check remain release
+evidence to collect through the canonical procedure. No push, deployment,
+provider activation or paid model request was performed for this checkpoint.

@@ -66,19 +66,25 @@ identification and Field Chat bundle digests through their checked-in
 generators.
 
 This migration leaves current bindings, models, consent policy, saved attempts
-and confidence interpretation unchanged. It recognizes protocol 5 as a future
-reader claim while the app stays on 4. The reserved schema
-`merian_identify_primary_v1` has no admitted producer. Do not activate or emit
-it until native persistence/presentation, service/public/admin/export consumers
-and a separately qualified model profile are complete. A future producer needs
-its own closed minimum-5 tuple and explicit activation authorization.
+and confidence interpretation unchanged. It recognizes protocol 5, which the
+prepared native reader now advertises after the consumer implementation. Deploy
+the additive migrations and compatible Edge bundle before distributing that
+native build: a backend that only recognizes protocol 4 can reject its requests.
+Verify the signed upgrade from the previous released app, including launch and
+saved observations, before distribution.
+
+The reserved schema `merian_identify_primary_v1` still has no admitted producer.
+Consumer and reader support does not qualify a model profile. A future producer
+needs its own closed minimum-5 tuple, a separately qualified model profile and
+explicit activation authorization. Existing Gemini/minimum-0 and
+OpenAI/minimum-4 assignments continue to serve capability-5 readers.
 
 An additive dormant rollback retains the new columns and guards; it does not
 drop or rewrite stored answers. Once a future producer emits explicit results,
 keep their compatibility readers and immutable backups even if fresh assignment
 is rolled back. See the
 [slice acceptance plan](../rfcs/identification-primary-resolution-contract-2026-09-29.md)
-for the remaining consumer and qualification work.
+for the reader-readiness evidence and remaining producer qualification work.
 
 ## Legacy Location-Label Repair
 

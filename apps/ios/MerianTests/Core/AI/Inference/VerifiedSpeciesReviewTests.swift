@@ -151,7 +151,7 @@ struct VerifiedSpeciesReviewTests {
         #expect(record.confirmedSpeciesReview?.revision == 3 && record.verifiedConfirmedSpeciesIdentity == nil)
         #expect(record.userIdentificationOverride == nil && !record.userConfirmedIdentification && record.confirmedSpeciesId == nil)
         #expect(record.scientificName == "Examplea" && record.aiReasoning == "Original evidence" && record.confidenceScore == 0.42)
-        #expect(!record.hasSpeciesLevelIdentification && IdentificationDispatchAuthorization.currentProtocol == 4)
+        #expect(!record.hasSpeciesLevelIdentification)
         let sameRevisionConflict = VerifiedReviewFixtures.review(3)
         await #expect(throws: Error.self) {
             try await actor.reconcileScanPage(responses: [VerifiedReviewFixtures.row(VerifiedReviewFixtures.history(sameRevisionConflict))])

@@ -6,8 +6,9 @@ import Testing
 @MainActor
 @Suite("Identification Preflight Transport")
 struct IdentificationPreflightTransportTests {
-    @Test(arguments: ["google_gemini", "openai", "recovery_only"])
-    func preparedAndLiveRequestsEchoOnlyTheAssignedRecipient(recipient: String) async throws {
+    @Test(arguments: [("google_gemini", 0), ("openai", 4), ("openai", 5), ("recovery_only", 0)])
+    func preparedAndLiveRequestsEchoOnlyTheAssignedRecipient(scenario: (String, Int)) async throws {
+        let (recipient, identificationMinimum) = scenario
         let fixture = NetworkEndpointFixture()
         defer { fixture.close() }
         fixture.client.overridingInferenceConsentCheck = {}
@@ -17,11 +18,11 @@ struct IdentificationPreflightTransportTests {
                     #"[{"input_profile":"multimodal_text_v1","decision":"recovery_only","processor_permission":null,"minimum_client_protocol":null}]"#)
             }
             return try NetworkEndpointTestSupport.response(to: request, json:
-                "[{\"input_profile\":\"multimodal_text_v1\",\"decision\":\"ready\",\"processor_permission\":\"\(recipient)\",\"minimum_client_protocol\":3,\"minimum_identification_protocol\":\(recipient == "openai" ? 4 : 0)}]")
+                "[{\"input_profile\":\"multimodal_text_v1\",\"decision\":\"ready\",\"processor_permission\":\"\(recipient)\",\"minimum_client_protocol\":3,\"minimum_identification_protocol\":\(identificationMinimum)}]")
         }
         fixture.transport.register(path: "/identify-multimodal") { request in
             #expect(request.value(forHTTPHeaderField: IdentificationRecipientExpectation.header) == recipient)
-            #expect(request.value(forHTTPHeaderField: IdentificationDispatchAuthorization.protocolHeader) == "4")
+            #expect(request.value(forHTTPHeaderField: IdentificationDispatchAuthorization.protocolHeader) == "5")
             return try NetworkEndpointTestSupport.response(to: request, json: #"{"success":true}"#)
         }
         let prepared = try await fixture.client.buildMultiModalRequest(

@@ -1329,7 +1329,8 @@ The transaction log for every successful identification.
   their own species rank and at most two entries. Independently verified
   `confirmed_species_id` is a separate identity. Native and shared consumers now
   preserve the original answer while separately evaluating full verified review
-  authority; protocol 4 and current producers remain unchanged.
+  authority. The native reader source advertises capability 5; current producer
+  assignments and binding minima remain unchanged.
 - `confirmed_species_identity` (JSONB, nullable) and
   `confirmed_species_identity_revision` (INTEGER, initially 0): Migration
   `20260929170458_prepare_verified_scan_species_review.sql` prepares
@@ -1347,11 +1348,12 @@ The transaction log for every successful identification.
   `20260927185833_require_identification_result_reader.sql` adds an invoker
   capability check inside the original owner/public SELECT policy predicates.
   Visible V2 results require exact identification protocol 4 or 5; explicit
-  primary results and their reserved schema require exactly 5. The native app
-  continues to advertise 4 until consumer integration is complete. Unsupported
-  readers receive `PT426` / `client_update_required` for the whole query.
-  Null/V1 reads, visibility predicates, service-role reads and write grants are
-  unchanged. No row, score or provenance is rewritten. See the
+  primary results and their reserved schema require exactly 5. Native source
+  advertises 5 after consumer integration; deploy the additive backend before
+  distributing that app. Unsupported readers receive `PT426` /
+  `client_update_required` for the whole query. Null/V1 reads, visibility
+  predicates, service-role reads and write grants are unchanged. No row, score
+  or provenance is rewritten. See the
   [reader contract](./05-api-contracts.md#identification-result-readers) for
   current-request replay checks and the required reader-first release order.
 - Metric interpretation: the service-only pure helper
@@ -4378,10 +4380,10 @@ role can read or write either table directly.
 Migration `20260927175708_prepare_openai_photo_routing.sql` adds nullable
 `provider_model` to bindings and attempts. NULL is valid only for the exact
 Gemini tuple and uses that saved quota `model`. The exact OpenAI photo tuple
-requires `gpt-6-sol`, its OpenAI recipient and identification capability 4.
-Binding keys, quota policies and current assignments remain unchanged.
-Photo-only model selection therefore does not change audio/video/content quota
-policy.
+requires `gpt-6-sol`, its OpenAI recipient and minimum identification capability
+4 (accepted readers 4 or 5 after the primary-resolution migration). Binding
+keys, quota policies and current assignments remain unchanged. Photo-only model
+selection therefore does not change audio/video/content quota policy.
 
 The same migration adds binding `minimum_identification_protocol` (0 or 4), and
 attempt minimum/accepted capability snapshots (historical NULL remains unknown).

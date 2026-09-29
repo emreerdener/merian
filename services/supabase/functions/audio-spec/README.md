@@ -203,8 +203,10 @@ including quota and ingestion races. V2 requires exact
 snapshot/schema requires exactly `5`. Otherwise the response is
 `426 client_update_required` without result data. Null/V1 replays without an
 explicit primary snapshot are unchanged. No current model profile emits the new
-snapshot; native persistence and presentation remain pending, so the app stays
-on protocol 4. Only the service-authenticated primary replay worker bypasses
-client decoding. See the
+snapshot. Native persistence, presentation and shared consumers are implemented,
+and native source advertises protocol 5. Deploy the additive backend before
+shipping that app; the explicit producer still needs separate qualification.
+Only the service-authenticated primary replay worker bypasses client decoding.
+See the
 [result-reader contract](../../../../docs/backend-and-data/05-api-contracts.md#identification-result-readers)
 for direct-history protection and reader-first release requirements.

@@ -301,8 +301,8 @@ production submission or public release.
   recovery, generated Swift wire support and exact protocol-5 reader protection.
   The native checkpoint adds V53 save/restore and rank-aware presentation. The
   backend review checkpoint prepares fresh species verification, revisioned
-  confirmation/clear and owner-bound recovery. The app remains on protocol 4
-  after local verification of the shared/public/export consumers. Native
+  confirmation/clear and owner-bound recovery. Native source now advertises
+  protocol 5 after integration of the shared/public/export consumers. Native
   acknowledgement, history, species totals and public labels preserve revisioned
   replacement and clear, keeping pending intent and original AI evidence
   separate. Field Trip credit and immutable exports use the same identity

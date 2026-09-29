@@ -64,7 +64,6 @@ struct PrimaryIdentificationNativeTests {
             #expect(!record.hasSpeciesRankForAchievements)
             #expect(projection.referenceImageURL == nil)
         }
-        #expect(IdentificationDispatchAuthorization.currentProtocol == 4)
     }
 
     @Test func contradictoryWireResultsFailBeforePersistence() throws {

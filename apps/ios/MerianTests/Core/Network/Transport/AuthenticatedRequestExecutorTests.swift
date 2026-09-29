@@ -22,7 +22,7 @@ struct AuthenticatedRequestExecutorTests {
         for attempt in probe.attempts {
             #expect(attempt.request.value(forHTTPHeaderField: IdentificationRecipientExpectation.header) == "openai")
             #expect(attempt.identificationAuthorization?.recipient == .openAI)
-            #expect(attempt.request.value(forHTTPHeaderField: IdentificationDispatchAuthorization.protocolHeader) == "4")
+            #expect(attempt.request.value(forHTTPHeaderField: IdentificationDispatchAuthorization.protocolHeader) == "5")
             #expect(attempt.request.value(forHTTPHeaderField: "X-Merian-Entitlement-Protocol") == "3")
             // The transport double captures the validator instead of running it.
             // Confirm reconstruction retained the exact denial-capable closure.

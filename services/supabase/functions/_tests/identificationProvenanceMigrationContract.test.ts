@@ -134,7 +134,7 @@ Deno.test("primary-resolution foundation remains dormant and excludes client rec
       base,
     ),
   );
-  assertStringIncludes(native, "static let currentProtocol = 4");
+  assertStringIncludes(native, "static let currentProtocol = 5");
 });
 
 Deno.test("shared primary consumers preserve activation, privilege and frozen export boundaries", async () => {
@@ -169,5 +169,5 @@ Deno.test("shared primary consumers preserve activation, privilege and frozen ex
       import.meta.url,
     ),
   );
-  assertStringIncludes(native, "static let currentProtocol = 4");
+  assertStringIncludes(native, "static let currentProtocol = 5");
 });
