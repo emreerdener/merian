@@ -2,11 +2,17 @@
 
 Date: 2026-09-28
 
-Status: Real input packet prepared and offline-validated. Zero new provider
-requests. The durable local controller and launcher are implemented. The owner
-approved a $40 maximum for the same 18-call Naturebook comparison on 28
+Preparation checkpoint, before live execution: Real input packet prepared and
+offline-validated. Zero new provider requests. The durable local controller and
+launcher are implemented. The owner approved a
+$40 maximum for the same 18-call Naturebook comparison on 28
 September. The private plan is v2/$40; execution uses a credential-bound clean
 revision and the existing key. No production assignment changes.
+
+Live outcome, later on 28 September: one Luna call completed and matched its
+primary reference; a missing comparative reference stopped the screen. See the
+[retained result and limitations](identification-luna-sol-photo-screen-results-2026-09-28.md).
+The preparation facts below remain the pre-execution record.
 
 ## Frozen scope
 
@@ -127,4 +133,5 @@ and priced usage; this preparation establishes none of those model outcomes.
 
 These checks use invented outcomes or local validation. They do not measure Luna
 identification quality, real API compatibility, account access, cost or latency.
-The real packet has made zero new model requests.
+At this preparation checkpoint, the real packet had made zero new model
+requests; the later live outcome is linked above.

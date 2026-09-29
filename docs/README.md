@@ -274,7 +274,10 @@ production submission or public release.
   unchanged.
 - **[Luna/Sol photo comparison preparation](./rfcs/identification-luna-sol-photo-preparation-2026-09-28.md):**
   Frozen twelve-photo packet, durable local controller, offline validation and
-  the pending spending decision. No new model benchmark has run.
+  approved $40 ceiling. The
+  [first live screen](./rfcs/identification-luna-sol-photo-screen-results-2026-09-28.md)
+  stopped after one correct Luna identification because an explanatory
+  comparison lacked reference coverage; the model comparison is incomplete.
 - **[Identification optimization while preserving current results](./rfcs/identification-optimization-preserving-results-2026-09-27.md):**
   Current plan following verified completion of the provider infrastructure
   milestone. Preserve explanation format and detail while investigating

@@ -120,8 +120,13 @@ assistant selection report and grants no production authority.
 The existing one-use explanation view is shared through
 `normalizedExplanationDisplay`; historical normalization and record parsers
 retain their original profiles. New tests use invented media and mocked
-responses with network and environment access denied. The current real packet
-remains v1/$5 pending the owner's budget decision.
+responses with network and environment access denied. The owner approved the
+v2/$40 packet. Its
+[first live screen](../../../../docs/rfcs/identification-luna-sol-photo-screen-results-2026-09-28.md)
+completed one reference-matching Luna identification, then stopped because a
+material explanatory comparison was not assessable against the frozen notes.
+`screen_failed` includes this reference-coverage outcome; it does not by itself
+establish a wrong identification. The remaining seventeen calls did not run.
 
 ## Shared measurement repair (optimization Slice 1)
 

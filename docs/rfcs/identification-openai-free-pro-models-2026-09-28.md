@@ -6,8 +6,11 @@ Status: Slice 1 implementation and local verification complete. Closed Luna/Sol
 profiles, the real 12-photo packet and the durable local controller are
 prepared. The owner approved a $40 maximum for the same 18-call Naturebook
 comparison on 28 September. Execution requires the credential-bound approval and
-existing Naturebook key. Production assignments are unchanged. Live benchmark
-results remain pending.
+existing Naturebook key. The first live screen subsequently stopped after one
+Luna call because an explanatory comparison lacked reference coverage; see the
+[screen result](identification-luna-sol-photo-screen-results-2026-09-28.md). The
+full comparison and model selection remain incomplete. Production assignments
+are unchanged.
 
 ## Recommendation
 

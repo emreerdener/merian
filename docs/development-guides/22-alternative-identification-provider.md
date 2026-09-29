@@ -156,7 +156,12 @@ original journal. Model mismatch, refusal, invalid safety/output, missing or
 inconsistent billing, and operational failures stop subsequent calls. Six
 successful screen results with passing assistant ratings are required before
 challenges. Challenge quality failures remain visible for comparison; they do
-not trigger replacement calls.
+not trigger replacement calls. An unassessable screening rating also yields
+`screen_failed`; inspect the ratings to distinguish missing reference coverage
+from an observed model error. The first
+[live screen record](../rfcs/identification-luna-sol-photo-screen-results-2026-09-28.md)
+retains one reference-matching Luna result and that reference-coverage stop. It
+does not complete the Luna/Sol comparison.
 
 `photoModelRecords.ts` projects bounded taxonomy IDs, scores, timings, native
 usage categories, exact model, safety disposition and a conservative usage-based
