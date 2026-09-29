@@ -383,7 +383,8 @@ async function reserveQuota(
         expectedRecipient,
       )) ||
     (identificationProtocol !== null &&
-      (identificationProtocol !== "4" || expectedRecipient === null))
+      (!["4", "5"].includes(identificationProtocol) ||
+        expectedRecipient === null))
   ) {
     throw new AIQuotaError(
       400,

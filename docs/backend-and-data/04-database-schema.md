@@ -1313,10 +1313,27 @@ The transaction log for every successful identification.
   `reasoning_effort`, `image_detail`). The 2 KiB bound, existing columns,
   triggers, privileges and rows remain unchanged. V2 receives no Gemini metric
   interpretation and enables no provider assignment.
+- `primary_identification` (JSONB, nullable): Dormant explicit AI answer
+  snapshot, added by
+  `20260929144441_prepare_primary_identification_resolution.sql`. Exactly four
+  keys: version 1, one of five supported resolutions, and required nullable
+  scientific/common labels. Strict 4 KiB and 255 UTF-16-unit name bounds match
+  the wire validator. This is observation content under the existing scan
+  visibility/retention policy, not content-free provenance. Only the reserved
+  `merian_identify_primary_v1` provenance schema may and must carry it. Current
+  profiles leave it null; no historical rank backfill occurs. Immutable triggers
+  reject replacement, and client column INSERT/UPDATE remain revoked. A
+  non-species snapshot cannot carry `species_id`, candidates or pet
+  identification; the biological flag must agree. Species alternatives require
+  their own species rank and at most two entries. Independently authorized
+  `confirmed_species_id` is a separate identity, whose new-result consumer
+  policy remains pending.
 - Result-reader compatibility: migration
   `20260927185833_require_identification_result_reader.sql` adds an invoker
   capability check inside the original owner/public SELECT policy predicates.
-  Visible V2 results require `X-Merian-Identification-Protocol: 4`; unsupported
+  Visible V2 results require exact identification protocol 4 or 5; explicit
+  primary results and their reserved schema require exactly 5. The native app
+  continues to advertise 4 until consumer integration is complete. Unsupported
   readers receive `PT426` / `client_update_required` for the whole query.
   Null/V1 reads, visibility predicates, service-role reads and write grants are
   unchanged. No row, score or provenance is rewritten. See the
@@ -2328,6 +2345,15 @@ path; supplied client provenance is ignored. Old jobs remain null. Provenance
 survives ordinary retries and owner merge without changing its contents. The
 backup follows the job's existing access and Auth-owner cascade; retained
 scientific scan tombstones keep their content-free value.
+
+`primary_identification` is the nullable server-owned answer backup. The
+existing `copy_scan_identification_provenance` trigger now copies both fields in
+one update, avoiding an intermediate violation of their schema/snapshot pairing.
+Missing-row recovery restores only the exact owner/scan backup, validates the
+recovered biological flag and species association, and ignores client-supplied
+primary JSON. A mismatch or missing required snapshot fails atomically. Existing
+job retention, deletion and owner rules remain in effect. No current producer
+writes this reserved contract.
 
 Durable server-side lifecycle ledger for accepted scan ingestion requests. Added
 in migration `20260705120000_add_scan_ingestion_jobs.sql`.
@@ -4334,14 +4360,17 @@ policy.
 
 The same migration adds binding `minimum_identification_protocol` (0 or 4), and
 attempt minimum/accepted capability snapshots (historical NULL remains unknown).
-The new eleven-argument service reservation snapshots the selected execution
-model and capability atomically, returns the saved execution model, and retains
-all quota-model/policy invariants. The new six-argument authenticated preflight
-returns the separate capability minimum. Old ABIs cannot freshly admit an
-alternate provider. Private `require_identification_capability` scopes internal
-replay proof to the original owner/operation/observation/profile/current
-attempt; worker headers cannot upgrade missing proof. Entitlement protocol stays
-1–3.
+The primary-resolution forward migration recognizes accepted claims 4 and 5
+while retaining all binding minima and the exact existing OpenAI tuple at
+minimum 4. It neither rewrites prior attempts nor admits a new minimum-5
+producer. The new eleven-argument service reservation snapshots the selected
+execution model and capability atomically, returns the saved execution model,
+and retains all quota-model/policy invariants. The new six-argument
+authenticated preflight returns the separate capability minimum. Old ABIs cannot
+freshly admit an alternate provider. Private `require_identification_capability`
+scopes internal replay proof to the original
+owner/operation/observation/profile/current attempt; worker headers cannot
+upgrade missing proof. Entitlement protocol stays 1–3.
 
 The scan usage trigger remains the single successful primary ledger writer.
 OpenAI uses `openai_responses_tokens_v1` and retains bounded native output and

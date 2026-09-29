@@ -214,6 +214,23 @@ BEGIN
         RAISE EXCEPTION 'beta admission altered historic consent';
     END IF;
     test_request_id := extensions.gen_random_uuid();
+    -- Future readers may submit against the unchanged current min-4 binding.
+    SELECT * INTO STRICT preview FROM public.get_my_identification_preflight('scan_identification','multimodal_photo_v1',FALSE,test_request_id,3,5);
+    IF preview.decision <> 'ready' OR preview.minimum_identification_protocol <> 4 THEN
+        RAISE EXCEPTION 'capability 5 changed or failed current binding';
+    END IF;
+    SELECT * INTO STRICT admitted FROM public.reserve_identification_quota(test_user_id,'scan_identification',test_request_id,
+        pg_catalog.REPEAT('b',64),test_request_id,FALSE,3,FALSE,'multimodal_photo_v1','openai',5);
+    IF NOT EXISTS (SELECT 1 FROM internal.identification_provider_attempts AS saved
+        WHERE saved.reservation_id=admitted.reservation_id AND saved.attempt_count=admitted.attempt_count
+        AND saved.minimum_identification_protocol=4 AND saved.accepted_identification_protocol=5) THEN
+        RAISE EXCEPTION 'capability 5 not retained independently of binding minimum';
+    END IF;
+    IF internal.require_identification_capability(test_user_id,'scan_identification',test_request_id,'multimodal_photo_v1',4,TRUE,4) <> 5 THEN
+        RAISE EXCEPTION 'worker downgraded saved capability 5';
+    END IF;
+    PERFORM public.finalize_ai_quota_reservation(admitted.reservation_id,test_user_id,admitted.lease_token,'refunded');
+    test_request_id := extensions.gen_random_uuid();
     -- Missing/wrong capability and recipient drift still roll back quota.
     SELECT pg_catalog.JSONB_BUILD_ARRAY(
         (SELECT COUNT(*) FROM internal.ai_quota_reservations),
@@ -221,7 +238,7 @@ BEGIN
         (SELECT COUNT(*) FROM internal.identification_provider_attempts),
         (SELECT COUNT(*) FROM internal.complimentary_scan_usage)
     ) INTO before_counts;
-    FOREACH protocol IN ARRAY ARRAY[NULL,3,5] LOOP
+    FOREACH protocol IN ARRAY ARRAY[NULL,3,6] LOOP
         denied := FALSE;
         BEGIN
             PERFORM public.reserve_identification_quota(test_user_id,'scan_identification',test_request_id,
@@ -306,7 +323,7 @@ BEGIN
     IF NOT repeated.is_replay OR repeated.model <> 'gpt-6-sol' OR repeated.provider <> 'openai' THEN
         RAISE EXCEPTION 'replay reinterpreted immutable execution';
     END IF;
-    IF internal.require_identification_capability(test_user_id,'scan_identification',test_request_id,'multimodal_photo_v1',NULL,TRUE,4) <> 4 THEN
+    IF internal.require_identification_capability(test_user_id,'scan_identification',test_request_id,'multimodal_photo_v1',5,TRUE,4) <> 4 THEN
         RAISE EXCEPTION 'worker lost original capability';
     END IF;
     denied := FALSE;

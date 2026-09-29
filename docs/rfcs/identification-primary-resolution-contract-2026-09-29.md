@@ -2,9 +2,11 @@
 
 Date: 2026-09-29
 
-Status: Proposed contract and implementation sequence; no runtime, database,
-model assignment or confidence policy changes are implemented by this document.
-Source inspection used `ca35e74bb` on `codex/openai-free-pro-evaluation`.
+Status: Slice 1 implemented and locally validated. No deployment, producer
+activation, model assignment or confidence policy change is included. The design
+baseline below used `ca35e74bb` on `codex/openai-free-pro-evaluation`; the slice
+record distinguishes implemented foundation from pending consumers and model
+qualification.
 
 The
 [completed Sol comparison](identification-sol-rank-comparison-results-2026-09-29.md)
@@ -285,10 +287,11 @@ species.
 ## Compatibility and release order
 
 Optional fields alone are insufficient: old clients ignore them and may treat a
-genus as a species. Propose identification capability **5**, subject to
-confirming that the value remains unused when implementation begins. Entitlement
-protocol **3** remains separate and unchanged. Do not accept arbitrary larger
-integers as compatible readers.
+genus as a species. Slice 1 reserves identification capability **5** after
+confirming it was previously unrecognized. The native app stays on **4** until
+Slice 2 completes all required consumer behavior. Entitlement protocol **3**
+remains separate and unchanged. Do not accept arbitrary larger integers as
+compatible readers.
 
 | Stored result                                                     | Legacy reader                     | Recognized capability 4 | Proposed capability 5        |
 | ----------------------------------------------------------------- | --------------------------------- | ----------------------- | ---------------------------- |
@@ -336,6 +339,67 @@ Deployment and distribution remain explicit operations under the canonical
 [testing strategy](../development-guides/08-testing-strategy.md). This document
 changes no hosted policy and grants no new paid experiment.
 
+## Slice 1 source implementation
+
+The executable contract, generated Swift DTO, scan/job columns, immutable
+owner-bound recovery, stored/reconstructed replay and exact protocol-5 reader
+gate are implemented. The new migration copies both primary and provenance in
+the existing after-insert update. Recovery cannot assert a snapshot from client
+JSON. Required-snapshot loss and mismatched labels/provenance fail validation;
+reconstruction does not infer rank or replace saved labels from the dictionary.
+
+The requirement marker is the reserved schema identity
+`merian_identify_primary_v1`, interpreted by `identificationResultContract` and
+SQL CHECK/read boundaries. It is not registered as an executable model profile.
+Every existing provider output schema remains a legacy producer, and no live
+handler constructs or persists this snapshot. A future qualified producer will
+use this reserved schema with its own separately reviewed prompt/binding
+identity.
+
+New accepted protocol-5 claims can use today's exact minimum-4 OpenAI tuple;
+original attempts retain their accepted claim and internal workers cannot
+upgrade it. Binding minima remain `0|4`. Native header/preflight behavior stays
+on 4. The generated DTO is not full consumer support: native
+storage/presentation, public/admin/export and broader confirmation policy are
+pending in Slice 2; minimum-5 producer admission and qualification are pending
+in Slice 3.
+
+Local verification completed on 2026-09-29:
+
+- Complete Edge suite: 2,191 tests and 343 steps passed, with the disposable
+  database enabled for concurrency tests. All 102 function entrypoints also
+  passed recursive checks with their deployment configs.
+- Database: full sorted migration replay and all 68 catalog files passed (442
+  assertions). The separate out-of-order recovery gate passed its three catalogs
+  (21 assertions). Both disposable projects were stopped afterward.
+- Database lint: no findings. Security and performance advisors passed their
+  error gates; 103 security and 79 performance warnings remain under the
+  repository's existing advisory policy.
+- Supabase tooling: the complete `make test-supabase-tooling` gate passed,
+  including the isolated evaluator, generated DTO checks and 12 shell suites.
+  Migration-contract validation passed 359 tests across 67 files. Deno
+  formatting, lint and isolated dependency-graph validation passed.
+- Native: `make ios-local-build` compiled all test targets and ran the complete
+  iOS unit target on an existing iPhone 18 Pro Max simulator. XCResult reports
+  4,543 passed, zero failed and zero skipped. The primary decoder covers all
+  five states, required null round-trips and malformed metadata. XcodeGen
+  produced no project diff, and `make validate-ios-project` passed. The retained
+  local result bundle is
+  `.artifacts/local-ios/e2dbd4264f964c17b5ba7da4de6c03f1.xcresult`.
+- Independent read-only review found no remaining contract or data-integrity
+  blocker after DTO regeneration. A separate regression covers the first-owner
+  insert committing between job and scan reads. Required schema markers also
+  protect response emission when a snapshot is absent.
+- Documentation formatting, 438 local file-link targets and diff whitespace
+  checks passed.
+
+Hosted exact-SHA CI, critical UI smokes, a Release archive and external-device
+release verification were not run for this dormant slice. This is local
+implementation evidence, not deployment or model qualification. Native
+persistence, presentation and public/admin/export support remain Slice 2, before
+any producer can emit this contract. There were no paid model requests or
+production mutations.
+
 ## Implementation slices and acceptance
 
 1. **Add the dormant contract and server storage.** Implement strict types,
@@ -374,10 +438,10 @@ qualified identification behavior and adequate labeled evidence.
 | iOS persistence and presentation | Generated decoder parity; disk migration from the outgoing schema and supported recent plans; relaunch/history/queue recovery; broader-rank display; typed/boolean override cannot promote rank; validated confirmation replacement/clear survives across devices with AI confidence unchanged. |
 | Repository gates                 | `make validate-edge-dto-contract`, complete affected Supabase tooling/Edge checks, recursive type checks, disposable-database/catalog gates, and affected iOS build/test gates through `make ios-local-build`. Run web/admin package gates if those consumers change.                           |
 
-Update canonical API/database documentation, owning READMEs and release
-procedures with their implementation slices, not as if this proposal were
-already deployed. Formatting and documentation review validate this design only;
-no runtime or migration tests have run for these proposed fields.
+Canonical API/database documentation, owning READMEs and release procedures are
+updated with each implementation slice, without claiming deployment. The design
+review below records the original planning evidence; implementation evidence is
+recorded separately above.
 
 The offline design received a read-only source trace and independent contract
 review. Review corrections explicitly cover the closed provider-binding SQL

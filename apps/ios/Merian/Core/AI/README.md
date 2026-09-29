@@ -1370,3 +1370,16 @@ not establish calibrated probabilities for any model. See the
 and the
 [beta admission correction](../../../../../docs/incidents/2026-09-beta-openai-consent-gate.md)
 for the current display and admission boundaries.
+
+### Dormant primary-resolution wire support
+
+The generated `EdgeResponse` now accepts optional non-null
+`PrimaryIdentificationDTO` and optional candidate `taxon_rank`. The version-1
+snapshot has an explicit resolution and required nullable labels; strict keys,
+version, enum and UTF-16 bounds are generated from the Edge contract. This is
+wire preparation only. Native domain interpretation, SwiftData persistence,
+history merging and species-effect policy belong to Slice 2 of the
+[primary-resolution plan](../../../../../docs/rfcs/identification-primary-resolution-contract-2026-09-29.md).
+`IdentificationDispatchAuthorization.currentProtocol` remains 4; the backend
+requires 5 for those future results. Current profiles, explanations and
+confidence display remain unchanged. Do not advertise 5 based on the DTO alone.

@@ -1,7 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  identificationProvenanceContract,
+  identificationResultContract,
   type IdentifySuccessEnvelope,
+  parseContract,
   parseIdentifySuccessEnvelope,
+  parsePrimaryIdentification,
 } from "./contract.ts";
 
 const COMPLETED_SCAN_SELECT = [
@@ -31,6 +35,7 @@ const COMPLETED_SCAN_SELECT = [
   "extracted_visual_traits",
   "inference_tier",
   "identification_provenance",
+  "primary_identification",
   "candidates",
   "image_quality_score",
   "pet_identification",
@@ -84,6 +89,7 @@ export interface CompletedScanResponseRow {
   extracted_visual_traits: string[] | null;
   inference_tier: string | null;
   identification_provenance?: unknown;
+  primary_identification?: unknown;
   candidates: Array<Record<string, unknown>> | null;
   image_quality_score: number | null;
   pet_identification: Record<string, unknown> | null;
@@ -326,6 +332,69 @@ function optionalRecord(
   return Object.keys(record).length > 0 ? record : undefined;
 }
 
+type PrimaryReplayMetadata = Pick<
+  CompletedScanResponseRow,
+  "identification_provenance" | "primary_identification"
+>;
+
+function primaryForReplay(row: PrimaryReplayMetadata) {
+  const provenance = row.identification_provenance as
+    | { schema?: string }
+    | null
+    | undefined;
+  const required =
+    identificationResultContract(provenance?.schema) === "primary_v1";
+  if (required !== (row.primary_identification != null)) {
+    throw new Error("primary_identification_replay_integrity");
+  }
+  return row.primary_identification == null
+    ? undefined
+    : parsePrimaryIdentification(row.primary_identification);
+}
+
+function assertPrimaryReplayMetadata(
+  expected: PrimaryReplayMetadata,
+  actual: PrimaryReplayMetadata,
+): void {
+  const expectedPrimary = primaryForReplay(expected);
+  const actualPrimary = primaryForReplay(actual);
+  if (expectedPrimary === undefined && actualPrimary === undefined) return;
+  // Contract parsing canonicalizes field order before comparison. Labels and
+  // execution identity belong to one completed generation, even when today's
+  // dictionary or model settings differ.
+  if (
+    JSON.stringify(expectedPrimary) !== JSON.stringify(actualPrimary) ||
+    JSON.stringify(
+        parseContract(
+          identificationProvenanceContract,
+          expected.identification_provenance,
+        ),
+      ) !==
+      JSON.stringify(
+        parseContract(
+          identificationProvenanceContract,
+          actual.identification_provenance,
+        ),
+      )
+  ) {
+    throw new Error("primary_identification_replay_integrity");
+  }
+}
+
+function primaryForScan(scan: CompletedScanResponseRow) {
+  const primary = primaryForReplay(scan);
+  if (
+    primary !== undefined && (
+      scan.is_biological_subject !==
+        (primary.resolution !== "non_biological") ||
+      (primary.resolution !== "species" &&
+        (scan.species_id != null || scan.candidates != null ||
+          scan.pet_identification != null))
+    )
+  ) throw new Error("primary_identification_replay_integrity");
+  return primary;
+}
+
 /**
  * Reconstructs the Identify wire envelope from an exact durable owner row.
  * This supports both completed rows created before canonical response
@@ -338,6 +407,13 @@ export function buildCompletedIdentifyEnvelope(
   scan: CompletedScanResponseRow,
   species: CompletedSpeciesResponseRow | null,
 ): IdentifySuccessEnvelope {
+  const primary = primaryForScan(scan);
+  if (
+    primary !== undefined && primary.resolution !== "species" &&
+    species !== null
+  ) {
+    throw new Error("primary_identification_replay_integrity");
+  }
   const confidence = clamp(scan.ai_confidence_score, 0, 1);
   const blurScore = clamp(scan.blur_score, 0, 1);
   const imageQualityScore = Math.round(
@@ -385,7 +461,9 @@ export function buildCompletedIdentifyEnvelope(
     ],
   ]);
   const inferenceTier = scan.inference_tier === "pro" ? "pro" : "flash";
-  const candidates = sanitizedCandidates(scan.candidates);
+  const candidates = primary === undefined
+    ? sanitizedCandidates(scan.candidates)
+    : scan.candidates;
 
   const data: Record<string, unknown> = {
     scan_id: scan.id,
@@ -398,7 +476,9 @@ export function buildCompletedIdentifyEnvelope(
       ? null
       : clamp(scan.estimated_size_cm, 0, 50_000),
     inference_tier: inferenceTier,
-    pet_identification: sanitizedPetIdentification(scan.pet_identification),
+    pet_identification: primary === undefined
+      ? sanitizedPetIdentification(scan.pet_identification)
+      : scan.pet_identification,
     candidates,
     image_quality: {
       sharpness: tenPointQuality,
@@ -528,6 +608,12 @@ export function buildCompletedIdentifyEnvelope(
     if (value != null && value !== "") data[key] = value;
   }
 
+  if (primary !== undefined) {
+    data.primary_identification = primary;
+    data.scientific_name = primary.scientific_name;
+    data.common_name = primary.common_name;
+  }
+
   return parseIdentifySuccessEnvelope({ success: true, data });
 }
 
@@ -546,10 +632,9 @@ export async function fetchCompletedIdentifyResponse(
 ): Promise<CompletedIdentifyResponse | null> {
   const { data: jobData, error: jobError } = await supabaseAdmin
     .from("scan_ingestion_jobs")
-    // Keep the normal request path compatible with a migration-first rollout:
-    // response_envelope is optional replay state and must not make every new
-    // scan fail merely because that column is not visible in the schema cache.
-    .select("status")
+    // The database migration precedes this bundle. Required snapshot loss must
+    // not be hidden by an otherwise parseable legacy stored envelope.
+    .select("status,identification_provenance,primary_identification")
     .eq("scan_id", scanId)
     .eq("user_id", userId)
     .abortSignal(AbortSignal.timeout(COMPLETED_RESPONSE_DATABASE_TIMEOUT_MS))
@@ -560,9 +645,7 @@ export async function fetchCompletedIdentifyResponse(
     );
   }
 
-  let job = jobData as {
-    status?: unknown;
-  } | null;
+  let job = jobData as (PrimaryReplayMetadata & { status?: unknown }) | null;
   if (
     job?.status === "failed_retryable" &&
     await recoverStrandedInlineCompletion(
@@ -571,7 +654,7 @@ export async function fetchCompletedIdentifyResponse(
       supabaseAdmin,
     )
   ) {
-    job = { status: "complete" };
+    job = { ...job, status: "complete" };
   }
   if (
     job?.status !== "complete" &&
@@ -598,6 +681,7 @@ export async function fetchCompletedIdentifyResponse(
       try {
         const envelope = parseIdentifySuccessEnvelope(storedResponse);
         if (envelope.data.scan_id === scanId) {
+          assertPrimaryReplayMetadata(job, envelope.data);
           return { envelope, source: "stored" };
         }
       } catch {
@@ -622,6 +706,27 @@ export async function fetchCompletedIdentifyResponse(
   if (!scanData) return null;
 
   const scan = scanData as unknown as CompletedScanResponseRow;
+  primaryForScan(scan); // Reject invalid species associations before any lookup.
+  if (
+    primaryForReplay(scan) !== undefined && primaryForReplay(job) === undefined
+  ) {
+    // A concurrent owner insert may commit between the initial job read and
+    // this scan read. Its trigger writes both backups atomically. Observe that
+    // write before deciding the newer row conflicts with an older job snapshot.
+    const { data: latestBackup, error: backupError } = await supabaseAdmin
+      .from("scan_ingestion_jobs")
+      .select("identification_provenance,primary_identification")
+      .eq("scan_id", scanId)
+      .eq("user_id", userId)
+      .abortSignal(AbortSignal.timeout(COMPLETED_RESPONSE_DATABASE_TIMEOUT_MS))
+      .maybeSingle();
+    if (backupError || latestBackup === null) {
+      throw new Error("primary_identification_replay_integrity");
+    }
+    assertPrimaryReplayMetadata(latestBackup as PrimaryReplayMetadata, scan);
+  } else {
+    assertPrimaryReplayMetadata(job, scan);
+  }
   let species: CompletedSpeciesResponseRow | null = null;
   if (scan.species_id) {
     const { data: speciesData, error: speciesError } = await supabaseAdmin

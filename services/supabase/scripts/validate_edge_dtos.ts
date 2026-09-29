@@ -58,6 +58,7 @@ export const REQUIRED_MODEL_PATHS = [
 
 export const REQUIRED_WIRE_PATHS = [
   "data.candidates[].common_name",
+  "data.candidates[].taxon_rank",
   "data.confidence_score",
   "data.estimated_size_cm",
   "data.gbif_taxon_key",
@@ -66,6 +67,10 @@ export const REQUIRED_WIRE_PATHS = [
   "data.inference_tier",
   "data.insight_data.ai_reasoning",
   "data.pet_identification.label_type",
+  "data.primary_identification.version",
+  "data.primary_identification.resolution",
+  "data.primary_identification.scientific_name",
+  "data.primary_identification.common_name",
   "data.scan_id",
   "data.species_insights.habitat_description",
   "data.taxonomy.class",

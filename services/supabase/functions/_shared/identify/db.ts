@@ -1,3 +1,4 @@
+import type { PrimaryIdentification } from "./contract.ts";
 import type { IdentificationProvenance } from "../ai/provenance.ts";
 import { SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -260,6 +261,7 @@ export async function updateGroupTags(
 }
 
 export interface ScanInsertRow {
+  primary_identification?: PrimaryIdentification;
   identification_provenance?: IdentificationProvenance;
   id: string;
   user_id: string;

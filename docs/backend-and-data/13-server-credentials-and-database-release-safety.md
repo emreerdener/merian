@@ -272,17 +272,25 @@ missing service-role `SELECT` on `user_follows` needed by the existing invoker
 Explore author-profile read. It changes no browser-role grant, table RLS, or
 write privilege. Actual-role integration tests cover both public projections.
 
-The result-reader helper `internal.require_identification_result_reader(jsonb)`
-is `SECURITY INVOKER`, `VOLATILE`, fixed to an empty search path, and executable
-only by `anon` and `authenticated`. Its exact capability-4 header check runs
-inside the two existing `scans` SELECT visibility predicates; it does not
-authorize visibility or change table/write grants. Service projections retain
-their existing bypass. Unsupported visible V2 rows fail the query with `PT426`,
-including projections that omit metadata. All four Edge completion paths
-separately check the current external reader because their service client
-bypasses RLS. See the
+The result-reader helper
+`internal.require_identification_result_reader(jsonb,jsonb)` and its
+one-argument compatibility wrapper are `SECURITY INVOKER`, `VOLATILE`, fixed to
+an empty search path, and executable only by `anon` and `authenticated`. The
+exact capability-4-or-5 check for V2, and capability-5-only check for the
+reserved primary snapshot/schema, run inside the two existing `scans` SELECT
+visibility predicates; it does not authorize visibility or change table/write
+grants. Service projections retain their existing bypass. Unsupported visible V2
+rows fail the query with `PT426`, including projections that omit metadata. All
+four Edge completion paths separately check the current external reader because
+their service client bypasses RLS. See the
 [reader contract](./05-api-contracts.md#identification-result-readers) and the
-actual-role fixture `tests/identification_result_reader.sql`.
+actual-role fixtures `tests/identification_result_reader.sql` and
+`tests/primary_identification.sql`. The new primary snapshot follows scan
+visibility and existing retention; it contains observation labels and must not
+be logged as content-free metadata. Its pure CHECK helpers read no tables.
+Trigger helpers have an empty search path and no direct API-role execution
+grant. The existing after-insert helper copies provenance and primary in one
+owner-bound update; client recovery JSON remains outside that authority.
 
 ## Migration Execution Contract
 

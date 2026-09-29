@@ -54,6 +54,32 @@ public consent rollout, pair enforcement with a direct **Review permission**
 action on every relevant alert and return to the same saved scan for explicit
 retry. Do not re-enable only the server gate.
 
+## Dormant primary identification foundation
+
+The source preparation for explicit primary resolution is not a provider
+activation. Apply `20260929144441_prepare_primary_identification_resolution.sql`
+before deploying a bundle that selects `primary_identification` from scans and
+ingestion jobs. Use the ordinary approved exact-SHA candidate/deployment path;
+local validation does not authorize a hosted mutation. Retain the migration and
+bundle receipts together. The shared runtime change also regenerates
+identification and Field Chat bundle digests through their checked-in
+generators.
+
+This migration leaves current bindings, models, consent policy, saved attempts
+and confidence interpretation unchanged. It recognizes protocol 5 as a future
+reader claim while the app stays on 4. The reserved schema
+`merian_identify_primary_v1` has no admitted producer. Do not activate or emit
+it until native persistence/presentation, service/public/admin/export consumers
+and a separately qualified model profile are complete. A future producer needs
+its own closed minimum-5 tuple and explicit activation authorization.
+
+An additive dormant rollback retains the new columns and guards; it does not
+drop or rewrite stored answers. Once a future producer emits explicit results,
+keep their compatibility readers and immutable backups even if fresh assignment
+is rolled back. See the
+[slice acceptance plan](../rfcs/identification-primary-resolution-contract-2026-09-29.md)
+for the remaining consumer and qualification work.
+
 ## Legacy Location-Label Repair
 
 If a scan has exact coordinates but no `semantic_location`, changing an Explore

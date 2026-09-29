@@ -80,7 +80,7 @@ Deno.test("identification capability is separate from entitlement and cannot sel
   const prior = Deno.env.get("AI_QUOTA_IP_HASH_SECRET");
   Deno.env.set("AI_QUOTA_IP_HASH_SECRET", SECRET);
   try {
-    for (const capability of ["4", "3", "5", "04", "garbage"]) {
+    for (const capability of ["4", "5", "3", "6", "04", "garbage"]) {
       let calls = 0;
       const error = await assertRejects(() =>
         reserveIdentificationProviderCall(
@@ -95,7 +95,7 @@ Deno.test("identification capability is separate from entitlement and cannot sel
             rpc: (_name: string, args: Record<string, unknown>) => {
               calls++;
               assertEquals(args.p_client_protocol, 3);
-              assertEquals(args.p_identification_protocol, 4);
+              assertEquals(args.p_identification_protocol, Number(capability));
               assertEquals("p_model" in args || "p_provider" in args, false);
               return {
                 abortSignal: () =>
@@ -116,8 +116,8 @@ Deno.test("identification capability is separate from entitlement and cannot sel
             requestId: REQUEST_ID,
           },
         ), AIQuotaError);
-      assertEquals(calls, capability === "4" ? 1 : 0);
-      assertEquals(error.status, capability === "4" ? 426 : 400);
+      assertEquals(calls, ["4", "5"].includes(capability) ? 1 : 0);
+      assertEquals(error.status, ["4", "5"].includes(capability) ? 426 : 400);
     }
   } finally {
     if (prior === undefined) Deno.env.delete("AI_QUOTA_IP_HASH_SECRET");

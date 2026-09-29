@@ -515,12 +515,16 @@ identical:
   coalesces concurrent AI-quota ownership so at-least-once delivery returns HTTP
   success without a second provider call. Optional client provenance comes only
   from the immutable stored envelope or scan column; legacy null omits it and
-  damaged present values fail contract validation.
+  damaged present values fail contract validation. Reserved explicit-primary
+  replay also verifies the job/scan generation, preserves snapshot labels and
+  rejects broader species associations before lookup. A newly committed backup
+  is re-read if the initial job view predates the owner insert.
 - **`resultResponse.ts`**: Current-reader capability checks for all four
   identification replay endpoints and fresh primary results. V2 requires exact
-  identification protocol 4; the original attempt's capability and spoofed
-  internal headers cannot authorize an external reader. Only the verified
-  internal replay worker bypasses client decoding. See the
+  identification protocol 4 or 5; explicit primary results require exactly 5. No
+  current profile emits that dormant contract. The original attempt's capability
+  and spoofed internal headers cannot authorize an external reader. Only the
+  verified internal replay worker bypasses client decoding. See the
   [reader contract](../../../../docs/backend-and-data/05-api-contracts.md#identification-result-readers).
 - **`latencyDb.ts`**: Thin service-role RPC client for combined
   primary/candidate dictionary hydration (`hydrate_identification_dictionary`).

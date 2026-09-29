@@ -296,11 +296,12 @@ production submission or public release.
   is complete: broader-rank behavior improved, but two candidate visual failures
   block promotion. Retain the current Sol assignment; production rank handling
   and confidence calibration remain pending.
-- **[Proposed primary identification resolution](./rfcs/identification-primary-resolution-contract-2026-09-29.md):**
-  Offline design for preserving species, genus, family and unresolved outcomes
-  through saving and recovery, with species-only enrichment, native migration
-  and deliberate reader compatibility. It defines implementation slices; no
-  proposed field, model assignment or confidence change is implemented yet.
+- **[Explicit primary identification resolution](./rfcs/identification-primary-resolution-contract-2026-09-29.md):**
+  Slice 1 adds a dormant versioned answer contract, immutable server storage and
+  recovery, generated Swift wire support and exact protocol-5 reader protection.
+  The app remains on protocol 4; native persistence/presentation and other
+  consumers are next. No new model profile, assignment or confidence policy is
+  activated.
 - **[Identification optimization while preserving current results](./rfcs/identification-optimization-preserving-results-2026-09-27.md):**
   Current plan following verified completion of the provider infrastructure
   milestone. Preserve explanation format and detail while investigating

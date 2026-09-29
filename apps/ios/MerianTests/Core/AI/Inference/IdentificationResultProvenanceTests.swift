@@ -330,4 +330,38 @@ struct IdentificationResultProvenanceTests {
         let page = try HistoricalScanPageDecoder.decode(JSONSerialization.data(withJSONObject: [row]))
         #expect(page.remoteRowCount == 1 && page.rejectedRowCount == 1 && page.responses.isEmpty)
     }
+
+    @Test(arguments: ["species", "genus", "family", "unresolved_biological", "non_biological"])
+    func reservedPrimarySnapshotRoundTripsRequiredNullsWithoutClaimingClientSupport(resolution: String) throws {
+        let object: [String: Any] = ["version": 1, "resolution": resolution,
+            "scientific_name": resolution == "unresolved_biological" ? NSNull() : "Examplea" as Any,
+            "common_name": NSNull()]
+        let bytes = try JSONSerialization.data(withJSONObject: object)
+        let dto = try JSONDecoder().decode(PrimaryIdentificationDTO.self, from: bytes)
+        let encoded = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(dto)) as? [String: Any])
+        #expect(encoded["resolution"] as? String == resolution)
+        #expect(encoded["common_name"] is NSNull)
+        #expect(dto.scientific_name == (resolution == "unresolved_biological" ? nil : "Examplea"))
+        // Generated wire support alone does not provide durable native rank semantics.
+        #expect(IdentificationDispatchAuthorization.currentProtocol == 4)
+    }
+
+    @Test func reservedPrimarySnapshotRejectsUnknownShapesAndExplicitNullEnvelopeFields() throws {
+        let valid: [String: Any] = ["version": 1, "resolution": "genus", "scientific_name": "Examplea", "common_name": NSNull()]
+        var missing = valid
+        missing.removeValue(forKey: "common_name")
+        for object in [missing, valid.merging(["version": 2]) { _, new in new },
+                       valid.merging(["resolution": "subspecies"]) { _, new in new },
+                       valid.merging(["extra": true]) { _, new in new },
+                       valid.merging(["common_name": String(repeating: "🦋", count: 128)]) { _, new in new }] {
+            let bytes = try JSONSerialization.data(withJSONObject: object)
+            #expect(throws: DecodingError.self) { try JSONDecoder().decode(PrimaryIdentificationDTO.self, from: bytes) }
+        }
+        let absent = try JSONDecoder().decode(EdgeResponse.self, from: Data("{}".utf8))
+        #expect(absent.primary_identification == nil)
+        #expect(throws: DecodingError.self) {
+            try JSONDecoder().decode(EdgeResponse.self, from: Data("{\"primary_identification\":null}".utf8))
+        }
+    }
+
 }
