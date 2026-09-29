@@ -20,13 +20,14 @@ import warnings
 
 
 def main():
-    if len(sys.argv) not in (4, 5) or sys.argv[2] not in ("--credential-fingerprint", "--live", "--experiment-live", "--experiment-session", "--photo-model-live", "--photo-model-continuation-live", "--sol-rank-photo-live"):
+    if len(sys.argv) not in (4, 5) or sys.argv[2] not in ("--credential-fingerprint", "--live", "--experiment-live", "--experiment-session", "--photo-model-live", "--photo-model-continuation-live", "--sol-rank-photo-live", "--sol-primary-photo-live"):
         raise ValueError("arguments")
     session = sys.argv[2] == "--experiment-session"
     experiment = session or sys.argv[2] == "--experiment-live"
     continuation = sys.argv[2] == "--photo-model-continuation-live"
     photo_models = continuation or sys.argv[2] == "--photo-model-live"
     sol_rank = sys.argv[2] == "--sol-rank-photo-live"
+    sol_primary = sys.argv[2] == "--sol-primary-photo-live"
     if len(sys.argv) != (5 if experiment and not session else 4):
         raise ValueError("arguments")
     run_id = sys.argv[4] if experiment and not session else None
@@ -56,13 +57,18 @@ def main():
     environment = {name: os.environ[name] for name in ("PATH", "HOME", "DENO_DIR") if name in os.environ}
     if mode != "--credential-fingerprint":
         # Reject a different provider before even prompting for its credential.
-        spec_path = packet / ("sol-rank-plan.json" if sol_rank else "photo-model-plan.json" if photo_models else "experiment.json" if experiment else "spec.json")
+        spec_path = packet / ("sol-primary-plan.json" if sol_primary else "sol-rank-plan.json" if sol_rank else "photo-model-plan.json" if photo_models else "experiment.json" if experiment else "spec.json")
         info = spec_path.lstat()
         if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or not 0 < info.st_size <= 65536:
             raise ValueError("spec")
         spec_bytes = spec_path.read_bytes()
         spec = json.loads(spec_bytes)
-        if sol_rank:
+        if sol_primary:
+            if (spec.get("version") != "sol_photo_primary_plan_v1" or spec.get("maxCalls") != 18
+                    or spec.get("attemptsPerAssignment") != 1
+                    or spec.get("screeningPolicy") != "primary_reference_limits_v1"):
+                raise ValueError("provider")
+        elif sol_rank:
             if (spec.get("version") != "sol_photo_rank_plan_v1" or spec.get("maxCalls") != 18
                     or spec.get("attemptsPerAssignment") != 1
                     or spec.get("screeningPolicy") != "sol_rank_mapping_and_reference_gaps_v1"):
@@ -93,22 +99,25 @@ def main():
                   "--config", "services/supabase/functions/deno.json",
                   "--allow-read=" + str(repository) + "," + str(packet),
                   "--allow-write=" + str(packet), "--allow-run=git"]
-        entry = "services/supabase/scripts/evaluate_identification.ts"
+        entry = "services/supabase/scripts/evaluate_sol_primary.ts" if sol_primary else "services/supabase/scripts/evaluate_identification.ts"
         # Existing preflight checks all exact inputs; it cannot read keys or call a provider.
-        preflight = subprocess.run(common + ["--deny-net", "--deny-env", entry, "preflight-sol-rank-photo" if sol_rank else "preflight-free-pro-photo-continuation" if continuation else "preflight-free-pro-photo" if photo_models else "experiment-preflight" if experiment else "preflight", str(packet)],
+        preflight = subprocess.run(common + ["--deny-net", "--deny-env", entry, "preflight" if sol_primary else "preflight-sol-rank-photo" if sol_rank else "preflight-free-pro-photo-continuation" if continuation else "preflight-free-pro-photo" if photo_models else "experiment-preflight" if experiment else "preflight", str(packet)],
                                    cwd=repository, env=environment, stdin=subprocess.DEVNULL,
                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         if preflight.returncode != 0:
             raise ValueError("preflight")
-        if sol_rank or photo_models:
-            report_path = packet / ("sol-rank-preflight.json" if sol_rank else "photo-model-continuation-preflight.json" if continuation else "photo-model-preflight.json")
+        if sol_primary or sol_rank or photo_models:
+            report_path = packet / ("sol-primary-preflight.json" if sol_primary else "sol-rank-preflight.json" if sol_rank else "photo-model-continuation-preflight.json" if continuation else "photo-model-preflight.json")
             info = report_path.lstat()
             if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or not 0 < info.st_size <= 65536:
                 raise ValueError("preflight")
             report = json.loads(report_path.read_text())
-            if (report.get("version") != ("sol_photo_rank_preflight_v1" if sol_rank else "photo_model_continuation_preflight_v1" if continuation else "photo_model_preflight_v1") or report.get("budgetFitsRegionalReservation") is not True
-                    or report.get("evidenceStatus") != ("provisional_reused_development_cases" if sol_rank else "provisional_reference_pilot")
+            if (report.get("version") != ("sol_photo_primary_preflight_v1" if sol_primary else "sol_photo_rank_preflight_v1" if sol_rank else "photo_model_continuation_preflight_v1" if continuation else "photo_model_preflight_v1") or report.get("budgetFitsRegionalReservation") is not True
+                    or report.get("evidenceStatus") != ("provisional_development_cases" if sol_primary else "provisional_reused_development_cases" if sol_rank else "provisional_reference_pilot")
                     or not isinstance(report.get("source"), dict) or report["source"].get("dirty") is not False):
+                raise ValueError("preflight")
+            if sol_primary and (report.get("screeningPolicy") != "primary_reference_limits_v1"
+                    or report.get("recordVersion") != "sol_primary_photo_attempt_v1"):
                 raise ValueError("preflight")
             if sol_rank and (report.get("screeningPolicy") != "sol_rank_mapping_and_reference_gaps_v1"
                     or report.get("recordVersion") != "photo_model_attempt_v2"):
@@ -141,7 +150,7 @@ def main():
             os.close(descriptor)
         print("Credential fingerprint saved privately; no API request was made.")
     else:
-        reviewed = sol_rank or photo_models or experiment and spec.get("version") in ("identification_experiment_plan_v2", "identification_experiment_plan_v3", "identification_experiment_plan_v4")
+        reviewed = sol_primary or sol_rank or photo_models or experiment and spec.get("version") in ("identification_experiment_plan_v2", "identification_experiment_plan_v3", "identification_experiment_plan_v4")
         if reviewed:
             # Only the private local view needs a loopback listener and fixed browser opener.
             common = [arg if arg != "--allow-run=git" else "--allow-run=git,/usr/bin/open" for arg in common]
@@ -157,20 +166,23 @@ def main():
                 result = subprocess.run(common + ["--allow-net=api.openai.com:443,127.0.0.1" if reviewed else "--allow-net=api.openai.com:443",
                                         "--allow-env=OPENAI_EVALUATION_API_KEY",
                                         "--deny-env=SUPABASE_*,R2_*,GOOGLE_*,GEMINI_*,WS_*,OPENAI_API_KEY",
-                                        entry, "--experiment-live" if experiment else mode, str(packet)] + ([selected_id] if experiment else []),
+                                        entry, "--live" if sol_primary else "--experiment-live" if experiment else mode, str(packet)] + ([selected_id] if experiment else []),
                                         cwd=repository, env=environment, stdin=subprocess.DEVNULL,
                                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 if result.returncode != 0:
                     raise ValueError("evaluation")
-                if sol_rank or photo_models:
-                    state_path = packet / ("sol-photo-rank-run" if sol_rank else "photo-model-continuation" if continuation else "photo-model-run") / "state.json"
+                if sol_primary or sol_rank or photo_models:
+                    state_path = packet / ("sol-photo-primary-run" if sol_primary else "sol-photo-rank-run" if sol_rank else "photo-model-continuation" if continuation else "photo-model-run") / "state.json"
                     info = state_path.lstat()
                     if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or not 0 < info.st_size <= 65536:
                         raise ValueError("photo_model_stopped")
                     state = json.loads(state_path.read_text())
-                    if (not isinstance(state, dict) or state.get("version") != ("sol_photo_rank_state_v1" if sol_rank else "photo_model_state_v2" if continuation else "photo_model_state_v1")
+                    if (not isinstance(state, dict) or state.get("version") != ("sol_photo_primary_state_v1" if sol_primary else "sol_photo_rank_state_v1" if sol_rank else "photo_model_state_v2" if continuation else "photo_model_state_v1")
                             or state.get("complete") is not True or state.get("stop") is not None
                             or state.get("claimedCalls") != 18 or state.get("completedCalls") != 18):
+                        raise ValueError("photo_model_stopped")
+                    if sol_primary and (state.get("screeningPolicy") != "primary_reference_limits_v1"
+                            or state.get("productionActivationAuthorized") is not False):
                         raise ValueError("photo_model_stopped")
                     if sol_rank and (state.get("screeningPolicy") != "sol_rank_mapping_and_reference_gaps_v1"
                             or state.get("productionActivationAuthorized") is not False):

@@ -205,7 +205,7 @@ catalog and production result policy reject it. See the
 [rank-consistency plan](../../../../../docs/rfcs/identification-photo-rank-consistency-2026-09-28.md)
 for assistant review, v2 mapping records, spending and interruption controls.
 
-## Offline explicit-primary Sol candidate
+## Isolated explicit-primary Sol candidate
 
 `openaiSolPrimary.ts`, `openaiSolPrimaryInstructions.ts` and
 `openaiSolPrimaryContract.ts` prepare the separate
@@ -214,9 +214,13 @@ species/genus/family/unresolved/non-biological resolution and explicit species
 rank on up to two alternatives. `openaiSolPrimaryNormalization.ts` builds an
 in-memory primary snapshot after existing normalization and deterministic
 subject demotion. It does not emit durable provenance or select a species row.
-Both new suites run in the candidate workflow with network and environment
-access denied. Historical schemas, prompt definitions and production admission
-remain unchanged. There is no live adapter or runner for this new profile. The
+Its contract, normalization and transport suites run in the candidate workflow
+with network and environment access denied. The separate
+`createOpenAISolPrimaryEvaluationAdapter` reuses the bounded transport while
+selecting the explicit-primary decoder; legacy adapters keep their existing
+decoder. Exact Sol identity, native moderation, deadline, response ceiling and
+single invocation remain required. Historical schemas, prompts and production
+admission remain unchanged. The
 [candidate checkpoint](../../../../../docs/rfcs/identification-primary-resolution-contract-2026-09-29.md#isolated-explicit-primary-candidate--2026-09-29)
 owns its exact identities, tests and remaining qualification work.
 
@@ -227,7 +231,14 @@ invoking either provider. Its
 [packet checkpoint](../../../../../docs/rfcs/identification-sol-primary-comparison-preparation-2026-09-29.md)
 records five resolution states, pet/lookalike controls and limited references.
 Source review, candidate/control request hashes and proposed scheduling do not
-qualify a runtime binding or confidence policy.
+qualify a runtime binding or confidence policy. The separate
+[`evaluate_sol_primary.ts`](../../../scripts/evaluate_sol_primary.ts) controller
+now binds a fresh eighteen-call plan, private packet, exact clean source,
+credential fingerprint and bounded approval. Its new records preserve primary
+resolution and finite-catalog mapping without storing names or explanations.
+Limited references can permit screen continuation but earn no quality pass;
+review failures and unmapped/ambiguous identities still stop screening. See the
+[runner checkpoint](../../../../../docs/rfcs/identification-sol-primary-comparison-preparation-2026-09-29.md#bounded-runner-implementation--2026-09-29).
 
 ## Scoped audio prompt authority
 

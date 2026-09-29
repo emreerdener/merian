@@ -119,7 +119,18 @@ export function explanationDisplay(
 
 /** Shared transient view; the caller has already normalized under its exact profile. */
 export function normalizedExplanationDisplay(
-  normalized: NormalizedIdentification,
+  normalized: {
+    identification: Pick<
+      NormalizedIdentification["identification"],
+      | "ai_reasoning"
+      | "extracted_visual_traits"
+      | "invasive_rationale"
+      | "is_biological_subject"
+      | "scientific_name"
+      | "common_name"
+    >;
+    clientCandidates: NormalizedIdentification["clientCandidates"];
+  },
   request: MultimodalAIRequest,
   card: FactCard,
 ): ReviewDisplay | null {

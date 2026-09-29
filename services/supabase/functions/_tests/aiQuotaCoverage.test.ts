@@ -660,6 +660,7 @@ Deno.test("OpenAI dispatch stays confined to production composition and its offl
     const name of [
       "openaiSolPrimary_test.ts",
       "openaiSolPrimaryNormalization_test.ts",
+      "openaiSolPrimaryAdapter_test.ts",
     ]
   ) {
     assertStringIncludes(workflow, "supabase/functions/_shared/ai/" + name);

@@ -28,12 +28,13 @@ assert real_deno, "the repository-pinned Deno is required"
 fake = root / "deno"
 fake.write_text(r'''#!/usr/bin/env python3
 import json, os, pathlib, signal, sys
-entry_index = sys.argv.index('services/supabase/scripts/evaluate_identification.ts')
+primary = 'services/supabase/scripts/evaluate_sol_primary.ts' in sys.argv
+entry_index = sys.argv.index('services/supabase/scripts/evaluate_sol_primary.ts' if primary else 'services/supabase/scripts/evaluate_identification.ts')
 mode = sys.argv[entry_index + 1]
 packet = pathlib.Path(sys.argv[entry_index + 2])
 assert mode in ('preflight-sol-rank-photo', 'preflight', '--live', 'experiment-preflight', '--experiment-live', 'preflight-free-pro-photo', '--photo-model-live', 'preflight-free-pro-photo-continuation', '--photo-model-continuation-live', '--sol-rank-photo-live')
 assert '--cached-only' in sys.argv
-reviewed = mode in ('preflight-sol-rank-photo', 'preflight-free-pro-photo', '--photo-model-live', 'preflight-free-pro-photo-continuation', '--photo-model-continuation-live', '--sol-rank-photo-live') or mode in ('experiment-preflight', '--experiment-live') and json.loads((packet / 'experiment.json').read_text()).get('version') in ('identification_experiment_plan_v2', 'identification_experiment_plan_v3', 'identification_experiment_plan_v4')
+reviewed = primary or mode in ('preflight-sol-rank-photo', 'preflight-free-pro-photo', '--photo-model-live', 'preflight-free-pro-photo-continuation', '--photo-model-continuation-live', '--sol-rank-photo-live') or mode in ('experiment-preflight', '--experiment-live') and json.loads((packet / 'experiment.json').read_text()).get('version') in ('identification_experiment_plan_v2', 'identification_experiment_plan_v3', 'identification_experiment_plan_v4')
 assert all(name not in os.environ for name in ('SUPABASE_SERVICE_ROLE_KEY', 'GITHUB_TOKEN', 'OPENAI_API_KEY', 'GIT_CONFIG_COUNT', 'GEMINI_PAID_API_KEY'))
 assert 'synthetic-local-launcher-value' not in ' '.join(sys.argv)
 if mode in ('preflight-sol-rank-photo', 'preflight', 'experiment-preflight', 'preflight-free-pro-photo', 'preflight-free-pro-photo-continuation'):
@@ -102,6 +103,21 @@ if mode == '--sol-rank-photo-live' and not (packet / 'missing-state').exists():
     (directory / 'state.json').write_text(json.dumps({
         'version':'sol_photo_rank_state_v1', 'claimedCalls':18, 'completedCalls':18,
         'screeningPolicy':'sol_rank_mapping_and_reference_gaps_v1',
+        'productionActivationAuthorized': (packet / 'bad-authority').exists(),
+        'complete': not (packet / 'stop-after-run').exists(),
+        'stop': 'screen_unassessable' if (packet / 'stop-after-run').exists() else None}))
+if primary and mode == 'preflight':
+    (packet / 'sol-primary-preflight.json').write_text(json.dumps({
+        'version': 'sol_photo_primary_preflight_v1', 'budgetFitsRegionalReservation': not (packet / 'low-budget').exists(),
+        'evidenceStatus': 'provisional_development_cases', 'source': {'dirty': (packet / 'dirty-source').exists()},
+        'recordVersion': 'photo_model_attempt_v2' if (packet / 'old-records').exists() else 'sol_primary_photo_attempt_v1',
+        'screeningPolicy': 'primary_reference_limits_v1'}))
+if primary and mode == '--live' and not (packet / 'missing-state').exists():
+    directory = packet / 'sol-photo-primary-run'
+    directory.mkdir(exist_ok=True)
+    (directory / 'state.json').write_text(json.dumps({
+        'version': 'sol_photo_primary_state_v1', 'claimedCalls':18, 'completedCalls':18,
+        'screeningPolicy': 'primary_reference_limits_v1',
         'productionActivationAuthorized': (packet / 'bad-authority').exists(),
         'complete': not (packet / 'stop-after-run').exists(),
         'stop': 'screen_unassessable' if (packet / 'stop-after-run').exists() else None}))
@@ -183,6 +199,22 @@ assert json.loads(record.read_text()) == {
 assert key not in record.read_text()
 assert terminal('--credential-fingerprint', p) == (1, False), 'must not overwrite a prior fingerprint'
 assert not (p / 'calls.jsonl').exists(), 'fingerprinting must never dispatch'
+
+for marker in (None, 'low-budget', 'dirty-source', 'old-records', 'missing-state', 'bad-authority', 'stop-after-run'):
+    p = packet('primary-' + (marker or 'success'))
+    (p / 'sol-primary-plan.json').write_text(json.dumps({
+        'version': 'sol_photo_primary_plan_v1', 'maxCalls':18, 'attemptsPerAssignment':1,
+        'screeningPolicy':'primary_reference_limits_v1'}))
+    if marker:
+        (p / marker).touch()
+    expected = (0, True) if marker is None else (1, marker not in ('low-budget', 'dirty-source', 'old-records'))
+    assert terminal('--sol-primary-photo-live', p) == expected, marker
+    calls = [json.loads(line)['mode'] for line in (p / 'calls.jsonl').read_text().splitlines()]
+    assert calls == (['preflight', '--live'] if expected[1] else ['preflight'])
+p = packet('primary-reject-historical-plan')
+(p / 'sol-primary-plan.json').write_text(json.dumps({'version': 'sol_photo_rank_plan_v1',
+    'maxCalls':18, 'attemptsPerAssignment':1, 'screeningPolicy':'sol_rank_mapping_and_reference_gaps_v1'}))
+assert terminal('--sol-primary-photo-live', p) == (1, False)
 
 p = packet('live')
 assert terminal('--live', p) == (0, True)

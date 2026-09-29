@@ -29,6 +29,12 @@ import {
   solPhotoRankSnapshot,
 } from "./openaiSolRank.ts";
 
+import {
+  buildSolPhotoPrimaryRequest,
+  solPhotoPrimarySnapshot,
+} from "./openaiSolPrimary.ts";
+import { decodeSolPhotoPrimaryDraft } from "./openaiSolPrimaryContract.ts";
+
 export const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 export const OPENAI_RESPONSE_LIMIT = 512 * 1024;
 const object = (v: unknown): Record<string, unknown> | null =>
@@ -70,6 +76,7 @@ function decode(
   value: unknown,
   timing: Pick<AIResponseFacts, "providerDurationMs" | "providerCompletedAt">,
   expectedModel: OpenAIPhotoModel = "gpt-6-sol",
+  decodeDraft: (value: unknown) => unknown = decodeOpenAIDraft,
 ): AIProviderOutcome {
   const raw = object(value), status = raw?.status;
   const usage = usageFrom(raw?.usage);
@@ -149,7 +156,7 @@ function decode(
       ...facts,
       responseCharacters: texts[0].length,
       kind: "draft",
-      draft: decodeOpenAIDraft(JSON.parse(texts[0])),
+      draft: decodeDraft(JSON.parse(texts[0])),
     };
   } catch {
     return { ...facts, kind: "invalid_output", reason: "json" };
@@ -222,14 +229,40 @@ export function createOpenAISolRankEvaluationAdapter(
   });
 }
 
+/** Explicit-primary evaluator only; never selected by production composition. */
+export function createOpenAISolPrimaryEvaluationAdapter(
+  credential: string,
+  fetcher: typeof fetch = fetch,
+): AIAdapter<ReturnType<typeof solPhotoPrimarySnapshot>> {
+  return createOpenAIAdapter(credential, fetcher, (request, snapshot) => {
+    const parameters = buildSolPhotoPrimaryRequest(request, snapshot);
+    const hasText = parameters.input[0].content.some((p) =>
+      p.type === "input_text"
+    );
+    return {
+      parameters,
+      decode: (value, timing) =>
+        decodeModeratedPhoto(
+          value,
+          timing,
+          hasText,
+          "gpt-6-sol",
+          true,
+          decodeSolPhotoPrimaryDraft,
+        ),
+    };
+  });
+}
+
 function decodeModeratedPhoto(
   value: unknown,
   timing: Pick<AIResponseFacts, "providerDurationMs" | "providerCompletedAt">,
   hasText: boolean,
   expectedModel: OpenAIPhotoModel = "gpt-6-sol",
   exactModel = false,
+  decodeDraft: (value: unknown) => unknown = decodeOpenAIDraft,
 ): AIProviderOutcome {
-  const outcome = decode(value, timing, expectedModel);
+  const outcome = decode(value, timing, expectedModel, decodeDraft);
   const mediaSafety = openAIPhotoSafety(
     object(value)?.moderation,
     hasText,

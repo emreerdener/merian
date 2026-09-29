@@ -172,21 +172,14 @@ export function parsePhotoModelRecord(
   );
   return structuredClone(v) as unknown as PhotoModelRecord;
 }
-function projectPhotoModelOutcomeWithMapping(
+/** Common bounded transport/accounting facts; does not decode or normalize a draft. */
+export function initializePhotoModelRecord(
   outcome: AIProviderOutcome,
-  input: EvaluationInput,
-  request: MultimodalAIRequest,
-  card: FactCard,
   a: PhotoModelAssignment,
   runDigest: string,
   assignmentDigest: string,
-  taxonomy: Taxonomy,
   pricing: PhotoModelPricing,
-): {
-  record: PhotoModelRecord;
-  display: ReviewDisplay | null;
-  mapping: IdentityMapping;
-} {
+): PhotoModelRecord {
   const record: PhotoModelRecord = {
     version: "photo_model_attempt_v1",
     runDigest,
@@ -212,14 +205,38 @@ function projectPhotoModelOutcomeWithMapping(
       pricing,
     );
   }
-  let display: ReviewDisplay | null = null;
-  let mapping = noIdentityMapping();
   // The production-equivalent decoder has already removed unsafe/mismatched drafts.
   if (outcome.kind === "invalid_output" && outcome.reason === "safety") {
     record.reason = record.returnedModel !== a.model
       ? "model_mismatch"
       : "safety_unavailable";
   }
+  return record;
+}
+function projectPhotoModelOutcomeWithMapping(
+  outcome: AIProviderOutcome,
+  input: EvaluationInput,
+  request: MultimodalAIRequest,
+  card: FactCard,
+  a: PhotoModelAssignment,
+  runDigest: string,
+  assignmentDigest: string,
+  taxonomy: Taxonomy,
+  pricing: PhotoModelPricing,
+): {
+  record: PhotoModelRecord;
+  display: ReviewDisplay | null;
+  mapping: IdentityMapping;
+} {
+  const record = initializePhotoModelRecord(
+    outcome,
+    a,
+    runDigest,
+    assignmentDigest,
+    pricing,
+  );
+  let display: ReviewDisplay | null = null;
+  let mapping = noIdentityMapping();
   if (outcome.kind === "draft") {
     if (record.returnedModel !== a.model) record.reason = "model_mismatch";
     else if (record.safety !== "allowed") record.reason = "safety_unavailable";

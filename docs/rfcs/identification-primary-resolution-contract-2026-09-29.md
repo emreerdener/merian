@@ -1026,3 +1026,19 @@ live readiness or quality qualification. Prior source inputs, paid journals and
 historical profiles remain unchanged. Next is the separate live adapter and
 durable evaluation/scoring path, followed by current pricing and a bounded
 execution authorization. Confidence calibration remains later work.
+
+## Explicit-primary comparison runner — 2026-09-29
+
+The
+[bounded runner checkpoint](identification-sol-primary-comparison-preparation-2026-09-29.md#bounded-runner-implementation--2026-09-29)
+now implements the separate strict decoder transport, explicit-resolution
+records and eighteen-call controller. The candidate records its normalized
+explicit rank; the baseline gets rank only from a finite catalog mapping.
+Cross-rank mappings fail, while unknown names stay unassessable. Predeclared
+limited references may allow screening to continue but receive no quality-pass
+credit. Unsupported visual explanations remain failures.
+
+Current pricing, a new bounded plan and fresh exact-source authorization are
+still required for execution. No new model calls, production assignment changes
+or confidence thresholds are part of this implementation checkpoint. The
+original explanation format and current Sol Free/Pro assignments remain intact.

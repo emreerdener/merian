@@ -1,3 +1,4 @@
+import { registerSolPrimaryLiveTests } from "./identification_evaluation/testing/solPhotoPrimaryLiveTests.ts";
 import { registerSolRankLiveTests } from "./identification_evaluation/testing/solPhotoRankLiveTests.ts";
 import { registerSolPhotoRankPreparationTests } from "./identification_evaluation/testing/solPhotoRankPreparationTests.ts";
 import { registerSolPhotoPrimaryPreparationTests } from "./identification_evaluation/testing/solPhotoPrimaryPreparationTests.ts";
@@ -70,6 +71,7 @@ registerPhotoTaxonomyAuditTests(scratch);
 registerSolPhotoRankPreparationTests(scratch);
 registerSolPhotoPrimaryPreparationTests(scratch);
 registerSolRankLiveTests(scratch);
+registerSolPrimaryLiveTests(scratch);
 registerPhotoModelPreparationTests(scratch);
 registerPhotoModelCandidateTests(scratch);
 registerPhotoModelRunnerTests(scratch);

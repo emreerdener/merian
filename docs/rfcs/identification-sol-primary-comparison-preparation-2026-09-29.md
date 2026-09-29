@@ -2,10 +2,10 @@
 
 Date: 2026-09-29
 
-Status: offline packet prepared and reference coverage reviewed. No model calls
-have run for `openai_photo_sol_primary_low_v1`. Production continues using the
-current Sol photo profile for both Free and Pro; confidence thresholds remain
-unqualified.
+Status: offline packet prepared, reference coverage reviewed, and the separate
+bounded runner implemented. No model calls have run for
+`openai_photo_sol_primary_low_v1`. Production continues using the current Sol
+photo profile for both Free and Pro; confidence thresholds remain unqualified.
 
 This checkpoint follows the
 [explicit-primary implementation](identification-primary-resolution-contract-2026-09-29.md#isolated-explicit-primary-candidate--2026-09-29).
@@ -180,3 +180,82 @@ handling. Then bind a clean source revision, current pricing and fresh bounded
 authorization to this new packet. A successful development screen alone cannot
 establish the unresolved reference questions or confidence thresholds.
 Production admission and deployment remain a separate release step.
+
+## Bounded runner implementation — 2026-09-29
+
+The next slice implements the isolated live transport, durable comparison
+controller and reference-aware scoring. The preparation receipt and historical
+paid runs remain unchanged. Implementation does not qualify model quality or
+activate a production profile.
+
+The new adapter changes only which strict draft decoder the shared OpenAI
+transport invokes. It requires the exact Sol model, native photo moderation and
+the existing ninety-second/512-KiB limits. Prepared evidence is captured before
+invocation; the shared executor permits a single invocation. Legacy adapters
+retain their original decoder and reject the new draft.
+
+`sol_primary_photo_attempt_v1` stores the normalized explicit resolution for the
+candidate. The baseline obtains a named rank only from an unambiguous catalog
+match; unknown names retain an unknown rank. Species, genus and family names may
+map to the finite evaluation catalog, without selecting a production species
+row. A candidate/catalog rank conflict is a normalization failure. Unmapped or
+ambiguous names remain unassessable; alternatives cannot substitute for the
+primary identity. Journal records contain no predicted organism names,
+explanations, media, source URLs or credential values. Catalog identifiers, the
+bounded provider model identifier, and transport, usage and timing fields remain
+available for analysis.
+
+The separate `primary_reference_limits_v1` screen decision permits `pass` or
+`reference_limited`. Limited-reference continuation requires only passing
+ratings or exactly `not_assessable/insufficient_reference`; it contributes zero
+to quality passes and explanation-pass counts even if its raw ratings all pass.
+A limited subject disagreement, including the microbial-mat case, is retained
+but cannot alone establish a model error. Concrete unsupported evidence still
+fails. Missing, unsure or unavailable review and ambiguous/unmapped names stop
+screening. Paired challenges record explanation failures for comparison; they do
+not turn those failures into passing results or erase them.
+
+The new plan, approval, manifest, binding, claim, record, review, state and
+summary versions are separate from historical experiments. Admission binds all
+packet inputs, the unchanged prepared request order, current pricing, exact
+clean source, credential fingerprint, new budget and short-lived owner
+authorization. The schedule remains six candidate screens followed by six
+alternating pairs, eighteen calls maximum with no automatic retry. Claims are
+durable before transport. Missing results/reviews or changed configuration stop
+further calls; claimed reservations remain held. Old journal versions are
+refused before any attempt to update their state.
+
+The
+[operating guide](../development-guides/22-alternative-identification-provider.md#bounded-explicit-primary-execution)
+documents offline preflight and the new `--sol-primary-photo-live` hidden-key
+launcher mode. The owner need not score explanations; assistant review remains
+bound to each result, case facts and rubric. Preparing this controller does not
+create spending authority. Current pricing and a new bounded execution plan and
+approval are still required before a paid comparison.
+
+### Runner verification
+
+The completed implementation passed three new transport tests with network and
+environment access denied, and eight new isolated runner/record/scoring tests.
+Together with the existing preparation tests, thirteen primary evaluator tests
+pass. The synthetic full run completes eighteen assignments, excludes two
+limited screening references from quality counts, and performs no additional
+invocation when resumed. Rank conflicts, ambiguous/unmapped names, unsupported
+explanations, interrupted claims, missing reviews, expired/changed authority and
+configuration changes are covered. The hidden-key launcher's fake-terminal tests
+include the new mode, preflight rejection and truthful stopped-run reporting.
+
+The complete Edge suite passed **2,235 tests and 343 steps**, using the
+dedicated disposable local database after a migration reset. All **103 Edge
+entrypoints** passed recursive type checks; isolated dependency/configuration
+validation passed. Complete Supabase tooling passed **470 standard tests**,
+**116 isolated evaluator tests**, both generated DTO suites (**20 and 21
+tests**) and all **twelve shell suites**. Recursive backend formatting/lint,
+changed Markdown formatting, local documentation links and diff whitespace
+checks passed.
+
+Independent read-only reviews found no remaining blocker in the adapter,
+admission, durable journal, rank/reference interpretation, hidden-key launcher
+or CLI boundary. The checked-in generator refreshed the identification runtime
+bundle digest. No SQL, native-client or public API contract changed; no native
+build was required. No paid model request, hosted mutation or deployment ran.

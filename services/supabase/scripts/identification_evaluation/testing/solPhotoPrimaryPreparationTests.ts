@@ -14,7 +14,7 @@ import {
 } from "../solPhotoPrimaryPreparationContracts.ts";
 import { photoModelFixture } from "./photoModelPreparationTests.ts";
 
-async function fixture(parent: string) {
+export async function solPrimaryPreparationFixture(parent: string) {
   const source = join(parent, "source"), target = join(parent, "prepared");
   await Deno.mkdir(source, { mode: 0o700 });
   const { corpus, facts } = await photoModelFixture(source, Date.now());
@@ -144,7 +144,8 @@ export function registerSolPhotoPrimaryPreparationTests(scratch: string) {
   Deno.test("primary preparation preserves source, binds both requests and reports all five states without claiming quality or authority", async () => {
     const parent = await Deno.makeTempDir({ dir: scratch, prefix: "primary-" });
     try {
-      const f = await fixture(parent), before = await treeDigests(f.source);
+      const f = await solPrimaryPreparationFixture(parent),
+        before = await treeDigests(f.source);
       const report = await prepareSolPhotoPrimaryPacket(f.source, f.target);
       assertEquals(await treeDigests(f.source), before);
       assertEquals(report.coverage.missing, []);
@@ -250,7 +251,7 @@ export function registerSolPhotoPrimaryPreparationTests(scratch: string) {
         prefix: "primary-bad-",
       });
       try {
-        const f = await fixture(parent);
+        const f = await solPrimaryPreparationFixture(parent);
         let { source, target } = f;
         if (kind === "review") f.review.cases[0].inputDigest = "0".repeat(64);
         if (kind === "role") f.review.cases[0].roles = ["domestic_cat"];
@@ -304,7 +305,7 @@ export function registerSolPhotoPrimaryPreparationTests(scratch: string) {
       prefix: "primary-gaps-",
     });
     try {
-      const f = await fixture(parent);
+      const f = await solPrimaryPreparationFixture(parent);
       f.review.cases[0].roles = [];
       f.plan.referenceReviewDigest = await fingerprintJson(f.review);
       await f.save();
@@ -360,7 +361,7 @@ export function registerSolPhotoPrimaryPreparationTests(scratch: string) {
         prefix: "primary-comparator-",
       });
       try {
-        const f = await fixture(parent);
+        const f = await solPrimaryPreparationFixture(parent);
         const c = f.review.cases[6];
         if (kind === "missing") c.confusableTaxa = [];
         if (kind === "accepted") {
@@ -392,7 +393,7 @@ export function registerSolPhotoPrimaryPreparationTests(scratch: string) {
       prefix: "primary-cli-",
     });
     try {
-      const { source, target } = await fixture(parent);
+      const { source, target } = await solPrimaryPreparationFixture(parent);
       const run = (args: string[], net = "--deny-net") =>
         new Deno.Command("deno", {
           args: [

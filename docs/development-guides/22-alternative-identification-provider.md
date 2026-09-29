@@ -417,9 +417,9 @@ completed packet. Production rank/enrichment design and confidence calibration
 remain later steps in the linked plan. Future live comparisons still require
 their own clean-source preflight and execution approval.
 
-## Explicit-primary Sol preparation
+## Explicit-primary Sol comparison
 
-The completed Sol rank experiment remains frozen. The separate offline profile
+The completed Sol rank experiment remains frozen. The separate evaluator profile
 `openai_photo_sol_primary_low_v1` now prepares a required resolution, names and
 species-ranked alternatives under a new private schema. Its pure decoder and
 normalizer check the explicit-primary contract using synthetic fixtures while
@@ -427,7 +427,7 @@ preserving the current photo model, generation, explanation format and
 moderation request. No existing paid-plan parser or production binding selects
 it. See the
 [implementation checkpoint](../rfcs/identification-primary-resolution-contract-2026-09-29.md#isolated-explicit-primary-candidate--2026-09-29)
-for frozen configuration hashes and remaining reference/runner work.
+for frozen configuration hashes and remaining qualification work.
 
 Run its local contract checks without network or credentials:
 
@@ -435,7 +435,8 @@ Run its local contract checks without network or credentials:
 deno test --frozen --no-prompt --deny-net --deny-env \
   --config services/supabase/functions/deno.json \
   services/supabase/functions/_shared/ai/openaiSolPrimary_test.ts \
-  services/supabase/functions/_shared/ai/openaiSolPrimaryNormalization_test.ts
+  services/supabase/functions/_shared/ai/openaiSolPrimaryNormalization_test.ts \
+  services/supabase/functions/_shared/ai/openaiSolPrimaryAdapter_test.ts
 ```
 
 A new live comparison requires its own reviewed packet, bounded plan and
@@ -474,6 +475,65 @@ reviewed species outside the accepted identities. The builder writes
 copies no historical authorization or results and accepts no key or live flag.
 The existing corpus curation permission token does not authorize disclosure to a
 new provider.
+
+### Bounded explicit-primary execution
+
+The separately versioned controller is now implemented. It does not extend the
+historical Sol-rank or photo-model plan parsers. The frozen preparation receipt
+continues to describe the state when it was created; its
+`liveControllerAvailable: false` is historical, not a mutable switch. A new
+`sol-primary-preflight.json` describes current runner readiness.
+
+Before dispatch, the private prepared directory must additionally contain:
+
+- `sol-primary-plan.json`: `sol_photo_primary_plan_v1`, binding the existing
+  packet, preparation receipt, review, current pricing, the exact six screens
+  and six challenges, one attempt each, eighteen calls maximum and a new budget.
+- `sol-primary-pricing.json`: reviewed standard synchronous pricing no older
+  than seven days. Reservation uses the existing full-context Sol ceiling plus
+  the regional multiplier; this is a spending bound, not expected cost.
+- `sol-primary-approval.json`: `sol_photo_primary_approval_v1`, explicitly
+  authorizing `18_call_sol_primary_photo_comparison` for Naturebook, the exact
+  clean source, plan, credential fingerprint and budget. It expires within
+  twenty-four hours and binds assistant review. Historical approvals cannot be
+  relabeled or reused. Real-input disclosure permission belongs to the new plan.
+
+Preflight performs no model request and needs no credential:
+
+```bash
+evaluation_packet="$HOME/Developer/merian-evaluation/2026-09-29-sol-primary-photo-preparation-v2"
+deno run --frozen --no-prompt --deny-net --deny-env \
+  --config services/supabase/functions/deno.json \
+  --allow-read="$PWD,$evaluation_packet" --allow-write="$evaluation_packet" \
+  --allow-run=git services/supabase/scripts/evaluate_sol_primary.ts \
+  preflight "$evaluation_packet"
+```
+
+After the new bounded execution is authorized, the existing hidden-key launcher
+accepts this separate mode:
+
+```bash
+bash services/supabase/scripts/run_openai_evaluation.sh \
+  --sol-primary-photo-live "$evaluation_packet"
+```
+
+It rejects stale or dirty preflight before prompting, holds the key only in the
+child process environment and grants network access only to the provider and
+private loopback review. The controller revalidates before every durable claim.
+An interrupted claim or missing review stops permanently without replay; the
+reservation remains held. New journals live under `sol-photo-primary-run` and
+use separate record, manifest, binding, review, stop and summary versions.
+
+`primary_reference_limits_v1` admits screens only as `pass` or
+`reference_limited`. The latter requires a predeclared limited reference and
+ratings that are all pass or exactly not-assessable/insufficient-reference. It
+never contributes a quality pass or an explanation-pass count. An unsupported
+visual claim, rank conflict, provider error or unusable review still stops;
+unmapped and ambiguous names are unassessable and stop screening. Challenge
+failures remain visible comparison outcomes; provider or missing-review failure
+stops further calls. Subject and identity disagreements remain in raw comparison
+counts alongside their limited-reference interpretation. No score from this
+pilot qualifies confidence badges or a Free/Pro split.
 
 ## Fixed initial assignment
 
