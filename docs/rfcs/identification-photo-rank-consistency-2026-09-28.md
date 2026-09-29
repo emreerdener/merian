@@ -2,10 +2,12 @@
 
 Date: 2026-09-28
 
-Status: Offline measurement foundation implemented. Prompt candidates, versioned
-live admission and production rank handling remain planned. Retain Sol for both
-Free and Pro. This work makes no model calls and does not change production
-instructions, explanation format or confidence badges.
+Status: Offline measurement, an isolated Sol candidate and a corrected
+development packet are implemented. Reference coverage review, versioned live
+admission and production rank handling remain unfinished. Retain Sol for both
+Free and Pro. No new model calls or production changes have occurred. Complete
+this identification-quality work before returning to confidence thresholds;
+preserve the explanation format and Strong / Possible / Weak labels.
 
 ## Problem and intended behavior
 
@@ -96,39 +98,84 @@ upgrade or a live mode. Do not reconstruct a missing mapping from an old null
 taxon, modify old artifacts or rerun an old plan. The new controller must bind
 v2 explicitly to a new manifest/approval before using it.
 
-## Slice 2: prepare a corrected packet and isolated prompts
+## Slice 2: corrected packet and isolated Sol candidate — prepared offline
 
-1. Copy the existing no-description photo evidence into a fresh development
-   packet. Preserve the original packet and all journals. Optional description
-   text does not justify redoing the completed benchmark.
-2. Make an explicit reviewed old-ID → canonical-ID remapping for each duplicate.
-   Check names and ranks before merging; homonyms and cross-rank collisions must
-   not be merged automatically. Apply the same mapping to every reference,
-   remove duplicate acceptable IDs, and preserve each reference's supported
-   rank. Freeze new corpus/catalog versions and digests and retain the mapping
-   as preparation evidence. Add reviewed plausible alternatives and broader
-   ranks before freezing, rather than adding predicted names after scoring.
-3. Resolve relevant fact-card gaps from available source evidence where
-   possible. Record any remaining gap honestly; catalog consistency does not
-   establish biological truth or turn provisional labels into independent
-   references.
-4. Prepare distinct, evaluation-only Luna and Sol candidate profile versions.
-   Both use the same evidence-limits objective, but each gets its own request
-   identity and comparison to its own unchanged baseline. Preserve the current
-   mineral improvement in the Luna baseline. Sol's biological candidate changes
-   biological rules only; keep its known mineral limitation visible for a
-   separately attributed change.
-5. Replace the conflicting biological clauses coherently and fail if the
-   expected baseline anchors drift. Select the most specific supported rank; use
-   a binomial only when visible evidence supports species-level discrimination.
-   Align the common name and alternatives with that limit; allow fewer
-   alternatives when two cannot be supported. Explain missing distinguishing
-   evidence without inventing observations or using location, popularity, model
-   size or a high score as a substitute. Keep all other instructions and current
-   explanation structure.
-6. Verify deterministic request parity, production-profile isolation and
-   synthetic species/genus/family/unresolved normalization. These tests prove
-   configuration and transport behavior, not better identification quality.
+The offline candidate is `openai_photo_sol_rank_limits_low_v1`, bound to
+`openai_sol_rank_evaluation_v1`, prompt `openai_identify_vision_rank_limits_v1`
+and schema identity `merian_openai_identify_rank_v1`. Its implementation lives
+entirely under the evaluation scripts. Production and historical live profile
+constructors reject it; no existing runner accepts this candidate.
+
+The candidate replaces conflicting biological instructions and four schema field
+descriptions: scientific name, common name, candidates and distinguishing
+feature. Schema descriptions previously required a binomial and exactly two
+alternative species even if a prompt allowed broader ranks. The candidate now
+keeps these sources of guidance consistent:
+
+- Keep a species name when diagnostic evidence distinguishes that species.
+- Use the supported genus or family and matching group name when that is the
+  limit; use null when none of those ranks is supportable.
+- Allow zero to two supported alternatives at the supported rank. Do not invent
+  names to fill the array.
+- Treat unseen features as unknown, not absent. A disclaimer, lower confidence
+  score, seasonal expectation or regional popularity cannot justify a finer
+  primary name.
+
+Only instructions, descriptive schema guidance and the schema identity change.
+JSON keys, types, bounds, required fields and strict decoding remain identical.
+The existing 1–3 sentence explanation definition, confidence guidance, mineral
+rules, moderation identity, Sol model, low reasoning effort, high image detail,
+8,192-token output ceiling and request controls remain fixed. Each expected
+instruction/description anchor must match; drift fails preparation.
+
+The candidate instruction SHA-256 is
+`2ce09781a640db6909494740e7a25cbdf8d53f8f944f9b524c3459dd69472f77`. The complete
+output-format descriptor digest is
+`630cc0447b70d10a9d6de25105a35c9d3ded73a124649a0d177cb348a69364a4`. Both are
+pinned in deterministic tests. These identities describe an experiment, not
+measured quality or a production promotion.
+
+`prepare_sol_rank_candidate.ts` creates a new private directory from whitelisted
+source corpus, taxonomy, fact cards and media. It validates the old plan's input
+digests without copying its plan, pricing, approval, key material or journals.
+It rejects existing destinations, nested source/destination paths, symlinks,
+stale facts and changed media. The completion receipt is written last and
+contains only bounded identities, digests and preparation status. It never
+stores request bodies or grants live authority. See the
+[operator procedure](../development-guides/22-alternative-identification-provider.md#offline-photo-catalog-audit-and-rank-consistency).
+
+The prepared twelve-case packet retains every no-description photo and fact card
+from the completed comparison. The explicit `photo_taxonomy_remap_v1` merges
+`col-6qb84` into `species-limenitis-archippus` and `col-92dbx` into
+`genus-limenitis`. Both pairs have identical normalized canonical names and
+ranks. Synonyms are retained. The helper rewrites and deduplicates references
+where needed while preserving their supported rank; this packet already used the
+retained IDs, so no reference ID changed.
+
+The resulting catalog has **94 taxa, zero name collisions, zero broken
+references and zero cases missing provisional references**. The four source JSON
+files and all twelve media files were checked unchanged after preparation. No
+old score, journal or prediction was rewritten.
+
+| Artifact       | New digest                                                         |
+| -------------- | ------------------------------------------------------------------ |
+| Corpus         | `fd5d0106756e32214bd57d2956cb1d66db7da3f2a3412589e6e1e5b88c85dc58` |
+| Taxonomy       | `bb24ba63b0ec77c4faa29b22f33ba566d9683d33eaf438ecc9c115dd90e6b6a6` |
+| Explicit remap | `ad1d690d707a23a4f264fdb1143d76705c90acb306d674f67d4b3d22c05ec430` |
+
+This repairs duplicate identity bookkeeping only. Source labels and fact cards
+remain provisional, the finite catalog can still miss valid alternatives, and
+some biological distinctions remain unassessable. Resolve relevant gaps from
+reviewed source evidence before live admission; record unresolved gaps rather
+than inventing certainty. Do not add names from predictions after scoring.
+
+The receipt binds twelve prepared cases and a proposed schedule of six candidate
+screens plus six alternating Sol/candidate challenge pairs. It explicitly states
+`dispatchAuthorized=false`, `liveControllerAvailable=false`,
+`readyForLive=false` and `referenceReviewComplete=false`. A failed or incomplete
+directory must not be reused as a completed packet. Luna's existing mineral
+candidate remains unchanged; any subsequent Luna rank experiment needs its own
+comparison.
 
 OpenAI recommends representative evaluations around focused prompt changes;
 family-level prompting guidance still requires validation on the chosen model
@@ -201,3 +248,17 @@ formatting and lint, changed Markdown formatting, all 102 Function config and
 dependency graphs, local documentation links and diff whitespace also passed. No
 live benchmark, iOS build, disposable-database run, migration or deployment is
 part of this slice.
+
+The subsequent Sol preparation slice adds six deterministic contract tests and
+three isolated filesystem/CLI tests. These verify request parity and pinned
+guidance, production binding rejection, synthetic
+species/genus/family/unresolved normalization, exact remapping, source
+preservation, private output permissions, no authority copying and rejected
+drift/symlinks. An independent read-only review found no actionable issue. These
+are software checks; they do not demonstrate better identification. The complete
+tooling gate passed again: **469 standard tests, 94 isolated evaluator tests, 20
+and 21 DTO tests**, recursive checks for 115 standard TypeScript sources,
+generated-contract validation and all 12 shell suites. No Function runtime or
+public DTO implementation changed in this slice; the earlier Edge-suite result
+above belongs to Slice 1. No new live benchmark, database run, iOS build or
+deployment was performed.

@@ -317,8 +317,43 @@ reference-ID remapping. Completed packet records remain immutable.
 
 The new `photo_model_attempt_v2` parser/projection is offline infrastructure.
 Existing photo runners accept only v1; do not insert v2 into an existing run or
-reuse its approval. Prompt candidates and production rank/enrichment handling
-remain separate slices in the linked plan.
+reuse its approval. The next offline preparation is available:
+
+```bash
+deno run --frozen --no-prompt --deny-net --deny-env \
+  --allow-read=PRIVATE_ROOT --allow-write=PRIVATE_ROOT/new-sol-packet \
+  --config services/supabase/functions/deno.json \
+  services/supabase/scripts/prepare_sol_rank_candidate.ts \
+  PRIVATE_ROOT/completed-packet PRIVATE_ROOT/new-sol-packet \
+  PRIVATE_ROOT/taxonomy-remap.json
+```
+
+Use a private parent outside every repository, canonical paths without symlinks,
+and a destination that does not exist. The helper rejects the current checkout
+and directly marked repository roots. The remap must use
+`photo_taxonomy_remap_v1`, bind `sourceCorpusDigest` and `sourceTaxonomyDigest`,
+set new `corpusId`, `taxonomyVersion`, `catalogRef`, `reviewRef`, and list
+explicit `merges` of `{from,to}` IDs. Merges require identical normalized
+canonical names and ranks; chains, cycles, missing IDs and residual collisions
+fail. References are remapped consistently without changing supported ranks.
+
+The command copies only validated photos, corpus, taxonomy and existing fact
+cards; it writes an explicit repair report and `sol-rank-preparation.json`
+receipt last. Files are private and exclusively created. Historical plans,
+approvals, credentials, pricing and journals are never copied. Incomplete
+destinations cannot be overwritten or resumed; inspect them and use a new
+destination after addressing the failure.
+
+The candidate `openai_photo_sol_rank_limits_low_v1` changes biological
+instructions and descriptive schema guidance, preserving JSON structure, Sol
+settings, mineral rules and the current explanation definition. It is
+evaluation-only and rejected by production and historical live bindings. The
+receipt binds proposed request identities for six screens and six paired
+challenges, but marks live admission, reference review and dispatch unavailable.
+It is not a runnable live plan or a pricing/spending approval. Reference/catalog
+coverage review and a new controller using mapping-aware v2 records come next;
+production rank/enrichment handling and confidence calibration remain later
+steps in the linked plan.
 
 ## Fixed initial assignment
 

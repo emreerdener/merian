@@ -288,9 +288,9 @@ production submission or public release.
   biological quality failures. Retain Sol for both tiers; production is
   unchanged.
 - **[Photo evidence and rank consistency](./rfcs/identification-photo-rank-consistency-2026-09-28.md):**
-  Offline catalog audit and versioned photo mapping records, followed by
-  separate Luna/Sol prompt candidates. Plans explicit rank handling before
-  production enrichment; preserves current explanations and Sol assignments.
+  Offline catalog audit, mapping records, an isolated Sol prompt candidate and a
+  corrected twelve-case packet. Live comparison and explicit production rank
+  handling remain pending; preserves explanations and current Sol assignments.
 - **[Identification optimization while preserving current results](./rfcs/identification-optimization-preserving-results-2026-09-27.md):**
   Current plan following verified completion of the provider infrastructure
   milestone. Preserve explanation format and detail while investigating

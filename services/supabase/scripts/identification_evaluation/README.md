@@ -184,12 +184,13 @@ versioned future packet/result contract. No additional calls are authorized.
 
 The
 [rank-consistency plan](../../../../docs/rfcs/identification-photo-rank-consistency-2026-09-28.md)
-owns the next offline milestone. `photoTaxonomyAudit.ts` checks duplicate names
-and reference IDs/ranks without rewriting a frozen catalog. The separate
-`audit_photo_taxonomy.ts` command reads only corpus/catalog inputs; a clear
-audit does not establish reference quality or authorize dispatch. The actual
-packet has two canonical collisions, including both species and genus
-identities.
+owns the quality work before confidence calibration. `photoTaxonomyAudit.ts`
+checks duplicate names and reference IDs/ranks without rewriting a frozen
+catalog. The separate `audit_photo_taxonomy.ts` command reads only
+corpus/catalog inputs; a clear audit does not establish reference quality or
+authorize dispatch. The actual completed packet has two canonical collisions,
+including both species and genus identities. A new offline Sol packet merges
+only these reviewed duplicate IDs; the original packet remains unchanged.
 
 `projectMeasuredPhotoModelOutcome` and `parsePhotoModelMeasurementRecord` add
 the isolated `photo_model_attempt_v2` primary mapping field. They retain enum
@@ -199,6 +200,23 @@ future controller must explicitly bind a new plan/manifest/approval before
 selecting this projection; old null taxon records cannot be repaired
 retrospectively. Use `assessMeasuredReference` to keep mapping gaps separate
 from identity errors. There is no live v2 photo mode in this slice.
+
+`solPhotoRankCandidate.ts` projects an isolated Sol prompt and four descriptive
+schema fields. It preserves strict JSON structure, generation settings,
+explanation format and mineral rules. Production and old live evaluation
+constructors reject the new profile. `photoTaxonomyRepair.ts` requires a
+digest-bound explicit remap with equal canonical names and ranks; it preserves
+input evidence, synonyms and supported reference ranks.
+
+`prepare_sol_rank_candidate.ts` validates and copies the twelve existing photos
+into a new private packet, preserving completed artifacts and excluding plans,
+approvals, credentials, prices and journals. Its receipt binds
+baseline/candidate request digests and a proposed 18-call schedule, with live
+readiness and dispatch explicitly false. Existing fact cards remain provisional.
+The
+[operator instructions](../../../../docs/development-guides/22-alternative-identification-provider.md#offline-photo-catalog-audit-and-rank-consistency)
+cover the remap fields, scoped offline command and incomplete-directory
+handling. No paid run or confidence calibration occurs in this preparation.
 
 ## Shared measurement repair (optimization Slice 1)
 
