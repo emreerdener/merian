@@ -510,13 +510,15 @@ activation. No paid model requests or production mutations were performed.
 
 ### Remaining consumer checkpoints
 
-1. **Validated review authority.** Use a service-owned confirmation mutation
-   that obtains accepted SPECIES proof through the existing verified taxon
-   resolver; a client-provided UUID, name, GBIF key or review flag is input,
-   never proof. Preserve legacy review fields. Persist a bounded canonical
-   identity plus a monotonic revision on the scan and its owner-bound job
-   backup. Omission means an older projection; an explicit clear must carry a
-   newer revision. Never accept this authority in client `recovery_scan` JSON.
+1. **Validated review authority — implemented locally.** The backend checkpoint
+   below prepares this authority; deployment and native consumption remain
+   separate. Use a service-owned confirmation mutation that obtains accepted
+   SPECIES proof through the existing verified taxon resolver; a client-provided
+   UUID, name, GBIF key or review flag is input, never proof. Preserve legacy
+   review fields. Persist a bounded canonical identity plus a monotonic revision
+   on the scan and its owner-bound job backup. Omission means an older
+   projection; an explicit clear must carry a newer revision. Never accept this
+   authority in client `recovery_scan` JSON.
 2. **Native confirmation acknowledgements.** Return a typed server response from
    review synchronization and merge only authoritative non-stale revisions into
    history and the reserved V53 bytes. Encode revision and nullable identity
@@ -534,3 +536,84 @@ activation. No paid model requests or production mutations were performed.
 These checkpoints require ordinary implementation and contract review, not a new
 model experiment. Only after all Slice 2 acceptance gates pass may native
 capability 5 and the separate Slice 3 producer qualification advance.
+
+## Slice 2 backend review checkpoint — 2026-09-29
+
+The prepared `confirm-scan-species` endpoint and
+`20260929170458_prepare_verified_scan_species_review.sql` provide independent
+species confirmation for the reserved explicit-primary contract. The owner is
+derived from authentication. A client supplies an action, scan, expected
+revision and optional selected name; IDs, taxonomy and review flags are not
+proof. Fresh bounded GBIF verification and the existing non-AI request counters
+precede every confirmation, including dictionary hits. Clear needs no external
+service. The service-only transaction materializes/reuses an accepted species
+and takes its saved canonical name from the dictionary row.
+
+Original AI rank, names, confidence, explanation and provenance remain
+unchanged. A verified selected taxon is not evidence that the observation
+depicts it and does not calibrate an AI score. Current Sol/Gemini assignments,
+prompt profiles, explanation format and confidence labels are unchanged.
+
+The scan stores nullable `confirmed_species_identity` and a monotonic revision;
+the ingestion job stores `confirmed_species_review`, a bounded version-1
+envelope including the four legacy review fields. This additional backup detail
+preserves pending review intent and ensures a server clear wins over stale
+client recovery JSON. Existing boolean semantics are retained: `ai_confirmed`
+true, `user_overridden`/`unreviewed` false. Confirmation, replacement, clear and
+legacy invalidation are ordered independently of immutable AI completion. An
+exact one-revision retry returns the saved receipt; other stale or conflicting
+writes return 409 and require reconciliation.
+
+Legacy/client/community edits on explicit-primary rows clear both stale identity
+and confirmed FK while preserving review intent. Broader primaries have no
+original species FK, so legacy booleans cannot satisfy the existing Field Trip
+effective-species lookup. Missing-row recovery restores only the exact owner
+backup, including authoritative clear. Original completion remains first-write
+wins. Account merge carries the backup into a compatible target job and rejects
+conflicting generation metadata; deletion and owner removal clear it. This does
+not promote community taxonomy into this new authority.
+
+This is still a checkpoint within Slice 2. The native app has no new endpoint
+caller or confirmation acknowledgement/history merge yet. Its V53 reserved bytes
+remain unused and protocol stays 4. The versioned review envelope will supply
+both revision and nullable identity to that next checkpoint. Public/share/export
+and other species consumers remain to be completed before capability 5 or a new
+producer is enabled. Current legacy observations continue through the old review
+RPC; there is no historical backfill.
+
+The canonical
+[API](../backend-and-data/05-api-contracts.md#prepared-species-confirmation-endpoint),
+[database](../backend-and-data/04-database-schema.md), and
+[endpoint](../../services/supabase/functions/confirm-scan-species/README.md)
+documents define this prepared contract. Source deployment coverage includes the
+new route in dependency planning, the fleet inventory and the critical
+unauthenticated POST/401 handler smoke. This work introduces no production
+mutation, provider request or model benchmark.
+
+Local verification for this backend checkpoint:
+
+- Clean sorted replay with pinned Supabase CLI 2.109.1 and all 69 discovered
+  database fixtures passed (454 assertions). This includes the original primary
+  contract, actual-role denials, review/clear recovery, duplicate completion,
+  conflicting and compatible account-merge backups, and deletion cleanup.
+- The complete Edge suite passed 2,201 tests and 343 nested steps with zero
+  failures and no ignored tests, using the disposable loopback database. Both
+  new two-connection review races ran: identical retries collapse; different
+  selections at the same revision conflict and roll back materialization.
+- Recursive checks passed for all 103 deployed entrypoints using their generated
+  function configs. Dependency/config isolation, complete Supabase tooling,
+  executable DTO validation and migration-contract gates passed. Final updated
+  deployment/documentation contracts also passed their 58-test run. No Swift
+  generated block or native source changed in this checkpoint.
+- The reviewed out-of-order migration recovery gate passed all three required
+  fixtures (21 assertions). Database lint passed with no findings. Security and
+  performance advisors passed the repository's error gate; they still report
+  warnings, so this is not a claim of a warning-free database.
+- Independent read-only review found no remaining blocker after review-flag,
+  canonical-name, duplicate-completion, account-merge and release-smoke
+  corrections. Changed Markdown was formatted, its local links checked, and diff
+  whitespace verified.
+
+These are local checks. Hosted exact-SHA CI, deployment and native/installed-app
+verification of the future confirmation consumer have not run for this
+checkpoint. No new paid model benchmark was needed or performed.

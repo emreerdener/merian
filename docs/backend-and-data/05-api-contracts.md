@@ -10097,6 +10097,51 @@ temporary column-level UPDATE grant preserves already-installed app versions; it
 covers only these five metadata columns and must be retired after the minimum
 supported iOS version uses the RPCs.
 
+### Prepared species-confirmation endpoint
+
+`POST /confirm-scan-species` applies only to the reserved explicit-primary
+contract. Current iOS review calls and legacy observations remain on the
+existing RPC. No current model profile produces the new contract.
+
+The authenticated request contains exactly lowercase UUID `scan_id`, integer
+`expected_revision` (0–2,147,483,646), and `action` (`confirm_primary`,
+`confirm_name`, `clear`). Only `confirm_name` includes `scientific_name`,
+bounded to 160 UTF-16 units. Owner, species IDs, proof and arbitrary fields
+cannot be supplied. Primary confirmation takes the saved species-level name;
+broader answers cannot use that action. Clear requires no name or external
+verification.
+
+Confirmation admits through the existing bounded non-AI dictionary counters,
+then obtains fresh accepted SPECIES proof even on a dictionary hit. The
+service-only atomic apply RPC rechecks ownership, tombstones, revision and the
+exact owner-job backup under the scan-generation lock. It does not invoke an AI
+provider. Response `schema_version: 1` contains exact `scan_id` and `review`:
+version 1, revision, nullable identity, `user_identification_override`,
+`user_confirmed_identification`, `confirmed_species_id`, `user_review_state`.
+Identity includes version 1, verified dictionary UUID/scientific name, null
+common name and GBIF key. Original AI output/provenance remain immutable.
+Verification of the selected taxon is independent of model confidence and
+observation truth.
+
+The 8 KiB review envelope preserves existing boolean semantics (`ai_confirmed`
+true; `user_overridden`/`unreviewed` false). Initial revision is zero.
+Replacement and clear advance it; an exact retry from one revision earlier
+returns the same saved state. Other stale/different mutations return
+`409 species_review_revision_conflict`; clients must refresh and reconcile,
+never silently resubmit with a newer revision. Missing/foreign scans share 404;
+unsupported legacy rows return 409; invalid input 400, unverified species 422,
+request budget exhaustion 429, and external verification failure 503. Responses
+are private/no-store; no provider body or observation text appears in errors.
+
+The scan's identity/revision and job's complete review envelope are
+server-owned. Recovery ignores client review authority and restores the exact
+backup (including clear); legacy/community edits invalidate stale identity and
+FK while retaining review intent. Native acknowledgement/history/revision
+merging and shared consumers are still pending; protocol stays 4. See the
+[endpoint contract](../../services/supabase/functions/confirm-scan-species/README.md)
+and
+[remaining checkpoints](../rfcs/identification-primary-resolution-contract-2026-09-29.md#remaining-consumer-checkpoints).
+
 ---
 
 ## Deno `/delete-scan` Edge Node

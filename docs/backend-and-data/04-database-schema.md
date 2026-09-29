@@ -1326,9 +1326,22 @@ The transaction log for every successful identification.
   reject replacement, and client column INSERT/UPDATE remain revoked. A
   non-species snapshot cannot carry `species_id`, candidates or pet
   identification; the biological flag must agree. Species alternatives require
-  their own species rank and at most two entries. Independently authorized
-  `confirmed_species_id` is a separate identity, whose new-result consumer
-  policy remains pending.
+  their own species rank and at most two entries. Independently verified
+  `confirmed_species_id` is a separate identity; native and shared consumer
+  integration remains pending.
+- `confirmed_species_identity` (JSONB, nullable) and
+  `confirmed_species_identity_revision` (INTEGER, initially 0): Migration
+  `20260929170458_prepare_verified_scan_species_review.sql` prepares
+  service-owned review authority only for explicit-primary scans. The bounded
+  identity stores version 1, verified dictionary UUID/canonical name, null
+  common name and GBIF key. A service mutation advances revision for
+  confirmation, replacement or clear; an exact preceding-revision retry may
+  return the same receipt. Original AI metadata never changes. Legacy edits
+  invalidate both identity and confirmed FK, preserving review intent and
+  advancing revision. Current legacy scans keep null identity/revision zero.
+  There is no historical confirmation backfill or client write grant. Names
+  follow existing scan visibility and retention; verification establishes
+  taxonomy, not photographic correctness or calibrated model confidence.
 - Result-reader compatibility: migration
   `20260927185833_require_identification_result_reader.sql` adds an invoker
   capability check inside the original owner/public SELECT policy predicates.
@@ -2355,6 +2368,16 @@ recovered biological flag and species association, and ignores client-supplied
 primary JSON. A mismatch or missing required snapshot fails atomically. Existing
 job retention, deletion and owner rules remain in effect. No current producer
 writes this reserved contract.
+
+`confirmed_species_review` is a nullable 8 KiB version-1 envelope containing the
+revision, independent nullable identity and all four legacy review fields. Scan
+creation and review mutations copy it atomically to the exact owner/job with
+matching primary and provenance. Recovery restores that envelope in a BEFORE
+INSERT trigger; absent backup clears client-supplied review fields. This
+includes an explicit clear, so a stale device cannot resurrect confirmation. Job
+writes must match the owned scan; account merge rebinds the backup, and deletion
+requests, row deletion and owner removal clear its observation content. No new
+index or retention job is introduced.
 
 Durable server-side lifecycle ledger for accepted scan ingestion requests. Added
 in migration `20260705120000_add_scan_ingestion_jobs.sql`.
@@ -5572,7 +5595,8 @@ The current active schema is `MerianSchemaV53`. Recent milestones:
   present unknown or malformed metadata cannot use Gemini confidence bands. All
   plans retain this stage. At its introduction, the V51 plan validated only V51
   and V52; it now appends the V53 stage. No other stored property changed in
-  V52; outgoing V51 was frozen and compiled before active edits.
+  V52; outgoing V51 was frozen and compiled before active edits. The frozen
+  `MerianSchemaV52` preserves that graph for upgrades to V53.
 
 - V53 adds optional `LocalScanRecord.primaryIdentificationData` and reserved
   `confirmedSpeciesIdentityData` through lightweight V52→V53. Both remain nil

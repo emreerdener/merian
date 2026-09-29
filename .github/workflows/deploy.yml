@@ -1169,6 +1169,7 @@ jobs:
             species-dictionary-for-viewer
             species-discovery-search
             resolve-species-dictionary
+            confirm-scan-species
             request-community-identification
             transfer-signout-purchases
             resolve-purchase-principal

@@ -50,6 +50,7 @@ Deno.test("Identify contract changes deploy every direct and shared-adapter cons
     ], graphs),
     [
       "audio-spec",
+      "confirm-scan-species",
       "enrich-scan",
       "identify",
       "identify-describe",

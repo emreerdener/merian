@@ -200,6 +200,7 @@ block-user
 check-public-username
 check-scan-status
 community-taxonomy-status
+confirm-scan-species
 create-explore-comment
 delete-explore-comment
 delete-scan
@@ -347,3 +348,14 @@ authenticated, private/no-store projection sharing the anonymous dictionary
 schemas. This is a subsequent implementation addition; it does not extend the
 original review or constitute deployment evidence. See the
 [visibility contract](../features-and-hardware/30-reported-content-visibility.md).
+
+## Source inventory update — 2026-09-29
+
+`confirm-scan-species` prepares owner-authenticated, server-verified species
+confirmation for the reserved explicit-primary contract. Its service-only apply
+transaction preserves the original AI result and copies revisioned review state
+to the owner ingestion job. Fresh bounded taxon verification, stale-write
+rejection and recovery/clear behavior are covered by local tests. This inventory
+addition is source scope; current model profiles and native callers remain
+unchanged, and it is not hosted deployment or release evidence. See the
+[endpoint contract](../../services/supabase/functions/confirm-scan-species/README.md).

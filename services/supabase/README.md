@@ -23,6 +23,14 @@ request budgets do not consume AI or scan allowances. Apply the service-only
 admission/materialization migration before deploying the endpoint and shipping
 its iOS caller. The public dictionary read stays read-only.
 
+The separate prepared
+[`confirm-scan-species`](functions/confirm-scan-species/README.md) endpoint
+obtains fresh proof before attaching an independent, revisioned species
+selection to a reserved explicit-primary observation. It keeps original AI
+metadata immutable and backs replacement/clear with the owner ingestion job.
+Current legacy results and provider assignments remain unchanged; native
+integration is still pending.
+
 ## Structure
 
 The [Function directory guide](functions/README.md) groups endpoint entrypoints

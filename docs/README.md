@@ -300,9 +300,10 @@ production submission or public release.
   Slice 1 adds a dormant versioned answer contract, immutable server storage and
   recovery, generated Swift wire support and exact protocol-5 reader protection.
   The native checkpoint adds V53 save/restore and rank-aware presentation. The
-  app remains on protocol 4 while validated confirmation and public/export
-  consumers are completed. No new model profile, assignment or confidence policy
-  is activated.
+  backend review checkpoint prepares fresh species verification, revisioned
+  confirmation/clear and owner-bound recovery. The app remains on protocol 4
+  while native confirmation acknowledgements and public/export consumers are
+  completed. No new model profile, assignment or confidence policy is activated.
 - **[Identification optimization while preserving current results](./rfcs/identification-optimization-preserving-results-2026-09-27.md):**
   Current plan following verified completion of the provider infrastructure
   milestone. Preserve explanation format and detail while investigating
