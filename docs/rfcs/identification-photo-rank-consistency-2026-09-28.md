@@ -2,14 +2,14 @@
 
 Date: 2026-09-28
 
-Status: The first live Sol candidate screen completed, then stopped. A
-subsequent source audit found incomplete frozen reference notes, so the
-[result is inconclusive for candidate quality](identification-sol-rank-screen-results-2026-09-29.md).
-The original journal is retained; corrected facts, reference review and a new
-comparison proposal are prepared separately. The reporting fix preserves old
-journals and separates reference gaps from model failures. Retain Sol for both
-Free and Pro. Production rank handling remains unfinished. Complete this
-identification-quality work before returning to confidence thresholds; preserve
+Status: The separately approved
+[corrected comparison](identification-sol-rank-comparison-results-2026-09-29.md)
+completed all eighteen calls and six challenge pairs. The candidate improved
+broader-rank behavior but made two concrete visual-evidence errors, so it is not
+qualified for promotion. Retain the unchanged Sol profile for Free and Pro. The
+[first stopped run and reference adjudication](identification-sol-rank-screen-results-2026-09-29.md)
+remain intact. Production rank handling and confidence calibration are
+unfinished. The next slice is offline rank/resolution contract design; preserve
 the explanation format and Strong / Possible / Weak labels.
 
 ## Problem and intended behavior
@@ -280,15 +280,38 @@ confidence qualification follows from this result. Prospective
 identity interpretations separately, preserving explanation failures and the
 original v1 journal.
 
+### Corrected comparison completed — 29 September
+
+The fresh approval bound source `56f33e6b57bdbefad734fc04276c3a190e1b06d7`, the
+corrected facts and the unchanged candidate requests. All eighteen calls and
+reviews completed, with all six candidate screens clearing the existing screen
+policy and all six challenge pairs retained. Four screens passed every
+explanation criterion; two retained reference gaps.
+
+The
+[completed results](identification-sol-rank-comparison-results-2026-09-29.md)
+record two candidate grounding/certainty failures, one control specificity
+failure, and the separate mapping/reference gaps. The candidate's supported
+genus behavior on three challenges does not outweigh those visual failures for
+promotion. Keep the current Sol assignment and close this paid experiment. Total
+usage-based conservative cost was $0.597531010; this is an upper estimate, not
+an invoice or the $110 spending ceiling. The journal and summary were verified
+offline without additional provider calls.
+
 ## Slice 4: production contract and model selection
 
-If the prompt result warrants promotion, implement and verify the explicit rank
-contract described above, including saved observations, retries, older-client
-behavior and enrichment. Keep rollout and rollback tied to the exact reviewed
-provider/model/prompt/schema/confidence profile. Production activation is a
-separate operation; no future plan or successful offline test changes today's
-Sol assignments. OpenAI audio evaluation follows the photo decision as its own
-input and model comparison.
+The evaluated candidate is not eligible for production. Begin with an offline
+design of rank/resolution semantics and compatibility; a new paid comparison
+requires a separately scoped candidate and approval. Do not expand or repeat the
+completed packet.
+
+If a future prompt result warrants promotion, implement and verify the explicit
+rank contract described above, including saved observations, retries,
+older-client behavior and enrichment. Keep rollout and rollback tied to the
+exact reviewed provider/model/prompt/schema/confidence profile. Production
+activation is a separate operation; no future plan or successful offline test
+changes today's Sol assignments. OpenAI audio evaluation follows the photo
+decision as its own input and model comparison.
 
 ## Verification
 

@@ -9,6 +9,12 @@ publisher metadata. The recorded stop is preserved, but this run is
 qualify a prompt change. Sol continues to serve both Free and Pro; confidence
 thresholds remain later work.
 
+Follow-up, 29 September: the separately approved
+[corrected comparison](identification-sol-rank-comparison-results-2026-09-29.md)
+completed all eighteen calls and six pairs. Its two concrete candidate visual
+failures block promotion. That new outcome does not rewrite this first run, its
+ratings or the source adjudication below.
+
 ## What ran
 
 The [rank-consistency plan](identification-photo-rank-consistency-2026-09-28.md)
@@ -151,12 +157,14 @@ created no credential or execution journal.
 | Reference review | `b59c34eff059501e03eec7c31738424f7a4c2d7e781db4e03d34d40000f6d544` |
 | Plan proposal    | `f194a755a4ca52a415b5b78baf65c17dbfa6e92e7ca52fd19f190d61bb5324a5` |
 
-## Next bounded work
+## Follow-up planned at close of the first run
 
-Run the corrected proposal against its committed source and new execution
-approval, retaining the unchanged prompt candidate. Never edit or resume the
-stopped packet. The source audit itself contains no dispatch authority, and no
-additional provider call occurred during preparation.
+The recorded next step was to run the corrected proposal against its committed
+source and new execution approval, retaining the unchanged prompt candidate.
+That separate run is now
+[complete](identification-sol-rank-comparison-results-2026-09-29.md). Never edit
+or resume the stopped packet. The source audit itself contained no dispatch
+authority, and no additional provider call occurred during preparation.
 
 A coverage gap should be `not_assessable / insufficient_reference`. Record an
 explanation failure only when a resolved observation or a reviewed diagnostic

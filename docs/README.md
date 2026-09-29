@@ -291,9 +291,11 @@ production submission or public release.
   Catalog audit, mapping records, an isolated Sol prompt candidate, a corrected
   twelve-case packet and a versioned live comparison controller. The
   [first screen and source adjudication](./rfcs/identification-sol-rank-screen-results-2026-09-29.md)
-  are inconclusive because frozen reference notes were incomplete. A corrected
-  comparison packet is prepared; paired results and production rank handling
-  remain pending. Explanations and current Sol assignments are preserved.
+  are inconclusive because frozen reference notes were incomplete. The
+  [corrected eighteen-call comparison](./rfcs/identification-sol-rank-comparison-results-2026-09-29.md)
+  is complete: broader-rank behavior improved, but two candidate visual failures
+  block promotion. Retain the current Sol assignment; production rank handling
+  and confidence calibration remain pending.
 - **[Identification optimization while preserving current results](./rfcs/identification-optimization-preserving-results-2026-09-27.md):**
   Current plan following verified completion of the provider infrastructure
   milestone. Preserve explanation format and detail while investigating

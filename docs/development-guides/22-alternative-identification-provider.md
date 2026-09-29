@@ -407,11 +407,15 @@ consult both alongside explanation ratings. Limited-reference mismatches are
 unassessable, while actual explanation failures remain visible. Keep historical
 v1 summaries unchanged. New run bindings freeze v2 reporting; an existing v1
 binding is refused before admission without changing any journal file or
-dispatching another call. The separately prepared corrected comparison rebuilds
-its receipt and reference review, preserves every model-request digest, and
-requires its own clean-source preflight and execution approval. Production
-rank/enrichment handling and confidence calibration remain later steps in the
-linked plan.
+dispatching another call. The separately approved corrected comparison rebuilt
+its receipt and reference review, preserved every model-request digest, and
+completed all eighteen calls under a fresh clean-source approval. Its
+[results](../rfcs/identification-sol-rank-comparison-results-2026-09-29.md)
+record broader-rank improvements and two concrete candidate visual failures.
+Retain the current Sol profile; do not promote this candidate or rerun the
+completed packet. Production rank/enrichment design and confidence calibration
+remain later steps in the linked plan. Future live comparisons still require
+their own clean-source preflight and execution approval.
 
 ## Fixed initial assignment
 

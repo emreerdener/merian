@@ -249,6 +249,13 @@ bindings freeze this summary version. Legacy v1 bindings are rejected before
 admission or summary generation; their complete journal, including state, stop
 and summary, remains unchanged even after source or approval inputs change.
 
+The separately approved
+[corrected comparison](../../../../docs/rfcs/identification-sol-rank-comparison-results-2026-09-29.md)
+completed all eighteen calls and reviews. Two candidate visual-evidence failures
+block promotion despite improved broader-rank behavior. Its final v2 summary and
+all 57 JSON journal artifacts were verified offline. Keep this completed packet
+immutable and retain the unchanged Sol production assignment.
+
 ## Shared measurement repair (optimization Slice 1)
 
 New exploratory packets may opt into `evaluation_taxonomy_v2`. Standalone live

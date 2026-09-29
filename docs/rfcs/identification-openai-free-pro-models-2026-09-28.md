@@ -30,10 +30,14 @@ separately versioned live controller. Its
 [first live screen and source
 adjudication](identification-sol-rank-screen-results-2026-09-29.md) are
 inconclusive: one request matched the provisional identity, but incomplete
-reference notes undermine the explanation failure. A corrected reference packet
-and comparison proposal are prepared; no paired Sol comparison completed. The
+reference notes undermine the explanation failure. A separately approved
+[corrected comparison](identification-sol-rank-comparison-results-2026-09-29.md)
+then completed all eighteen calls and six pairs. The candidate respected broader
+ranks on three cases but had two concrete visual-evidence failures; retain the
+unchanged Sol profile and close that experiment without promotion. The
 production rank contract required before broader-rank results reach species
-enrichment remains pending.
+enrichment remains pending, followed by confidence calibration for the selected
+profile.
 
 Introduce separate, versioned OpenAI photo profiles selected by the backend's
 existing Free/Pro admission decision. Evaluate Luna for Free and retain the
