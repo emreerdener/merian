@@ -420,3 +420,18 @@ extension MerianNetworkClient {
         return audioBase64s
     }
 }
+
+
+extension MerianNetworkClient {
+    /// Review writes already hold an account-work lease drained by Auth. Leave
+    /// unauthorized-session recovery to their caller to avoid a recursive drain.
+    func confirmScanSpecies(_ request: VerifiedSpeciesReviewRequest) async throws -> VerifiedSpeciesReviewReceipt {
+        let data = try await performAuthenticatedEncodedJSONPost(
+            function: "confirm-scan-species", body: request, timeoutInterval: 30,
+            allowsUnauthorizedSessionRecovery: false)
+        guard data.count <= 16_384 else { throw ConfirmedSpeciesReview.IntegrityError.invalidEnvelope }
+        let receipt = try JSONDecoder().decode(VerifiedSpeciesReviewReceipt.self, from: data)
+        try request.validate(receipt)
+        return receipt
+    }
+}

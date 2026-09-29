@@ -4276,9 +4276,12 @@ struct CoreNetworkIntegrationArchitectureTests {
                     : nil
             }
         )
+        // Verified review writes are drained by Auth's existing write tail;
+        // refreshing the session from that route could wait on its own work.
         #expect(unauthorizedRecoveryOptOutOwners == [
             "MerianNetworkClient.swift",
             "Endpoints/MerianNetworkClient+Collections.swift",
+            "Endpoints/MerianNetworkClient+Inference.swift",
             "Endpoints/MerianNetworkClient+ScanLifecycle.swift"
         ])
         #expect(dispatcher.contains("final class AuthenticatedTransportDispatcher"))

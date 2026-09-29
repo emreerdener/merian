@@ -31,6 +31,7 @@ enum HistoricalPrimaryIdentification {
 
     static func validateMerge(_ response: HistoricalScanResponse, into record: LocalScanRecord) throws {
         let incoming = try validate(response)
+        try ConfirmedSpeciesReviewPersistence.validateMerge(response.confirmedSpeciesReview, into: record)
         try PrimaryIdentificationPersistence.validateMerge(
             storedPrimary: record.primaryIdentificationData,
             storedProvenance: record.identificationProvenanceData,

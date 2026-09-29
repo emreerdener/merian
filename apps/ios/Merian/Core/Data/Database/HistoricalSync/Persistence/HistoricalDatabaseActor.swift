@@ -8,6 +8,8 @@ import SwiftData
 /// without giving the main actor persistence ownership.
 @ModelActor
 actor HistoricalDatabaseActor {
+    private var scanTransactionContext: ModelContext?
+    private var activeContext: ModelContext { scanTransactionContext ?? modelContext }
 
     // MARK: - Paged API (primary entry points from syncHistoricalScansDown)
 
@@ -22,6 +24,14 @@ actor HistoricalDatabaseActor {
     func reconcileScanPage(
         responses: [HistoricalScanResponse]
     ) throws -> Int {
+        try ConfirmedSpeciesReviewPersistence.transaction {
+            scanTransactionContext = ModelContext(modelContainer)
+            defer { scanTransactionContext = nil }
+            return try reconcileOwnedScanPage(responses: responses)
+        }
+    }
+
+    private func reconcileOwnedScanPage(responses: [HistoricalScanResponse]) throws -> Int {
         do {
             try Task.checkCancellation()
             for response in responses { _ = try HistoricalPrimaryIdentification.validate(response) }
@@ -57,7 +67,7 @@ actor HistoricalDatabaseActor {
                     predicate: #Predicate { chunk.contains($0.id) }
                 )
                 descriptor.propertiesToFetch = [\.id]
-                for record in try modelContext.fetch(descriptor) {
+                for record in try activeContext.fetch(descriptor) {
                     existingIds.insert(record.id)
                 }
             }
@@ -74,10 +84,10 @@ actor HistoricalDatabaseActor {
 
             return try ingestScans(missingScans: missingScans)
         } catch is CancellationError {
-            modelContext.rollback()
+            activeContext.rollback()
             throw CancellationError()
         } catch {
-            modelContext.rollback()
+            activeContext.rollback()
             MerianLog.data.error(
                 "reconcileScanPage: local reconciliation failed: \(error, privacy: .private)"
             )
@@ -92,10 +102,10 @@ actor HistoricalDatabaseActor {
         do {
             try syncCollections(remoteCollections: remoteCollections)
         } catch is CancellationError {
-            modelContext.rollback()
+            activeContext.rollback()
             throw CancellationError()
         } catch {
-            modelContext.rollback()
+            activeContext.rollback()
             MerianLog.data.error(
                 "syncCollectionsDown: local reconciliation failed: \(error, privacy: .private)"
             )
@@ -119,23 +129,17 @@ actor HistoricalDatabaseActor {
             uniqueKeysWithValues: responses.compactMap { existingIds.contains($0.id) ? ($0.id, $0) : nil }
         )
 
-        // Hoist encoder above both the chunk loop and the per-record loop.
-        // JSONEncoder carries Obj-C init overhead and key-strategy setup; allocating one
-        // per record across an entire sync page adds measurable GC pressure on the actor thread.
+        // Reuse one encoder across bounded chunks.
         let encoder = JSONEncoder()
 
-        // Process, modify, save, and release each chunk of 500 in strict isolation.
-        // Accumulating all faulted LocalScanRecord objects before starting mutations
-        // (the previous pattern) held the entire page worth of heavy ORM objects in RAM
-        // simultaneously. Scoping per-chunk keeps peak heap flat at ≤500 objects regardless
-        // of page size, page count, or user library depth.
+        // Fetch, merge, save and release at most 500 records per chunk.
         let chunkSize = 500
         for chunkStart in stride(from: 0, to: responseIds.count, by: chunkSize) {
             try Task.checkCancellation()
             let chunkIds = Array(responseIds[chunkStart..<min(chunkStart + chunkSize, responseIds.count)])
 
             let descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { chunkIds.contains($0.id) })
-            let chunkRecords = try modelContext.fetch(descriptor)
+            let chunkRecords = try activeContext.fetch(descriptor)
             let chunkLookup = Dictionary(uniqueKeysWithValues: chunkRecords.map { ($0.id, $0) })
 
             var chunkDidUpdate = false
@@ -267,15 +271,15 @@ actor HistoricalDatabaseActor {
                     existing.semanticTags.append(petLabel)
                     chunkDidUpdate = true
                 }
-                if let cloudOverride = res.user_identification_override,
-                   existing.userIdentificationOverride != cloudOverride {
-                    existing.userIdentificationOverride = cloudOverride
-                    chunkDidUpdate = true
+                if existing.primaryIdentification == nil && res.primary_identification == nil {
+                    if let override = res.user_identification_override, existing.userIdentificationOverride != override {
+                        existing.userIdentificationOverride = override; chunkDidUpdate = true
+                    }
+                    if res.user_confirmed_identification == true && !existing.userConfirmedIdentification {
+                        existing.userConfirmedIdentification = true; chunkDidUpdate = true
+                    }
                 }
-                if res.user_confirmed_identification == true, !existing.userConfirmedIdentification {
-                    existing.userConfirmedIdentification = true
-                    chunkDidUpdate = true
-                }
+                if try ConfirmedSpeciesReviewPersistence.merge(res.confirmedSpeciesReview, into: existing) { chunkDidUpdate = true }
                 if try HistoricalPrimaryIdentification.merge(res, into: existing) { chunkDidUpdate = true }
                 if let provenance = res.identification_provenance {
                     let data = IdentificationResultProvenance(dto: provenance).data
@@ -392,12 +396,15 @@ actor HistoricalDatabaseActor {
                     IdentificationResultProvenance(dto: $0).data
                 },
                 primaryIdentificationData: primary?.data,
+                confirmedSpeciesIdentityData: try scan.confirmedSpeciesReview?.storedData(),
                 customTags: scan.custom_tags ?? [],
                 hasBeenViewed: true,
                 userIdentificationOverride: scan.user_identification_override,
                 userConfirmedIdentification: scan.user_confirmed_identification ?? false,
                 imageQualityScore: scan.image_quality_score,
-                petIdentificationData: petIdentificationData
+                petIdentificationData: petIdentificationData,
+                confirmedSpeciesId: scan.confirmedSpeciesReview?.confirmedSpeciesID,
+                userReviewStateRaw: scan.confirmedSpeciesReview?.userReviewState.rawValue
             )
             
             let newItems = CapturedMediaSnapshot.cloudHydratedItems(
@@ -410,7 +417,7 @@ actor HistoricalDatabaseActor {
             )
             record.replaceCapturedMedia(with: newItems)
 
-            modelContext.insert(record)
+            activeContext.insert(record)
             insertedCount += 1
 
             if (index + 1).isMultiple(of: checkpointInterval) {
@@ -434,7 +441,7 @@ actor HistoricalDatabaseActor {
         // or schema-migrated collection records into memory before sync begins.
         var collectionsDescriptor = FetchDescriptor<ScanCollection>()
         collectionsDescriptor.fetchLimit = 500
-        let existingCollections = try modelContext.fetch(
+        let existingCollections = try activeContext.fetch(
             collectionsDescriptor
         )
         var existingLookup = Dictionary(existingCollections.map { ($0.id.lowercased(), $0) }, uniquingKeysWith: { first, _ in first })
@@ -444,7 +451,7 @@ actor HistoricalDatabaseActor {
         let allScansDescriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { referencedScanIds.contains($0.id) })
         let localScans: [LocalScanRecord] = referencedScanIds.isEmpty
             ? []
-            : try modelContext.fetch(allScansDescriptor)
+            : try activeContext.fetch(allScansDescriptor)
         let localScansLookup = Dictionary(localScans.map { ($0.id.lowercased(), $0) }, uniquingKeysWith: { first, _ in first })
 
         // Read membership from the `LocalScanRecord.collections` side in bounded batches to
@@ -452,7 +459,7 @@ actor HistoricalDatabaseActor {
         let relevantCollectionIDs = Set(remoteCollections.map { $0.id.lowercased() })
         var collectionMembersByID = try fetchCollectionMembersByID(
             relevantCollectionIDs: relevantCollectionIDs,
-            modelContext: modelContext
+            activeContext: activeContext
         )
 
         for remote in remoteCollections {
@@ -476,7 +483,7 @@ actor HistoricalDatabaseActor {
                 if let parsedDate = DateUtilities.iso8601FractionalFormatter.date(from: remote.created_at) ?? DateUtilities.iso8601Formatter.date(from: remote.created_at) {
                     col.createdAt = parsedDate
                 }
-                modelContext.insert(col)
+                activeContext.insert(col)
             }
 
             col.name = remote.name
@@ -522,7 +529,7 @@ actor HistoricalDatabaseActor {
         try Task.checkCancellation()
         for (_, obsolete) in existingLookup where obsolete.name != "Favorites" {
             try Task.checkCancellation()
-            modelContext.delete(obsolete)
+            activeContext.delete(obsolete)
         }
 
         try Task.checkCancellation()
@@ -531,9 +538,9 @@ actor HistoricalDatabaseActor {
 
     private func saveHistoricalContext(_ logContext: String) throws {
         do {
-            try modelContext.save()
+            try activeContext.save()
         } catch {
-            modelContext.rollback()
+            activeContext.rollback()
             MerianLog.data.error("\(logContext, privacy: .public): save failed; rolled back context: \(error, privacy: .private)")
             throw error
         }
@@ -551,7 +558,7 @@ actor HistoricalDatabaseActor {
 
     private func fetchCollectionMembersByID(
         relevantCollectionIDs: Set<String>,
-        modelContext: ModelContext
+        activeContext: ModelContext
     ) throws -> [String: [LocalScanRecord]] {
         guard !relevantCollectionIDs.isEmpty else { return [:] }
 
@@ -568,7 +575,7 @@ actor HistoricalDatabaseActor {
             descriptor.fetchOffset = offset
             descriptor.relationshipKeyPathsForPrefetching = [\.collections]
 
-            let batch = try modelContext.fetch(descriptor)
+            let batch = try activeContext.fetch(descriptor)
             guard !batch.isEmpty else { break }
 
             for scan in batch {

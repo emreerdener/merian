@@ -2,10 +2,12 @@
 
 Date: 2026-09-29
 
-Status: Slice 1 implemented and locally validated. No deployment, producer
-activation, model assignment or confidence policy change is included. The design
-baseline below used `ca35e74bb` on `codex/openai-free-pro-evaluation`; the slice
-record distinguishes implemented foundation from pending consumers and model
+Status: Slice 1 and the native persistence, backend review authority and native
+review acknowledgement checkpoints of Slice 2 are implemented locally. Shared
+consumers remain pending. No deployment, producer activation, model assignment
+or confidence policy change is included. The design baseline below used
+`ca35e74bb` on `codex/openai-free-pro-evaluation`; the dated checkpoint records
+distinguish implemented foundation from pending consumers and model
 qualification.
 
 The
@@ -519,14 +521,15 @@ activation. No paid model requests or production mutations were performed.
    on the scan and its owner-bound job backup. Omission means an older
    projection; an explicit clear must carry a newer revision. Never accept this
    authority in client `recovery_scan` JSON.
-2. **Native confirmation acknowledgements.** Return a typed server response from
-   review synchronization and merge only authoritative non-stale revisions into
-   history and the reserved V53 bytes. Encode revision and nullable identity
-   together inside that envelope so a clear survives reopening without another
-   persisted field. Keep pending local review separate from effective species
-   identity. Test stale responses, same-revision conflicts, replacement, clear,
-   second-device history and missing-row recovery while preserving the AI answer
-   and its confidence metadata.
+2. **Native confirmation acknowledgements — implemented locally.** Return a
+   typed server response from review synchronization and merge only
+   authoritative non-stale revisions into history and the reserved V53 bytes.
+   Encode revision and nullable identity together inside that envelope so a
+   clear survives reopening without another persisted field. Keep pending local
+   review separate from effective species identity. Test stale responses,
+   same-revision conflicts, replacement, clear, second-device history and
+   missing-row recovery while preserving the AI answer and its confidence
+   metadata.
 3. **Shared consumers.** Complete rank-aware Share/Explore and public web
    projections, Field Chat context, immutable DwC-A exports, FieldTrip credit
    and reference-image promotion. A broader observation remains representable
@@ -617,3 +620,113 @@ Local verification for this backend checkpoint:
 These are local checks. Hosted exact-SHA CI, deployment and native/installed-app
 verification of the future confirmation consumer have not run for this
 checkpoint. No new paid model benchmark was needed or performed.
+
+## Slice 2 native review checkpoint — 2026-09-29
+
+Native explicit-primary reviews now use the prepared `confirm-scan-species`
+endpoint. Legacy observations keep the existing review RPC. The request conveys
+selection and expected revision only; it carries no client taxon proof. Local
+intent is saved before sending and remains separate from verified authority.
+Only a validated acknowledgement or owned history projection can write the V53
+confirmation envelope. Replacement and clear retain their monotonic revision
+across reopening. Original AI rank, names, explanation, confidence and
+provenance remain unchanged.
+
+History distinguishes omission from explicit null, rejects malformed partial
+projections, ignores older revisions and fails same-revision conflicts. A 409
+refreshes current owned authority once; it does not retry the action at a newer
+revision. Missing local rows restore the same envelope from owner history. The
+review write tail fences displaced UI actions and is drained by Auth before
+account replacement. History and native review writes share a synchronous gate
+and fresh ModelContexts around fetch/merge/save, preventing cross-context stale
+writes. Failed preparation cannot call the server or publish pending state;
+failed verification cannot manufacture a confirmation.
+
+This checkpoint consumes the previously reserved V53 field and adds no persisted
+field or schema migration. It leaves shared species-only eligibility unchanged.
+Protocol remains 4 until Share/Explore, public web, Field Chat, exports,
+FieldTrip credit and reference promotion complete their remaining Slice 2 work.
+No new provider/model assignment, confidence threshold, paid benchmark or
+production operation is part of this checkpoint.
+
+Local verification for this native review checkpoint:
+
+- The focused app build and eight native suites passed all 86 tests. Coverage
+  includes strict request/receipt decoding, 401/409/503 no-replay behavior,
+  revision conflicts, pending-intent separation, history and acknowledgement
+  races, disk reopening after replacement and clear, failed local preparation,
+  superseded actions and Auth draining a suspended local apply.
+- The complete native unit target and four exact critical scan UI smokes ran
+  through `make ios-local-build` on the existing iPhone 18 Pro simulator.
+  XCResult reports 4,572 passed, two failed and zero skipped. Both failures were
+  stale architecture inventories: the species-model file list and network
+  session-recovery opt-out owners. Both now explicitly include the reviewed new
+  owner, preserving their exact-inventory checks. No behavioral test or UI smoke
+  failed. Xcode then timed out while collecting simulator diagnostics after all
+  tests had finished; the completed result bundle remains readable.
+- After those test-only corrections, both complete architecture suites were
+  recompiled and passed all 17 tests with zero failures. The full-run evidence
+  is `.artifacts/local-ios/ce74ff47dd0b41989b76fde398a4b6cb.xcresult`; the
+  corrected suites' evidence is
+  `.artifacts/local-ios/4bb29ca542c54bd9a2397c8565b43a30.xcresult`. The full
+  suite was not repeated after these two inventory-only corrections; production
+  source did not change between these runs.
+- Executable Edge DTO validation and complete Supabase tooling passed; the
+  tooling uses local fixtures and made no paid model requests. iOS project,
+  event-routing, privacy, transport, versioning and migration guardrails passed,
+  as did the complete portable iOS tooling suite.
+- Independent read-only review found no remaining blocker after the shared
+  fresh-context transaction gate was added. Pinned XcodeGen regenerated the
+  seven new Swift files' project membership without changing project settings.
+  Changed Markdown formatting, the exact Edge/scripts formatting gate, local
+  documentation links and diff whitespace checks passed.
+
+Hosted exact-SHA CI, a Release archive and installed-app deployment/upgrade
+verification remain release gates. The native protocol stays 4 while shared
+consumers are completed.
+
+### Next shared-consumer checkpoint
+
+The read-only consumer audit found that the remaining service projections still
+use the legacy `COALESCE(confirmed_species_id, species_id)` convention. Keep
+protocol 4 and current producers until the following coordinated work is
+implemented and validated:
+
+1. Define one server-owned effective-identity policy for explicit results. Reuse
+   the stored primary/provenance validators and full verified-review validator.
+   Preserve original AI rank and labels separately from a current verified
+   species selection. A bare ID, optimistic flag, typed name or community genus
+   outcome cannot supply verified species authority. Legacy observations retain
+   their existing behavior.
+2. Apply that policy to Share admission, Explore cards/detail and public web
+   projections. Valid broader observations must remain shareable and retain
+   their group labels without acquiring a species association or species
+   reference gallery. Update the corresponding native/web DTO and presentation
+   contracts together; expose only the public labels and rank needed by those
+   readers.
+3. Apply the same distinction to Field Chat context and new DwC-A snapshots.
+   Chat must distinguish the original AI answer, a verified selection and
+   pending or community review. Exports must retain the supported primary rank
+   without inventing a species ID. Previously materialized export rows remain
+   immutable.
+4. Update Field Trip evidence and reference-image promotion with the same
+   eligibility policy. Field Trip receipt revision inputs and update-trigger
+   columns must include the new authority and revision so replacement and clear
+   withdraw or recompute cached credit. Complete native confirmed-identity
+   presentation and enrichment without relabeling the original AI score or
+   alternative candidates.
+
+The current owners are `share-scan-to-explore/db.ts`,
+`explore_projected_post_cards`, `get_explore_post_detail`, the
+`get_public_web_explore_*` RPCs, `insight-chat` selection/eligibility/prompt,
+`internal.dwca_export_snapshot_source`, `field_trip_scan_evidence_is_eligible`
+and its progress receipt/trigger, and `refresh_merian_reference_images`. Public
+web currently maps the projected labels; active admin dispatch uses named admin
+RPCs and has no independent direct scan projection to widen.
+
+Acceptance covers valid species/genus/family/unresolved results; verified
+selection, replacement and clear; pending and community review; legacy rows;
+malformed present authority; missing-row recovery; and unchanged existing export
+jobs. Run actual-role database fixtures, the affected Edge/DTO/native/web gates
+and the complete required surface gates before advertising capability 5. This
+checkpoint needs no new paid model benchmark.

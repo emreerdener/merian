@@ -70,6 +70,13 @@ final class InferenceReviewWorkflowCoordinator {
             return
         }
 
+        if current.primaryIdentification != nil {
+            guard let container = request.modelContainer else { return }
+            submitVerified(.userOverride(scanID: scanID, scientificName: request.scientificName, confirmedSpeciesID: nil),
+                           current: current, container: container, callbacks: callbacks)
+            return
+        }
+
         let reviewGeneration = reviewCoordinator.beginReviewAction(
             scanId: scanID
         )
@@ -101,15 +108,6 @@ final class InferenceReviewWorkflowCoordinator {
         }
         await admission?.value
         guard isCurrent(identity, callbacks: callbacks) else { return }
-
-        if current.primaryIdentification != nil {
-            reviewCoordinator.enqueueReviewMutation(
-                .userOverride(scanID: scanID, scientificName: request.scientificName, confirmedSpeciesID: nil),
-                actionGeneration: reviewGeneration,
-                modelContainer: request.modelContainer
-            )
-            return
-        }
 
         let scientificName = request.scientificName
         let modelContainer = request.modelContainer
@@ -160,10 +158,15 @@ final class InferenceReviewWorkflowCoordinator {
             return
         }
 
+        if let primary = current.primaryIdentification {
+            guard primary.value?.resolution == .species, let container = request.modelContext?.container else { return }
+            submitVerified(.aiConfirmation(scanID: scanID, confirmedSpeciesID: nil),
+                           current: current, container: container, callbacks: callbacks)
+            return
+        }
+
         let confirmedSpeciesID: String?
-        if current.primaryIdentification != nil && !current.hasSpeciesLevelIdentification {
-            confirmedSpeciesID = nil
-        } else if let modelContext = request.modelContext {
+        if let modelContext = request.modelContext {
             switch reviewCoordinator.loadSnapshot(
                 scanId: scanID,
                 modelContext: modelContext,
@@ -205,6 +208,12 @@ final class InferenceReviewWorkflowCoordinator {
               let scanID = current.scanId,
               matchesExpectedScan(request.expectedScanID, scanID: scanID),
               !current.aiScientificName.isEmpty else {
+            return
+        }
+
+        if current.primaryIdentification != nil {
+            guard let container = request.modelContext?.container else { return }
+            submitVerified(.reset(scanID: scanID), current: current, container: container, callbacks: callbacks)
             return
         }
 
@@ -378,6 +387,37 @@ final class InferenceReviewWorkflowCoordinator {
             return nil
         }
         return speciesID
+    }
+
+    private func submitVerified(
+        _ mutation: InferenceIdentificationReviewMutation, current: SpeciesData,
+        container: ModelContainer, callbacks: Callbacks
+    ) {
+        guard current.primaryIdentification?.value != nil else { return }
+        let generation = reviewCoordinator.beginReviewAction(scanId: mutation.scanID)
+        let presentationGeneration = callbacks.speciesHydration.currentPresentationGeneration()
+        cancelSpeciesHydration(callbacks: callbacks)
+        // Optimistic flags are intent only. Keep original AI labels, context and
+        // confidence unchanged; verified bytes arrive through the acknowledgement.
+        var pending = current
+        pending.userIdentificationOverride = mutation.override
+        pending.userConfirmedIdentification = mutation.confirmed
+        let pendingPresentation = pending
+        reviewCoordinator.enqueueVerifiedReviewMutation(
+            mutation, actionGeneration: generation, modelContainer: container,
+            didPrepare: {
+                guard callbacks.speciesHydration.currentPresentationGeneration() == presentationGeneration,
+                      callbacks.speciesHydration.currentSpeciesData()?.scanId == mutation.scanID else { return }
+                callbacks.applyPresentation(.init(speciesData: pendingPresentation, referenceState: nil))
+            }
+        ) { review in
+            guard callbacks.speciesHydration.currentPresentationGeneration() == presentationGeneration,
+                  var latest = callbacks.speciesHydration.currentSpeciesData(), latest.scanId == mutation.scanID else { return }
+            latest.confirmedSpeciesReview = review
+            latest.userIdentificationOverride = review.userIdentificationOverride
+            latest.userConfirmedIdentification = review.userConfirmedIdentification
+            callbacks.applyPresentation(.init(speciesData: latest, referenceState: nil))
+        }
     }
 
     private func cancelSpeciesHydration(callbacks: Callbacks) {

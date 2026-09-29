@@ -2754,7 +2754,8 @@ required snapshots, contradictory flags and duplicate identity changes fail
 validation. Broader results retain their labels and a genus/family caption,
 while species hydration, candidates, references, novelty and species statistics
 require species rank. Typed review cannot promote that rank. Validated
-confirmation authority and public/export consumers remain pending, so the app
+confirmation authority is now consumed by the dormant native review/history
+path. Public/export and other shared consumers remain pending, so the app
 continues to advertise protocol 4. See the
 [implementation sequence](../rfcs/identification-primary-resolution-contract-2026-09-29.md).
 
@@ -10100,8 +10101,8 @@ supported iOS version uses the RPCs.
 ### Prepared species-confirmation endpoint
 
 `POST /confirm-scan-species` applies only to the reserved explicit-primary
-contract. Current iOS review calls and legacy observations remain on the
-existing RPC. No current model profile produces the new contract.
+contract. Native explicit-primary reviews use this endpoint; legacy observations
+remain on the existing RPC. No current model profile produces the new contract.
 
 The authenticated request contains exactly lowercase UUID `scan_id`, integer
 `expected_revision` (0–2,147,483,646), and `action` (`confirm_primary`,
@@ -10136,8 +10137,16 @@ are private/no-store; no provider body or observation text appears in errors.
 The scan's identity/revision and job's complete review envelope are
 server-owned. Recovery ignores client review authority and restores the exact
 backup (including clear); legacy/community edits invalidate stale identity and
-FK while retaining review intent. Native acknowledgement/history/revision
-merging and shared consumers are still pending; protocol stays 4. See the
+FK while retaining review intent. Native acknowledgements and owner history
+strictly validate this full envelope and persist it in the existing V53
+`confirmedSpeciesIdentityData` bytes. The field contains revision and nullable
+identity together, so clearing does not erase ordering evidence. History selects
+both authority columns and the four legacy review fields. Omission preserves a
+saved authority; partial presence is invalid, older revisions are ignored, and
+same-revision conflicts fail. Equal history preserves pending local intent;
+newer authoritative state reconciles it. Preparation and acknowledgement never
+change original AI output or calibrate its confidence. Shared consumers remain
+pending and protocol stays 4. See the
 [endpoint contract](../../services/supabase/functions/confirm-scan-species/README.md)
 and
 [remaining checkpoints](../rfcs/identification-primary-resolution-contract-2026-09-29.md#remaining-consumer-checkpoints).

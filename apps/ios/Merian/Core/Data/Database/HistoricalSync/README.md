@@ -103,7 +103,23 @@ any reconciliation writes, preserves original labels and immutable snapshots,
 and clears species-only caches and stale taxonomy for broader results. Missing
 metadata from an older projection cannot erase a valid stored primary answer.
 Malformed required data cannot become legacy through omission. V53 stores the
-snapshot and reserves separate confirmation bytes; the legacy boolean/UUID
-review fields are not independent species authority for an explicit broader
-answer. Revisioned server confirmation and authoritative clear/replacement
-remain pending, so the reader header stays 4.
+snapshot and separate confirmation bytes; legacy boolean/UUID review fields are
+not independent species authority for an explicit broader answer.
+
+`HistoricalScanResponse+Decoding` uses `VerifiedSpeciesReviewProjection` to
+preserve field presence. Omitted identity and revision mean an older projection;
+explicit null identity with a revision is an authoritative clear. Partial,
+malformed or contradictory projections are rejected per row. Legacy rows may
+project null identity/revision zero without changing their existing review
+rules. `ConfirmedSpeciesReviewPersistence` merges the entire server review tuple
+only at a newer revision; equal conflicting revisions fail, older revisions are
+ignored, and equal matching history preserves pending local intent. Both missing
+local rows and targeted history recovery use this same projection.
+
+History page reconciliation and native review prepare/apply share one bounded,
+synchronous transaction gate and create fresh ModelContexts while holding it.
+This covers fetch, revision comparison and save across otherwise independent
+ModelActors; a cached history context cannot overwrite a newer acknowledgement.
+There is no network suspension while the gate is held. Account leases, page
+bounds, checkpoint saves and cancellation remain with their existing owners. The
+reader header remains 4 pending shared consumer completion.

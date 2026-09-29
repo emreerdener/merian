@@ -5607,9 +5607,14 @@ The current active schema is `MerianSchemaV53`. Recent milestones:
   dictionary enrichment or review. Required missing, malformed or unpaired
   snapshots remain integrity failures, never legacy results. Duplicate explicit
   completions preserve saved review/media state and reject conflicting identity
-  or provenance. The confirmation field is reserved storage only: no legacy
-  boolean, typed override, dictionary UUID or arbitrary stored bytes establishes
-  validated confirmation authority. That server contract remains pending.
+  or provenance. The native review checkpoint now stores the strictly validated
+  server review envelope in the confirmation field: revision, nullable identity
+  and mirrored review tuple. An authoritative clear retains its revision after
+  reopening. No legacy boolean, typed override, dictionary UUID or arbitrary
+  stored bytes establishes this authority. History and acknowledgements merge
+  under one fresh-context transaction gate; pending local intent remains
+  separate. This consumer adds no persisted field or migration and does not
+  enable a protocol-5 producer.
 
 **Edge DTO Layer** (`apps/ios/Merian/Core/AI/InferenceEdgeDTOs.swift`): The
 marked Identify `EdgeResponseWrapper` / `EdgeResponse` graph is generated from

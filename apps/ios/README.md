@@ -1450,8 +1450,13 @@ be visible in a fresh store context and its metadata save must succeed before
 repository-owned deletion of the original. No-record results and failed saves
 keep the original. The immutable
 `Core/Network/Inference/InferenceIdentificationReviewService` separately owns
-the exact-name Species Dictionary projection and owned-scan review RPC. Every
-live operation is fenced by an account-work lease. The AppDI-owned
+the exact-name Species Dictionary projection, legacy owned-scan review RPC and
+explicit-primary verified confirmation transport. The latter saves pending
+intent before sending, then persists a strict revisioned acknowledgement before
+presentation. A conflict refreshes owned authority without resubmitting the
+selection. History and acknowledgements share a fresh-context transaction gate;
+clear retains its revision in the existing V53 field. Every live operation is
+fenced by an account-work lease. The AppDI-owned
 `Inference/IdentificationReview/InferenceReviewSnapshotService` separately
 performs the bounded, throwing SwiftData projection needed before confirmation
 or reset. Store failure returns before review presentation, action generations,

@@ -124,6 +124,8 @@ struct HistoricalScanResponse: Decodable, Sendable {
     let species_dictionary: CloudSpeciesDictionary?
     let explore_posts: HistoricalExplorePostResponse?
 
+    let confirmedSpeciesReview: ConfirmedSpeciesReview?
+
     var capturedMediaItems: [SerializedMediaItem]? {
         captured_media?.serializedMediaItems
     }

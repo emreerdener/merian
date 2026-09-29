@@ -136,6 +136,7 @@ struct HistoricalSyncCloudClient {
         "sex_evidence, individual_count, ecological_interactions, " +
         "inference_tier, identification_provenance, primary_identification, custom_tags, candidates, " +
         "user_identification_override, user_confirmed_identification, " +
+        "confirmed_species_id, user_review_state, confirmed_species_identity, confirmed_species_identity_revision, " +
         "image_quality_score, pet_identification, " +
         "explore_posts(id, unshared_at), " +
         "species_dictionary!scans_species_id_fkey(scientific_name, " +

@@ -100,8 +100,11 @@ selector list is the Models closure matrix in the
 from dictionary and review fields. Invalid-present bytes remain distinguishable
 from legacy absence. `LocalScanRecord` pairs that snapshot with its provenance
 marker; a required missing snapshot cannot regain legacy species behavior. V53
-adds optional primary bytes and reserved confirmation bytes. Neither a typed
-override, legacy confirmation flag nor the reserved storage grants validated
-species authority. V52 snapshots remain frozen and hash-pinned. The complete
-migration and physical install-over requirements live in the schema and startup
-recovery guides; no protocol-5 producer is enabled by this native checkpoint.
+adds optional primary and confirmation bytes. `ConfirmedSpeciesReview` strictly
+validates the separate versioned server envelope, including revision and
+nullable identity. A clear remains a stored envelope after reopening. Typed
+overrides and legacy flags describe pending local intent and never manufacture
+authority; a pending selection cannot borrow the previous confirmation's
+identity. V52 snapshots remain frozen and hash-pinned. The complete migration
+and physical install-over requirements live in the schema and startup recovery
+guides; no protocol-5 producer is enabled by this native checkpoint.

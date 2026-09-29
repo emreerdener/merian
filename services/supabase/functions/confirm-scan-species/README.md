@@ -1,9 +1,10 @@
 # confirm-scan-species
 
 Prepared authenticated review endpoint for the reserved explicit-primary result
-contract. Current model profiles do not produce that contract and the native app
-has no caller yet. This checkpoint does not activate a model or change
-confidence.
+contract. Current model profiles do not produce that contract. The prepared
+native caller consumes verified acknowledgements and owner history in existing
+V53 storage; protocol stays 4. This checkpoint does not activate a model or
+change confidence.
 
 `POST /confirm-scan-species` uses `withEdgeHandler` authentication and derives
 the owner from the verified session. `verify_jwt = false` does not make the
@@ -76,9 +77,10 @@ observation text. Names and receipts must not enter logs or benchmark artifacts.
 Migration `20260929170458_prepare_verified_scan_species_review.sql` precedes
 endpoint deployment. The deployment workflow's critical authenticated-route
 smoke requires an unauthenticated POST to reach this route's own 401 handler;
-the generic OPTIONS probe alone is insufficient. Native
-acknowledgement/history/clear merging into reserved V53 storage and
-shared/public/export consumers remain separate checkpoints in the
+the generic OPTIONS probe alone is insufficient. Native acknowledgement/history
+merging preserves revisioned replacement and clear in V53 storage; a 409
+refreshes current owned authority without silently resubmitting the action.
+Shared/public/ export consumers remain a separate checkpoint in the
 [primary-resolution plan](../../../../docs/rfcs/identification-primary-resolution-contract-2026-09-29.md).
 Native capability remains 4 until all consumers are complete. No model producer,
 provider assignment, confidence threshold or consent behavior changes here.

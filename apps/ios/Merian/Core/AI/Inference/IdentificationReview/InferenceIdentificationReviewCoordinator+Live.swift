@@ -112,3 +112,19 @@ extension InferenceIdentificationReviewCoordinator.Dependencies {
         )
     }
 }
+
+
+@MainActor
+extension InferenceIdentificationReviewCoordinator.VerifiedDependencies {
+    static var live: Self {
+        Self(
+            prepare: { container, mutation in
+                try await BackgroundDatabaseActor(modelContainer: container).prepareVerifiedSpeciesReview(mutation)
+            },
+            apply: { container, scanID, review, intent in
+                try await BackgroundDatabaseActor(modelContainer: container).applyVerifiedSpeciesReview(
+                    scanID: scanID, review: review, acknowledging: intent)
+            }
+        )
+    }
+}

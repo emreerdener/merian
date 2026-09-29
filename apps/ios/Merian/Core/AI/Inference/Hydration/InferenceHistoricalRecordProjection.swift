@@ -175,6 +175,7 @@ struct InferenceHistoricalRecordProjection: Sendable {
                 IdentificationResultProvenance(storedData: $0)
             },
             primaryIdentification: primary,
+            confirmedSpeciesReview: record.confirmedSpeciesReview,
             alternativeCommonNames: allowsSpeciesHydration
                 ? record.alternativeCommonNames
                 : nil,

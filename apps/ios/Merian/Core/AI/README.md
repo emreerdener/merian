@@ -362,11 +362,15 @@ This README maps that contract to native source and test ownership.
   scan-milestone sequence. Its `+Live` adapter alone constructs
   `BackgroundDatabaseActor`, resolves the shared-post mapping, logs failures,
   and bridges the AppDI-captured event and milestone collaborators. The
-  coordinator derives its local state from the same immutable mutation passed to
-  transport, so those representations cannot diverge. The core coordinator
-  resolves no live singleton, Supabase query, detached task, or unchecked
-  Sendable wrapper. Auth fencing and replacement rejection remain in the shared
-  `InferenceWriteCoordinator` it receives.
+  coordinator derives legacy local state from the same immutable mutation passed
+  to the RPC. Explicit-primary actions instead persist pending intent, send the
+  typed service request, then persist a validated acknowledgement before
+  presentation or post-sync effects. Failed preparation cannot send a request;
+  failed verification leaves pending intent without new authority. A 409 loads
+  current owned review state once and never silently resubmits the selection.
+  The core coordinator resolves no live singleton, Supabase query, detached
+  task, or unchecked Sendable wrapper. Auth fencing and replacement rejection
+  remain in the shared `InferenceWriteCoordinator` it receives.
 - `Inference/IdentificationReview/InferenceReviewWorkflowCoordinator.swift` owns
   the complete override, confirmation, reset, and historical displayed-override
   workflows. It preserves local admission before lookup/cloud work, performs
@@ -1400,6 +1404,28 @@ against conflicting snapshot/provenance changes; identical duplicates preserve
 saved review/media state. Older history projections may omit metadata without
 erasing an existing snapshot; a live or queued completion missing that required
 snapshot is rejected. Malformed required local metadata projects as an integrity
-failure. Protocol remains 4 until independently validated confirmation and
-public/export consumers complete Slice 2 in the
+failure. The native confirmation checkpoint now consumes validated revisioned
+review authority without changing these species-only eligibility rules. Protocol
+remains 4 until public/export and other shared consumers complete Slice 2 in the
 [primary-resolution plan](../../../../../docs/rfcs/identification-primary-resolution-contract-2026-09-29.md).
+
+### Revisioned confirmation acknowledgements
+
+`InferenceReviewWorkflowCoordinator` routes only explicit-primary reviews to
+`confirm-scan-species`; legacy observations retain their RPC and dictionary
+hydration. All explicit actions share the review generation and ordered write
+tail. Broader primary answers cannot use `confirm_primary`; selected species use
+`confirm_name`, and reset uses `clear`. Durable preparation precedes pending UI
+state and remote work. Original AI rank, labels, explanation and confidence stay
+unchanged.
+
+`ConfirmedSpeciesReviewPersistence` is the verified-byte writer. Its
+fresh-context transaction is shared with history; the whole server envelope,
+including a null identity at a newer revision, survives reopening in the
+existing V53 field. Legacy fields remain local intent. Acknowledgements cannot
+overwrite newer history, same-revision conflicts fail, and displaced
+presentations cannot receive late callbacks. Auth transitions fence and drain
+the existing review write tail before replacing the account or local store,
+including a suspended local apply. The network account lease rejects results
+from a displaced session. The restored `SpeciesData` carries this authority
+separately; shared species consumers and protocol 5 remain a later checkpoint.

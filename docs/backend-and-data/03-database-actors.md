@@ -495,6 +495,24 @@ guard await queueActor.tryClaimForInference(scanId: scanId) else { return }
 
 ---
 
+### Verified species review persistence
+
+`ConfirmedSpeciesReviewPersistence` owns native confirmation authority for the
+reserved explicit-primary contract. `BackgroundDatabaseActor` prepares a typed
+request after saving local intent, then applies a separately validated server
+review. It never accepts a client species UUID as proof. The complete versioned
+review envelope, revision and nullable identity live in the reserved V53 bytes;
+legacy flags describe pending intent. Original AI fields remain immutable.
+
+History reconciliation and review prepare/apply share one synchronous, bounded
+process gate over fresh-context fetch, revision comparison and save. This closes
+the race between independent ModelActors: a context that previously observed an
+older revision must read the latest store before applying another response.
+There is no async suspension under the gate. Higher revisions win, lower ones
+are ignored, identical equal revisions are idempotent, and conflicting equal
+revisions fail. A saved clear retains its revision. Account transitions still
+drain the engine's review write tail before replacing the source account/store.
+
 ### `HistoricalDatabaseActor`
 
 **File**:

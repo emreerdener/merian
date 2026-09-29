@@ -430,6 +430,19 @@ checks, and write admission through the workflow's one hydration callback
 bundle; neither owner contains interactive review timing or a direct Supabase
 query.
 
+For explicit-primary observations the service instead sends a bounded
+`VerifiedSpeciesReviewRequest` through the existing authenticated inference
+endpoint owner. It carries action, scan and expected revision, with a selected
+name only for `confirm_name`; client dictionary IDs are never proof.
+`VerifiedSpeciesReviewReceipt` validates exact fields, identity, review flags,
+bounds and the requested revision/action. A classified revision conflict
+performs one owner-scoped review projection read, then returns a reconciliation
+outcome. No action is automatically retried at a newer revision. The outer
+account lease and write-tail drain remain authoritative; 401 recovery is
+disabled on this request to avoid recursively draining itself. Local persistence
+and presentation remain Core AI/Data responsibilities. Existing legacy review
+RPC behavior stays unchanged, and the reader capability stays 4.
+
 `Transport/` owns pure endpoint URL, classification, account-binding, and
 value-only recovery/replay decisions plus the request-scoped executor that
 applies them. Its pinned transport owns the one session/TLS boundary, and its
