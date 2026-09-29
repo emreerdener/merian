@@ -629,6 +629,8 @@ Deno.test("OpenAI dispatch stays confined to production composition and its offl
           "_shared/ai/openaiPhoto.ts",
           "_shared/ai/openaiPhotoModels.ts",
           "_shared/ai/openaiSolRank.ts",
+          "_shared/ai/openaiSolPrimary.ts",
+          "_shared/ai/openaiSolPrimaryContract.ts",
           "_shared/ai/production.ts",
         ].some((path) => file.pathname === new URL(path, root).pathname),
         "Only reviewed adapters and the admitted production composition may import OpenAI",
@@ -654,7 +656,24 @@ Deno.test("OpenAI dispatch stays confined to production composition and its offl
     workflow,
     "supabase/functions/_shared/ai/openaiPhotoModels_test.ts",
   );
-  for (const name of ["openaiPhotoModels.ts", "openaiSolRank.ts"]) {
+  for (
+    const name of [
+      "openaiSolPrimary_test.ts",
+      "openaiSolPrimaryNormalization_test.ts",
+    ]
+  ) {
+    assertStringIncludes(workflow, "supabase/functions/_shared/ai/" + name);
+  }
+  for (
+    const name of [
+      "openaiPhotoModels.ts",
+      "openaiSolRank.ts",
+      "openaiSolPrimary.ts",
+      "openaiSolPrimaryContract.ts",
+      "openaiSolPrimaryInstructions.ts",
+      "openaiSolPrimaryNormalization.ts",
+    ]
+  ) {
     const configuration = await Deno.readTextFile(
       new URL("_shared/ai/" + name, root),
     );

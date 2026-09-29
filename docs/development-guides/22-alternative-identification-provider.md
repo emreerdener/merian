@@ -417,6 +417,31 @@ completed packet. Production rank/enrichment design and confidence calibration
 remain later steps in the linked plan. Future live comparisons still require
 their own clean-source preflight and execution approval.
 
+## Explicit-primary Sol preparation
+
+The completed Sol rank experiment remains frozen. The separate offline profile
+`openai_photo_sol_primary_low_v1` now prepares a required resolution, names and
+species-ranked alternatives under a new private schema. Its pure decoder and
+normalizer check the explicit-primary contract using synthetic fixtures while
+preserving the current photo model, generation, explanation format and
+moderation request. No existing paid-plan parser or production binding selects
+it. See the
+[implementation checkpoint](../rfcs/identification-primary-resolution-contract-2026-09-29.md#isolated-explicit-primary-candidate--2026-09-29)
+for frozen configuration hashes and remaining reference/runner work.
+
+Run its local contract checks without network or credentials:
+
+```bash
+deno test --frozen --no-prompt --deny-net --deny-env \
+  --config services/supabase/functions/deno.json \
+  services/supabase/functions/_shared/ai/openaiSolPrimary_test.ts \
+  services/supabase/functions/_shared/ai/openaiSolPrimaryNormalization_test.ts
+```
+
+A new live comparison requires its own reviewed packet, bounded plan and
+authorization. The current command only tests implementation; it neither runs an
+identification benchmark nor qualifies a confidence display policy.
+
 ## Fixed initial assignment
 
 | Setting                     | Candidate                                                                    |

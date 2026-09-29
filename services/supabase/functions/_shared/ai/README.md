@@ -205,6 +205,21 @@ catalog and production result policy reject it. See the
 [rank-consistency plan](../../../../../docs/rfcs/identification-photo-rank-consistency-2026-09-28.md)
 for assistant review, v2 mapping records, spending and interruption controls.
 
+## Offline explicit-primary Sol candidate
+
+`openaiSolPrimary.ts`, `openaiSolPrimaryInstructions.ts` and
+`openaiSolPrimaryContract.ts` prepare the separate
+`openai_photo_sol_primary_low_v1` candidate. Its strict private output requires
+species/genus/family/unresolved/non-biological resolution and explicit species
+rank on up to two alternatives. `openaiSolPrimaryNormalization.ts` builds an
+in-memory primary snapshot after existing normalization and deterministic
+subject demotion. It does not emit durable provenance or select a species row.
+Both new suites run in the candidate workflow with network and environment
+access denied. Historical schemas, prompt definitions and production admission
+remain unchanged. There is no live adapter or runner for this new profile. The
+[candidate checkpoint](../../../../../docs/rfcs/identification-primary-resolution-contract-2026-09-29.md#isolated-explicit-primary-candidate--2026-09-29)
+owns its exact identities, tests and remaining qualification work.
+
 ## Scoped audio prompt authority
 
 The default-off 36-slot prompt lane adds the internal

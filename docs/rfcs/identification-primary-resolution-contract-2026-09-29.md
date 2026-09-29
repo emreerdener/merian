@@ -5,8 +5,10 @@ Date: 2026-09-29
 Status: Slice 1 and the native persistence, backend review authority and native
 review acknowledgement checkpoints of Slice 2 are implemented locally. The
 shared-consumer and capability-5 reader checkpoints are implemented and locally
-verified. No deployment, producer activation, model assignment or confidence
-policy change is included. The design baseline below used `ca35e74bb` on
+verified. Slice 3 now has a separate offline explicit-primary Sol candidate;
+live evaluation and producer qualification remain pending. No deployment,
+producer activation, model assignment or confidence policy change is included.
+The design baseline below used `ca35e74bb` on
 `codex/openai-free-pro-evaluation`; the dated checkpoint records distinguish
 implemented foundation from pending consumers and model qualification.
 
@@ -888,3 +890,114 @@ This completes Slice 2's local reader and consumer preparation. Hosted exact-SHA
 CI, a signed archive and the previous-release install-over check remain release
 evidence to collect through the canonical procedure. No push, deployment,
 provider activation or paid model request was performed for this checkpoint.
+
+## Isolated explicit-primary candidate — 2026-09-29
+
+Slice 3 now prepares a new `openai_photo_sol_primary_low_v1` experiment. It uses
+`gpt-6-sol`, low reasoning, high image detail, 8,192 output tokens and the
+existing photo moderation request. Current production, Gemini and historical
+experimental profiles retain their original definitions. In particular,
+`openai_photo_sol_rank_limits_low_v1` remains the completed, unqualified
+experiment; its results and budget do not apply to this new candidate.
+
+### Implemented offline boundary
+
+- `openaiSolPrimary.ts` owns the exact evaluation snapshot and pure photo
+  request projection. Its binding is `openai_sol_primary_evaluation_v1`, its
+  prompt is `openai_identify_vision_primary_v1`, and its private provider schema
+  is `merian_openai_primary_evaluation_v1`. This schema is deliberately distinct
+  from the reserved durable `merian_identify_primary_v1`. Neither a production
+  registry entry nor a live evaluation runner admits this profile.
+- `openaiSolPrimaryContract.ts` derives a separate strict model contract from
+  the unchanged common contract. It requires a resolution and explicit nullable
+  names. Species alternatives require `taxon_rank: "species"` and contain zero
+  to two entries; other resolutions require null alternatives and pet details.
+  Unknown/missing keys and contradictory subject/name states fail validation.
+  OpenAI schema generation and strict decoding consume the same executable
+  contract. The generic decoder export does not expand any binding allowlist.
+- `openaiSolPrimaryInstructions.ts` replaces exact baseline directions that
+  previously forced a species and two alternatives. It asks for the most
+  specific visually supported rank, a matching group common name and observed
+  support. It distinguishes an unseen feature from an absent feature, preserves
+  supported species answers and keeps the existing 1–3 sentence explanation
+  format.
+- `openaiSolPrimaryNormalization.ts` applies the existing pure normalization,
+  then constructs the versioned primary snapshot. Processed-material demotion
+  changes resolution to non-biological and clears species-only details. Other
+  contradictions fail. Eligible dog/cat canonicalization remains confined to
+  species answers, and minerals preserve their non-biological names. The helper
+  produces only an in-memory evaluation result: no durable provenance,
+  dictionary lookup, species association, network request or retry.
+
+The candidate rejects explicit hybrid, cultivar, infraspecific and uncertainty
+markers (`sp.`, `spp.`, `cf.`, `aff.`) in primary and alternative names rather
+than turning them into a species claim. This syntax check cannot prove rank or
+identify an unmarked infraspecific name. The declared resolution is never
+inferred from name length; a reviewed taxonomy and diagnostic evidence remain
+necessary for quality assessment and, later, accepted-species linking. Existing
+canonical domestic dog/cat aliases have deterministic compatibility fixtures,
+not new biological accuracy claims.
+
+The schema follows OpenAI's requirement for a closed object with required keys
+and nullable values. Structured output constrains format, not biological truth;
+the candidate still needs visual and taxonomic evaluation. See the official
+[Structured Outputs guidance](https://developers.openai.com/api/docs/guides/structured-outputs),
+reviewed on 29 September 2026.
+
+### Preparation identity and remaining qualification
+
+The offline tests lock these content-free SHA-256 values:
+
+| Value                  | Digest                                                             |
+| ---------------------- | ------------------------------------------------------------------ |
+| Instructions           | `f3800507909d5a9087092956690e2f75cc104fd79f07b399d5227f086f5bb5d8` |
+| Provider format/schema | `bb764f5a97c4d6a21e67aeeaae71d0cd73c9e54e69135ceebf92996c7960a9fb` |
+| Evaluation snapshot    | `490e03841632b7209833ca2676c89e60d66a2b2b7fa5e83f37222611763999a3` |
+
+The next step is an offline comparison plan with reviewed reference coverage for
+all five resolution states, species lookalikes, mineral/object controls and pet
+naming. Freeze candidate/control request identities, interpretation rules and
+assistant explanation review criteria before a new bounded spending approval. Do
+not reuse the completed eighteen-call plan or relabel old model output as this
+profile. The future live decoder must retain exact-model, native moderation,
+timeout, output-size and one-invocation controls before releasing this different
+draft type. Its new durable runner must retain claim/restart and content-free
+record rules.
+
+No quality improvement, confidence threshold or Free/Pro model split is
+qualified by these synthetic tests. The current Sol profile remains selected for
+both tiers. Production admission would require its own exact minimum-5 tuple
+after qualification, followed by the existing authorized deployment/activation
+path.
+
+### Offline candidate verification
+
+- All **21 focused candidate tests passed** with network and environment access
+  denied. They cover the five resolutions, required/unknown fields, species
+  alternatives, contradictory flags, processed material, mineral/preserved
+  specimens, domestic pet aliases, unsupported name markers and the final wire
+  contract. The new profile is rejected by production assignment/result policy
+  and historical request builders. Configuration hashes are locked.
+- The existing and new OpenAI adapter tests plus the historical Sol rank tests
+  passed together with network and environment denied. Historical rank prompt
+  and schema fingerprints still match the completed experiment.
+- The final complete Edge suite passed **2,232 tests and 343 steps**, including
+  the dedicated disposable database after a fresh migration reset. All **103
+  Edge entrypoints** passed recursive type checks; dependency/configuration
+  validation and all **360 migration contract tests** passed.
+- Independent read-only review found an uncertainty-qualifier gap; the decoder
+  now rejects leading, internal and trailing `sp.`, `spp.`, `cf.` and `aff.`
+  tokens before normalization, with regression coverage. The reviewer confirmed
+  closure and found no remaining blockers.
+- The identification bundle fingerprint was regenerated with its checked-in
+  generator because the shared strict-decoder export changes that source graph.
+  The generated diff contains only the digest; it changes no provider selection.
+- Complete Supabase tooling passed: 470 standard tests, 103 isolated evaluator
+  tests, generated Edge/captured-media DTO validation and all 12 shell suites.
+  Backend formatting and lint passed. All changed Markdown was formatted and its
+  80 local documentation targets resolved. Diff whitespace checks passed.
+
+No native client, SQL migration, production model assignment or current
+confidence presentation changed. No paid request, hosted mutation or deployment
+ran. These checks establish the offline candidate's implementation, not model
+quality or release qualification.
