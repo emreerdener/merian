@@ -71,12 +71,13 @@ in the
 ## Result configuration
 
 The sole scan projection selects `identification_provenance`. Accepted metadata
-is stored as stable JSON bytes in V52 and restored through the shared historical
-species projection. Legacy null or omission never clears a present local value;
-malformed present metadata quarantines that row rather than becoming legacy.
-Raw-row pagination and account/save fences are unchanged. Unknown but decodable
-profiles remain present and receive neutral review guidance instead of Gemini
-confidence bands. `IdentificationResultProvenanceTests` verifies these paths.
+is stored as stable JSON bytes in the field introduced by V52 and restored
+through the shared historical species projection. Legacy null or omission never
+clears a present local value; malformed present metadata quarantines that row
+rather than becoming legacy. Raw-row pagination and account/save fences are
+unchanged. Unknown but decodable profiles remain present and receive neutral
+review guidance instead of Gemini confidence bands.
+`IdentificationResultProvenanceTests` verifies these paths.
 
 `MerianSupabaseClientFactory` advertises result-reader capability 4 on SDK
 requests. The backend checks that capability before returning visible V2 rows,
@@ -95,3 +96,14 @@ transport or row-decoding failures. `HistoricalSyncUpdateRequiredTests` covers
 lease fencing, repeat-read suppression, retained local work, and server-owned
 retry pauses. History resumes after a different installed release/build; paused
 identification scans remain available for explicit retry.
+
+The projection also selects `primary_identification`.
+`HistoricalPrimaryIdentification` validates the reserved schema pairing before
+any reconciliation writes, preserves original labels and immutable snapshots,
+and clears species-only caches and stale taxonomy for broader results. Missing
+metadata from an older projection cannot erase a valid stored primary answer.
+Malformed required data cannot become legacy through omission. V53 stores the
+snapshot and reserves separate confirmation bytes; the legacy boolean/UUID
+review fields are not independent species authority for an explicit broader
+answer. Revisioned server confirmation and authoritative clear/replacement
+remain pending, so the reader header stays 4.

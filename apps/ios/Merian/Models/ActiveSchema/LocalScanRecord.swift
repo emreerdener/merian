@@ -84,6 +84,11 @@ public final class LocalScanRecord {
     /// Content-free server execution facts. Nil is historical absence; invalid
     /// present bytes must not inherit legacy Gemini confidence interpretation.
     @Attribute public var identificationProvenanceData: Data?
+    /// Immutable, scan-owned primary answer. Nil preserves legacy semantics.
+    @Attribute public var primaryIdentificationData: Data?
+    /// Reserved for the independently validated, revisioned server confirmation.
+    /// Legacy confirmedSpeciesId/typed overrides never populate this authority.
+    @Attribute public var confirmedSpeciesIdentityData: Data?
     
     /// User-defined custom tags for personal categorization and search indexing.
     @Attribute public var customTags: [String] = []
@@ -179,6 +184,8 @@ public final class LocalScanRecord {
         ecologicalInteractions: [String]? = nil,
         inferenceTier: String? = nil,
         identificationProvenanceData: Data? = nil,
+        primaryIdentificationData: Data? = nil,
+        confirmedSpeciesIdentityData: Data? = nil,
         customTags: [String] = [],
         hasBeenViewed: Bool = false,
         userIdentificationOverride: String? = nil,
@@ -251,6 +258,8 @@ public final class LocalScanRecord {
         self.ecologicalInteractions = ecologicalInteractions
         self.inferenceTier = inferenceTier
         self.identificationProvenanceData = identificationProvenanceData
+        self.primaryIdentificationData = primaryIdentificationData
+        self.confirmedSpeciesIdentityData = confirmedSpeciesIdentityData
         self.customTags = customTags
         self.hasBeenViewed = hasBeenViewed
         self.userIdentificationOverride = userIdentificationOverride
@@ -276,8 +285,25 @@ extension LocalScanRecord {
     static let unresolvedBiologicalScientificName = "Taxonomy Unavailable"
     static let unresolvedBiologicalCommonName = "Unknown Subject"
 
+    var primaryIdentification: PrimaryIdentification? {
+        PrimaryIdentification.restoring(
+            stored: primaryIdentificationData,
+            provenance: identificationProvenanceData.map(IdentificationResultProvenance.init(storedData:))
+        )
+    }
+
+    var hasSpeciesLevelIdentification: Bool {
+        if let primaryIdentification {
+            return isBiological && primaryIdentification.value?.resolution == .species && userIdentificationOverride == nil
+        }
+        return hasResolvedBiologicalIdentification
+    }
+
     var hasResolvedBiologicalIdentification: Bool {
         guard isBiological else { return false }
+        if let primaryIdentification {
+            return primaryIdentification.value?.resolution.isNamedBiologicalTaxon == true
+        }
         let effectiveScientificName = userIdentificationOverride ?? scientificName
         guard Self.isResolvedBiologicalName(effectiveScientificName) else { return false }
         if userIdentificationOverride != nil || confirmedSpeciesId != nil { return true }
@@ -296,7 +322,7 @@ extension LocalScanRecord {
     }
 
     var shouldSuppressReferenceImages: Bool {
-        if !hasResolvedBiologicalIdentification { return true }
+        if !hasSpeciesLevelIdentification { return true }
         return ReferenceImageVisibilityPolicy.shouldSuppress(
             isHumanSubject: isHumanSubject,
             scientificName: scientificName

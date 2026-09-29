@@ -110,7 +110,7 @@ struct HabitatAndDistributionCard: View {
     private var canRequestEnrichment: Bool {
         guard let data = inferenceEngine.speciesData else { return false }
         return data.scanId?.trimmedNonEmptyValue != nil &&
-            data.hasResolvedBiologicalIdentification && !data.isHumanSubject
+            data.hasSpeciesLevelIdentification && !data.isHumanSubject
     }
 
     private func retryEnrichment(for identity: EnrichmentIdentity) async {

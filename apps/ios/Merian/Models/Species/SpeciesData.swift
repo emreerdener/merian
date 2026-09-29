@@ -63,6 +63,7 @@ struct SpeciesData: Sendable {
     var gbifTaxonKey: Int?
     var inferenceTier: String?
     let identificationProvenance: IdentificationResultProvenance?
+    let primaryIdentification: PrimaryIdentification?
 
     /// All known English vernacular synonyms beyond `commonName`.
     /// Sourced from GBIF vernacular names on first enrichment; served from the
@@ -145,6 +146,7 @@ extension SpeciesData {
         gbifTaxonKey: Int? = nil,
         inferenceTier: String? = nil,
         identificationProvenance: IdentificationResultProvenance? = nil,
+        primaryIdentification: PrimaryIdentification? = nil,
         alternativeCommonNames: [String]? = nil,
         petIdentification: PetIdentification? = nil,
         candidates: [IdentificationCandidate]? = nil,
@@ -200,6 +202,7 @@ extension SpeciesData {
         self.gbifTaxonKey = gbifTaxonKey
         self.inferenceTier = inferenceTier
         self.identificationProvenance = identificationProvenance
+        self.primaryIdentification = primaryIdentification
         self.alternativeCommonNames = SpeciesData.sanitizeAlternativeNames(
             alternativeCommonNames
         )

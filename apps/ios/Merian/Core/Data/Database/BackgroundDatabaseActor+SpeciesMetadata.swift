@@ -22,7 +22,7 @@ extension BackgroundDatabaseActor {
             MerianLog.data.debug("updateScanWithWikipedia: fetch failed for \(scanId, privacy: .private): \(error, privacy: .private)")
             return false
         }
-        guard let record else { return false }
+        guard let record, record.hasSpeciesLevelIdentification else { return false }
 
         guard expectedScientificName.map({
             effectiveScientificName(for: record).caseInsensitiveCompare($0)
@@ -125,6 +125,7 @@ extension BackgroundDatabaseActor {
             id: scanId,
             expectedScientificName: expectedScientificName
         ) { record in
+            guard record.hasSpeciesLevelIdentification else { return }
             if let habitat = habitatDescription { record.habitatDescription = habitat }
             if let key = gbifTaxonKey { record.gbifTaxonKey = key }
             if let jsonData = similarSpeciesJsonData { record.lookalikesData = jsonData }
@@ -196,6 +197,7 @@ extension BackgroundDatabaseActor {
             record.confirmedSpeciesId = nil
             record.userReviewState = .userOverridden
             record.isFlagged = false
+            guard record.primaryIdentification == nil else { return }
             replaceIdentificationPresentation(
                 on: record,
                 commonName: scientificName
@@ -227,6 +229,7 @@ extension BackgroundDatabaseActor {
             record.confirmedSpeciesId = newConfirmedSpeciesId
             record.userReviewState = userReviewState
 
+            guard record.primaryIdentification == nil else { return }
             guard let resetCommonName else { return }
             replaceIdentificationPresentation(
                 on: record,
@@ -280,6 +283,7 @@ extension BackgroundDatabaseActor {
         replacingSpeciesIdentity: Bool
     ) {
         mutateScan(id: scanId) { record in
+            guard record.primaryIdentification == nil else { return }
             record.commonName = commonName
             record.hazardType = hazardType
             record.wikipediaOverview = wikipediaOverview

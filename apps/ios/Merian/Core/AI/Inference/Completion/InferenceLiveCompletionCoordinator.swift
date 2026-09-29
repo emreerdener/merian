@@ -75,7 +75,7 @@ final class InferenceLiveCompletionCoordinator {
         }
 
         var speciesData = completedResult.speciesData
-        if completedResult.isNewDiscovery {
+        if completedResult.isNewDiscovery && speciesData.hasSpeciesLevelIdentification {
             speciesData.isNewDiscovery = true
             dependencies.recordNewSpeciesDiscovered()
         }

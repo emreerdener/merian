@@ -13,7 +13,7 @@ extension BackgroundDatabaseActor {
         mediaTimeline: [CaptureSubmissionMediaItem]? = nil,
         persistenceFence: LiveInferencePersistenceFence? = nil
     ) async -> LiveInferencePersistenceResult {
-        guard mappedData.confidenceScore > 0, !localImagePaths.isEmpty else {
+        guard mappedData.requiresSavedRecord, !localImagePaths.isEmpty else {
             return .notSaved
         }
         return await persistLiveScanRecord(
@@ -39,7 +39,7 @@ extension BackgroundDatabaseActor {
         mediaTimeline: [CaptureSubmissionMediaItem]? = nil,
         persistenceFence: LiveInferencePersistenceFence? = nil
     ) async -> LiveInferencePersistenceResult {
-        guard mappedData.confidenceScore > 0 else { return .notSaved }
+        guard mappedData.requiresSavedRecord else { return .notSaved }
         return await persistLiveScanRecord(
             mappedData: mappedData,
             localImagePaths: [],
@@ -164,7 +164,7 @@ extension BackgroundDatabaseActor {
 
         do {
             let identity = try scanRecordSpeciesIdentity(
-                for: mappedData.scientificName
+                for: mappedData
             )
             let capturedMediaJSON = await CapturedMediaPersistenceService.live
                 .makeCapturedMediaJSON(for: .init(

@@ -449,3 +449,88 @@ constraints and native confirmation/override recovery. The correction review
 found no remaining concrete blocker. Changed-Markdown formatting, 249 local
 file-link targets and diff whitespace checks passed; these are documentation
 checks, not evidence that the proposed runtime behavior exists.
+
+## Slice 2 native checkpoint — 2026-09-29
+
+The native implementation now carries the reserved primary snapshot through
+live/queued persistence, owner history and reopening. V52 was frozen and
+compiled before adding the two optional V53 fields. The existing primary label
+and rank survive typed review; a genus/family caption communicates the supported
+level without adding a confidence badge. Required missing or malformed metadata
+stays invalid. Duplicate explicit completion validates immutable identity and
+preserves saved review/media state. Broader answers cannot gain species
+hydration, alternatives, novelty credit or species statistics from legacy IDs,
+boolean review or a typed override. History clears stale species taxonomy and
+reference caches.
+
+This is a native checkpoint within Slice 2, not completion of that slice.
+`confirmedSpeciesIdentityData` is reserved storage with no trusted writer or
+reader yet. Remaining work is the server-validated, revisioned confirmation
+response/history/recovery contract (including replacement and clear), and the
+reviewed public/share/export and species-only server consumer projections.
+Existing independent confirmations must be preserved when implementing those
+owners. No raw UUID or boolean is sufficient proof.
+
+Protocol remains 4 and all model profiles/assignments remain unchanged. No new
+producer, paid evaluation, calibration or production operation is authorized by
+this checkpoint.
+
+Local verification completed on 2026-09-29:
+
+- The frozen V52 model compiled before the active V53 fields were added. Pinned
+  XcodeGen 2.45.4 regenerated the project; source membership and
+  migration-source guardrails passed, including their mutation tests.
+- The complete native unit target and four critical scan UI smokes compiled and
+  ran through `make ios-local-build` on the existing iPhone 18 Pro Max
+  simulator. XCResult reports 4,556 passed, one failed and zero skipped. The
+  sole failure was an architecture assertion that still searched for the old
+  biological-result predicate. It now requires the stricter species-level
+  predicate. The unchanged production code passed the new primary-identity
+  cases, the V52 disk upgrade and reopen fixture, all migration tests and all
+  four exact scan UI smokes.
+- After that test-only correction, the complete Inference Architecture suite
+  passed all 17 tests with zero failures or skips. The full-run bundle is
+  `.artifacts/local-ios/5b3312db65bd400abdf949ac9e74bf49.xcresult`; the
+  corrected suite's bundle is
+  `.artifacts/local-ios/903065fefadc4d3385d433c932a51619.xcresult`. The full
+  native suite was not repeated after changing that single assertion.
+- `make test-ios-ci-tooling`, generated-project/source-membership checks,
+  event-routing, privacy-manifest, transport-security, versioning and migration
+  guardrails passed. `make validate-edge-dto-contract` passed generation,
+  ownership and runtime decoder checks. Changed-Markdown formatting and diff
+  whitespace checks passed.
+- Independent read-only review found no remaining native contract or
+  data-integrity blocker after duplicate-completion, provenance, taxonomy-cache
+  and deterministic-encoding corrections.
+
+Hosted exact-SHA CI, a Release archive and the genuine released-V52 install-over
+and second-launch check remain release gates. This checkpoint is local
+implementation evidence and does not complete Slice 2 or authorize production
+activation. No paid model requests or production mutations were performed.
+
+### Remaining consumer checkpoints
+
+1. **Validated review authority.** Use a service-owned confirmation mutation
+   that obtains accepted SPECIES proof through the existing verified taxon
+   resolver; a client-provided UUID, name, GBIF key or review flag is input,
+   never proof. Preserve legacy review fields. Persist a bounded canonical
+   identity plus a monotonic revision on the scan and its owner-bound job
+   backup. Omission means an older projection; an explicit clear must carry a
+   newer revision. Never accept this authority in client `recovery_scan` JSON.
+2. **Native confirmation acknowledgements.** Return a typed server response from
+   review synchronization and merge only authoritative non-stale revisions into
+   history and the reserved V53 bytes. Encode revision and nullable identity
+   together inside that envelope so a clear survives reopening without another
+   persisted field. Keep pending local review separate from effective species
+   identity. Test stale responses, same-revision conflicts, replacement, clear,
+   second-device history and missing-row recovery while preserving the AI answer
+   and its confidence metadata.
+3. **Shared consumers.** Complete rank-aware Share/Explore and public web
+   projections, Field Chat context, immutable DwC-A exports, FieldTrip credit
+   and reference-image promotion. A broader observation remains representable
+   without acquiring species-only effects. Existing community consensus is a
+   separate authority and cannot be silently treated as a verified species.
+
+These checkpoints require ordinary implementation and contract review, not a new
+model experiment. Only after all Slice 2 acceptance gates pass may native
+capability 5 and the separate Slice 3 producer qualification advance.

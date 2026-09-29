@@ -2748,25 +2748,33 @@ invalid stored envelope can reconstruct from a valid matching scan; a lost or
 conflicting required snapshot is an integrity failure. If an owner insert
 commits between the initial job read and the scan read, replay re-reads its
 exact owner backup before comparing. Client `recovery_scan` never supplies this
-field. The generated Swift wire DTO is present, but native
-persistence/presentation and public/admin/export consumers remain the next
-slice. The app therefore continues to advertise protocol 4. See the
+field. The generated Swift DTO maps to native `PrimaryIdentification`; V53 saves
+the original label and rank on live/queued completion and owner history. Missing
+required snapshots, contradictory flags and duplicate identity changes fail
+validation. Broader results retain their labels and a genus/family caption,
+while species hydration, candidates, references, novelty and species statistics
+require species rank. Typed review cannot promote that rank. Validated
+confirmation authority and public/export consumers remain pending, so the app
+continues to advertise protocol 4. See the
 [implementation sequence](../rfcs/identification-primary-resolution-contract-2026-09-29.md).
 
-Owner history selects the same column. SwiftData V52 stores its content-free
-JSON bytes in optional `LocalScanRecord.identificationProvenanceData`; V51 rows
+Owner history selects `identification_provenance` and `primary_identification`.
+SwiftData stores provenance in the field introduced by V52 as content-free JSON
+bytes in optional `LocalScanRecord.identificationProvenanceData`; V51 rows
 migrate to nil. Missing legacy cloud metadata cannot erase an existing value.
 Malformed history rows remain quarantined with raw-row pagination intact. Both
-versions use the existing V52 opaque JSON storage; this adds no SwiftData schema
-version or data migration. Recognized exact V1 Gemini profiles retain the
-existing confidence presentation. The exact shipped V2 `openai_photo_v1` profile
-separately receives display-only Strong (`>= 0.95`), Possible (`>= 0.60` and
-`< 0.95`), or Weak (`< 0.60`) labels on every plan tier. The app presents these
-as model estimates; neither `openai_unqualified_v1` nor the stored score
-changes. Unknown or damaged present profiles use neutral review guidance.
-Absence keeps legacy behavior. These display thresholds do not qualify OpenAI
-for candidate filtering, automatic verification, sharing recommendations,
-rewards, public metrics, or evaluation strong/diagnostic metrics. See the
+provenance versions use the same opaque JSON storage. The separate V53
+primary-identity migration adds snapshot and reserved confirmation storage; it
+does not change provenance or the existing confidence policy. Recognized exact
+V1 Gemini profiles retain the existing confidence presentation. The exact
+shipped V2 `openai_photo_v1` profile separately receives display-only Strong
+(`>= 0.95`), Possible (`>= 0.60` and `< 0.95`), or Weak (`< 0.60`) labels on
+every plan tier. The app presents these as model estimates; neither
+`openai_unqualified_v1` nor the stored score changes. Unknown or damaged present
+profiles use neutral review guidance. Absence keeps legacy behavior. These
+display thresholds do not qualify OpenAI for candidate filtering, automatic
+verification, sharing recommendations, rewards, public metrics, or evaluation
+strong/diagnostic metrics. See the
 [display threshold decision](../rfcs/identification-openai-confidence-display-2026-09-28.md).
 This compatibility rule is not empirical calibration, and public Explore
 suggestion projections still require separate provider qualification. See the
@@ -8139,7 +8147,7 @@ tombstone purge remain in `BackgroundDatabaseActor+CollectionSync.swift`.
 }
 ```
 
-The active iOS V52 model names the durable application value
+The active iOS V53 model names the durable application value
 `ScanCollection.isPendingDeletion` and maps it to the released SwiftData
 `isDeleted` column with `@Attribute(originalName:)`. The two released V50 model
 graphs differ only in their Swift-side property name and keep that same physical

@@ -102,6 +102,15 @@ final class InferenceReviewWorkflowCoordinator {
         await admission?.value
         guard isCurrent(identity, callbacks: callbacks) else { return }
 
+        if current.primaryIdentification != nil {
+            reviewCoordinator.enqueueReviewMutation(
+                .userOverride(scanID: scanID, scientificName: request.scientificName, confirmedSpeciesID: nil),
+                actionGeneration: reviewGeneration,
+                modelContainer: request.modelContainer
+            )
+            return
+        }
+
         let scientificName = request.scientificName
         let modelContainer = request.modelContainer
         await taskCoordinator.replaceAndAwaitTask(in: .review) { [weak self] in
@@ -152,7 +161,9 @@ final class InferenceReviewWorkflowCoordinator {
         }
 
         let confirmedSpeciesID: String?
-        if let modelContext = request.modelContext {
+        if current.primaryIdentification != nil && !current.hasSpeciesLevelIdentification {
+            confirmedSpeciesID = nil
+        } else if let modelContext = request.modelContext {
             switch reviewCoordinator.loadSnapshot(
                 scanId: scanID,
                 modelContext: modelContext,
@@ -253,6 +264,7 @@ final class InferenceReviewWorkflowCoordinator {
             modelContainer: modelContainer
         )
 
+        guard current.primaryIdentification == nil || current.hasSpeciesLevelIdentification else { return }
         await taskCoordinator.replaceAndAwaitTask(in: .review) { [weak self] in
             guard let self else { return }
             _ = await self.resolveDisplayedSpecies(

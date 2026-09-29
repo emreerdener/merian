@@ -111,9 +111,9 @@ struct ModelsIntegrationArchitectureTests {
         )
         #expect(registry.contains("enum MerianMigrationPlan"))
         #expect(registry.contains("enum MerianSchemaV51"))
-        let currentSchema = try source(at: "apps/ios/Merian/Models/Schema/SchemaV52.swift")
-        #expect(currentSchema.contains("enum MerianSchemaV52"))
-        #expect(registry.contains("migrateV51toV52"))
+        let currentSchema = try source(at: "apps/ios/Merian/Models/Schema/SchemaV53.swift")
+        #expect(currentSchema.contains("enum MerianSchemaV53"))
+        #expect(registry.contains("migrateV52toV53"))
     }
 
     private func source(at relativePath: String) throws -> String {

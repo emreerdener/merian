@@ -26,7 +26,7 @@ enum LocalScanRecordFactory {
             .filter { !$0.isEmpty }
         let record = LocalScanRecord(
             id: recordId,
-            speciesId: speciesId,
+            speciesId: mappedData.primaryIdentification != nil && !mappedData.hasSpeciesLevelIdentification ? "" : speciesId,
             scientificName: mappedData.scientificName,
             commonName: mappedData.commonName,
             timestamp: timestamp,
@@ -79,6 +79,7 @@ enum LocalScanRecordFactory {
             ecologicalInteractions: mappedData.ecologicalInteractions,
             inferenceTier: mappedData.inferenceTier,
             identificationProvenanceData: mappedData.identificationProvenance?.data,
+            primaryIdentificationData: mappedData.primaryIdentification?.data,
             imageQualityScore: mappedData.imageQualityScore,
             alternativeCommonNames: mappedData.alternativeCommonNames,
             petIdentificationData: petIdentificationData,

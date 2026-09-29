@@ -27,7 +27,7 @@ enum ScanMilestonePolicy {
     static func isValidNewToMerianMilestone(_ data: SpeciesData) -> Bool {
         let lowerName = data.commonName.lowercased()
         return data.isNewToMerianDictionary
-            && data.isBiological
+            && data.hasSpeciesLevelIdentification
             && lowerName != "not applicable"
             && lowerName != "unknown subject"
             && lowerName != "inanimate object"

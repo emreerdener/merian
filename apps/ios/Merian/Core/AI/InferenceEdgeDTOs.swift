@@ -819,7 +819,8 @@ enum IdentifySuccessEnvelopeValidator {
               scanId.count <= 128,
               let confidenceScore = wrapper.data.confidence_score,
               confidenceScore.isFinite,
-              (0.0...1.0).contains(confidenceScore) else {
+              (0.0...1.0).contains(confidenceScore),
+              PrimaryIdentificationResponseValidator.isValid(wrapper.data) else {
             return false
         }
         return true

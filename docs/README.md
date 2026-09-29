@@ -22,7 +22,7 @@ boundaries, and the [codebase map](./codebase-map.md) inventories source owners.
 | Database and Edge Functions             | [`services/supabase`](../services/supabase/README.md)                                                     |
 
 The app and widget target iOS 17.2; the companion targets watchOS 10.0. The
-active SwiftData schema is `MerianSchemaV52`. The
+active SwiftData schema is `MerianSchemaV53`. The
 [schema contract](./backend-and-data/04-database-schema.md) and
 [startup recovery guide](./backend-and-data/08-startup-store-recovery.md) own
 migration and install-over requirements.
@@ -299,9 +299,10 @@ production submission or public release.
 - **[Explicit primary identification resolution](./rfcs/identification-primary-resolution-contract-2026-09-29.md):**
   Slice 1 adds a dormant versioned answer contract, immutable server storage and
   recovery, generated Swift wire support and exact protocol-5 reader protection.
-  The app remains on protocol 4; native persistence/presentation and other
-  consumers are next. No new model profile, assignment or confidence policy is
-  activated.
+  The native checkpoint adds V53 save/restore and rank-aware presentation. The
+  app remains on protocol 4 while validated confirmation and public/export
+  consumers are completed. No new model profile, assignment or confidence policy
+  is activated.
 - **[Identification optimization while preserving current results](./rfcs/identification-optimization-preserving-results-2026-09-27.md):**
   Current plan following verified completion of the provider infrastructure
   milestone. Preserve explanation format and detail while investigating

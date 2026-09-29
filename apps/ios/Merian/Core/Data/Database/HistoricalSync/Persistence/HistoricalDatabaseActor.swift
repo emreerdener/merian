@@ -24,6 +24,7 @@ actor HistoricalDatabaseActor {
     ) throws -> Int {
         do {
             try Task.checkCancellation()
+            for response in responses { _ = try HistoricalPrimaryIdentification.validate(response) }
             let recoveryCount = LocalScanMediaRecoveryResolver
                 .registerRecoveryMappings(for: responses)
             if recoveryCount > 0 {
@@ -141,6 +142,7 @@ actor HistoricalDatabaseActor {
             for id in chunkIds {
                 guard let existing = chunkLookup[id], let res = responseLookup[id] else { continue }
 
+                try HistoricalPrimaryIdentification.validateMerge(res, into: existing)
                 let dictRefImage = ExternalReferenceImagePolicy.sanitizedURLList(
                     res.species_dictionary?.reference_image_url
                 )
@@ -243,13 +245,6 @@ actor HistoricalDatabaseActor {
                 if let newInter = res.ecological_interactions, existing.ecologicalInteractions != newInter {
                     existing.ecologicalInteractions = newInter; chunkDidUpdate = true
                 }
-                if let provenance = res.identification_provenance {
-                    let data = IdentificationResultProvenance(dto: provenance).data
-                    if existing.identificationProvenanceData != data {
-                        existing.identificationProvenanceData = data
-                        chunkDidUpdate = true
-                    }
-                }
                 if let newTier = res.inference_tier, existing.inferenceTier != newTier {
                     existing.inferenceTier = newTier; chunkDidUpdate = true
                 }
@@ -280,6 +275,14 @@ actor HistoricalDatabaseActor {
                 if res.user_confirmed_identification == true, !existing.userConfirmedIdentification {
                     existing.userConfirmedIdentification = true
                     chunkDidUpdate = true
+                }
+                if try HistoricalPrimaryIdentification.merge(res, into: existing) { chunkDidUpdate = true }
+                if let provenance = res.identification_provenance {
+                    let data = IdentificationResultProvenance(dto: provenance).data
+                    if existing.identificationProvenanceData != data {
+                        existing.identificationProvenanceData = data
+                        chunkDidUpdate = true
+                    }
                 }
                 if existing.imageQualityScore == nil, let newScore = res.image_quality_score {
                     existing.imageQualityScore = newScore
@@ -315,8 +318,10 @@ actor HistoricalDatabaseActor {
             let discoveryDate = parseHistoricalDate(scan.created_at) ?? parsedDate
 
             let dict = scan.species_dictionary
-            let sciName = dict?.scientific_name ?? "Unknown Subject"
+            let primary = try HistoricalPrimaryIdentification.validate(scan)
+            let sciName = primary?.value?.scientificName ?? dict?.scientific_name ?? "Unknown Subject"
             let cName: String = {
+                if let primary = primary?.value { return primary.commonName ?? primary.scientificName ?? "Unknown Subject" }
                 guard let names = dict?.common_names else { return sciName }
                 return names["en"].flatMap { $0 } ?? names.compactMap { $0.value }.first ?? sciName
             }()
@@ -337,7 +342,7 @@ actor HistoricalDatabaseActor {
 
             let record = LocalScanRecord(
                 id: scan.id,
-                speciesId: UUID().uuidString,
+                speciesId: primary != nil && primary?.value?.resolution != .species ? "" : UUID().uuidString,
                 scientificName: sciName,
                 commonName: cName,
                 timestamp: discoveryDate,
@@ -386,6 +391,7 @@ actor HistoricalDatabaseActor {
                 identificationProvenanceData: scan.identification_provenance.map {
                     IdentificationResultProvenance(dto: $0).data
                 },
+                primaryIdentificationData: primary?.data,
                 customTags: scan.custom_tags ?? [],
                 hasBeenViewed: true,
                 userIdentificationOverride: scan.user_identification_override,

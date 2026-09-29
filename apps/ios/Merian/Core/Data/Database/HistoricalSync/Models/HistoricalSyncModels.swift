@@ -114,6 +114,7 @@ struct HistoricalScanResponse: Decodable, Sendable {
     let ecological_interactions: [String]?
     let inference_tier: String?
     let identification_provenance: IdentificationProvenanceDTO?
+    let primary_identification: PrimaryIdentificationDTO?
     let custom_tags: [String]?
     let candidates: [CloudIdentificationCandidate]?
     let pet_identification: PetIdentification?
@@ -142,6 +143,7 @@ struct HistoricalExplorePostResponse: Decodable, Sendable {
 }
 
 struct CloudIdentificationCandidate: Decodable, Sendable {
+    let taxon_rank: String?
     let scientific_name: String
     let common_name: String?
     let confidence_score: Double

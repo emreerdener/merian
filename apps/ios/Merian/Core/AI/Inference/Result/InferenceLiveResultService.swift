@@ -141,7 +141,7 @@ struct InferenceLiveResultService {
             planUsed: parsed.planUsed,
             fundingSettlement: parsed.fundingSettlement
         )
-        return mappedData.confidenceScore <= 0
+        return !mappedData.requiresSavedRecord
             ? .completedWithoutRecord(result)
             : .persisted(result)
     }

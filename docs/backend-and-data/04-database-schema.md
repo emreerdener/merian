@@ -1301,11 +1301,12 @@ The transaction log for every successful identification.
   model text, account/request/reservation IDs or timing. These fixed facts
   intentionally share the scan's existing public/owner Data API visibility;
   curated Explore responses omit the full value. Identify responses include the
-  optional non-null value, and owner history preserves it in native V52 storage.
-  Migration `20260926160249_persist_identification_result_provenance.sql`
-  enforces an exact bounded shape and atomically stores a recovery copy in the
-  matching ingestion job. Existing rows remain null; updates, including guessed
-  legacy backfills, are rejected. See the
+  optional non-null value, and owner history preserves it in native storage
+  introduced by V52. Migration
+  `20260926160249_persist_identification_result_provenance.sql` enforces an
+  exact bounded shape and atomically stores a recovery copy in the matching
+  ingestion job. Existing rows remain null; updates, including guessed legacy
+  backfills, are rejected. See the
   [provenance record](../rfcs/identification-provider-result-provenance-2026-09-26.md).
   Forward migration
   `20260927165545_accept_openai_identification_provenance_v2.sql` preserves the
@@ -5429,14 +5430,16 @@ snapshot SHA-256 values, so a property, annotation, default, relationship,
 initializer, or helper edit requires an explicit historical-shape review.
 `SchemaV51Snapshots.swift` freezes all eight `MerianSchemaV51` model classes and
 their relationships; the unchanged goal-hint companion retains its V50 owner.
-`MerianSchemaV52` owns the active global models. Disk migration suites create
-source stores from the frozen snapshots, migrate V49 through V50 and V51 into
-V52, and migrate both V50 graphs through their source-isolated custom plans. The
-V51 fixture verifies production metadata selection and preserves scan, media,
-collection, preference, queue, event, deletion and goal-hint state while adding
-nullable provenance, then verifies a current-schema reopen. That proves
-candidate self-consistency; genuine released-binary physical install-over and
-second-launch gates remain separate release evidence.
+`MerianSchemaV53` owns the active global models. V52 is independently frozen in
+`SchemaV52ScanSnapshots.swift` and `SchemaV52QueueSnapshots.swift`. Disk
+migration suites create source stores from the frozen snapshots, migrate V49
+through V50 and V51 into V53, and migrate both V50 graphs through their
+source-isolated custom plans. The V51 fixture verifies production metadata
+selection and preserves scan, media, collection, preference, queue, event,
+deletion and goal-hint state while adding nullable provenance, then verifies a
+current-schema reopen. That proves candidate self-consistency; genuine
+released-binary physical install-over and second-launch gates remain separate
+release evidence.
 
 There is **no direct model list** in `MerianApp.swift`. The app dynamically
 inherits `CurrentSchema` and the active global models. A schema bump must still
@@ -5461,7 +5464,7 @@ each new row into the migration `ModelContext` before assigning the
 relationship; relationship assignment alone is not a durable insert path while
 SwiftData is inside staged store migration.
 
-The current active schema is `MerianSchemaV52`. Recent milestones:
+The current active schema is `MerianSchemaV53`. Recent milestones:
 
 - V38 added single-value audio/context storage (`audioFilePath`,
   `observationContextJSON`) to both local and offline scan models.
@@ -5501,21 +5504,22 @@ The current active schema is `MerianSchemaV52`. Recent milestones:
   directly to V49 from source-isolated V44→V49, V45→V49, and V46→V49 plans so
   SwiftData never migrates unchanged entities across duplicate-prone recent
   representatives. App startup reads store metadata before creating
-  `ModelContainer`: fresh/current V52 stores open without a migration plan,
+  `ModelContainer`: fresh/current V53 stores open without a migration plan,
   known recent stores use the source-isolated
-  V51/V50/V49/V48/V47/V46/V45/V44/V43/V42 plans, and only unknown older stores
-  use the full historical plan. V51 needs only lightweight V51→V52. Each V50
-  plan contains its custom V50→V51 preference-ownership stage followed by
-  V51→V52; the V49 plan prepends the required lightweight V49→V50 hop. Immediate
-  predecessors therefore never validate unrelated history. The V42 and V43
-  recent plans jump directly to V49 to avoid validating older full-historical
-  custom stages and to keep V42 off the older V42→V43 bridge that still failed
-  on real TestFlight stores, while V45 and V46 deliberately use one matching
-  source representative each before the V49 repair target. Stores that still hit
-  SwiftData's duplicate-checksum validator during plan construction retry with
-  the same source-isolated recent plans before legacy rescue or safe mode. Safe
-  mode itself creates an empty in-memory V52 container without any migration
-  plan; it does not validate this historical ladder again.
+  V52/V51/V50/V49/V48/V47/V46/V45/V44/V43/V42 plans, and only unknown older
+  stores use the full historical plan. V52 needs only lightweight V52→V53; V51
+  uses V51→V52→V53. Each V50 plan contains its custom V50→V51
+  preference-ownership stage followed by V51→V52→V53; the V49 plan prepends the
+  required lightweight V49→V50 hop. Immediate predecessors therefore never
+  validate unrelated history. The V42 and V43 recent plans jump directly to V49
+  to avoid validating older full-historical custom stages and to keep V42 off
+  the older V42→V43 bridge that still failed on real TestFlight stores, while
+  V45 and V46 deliberately use one matching source representative each before
+  the V49 repair target. Stores that still hit SwiftData's duplicate-checksum
+  validator during plan construction retry with the same source-isolated recent
+  plans before legacy rescue or safe mode. Safe mode itself creates an empty
+  in-memory V53 container without any migration plan; it does not validate this
+  historical ladder again.
 - V47 added `OfflineQueuedScan.inferenceImagePaths` and `visualMediaItemsJSON`
   so queued video replay can keep sampled inference frames separate from the
   user-visible playback video timeline.
@@ -5549,7 +5553,7 @@ The current active schema is `MerianSchemaV52`. Recent milestones:
   `MerianReleasedActiveSchemaV50`; unknown V50 checksums fail closed. Separate
   disk fixtures verify both graphs, tombstone true/false values, relationships,
   and the goal-hint companion through their source-exact V50→V51 stages and the
-  shared V51→V52 tail.
+  shared V51→V52→V53 tail.
 - V51 makes `UserSpeciesPreference` account-scoped. Its stable unique ID
   combines the owner UUID and normalized scientific name, while `ownerUserId`
   supports bounded account queries. The custom V50→V51 stage discards
@@ -5566,9 +5570,22 @@ The current active schema is `MerianSchemaV52`. Recent milestones:
   lightweight V51→V52 migration. It stores the bounded, content-free execution
   metadata from Identify and owner history. Nil preserves legacy semantics;
   present unknown or malformed metadata cannot use Gemini confidence bands. All
-  existing plans append this stage and the immediate-predecessor
-  `MerianRecentV51MigrationPlan` validates only V51 and V52. No other stored
-  property changes; outgoing V51 was frozen and compiled before active edits.
+  plans retain this stage. At its introduction, the V51 plan validated only V51
+  and V52; it now appends the V53 stage. No other stored property changed in
+  V52; outgoing V51 was frozen and compiled before active edits.
+
+- V53 adds optional `LocalScanRecord.primaryIdentificationData` and reserved
+  `confirmedSpeciesIdentityData` through lightweight V52→V53. Both remain nil
+  for existing observations. V52 was frozen and compiled before editing the
+  active model. Every older plan appends the stage, and
+  `MerianRecentV52MigrationPlan` contains only V52 and V53. The primary bytes
+  preserve the versioned original AI label and resolution independently of
+  dictionary enrichment or review. Required missing, malformed or unpaired
+  snapshots remain integrity failures, never legacy results. Duplicate explicit
+  completions preserve saved review/media state and reject conflicting identity
+  or provenance. The confirmation field is reserved storage only: no legacy
+  boolean, typed override, dictionary UUID or arbitrary stored bytes establishes
+  validated confirmation authority. That server contract remains pending.
 
 **Edge DTO Layer** (`apps/ios/Merian/Core/AI/InferenceEdgeDTOs.swift`): The
 marked Identify `EdgeResponseWrapper` / `EdgeResponse` graph is generated from
@@ -5805,7 +5822,7 @@ with non-optional defaults (`queueAttemptCount = 0`, `queueUpdatedAt = now`,
 ### `OfflineQueuedScanGoalHint`
 
 Added in released `MerianSchemaV50` and retained through the
-`ActiveOfflineQueuedScanGoalHint` alias in current V52 source. This optional
+`ActiveOfflineQueuedScanGoalHint` alias in current V53 source. This optional
 companion exists only for a queued scan submitted from an eligible live Capture
 goal selection.
 
@@ -6138,7 +6155,7 @@ A top-level album type associated with `LocalScanRecord` nodes, added in
 - `createdAt`: Date
 - `scans`: [LocalScanRecord]? (Inverse `@Relationship` using IDs rather than
   encoded objects, reducing memory pressure.)
-- `isPendingDeletion`: Bool (Active V52 application tombstone, mapped to the
+- `isPendingDeletion`: Bool (Active V53 application tombstone, mapped to the
   released `isDeleted` column with `@Attribute(originalName:)`; the value is
   explicitly projected to the unchanged `is_deleted` Edge field for safe cloud
   erasure instead of destructive state-diffs.)
@@ -6149,7 +6166,7 @@ schema identifier. The original graph is retained in
 `isDeleted` property. The processed later-release graph is retained separately
 in `apps/ios/Merian/Models/Schema/SchemaV50ReleasedActiveSnapshots.swift`; it
 has the exact `isPendingDeletion` Swift property and
-`@Attribute(originalName: "isDeleted")` mapping emitted by that binary. The V52
+`@Attribute(originalName: "isDeleted")` mapping emitted by that binary. The V53
 active model retains the same unambiguous name and wire contract.
 
 `MerianActiveSchemaV50` bridges the original V50 graph, while
@@ -6159,13 +6176,13 @@ selects only the matching allowlisted graph before the custom V50→V51
 preferred-name migration; an unknown V50 signature is preserved through rescue
 instead of guessed. Neither stage alters collection state. The V49
 source-isolated plan contains V49→V50 and V50→V51 hops through the original
-bridge, followed by V51→V52; older recent lanes use the same tail after their
-source-specific repair.
+bridge, followed by V51→V52→V53; older recent lanes use the same tail after
+their source-specific repair.
 
 Disk-backed fixtures create both V50 graphs and verify metadata-based
 `.recentSource(.v50)` selection plus checksum-variant selection, true and false
 tombstones, relationship retention, the V50 goal-hint companion,
-unowned-preference removal, and a V52 relaunch. Collection mutation and
+unowned-preference removal, and a V53 relaunch. Collection mutation and
 database-actor tests cover save/refetch persistence, exact `is_deleted`
 projection, inbound tombstone shielding, and acknowledgement-only purge. The
 source-only rename does not invent delete intent for assignments that were never

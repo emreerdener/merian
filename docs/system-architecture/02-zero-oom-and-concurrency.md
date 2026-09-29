@@ -2084,21 +2084,23 @@ Two fixes were applied together:
 startup so `MerianApp` can attach the root SwiftUI environment, repository
 wiring, and safe-mode state before user workflows begin. The launch path must
 therefore avoid unnecessary deep migration validation. Startup reads the store
-metadata first: fresh/current V52 stores open without a migration plan, known
+metadata first: fresh/current V53 stores open without a migration plan, known
 recent stores use the narrow source-isolated
-V51/V50/V49/V48/V47/V46/V45/V44/V43/V42 plans, and unknown older stores use the
-full historical migration plan. V50 uses its custom V50→V51 preference-ownership
-stage and lightweight V51→V52; V49 first uses the lightweight V49→V50 hop. The
-full plan remains linear through V42→V49→V50→V51→V52 so older-store migration
-does not validate the duplicate-prone V43...V48 source cluster. V42/V43 use
-short direct plans to avoid validating older full-historical custom stages that
-can raise SwiftData's equal-model-reference exception. The V46 plan keeps V46 as
-the only duplicate-cluster source representative and jumps directly to V49
-because V46 was a shipped no-op schema, while true V47 stores use a
-source-isolated V47→V49 plan with a self-contained scalar queued-scan snapshot.
-Every chosen older lane then uses V49→V50→V51. Duplicate-checksum failures retry
-through the same recent-plan ladder, ordered current store then V50 down through
-V42, before legacy rescue or safe mode. Safe mode then opens an empty in-memory
+V52/V51/V50/V49/V48/V47/V46/V45/V44/V43/V42 plans, and unknown older stores use
+the full historical migration plan. V50 uses its custom V50→V51
+preference-ownership stage and lightweight V51→V52→V53; V49 first uses the
+lightweight V49→V50 hop. The full plan remains linear through
+V42→V49→V50→V51→V52→V53 so older-store migration does not validate the
+duplicate-prone V43...V48 source cluster. V42/V43 use short direct plans to
+avoid validating older full-historical custom stages that can raise SwiftData's
+equal-model-reference exception. The V46 plan keeps V46 as the only
+duplicate-cluster source representative and jumps directly to V49 because V46
+was a shipped no-op schema, while true V47 stores use a source-isolated V47→V49
+plan with a self-contained scalar queued-scan snapshot. Every chosen older lane
+then uses V49→V50→V51→V52→V53. V52 uses only its immediate lightweight V52→V53
+stage. Duplicate-checksum failures retry through the same recent-plan ladder,
+ordered current store then V52, V51, both V50 graphs and down through V42,
+before legacy rescue or safe mode. Safe mode then opens an empty in-memory
 `CurrentSchema` container without a migration plan, so historical stage
 validation cannot defeat the last-resort workspace. The full plan remains an
 independently tested contract. Supported recent sources are a finite enum ending

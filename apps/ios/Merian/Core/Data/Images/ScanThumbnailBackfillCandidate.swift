@@ -40,7 +40,7 @@ struct ScanThumbnailBackfillCandidate: Sendable, Equatable {
     private static func referenceIdentity(
         for record: LocalScanRecord
     ) -> (scientificName: String, gbifTaxonKey: Int?)? {
-        guard record.hasResolvedBiologicalIdentification else { return nil }
+        guard record.hasSpeciesLevelIdentification else { return nil }
 
         let override = record.userIdentificationOverride?
             .trimmedNonEmptyValue
@@ -69,7 +69,7 @@ extension LocalScanRecord {
         guard isBiological,
               !isLocallyArchived,
               !hasStoredVisualThumbnail,
-              hasResolvedBiologicalIdentification else {
+              hasSpeciesLevelIdentification else {
             return false
         }
 

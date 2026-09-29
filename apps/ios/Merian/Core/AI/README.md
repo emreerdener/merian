@@ -1383,3 +1383,23 @@ history merging and species-effect policy belong to Slice 2 of the
 `IdentificationDispatchAuthorization.currentProtocol` remains 4; the backend
 requires 5 for those future results. Current profiles, explanations and
 confidence display remain unchanged. Do not advertise 5 based on the DTO alone.
+
+## Dormant primary identification consumers
+
+`PrimaryIdentification+Edge` validates the reserved snapshot/provenance pairing,
+original labels, biological classification and species-only payload fields. Live
+and queued completion save every valid explicit result, including a zero model
+score. V53 preserves the snapshot through local reopening and history.
+Genus/family answers keep their original label and a plain rank caption; the
+existing confidence badge vocabulary is unchanged. Species hydration, reference
+images, alternatives, novelty and species counts require explicit species rank.
+Typed review stays separate from the original AI answer and cannot promote it.
+
+`PrimaryIdentificationPersistence` protects duplicate completion and history
+against conflicting snapshot/provenance changes; identical duplicates preserve
+saved review/media state. Older history projections may omit metadata without
+erasing an existing snapshot; a live or queued completion missing that required
+snapshot is rejected. Malformed required local metadata projects as an integrity
+failure. Protocol remains 4 until independently validated confirmation and
+public/export consumers complete Slice 2 in the
+[primary-resolution plan](../../../../../docs/rfcs/identification-primary-resolution-contract-2026-09-29.md).

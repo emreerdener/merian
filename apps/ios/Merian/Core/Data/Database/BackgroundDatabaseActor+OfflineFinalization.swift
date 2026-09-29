@@ -85,24 +85,6 @@ extension BackgroundDatabaseActor {
         capturedMediaJSON: String?
     ) async -> OfflineScanProcessingResult {
         guard !Task.isCancelled else { return .notProcessed }
-        guard initialMappedData.confidenceScore > 0 else {
-            do {
-                try modelContext.save()
-                return OfflineScanProcessingResult(
-                    resolvedSpeciesName: nil,
-                    isNewDiscovery: false,
-                    finalScanId: nil,
-                    speciesData: nil,
-                    wasCleaned: true
-                )
-            } catch {
-                modelContext.rollback()
-                MerianLog.data.error(
-                    "persistOfflineScanResult: terminal save failed; rolling back error=\(error, privacy: .private)"
-                )
-                return .notProcessed
-            }
-        }
 
         let recordId = initialMappedData.scanId ?? scanId
         await acquireScanFinalizationLock(
@@ -137,9 +119,16 @@ extension BackgroundDatabaseActor {
 
         do {
             var mappedData = initialMappedData
-            let shouldInsertRecord = try localScanRecord(id: recordId) == nil
+            let existing = try localScanRecord(id: recordId)
+            try validatePrimaryCompletion(mappedData, existing: existing)
+            guard mappedData.requiresSavedRecord else {
+                try modelContext.save()
+                return OfflineScanProcessingResult(resolvedSpeciesName: nil,
+                    isNewDiscovery: false, finalScanId: nil, speciesData: nil, wasCleaned: true)
+            }
+            let shouldInsertRecord = existing == nil
             let identity = try scanRecordSpeciesIdentity(
-                for: mappedData.scientificName
+                for: mappedData
             )
             let isNewDiscovery = shouldInsertRecord && identity.isNewDiscovery
             if isNewDiscovery {

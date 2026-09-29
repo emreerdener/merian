@@ -123,6 +123,7 @@ enum SpeciesObservationStatsReducer {
         targetName: String,
         targetSpeciesId: String?
     ) -> Bool {
+        if record.primaryIdentification != nil && !record.hasSpeciesLevelIdentification { return false }
         if let targetSpeciesId {
             let recordIds = [
                 normalizedSpeciesId(record.confirmedSpeciesId),

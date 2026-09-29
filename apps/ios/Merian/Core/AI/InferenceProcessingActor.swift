@@ -106,10 +106,10 @@ actor InferenceProcessingActor {
         // LocalScanRecord, matching the background retry path, but must not trigger another
         // paid provider call merely because there was nothing to persist. A queue-backed
         // response must still echo the exact scan ID before that no-record result is trusted.
-        var didCompletePersistence = mappedData.confidenceScore <= 0.0
+        var didCompletePersistence = !mappedData.requiresSavedRecord
 
         let persistenceStartedAt = CFAbsoluteTimeGetCurrent()
-        if mappedData.confidenceScore > 0.0, let container = modelContext?.container,
+        if mappedData.requiresSavedRecord, let container = modelContext?.container,
            !compressedDatas.isEmpty || skipImageRequirement {
             let dbActor = BackgroundDatabaseActor(modelContainer: container)
             if !compressedDatas.isEmpty {

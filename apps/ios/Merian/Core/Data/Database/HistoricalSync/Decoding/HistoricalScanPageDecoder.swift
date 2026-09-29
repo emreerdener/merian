@@ -34,9 +34,9 @@ enum HistoricalScanPageDecoder {
                     )
                 }
                 let rowData = try JSONSerialization.data(withJSONObject: row)
-                responses.append(
-                    try decoder.decode(HistoricalScanResponse.self, from: rowData)
-                )
+                let response = try decoder.decode(HistoricalScanResponse.self, from: rowData)
+                _ = try HistoricalPrimaryIdentification.validate(response)
+                responses.append(response)
             } catch {
                 rejectedRowCount += 1
                 if firstRejectedCodingPath == nil {

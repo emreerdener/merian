@@ -65,8 +65,9 @@ struct BiologicalView: View {
                 confidenceScore: inferenceEngine.speciesData?.presentationConfidenceScore,
                 inferenceTier: inferenceEngine.speciesData?.inferenceTier,
                 provenance: inferenceEngine.speciesData?.identificationProvenance,
-                userIdentificationOverride: inferenceEngine.speciesData?.userIdentificationOverride,
-                userConfirmedIdentification: inferenceEngine.speciesData?.userConfirmedIdentification ?? false,
+                primaryRankDescription: inferenceEngine.speciesData?.primaryRankDescription,
+                userIdentificationOverride: inferenceEngine.speciesData?.primaryIdentification == nil ? inferenceEngine.speciesData?.userIdentificationOverride : nil,
+                userConfirmedIdentification: inferenceEngine.speciesData?.primaryIdentification == nil ? (inferenceEngine.speciesData?.userConfirmedIdentification ?? false) : false,
                 isFlagged: inferenceEngine.speciesData?.isFlagged ?? false,
                 aiScientificName: inferenceEngine.speciesData?.aiScientificName,
                 onAskCommunity: viewModel.canRequestCommunityIdentification ? {

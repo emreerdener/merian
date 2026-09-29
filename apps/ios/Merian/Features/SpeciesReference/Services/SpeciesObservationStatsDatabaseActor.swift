@@ -77,6 +77,9 @@ actor SpeciesObservationStatsDatabaseActor {
         \LocalScanRecord.captureDate,
         \LocalScanRecord.timestamp,
         \LocalScanRecord.lifeStage,
-        \LocalScanRecord.isBiological
+        \LocalScanRecord.isBiological,
+        \LocalScanRecord.commonName,
+        \LocalScanRecord.primaryIdentificationData,
+        \LocalScanRecord.identificationProvenanceData
     ]
 }

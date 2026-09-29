@@ -141,6 +141,7 @@ struct SpeciesModelsArchitectureTests {
 
     private static let speciesSourcePaths = [
         "IdentificationResultProvenance.swift",
+        "PrimaryIdentification.swift",
         "SimilarSpecies.swift",
         "SpeciesData+Presentation.swift",
         "SpeciesData.swift",
@@ -148,6 +149,7 @@ struct SpeciesModelsArchitectureTests {
     ]
 
     private static let speciesTestPaths = [
+        "PrimaryIdentificationTests.swift",
         "SimilarSpeciesTests.swift",
         "SpeciesDataTests.swift",
         "SpeciesModelsArchitectureTests.swift",

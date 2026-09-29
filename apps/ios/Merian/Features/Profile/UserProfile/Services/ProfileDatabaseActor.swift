@@ -24,6 +24,7 @@ actor ProfileDatabaseActor {
         let confidenceScore: Double?
         let inferenceTier: String?
         let identificationProvenanceData: Data?
+        let primaryIdentificationData: Data?
     }
 
     private struct ProfileAchievementDetailProjection:
@@ -47,6 +48,7 @@ actor ProfileDatabaseActor {
         let confidenceScore: Double?
         let inferenceTier: String?
         let identificationProvenanceData: Data?
+        let primaryIdentificationData: Data?
         let commonName: String?
         let locationName: String?
         let imagePath: String?
@@ -104,7 +106,7 @@ actor ProfileDatabaseActor {
 
             for record in records {
                 timestamps.append(record.timestamp)
-                uniqueSpecies.insert(record.scientificName)
+                if record.hasSpeciesRankForAchievements { uniqueSpecies.insert(record.scientificName) }
             }
 
             self.fingerprint = ProfileProjectionFingerprint(analyticsRecords: records)
@@ -191,7 +193,7 @@ actor ProfileDatabaseActor {
             \.id, \.speciesId, \.scientificName, \.userIdentificationOverride, \.confirmedSpeciesId, \.captureDate,
             \.taxonomyKingdom, \.taxonomyClass, \.ecologyType, \.weatherTemperatureF,
             \.gpsElevation, \.timestamp, \.isBiological, \.isInvasive, \.iucnRedListStatus, \.hazardType,
-            \.confidenceScore, \.inferenceTier, \.identificationProvenanceData
+            \.confidenceScore, \.inferenceTier, \.identificationProvenanceData, \.primaryIdentificationData
         ]
 
         guard let records = try? modelContext.fetch(descriptor) else { return [] }
@@ -215,7 +217,8 @@ actor ProfileDatabaseActor {
                 hazardType: $0.hazardType,
                 confidenceScore: $0.confidenceScore,
                 inferenceTier: $0.inferenceTier,
-                identificationProvenanceData: $0.identificationProvenanceData
+                identificationProvenanceData: $0.identificationProvenanceData,
+                primaryIdentificationData: $0.primaryIdentificationData
             )
         }
     }
@@ -232,7 +235,7 @@ actor ProfileDatabaseActor {
             \.timestamp, \.captureDate, \.taxonomyKingdom, \.taxonomyClass, \.ecologyType, \.weatherTemperatureF,
             \.gpsElevation, \.isInvasive, \.iucnRedListStatus, \.hazardType, \.confidenceScore,
             \.commonName, \.locationName, \.coverImagePath, \.capturedMediaJSON, \.referenceImageUrl,
-            \.isBiological, \.isLocallyArchived, \.inferenceTier, \.identificationProvenanceData
+            \.isBiological, \.isLocallyArchived, \.inferenceTier, \.identificationProvenanceData, \.primaryIdentificationData
         ]
 
         guard let records = try? modelContext.fetch(descriptor) else { return [] }
@@ -258,6 +261,7 @@ actor ProfileDatabaseActor {
                 confidenceScore: record.confidenceScore,
                 inferenceTier: record.inferenceTier,
                 identificationProvenanceData: record.identificationProvenanceData,
+                primaryIdentificationData: record.primaryIdentificationData,
                 commonName: record.commonName,
                 locationName: record.locationName,
                 imagePath: thumbnail.imagePath,
