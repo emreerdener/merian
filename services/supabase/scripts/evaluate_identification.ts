@@ -1,4 +1,8 @@
-import { executePhotoModelComparison } from "./identification_evaluation/photoModelRunner.ts";
+import { preparePhotoModelContinuation } from "./identification_evaluation/photoModelContinuation.ts";
+import {
+  executePhotoModelComparison,
+  executePhotoModelContinuation,
+} from "./identification_evaluation/photoModelRunner.ts";
 import { preparePhotoModelComparison } from "./identification_evaluation/photoModelPreparation.ts";
 import { createNullFieldsDemo } from "./identification_evaluation/nullFieldsOffline.ts";
 import { createCandidateDemo } from "./identification_evaluation/candidateOffline.ts";
@@ -71,7 +75,9 @@ export async function main(args = Deno.args): Promise<void> {
     "demo-measurement",
     "preflight",
     "preflight-free-pro-photo",
+    "preflight-free-pro-photo-continuation",
     "--photo-model-live",
+    "--photo-model-continuation-live",
     "offline",
     "--live",
     "report",
@@ -93,7 +99,8 @@ export async function main(args = Deno.args): Promise<void> {
   );
   if (
     mode !== "--live" && mode !== "--experiment-live" &&
-    mode !== "calibrate-explanations" && mode !== "--photo-model-live"
+    mode !== "calibrate-explanations" && mode !== "--photo-model-live" &&
+    mode !== "--photo-model-continuation-live"
   ) {
     await assertOfflinePermissions();
   }
@@ -118,7 +125,15 @@ export async function main(args = Deno.args): Promise<void> {
         "exploratory"
       ? await saveExploratoryReport(root, runId)
       : await saveReport(root, runId);
-  if (mode === "--photo-model-live") {
+  if (mode === "--photo-model-continuation-live") {
+    await executePhotoModelContinuation(
+      root,
+      await sourceIdentity(repository),
+      "live",
+    );
+  } else if (mode === "preflight-free-pro-photo-continuation") {
+    await preparePhotoModelContinuation(root, await sourceIdentity(repository));
+  } else if (mode === "--photo-model-live") {
     await executePhotoModelComparison(
       root,
       await sourceIdentity(repository),

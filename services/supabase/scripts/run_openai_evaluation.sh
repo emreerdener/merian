@@ -20,11 +20,12 @@ import warnings
 
 
 def main():
-    if len(sys.argv) not in (4, 5) or sys.argv[2] not in ("--credential-fingerprint", "--live", "--experiment-live", "--experiment-session", "--photo-model-live"):
+    if len(sys.argv) not in (4, 5) or sys.argv[2] not in ("--credential-fingerprint", "--live", "--experiment-live", "--experiment-session", "--photo-model-live", "--photo-model-continuation-live"):
         raise ValueError("arguments")
     session = sys.argv[2] == "--experiment-session"
     experiment = session or sys.argv[2] == "--experiment-live"
-    photo_models = sys.argv[2] == "--photo-model-live"
+    continuation = sys.argv[2] == "--photo-model-continuation-live"
+    photo_models = continuation or sys.argv[2] == "--photo-model-live"
     if len(sys.argv) != (5 if experiment and not session else 4):
         raise ValueError("arguments")
     run_id = sys.argv[4] if experiment and not session else None
@@ -88,20 +89,23 @@ def main():
                   "--allow-write=" + str(packet), "--allow-run=git"]
         entry = "services/supabase/scripts/evaluate_identification.ts"
         # Existing preflight checks all exact inputs; it cannot read keys or call a provider.
-        preflight = subprocess.run(common + ["--deny-net", "--deny-env", entry, "preflight-free-pro-photo" if photo_models else "experiment-preflight" if experiment else "preflight", str(packet)],
+        preflight = subprocess.run(common + ["--deny-net", "--deny-env", entry, "preflight-free-pro-photo-continuation" if continuation else "preflight-free-pro-photo" if photo_models else "experiment-preflight" if experiment else "preflight", str(packet)],
                                    cwd=repository, env=environment, stdin=subprocess.DEVNULL,
                                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         if preflight.returncode != 0:
             raise ValueError("preflight")
         if photo_models:
-            report_path = packet / "photo-model-preflight.json"
+            report_path = packet / ("photo-model-continuation-preflight.json" if continuation else "photo-model-preflight.json")
             info = report_path.lstat()
             if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or not 0 < info.st_size <= 65536:
                 raise ValueError("preflight")
             report = json.loads(report_path.read_text())
-            if (report.get("version") != "photo_model_preflight_v1" or report.get("budgetFitsRegionalReservation") is not True
+            if (report.get("version") != ("photo_model_continuation_preflight_v1" if continuation else "photo_model_preflight_v1") or report.get("budgetFitsRegionalReservation") is not True
                     or report.get("evidenceStatus") != "provisional_reference_pilot"
                     or not isinstance(report.get("source"), dict) or report["source"].get("dirty") is not False):
+                raise ValueError("preflight")
+            if continuation and (report.get("inheritedCalls") != 1 or report.get("maxAdditionalCalls") != 17
+                    or report.get("screeningPolicy") != "reference_gaps_recorded_v1"):
                 raise ValueError("preflight")
     else:
         fingerprint_path = packet / "openai-credential-fingerprint.json"
@@ -148,14 +152,18 @@ def main():
                 if result.returncode != 0:
                     raise ValueError("evaluation")
                 if photo_models:
-                    state_path = packet / "photo-model-run" / "state.json"
+                    state_path = packet / ("photo-model-continuation" if continuation else "photo-model-run") / "state.json"
                     info = state_path.lstat()
                     if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or not 0 < info.st_size <= 65536:
                         raise ValueError("photo_model_stopped")
                     state = json.loads(state_path.read_text())
-                    if (not isinstance(state, dict) or state.get("version") != "photo_model_state_v1"
+                    if (not isinstance(state, dict) or state.get("version") != ("photo_model_state_v2" if continuation else "photo_model_state_v1")
                             or state.get("complete") is not True or state.get("stop") is not None
                             or state.get("claimedCalls") != 18 or state.get("completedCalls") != 18):
+                        raise ValueError("photo_model_stopped")
+                    if continuation and (state.get("inheritedCalls") != 1 or state.get("newlyClaimedCalls") != 17
+                            or state.get("screeningPolicy") != "reference_gaps_recorded_v1"
+                            or state.get("productionActivationAuthorized") is not False):
                         raise ValueError("photo_model_stopped")
                 if session:
                     state_path = packet / "experiment" / "state.json"

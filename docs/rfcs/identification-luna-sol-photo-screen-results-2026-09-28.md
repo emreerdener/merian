@@ -62,11 +62,12 @@ supply the missing cross-species reference for every material comparison. Under
 the existing rubric, that gap is `insufficient_reference`; it is neither an
 observed contradiction nor proof that the model invented evidence.
 
-`photoModelRunner.ts` requires both a correct primary result and passing ratings
-for all three explanation criteria before continuing the screen. Its terminal
-`screen_failed` code therefore includes an unassessable reference outcome.
-Reports must inspect the retained ratings rather than interpret that code alone
-as a wrong identification or demonstrated model-quality failure.
+The original `photoModelRunner.ts` mode requires both a correct primary result
+and passing ratings for all three explanation criteria before continuing the
+screen. Its terminal `screen_failed` code therefore includes an unassessable
+reference outcome. Reports must inspect the retained ratings rather than
+interpret that code alone as a wrong identification or demonstrated
+model-quality failure.
 
 This also exposes a preparation limitation: the production photo contract
 requires two alternative candidates with distinguishing features, and the review
@@ -81,7 +82,9 @@ compatible Luna request does not establish comparative accuracy, explanation
 quality, a cost-saving percentage, median latency, mobile end-to-end speed or
 confidence-badge thresholds. No contemporary Sol result exists in this run.
 
-Recommended next protocol revision, not implemented or activated by this record:
+The owner subsequently approved this protocol revision on 28 September. It is
+implemented in a separate continuation; execution and its outcomes remain to be
+recorded:
 
 1. Keep the stopped journal and its unassessable rating intact. Do not rerun the
    first request or silently replace its reference facts after seeing output.
@@ -97,6 +100,29 @@ Recommended next protocol revision, not implemented or activated by this record:
    collecting the remaining comparison evidence under an explicitly revised
    protocol, while continuing to block claims that require the missing evidence.
 
-The original controller does not support that continuation. Its terminal stop
-must not be deleted or edited to simulate one. This report performs no further
-provider calls, changes no prompt or model settings, and grants no activation.
+The original execution mode and terminal stop remain unchanged. The separate
+continuation validates the stopped journal and inherits ordinal 1 without
+redispatching it. It uses a new source/credential/parent-bound approval and a
+sibling journal for ordinals 2–18, locks both journals and counts the inherited
+reservation toward the same cap. Reference gaps on any of the six screening
+cases remain unassessable and may proceed; actual screening failures still stop.
+The
+[operating procedure](../development-guides/22-alternative-identification-provider.md#approved-continuation-after-the-reference-coverage-stop)
+documents the distinct preflight, approval and launcher mode. This revision
+changes no prompt, model settings, explanation format or production assignment.
+
+## Continuation verification
+
+The continuation passed the complete `make test-supabase-tooling` gate: 455
+standard tests, 86 isolated evaluator tests, both DTO groups, all 12 shell test
+files and recursive script type checks. The evaluator includes 20 photo-model
+tests covering the original and continuation modes. Recursive Deno formatting
+and lint, changed-Markdown formatting and diff checks passed. These checks make
+no live provider requests.
+
+Independent read-only review found no controller, locking, accounting,
+provenance or release-control blocker. Its documentation-sync finding was
+resolved in the operator guide, evaluator README and current plan. Function
+runtime code, database objects and iOS code are unchanged in this continuation;
+their full runtime/database/native suites were not rerun for this scripts-only
+change. The original preparation record retains their earlier evidence.

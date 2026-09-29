@@ -12,7 +12,11 @@ revision and the existing key. No production assignment changes.
 Live outcome, later on 28 September: one Luna call completed and matched its
 primary reference; a missing comparative reference stopped the screen. See the
 [retained result and limitations](identification-luna-sol-photo-screen-results-2026-09-28.md).
-The preparation facts below remain the pre-execution record.
+The owner then approved a separate continuation of only the remaining seventeen
+assignments, retaining reference gaps as unassessable and the same combined
+18-call/$40 cap. That continuation is implemented; its live outcome is pending.
+The preparation facts and verification counts below remain the original
+pre-execution record.
 
 ## Frozen scope
 

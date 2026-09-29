@@ -277,7 +277,10 @@ production submission or public release.
   approved $40 ceiling. The
   [first live screen](./rfcs/identification-luna-sol-photo-screen-results-2026-09-28.md)
   stopped after one correct Luna identification because an explanatory
-  comparison lacked reference coverage; the model comparison is incomplete.
+  comparison lacked reference coverage. The owner approved a separate
+  seventeen-call continuation preserving unassessable gaps and the same combined
+  18-call/$40 cap; that implementation is ready, but live comparison and model
+  selection remain incomplete.
 - **[Identification optimization while preserving current results](./rfcs/identification-optimization-preserving-results-2026-09-27.md):**
   Current plan following verified completion of the provider infrastructure
   milestone. Preserve explanation format and detail while investigating

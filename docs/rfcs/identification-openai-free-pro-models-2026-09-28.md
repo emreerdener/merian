@@ -9,8 +9,11 @@ comparison on 28 September. Execution requires the credential-bound approval and
 existing Naturebook key. The first live screen subsequently stopped after one
 Luna call because an explanatory comparison lacked reference coverage; see the
 [screen result](identification-luna-sol-photo-screen-results-2026-09-28.md). The
-full comparison and model selection remain incomplete. Production assignments
-are unchanged.
+full comparison and model selection remain incomplete. The owner subsequently
+approved preserving reference gaps as unassessable and continuing only the
+seventeen unattempted assignments within the same combined 18-call/$40 limit.
+The separate continuation is implemented; its live outcome is pending.
+Production assignments are unchanged.
 
 ## Recommendation
 
@@ -226,8 +229,12 @@ Prepare one small new comparison:
   review and reference limitations honestly; do not require the owner to score
   every explanation or invent a second human reviewer.
 
-Screen Luna on the six existing cases first. Stop if it fails before spending on
-challenge cases. For the release decision:
+Screen Luna on the six existing cases first. Stop on a wrong identification,
+actual explanation failure, unavailable or uncertain review, technical/safety
+failure or unknown billing before spending on challenge cases. The approved
+continuation permits only missing-reference ratings
+(`not_assessable / insufficient_reference`) to proceed, preserving each gap in
+the report rather than counting it as a quality pass. For the release decision:
 
 - Luna must preserve the five biological matches and the non-biological control,
   complete schema and safety checks, and the current explanation quality. Sol's
@@ -301,6 +308,17 @@ offline preflight with zero provider calls. Local implementation and
 verification are complete, and the spending decision is resolved. Slice 2 uses a
 credential-bound approval for the reviewed clean revision and the existing
 Naturebook key. The assistant performs the transient explanation reviews.
+
+After the first reference-coverage stop, the owner approved a separate
+continuation without changing those frozen inputs or the spending ceiling.
+`photoModelContinuation.ts` and the distinct `--photo-model-continuation-live`
+mode inherit the first completed call and its reservation, preserve the original
+journal, and permit only seventeen new claims. Their private approval binds the
+new clean source and original artifact digests. Tests cover inherited
+accounting, reference-gap retention, original and sibling locking,
+historical/current approval windows, tamper detection and no repeat of
+interrupted or completed calls. The continuation does not qualify a model; Slice
+2 still requires the combined results and selection record.
 
 ## Implementation slices
 

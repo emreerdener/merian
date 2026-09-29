@@ -136,6 +136,18 @@ screen barrier, assistant ratings and source/key/approval bindings. The terminal
 launcher suite verifies its new mode with fake credentials and the real scoped
 Deno permission gate; neither suite dispatches a provider.
 
+`photoModelContinuationTests.ts` exercises the separate seventeen-call
+continuation: it inherits the original first result/reservation, preserves its
+artifact bytes, skips its ordinal, and retains reference gaps without treating
+them as passing explanation evidence. Regressions cover wrong identities, actual
+failed/uncertain/unavailable ratings, model/safety/billing failures, parent
+tampering before and between calls, fixed ordering/budget, lock contention with
+either execution mode, interruption without retry, distinct approval formats and
+historical versus current approval windows. Launcher tests require continuation
+preflight before key entry and reject missing/incomplete state or incorrect
+inherited/new aggregate counts. Full completion still carries no production
+authority.
+
 The production workflow's cumulative undeployed-source scope separately includes
 the generated inference DTO contract, `Core/Network/SupabaseManager.swift`, the
 exact scan- admission bridge in `Core/Network/MerianNetworkClient.swift`, its

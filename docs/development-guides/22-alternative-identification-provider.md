@@ -175,6 +175,65 @@ bound enum ratings are saved. Finishing all calls never selects or activates a
 production profile. The assistant still writes the quality/cost/latency
 selection record against the frozen references.
 
+### Approved continuation after the reference-coverage stop
+
+The owner approved retaining the first result and completing at most the
+seventeen unattempted assignments under `reference_gaps_recorded_v1`. This is a
+specific continuation of the stopped one-result journal, with a combined maximum
+of 18 calls and $40. Photos, frozen facts, request parameters, prices and
+assignment order stay bound to the original plan. Do not restart the original
+mode, delete its stop or replace its ratings.
+
+Run the network/environment-denied
+`preflight-free-pro-photo-continuation PRIVATE_PACKET` CLI mode against a clean
+reviewed revision. It writes `photo-model-continuation-preflight.json`,
+preserving the original preflight and journal. It validates exactly one
+completed ordinal 1, a correct screening identification, the original
+`screen_failed` stop, and ratings containing only passes and
+`insufficient_reference` gaps. It binds `parentRunDigest` and
+`parentArtifactsDigest` to the original manifest, stop, claim, result, review
+and approval; derived `state.json` is never authority.
+
+Create the private `photo-model-continuation-approval.json` only for this
+approved revision. Its version is `photo_model_continuation_approval_v1` and
+operation is `remaining_17_luna_sol_photo_comparison`. It retains the original
+approval's project, plan, source, credential, budget, reference and
+at-most-24-hour window fields, but binds the new source and current approval
+window. It also requires both parent digests,
+`screeningPolicy: reference_gaps_recorded_v1`, and `maxAdditionalCalls: 17`. The
+old and new approval formats cannot authorize each other's execution mode. The
+original approval is verified at its first claim's timestamp; this preserves
+historical authority without extending its expiry.
+
+```bash
+bash services/supabase/scripts/run_openai_evaluation.sh \
+  --photo-model-continuation-live PRIVATE_PACKET
+```
+
+The launcher runs that separate preflight before hidden key entry. Execution
+holds the original lock before acquiring the sibling `photo-model-continuation/`
+lock, validates the original artifacts before each dispatch and never rewrites
+them. Only ordinals 2–18 can be claimed in the new journal. Accounting includes
+the inherited call and reservation: the full $39.0071088 reservation still fits
+the same $40 ceiling. Interrupted claims cannot be retried, and durable stops
+cannot be cleared by restoring changed inputs.
+
+All six screening identifications must still be correct at the supported rank.
+The revised screen permits only `not_assessable / insufficient_reference` in
+addition to passing explanation ratings. Actual failures, reviewer uncertainty
+or unavailable review still stop screening; provider, safety and billing stops
+also remain. Challenge-quality outcomes stay visible without replacement calls.
+Reference gaps stay unassessable in the report and cannot count as explanation
+passes or establish a Pro advantage.
+
+The v2 aggregate state includes `inheritedCalls`, `newlyClaimedCalls`,
+`referenceGapOrdinals` and `explanationEvidenceComplete`. The launcher requires
+18 combined completed calls, one inherited and seventeen new claims, before
+reporting completion. `complete: true` means the scheduled collection finished;
+it does not mean the evidence is complete or a model is qualified. The assistant
+must still write the selection report, and production activation remains a
+separate decision.
+
 ## Fixed initial assignment
 
 | Setting                     | Candidate                                                                    |

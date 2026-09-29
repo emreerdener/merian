@@ -35,21 +35,26 @@ import {
   sourceIdentity,
   withRunLock,
 } from "./files.ts";
-import { validatePhotoModelApproval } from "./photoModelAdmission.ts";
+import {
+  PHOTO_MODEL_REFERENCE_GAP_POLICY,
+  validatePhotoModelApproval,
+} from "./photoModelAdmission.ts";
+import {
+  loadPhotoModelParent,
+  type PhotoModelEntry as Entry,
+  photoModelScreenPass as screenPass,
+} from "./photoModelContinuation.ts";
 import {
   loadPhotoModelPacket,
   type PhotoModelAssignment,
-  type PhotoModelPacket,
 } from "./photoModelPreparation.ts";
 import {
   parsePhotoModelRecord,
   PHOTO_MODEL_BILLING_MULTIPLIER,
   photoModelCostUpper,
-  type PhotoModelRecord,
   projectPhotoModelOutcome,
 } from "./photoModelRecords.ts";
 import { type SourceIdentity, timestamp } from "./runContracts.ts";
-import { assessReference } from "./scoring.ts";
 import { fields, member, requireCondition as check } from "./validation.ts";
 
 const STOP_REASONS = [
@@ -68,10 +73,6 @@ interface OfflineDependencies {
   ) => Promise<AIProviderOutcome>;
   review: (display: ReviewDisplay | null) => Promise<Ratings | null>;
 }
-interface Entry {
-  record: PhotoModelRecord;
-  ratings: Ratings;
-}
 const filename = (ordinal: number) =>
   String(ordinal).padStart(2, "0") + ".json";
 const reserve = (a: PhotoModelAssignment) =>
@@ -81,22 +82,6 @@ async function onlyEntries(path: string, allowed: string[]) {
     check(e.isFile && !e.isSymlink && allowed.includes(e.name));
   }
 }
-function screenPass(
-  packet: PhotoModelPacket,
-  a: PhotoModelAssignment,
-  entry: Entry,
-): boolean {
-  if (entry.record.reason !== "completed" || !ratingsPass(entry.ratings)) {
-    return false;
-  }
-  const reference = packet.corpus.cases.find((c) =>
-    c.input.caseId === a.caseId
-  )!.provisionalReference!;
-  const assessment = assessReference(reference, entry.record.prediction);
-  return assessment.subjectCorrect &&
-    (assessment.correct || assessment.appropriateUnresolved);
-}
-
 /** Existing runs retain a terminal stop even when their original inputs no longer validate. */
 async function configurationStop(directory: string) {
   const manifest = fields(await readJson(join(directory, "manifest.json")), [
@@ -104,7 +89,10 @@ async function configurationStop(directory: string) {
     "createdAt",
     "binding",
   ]);
-  check(manifest.version === "photo_model_run_v1");
+  check(
+    manifest.version === "photo_model_run_v1" ||
+      manifest.version === "photo_model_run_v2",
+  );
   timestamp(manifest.createdAt);
   const runDigest = await fingerprintJson(manifest),
     stopPath = join(directory, "stop.json");
@@ -128,7 +116,9 @@ async function configurationStop(directory: string) {
     });}
   // The original packet cannot be validated. Retain the journal; never guess its totals.
   const state = {
-    version: "photo_model_state_v1",
+    version: manifest.version === "photo_model_run_v2"
+      ? "photo_model_state_v2"
+      : "photo_model_state_v1",
     runDigest,
     stop: reason,
     claimedCalls: null,
@@ -148,6 +138,39 @@ export async function executePhotoModelComparison(
   mode: "offline" | "live",
   dependencies?: OfflineDependencies,
 ) {
+  return await executePhotoModelRun(root, source, mode, dependencies, false);
+}
+
+export async function executePhotoModelContinuation(
+  root: string,
+  source: SourceIdentity,
+  mode: "offline" | "live",
+  dependencies?: OfflineDependencies,
+) {
+  try {
+    check(await exists(join(root, "photo-model-run")));
+    await privateDirectory(join(root, "photo-model-run"));
+    const lock = await Deno.lstat(join(root, "photo-model-run", ".lock"));
+    check(lock.isFile && !lock.isSymlink && lock.nlink === 1);
+  } catch (error) {
+    const continuationPath = join(root, "photo-model-continuation");
+    if (!await exists(join(continuationPath, "manifest.json"))) throw error;
+    const directory = await privateDirectory(continuationPath);
+    return await withRunLock(directory, () => configurationStop(directory));
+  }
+  return await withRunLock(
+    join(root, "photo-model-run"),
+    () => executePhotoModelRun(root, source, mode, dependencies, true),
+  );
+}
+
+async function executePhotoModelRun(
+  root: string,
+  source: SourceIdentity,
+  mode: "offline" | "live",
+  dependencies: OfflineDependencies | undefined,
+  continuation: boolean,
+) {
   const live = mode === "live";
   check(live ? dependencies === undefined : dependencies !== undefined);
   if (!live) await assertOfflinePermissions();
@@ -166,15 +189,34 @@ export async function executePhotoModelComparison(
         : packet.corpus.evidenceOrigin === "synthetic",
     );
     let credential = "", approval = null;
+    if (live) credential = await liveCredential("openai");
+    const parent = continuation
+      ? await loadPhotoModelParent(
+        root,
+        packet,
+        mode,
+        live ? credential : undefined,
+      )
+      : null;
     if (live) {
-      credential = await liveCredential("openai");
       await assertPrivateReviewReady();
       approval = await validatePhotoModelApproval(
-        await readJson(join(root, "photo-model-approval.json")),
+        await readJson(
+          join(
+            root,
+            continuation
+              ? "photo-model-continuation-approval.json"
+              : "photo-model-approval.json",
+          ),
+        ),
         packet,
         credential,
         Date.now(),
+        parent ?? undefined,
       );
+      if (parent) {
+        check(Date.parse(approval.approvedAt) >= Date.parse(parent.startedAt));
+      }
     }
     const reservedNanoUsd = packet.report.order.reduce(
       (n, a) => n + reserve(a),
@@ -183,7 +225,20 @@ export async function executePhotoModelComparison(
     // Freeze the entire schedule before even the first screening call.
     check(reservedNanoUsd <= Math.floor(packet.plan.budgetUsd * 1e9));
     const binding = {
-      version: "photo_model_run_binding_v1",
+      version: continuation
+        ? "photo_model_run_binding_v2"
+        : "photo_model_run_binding_v1",
+      ...(parent
+        ? {
+          continuation: {
+            parentRunDigest: parent.parentRunDigest,
+            parentArtifactsDigest: parent.parentArtifactsDigest,
+            inheritedOrdinals: [1],
+            maxAdditionalCalls: 17,
+            screeningPolicy: PHOTO_MODEL_REFERENCE_GAP_POLICY,
+          },
+        }
+        : {}),
       mode,
       source,
       planDigest: packet.report.planDigest,
@@ -196,9 +251,12 @@ export async function executePhotoModelComparison(
       reviewerRef: approval?.reviewerRef ?? "synthetic-reviewer",
       delegationRef: approval?.delegationRef ?? "synthetic-delegation",
     };
-    return { packet, credential, binding };
+    return { packet, credential, binding, parent };
   };
-  const runPath = join(root, "photo-model-run");
+  const runPath = join(
+    root,
+    continuation ? "photo-model-continuation" : "photo-model-run",
+  );
   // Initial admission failures must remain artifact-free. Existing runs validate under their lock.
   const first = await exists(join(runPath, "manifest.json"))
     ? null
@@ -234,7 +292,7 @@ export async function executePhotoModelComparison(
       }
       check(!await exists(join(directory, "stop.json")));
       await claimJson(manifestPath, {
-        version: "photo_model_run_v1",
+        version: continuation ? "photo_model_run_v2" : "photo_model_run_v1",
         createdAt: new Date().toISOString(),
         binding: initial.binding,
       });
@@ -244,7 +302,10 @@ export async function executePhotoModelComparison(
       "createdAt",
       "binding",
     ]);
-    check(manifest.version === "photo_model_run_v1");
+    check(
+      manifest.version ===
+        (continuation ? "photo_model_run_v2" : "photo_model_run_v1"),
+    );
     timestamp(manifest.createdAt);
     if (
       await fingerprintJson(manifest.binding) !==
@@ -253,7 +314,9 @@ export async function executePhotoModelComparison(
       return await configurationStop(directory);
     }
     const runDigest = await fingerprintJson(manifest), packet = initial.packet;
-    const names = packet.report.order.map((a) => filename(a.ordinal));
+    const names = packet.report.order.filter((a) =>
+      !continuation || a.ordinal !== 1
+    ).map((a) => filename(a.ordinal));
     for (const name of ["claims", "results", "reviews"]) {
       await onlyEntries(join(directory, name), names);
     }
@@ -272,10 +335,12 @@ export async function executePhotoModelComparison(
     }
     const reconcile = async () => {
       entries.clear();
-      claimed = 0;
-      heldNanoUsd = 0;
+      claimed = initial.parent ? 1 : 0;
+      heldNanoUsd = initial.parent?.reservedNanoUsd ?? 0;
+      if (initial.parent) entries.set(1, initial.parent.entry);
       let gap = false;
       for (const a of packet.report.order) {
+        if (continuation && a.ordinal === 1) continue;
         const name = filename(a.ordinal),
           assignmentDigest = await fingerprintJson(a);
         const claimPath = join(directory, "claims", name),
@@ -365,7 +430,9 @@ export async function executePhotoModelComparison(
           stop ??= "review_missing";
           gap = true;
         }
-        if (a.phase === "screen" && !screenPass(packet, a, entry)) {
+        if (
+          a.phase === "screen" && !screenPass(packet, a, entry, continuation)
+        ) {
           stop ??= "screen_failed";
           gap = true;
         }
@@ -373,7 +440,7 @@ export async function executePhotoModelComparison(
           check(
             packet.report.order.filter((p) => p.phase === "screen").every((p) =>
               entries.has(p.ordinal) &&
-              screenPass(packet, p, entries.get(p.ordinal)!)
+              screenPass(packet, p, entries.get(p.ordinal)!, continuation)
             ),
           );
         }
@@ -388,7 +455,22 @@ export async function executePhotoModelComparison(
         });
       }
       const state = {
-        version: "photo_model_state_v1",
+        version: continuation ? "photo_model_state_v2" : "photo_model_state_v1",
+        ...(continuation
+          ? {
+            inheritedCalls: initial.parent ? 1 : 0,
+            newlyClaimedCalls: claimed - (initial.parent ? 1 : 0),
+            screeningPolicy: PHOTO_MODEL_REFERENCE_GAP_POLICY,
+            referenceGapOrdinals: [...entries].filter(([, e]) =>
+              Object.values(e.ratings).some((r) =>
+                r.status === "not_assessable" &&
+                r.reason === "insufficient_reference"
+              )
+            ).map(([ordinal]) => ordinal),
+            explanationEvidenceComplete: entries.size === 18 &&
+              [...entries.values()].every((e) => ratingsPass(e.ratings)),
+          }
+          : {}),
         runDigest,
         stop,
         claimedCalls: claimed,
@@ -417,7 +499,7 @@ export async function executePhotoModelComparison(
         check(
           packet.report.order.filter((p) => p.phase === "screen").every((p) =>
             entries.has(p.ordinal) &&
-            screenPass(packet, p, entries.get(p.ordinal)!)
+            screenPass(packet, p, entries.get(p.ordinal)!, continuation)
           ),
         );
       }

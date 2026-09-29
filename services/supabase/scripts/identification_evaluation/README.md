@@ -126,7 +126,28 @@ v2/$40 packet. Its
 completed one reference-matching Luna identification, then stopped because a
 material explanatory comparison was not assessable against the frozen notes.
 `screen_failed` includes this reference-coverage outcome; it does not by itself
-establish a wrong identification. The remaining seventeen calls did not run.
+establish a wrong identification. The remaining seventeen calls did not run in
+that original journal.
+
+The owner subsequently approved completing only those seventeen assignments
+under `reference_gaps_recorded_v1`, with the same combined 18-call/$40 cap.
+`photoModelContinuation.ts` validates and fingerprints the original manifest,
+terminal stop, claim, result, review and approval. The separate
+`preflight-free-pro-photo-continuation` mode writes
+`photo-model-continuation-preflight.json`; `--photo-model-continuation-live`
+requires a new `photo-model-continuation-approval.json` and writes a sibling
+`photo-model-continuation/` v2 journal. The original journal and first rating
+stay unchanged. Its lock is held before the sibling lock throughout execution,
+and its immutable evidence is rechecked before every dispatch.
+
+The continuation inherits ordinal 1 and its reservation, then admits only
+ordinals 2–18 once. It permits `not_assessable / insufficient_reference` during
+screening while retaining that rating as a reference gap. Wrong identifications,
+actual explanation failures, reviewer uncertainty/unavailability, technical or
+safety failures and unknown billing still stop the screen. Aggregate v2 state
+reports inherited/new calls and `referenceGapOrdinals`; `complete` describes
+finished calls, while `explanationEvidenceComplete` separately requires every
+rating to pass. Neither grants model qualification or production authority.
 
 ## Shared measurement repair (optimization Slice 1)
 

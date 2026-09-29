@@ -4,10 +4,21 @@ import type { PhotoModelPacket } from "./photoModelPreparation.ts";
 import { hash, timestamp } from "./runContracts.ts";
 import { fields, requireCondition as check, token } from "./validation.ts";
 
+export const PHOTO_MODEL_REFERENCE_GAP_POLICY = "reference_gaps_recorded_v1";
+export interface PhotoModelParentBinding {
+  parentRunDigest: string;
+  parentArtifactsDigest: string;
+}
 export interface PhotoModelApproval {
-  version: "photo_model_approval_v1";
+  version: "photo_model_approval_v1" | "photo_model_continuation_approval_v1";
   project: "naturebook";
-  operation: "18_call_luna_sol_photo_comparison";
+  operation:
+    | "18_call_luna_sol_photo_comparison"
+    | "remaining_17_luna_sol_photo_comparison";
+  parentRunDigest?: string;
+  parentArtifactsDigest?: string;
+  screeningPolicy?: typeof PHOTO_MODEL_REFERENCE_GAP_POLICY;
+  maxAdditionalCalls?: 17;
   planDigest: string;
   sourceCommit: string;
   sourceDigest: string;
@@ -24,6 +35,7 @@ export async function validatePhotoModelApproval(
   packet: PhotoModelPacket,
   credential: string,
   now: number,
+  parent?: PhotoModelParentBinding,
 ): Promise<PhotoModelApproval> {
   const v = fields(value, [
     "version",
@@ -39,11 +51,36 @@ export async function validatePhotoModelApproval(
     "recordRef",
     "reviewerRef",
     "delegationRef",
+    ...(parent
+      ? [
+        "parentRunDigest",
+        "parentArtifactsDigest",
+        "screeningPolicy",
+        "maxAdditionalCalls",
+      ]
+      : []),
   ]);
   check(
-    v.version === "photo_model_approval_v1" && v.project === "naturebook" &&
-      v.operation === "18_call_luna_sol_photo_comparison",
+    v.version ===
+        (parent
+          ? "photo_model_continuation_approval_v1"
+          : "photo_model_approval_v1") &&
+      v.project === "naturebook" &&
+      v.operation ===
+        (parent
+          ? "remaining_17_luna_sol_photo_comparison"
+          : "18_call_luna_sol_photo_comparison"),
   );
+  if (parent) {
+    hash(v.parentRunDigest);
+    hash(v.parentArtifactsDigest);
+    check(
+      v.parentRunDigest === parent.parentRunDigest &&
+        v.parentArtifactsDigest === parent.parentArtifactsDigest &&
+        v.screeningPolicy === PHOTO_MODEL_REFERENCE_GAP_POLICY &&
+        v.maxAdditionalCalls === 17,
+    );
+  }
   check(
     packet.plan.version === "photo_model_plan_v2" &&
       packet.corpus.evidenceOrigin === "real" &&

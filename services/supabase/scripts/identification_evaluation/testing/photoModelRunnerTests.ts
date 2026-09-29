@@ -20,17 +20,17 @@ import { parsePhotoModelPlan } from "../photoModelContracts.ts";
 import { parseTaxonomy, type SourceIdentity } from "../runContracts.ts";
 import { photoModelFixture } from "./photoModelPreparationTests.ts";
 
-const source: SourceIdentity = {
+export const source: SourceIdentity = {
   commit: "0".repeat(40),
   dirty: true,
   digest: "1".repeat(64),
   sdk: "npm:@google/genai@2.23.0",
 };
-const pass = (): Ratings =>
+export const pass = (): Ratings =>
   Object.fromEntries(
     CRITERIA.map((k) => [k, { status: "pass", reason: "supported" }]),
   ) as Ratings;
-async function setup(scratch: string, budget = 40) {
+export async function setup(scratch: string, budget = 40) {
   const root = await Deno.makeTempDir({
     dir: scratch,
     prefix: "photo-runner-",
