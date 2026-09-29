@@ -16,7 +16,12 @@ import {
 } from "./photoModelContracts.ts";
 import type { PhotoModelAssignment } from "./photoModelPreparation.ts";
 import { hash, number, type Taxonomy } from "./runContracts.ts";
-import { resolveTaxon } from "./taxonomy.ts";
+import {
+  type IdentityMapping,
+  noIdentityMapping,
+  parseIdentityMapping,
+  resolveTaxon,
+} from "./taxonomy.ts";
 import {
   fields,
   integer,
@@ -104,27 +109,29 @@ export function photoModelCostUpper(
       1000 * PHOTO_MODEL_BILLING_MULTIPLIER,
   );
 }
+const PHOTO_MODEL_RECORD_FIELDS = [
+  "version",
+  "runDigest",
+  "assignmentDigest",
+  "ordinal",
+  "reason",
+  "prediction",
+  "returnedModel",
+  "serviceTier",
+  "safety",
+  "usage",
+  "providerMs",
+  "normalizationMs",
+  "estimatedUpperNanoUsd",
+] as const;
+
 export function parsePhotoModelRecord(
   value: unknown,
   a: PhotoModelAssignment,
   runDigest: string,
   assignmentDigest: string,
 ): PhotoModelRecord {
-  const v = fields(value, [
-    "version",
-    "runDigest",
-    "assignmentDigest",
-    "ordinal",
-    "reason",
-    "prediction",
-    "returnedModel",
-    "serviceTier",
-    "safety",
-    "usage",
-    "providerMs",
-    "normalizationMs",
-    "estimatedUpperNanoUsd",
-  ]);
+  const v = fields(value, PHOTO_MODEL_RECORD_FIELDS);
   check(
     v.version === "photo_model_attempt_v1" && v.runDigest === runDigest &&
       v.assignmentDigest === assignmentDigest && v.ordinal === a.ordinal,
@@ -165,7 +172,7 @@ export function parsePhotoModelRecord(
   );
   return structuredClone(v) as unknown as PhotoModelRecord;
 }
-export function projectPhotoModelOutcome(
+function projectPhotoModelOutcomeWithMapping(
   outcome: AIProviderOutcome,
   input: EvaluationInput,
   request: MultimodalAIRequest,
@@ -175,7 +182,11 @@ export function projectPhotoModelOutcome(
   assignmentDigest: string,
   taxonomy: Taxonomy,
   pricing: PhotoModelPricing,
-): { record: PhotoModelRecord; display: ReviewDisplay | null } {
+): {
+  record: PhotoModelRecord;
+  display: ReviewDisplay | null;
+  mapping: IdentityMapping;
+} {
   const record: PhotoModelRecord = {
     version: "photo_model_attempt_v1",
     runDigest,
@@ -202,6 +213,7 @@ export function projectPhotoModelOutcome(
     );
   }
   let display: ReviewDisplay | null = null;
+  let mapping = noIdentityMapping();
   // The production-equivalent decoder has already removed unsafe/mismatched drafts.
   if (outcome.kind === "invalid_output" && outcome.reason === "safety") {
     record.reason = record.returnedModel !== a.model
@@ -231,14 +243,16 @@ export function projectPhotoModelOutcome(
             : "biological"
           : "non_biological";
         const named = subject === "biological" && !!v.scientific_name;
+        const identity = named
+          ? resolveTaxon(taxonomy, v.scientific_name!)
+          : { taxon: null, mapping: noIdentityMapping() };
+        mapping = identity.mapping;
         record.prediction = {
           caseId: a.caseId,
           outcome: "normalized",
           subject,
           resolution: named ? "named" : "unresolved",
-          taxon: named
-            ? resolveTaxon(taxonomy, v.scientific_name!).taxon
-            : null,
+          taxon: identity.taxon,
           confidence: v.confidence_score ?? 0,
         };
         record.normalizationMs = duration(performance.now() - start);
@@ -248,6 +262,7 @@ export function projectPhotoModelOutcome(
         }
       } catch {
         record.reason = "normalization_failed";
+        mapping = noIdentityMapping();
         record.prediction = { caseId: a.caseId, outcome: "invalid_output" };
         record.normalizationMs = null;
       }
@@ -255,6 +270,68 @@ export function projectPhotoModelOutcome(
   }
   return {
     record: parsePhotoModelRecord(record, a, runDigest, assignmentDigest),
+    display,
+    mapping,
+  };
+}
+
+/** Existing v1 plans and journals keep the exact v1 projection. */
+export function projectPhotoModelOutcome(
+  ...args: Parameters<typeof projectPhotoModelOutcomeWithMapping>
+): { record: PhotoModelRecord; display: ReviewDisplay | null } {
+  const { record, display } = projectPhotoModelOutcomeWithMapping(...args);
+  return { record, display };
+}
+
+export type PhotoModelMeasurementRecord =
+  & Omit<PhotoModelRecord, "version">
+  & { version: "photo_model_attempt_v2"; mapping: IdentityMapping };
+
+/** Future journal contract only: no current runner accepts or emits v2. */
+export function parsePhotoModelMeasurementRecord(
+  value: unknown,
+  a: PhotoModelAssignment,
+  runDigest: string,
+  assignmentDigest: string,
+): PhotoModelMeasurementRecord {
+  // Validate the full legacy shape as well: extra output/prose fields fail closed.
+  const { version, mapping, ...base } = fields(value, [
+    ...PHOTO_MODEL_RECORD_FIELDS,
+    "mapping",
+  ]);
+  check(version === "photo_model_attempt_v2");
+  const record = parsePhotoModelRecord(
+    { ...base, version: "photo_model_attempt_v1" },
+    a,
+    runDigest,
+    assignmentDigest,
+  );
+  const p = record.prediction;
+  const named = p.outcome === "normalized" && p.resolution === "named";
+  const parsedMapping = parseIdentityMapping(
+    mapping,
+    p.outcome === "normalized" ? p.taxon : null,
+  );
+  check(named === (parsedMapping.status !== "not_applicable"));
+  return { ...record, version, mapping: parsedMapping };
+}
+
+/** Pure projection for future comparisons; never infer mappings from old records. */
+export function projectMeasuredPhotoModelOutcome(
+  ...args: Parameters<typeof projectPhotoModelOutcomeWithMapping>
+): { record: PhotoModelMeasurementRecord; display: ReviewDisplay | null } {
+  // V1 name lists cannot establish whether a match was canonical or a synonym.
+  check(args[7].version === "evaluation_taxonomy_v2");
+  const { record, display, mapping } = projectPhotoModelOutcomeWithMapping(
+    ...args,
+  );
+  return {
+    record: parsePhotoModelMeasurementRecord(
+      { ...record, version: "photo_model_attempt_v2", mapping },
+      args[4],
+      args[5],
+      args[6],
+    ),
     display,
   };
 }

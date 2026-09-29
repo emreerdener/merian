@@ -292,6 +292,34 @@ biological quality failures and taxonomy mapping limitations. Retain Sol for
 both tiers. Keep the completed journal immutable; no additional paid calls or
 activation follow from its unused spending ceiling.
 
+### Offline photo catalog audit and rank consistency
+
+The
+[rank-consistency plan](../rfcs/identification-photo-rank-consistency-2026-09-28.md)
+preserves the explanation format and current Sol assignment while preparing
+better rank handling. Its first slice adds a read-only catalog audit and a
+future v2 photo result projection. Run from the repository root with a private
+packet path:
+
+```bash
+deno run --frozen --no-prompt --deny-net --deny-env --deny-write \
+  --allow-read=PRIVATE_PACKET/corpus.json,PRIVATE_PACKET/taxonomy.json \
+  --config services/supabase/functions/deno.json \
+  services/supabase/scripts/audit_photo_taxonomy.ts PRIVATE_PACKET
+```
+
+The command prints bounded JSON and does not save or overwrite any files. Exit 0
+means no catalog/reference consistency issue was detected, 2 reports issues, and
+1 means invalid input or audit failure. Missing references and name collisions
+block consistency; a clear result is neither biological review nor permission to
+call a model. Repair only in a new versioned packet with an explicit
+reference-ID remapping. Completed packet records remain immutable.
+
+The new `photo_model_attempt_v2` parser/projection is offline infrastructure.
+Existing photo runners accept only v1; do not insert v2 into an existing run or
+reuse its approval. Prompt candidates and production rank/enrichment handling
+remain separate slices in the linked plan.
+
 ## Fixed initial assignment
 
 | Setting                     | Candidate                                                                    |

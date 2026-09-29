@@ -23,7 +23,11 @@ wording passed, but the challenge review found incorrect biological
 identifications and unsupported finer ranks. Retain Sol for both tiers. Next
 prepare biological rank consistency and a corrected future evaluation catalog
 offline; do not expand this paid run. The original target design below remains a
-proposal.
+proposal. The
+[rank-consistency follow-up](identification-photo-rank-consistency-2026-09-28.md)
+now implements offline catalog auditing and a future mapping-aware result
+projection. It plans isolated model-specific prompts and the explicit rank
+contract needed before broader-rank results can safely reach species enrichment.
 
 Introduce separate, versioned OpenAI photo profiles selected by the backend's
 existing Free/Pro admission decision. Evaluate Luna for Free and retain the

@@ -19,9 +19,10 @@ also passed offline preflight with provisional references and no model calls.
 Its completed
 [six-photo app benchmark](../../../../docs/rfcs/identification-source-photo-app-benchmark-2026-09-22.md)
 records ordinary-app outcomes and passive measurements separately from the
-direct evaluator's dry schedule. Gemini remains the only production provider;
-video evidence is ordered snapshots and included WAV audio, never a playback
-video.
+direct evaluator's dry schedule. At that September 22 checkpoint, Gemini was the
+only production provider. The later beta OpenAI photo binding is described
+below. Video evidence is ordered snapshots and included WAV audio, never a
+playback video.
 
 Current direction, 27 September 2026: the
 [matched Gemini/OpenAI comparison](../../../../docs/rfcs/identification-gemini-openai-matched-results-2026-09-27.md)
@@ -178,6 +179,26 @@ taxonomy mapping, including a correct displayed Sol name made ambiguous by
 duplicate catalog identities. Null mappings are not wrong-identification or
 abstention scores. Preserve these journals and repair mapping coverage only in a
 versioned future packet/result contract. No additional calls are authorized.
+
+### Photo rank-consistency preparation
+
+The
+[rank-consistency plan](../../../../docs/rfcs/identification-photo-rank-consistency-2026-09-28.md)
+owns the next offline milestone. `photoTaxonomyAudit.ts` checks duplicate names
+and reference IDs/ranks without rewriting a frozen catalog. The separate
+`audit_photo_taxonomy.ts` command reads only corpus/catalog inputs; a clear
+audit does not establish reference quality or authorize dispatch. The actual
+packet has two canonical collisions, including both species and genus
+identities.
+
+`projectMeasuredPhotoModelOutcome` and `parsePhotoModelMeasurementRecord` add
+the isolated `photo_model_attempt_v2` primary mapping field. They retain enum
+status and canonical/synonym match category, never returned taxon names or
+prose. Current photo plans and runners remain on v1 and reject v2 records. A
+future controller must explicitly bind a new plan/manifest/approval before
+selecting this projection; old null taxon records cannot be repaired
+retrospectively. Use `assessMeasuredReference` to keep mapping gaps separate
+from identity errors. There is no live v2 photo mode in this slice.
 
 ## Shared measurement repair (optimization Slice 1)
 
