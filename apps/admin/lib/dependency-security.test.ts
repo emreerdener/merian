@@ -76,9 +76,9 @@ test("the frozen admin graph excludes reviewed vulnerable dependency ranges", ()
   assert.ok(sharpVersions.length > 0, "Sharp must be present in the lockfile");
 
   assert.equal(
-    nextVersions.every((version) => versionAtLeast(version, "16.3.5")),
+    nextVersions.every((version) => versionAtLeast(version, "16.3.6")),
     true,
-    `Next.js versions below 16.3.5: ${nextVersions.join(", ")}`,
+    `Next.js versions below 16.3.6: ${nextVersions.join(", ")}`,
   );
   assert.equal(
     postcssVersions.every((version) => versionAtLeast(version, "8.5.25")),
@@ -93,7 +93,7 @@ test("the frozen admin graph excludes reviewed vulnerable dependency ranges", ()
 });
 
 test("Next.js transitive security overrides remain explicit", () => {
-  assert.equal(packageManifest.dependencies?.next, "16.3.5");
+  assert.equal(packageManifest.dependencies?.next, "16.3.6");
   assert.equal(packageManifest.devDependencies?.postcss, "8.5.28");
   assert.deepEqual(packageManifest.overrides?.next, {
     postcss: "8.5.28",
