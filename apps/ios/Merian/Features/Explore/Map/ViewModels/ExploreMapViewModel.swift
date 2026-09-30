@@ -240,7 +240,7 @@ final class ExploreMapViewModel {
     }
 
     func navigate(to location: CLLocation) {
-        let region = ExploreMapCameraPolicy.locateRegion(
+        let region = MapLocateCameraPolicy.locateRegion(
             for: location,
             currentRegion: visibleRegion ?? lastCommittedRegion
         )

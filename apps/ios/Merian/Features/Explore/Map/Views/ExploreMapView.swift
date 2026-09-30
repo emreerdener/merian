@@ -19,6 +19,7 @@ struct ExploreMapView: View {
     @Environment(AppSettings.self) var appSettings
     @Environment(SupabaseManager.self) var mapAuth
     @Environment(\.accessibilityReduceMotion) var reduceMotion
+    @Namespace private var mapScope
     @State var mapNavigation = MapNavigationModel()
     @State var ignoreNextBackgroundTap = false
     @State var discoveries: ExploreMapDiscoveriesViewModel?
@@ -64,6 +65,14 @@ struct ExploreMapView: View {
             bottomOverlayChrome
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .overlay(alignment: .bottomTrailing) {
+            MapScaleView(anchorEdge: .trailing, scope: mapScope)
+                .mapControlVisibility(.visible)
+                .padding(.trailing, 12)
+                .padding(.bottom, 4)
+                .allowsHitTesting(false)
+        }
+        .mapScope(mapScope)
         .background(Color(uiColor: .systemBackground))
         .task {
             await viewModel.loadInitialData(using: environmentContextManager)
@@ -131,7 +140,7 @@ struct ExploreMapView: View {
     }
 
     private var mapLayer: some View {
-        Map(position: $viewModel.cameraPosition) {
+        Map(position: $viewModel.cameraPosition, scope: mapScope) {
             if let selectedPost = viewModel.selectedPost,
                selectedPost.coordinateVisibility == .obscured {
                 MapCircle(
@@ -165,12 +174,16 @@ struct ExploreMapView: View {
                 waypointAnnotation(for: selectedPost)
             }
 
-            // Keep the native location dot above discovery markers, including the selected post.
             if environmentContextManager.isAuthorized {
-                UserAnnotation()
+                UserAnnotation(anchor: .bottom) {
+                    MapUserLocationPin()
+                }
             }
         }
         .mapStyle(appSettings.mapAppearance == .satellite ? .imagery : .standard)
+        .mapControls {
+            MapCompass()
+        }
         // Render map tiles behind the transparent navigation bar, not the container background.
         .ignoresSafeArea(.container, edges: .top)
         .transparentTopToolbar()

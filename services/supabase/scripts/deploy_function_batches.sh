@@ -4,13 +4,18 @@ set -euo pipefail
 plan_file="${1:?Usage: deploy_function_batches.sh <plan-file> <project-ref>}"
 project_ref="${2:?Usage: deploy_function_batches.sh <plan-file> <project-ref>}"
 batch_size="${MERIAN_FUNCTION_DEPLOY_BATCH_SIZE:-8}"
-jobs="${MERIAN_FUNCTION_DEPLOY_JOBS:-4}"
+jobs="${MERIAN_FUNCTION_DEPLOY_JOBS:-1}"
 max_attempts="${MERIAN_FUNCTION_DEPLOY_ATTEMPTS:-3}"
 
 if ! [[ "$batch_size" =~ ^[1-9][0-9]*$ ]] ||
   ! [[ "$jobs" =~ ^[1-9][0-9]*$ ]] ||
   ! [[ "$max_attempts" =~ ^[1-9][0-9]*$ ]]; then
   echo "Deploy batch settings must be positive integers." >&2
+  exit 2
+fi
+
+if [ "$jobs" -ne 1 ]; then
+  echo "Frozen local bundling requires MERIAN_FUNCTION_DEPLOY_JOBS=1." >&2
   exit 2
 fi
 
@@ -41,6 +46,12 @@ for function_name in "${functions[@]}"; do
   fi
   seen_functions+=("$function_name")
 done
+
+# Keep local Deno config discovery and the mounted shared frozen lock. The API
+# upload path does not include a lock referenced only by deno.json.
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+bash "$script_dir/prepare_function_bundler_image.sh"
+export SUPABASE_INTERNAL_IMAGE_REGISTRY=public.ecr.aws
 
 # A graph plan may contain any subset of the critical scan functions. Deploy
 # every selected member in compatibility order before unrelated parallel

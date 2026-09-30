@@ -195,9 +195,12 @@ The candidate workflow declares no Production environment, receives no
 production secrets, and contains no database push, Function deployment, or
 production smoke. Its green summary is exact-SHA database/runtime evidence; it
 is not evidence that production changed and does not authorize deployment. The
-production workflow next runs a non-Production source hold gate that requires
-the exact checkout to be the current `refs/heads/main`/`origin/main` head. A
-valid active hold reports `release_status=held` and `deploy_allowed=false`, so
+production workflow next runs a non-Production source hold gate that requires an
+exact, clean `refs/heads/main` checkout. If that SHA is an ancestor of a newer
+`origin/main`, it reports `release_status=superseded` and `deploy_allowed=false`
+as a successful no-op before Production access. A diverged, mismatched, or dirty
+candidate still fails closed. Only the current main head evaluates source holds.
+A valid active hold reports `release_status=held` and `deploy_allowed=false`, so
 the validated workflow remains green while the downstream Production job is
 skipped before environment secrets or mutation. A missing, malformed, duplicate,
 or required-ID-absent manifest still fails the workflow. When the source status
@@ -516,7 +519,7 @@ profile updates, and Explore feed projections.
   `deno.json` that points at the shared frozen `functions/dependencies.lock`.
   Runtime imports use those aliases instead of direct `esm.sh`, `deno.land`,
   npm, or JSR specifiers. The whole fleet uses one exact
-  `@supabase/supabase-js@2.116.0` graph; `_shared/claimsAuth.ts` remains the
+  `@supabase/supabase-js@2.117.2` graph; `_shared/claimsAuth.ts` remains the
   opt-in authentication policy boundary for cached-JWKS claims verification, not
   a second SDK dependency. Generated configs explicitly retain Deno's one-day
   minimum dependency age; reviewed versions already present in the frozen lock
@@ -2447,19 +2450,27 @@ schema. After an intentional media-wire change, run
 `make validate-edge-dto-contract`.
 
 The reviewed maintenance graph pins `@std/encoding` to 1.0.11 and the JSZip
-archive-test dependency to 3.10.2. Supabase JS is aligned at the reviewed
-2.116.0 version across the Edge fleet, public web, and internal admin. JOSE
-6.2.12 uses the Deno WebCrypto runtime for Apple RS256 identity verification and
-ES256 Apple client-secret/APNs signing. Real-crypto tests retain fixed
-algorithm, issuer, audience, signature, expiry, and safe-error behavior using
-only generated keys and synthetic JWKS responses. Google Gen AI 2.23.0 retains
-`models.generateContent` with the existing model choices, schemas, thinking
-budgets, 90-second HTTP timeout, and no SDK retry options. The real-SDK tests in
-`_shared/gemini_test.ts` intercept HTTP using synthetic input to check Field
-Chat JSON, image/audio parts, schema constraints, thought exclusion, safety,
-token usage, paid-key denial, single-attempt errors, and timeout cancellation.
-These tests do not make paid provider calls or establish live model quality. See
-the
+archive-test dependency to 3.10.2. Supabase JS uses the reviewed 2.117.2 version
+across the Edge fleet. Public web and internal admin own their pins in their
+package manifests. JOSE 6.2.12 uses the Deno WebCrypto runtime for Apple RS256
+identity verification and ES256 Apple client-secret/APNs signing. Real-crypto
+tests retain fixed algorithm, issuer, audience, signature, expiry, and
+safe-error behavior using only generated keys and synthetic JWKS responses.
+Google Gen AI 2.24.0 retains `models.generateContent` with the existing model
+choices, schemas, thinking budgets, 90-second HTTP timeout, and no SDK retry
+options. The real-SDK tests in `_shared/gemini_test.ts` intercept HTTP using
+synthetic input to check Field Chat JSON, image/audio parts, schema constraints,
+thought exclusion, safety, token usage, paid-key denial, single-attempt errors,
+and timeout cancellation. These tests do not make paid provider calls or
+establish live model quality. Hosted provider-comparison specifications accept
+the reviewed 2.23.0 and 2.24.0 SDKs, but staging, checking, and preparation
+require the complete exact source identity, including its SDK. A historical
+bundle therefore requires its original checkout and dependency graph; a new SDK
+requires a new reviewed bundle. The frozen audio-prompt execution, continuation,
+and successor protocols remain bound to their original 2.23.0 tooling. Use their
+original reviewed checkout; 2.24.0 audio trials require a separately versioned
+and reviewed protocol. Dependency validation does not authorize any paid run or
+requalify old evidence. See the
 [dependency maintenance policy](../../docs/CONTRIBUTING.md#dependency-maintenance).
 
 After changing a pin in `functions/deno.json`, regenerate the function-local
@@ -2873,14 +2884,20 @@ supabase --workdir services functions deploy
 That command is the emergency/manual full-fleet path. Production CI computes the
 affected functions from the transitive runtime import graph, excludes erased
 explicit type-only edges, deploys bounded batches, and isolates retries to
-members of a failed batch. Whole-tree Deno checks still validate compile-only
-imports. A manual workflow dispatch intentionally selects the full fleet. Every
-deployment finishes with a graph-derived all-route handler-marker probe,
-followed by stricter fail-closed authorization probes for fifteen
-customer-critical scan, signing, share-state, Explore media-incident, Field
-Chat, dictionary search, Community, identity-handoff, and deletion routes. It
-then reaches the exact no-write SQLSTATE `22023` boundary in
-`ensure_scan_user_profile`, `publish_scan_to_explore_atomically`,
+members of a failed batch. Local bundling uses one job so each Function retains
+Deno config discovery and access to the mounted shared frozen lock. The helper
+requires Docker and CLI `2.109.1`, prepares its `edge-runtime:v1.74.2` image via
+Supabase's ECR → GHCR → Docker Hub mirrors, and tags the selected mirror as the
+CLI's canonical ECR image. All mirrors failing stops deployment. API bundling is
+excluded because its source upload omits the referenced shared lock. Whole-tree
+Deno checks still validate compile-only imports. A manual workflow dispatch
+intentionally selects the full fleet. Every deployment finishes with a
+graph-derived all-route handler-marker probe, followed by stricter fail-closed
+authorization probes for fifteen customer-critical scan, signing, share-state,
+Explore media-incident, Field Chat, dictionary search, Community,
+identity-handoff, and deletion routes. It then reaches the exact no-write
+SQLSTATE `22023` boundary in `ensure_scan_user_profile`,
+`publish_scan_to_explore_atomically`,
 `request_community_identification_atomically`, `recover_missing_owned_scan`,
 `get_media_abandoned_scan_recovery_proofs`, `reserve_field_chat_send`, and
 `recover_stale_field_chat_quota` with server authority. It also reaches the

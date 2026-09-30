@@ -376,10 +376,10 @@ inside feed/detail views.
 ## Overlay Ownership
 
 External post sharing passes one `LinkShareItemSource` containing the canonical
-HTTPS post URL. The media-aware “Listen to” or “Check out” copy is preview
-metadata and the mail subject. AirDrop and Copy receive the URL itself, without
-an extra text file. Sharing does not attach the underlying public media as
-separate files.
+HTTPS post URL. The resolved species common name alone is the preview title and
+mail subject for image, video, and audio posts. AirDrop and Copy receive the URL
+itself, without an extra text file. Sharing does not attach the underlying
+public media as separate files.
 
 The native link preview includes the public hero image, with ordered image or
 persisted video/audio posters as a fallback when the hero is blank.

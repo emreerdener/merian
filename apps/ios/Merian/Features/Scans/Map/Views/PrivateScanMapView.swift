@@ -19,6 +19,7 @@ struct PrivateScanMapView: View {
     @Environment(AppSettings.self) private var appSettings
     @Environment(SupabaseManager.self) private var mapAuth
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Namespace private var mapScope
     @State private var mapNavigation = MapNavigationModel()
 
     @State private var viewModel = PrivateScanMapViewModel()
@@ -43,6 +44,14 @@ struct PrivateScanMapView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .overlay(alignment: .bottomTrailing) {
+            MapScaleView(anchorEdge: .trailing, scope: mapScope)
+                .mapControlVisibility(.visible)
+                .padding(.trailing, 12)
+                .padding(.bottom, 4)
+                .allowsHitTesting(false)
+        }
+        .mapScope(mapScope)
         .background(Color(uiColor: .systemBackground))
         .navigationTitle("Scan map")
         .navigationBarTitleDisplayMode(.inline)
@@ -132,9 +141,11 @@ struct PrivateScanMapView: View {
         let isOnline = offlineQueueManager.isOnline
 
         return GeometryReader { geometry in
-            Map(position: cameraPositionBinding) {
+            Map(position: cameraPositionBinding, scope: mapScope) {
                 if environmentContextManager.isAuthorized {
-                    UserAnnotation()
+                    UserAnnotation(anchor: .bottom) {
+                        MapUserLocationPin()
+                    }
                 }
 
                 ForEach(viewModel.annotations) { annotation in
@@ -165,6 +176,9 @@ struct PrivateScanMapView: View {
                 }
             }
             .mapStyle(appSettings.mapAppearance == .satellite ? .imagery : .standard)
+            .mapControls {
+                MapCompass()
+            }
             .accessibilityIdentifier("PrivateScanMapCanvas")
             .ignoresSafeArea(edges: .vertical)
             .transparentTopToolbar()
@@ -387,7 +401,7 @@ struct PrivateScanMapView: View {
             }
             .padding(.horizontal, 16)
         }
-        .padding(.bottom, 8)
+        .padding(.bottom, 28)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         .animation(
             .spring(response: 0.28, dampingFraction: 0.84),

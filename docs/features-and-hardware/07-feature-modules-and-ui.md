@@ -1283,14 +1283,13 @@ an Edge API response or opened offline via the Scans library.
   (`URL.documentsDirectory.appendingPathComponent(path)`) before extraction.
   Remote URL parsing trims invisible whitespace characters
   (`.trimmingCharacters(in: .whitespacesAndNewlines)`) to prevent `nil` URL
-  resolutions. Explore post messages lead with media-aware content copy: image
-  and video use `Check out this {species}`, while audio uses
-  `Listen to this {species}` based on the first ordered media item; author,
-  scientific name, location, and app-promotional copy are omitted. To prevent
-  the iOS Messages app from discarding the shared image attachment in favor of a
-  "Rich Link Bubble", the `https://naturebook.earth/explore/post/{postId}` share
-  URL is folded into the same `String` rather than passed as a standalone `URL`
-  object.
+  resolutions. Explore post sharing uses the resolved species common name alone
+  as the native link-preview title and mail subject for image, video, and audio
+  posts; author, scientific name, location, and app-promotional copy are
+  omitted. A `LinkShareItemSource` supplies the canonical
+  `https://naturebook.earth/explore/post/{postId}` URL and lazy preview imagery.
+  AirDrop and Copy receive the URL itself, and underlying media is not attached
+  as separate files.
 - **Exporting Captured Media (`Download scan`)**: Users can extract biological
   photos and retained video clips directly to the iOS Camera Roll through
   `PhotoLibraryManager` with `.addOnly` permissions. Local files resolve across

@@ -1032,6 +1032,18 @@ Deno.test("direct main validation is independent of the cumulative production sc
     "if: needs.production-scope.outputs.should_deploy == 'true'",
   );
   assert(!hold.includes("if: always()"));
+  assertStringIncludes(hold, "verify_production_hold_candidate.sh");
+  assertStringIncludes(
+    hold,
+    "steps.candidate.outputs.current == 'true' && steps.release-hold.outputs.deploy_allowed == 'true'",
+  );
+  assertEquals(
+    hold.match(/if: steps\.candidate\.outputs\.current == 'true'/g)?.length,
+    2,
+    "Only the current candidate may set up Deno and evaluate release holds.",
+  );
+  assertStringIncludes(hold, "steps.candidate.outputs.status == 'superseded'");
+
   const deploy = workflow.slice(workflow.indexOf("  deploy:"));
   assertStringIncludes(
     deploy,

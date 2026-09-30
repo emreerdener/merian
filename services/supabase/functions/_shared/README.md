@@ -381,7 +381,7 @@ contract](../../../../docs/backend-and-data/16-scan-ingestion-reliability-and-re
   jobs. Admission, quota settlement, and durable persistence remain with the
   caller. Service jobs carry public-fact purpose, claimed attempt bounds, and
   the fixed Flash model; this context is rejected for identification.
-- **`gemini.ts`**: Lazy paid-key `GoogleGenAI` 2.23.0 client plus
+- **`gemini.ts`**: Lazy paid-key `GoogleGenAI` 2.24.0 client plus
   structured-output and JSON extraction helpers. The 90-second HTTP deadline and
   single-attempt transport preserve durable quota/retry ownership.
   `gemini_test.ts` exercises the actual SDK through intercepted HTTP with

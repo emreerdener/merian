@@ -8,6 +8,50 @@ import Testing
 @Suite("Private Scan Map")
 @MainActor
 struct PrivateScanMapTests {
+    @Test func locateUsesLocalZoomAndPreservesCloserViewsAndAccuracy() throws {
+        let scenarios: [(currentWidth: Double?, accuracy: Double, expectedWidth: Double)] = [
+            (nil, 10, 1_000), (50_000, 10, 1_000), (250, 10, 250), (250, 2_000, 4_000)
+        ]
+        for scenario in scenarios {
+            let model = PrivateScanMapViewModel()
+            let location = CLLocation(
+                coordinate: CLLocationCoordinate2D(latitude: 1, longitude: 1),
+                altitude: 0, horizontalAccuracy: scenario.accuracy, verticalAccuracy: -1,
+                timestamp: Date(timeIntervalSince1970: 0)
+            )
+            if let width = scenario.currentWidth {
+                model.userDidMoveCamera(region: MKCoordinateRegion(
+                    center: location.coordinate, latitudinalMeters: width, longitudinalMeters: width
+                ))
+            }
+            model.selectedCategories = [.birds]
+            model.selectedMediaFilters = [.image]
+            model.selectedPointID = "previous"
+
+            model.recenter(on: location)
+
+            let expected = MKCoordinateRegion(
+                center: location.coordinate,
+                latitudinalMeters: scenario.expectedWidth,
+                longitudinalMeters: scenario.expectedWidth
+            )
+            let region = try #require(model.cameraPosition.region)
+            #expect(abs(region.span.longitudeDelta - expected.span.longitudeDelta) < 0.000_01)
+            #expect(region.center.latitude == location.coordinate.latitude)
+            #expect(region.center.longitude == location.coordinate.longitude)
+            #expect(model.visibleRegion?.span.longitudeDelta == region.span.longitudeDelta)
+            #expect(model.selectedCategories == [.birds])
+            #expect(model.selectedMediaFilters == [.image])
+            #expect(model.selectedPointID == nil)
+            #expect(model.didSetInitialCamera)
+
+            // Neither a late initial-location completion nor an empty library widens Locate me.
+            model.setInitialCamera(currentLocation: location)
+            model.update(snapshot: PrivateScanMapSnapshot(points: []))
+            #expect(model.cameraPosition.region?.span.longitudeDelta == region.span.longitudeDelta)
+        }
+    }
+
     @Test func geographicPlaceRegionSurvivesLateSnapshot() {
         let model = PrivateScanMapViewModel()
         let region = MKCoordinateRegion(

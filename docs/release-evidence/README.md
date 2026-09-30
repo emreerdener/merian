@@ -20,9 +20,14 @@ backend/deploy-support path inventory. Docs-only changes with no pending backend
 changes stop after validation; a newer docs commit still carries any undeployed
 backend changes. An unavailable or non-ancestor baseline blocks automatic
 production selection; an explicitly authorized manual deployment can establish a
-baseline. Only an in-scope candidate evaluates the checked-in source hold, and
-verifies the exact clean current-main SHA and live repository controls before
-accessing Supabase credentials. `--mode automatic-release` uses the read-only
+baseline. An in-scope candidate first verifies its exact workflow SHA, main ref,
+and clean checkout. A candidate included in a newer `origin/main` reports
+`release_status=superseded` and `deploy_allowed=false`, then skips source holds
+and Production successfully. Diverged or invalid checkouts fail closed. Only the
+current main candidate evaluates the source hold and verifies live repository
+controls before accessing Supabase credentials. The Production job retains its
+independent current-main check under the mutation lock.
+`--mode automatic-release` uses the read-only
 `MERIAN_GITHUB_RELEASE_AUDIT_TOKEN`; missing access or failed controls block
 deployment. No per-deployment review or clearance secret is required.
 

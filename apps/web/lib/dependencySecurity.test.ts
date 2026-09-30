@@ -79,7 +79,7 @@ test("the lockfile excludes known-vulnerable PostCSS and Sharp releases", () => 
 });
 
 test("Next transitive security overrides remain explicit", () => {
-  assert.equal(packageManifest.dependencies?.next, "16.3.5");
+  assert.equal(packageManifest.dependencies?.next, "16.3.6");
   assert.deepEqual(packageManifest.overrides?.next, {
     postcss: "8.5.28",
     sharp: "0.35.4",
@@ -89,7 +89,7 @@ test("Next transitive security overrides remain explicit", () => {
 test("the lockfile excludes reviewed Next, Tiptap, and selector parser vulnerabilities", () => {
   for (
     const [name, floor] of [
-      ["next", "16.3.5"],
+      ["next", "16.3.6"],
       ["@tiptap/core", "3.30.5"],
       ["postcss-selector-parser", "7.1.3"],
     ]

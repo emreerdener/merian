@@ -68,6 +68,7 @@ final class AudioCaptureManager {
     private var resumeTask: Task<Void, Never>?
     private var transitionState = AudioCaptureTransitionState()
     private let maxDurationFeedback: @MainActor () -> Void
+    private let hasMicrophonePermission: @MainActor () -> Bool
     private let recordingController: AudioRecordingEngineController
     private let playbackController: AudioReviewPlaybackController
     private let reviewBoostController: AudioReviewBoostController
@@ -82,6 +83,7 @@ final class AudioCaptureManager {
     ) {
         self.reviewBoostController = AudioReviewBoostController(dependencies: dependencies.reviewBoost)
         self.maxDurationFeedback = maxDurationFeedback
+        self.hasMicrophonePermission = dependencies.hasMicrophonePermission
         self.recordingController = AudioRecordingEngineController(
             dependencies: dependencies.recording
         )
@@ -115,7 +117,7 @@ final class AudioCaptureManager {
         self.boostRecordingPreview = boostRecordingPreview
 
         // Permission prompts belong exclusively to the explicit action above.
-        guard AVAudioApplication.shared.recordPermission == .granted else {
+        guard hasMicrophonePermission() else {
             throw AudioCaptureError.microphonePermissionDenied
         }
         try Task.checkCancellation()
@@ -130,8 +132,14 @@ final class AudioCaptureManager {
             pendingFileName = try await recordingController.start(
                 preferredSampleRate: Self.preferredRecordSampleRate,
                 onEvaluations: { [weak self] evaluations in
+                    // Samples can arrive before start() returns. After startup,
+                    // the recording identity survives pause/resume transitions.
                     guard let self,
-                          self.transitionState.isCurrent(transition) else {
+                          self.recordingID == recordingID,
+                          !self.isPaused,
+                          self.isRecording || (
+                              self.isStartingRecording && self.transitionState.isCurrent(transition)
+                          ) else {
                         return
                     }
                     self.apply(evaluations)
