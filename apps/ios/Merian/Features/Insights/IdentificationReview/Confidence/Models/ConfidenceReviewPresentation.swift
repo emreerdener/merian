@@ -82,7 +82,7 @@ struct ConfidenceBadgePresentation: Equatable {
             )
         }
 
-        guard let bands = InferenceConfidencePolicy.bands(
+        guard let bands = InferenceConfidencePolicy.displayBands(
             forInferenceTier: inferenceTier, provenance: provenance
         ) else {
             return Self(label: "Needs review", icon: "questionmark.circle", style: .unknown, isVisible: true)
@@ -114,6 +114,18 @@ struct ConfidenceBadgePresentation: Equatable {
 }
 
 enum ConfidenceExplanationPresentation {
+    static func modelDescription(
+        inferenceTier: String?,
+        provenance: IdentificationResultProvenance? = nil
+    ) -> String {
+        if provenance?.supportsOpenAIPhotoDisplayBands == true {
+            return "This score is the AI’s estimate of the visible identifying features, not a measured probability of a correct identification."
+        }
+        return inferenceTier == "pro"
+            ? "This scan used an enhanced reasoning model for deeper accuracy."
+            : "This scan used the standard model optimized for speed. Upgrade to Pro for advanced analysis."
+    }
+
     static func headerTitle(
         confidenceScore: Double?,
         inferenceTier: String? = nil,
@@ -124,7 +136,7 @@ enum ConfidenceExplanationPresentation {
         if hasUserOverride || isUserConfirmed {
             return "Confirmed"
         }
-        guard InferenceConfidencePolicy.bands(
+        guard InferenceConfidencePolicy.displayBands(
             forInferenceTier: inferenceTier, provenance: provenance
         ) != nil else { return "Review identification" }
         guard let confidenceScore else { return "Analysis" }

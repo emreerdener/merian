@@ -1345,20 +1345,28 @@ The full matrix and release evidence requirements live in the
 into `SpeciesData` and owns DTO decoding. The shared
 `Models/Species/IdentificationResultProvenance.swift` value preserves
 content-free JSON without depending on generated DTOs.
-`InferenceConfidencePolicy` recognizes only exact known Gemini execution
-profiles at qualified policy version 1 and returns no bands for unknown or
-damaged present values; absence retains legacy interpretation. Generated
-provenance decoders enforce the executable contract's rejection of unknown
-fields, including generation settings, before DTO encoding can erase them. The
-generated `IdentificationProvenanceDTO` enum reads exact V1 Gemini and V2 OpenAI
+`InferenceConfidencePolicy.bands` recognizes only exact known Gemini execution
+profiles at qualified policy version 1 and returns no qualified bands for
+unknown or damaged present values; absence retains legacy interpretation.
+`displayBands` separately recognizes the exact shipped `openai_photo_v1` V2
+profile and supplies Strong at `0.95`, Possible at `0.60`, and Weak below `0.60`
+for every plan tier. These are model-estimate display thresholds derived from
+the structured-output confidence contract, not empirical calibration. Unknown or
+damaged present profiles retain neutral review guidance. Generated provenance
+decoders enforce the executable contract's rejection of unknown fields,
+including generation settings, before DTO encoding can erase them. The generated
+`IdentificationProvenanceDTO` enum reads exact V1 Gemini and V2 OpenAI
 generation shapes, rejects unsupported versions, and re-encodes the original
 flat JSON object. V2 settings survive live parsing, local persistence and owner
 history but never receive Gemini confidence bands. The existing V52 opaque
-`Data` field needs no new schema version. Runtime protocol and OpenAI permission
-collection remain unchanged; V2 routing requires later coordinated admission.
-The saved scan factory, V52 local model, history DTO/query and historical
-projection retain the same metadata. Confidence labels, diagnostics/candidates,
-score-based upsell, collection suggestions, prompt actions and perfect-scan
-rewards gate their score interpretation on this compatibility decision. These
-rules preserve existing Gemini behavior; they do not establish calibrated
-probabilities for any model.
+`Data` field needs no new schema version. The saved scan factory, V52 local
+model, history DTO/query and historical projection retain the same metadata.
+Display bands are used only by confidence labels and their explanation.
+Diagnostics and candidates, score-based upsell, collection suggestions, sharing
+recommendations and perfect-scan rewards retain the qualified `bands`
+compatibility decision. These rules preserve existing Gemini behavior; they do
+not establish calibrated probabilities for any model. See the
+[OpenAI display decision](../../../../../docs/rfcs/identification-openai-confidence-display-2026-09-28.md)
+and the
+[beta admission correction](../../../../../docs/incidents/2026-09-beta-openai-consent-gate.md)
+for the current display and admission boundaries.

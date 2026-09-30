@@ -2451,16 +2451,19 @@ existing eight admission inputs and returns it with `provider`, `binding` and
 compatible ten-argument overload described below. Public Identify JSON payloads
 remain unchanged.
 
-The backend chooses the assignment. End-user processing permission gates that
-assignment; it cannot select a different provider or fallback. All current
-catalog rows remain Gemini. The registry recognizes the exact dormant OpenAI
-photo tuple, and the production composition supports it. Deploy that enabled
-Function bundle before any forward migration selects the photo tuple.
-`identificationInput.ts` distinguishes descriptions, photos, audio, combined
-photos/audio and video-derived frames/audio; compatibility request variants have
-separate profiles. Capture indications and lineage conservatively keep sampled
-video out of a photo-only lane. This classifies accepted representations, not
-proof of biological identity or cryptographically verified capture provenance.
+The backend chooses the assignment. Applicable end-user processing permission
+gates that assignment; it cannot select a different provider or fallback. The
+beta catalog assigns still-photo rows to the exact OpenAI photo tuple; all other
+profiles remain Gemini. The enabled Function bundle was deployed before the
+activation migration. The
+[beta correction](../incidents/2026-09-beta-openai-consent-gate.md) defers
+OpenAI-specific permission collection and enforcement while ordinary onboarding
+and processing permission remain required. `identificationInput.ts`
+distinguishes descriptions, photos, audio, combined photos/audio and
+video-derived frames/audio; compatibility request variants have separate
+profiles. Capture indications and lineage conservatively keep sampled video out
+of a photo-only lane. This classifies accepted representations, not proof of
+biological identity or cryptographically verified capture provenance.
 
 The registry independently recomputes the profile before preparation. Missing,
 unknown or mismatched fresh assignment metadata fails with
@@ -2704,17 +2707,17 @@ preserves the exact five-field Gemini generation object in version 1. Version 2
 uses provider `openai` and an exact three-field generation object:
 `max_output_tokens`, `reasoning_effort`, `image_detail`. The generated decoder
 selects the version before decoding its generation object; unknown versions,
-mixed settings and extra keys fail. V2 is preparation only: all deployed
-assignments remain Gemini. Dormant admission and the result-reader boundary
-require identification capability 4 before returning V2 to an external client;
-entitlement protocol remains 3. The value contains no observation or personal
-data and never enters the model-output schema. Omission means legacy; an
-explicitly null or malformed Identify field is rejected. Required nullable
-settings retain explicit null when decoded and re-encoded. Stored envelopes
-retain their original metadata or original omission. Older completed jobs
-reconstruct from the immutable owner scan column; null/missing columns omit the
-field, while damaged present metadata fails validation. Neither path consults
-today's provider assignment or makes an inference request.
+mixed settings and extra keys fail. Activated OpenAI photo assignments use V2;
+other inputs retain their configured provider assignments. Admission and the
+result-reader boundary require identification capability 4 before returning V2
+to an external client; entitlement protocol remains 3. The value contains no
+observation or personal data and never enters the model-output schema. Omission
+means legacy; an explicitly null or malformed Identify field is rejected.
+Required nullable settings retain explicit null when decoded and re-encoded.
+Stored envelopes retain their original metadata or original omission. Older
+completed jobs reconstruct from the immutable owner scan column; null/missing
+columns omit the field, while damaged present metadata fails validation. Neither
+path consults today's provider assignment or makes an inference request.
 
 Owner history selects the same column. SwiftData V52 stores its content-free
 JSON bytes in optional `LocalScanRecord.identificationProvenanceData`; V51 rows
@@ -2722,10 +2725,17 @@ migrate to nil. Missing legacy cloud metadata cannot erase an existing value.
 Malformed history rows remain quarantined with raw-row pagination intact. Both
 versions use the existing V52 opaque JSON storage; this adds no SwiftData schema
 version or data migration. Recognized exact V1 Gemini profiles retain the
-existing confidence presentation; unknown or damaged present profiles use
-neutral review guidance. Absence keeps legacy behavior. This compatibility rule
-is not empirical calibration, and public Explore suggestion projections still
-require separate qualification before another provider is enabled. See the
+existing confidence presentation. The exact shipped V2 `openai_photo_v1` profile
+separately receives display-only Strong (`>= 0.95`), Possible (`>= 0.60` and
+`< 0.95`), or Weak (`< 0.60`) labels on every plan tier. The app presents these
+as model estimates; neither `openai_unqualified_v1` nor the stored score
+changes. Unknown or damaged present profiles use neutral review guidance.
+Absence keeps legacy behavior. These display thresholds do not qualify OpenAI
+for candidate filtering, automatic verification, sharing recommendations,
+rewards, public metrics, or evaluation strong/diagnostic metrics. See the
+[display threshold decision](../rfcs/identification-openai-confidence-display-2026-09-28.md).
+This compatibility rule is not empirical calibration, and public Explore
+suggestion projections still require separate provider qualification. See the
 [server provenance record](../rfcs/identification-provider-result-provenance-2026-09-26.md)
 and
 [client integration record](../rfcs/identification-client-result-provenance-2026-09-26.md)

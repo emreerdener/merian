@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ModelInfoSection: View {
     let inferenceTier: String?
+    var provenance: IdentificationResultProvenance?
 
     private var isPro: Bool { inferenceTier == "pro" }
 
@@ -21,20 +22,22 @@ struct ModelInfoSection: View {
                         Text(PublicBrand.aiName)
                             .font(.system(.title3, weight: .bold))
                             .foregroundStyle(.primary)
-                        Text(isPro ? "Pro" : "Flash")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(isPro ? Color.indigo : Color.secondary)
-                            .padding(.horizontal, 7)
-                            .padding(.vertical, 2)
-                            .background(
-                                Capsule()
-                                    .fill(isPro ? Color.indigo.opacity(0.12) : Color.secondary.opacity(0.1))
-                            )
+                        if provenance?.supportsOpenAIPhotoDisplayBands != true {
+                            Text(isPro ? "Pro" : "Flash")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(isPro ? Color.indigo : Color.secondary)
+                                .padding(.horizontal, 7)
+                                .padding(.vertical, 2)
+                                .background(
+                                    Capsule()
+                                        .fill(isPro ? Color.indigo.opacity(0.12) : Color.secondary.opacity(0.1))
+                                )
+                        }
                     }
 
-                    Text(isPro
-                         ? "This scan used an enhanced reasoning model for deeper accuracy."
-                         : "This scan used the standard model optimized for speed. Upgrade to Pro for advanced analysis.")
+                    Text(ConfidenceExplanationPresentation.modelDescription(
+                        inferenceTier: inferenceTier, provenance: provenance
+                    ))
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
