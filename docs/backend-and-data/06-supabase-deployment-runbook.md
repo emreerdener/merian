@@ -167,6 +167,23 @@ the normal exact-SHA authorization and release controls; this source change
 provides no deployment or provider-activation authorization. See the
 [accounting contract](./04-database-schema.md#primary-identification-attempt-accounting).
 
+### Function deployment bundling
+
+The graph-selected deployment helper retains local Docker bundling and one job
+(`MERIAN_FUNCTION_DEPLOY_JOBS=1`). CLI `2.109.1` rejects parallel jobs with
+local bundling. Its API upload omits the shared lock referenced by each
+Function's `deno.json`, so `--use-api` is not a substitute for this frozen local
+graph.
+
+Before bundling, `prepare_function_bundler_image.sh` verifies the CLI pin and
+Docker availability, then reuses the cached `edge-runtime:v1.74.2` image or
+pulls that same tag from Supabase's ECR, GHCR, and Docker Hub mirrors in order.
+A successful fallback is tagged as the CLI's canonical ECR image. Missing
+Docker, version drift, retagging errors, or failure of every mirror stops the
+rollout before any Function deploy command. Batch selection, compatibility
+order, isolated retries, exact-SHA checks, and post-deploy probes remain
+required. When upgrading the CLI, review its bundler image pin with this helper.
+
 ### Reviewed out-of-order migration recovery
 
 The production push first runs `scripts/plan_database_migration_push.ts` against
