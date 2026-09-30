@@ -5,12 +5,14 @@ Date: 2026-09-29
 Status: Slice 1 and the native persistence, backend review authority and native
 review acknowledgement checkpoints of Slice 2 are implemented locally. The
 shared-consumer and capability-5 reader checkpoints are implemented and locally
-verified. Slice 3 now has a separate offline explicit-primary Sol candidate;
-live evaluation and producer qualification remain pending. No deployment,
-producer activation, model assignment or confidence policy change is included.
-The design baseline below used `ca35e74bb` on
-`codex/openai-free-pro-evaluation`; the dated checkpoint records distinguish
-implemented foundation from pending consumers and model qualification.
+verified. Slice 3's separate explicit-primary Sol candidate has
+[completed its eighteen-request comparison](identification-sol-primary-comparison-results-2026-09-29.md)
+but remains unqualified because of a concrete visual-grounding failure. Producer
+qualification remains pending. No deployment, producer activation, model
+assignment or confidence policy change is included. The design baseline below
+used `ca35e74bb` on `codex/openai-free-pro-evaluation`; the dated checkpoint
+records distinguish implemented foundation from pending consumers and model
+qualification.
 
 The
 [completed Sol comparison](identification-sol-rank-comparison-results-2026-09-29.md)
@@ -1042,3 +1044,23 @@ Current pricing, a new bounded plan and fresh exact-source authorization are
 still required for execution. No new model calls, production assignment changes
 or confidence thresholds are part of this implementation checkpoint. The
 original explanation format and current Sol Free/Pro assignments remain intact.
+
+## Explicit-primary comparison outcome — 2026-09-29
+
+The separately approved
+[completed comparison](identification-sol-primary-comparison-results-2026-09-29.md)
+finished six candidate screens and all six alternating pairs: eighteen requests,
+eighteen assistant reviews, no provider failures and no retries. All five
+resolution states appeared, while limited references retained their restrictions
+on quality credit. The existing explanation format was preserved.
+
+The candidate showed useful species/genus/abstention behavior, but one challenge
+explanation contradicted visible anatomy. Do not promote it. The current Sol
+photo profile remains the choice for Free and Pro; this development comparison
+does not qualify confidence thresholds or a model split. The contract and reader
+foundation remain useful independently of the unsuccessful producer candidate.
+
+Close this packet. Next is offline analysis of visual grounding and
+primary-claim consistency using the existing findings, before proposing any
+further paid comparison. No new runtime change, production assignment or
+activation is part of this outcome checkpoint.

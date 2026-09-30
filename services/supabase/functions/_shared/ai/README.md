@@ -240,6 +240,13 @@ Limited references can permit screen continuation but earn no quality pass;
 review failures and unmapped/ambiguous identities still stop screening. See the
 [runner checkpoint](../../../../../docs/rfcs/identification-sol-primary-comparison-preparation-2026-09-29.md#bounded-runner-implementation--2026-09-29).
 
+The first separately approved eighteen-request comparison is
+[complete](../../../../../docs/rfcs/identification-sol-primary-comparison-results-2026-09-29.md).
+Useful rank behavior did not resolve a concrete visual-grounding failure, so the
+candidate remains excluded from production. Retain the current Sol photo profile
+for both tiers; this completed packet does not qualify confidence thresholds or
+authorize another run.
+
 ## Scoped audio prompt authority
 
 The default-off 36-slot prompt lane adds the internal

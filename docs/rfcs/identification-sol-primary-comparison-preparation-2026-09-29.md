@@ -2,10 +2,14 @@
 
 Date: 2026-09-29
 
-Status: offline packet prepared, reference coverage reviewed, and the separate
-bounded runner implemented. No model calls have run for
-`openai_photo_sol_primary_low_v1`. Production continues using the current Sol
-photo profile for both Free and Pro; confidence thresholds remain unqualified.
+Status: the separately approved explicit-primary comparison completed all
+eighteen requests and assistant reviews. The
+[completed results](identification-sol-primary-comparison-results-2026-09-29.md)
+record useful rank behavior and one concrete candidate visual-grounding failure.
+Do not promote `openai_photo_sol_primary_low_v1` or repeat the completed packet.
+Keep the current Sol photo profile for both Free and Pro; confidence thresholds
+remain unqualified. The preparation and runner checkpoints below preserve their
+original scope and verification evidence.
 
 This checkpoint follows the
 [explicit-primary implementation](identification-primary-resolution-contract-2026-09-29.md#isolated-explicit-primary-candidate--2026-09-29).

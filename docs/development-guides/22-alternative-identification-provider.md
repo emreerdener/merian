@@ -445,11 +445,13 @@ identification benchmark nor qualifies a confidence display policy.
 
 The
 [offline comparison packet](../rfcs/identification-sol-primary-comparison-preparation-2026-09-29.md)
-now contains twelve cases, including new dog, cat and unresolved-biological
-examples. All five resolution states are represented; family and unresolved
-references remain limited. Its eighteen proposed assignments do not grant
-spending authority. Existing experiment parsers and production bindings remain
-closed to this profile.
+contains twelve cases, including dog, cat and unresolved-biological examples.
+All five resolution states are represented; family and unresolved references
+remain limited. The separately approved eighteen-request run is
+[complete](../rfcs/identification-sol-primary-comparison-results-2026-09-29.md).
+Retain the current Sol profile: the candidate's rank improvements do not cancel
+its visual-grounding failure. Do not rerun the completed packet. Historical
+experiment parsers and production bindings remain closed to this profile.
 
 To prepare another immutable copy after reviewing its source records, use the
 two-path offline CLI. Both source and destination parent must be private and
@@ -498,10 +500,14 @@ Before dispatch, the private prepared directory must additionally contain:
   twenty-four hours and binds assistant review. Historical approvals cannot be
   relabeled or reused. Real-input disclosure permission belongs to the new plan.
 
-Preflight performs no model request and needs no credential:
+For a separately prepared and authorized future comparison, replace the
+placeholder below with its new private packet. The completed
+`2026-09-29-sol-primary-photo-preparation-v2` journal is historical evidence,
+not a reusable execution target. Preflight performs no model request and needs
+no credential:
 
 ```bash
-evaluation_packet="$HOME/Developer/merian-evaluation/2026-09-29-sol-primary-photo-preparation-v2"
+evaluation_packet="$HOME/Developer/merian-evaluation/NEW-PRIMARY-PREPARATION"
 deno run --frozen --no-prompt --deny-net --deny-env \
   --config services/supabase/functions/deno.json \
   --allow-read="$PWD,$evaluation_packet" --allow-write="$evaluation_packet" \
