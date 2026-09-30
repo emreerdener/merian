@@ -2,10 +2,12 @@
 
 Date: 29 September 2026
 
-Status: Offline request candidate implemented; provider behavior is unmeasured.
-No live adapter, evaluator registration or production assignment selects it. The
-later owner decision below replaces the proposed dedicated comparison with
-focused regression checks and a small ordinary beta smoke check.
+Status: The two wording changes are integrated into the production photo path in
+source, with a new prompt identity and native reader support. Release and
+ordinary beta smoke scans remain pending; model benefit is unmeasured. The
+original offline candidate and all historical controls retain their identities
+and hashes. The dated sections below preserve the design and later decision to
+use targeted validation instead of another comparison.
 
 ## Decision and evidence
 
@@ -15,7 +17,7 @@ before calibrating OpenAI confidence thresholds. Preserve the current
 explanation format. Keep the current Sol photo profile for both tiers while
 evaluating one isolated instruction hypothesis.
 
-The current visual instruction demands three structural observations and the
+The original visual instruction demands three structural observations and the
 strict-schema description demands exactly three traits. The runtime contract
 already accepts one through ten. Requiring a fixed number may encourage padding
 when only one or two features are actually visible. The
@@ -24,15 +26,16 @@ found a concrete anatomy-grounding failure, but it does not establish that trait
 count caused that failure. This candidate tests that hypothesis; it is not a
 demonstrated accuracy, latency, cost or confidence improvement.
 
-Use `openai_photo_sol_low_v1` as the production-equivalent control. Do not layer
-the change on the inactive rank or explicit-primary candidates: those also
-change rank and alternative semantics. All completed experiments remain closed.
+The original design used `openai_photo_sol_low_v1` as the
+then-production-equivalent control. Do not layer the change on the inactive rank
+or explicit-primary candidates: those also change rank and alternative
+semantics. All completed experiments remain closed.
 
 ## Exact scope
 
 The pure builder in
 [`openaiObservedTraits.ts`](../../services/supabase/functions/_shared/ai/openaiObservedTraits.ts)
-starts with the full current Sol photo request. It changes only:
+starts with the frozen original Sol photo request. It changes only:
 
 1. The fixed-count instruction to request one to three distinct, directly
    supported physical or structural observations. One or two are sufficient; do
@@ -165,3 +168,86 @@ Next implementation steps:
 Existing comparison packets and budgets remain closed. No provider request or
 production mutation runs as part of this documentation update. The normal
 release authorization and deployment controls continue to apply.
+
+## Production integration — 29 September 2026
+
+`openaiPhoto.ts` now owns the two pure projections and applies them in the
+existing production builder. The admitted snapshot records
+`openai_identify_vision_observed_traits_v1`, while retaining `openai_photo_v1`,
+`merian_openai_identify_v1`, `gpt-6-sol`, the original generation settings and
+`openai_unqualified_v1`. The changed instruction and schema description are
+versioned together by the prompt identity; output fields, schema name and array
+bounds do not change. The runtime registry already selects this builder, so the
+normal admitted photo request uses the revision when this source is deployed.
+Free and Pro continue to share the same photo configuration.
+
+The offline candidate retains its evaluation binding and private schema name; it
+reuses the pure projections without gaining production admission. The old
+`openai_photo_sol_low_v1` and Luna builders now reconstruct their frozen
+baseline directly from `openaiRequest.ts`, with the same inline moderation. They
+no longer inherit production prompt revisions. Existing hashes and completed
+measurements remain unchanged, including downstream rank and explicit-primary
+candidates.
+
+The iOS confidence reader explicitly accepts the original and new production
+prompt identities under all existing exact configuration checks. Both use the
+same provisional display-only Strong/Possible/Weak cutoffs. Wire decoding, local
+save/reopen and historical projection preserve the recorded version. Unknown or
+altered profiles remain unqualified. No generated DTO, database migration,
+capability minimum or stored result rewrite is needed.
+
+### Release order and remaining acceptance
+
+1. Complete affected local regressions and normal CI for this source change.
+2. First satisfy the existing additive backend and migration prerequisites in
+   the
+   [primary-resolution sequence](./identification-primary-resolution-contract-2026-09-29.md).
+   Then distribute the updated native reader through the normal beta release
+   process before deploying this prompt revision. Older installed apps can
+   decode the new result but show Needs review because their badge policy does
+   not know the prompt. Capabilities 4/5 cannot distinguish these versions, and
+   distributing an update does not itself upgrade every installed app. Use the
+   updated build for beta acceptance; do not claim older builds retain the new
+   prompt's badges.
+3. Deploy the reviewed backend revision after explicit release authorization,
+   then perform the clear/unclear/non-biological and multiple-photo smoke checks
+   described above, including save/reopen. This change does not execute either
+   release operation or provider calls.
+4. Freeze the resulting configuration for confidence calibration. Earlier scores
+   stay with `openai_identify_vision_v1`; do not pool them automatically with
+   the new prompt. Additional optimization experiments remain deferred.
+
+If an ordinary beta check reveals a regression, correct it or use the existing
+reviewed backend rollback process to restore the previous prompt. The updated
+iOS reader accepts both versions; existing observations keep their provenance.
+
+### Integration verification
+
+Local verification on 29 September passed:
+
+- Twenty focused adapter/provenance tests and the admitted production mock,
+  including Free/Pro snapshot parity and the exact native request.
+- All 47 restricted OpenAI CI tests with network and environment access denied;
+  historical control/candidate fingerprints remain unchanged.
+- The complete Edge suite: 2,230 passed, eleven database integration tests
+  skipped because no disposable database was started.
+- Complete Supabase tooling: 470 standard tests, 116 evaluation-runner tests,
+  executable/generated DTO contracts and the remaining shell/permission gates.
+  The production bundle fingerprint was regenerated with its checked-in tool.
+- All 103 function entrypoints type-checked; isolated dependency/config checks,
+  Deno lint and the recursive Functions/scripts formatting gate passed.
+- The affected native suites: 24 test functions passed, with parameterized
+  coverage for old/new prompt identities, all badge boundaries, saved-result
+  reopening, historical projection and altered-profile rejection.
+- The complete native unit target passed: 1,431 XCTest tests and 3,143 Swift
+  Testing tests in 481 suites. The reusable local build wrapper retained the
+  result at `.artifacts/local-ios/bfb8076313ed4366b7b31b4104d7d007.xcresult`.
+- iOS project, event-routing and migration-source guardrails, changed-Markdown
+  formatting, local documentation links and whitespace checks passed.
+
+Independent read-only review found no remaining code issue; its release-order
+wording finding was corrected and re-reviewed. These checks establish request
+isolation and application compatibility, not a measured model-quality gain.
+Hosted CI, database execution, Release archive/install-over acceptance, provider
+smoke calls, TestFlight distribution and production deployment did not run in
+this integration step. No paid comparison was reopened.

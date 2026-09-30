@@ -6,7 +6,43 @@ import {
   OPENAI_GENERATION,
   OPENAI_MODEL,
   openAIEvaluationSnapshot,
+  type OpenAISchema,
 } from "./openaiRequest.ts";
+
+export const OPENAI_PHOTO_PROMPT = "openai_identify_vision_observed_traits_v1";
+
+const originalInstruction =
+  "You MUST extract 3 structural observations in `extracted_visual_traits` BEFORE determining `is_biological_subject` or `scientific_name`.";
+const candidateInstruction =
+  "Extract one to three distinct physical or structural observations in `extracted_visual_traits` BEFORE determining `is_biological_subject` or `scientific_name`. Include only features directly supported by the supplied visual evidence. If only one or two features are supportable, return those; never invent, repeat or infer unseen anatomy to reach three. Keep material visibility limitations in the existing 1–3 sentence `ai_reasoning`, not as substitute traits.";
+const originalDescription =
+  "Extract exactly 3 distinct physical or structural traits observed in the visual evidence (e.g. 'smooth texture', 'embedded in concrete', 'green leaves').";
+const candidateDescription =
+  "Extract one to three distinct physical or structural traits directly supported by the supplied visual evidence. Return only supportable observations, without inventing, repeating or inferring unseen anatomy to reach three. Visibility limitations belong in ai_reasoning, not as substitute traits.";
+
+export function openAIObservedTraitsInstructions(baseline: string): string {
+  if (baseline.split(originalInstruction).length !== 2) {
+    throw new Error("openai_observed_traits_baseline_drift");
+  }
+  return baseline.replace(originalInstruction, candidateInstruction);
+}
+
+export function openAIObservedTraitsSchema(
+  baseline: OpenAISchema,
+): OpenAISchema {
+  const traits = baseline.properties?.extracted_visual_traits;
+  if (
+    !traits || traits.description !== originalDescription ||
+    traits.type !== "array" || traits.minItems !== 1 || traits.maxItems !== 10
+  ) throw new Error("openai_observed_traits_schema_drift");
+  return {
+    ...baseline,
+    properties: {
+      ...baseline.properties,
+      extracted_visual_traits: { ...traits, description: candidateDescription },
+    },
+  };
+}
 
 export const OPENAI_PHOTO_SAFETY_POLICY = "openai_photo_moderation_v1";
 export const OPENAI_PHOTO_MODERATION_MODEL = "omni-moderation-2024-09-26";
@@ -21,7 +57,7 @@ export interface OpenAIPhotoSnapshot {
   readonly operation: "scan_identification";
   readonly policyVersion: number;
   readonly permission: "openai";
-  readonly prompt: "openai_identify_vision_v1";
+  readonly prompt: typeof OPENAI_PHOTO_PROMPT;
   readonly schema: "merian_openai_identify_v1";
   readonly confidence: "openai_unqualified_v1";
   readonly safety: typeof OPENAI_PHOTO_SAFETY_POLICY;
@@ -65,7 +101,7 @@ function photoConfiguration(policyVersion: number): OpenAIPhotoSnapshot {
     operation: "scan_identification",
     policyVersion,
     permission: "openai",
-    prompt: "openai_identify_vision_v1",
+    prompt: OPENAI_PHOTO_PROMPT,
     schema: "merian_openai_identify_v1",
     confidence: "openai_unqualified_v1",
     safety: OPENAI_PHOTO_SAFETY_POLICY,
@@ -99,10 +135,22 @@ export function buildOpenAIPhotoRequestParameters(
 ) {
   assertOpenAIPhotoInput(request);
   assertOpenAIPhotoSnapshot(snapshot);
-  // Preserve the measured baseline prompt and generation settings. Only this
-  // distinct binding requests inline moderation; old benchmark profiles do not.
+  // The prompt revision owns both evidence directions. The output shape and
+  // schema name stay stable; frozen evaluation profiles build the old base directly.
+  const baseline = buildOpenAIRequestParameters(
+    request,
+    openAIEvaluationSnapshot(request),
+  );
   return {
-    ...buildOpenAIRequestParameters(request, openAIEvaluationSnapshot(request)),
+    ...baseline,
+    instructions: openAIObservedTraitsInstructions(baseline.instructions),
+    text: {
+      ...baseline.text,
+      format: {
+        ...baseline.text.format,
+        schema: openAIObservedTraitsSchema(baseline.text.format.schema),
+      },
+    },
     moderation: { model: snapshot.moderationModel },
   };
 }

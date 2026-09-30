@@ -28,11 +28,12 @@ photo/text quality.
 The
 [Free/Pro model plan](../rfcs/identification-openai-free-pro-models-2026-09-28.md)
 introduces two closed evaluation profiles: `openai_photo_luna_low_v1` and
-`openai_photo_sol_low_v1`. Both use the production photo prompt, strict schema,
-high image detail, low reasoning, 8,192-token output limit, and pinned native
-input/output moderation. Only the model differs. The Sol control therefore
-matches the current production request, including moderation; the completed
-September 27 evaluation remains historical evidence with its original binding.
+`openai_photo_sol_low_v1`. Both freeze the original photo prompt
+`openai_identify_vision_v1`, strict schema, high image detail, low reasoning,
+8,192-token output limit and pinned native input/output moderation. Only the
+model differs. The Sol control matched production when the comparisons ran; its
+builder remains independent of the later observed-traits production prompt.
+Retain all completed evidence under its original configuration and binding.
 
 `_shared/ai/openaiPhotoModels.ts` owns those immutable configurations.
 `createOpenAIPhotoModelEvaluationAdapter` reuses the bounded transport and
@@ -421,11 +422,14 @@ their own clean-source preflight and execution approval.
 
 The
 [current candidate record](../rfcs/identification-openai-observed-traits-candidate-2026-09-29.md)
-owns `openai_photo_sol_observed_traits_low_v1`. A pure request projection
-changes two fixed-count directions to ask for one to three directly supported
-traits. It preserves the current Sol payload, explanation format and accepted
-1–10 trait array bounds. No adapter, runner or production binding selects it.
-Run its compatibility checks with network and environment access denied:
+owns the production prompt `openai_identify_vision_observed_traits_v1` and the
+frozen offline candidate `openai_photo_sol_observed_traits_low_v1`. Two pure
+projections in `openaiPhoto.ts` replace fixed-count directions with one to three
+directly supported traits. Production retains `openai_photo_v1`,
+`merian_openai_identify_v1`, Sol, explanation format and the accepted 1–10 trait
+array bounds. The offline candidate retains its private schema name and original
+hashes; no runner or production assignment selects that evaluation identity. Run
+its compatibility checks with network and environment access denied:
 
 ```bash
 deno test --frozen --no-prompt --deny-net --deny-env \
@@ -435,11 +439,16 @@ deno test --frozen --no-prompt --deny-net --deny-env \
 
 These tests establish request isolation and decoding compatibility, not model
 quality. The updated plan treats the two wording changes as a small beta
-improvement: integrate a versioned prompt, run the affected regressions and
-normal CI, then check a few ordinary beta scans. A dedicated comparison runner
-is unnecessary for this change. Preserve explanation format and use the final
-prompt configuration for confidence calibration. Existing experiment budgets
-remain closed; see the candidate record for the exact scope and smoke checks.
+improvement: the versioned prompt is integrated in source, with affected
+regressions and normal CI preceding a few ordinary beta scans. After existing
+additive backend and migration prerequisites are deployed, distribute the
+updated iOS reader before deploying this prompt revision: it recognizes both
+prompt versions for display-only badges, while older readers show Needs review
+for the new prompt. Result shape, protocol minimum and database schema stay
+unchanged. A dedicated comparison runner is unnecessary for this change.
+Preserve explanation format and use the final prompt configuration for
+confidence calibration. Existing experiment budgets remain closed; see the
+candidate record for the exact scope and smoke checks.
 
 ## Explicit-primary Sol comparison
 

@@ -37,13 +37,15 @@ unchanged.
 Current direction, 29 September 2026: finish OpenAI optimization before
 calibrating confidence for the selected configuration. The new
 [observed-traits candidate](../../../../docs/rfcs/identification-openai-observed-traits-candidate-2026-09-29.md)
-is a pure offline request projection; none of this directory's runners admits
-its identity. It preserves explanation format and changes two fixed-count trait
-directions. The owner chose targeted regression checks and ordinary beta smoke
-scans for this narrow wording change, followed by confidence calibration on the
-final configuration. No new comparison controller or paired run is planned.
-Normal release controls still apply; completed experiments and budgets remain
-closed.
+retains a pure offline evaluation identity that none of this directory's runners
+admits. Its two trait directions are now integrated into the production photo
+prompt with separate production provenance and native reader support. Existing
+Sol controls retain the original request and hashes rather than following the
+new production instructions. Explanation format stays unchanged. The owner chose
+targeted regression checks and ordinary beta smoke scans for this narrow wording
+change, followed by confidence calibration on the final configuration. No new
+comparison controller or paired run is planned. Normal release controls still
+apply; completed experiments and budgets remain closed.
 
 The
 [retained-evidence audit](../../../../docs/rfcs/identification-openai-confidence-evidence-audit-2026-09-29.md)

@@ -2,17 +2,19 @@
 import type { AIRequest } from "./contracts.ts";
 import {
   assertOpenAIPhotoInput,
-  buildOpenAIPhotoRequestParameters,
   OPENAI_PHOTO_MODERATION_MODEL,
   OPENAI_PHOTO_SAFETY_POLICY,
-  openAIPhotoSnapshot,
 } from "./openaiPhoto.ts";
 import {
   OPENAI_LUNA_EVIDENCE_LIMITS_PROFILE,
   OPENAI_LUNA_EVIDENCE_LIMITS_PROMPT,
   openAILunaEvidenceLimitsInstructions,
 } from "./openaiLunaEvidenceLimits.ts";
-import { OPENAI_GENERATION } from "./openaiRequest.ts";
+import {
+  buildOpenAIRequestParameters,
+  OPENAI_GENERATION,
+  openAIEvaluationSnapshot,
+} from "./openaiRequest.ts";
 
 export const OPENAI_PHOTO_MODEL_PROFILES = [
   "openai_photo_luna_low_v1",
@@ -82,11 +84,12 @@ export function buildOpenAIPhotoModelRequestParameters(
   if (JSON.stringify(snapshot) !== JSON.stringify(expected)) {
     throw new Error("openai_binding_mismatch");
   }
-  // This pure snapshot supplies configuration, never quota or production authority.
-  const baseline = buildOpenAIPhotoRequestParameters(
-    request,
-    openAIPhotoSnapshot(request, 1),
-  );
+  // Freeze the original photo prompt independently of later production revisions.
+  // These v1 profiles and their retained measurements must keep the same payload.
+  const baseline = {
+    ...buildOpenAIRequestParameters(request, openAIEvaluationSnapshot(request)),
+    moderation: { model: snapshot.moderationModel },
+  };
   return {
     ...baseline,
     model: snapshot.model,

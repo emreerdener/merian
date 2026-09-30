@@ -327,10 +327,12 @@ production submission or public release.
   Gemini for other input profiles. The 29 September sequence resumes
   optimization before confidence calibration: the
   [observed-traits candidate](./rfcs/identification-openai-observed-traits-candidate-2026-09-29.md)
-  removes two fixed-count directions in an offline-only Sol request while
-  preserving explanation format. Its updated plan uses versioned beta
-  integration, regression checks and a few ordinary smoke scans instead of a
-  dedicated comparison. Its benefit is unmeasured, and completed experiment
+  removes two fixed-count directions while preserving explanation format. The
+  production prompt and native reader are integrated in source; frozen benchmark
+  requests retain the earlier wording. After existing additive backend
+  prerequisites, release the reader before this prompt revision, then run a few
+  ordinary beta smoke scans before confidence calibration. No dedicated
+  comparison is required. Its benefit is unmeasured, and completed experiment
   budgets stay closed. The
   [earlier provider optimization plan](./rfcs/identification-provider-optimization-plan.md)
   retains implemented measurement and experiment controls. Its

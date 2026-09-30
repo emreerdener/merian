@@ -12,6 +12,7 @@ import {
 } from "./openai.ts";
 import {
   buildOpenAIPhotoRequestParameters,
+  OPENAI_PHOTO_MODERATION_MODEL,
   openAIPhotoSnapshot,
 } from "./openaiPhoto.ts";
 import {
@@ -25,7 +26,11 @@ import {
   OPENAI_LUNA_EVIDENCE_LIMITS_PROMPT_DIGEST,
   openAILunaEvidenceLimitsInstructions,
 } from "./openaiLunaEvidenceLimits.ts";
-import { isOpenAIProfile } from "./openaiRequest.ts";
+import {
+  buildOpenAIRequestParameters,
+  isOpenAIProfile,
+  openAIEvaluationSnapshot,
+} from "./openaiRequest.ts";
 import {
   openAIPhotoModerationFixture,
   openAIPhotoRequestFixture,
@@ -33,7 +38,7 @@ import {
   openAITextFixture,
 } from "./testing/openaiFixtures.ts";
 
-Deno.test("photo model evaluation preserves the production request except the selected model", () => {
+Deno.test("photo model evaluation preserves the historical request independently of the current production prompt", () => {
   const base = openAIPhotoRequestFixture();
   const photo = base.evidence[0];
   if (photo.kind !== "image") throw new Error("photo_fixture_required");
@@ -50,9 +55,19 @@ Deno.test("photo model evaluation preserves the production request except the se
     }, { ...base.evidence[1], order: 2 }],
   }];
   for (const request of requests) {
-    const baseline = buildOpenAIPhotoRequestParameters(
-      request,
-      openAIPhotoSnapshot(request, 1),
+    const baseline = {
+      ...buildOpenAIRequestParameters(
+        request,
+        openAIEvaluationSnapshot(request),
+      ),
+      moderation: { model: OPENAI_PHOTO_MODERATION_MODEL },
+    };
+    assert(
+      baseline.instructions !==
+        buildOpenAIPhotoRequestParameters(
+          request,
+          openAIPhotoSnapshot(request, 1),
+        ).instructions,
     );
     for (const profile of OPENAI_PHOTO_MODEL_PROFILES) {
       const snapshot = openAIPhotoModelSnapshot(request, profile);
@@ -61,6 +76,7 @@ Deno.test("photo model evaluation preserves the production request except the se
         model: snapshot.model,
       });
       assertEquals(snapshot.contextKind, "evaluation");
+      assertEquals(snapshot.prompt, "openai_identify_vision_v1");
       assertEquals(isOpenAIProfile(profile), false);
       assertThrows(() =>
         prepareMultimodalResultPolicy(snapshot as unknown as AIAttemptSnapshot)
@@ -320,7 +336,7 @@ Deno.test("Luna evidence-limit candidate changes only two instruction lines and 
 Deno.test("Luna evidence-limit projection rejects changed or duplicated anchors without modifying the shared prompt", () => {
   const request = openAIPhotoRequestFixture();
   const baseline =
-    buildOpenAIPhotoRequestParameters(request, openAIPhotoSnapshot(request, 1))
+    buildOpenAIRequestParameters(request, openAIEvaluationSnapshot(request))
       .instructions;
   for (
     const changed of [
@@ -340,7 +356,7 @@ Deno.test("Luna evidence-limit projection rejects changed or duplicated anchors 
     );
   }
   assertEquals(
-    buildOpenAIPhotoRequestParameters(request, openAIPhotoSnapshot(request, 1))
+    buildOpenAIRequestParameters(request, openAIEvaluationSnapshot(request))
       .instructions,
     baseline,
   );
@@ -364,7 +380,7 @@ Deno.test("Luna evidence-limit prompt identity is pinned independently of the un
   assertEquals(digest, OPENAI_LUNA_EVIDENCE_LIMITS_PROMPT_DIGEST);
   assertEquals(
     candidate.text.format.schema,
-    buildOpenAIPhotoRequestParameters(request, openAIPhotoSnapshot(request, 1))
+    buildOpenAIRequestParameters(request, openAIEvaluationSnapshot(request))
       .text.format.schema,
   );
 });

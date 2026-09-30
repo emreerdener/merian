@@ -220,7 +220,15 @@ catalog selects OpenAI only for still photos with minimum identification
 protocol 4, accepting readers 4 and 5. Only an admitted exact OpenAI photo
 assignment can read the credential and dispatch. Beta eligibility defers
 OpenAI-specific opt-in enforcement while preserving historical consent receipts;
-consent evidence is never synthesized.
+consent evidence is never synthesized. The production photo snapshot now uses
+`openai_identify_vision_observed_traits_v1`: one to three directly supported
+traits, with the same explanation format, schema name, array bounds and model
+settings. Saved provenance records that revision; historical results and
+benchmark payloads keep their original identities. After existing additive
+backend/migration prerequisites are deployed, distribute native recognition of
+both prompt versions before deploying this prompt revision; otherwise older
+readers show Needs review despite decoding the result successfully. See the
+[versioned prompt record](../../../../docs/rfcs/identification-openai-observed-traits-candidate-2026-09-29.md#production-integration--29-september-2026).
 
 Native callers carry identification capability 5 in a separate header, leaving
 entitlement protocol 3 unchanged. Saved usage preserves reported cached tokens

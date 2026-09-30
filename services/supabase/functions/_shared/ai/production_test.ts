@@ -2,7 +2,11 @@ import { assert, assertEquals, assertRejects, assertThrows } from "@std/assert";
 import type { AIRequest, UserRequestAuthority } from "./contracts.ts";
 import { prepareAIExecution } from "./production.ts";
 import { OPENAI_RESPONSES_URL } from "./openai.ts";
-import { OPENAI_PHOTO_MODERATION_MODEL } from "./openaiPhoto.ts";
+import {
+  buildOpenAIPhotoRequestParameters,
+  OPENAI_PHOTO_MODERATION_MODEL,
+  openAIPhotoSnapshot,
+} from "./openaiPhoto.ts";
 import {
   openAIPhotoModerationFixture,
   openAIPhotoRequestFixture,
@@ -65,6 +69,22 @@ Deno.test({
       assertEquals(calls, 0);
       assertEquals(prepared.snapshot.provider, "openai");
       assertEquals(prepared.snapshot.binding, "openai_photo_v1");
+      assertEquals(
+        prepared.snapshot.prompt,
+        "openai_identify_vision_observed_traits_v1",
+      );
+      assertEquals(prepared.snapshot.schema, "merian_openai_identify_v1");
+      const freeAuthority = photoAuthority();
+      assertEquals(
+        prepareAIExecution(request, {
+          ...freeAuthority,
+          reservation: {
+            ...freeAuthority.reservation,
+            tier: { effective_tier: "free" },
+          },
+        }).snapshot,
+        prepared.snapshot,
+      );
       response = {
         ...openAIResponseFixture(),
         moderation: openAIPhotoModerationFixture(),
@@ -74,6 +94,17 @@ Deno.test({
       assertEquals(allowed.mediaSafety?.disposition, "allowed");
       assertEquals(allowed.execution.model, "gpt-6-sol");
       assertEquals(body?.moderation, { model: OPENAI_PHOTO_MODERATION_MODEL });
+      assertEquals(
+        body,
+        JSON.parse(
+          JSON.stringify(
+            buildOpenAIPhotoRequestParameters(
+              request,
+              openAIPhotoSnapshot(request, 1),
+            ),
+          ),
+        ),
+      );
       assert(JSON.stringify(body).includes("An invented observation note."));
       assert(JSON.stringify(body).includes("data:image/png;base64,AQID"));
       await assertRejects(

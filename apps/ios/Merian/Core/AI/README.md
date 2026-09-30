@@ -1353,23 +1353,29 @@ content-free JSON without depending on generated DTOs.
 profiles at qualified policy version 1 and returns no qualified bands for
 unknown or damaged present values; absence retains legacy interpretation.
 `displayBands` separately recognizes the exact shipped `openai_photo_v1` V2
-profile and supplies Strong at `0.95`, Possible at `0.60`, and Weak below `0.60`
-for every plan tier. These are model-estimate display thresholds derived from
-the structured-output confidence contract, not empirical calibration. Unknown or
-damaged present profiles retain neutral review guidance. Generated provenance
-decoders enforce the executable contract's rejection of unknown fields,
-including generation settings, before DTO encoding can erase them. The generated
-`IdentificationProvenanceDTO` enum reads exact V1 Gemini and V2 OpenAI
-generation shapes, rejects unsupported versions, and re-encodes the original
-flat JSON object. V2 settings survive live parsing, local persistence and owner
-history but never receive Gemini confidence bands. The existing V52 opaque
-`Data` field needs no new schema version. The saved scan factory, V52 local
-model, history DTO/query and historical projection retain the same metadata.
-Display bands are used only by confidence labels and their explanation.
-Diagnostics and candidates, score-based upsell, collection suggestions, sharing
-recommendations and perfect-scan rewards retain the qualified `bands`
-compatibility decision. These rules preserve existing Gemini behavior; they do
-not establish calibrated probabilities for any model. See the
+profile with either `openai_identify_vision_v1` or
+`openai_identify_vision_observed_traits_v1`, keeping the same schema and other
+exact configuration checks. It supplies Strong at `0.95`, Possible at `0.60`,
+and Weak below `0.60` for every plan tier. This preserves original saved results
+and the updated trait prompt without qualifying arbitrary future prompts. After
+existing additive backend/migration prerequisites are deployed, distribute this
+reader before this prompt revision; older builds can decode the new result but
+show Needs review for its unfamiliar prompt. These are model-estimate display
+thresholds derived from the structured-output confidence contract, not empirical
+calibration. Unknown or damaged present profiles retain neutral review guidance.
+Generated provenance decoders enforce the executable contract's rejection of
+unknown fields, including generation settings, before DTO encoding can erase
+them. The generated `IdentificationProvenanceDTO` enum reads exact V1 Gemini and
+V2 OpenAI generation shapes, rejects unsupported versions, and re-encodes the
+original flat JSON object. V2 settings survive live parsing, local persistence
+and owner history but never receive Gemini confidence bands. The existing V52
+opaque `Data` field needs no new schema version. The saved scan factory, V52
+local model, history DTO/query and historical projection retain the same
+metadata. Display bands are used only by confidence labels and their
+explanation. Diagnostics and candidates, score-based upsell, collection
+suggestions, sharing recommendations and perfect-scan rewards retain the
+qualified `bands` compatibility decision. These rules preserve existing Gemini
+behavior; they do not establish calibrated probabilities for any model. See the
 [OpenAI display decision](../../../../../docs/rfcs/identification-openai-confidence-display-2026-09-28.md)
 and the
 [beta admission correction](../../../../../docs/incidents/2026-09-beta-openai-consent-gate.md)
