@@ -4629,6 +4629,8 @@ Deno.test("Species Dictionary production hold is machine enforced and documented
     "services/supabase/scripts/verify_production_release_holds.ts",
   );
   assertStringIncludes(deploySource, "--latest-successful-deploy-sha");
+  assertStringIncludes(deploySource, "verify_production_hold_candidate.sh");
+  assertStringIncludes(runbookSource, "release_status=superseded");
   for (
     const releaseControl of [
       "--mode source-status",

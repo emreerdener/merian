@@ -6,6 +6,13 @@ Scan Map. Product camera/data ownership remains in those features. The current
 contract is
 [Shared map navigation](../../../../../docs/features-and-hardware/24-explore-bottom-menu.md#shared-map-navigation).
 
+`MapLocateCameraPolicy` supplies the shared Locate me framing for both maps: a
+roughly 1 km view, preserving a closer viewport's width in meters, with the
+location accuracy diameter as the minimum width. Each feature retains its
+initial camera, selection, filters, and destination loading/projection
+lifecycle. `MapLocateCameraPolicyTests` owns the framing and accuracy
+regressions.
+
 `MapPlaceSearchDependencies` injects autocomplete, completion resolution,
 full-text search, and debounce. The live adapter uses MapKit without receiving
 scan points, current location, or viewport hints. Every autocomplete request

@@ -342,6 +342,16 @@ values, actions, and search presentation state; MapKit requests, cancellation,
 and navigation lifetime belong to `Core/Maps`, and history/style storage belongs
 to `Core/Preferences`.
 
+`MapUserLocationPin` supplies the same blue, person-marked pin to both maps'
+native `UserAnnotation`. Its tip anchors to the live location. A narrow UIKit
+bridge sets the enclosing `MKAnnotationView`'s normal and selected Z priorities
+to maximum and display priority to required on attachment and layout; SwiftUI
+declaration order does not control MapKit annotation stacking. The bridge uses
+public view ancestry and leaves other annotations and the map delegate alone.
+`MapUserLocationPriorityTests` covers nested/delayed attachment and priority
+restoration. Candidate device checks must also cover MapKit hosting, overlapping
+selected observations, pan, zoom, and live location updates.
+
 `MapCountPillLabel` prefers the full discovery count and falls back to the short
 count on narrow layouts. Each candidate sizes its glass capsule to its text,
 keeps a 48-point minimum height, and exposes the full label to VoiceOver.

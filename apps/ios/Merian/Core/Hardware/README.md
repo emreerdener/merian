@@ -59,6 +59,17 @@ heavy-impact closure so the manager does not resolve haptics. Record views
 receive an immutable presentation projection and never access the manager
 directly.
 
+Live DSP publication follows the recording identity across pause/resume, while
+startup, resume activation, and countdown work retain separate transition
+tokens. The manager accepts columns during the current startup transition or
+while that recording is active and unpaused. This retains samples arriving
+before startup returns; cancelled startup and paused or finished recordings
+cannot advance the graph. Resume preserves graph history and continues the
+existing tap and WAV. Manager tests hold startup open to verify early samples
+and cancellation, feed synthetic PCM through production DSP across repeated
+pauses, and read back the WAV to verify resumed segments. The permission check
+is injected without prompting.
+
 `AudioCapture/Services/AudioRecordingEngineController` is the focused recording
 owner behind that facade. It owns the lazy `AVAudioEngine`, input tap, canonical
 Int16 PCM WAV, bounded PCM stream, detached DSP task, exact recording identity,

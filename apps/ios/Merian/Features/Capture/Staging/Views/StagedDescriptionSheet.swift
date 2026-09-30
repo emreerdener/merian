@@ -11,6 +11,7 @@ struct StagedDescriptionSheet: View {
     let onRemove: () -> Void
 
     @State private var draftText: String
+    @State private var isRemoveConfirmationPresented = false
     @Environment(\.dismiss) private var dismiss
     @FocusState private var isFocused: Bool
 
@@ -37,17 +38,6 @@ struct StagedDescriptionSheet: View {
                 }
                 .frame(maxWidth: .infinity, minHeight: 160)
                 .onTapGesture { isFocused = true }
-
-                Button(role: .destructive) {
-                    onRemove()
-                    dismiss()
-                } label: {
-                    Label("Remove description", systemImage: "trash")
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                }
-                .buttonStyle(.bordered)
-                .tint(.red)
             }
             .padding(16)
             .frame(maxHeight: .infinity, alignment: .top)
@@ -61,6 +51,26 @@ struct StagedDescriptionSheet: View {
             .navigationTitle("Description")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button(role: .destructive) {
+                        isRemoveConfirmationPresented = true
+                    } label: {
+                        Label("Remove description", systemImage: "trash")
+                            .labelStyle(.iconOnly)
+                    }
+                    .tint(.red)
+                    .confirmationDialog(
+                        "Remove description?",
+                        isPresented: $isRemoveConfirmationPresented,
+                        titleVisibility: .visible
+                    ) {
+                        Button("Remove description", role: .destructive) {
+                            onRemove()
+                            dismiss()
+                        }
+                        Button("Cancel", role: .cancel) { }
+                    }
+                }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") {
                         onSave(draftText)

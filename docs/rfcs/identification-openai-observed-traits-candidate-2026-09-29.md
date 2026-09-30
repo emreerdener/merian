@@ -169,6 +169,43 @@ Existing comparison packets and budgets remain closed. No provider request or
 production mutation runs as part of this documentation update. The normal
 release authorization and deployment controls continue to apply.
 
+## Reader-preparation release — 29 September 2026
+
+Release preparation is split into
+[prerequisite PR #113](https://github.com/emreerdener/merian/pull/113) and this
+wording-integration follow-up. The prerequisite release deliberately retains
+`openai_identify_vision_v1` in the production `openai_photo_v1` builder. Its app
+recognizes both that original prompt and
+`openai_identify_vision_observed_traits_v1` with the same exact model, schema,
+moderation, generation and policy checks. Existing display-only 0.95/0.60 bands
+remain provisional; adding this prompt identity does not calibrate its scores or
+admit the evaluation-only binding.
+
+This release also carries the earlier additive primary-resolution foundation.
+That reserved producer remains inactive. Preserve its deployment order as well
+as the prompt-reader order:
+
+1. Review and validate the prerequisite branch against current `main`. Deploy
+   its additive migrations and compatible Edge code through the canonical
+   production workflow before distributing the capability-5 app. The production
+   photo prompt remains the original version during this step.
+2. Archive, upload and verify the updated beta app, including installation over
+   the previous released build, saved observations and normal launch. This app
+   advertises capability 5 and recognizes both photo prompt identities.
+3. Release the separate wording integration, with a freshly generated backend
+   fingerprint and normal candidate checks. It uses the existing production
+   binding and schema; the evaluation-only identities above remain frozen.
+4. Perform the ordinary beta smoke checks in the validation decision above, then
+   freeze that configuration for confidence calibration. No new paired model
+   comparison is required for this wording change.
+
+The prerequisite branch and follow-up source are release preparation, not proof
+of deployment or installed-app verification. Production deployment and native
+upload/distribution remain separately authorized operations. See the
+[primary-resolution sequence](identification-primary-resolution-contract-2026-09-29.md)
+and [deployment runbook](../backend-and-data/06-supabase-deployment-runbook.md)
+for the existing migration, candidate validation and rollback controls.
+
 ## Production integration — 29 September 2026
 
 `openaiPhoto.ts` now owns the two pure projections and applies them in the
@@ -223,7 +260,8 @@ iOS reader accepts both versions; existing observations keep their provenance.
 
 ### Integration verification
 
-Local verification on 29 September passed:
+Local verification on 29 September at `16cb5fae2`, before merging the latest
+`main`, passed:
 
 - Twenty focused adapter/provenance tests and the admitted production mock,
   including Free/Pro snapshot parity and the exact native request.

@@ -41,10 +41,15 @@ Views and components do not perform direct networking.
 The map layer extends through the top safe area beneath the transparent
 navigation toolbar, with its top scroll-edge effect hidden. Overlay controls
 keep their safe-area positioning so the map remains visible behind the toolbar.
+The native distance scale stays visible at the bottom trailing edge, opposite
+the Apple Maps attribution and below the floating controls and preview carousel.
 
-The native user-location annotation is declared after clusters and observation
-waypoints, including the selected observation, to keep the location dot above
-discovery markers without changing its system appearance or size.
+The native user-location annotation uses Core UI's shared blue person pin,
+anchored at its tip. Its enclosing MapKit annotation receives maximum normal and
+selected Z priorities plus required display priority so it stays above clusters
+and observation waypoints, including the selected observation. MapKit retains
+ownership of live location updates; SwiftUI declaration order alone does not
+establish annotation stacking.
 
 The bottom preview carousel uses native regular Liquid Glass on iOS 26 and
 later, retaining its 32-point corners and 20-point content padding. Older iOS
@@ -182,17 +187,17 @@ feature owns camera framing and discovery loading after the camera settles. Both
 map styles preserve filters and selection. Place selection clears the preview.
 Valid search bounds frame the whole selected place with modest clearance;
 results without bounds retain MapKit item framing. The shared Core Maps owner
-validates these ephemeral bounds and carries them through search selection.
-Explore's **Locate me** also clears the preview and requests a view roughly 1 km
-across, preserving a closer viewport's width in meters. The location's
-horizontal-accuracy diameter sets a minimum width when the fix is coarse. Empty
-results do not widen the camera. Locate requests use the same immediate search
-on camera settle as place selection; initial map framing is unchanged. Selecting
-a place searches the first settled destination immediately, without the normal
-pan debounce or movement threshold. It uses the final visible bounds and current
-filters, with the existing cache and manual retry behavior. Pending responses
-from before navigation cannot replace destination results. Later pans retain the
-normal 1.5-second debounce.
+validates these ephemeral bounds and carries them through search selection. Both
+maps use Core Maps' `MapLocateCameraPolicy`. Explore's **Locate me** clears the
+preview and requests a view roughly 1 km across, preserving a closer viewport's
+width in meters. The location's horizontal-accuracy diameter sets a minimum
+width when the fix is coarse. Empty results do not widen the camera. Locate
+requests use the same immediate search on camera settle as place selection;
+initial map framing is unchanged. Selecting a place searches the first settled
+destination immediately, without the normal pan debounce or movement threshold.
+It uses the final visible bounds and current filters, with the existing cache
+and manual retry behavior. Pending responses from before navigation cannot
+replace destination results. Later pans retain the normal 1.5-second debounce.
 
 Destination loads retire prior request ownership and start without waiting for
 an older viewport request to finish. Older completions cannot clear the current

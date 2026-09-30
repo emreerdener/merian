@@ -131,9 +131,9 @@ final class PrivateScanMapViewModel {
         didSetInitialCamera = true
         selectedPointID = nil
         setCamera(
-            region: PrivateScanMapRegion.centered(
-                on: location.coordinate,
-                span: 0.45
+            region: MapLocateCameraPolicy.locateRegion(
+                for: location,
+                currentRegion: visibleRegion
             )
         )
     }

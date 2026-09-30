@@ -16,16 +16,16 @@
     "audit:dependencies": "npm audit --audit-level=high"
   },
   "dependencies": {
-    "@mantine/core": "9.6.1",
-    "@mantine/hooks": "9.6.1",
+    "@mantine/core": "9.6.2",
+    "@mantine/hooks": "9.6.2",
     "@supabase/ssr": "0.12.7",
-    "@supabase/supabase-js": "2.116.0",
-    "next": "16.3.5",
+    "@supabase/supabase-js": "2.117.2",
+    "next": "16.3.6",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },
   "devDependencies": {
-    "@types/node": "24.13.5",
+    "@types/node": "24.13.6",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@typescript/typescript6": "6.0.2",

@@ -147,19 +147,23 @@ migration push, Function deployment, or production smoke. Do not dispatch
 `deploy.yml` merely to obtain candidate evidence; dispatch
 `supabase-candidate-validation.yml` for validation alone.
 
-An in-scope candidate next evaluates the checked-in source hold outside
-Production. A valid active hold yields `held` and `deploy_allowed=false`;
-malformed holds fail closed. Only a clear hold allows the `deploy` job into
-Production. That job pins and clean-checks the exact current-main SHA and runs
-`--mode automatic-release` with read-only `MERIAN_GITHUB_RELEASE_AUDIT_TOKEN`
-before using Supabase credentials. The verifier requires protected main, direct
-pushes without mandatory PRs or pre-push status checks, administrator
-enforcement, no force pushes/deletions, and automatic environment policy.
-`Production` and `Release Evidence` retain protected-branches-only restrictions
-with no required reviewers, wait timers, or custom approval gates. The
-production concurrency lock applies only to the mutation job, so validation-only
-pushes do not replace pending production work. Scheduled health monitors are
-unchanged.
+An in-scope candidate first verifies its exact workflow SHA, main ref, and clean
+checkout outside Production. If it is an ancestor of a newer `origin/main`, the
+workflow reports `release_status=superseded` and `deploy_allowed=false`, then
+skips hold evaluation and Production as a successful no-op. A diverged,
+mismatched, or dirty candidate still fails closed. Only the current main head
+evaluates the checked-in source hold. A valid active hold yields `held` and
+`deploy_allowed=false`; malformed holds fail closed. Only a clear hold allows
+the `deploy` job into Production. That job pins and clean-checks the exact
+current-main SHA and runs `--mode automatic-release` with read-only
+`MERIAN_GITHUB_RELEASE_AUDIT_TOKEN` before using Supabase credentials. The
+verifier requires protected main, direct pushes without mandatory PRs or
+pre-push status checks, administrator enforcement, no force pushes/deletions,
+and automatic environment policy. `Production` and `Release Evidence` retain
+protected-branches-only restrictions with no required reviewers, wait timers, or
+custom approval gates. The production concurrency lock applies only to the
+mutation job, so validation-only pushes do not replace pending production work.
+Scheduled health monitors are unchanged.
 
 The Field Chat source hold is inactive under the owner-authorized beta decision
 linked above. The unfinished full-release checklist remains an owner obligation;
@@ -195,6 +199,23 @@ the normal exact-SHA authorization and release controls; this source change
 provides no deployment or provider-activation authorization. See the
 [accounting contract](./04-database-schema.md#primary-identification-attempt-accounting).
 
+### Function deployment bundling
+
+The graph-selected deployment helper retains local Docker bundling and one job
+(`MERIAN_FUNCTION_DEPLOY_JOBS=1`). CLI `2.109.1` rejects parallel jobs with
+local bundling. Its API upload omits the shared lock referenced by each
+Function's `deno.json`, so `--use-api` is not a substitute for this frozen local
+graph.
+
+Before bundling, `prepare_function_bundler_image.sh` verifies the CLI pin and
+Docker availability, then reuses the cached `edge-runtime:v1.74.2` image or
+pulls that same tag from Supabase's ECR, GHCR, and Docker Hub mirrors in order.
+A successful fallback is tagged as the CLI's canonical ECR image. Missing
+Docker, version drift, retagging errors, or failure of every mirror stops the
+rollout before any Function deploy command. Batch selection, compatibility
+order, isolated retries, exact-SHA checks, and post-deploy probes remain
+required. When upgrading the CLI, review its bundler image pin with this helper.
+
 ### Reviewed out-of-order migration recovery
 
 The production push first runs `scripts/plan_database_migration_push.ts` against
@@ -219,9 +240,12 @@ report-visibility, invocation-accounting, and privileged-routine catalog tests.
 Candidate Validation runs this regression in addition to normal chronological
 replay and the complete catalog suite.
 
-A superseded candidate remains blocked by the current-main check; use the newest
-validated candidate instead of retrying an older SHA. A green candidate or a
-checked-in recovery does not establish production application. Production
+A superseded candidate skips deployment at the source hold gate; use the newest
+validated candidate instead of retrying an older SHA. If main advances after
+that gate, the separate current-main check under the production lock still fails
+closed. A successful superseded no-op never advances the deployed baseline,
+which is derived only from an actual successful `deploy` job. A green candidate
+or a checked-in recovery does not establish production application. Production
 execution still requires the normal release authorization and post-deploy
 checks.
 
@@ -744,15 +768,17 @@ from the audit.
 
 An image-pull `toomanyrequests` failure before database startup is registry
 infrastructure failure, not a migration result. The pinned
-[`supabase/setup-cli` action](https://github.com/supabase/setup-cli/blob/46f7f98c7f948ad727d22c1e67fab04c223a0520/src/main.ts)
-exports a GHCR-only override. Candidate validation clears
-`SUPABASE_INTERNAL_IMAGE_REGISTRY` after the exact CLI version check so
+[`supabase/setup-cli` action](https://github.com/supabase/setup-cli/blob/45a513f8c64c0bc8e0e3dfe572b5c95be85f6359/src/main.ts)
+preserves the built-in registry fallback for the pinned CLI. Candidate
+validation also clears `SUPABASE_INTERNAL_IMAGE_REGISTRY` after the exact CLI
+version check so
 [`2.109.1`'s built-in registry fallback](https://github.com/supabase/cli/blob/v2.109.1/apps/cli-go/internal/utils/docker.go)
 can try public ECR, GHCR and Docker Hub with the same image tags. This applies
-only to disposable candidate checks, including advisor images. Do not add
-production credentials, change the reviewed CLI/database version, or waive the
-catalog gate to recover from a registry throttle. If all mirrors fail, preserve
-the failure and retry candidate validation after the registry recovers.
+to the reviewed CLI; candidate validation explicitly exercises the fallback,
+including advisor images. Do not add production credentials, change the reviewed
+CLI/database version, or waive the catalog gate to recover from a registry
+throttle. If all mirrors fail, preserve the failure and retry candidate
+validation after the registry recovers.
 
 A failure while `supabase db start` is applying the disposable catalog occurs
 before the workflow prepares a production connection, runs `db push`,
@@ -4606,7 +4632,7 @@ the tracked frozen `services/supabase/functions/dependencies.lock`. Supabase
 discovers the function-local config while bundling. Do not pass the retired
 `--import-map` flag. Runtime code imports configured aliases; direct esm.sh,
 deno.land, npm, and JSR specifiers are rejected from production graphs. The
-fleet uses one exact `@supabase/supabase-js@2.116.0` dependency for both
+fleet uses one exact `@supabase/supabase-js@2.117.2` dependency for both
 `getUser` and `getClaims`. `_shared/claimsAuth.ts` remains opt-in to avoid
 silently changing authentication policy for unrelated routes, not to isolate a
 second SDK. `functions/dependencies.lock` is the only lockfile; do not add a
@@ -8288,17 +8314,19 @@ production hold open. Failed runs emit no passing evidence.
   the full Function fleet and every predeploy fence. A missing, malformed,
   duplicate, or required-ID-absent manifest still fails closed. The hold job
   verifies an exact clean `GITHUB_SHA`, requires `GITHUB_REF` to be
-  `refs/heads/main`, compares the checkout with current `origin/main`, and
-  includes that SHA plus the exact manifest SHA-256 in its summary. A reviewed
-  `active: false` change clears only this source gate. Inside the sole GitHub
-  `Production` job, the repository is checked out explicitly at `github.sha`,
-  clean-checked and current-main-checked again, and then
-  `verify_production_release_holds.ts --mode automatic-release` independently
-  rejects active/malformed holds and verifies the current protected `main` head,
-  direct pushes without mandatory PRs or pre-push checks, admin enforcement, no
-  force pushes/deletions, and protected environment branches with no reviewer or
-  waiting gates. Successful same-SHA Candidate Validation remains a required job
-  dependency before production. The read-only
+  `refs/heads/main`, compares the checkout with current `origin/main`. A clean
+  ancestor of a newer main reports `superseded` and `deploy_allowed=false`
+  before manifest evaluation; divergent or invalid checkouts fail closed.
+  Current candidates include their SHA plus the exact manifest SHA-256 in the
+  hold summary. A reviewed `active: false` change clears only this source gate.
+  Inside the sole GitHub `Production` job, the repository is checked out
+  explicitly at `github.sha`, clean-checked and current-main-checked again, and
+  then `verify_production_release_holds.ts --mode automatic-release`
+  independently rejects active/malformed holds and verifies the current
+  protected `main` head, direct pushes without mandatory PRs or pre-push checks,
+  admin enforcement, no force pushes/deletions, and protected environment
+  branches with no reviewer or waiting gates. Successful same-SHA Candidate
+  Validation remains a required job dependency before production. The read-only
   `MERIAN_GITHUB_RELEASE_AUDIT_TOKEN` is required for these live checks before
   Supabase credentials are used. Missing access fails closed. There is no
   per-deployment approval or clearance-secret requirement.

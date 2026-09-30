@@ -12,7 +12,9 @@ mkdir -p "$fake_bin"
 printf '%s\n' \
   '#!/usr/bin/env bash' \
   'set -euo pipefail' \
+  'if [ "$*" = "--version" ]; then echo 2.109.1; exit 0; fi' \
   'printf "%s\n" "$*" >> "$FAKE_SUPABASE_LOG"' \
+  'if [[ " $* " == *" --use-api "* ]]; then exit 2; fi' \
   'if [[ "$*" == *"functions deploy good bad "* ]] && [[ "$*" == *" --jobs "* ]]; then' \
   '  exit 1' \
   'fi' \
@@ -21,6 +23,8 @@ printf '%s\n' \
   'fi' \
   'exit 0' > "$fake_bin/supabase"
 chmod +x "$fake_bin/supabase"
+printf '%s\n' '#!/usr/bin/env bash' 'exit 0' > "$fake_bin/docker"
+chmod +x "$fake_bin/docker"
 
 printf '%s\n' good bad other > "$temp_dir/plan.txt"
 PATH="$fake_bin:$PATH" \
@@ -125,4 +129,13 @@ if PATH="$fake_bin:$PATH" \
   exit 1
 fi
 
+# Parallel API-only flags must fail before attempting any deployment.
+: > "$fake_log"
+if PATH="$fake_bin:$PATH" FAKE_SUPABASE_LOG="$fake_log" \
+  MERIAN_FUNCTION_DEPLOY_JOBS=4 bash "$script_dir/deploy_function_batches.sh" \
+  "$temp_dir/plan.txt" test-project >/dev/null 2>&1; then
+  echo "Parallel local bundling unexpectedly succeeded." >&2
+  exit 1
+fi
+test ! -s "$fake_log"
 printf '%s\n' "deploy_function_batches tests passed."

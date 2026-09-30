@@ -127,9 +127,18 @@ maps. Missing or invalid preferences mean satellite. Sign-out, account changes,
 and account deletion preserve this presentation preference. The passive
 Collections map preview remains a standard-map snapshot.
 
-Explore Map keeps the native user-location dot above observation thumbnails and
-clusters, including the selected observation. Its system appearance and size are
-preserved so it remains a compact orientation reference among discoveries.
+Both interactive maps show the user's live location as a blue pin with a white
+person symbol, distinct from circular observation markers. The pin tip anchors
+to the location. Core UI's shared `MapUserLocationPin` customizes MapKit's
+native `UserAnnotation`, retaining its live updates and authorization gate. A
+UIKit bridge sets the enclosing annotation's normal and selected Z priorities to
+maximum and its display priority to required, keeping the pin above clusters and
+observation markers, including selected observations. SwiftUI declaration order
+alone does not establish MapKit's annotation stacking.
+
+Both interactive maps keep the native distance scale visible at the bottom
+trailing edge, opposite the Apple Maps attribution, below the floating controls
+and preview cards. The controls leave 28 points for this bottom row.
 
 The bottom Explore Map discovery carousel uses rounded Liquid Glass cards on iOS
 26 and later, matching the floating map controls. Older supported versions keep
@@ -177,13 +186,14 @@ one-shot location service and exposes progress, Settings for denied permission,
 and unavailable feedback without moving the map on failure. Newer navigation and
 user gestures invalidate older locate requests.
 
-In Explore Map, **Locate me** centers on a view roughly 1 km across, preserving
+In both maps, **Locate me** centers on a view roughly 1 km across, preserving
 the current width in meters if already closer. The view widens when necessary to
 include the location fix's horizontal-accuracy diameter. It clears the selected
-preview, preserves filters, and searches the settled viewport immediately. Empty
-discovery results never zoom the camera out. Initial map framing retains its
-existing behavior; place search uses the selected place's extent independently
-of the local Locate me zoom.
+preview and preserves filters. Explore searches the settled viewport
+immediately; the private map projects its local scans. Both use Core Maps'
+shared `MapLocateCameraPolicy`. Empty results never zoom the camera out. Initial
+map framing retains its existing behavior; place search uses the selected
+place's extent independently of the local Locate me zoom.
 
 Recent places store at most ten selected title/subtitle pairs per account,
 newest first with normalized-label deduplication. Both maps share the account's

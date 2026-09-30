@@ -38,7 +38,8 @@ its remaining-capacity selection limit.
   It replaces the immediate thumbnail synchronously, fences its cancellable
   display-crop/focus task, and reports required-crop completion in the existing
   order. `Views/StagedDescriptionSheet.swift` retains its local draft, focus,
-  dismissal, and destructive action timing.
+  dismissal, and removal confirmation. Its red leading-toolbar trash button
+  opens confirmation; only confirming removal invokes the removal callback.
 
 Capture Shell remains the mutable owner of `StagedCapture`. Shell admits and
 commits imports, appends completed modality values, owns required-crop and
