@@ -14,12 +14,13 @@ used `ca35e74bb` on `codex/openai-free-pro-evaluation`; the dated checkpoint
 records distinguish implemented foundation from pending consumers and model
 qualification.
 
-Planning update — 2026-09-29: the active next task is
-[confidence-threshold calibration for the current production Sol profile](identification-openai-confidence-display-2026-09-28.md#calibration-priority--2026-09-29).
-Further comparisons are allowed only when they directly resolve a threshold
-question. Producer qualification and additional prompt/model optimization are
-deferred; the historical next-step ordering below does not block calibration of
-the current profile.
+Earlier planning update — 2026-09-29: confidence calibration was prioritized
+after the completed comparison. The owner's later decision resumes
+[OpenAI optimization before confidence calibration](identification-optimization-preserving-results-2026-09-27.md#sequence-update--29-september-2026).
+The isolated observed-traits candidate starts from the unchanged current Sol
+photo request; it does not depend on this explicit-primary producer or qualify
+it. Producer qualification and model differentiation remain deferred. Preserve
+the completed comparison and its closed budget.
 
 The
 [completed Sol comparison](identification-sol-rank-comparison-results-2026-09-29.md)

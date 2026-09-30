@@ -1,10 +1,11 @@
 # Identification optimization while preserving current results
 
 Date: 27 September 2026\
-Status: Shared-pipeline and OpenAI prompt/context reviews complete; the isolated
-OpenAI clarity candidate and evaluator are implemented and locally validated.
-Required PR checks and live comparison preparation are next. Production remains
-Gemini.
+Status, 29 September: OpenAI optimization resumes before confidence calibration.
+The new observed-traits candidate is implemented for offline request
+preparation; its model behavior is unmeasured. The beta retains its current Sol
+photo profile for both tiers and Gemini for other input profiles. Earlier
+checkpoint sections below preserve their original scope and evidence.
 
 ## Decision
 
@@ -41,7 +42,7 @@ Preserve all frozen evidence and the separate photo qualification work. The
 concise-explanation experiment remains closed; retaining explanation detail does
 not prevent improving the instructions and context sent to the model.
 
-## OpenAI review outcome and implemented candidate
+## OpenAI review outcome and implemented candidate — 27 September checkpoint
 
 The
 [OpenAI prompt and context review](./identification-openai-prompt-review-2026-09-27.md)
@@ -65,14 +66,14 @@ contract. The old baselines and concise experiment remain frozen. Focused
 offline tests cover exact prompt parity, version isolation, accounting,
 explanation review and recovery.
 
-Next, pass the required PR candidate checks and freeze one bounded comparison:
-the same six existing photos, one unchanged OpenAI baseline and one candidate,
-twelve total calls. Retain automatic caching and the current explanation format.
-The report assesses quality separately from descriptive performance; it has no
-speed threshold or cache-comparability claim. Prepare fresh source, input,
-fact-card, readiness, pricing, time and budget bindings before any paid request.
-No new allocation or live comparison has been authorized by this implementation
-record.
+At this checkpoint, the planned next step was to pass the required PR candidate
+checks and freeze one bounded comparison: the same six existing photos, one
+unchanged OpenAI baseline and one candidate, twelve total calls. Retain
+automatic caching and the current explanation format. The report assesses
+quality separately from descriptive performance; it has no speed threshold or
+cache-comparability claim. Prepare fresh source, input, fact-card, readiness,
+pricing, time and budget bindings before any paid request. No new allocation or
+live comparison has been authorized by this implementation record.
 
 Context organization and cache reuse were reviewed as independent candidates.
 User notes and capture facts have no demonstrated safe deduplication; plain
@@ -86,7 +87,7 @@ allocations are not reopened. Finish implementation and candidate validation
 before closing optimization and planning OpenAI audio. Photo activation and iOS
 distribution retain their separate gates.
 
-## Initial infrastructure milestone is complete
+## Initial infrastructure milestone — 27 September checkpoint
 
 [PR 87](https://github.com/emreerdener/merian/pull/87) merged at
 `2f733e83ae24fa90d8a222cf6635905fda265720`.
@@ -207,11 +208,13 @@ logs.
    any paid calls; this document does not revive the old experiment's budget.
    Retain a candidate only when its measured benefit meets the target without a
    quality, safety or explanation-format regression.
-4. **Close the optimization milestone and then plan OpenAI audio evaluation.**
-   Record the adopted change or the decision to keep the baseline. Audio needs
-   its own complete-input adapter and animal/environment-sound evaluation;
-   transcription alone is not identification. Sampled-video qualification also
-   remains a separate route. Neither is silently added to the photo benchmark.
+4. **Select the configuration, then calibrate confidence before OpenAI audio.**
+   Record the adopted change or the decision to keep the baseline. Resume the
+   [confidence work](./identification-openai-confidence-display-2026-09-28.md#sequence-update--optimization-first)
+   for that exact configuration. Audio needs its own complete-input adapter and
+   animal/environment-sound evaluation; transcription alone is not
+   identification. Sampled-video qualification also remains a separate route.
+   Neither is silently added to the photo benchmark.
 
 ## Evidence and stopping rules
 
@@ -249,3 +252,31 @@ before additional optimization or OpenAI audio evaluation. Do not restart the
 closed experiment or repeat the completed no-note Gemini/OpenAI benchmark.
 Qualification of the exact production photo binding remains separate from those
 exploratory comparisons.
+
+## Sequence update — 29 September 2026
+
+The owner has now chosen optimization before confidence calibration. The
+[retained-confidence audit](./identification-openai-confidence-evidence-audit-2026-09-29.md)
+remains valid evidence about the current profile, but calibration collection is
+deferred until the configuration is selected. Retain provisional display cutoffs
+meanwhile. The concise, explicit-null, Luna/Sol, rank and explicit-primary
+experiments remain closed; their unused allocations are not reopened.
+
+The next isolated hypothesis is the
+[observed-traits candidate](./identification-openai-observed-traits-candidate-2026-09-29.md).
+The current instruction and schema both force exactly three visual traits even
+though the parser accepts fewer. Request one to three directly supported traits
+and place material visibility limits in the existing explanation. Change only
+those two directions and private candidate identity, using the current Sol photo
+request as control. Preserve explanation format, complete inputs, moderation,
+model and generation settings. The selected offline target is two conflicting
+fixed-count directions removed and zero other request changes.
+
+Implementation now provides a pure builder and compatibility tests, without a
+new dispatch path or production assignment. The known grounding failure
+motivates the hypothesis but does not prove its cause or that the candidate
+improves it. A later bounded comparison needs reviewed visible-feature
+references and its own execution plan. Stop at its declared limit and retain the
+baseline if the result is inconclusive. No broad Gemini/OpenAI rerun is needed.
+After selecting the configuration, finish confidence calibration; OpenAI audio
+and Free/Pro model differentiation follow separately.

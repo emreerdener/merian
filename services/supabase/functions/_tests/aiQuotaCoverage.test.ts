@@ -628,6 +628,7 @@ Deno.test("OpenAI dispatch stays confined to production composition and its offl
           "_shared/ai/openai.ts",
           "_shared/ai/openaiPhoto.ts",
           "_shared/ai/openaiPhotoModels.ts",
+          "_shared/ai/openaiObservedTraits.ts",
           "_shared/ai/openaiSolRank.ts",
           "_shared/ai/openaiSolPrimary.ts",
           "_shared/ai/openaiSolPrimaryContract.ts",
@@ -658,6 +659,7 @@ Deno.test("OpenAI dispatch stays confined to production composition and its offl
   );
   for (
     const name of [
+      "openaiObservedTraits_test.ts",
       "openaiSolPrimary_test.ts",
       "openaiSolPrimaryNormalization_test.ts",
       "openaiSolPrimaryAdapter_test.ts",
@@ -668,6 +670,7 @@ Deno.test("OpenAI dispatch stays confined to production composition and its offl
   for (
     const name of [
       "openaiPhotoModels.ts",
+      "openaiObservedTraits.ts",
       "openaiSolRank.ts",
       "openaiSolPrimary.ts",
       "openaiSolPrimaryContract.ts",

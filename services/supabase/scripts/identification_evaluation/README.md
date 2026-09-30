@@ -34,15 +34,21 @@ remain executable contracts, not instructions to restart it or spend its unused
 allocation. Formal reviewed-corpus counts and qualification requirements are
 unchanged.
 
-Current direction, 29 September 2026: focus on
-[confidence thresholds](../../../../docs/rfcs/identification-openai-confidence-display-2026-09-28.md#calibration-priority--2026-09-29)
-for the current Sol photo profile. The
+Current direction, 29 September 2026: finish OpenAI optimization before
+calibrating confidence for the selected configuration. The new
+[observed-traits candidate](../../../../docs/rfcs/identification-openai-observed-traits-candidate-2026-09-29.md)
+is a pure offline request projection; none of this directory's runners admits
+its identity. It preserves explanation format and changes two fixed-count trait
+directions. A new bounded execution plan is required before any paid test; all
+completed experiments and budgets remain closed.
+
+The
 [retained-evidence audit](../../../../docs/rfcs/identification-openai-confidence-evidence-audit-2026-09-29.md)
 verified eighteen compatible controls but only six distinct photos, with no
-Strong-band biological result and no assessable Weak identity result. Retain the
-provisional display cutoffs. Further comparisons are deferred unless they
-directly resolve confidence thresholds; existing model/prompt runner commands
-are available tooling, not the next execution plan.
+Strong-band biological result and no assessable Weak identity result. Retain
+provisional display cutoffs; calibration collection resumes after configuration
+selection. Changed-prompt results cannot be pooled with unchanged-profile
+scores.
 
 The later
 [description app benchmark](../../../../docs/rfcs/identification-description-app-benchmark-2026-09-22.md)
@@ -194,8 +200,8 @@ versioned future packet/result contract. No additional calls are authorized.
 
 The
 [rank-consistency plan](../../../../docs/rfcs/identification-photo-rank-consistency-2026-09-28.md)
-owns the historical rank work. The current confidence priority above supersedes
-its earlier ordering; additional rank candidates are deferred.
+owns the historical rank work. The current optimization-first ordering above
+supersedes its earlier next steps; completed rank packets remain closed.
 `photoTaxonomyAudit.ts` checks duplicate names and reference IDs/ranks without
 rewriting a frozen catalog. The separate `audit_photo_taxonomy.ts` command reads
 only corpus/catalog inputs; a clear audit does not establish reference quality

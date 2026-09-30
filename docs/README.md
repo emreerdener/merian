@@ -323,9 +323,13 @@ production submission or public release.
   adds a separate photo-only v4 experiment with unchanged baselines and
   automatic caching. The 28 September comparison closed inconclusive before any
   candidate call because baseline explanation review was not assessable. Retain
-  the original prompt and complete the photo rollout before more prompt
-  experiments or OpenAI audio. The beta assigns still photos to OpenAI and
-  retains Gemini for other input profiles. The
+  the original prompt. The beta now assigns still photos to OpenAI and retains
+  Gemini for other input profiles. The 29 September sequence resumes
+  optimization before confidence calibration: the
+  [observed-traits candidate](./rfcs/identification-openai-observed-traits-candidate-2026-09-29.md)
+  removes two fixed-count directions in an offline-only Sol request while
+  preserving explanation format. Its benefit is unmeasured, and completed
+  experiment budgets stay closed. The
   [earlier provider optimization plan](./rfcs/identification-provider-optimization-plan.md)
   retains implemented measurement and experiment controls. Its
   [26 September concise screen](./rfcs/identification-openai-concise-screen-2026-09-26.md)

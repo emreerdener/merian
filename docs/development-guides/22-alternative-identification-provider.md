@@ -417,6 +417,28 @@ completed packet. Production rank/enrichment design and confidence calibration
 remain later steps in the linked plan. Future live comparisons still require
 their own clean-source preflight and execution approval.
 
+## Observed-traits OpenAI optimization
+
+The
+[current candidate record](../rfcs/identification-openai-observed-traits-candidate-2026-09-29.md)
+owns `openai_photo_sol_observed_traits_low_v1`. A pure request projection
+changes two fixed-count directions to ask for one to three directly supported
+traits. It preserves the current Sol payload, explanation format and accepted
+1–10 trait array bounds. No adapter, runner or production binding selects it.
+Run its compatibility checks with network and environment access denied:
+
+```bash
+deno test --frozen --no-prompt --deny-net --deny-env \
+  --config services/supabase/functions/deno.json \
+  services/supabase/functions/_shared/ai/openaiObservedTraits_test.ts
+```
+
+These tests establish request isolation and decoding compatibility, not model
+quality. A later bounded comparison needs its own reviewed cases and execution
+plan. Preserve the current explanation format and choose the configuration
+before resuming confidence calibration. Existing experiment budgets remain
+closed.
+
 ## Explicit-primary Sol comparison
 
 The completed Sol rank experiment remains frozen. The separate evaluator profile
@@ -453,16 +475,14 @@ Retain the current Sol profile: the candidate's rank improvements do not cancel
 its visual-grounding failure. Do not rerun the completed packet. Historical
 experiment parsers and production bindings remain closed to this profile.
 
-The current priority is
-[confidence-threshold calibration](../rfcs/identification-openai-confidence-display-2026-09-28.md#calibration-priority--2026-09-29)
-using retained evidence for the current Sol profile. The
+The current order is OpenAI optimization, then confidence calibration for the
+selected configuration. The
 [completed offline audit](../rfcs/identification-openai-confidence-evidence-audit-2026-09-29.md)
 found that the eighteen matching controls cover only six photos and cannot
-establish new cutoffs. The remaining evidence need is a single-profile
-calibration collection. Further comparisons are deferred unless they directly
-resolve a threshold question. The preparation and execution commands below
-remain available tooling, not a recommendation to run another model or prompt
-comparison.
+establish new cutoffs. Keep existing display thresholds provisional. The new
+[observed-traits candidate](../rfcs/identification-openai-observed-traits-candidate-2026-09-29.md)
+is offline-only. The historical preparation and execution commands below do not
+admit it or reopen the completed explicit-primary comparison.
 
 To prepare another immutable copy after reviewing its source records, use the
 two-path offline CLI. Both source and destination parent must be private and

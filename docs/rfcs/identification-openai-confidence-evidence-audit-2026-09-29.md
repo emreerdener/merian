@@ -4,16 +4,17 @@ Date: 2026-09-29
 
 Status: The offline audit is complete. **Retain the provisional Strong cutoff of
 0.95 and Possible cutoff of 0.60.** Existing results do not support selecting
-different cutoffs or claiming empirical calibration. No provider call ran. The
-next evidence collection, if pursued, must directly resolve confidence-band
-coverage for the current Sol profile; general model/prompt comparisons remain
-deferred.
+different cutoffs or claiming empirical calibration. No provider call ran. These
+findings remain valid for the audited profile. The owner's later
+[optimization-first decision](identification-openai-confidence-display-2026-09-28.md#sequence-update--optimization-first)
+defers calibration collection until the configuration is selected; it supersedes
+this audit's earlier confidence-first next-work ordering.
 
 ## Decision and scope
 
 The
-[active confidence plan](identification-openai-confidence-display-2026-09-28.md#calibration-priority--2026-09-29)
-keeps the current Sol photo model, request instructions, schema and explanation
+[confidence plan at the audit checkpoint](identification-openai-confidence-display-2026-09-28.md#calibration-priority--2026-09-29)
+kept the current Sol photo model, request instructions, schema and explanation
 format fixed. The same profile serves Free and Pro. Existing Strong / Possible /
 Weak labels stay in place. This audit does not activate an experimental producer
 or change a model score, display policy, backend confidence qualification or

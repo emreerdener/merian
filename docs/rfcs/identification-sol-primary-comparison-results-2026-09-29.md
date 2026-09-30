@@ -10,12 +10,18 @@ choices, but the fly challenge still produced a concrete visual-grounding
 failure. This experiment is complete; producer qualification and confidence
 thresholds remain unfinished.
 
-Planning update — 2026-09-29: the owner has redirected the next work to
+Earlier planning update — 2026-09-29: the owner redirected the next work to
 [confidence thresholds for the current Sol profile](identification-openai-confidence-display-2026-09-28.md#calibration-priority--2026-09-29).
 Use existing evidence first. No further comparison should run unless it directly
 contributes to resolving those thresholds. Further prompt/model optimization is
 deferred. This supersedes the next-work ordering below while preserving the
 completed experiment's results and its decision against candidate promotion.
+
+Later sequence update — 2026-09-29: the owner resumed
+[OpenAI optimization before confidence calibration](identification-optimization-preserving-results-2026-09-27.md#sequence-update--29-september-2026).
+The new offline observed-traits hypothesis starts from the unchanged current Sol
+control; it does not layer on or promote this explicit-primary candidate. The
+completed results and decision below stand, and this packet remains closed.
 
 ## What was compared
 

@@ -105,8 +105,9 @@ introduced.
 
 ## Calibration priority — 2026-09-29
 
-The owner's current direction is **no further comparisons unless they directly
-contribute to resolving confidence thresholds**. The active task is to validate
+Historical priority before the later sequence update below: the owner's
+direction was **no further comparisons unless they directly contribute to
+resolving confidence thresholds**. The task at that checkpoint was to validate
 or adjust Strong / Possible / Weak for the current production Sol photo profile,
 retained for both Free and Pro. Preserve the current explanation format. Model
 selection, prompt optimization and qualification of the explicit-primary
@@ -169,7 +170,25 @@ Retain 0.95/0.60 as provisional display cutoffs. The audit does not validate a
 new boundary or qualify automatic confidence-based behavior. Older evaluation
 bindings and changed-prompt candidates remain separate. No paid requests ran.
 
-The next useful collection is a single-profile confidence study with reliable
-identity/rank labels and coverage of the missing score ranges. Its inputs,
-reliability objective, validation split and bounded execution plan must be
-prepared for that purpose. A competing model or prompt arm is unnecessary.
+When calibration resumes, the next useful collection is a single-profile
+confidence study with reliable identity/rank labels and coverage of the missing
+score ranges. Its inputs, reliability objective, validation split and bounded
+execution plan must be prepared for that purpose. A competing model or prompt
+arm is unnecessary.
+
+## Sequence update — optimization first
+
+Later on 29 September, the owner explicitly chose to finish OpenAI optimization
+before confidence calibration. This supersedes the earlier confidence-first
+ordering, not the audit findings. The
+[current optimization plan](./identification-optimization-preserving-results-2026-09-27.md#sequence-update--29-september-2026)
+starts with the isolated observed-traits candidate while preserving the existing
+explanation format. Calibration collection remains deferred until the retained
+or optimized configuration is selected.
+
+Keep the 0.95/0.60 display cutoffs provisional and keep `openai_unqualified_v1`.
+Existing audit controls describe only their exact configuration; changed-prompt
+results must not be pooled as if they used it. After optimization, use reviewed
+identity/rank evidence, missing score-range coverage and separate validation
+evidence for the selected profile. Closed comparisons and their unused budgets
+remain closed.

@@ -21,12 +21,12 @@ unchanged; the activation slices are not ready to proceed.
 The completed candidate comparison does not support activating Luna. Its mineral
 wording passed, but the challenge review found incorrect biological
 identifications and unsupported finer ranks. Retain Sol for both tiers. The
-owner's 29 September direction makes
-[confidence-threshold calibration](identification-openai-confidence-display-2026-09-28.md#calibration-priority--2026-09-29)
-the active task. Use existing evidence first; conduct no further comparisons
-unless they directly resolve a confidence-threshold question. Further model
-selection and prompt optimization are deferred. The original target design below
-remains a proposal. The
+owner's later 29 September direction resumes
+[OpenAI optimization before confidence calibration](identification-optimization-preserving-results-2026-09-27.md#sequence-update--29-september-2026),
+superseding the earlier confidence-first ordering. Preserve explanation format
+and retain Sol for both tiers while preparing the isolated observed-traits
+candidate. Further tier/model selection remains deferred. The original target
+design below remains a proposal. The
 [rank-consistency follow-up](identification-photo-rank-consistency-2026-09-28.md)
 now implements catalog auditing, mapping-aware records, an isolated Sol
 candidate, a corrected twelve-case packet, assistant input review and a

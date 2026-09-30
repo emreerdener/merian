@@ -247,6 +247,27 @@ candidate remains excluded from production. Retain the current Sol photo profile
 for both tiers; this completed packet does not qualify confidence thresholds or
 authorize another run.
 
+## Offline observed-traits candidate
+
+`openaiObservedTraits.ts` prepares `openai_photo_sol_observed_traits_low_v1`
+from the current Sol photo request. It changes only the fixed-count visual-trait
+instruction, its schema description and private candidate identity. Request one
+to three supported observations; material visibility limits remain in the
+existing explanation. All other prompt directions, strict fields/bounds,
+complete inputs, generation and moderation settings stay unchanged. The common
+decoder already accepts shorter arrays; there is no new decoder, transport,
+evaluator registration or production binding.
+
+`openaiObservedTraits_test.ts` freezes candidate/control hashes, proves full
+request parity outside that delta, rejects source/snapshot drift and unsupported
+inputs, and exercises unchanged 1–10 array bounds. One to three is an
+instruction, not a stricter validator. A zero-discernible-trait case still needs
+a separate policy; do not fill the list with a visibility placeholder. The
+[candidate record](../../../../../docs/rfcs/identification-openai-observed-traits-candidate-2026-09-29.md)
+owns the hypothesis, evidence limits and future bounded-comparison criteria.
+These offline tests do not establish model improvement or confidence
+calibration.
+
 ## Scoped audio prompt authority
 
 The default-off 36-slot prompt lane adds the internal
