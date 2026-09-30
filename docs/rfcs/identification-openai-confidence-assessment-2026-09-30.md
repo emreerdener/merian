@@ -47,9 +47,28 @@ metrics.
 References describe what the supplied images support. Known source identity,
 model agreement and user confirmation alone do not prove image answerability.
 Use independently supported, reviewed references and recipient-specific asset
-rights. The formal curation record retains two distinct reviewer references and
-adjudication. Unknown or unverifiable references are ineligible before freezing.
-Reviewed genus-only and unresolved conclusions are eligible cases.
+rights. The confidence-specific `openai_confidence_corpus_v2` records
+`source_grounded_visibility_v1`: separate source, reference and exact-image
+answerability records, independent supporting evidence references, and an honest
+automated reviewer reference. It reports `independentHumanValidation: false`.
+The older formal Gemini baseline's two-person review rule does not apply to this
+solo-owner study. Unknown or unverifiable references are ineligible before
+freezing. Reviewed genus-only and unresolved conclusions are eligible cases.
+
+Source records retain asset-level rights, source identity/revision and
+final-byte hashes. Reference records link independent identity evidence; a file
+title or model agreement alone is insufficient. Answerability records inspect
+the exact prepared pixels, list visible traits and missing diagnostics, and
+justify the accepted rank or unresolved conclusion before provider collection.
+Keep source identity separate from what this particular image supports.
+Automated visibility review is not independent human validation or evidence of
+biological truth by itself. Missing source support cannot be repaired with
+invented reviewer IDs.
+
+The first local implementation inherited two reviewer IDs from the separate
+formal baseline. Corpus v2 corrects that mismatch before any live confidence
+collection; v1 records are rejected rather than silently reinterpreted. The
+historical evaluator and its formal-review requirement remain unchanged.
 
 Resolve returned scientific names only through `evaluation_taxonomy_v2`: exact
 canonical names or frozen, unambiguous synonyms map to canonical IDs and ranks.

@@ -1,7 +1,8 @@
 /** Frozen assessment policy. Changing any rule requires a new version/study. */
 export const CONFIDENCE_PROTOCOL = Object.freeze({
   version: "identification_openai_confidence_assessment_v1",
-  corpusVersion: "openai_confidence_corpus_v1",
+  corpusVersion: "openai_confidence_corpus_v2",
+  referenceReviewMethod: "source_grounded_visibility_v1",
   scorerVersion: "openai_confidence_decisions_v1",
   splitSeed: 20260930,
   casesPerSplit: 100,

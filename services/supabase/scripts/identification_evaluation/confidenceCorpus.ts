@@ -27,12 +27,15 @@ export interface ConfidenceCase {
     permission: "openai_evaluation";
     sourceRecordRef: string;
     referenceRecordRef: string;
-    reviewerRefs: string[];
+    answerabilityRecordRef: string;
+    independentEvidenceRefs: string[];
+    reviewMethod: typeof P.referenceReviewMethod;
+    reviewerRef: string;
+    independentHumanValidation: false;
     rightsApproved: true;
     personalDataExcluded: true;
     nearDuplicatesReviewed: true;
     referenceVerified: true;
-    adjudication: "agreed" | "resolved";
     developmentOnly: boolean;
   };
 }
@@ -132,12 +135,15 @@ export function parseConfidenceCorpus(value: unknown, taxonomyValue: unknown): {
         "permission",
         "sourceRecordRef",
         "referenceRecordRef",
-        "reviewerRefs",
+        "answerabilityRecordRef",
+        "independentEvidenceRefs",
+        "reviewMethod",
+        "reviewerRef",
+        "independentHumanValidation",
         "rightsApproved",
         "personalDataExcluded",
         "nearDuplicatesReviewed",
         "referenceVerified",
-        "adjudication",
         "developmentOnly",
       ]);
       check(
@@ -148,10 +154,28 @@ export function parseConfidenceCorpus(value: unknown, taxonomyValue: unknown): {
       );
       token(r.sourceRecordRef);
       token(r.referenceRecordRef);
-      const reviewers = array(r.reviewerRefs, 2, 2);
-      reviewers.forEach(token);
-      check(new Set(reviewers).size === 2, "invalid_reference");
-      member(r.adjudication, ["agreed", "resolved"]);
+      token(r.answerabilityRecordRef);
+      token(r.reviewerRef);
+      const evidence = array(r.independentEvidenceRefs, 1, 8);
+      evidence.forEach(token);
+      check(new Set(evidence).size === evidence.length, "invalid_reference");
+      check(
+        new Set([
+              r.sourceRecordRef,
+              r.referenceRecordRef,
+              r.answerabilityRecordRef,
+            ]).size === 3 &&
+          evidence.every((ref) =>
+            ![
+              r.sourceRecordRef,
+              r.referenceRecordRef,
+              r.answerabilityRecordRef,
+            ].includes(ref)
+          ) &&
+          r.reviewMethod === P.referenceReviewMethod &&
+          r.independentHumanValidation === false,
+        "invalid_reference",
+      );
       check(typeof r.developmentOnly === "boolean");
     }
   }

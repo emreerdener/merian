@@ -80,12 +80,15 @@ Deno.test("seeded sampling reproduces category quotas, groups and development-on
       permission: "openai_evaluation",
       sourceRecordRef: "synthetic-source",
       referenceRecordRef: "synthetic-reference",
-      reviewerRefs: ["synthetic-a", "synthetic-b"],
+      answerabilityRecordRef: "synthetic-answerability",
+      independentEvidenceRefs: ["synthetic-authority"],
+      reviewMethod: P.referenceReviewMethod,
+      reviewerRef: "synthetic-automated-review",
+      independentHumanValidation: false,
       rightsApproved: true,
       personalDataExcluded: true,
       nearDuplicatesReviewed: true,
       referenceVerified: true,
-      adjudication: "agreed",
       developmentOnly: c.input.caseId === corpus.cases[100].input.caseId,
     };
   }
@@ -101,6 +104,32 @@ Deno.test("seeded sampling reproduces category quotas, groups and development-on
   );
   assertEquals(corpus.cases[100].input.split, corpus.cases[101].input.split);
   assertEquals(parseConfidenceCorpus(corpus, taxonomy).corpus, corpus);
+  const report = confidenceAssessment(corpus, [], null);
+  assertEquals(report.referenceReviewMethod, P.referenceReviewMethod);
+  assertEquals(report.independentHumanValidation, false);
+  for (
+    const patch of [
+      { independentEvidenceRefs: [] },
+      { independentEvidenceRefs: ["same", "same"] },
+      { independentEvidenceRefs: ["synthetic-source"] },
+      { independentEvidenceRefs: ["synthetic-reference"] },
+      { independentEvidenceRefs: ["synthetic-answerability"] },
+      { answerabilityRecordRef: "synthetic-reference" },
+      { reviewMethod: "model_answer_only" },
+      { independentHumanValidation: true },
+      { reviewerRefs: ["fabricated-a", "fabricated-b"] },
+    ]
+  ) {
+    const invalid = structuredClone(corpus);
+    Object.assign(invalid.cases[0].curation, patch);
+    assertThrows(() => parseConfidenceCorpus(invalid, taxonomy));
+  }
+  assertThrows(() =>
+    parseConfidenceCorpus({
+      ...corpus,
+      version: "openai_confidence_corpus_v1",
+    }, taxonomy)
+  );
 });
 
 Deno.test("confidence corpus freezes proportions, references, rights, split and taxonomy before collection", () => {

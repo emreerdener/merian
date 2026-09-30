@@ -21,6 +21,12 @@ Reviewed genus-only and unresolved references remain eligible; unknown ground
 truth is excluded before freezing. Retained exploratory packets do not meet the
 new formal corpus requirements.
 
+This confidence study uses source-supported automated review with separate
+identity and exact-image answerability records. It does not require two human
+reviewers or claim independent human validation; that requirement belongs to the
+older formal baseline below. Independently supported reference evidence remains
+mandatory.
+
 Confidence describes estimated correctness at the displayed taxonomic level.
 Keep percentage headings, badge names and explanation layout. The revised OpenAI
 prompt removes conflicting score anchors while preserving observed traits and

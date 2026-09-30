@@ -17,6 +17,13 @@ in `services/supabase/scripts/identification_evaluation`. Its report version is
 `identification_openai_confidence_assessment_v1`; historical profiles, request
 construction and disabled OpenAI confidence metrics stay frozen.
 
+`openai_confidence_corpus_v2` declares `source_grounded_visibility_v1`, distinct
+source/reference/answerability records and independent evidence references. The
+report discloses `independentHumanValidation: false`. This corrects the initial
+confidence parser's accidental inheritance of the older formal baseline's
+two-human-review rule; the historical evaluator is unchanged. Missing source
+support or unchecked prepared pixels still prevents a verified reference.
+
 The new path reuses prepared media, the revised production-equivalent request,
 adapter decoding and normalization. Exact reviewed taxonomy names/synonyms
 resolve both ID and rank; unmapped/ambiguous names keep null identity/rank and

@@ -230,6 +230,10 @@ export function confidenceAssessment(
     version: P.version,
     scorerVersion: P.scorerVersion,
     evidenceKind: corpus.kind,
+    referenceReviewMethod: corpus.kind === "reference"
+      ? P.referenceReviewMethod
+      : "synthetic",
+    independentHumanValidation: false,
     decision: reason,
     // Synthetic fixtures prove tooling, never authorize a real threshold.
     recommendedStrong: corpus.kind === "reference" && passed

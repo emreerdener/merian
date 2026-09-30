@@ -12,17 +12,32 @@ OpenAI confidence metrics. The revised prompt is not active in production.
 
 Prepare one private directory outside Git containing `confidence-corpus.json`,
 `taxonomy.json`, `pricing.json` and the approved media under `assets/`. Use
-`openai_confidence_corpus_v1` with `kind: reference`, `splitSeed: 20260930`,
+`openai_confidence_corpus_v2` with `kind: reference`, `splitSeed: 20260930`,
 `referenceStatus: valid`, the matching reviewed taxonomy version and exactly 200
 cases. Each case contains the existing photo-only `input` (empty description
 texts, frozen region/month), evidence-supported `reference`, exclusive
 `category`, `taxaGroup` and reviewed `curation`. Curation has
-`permission: openai_evaluation`, opaque `sourceRecordRef`/`referenceRecordRef`,
-two distinct `reviewerRefs`, `adjudication: agreed|resolved`, and true
+`permission: openai_evaluation`, distinct opaque `sourceRecordRef`,
+`referenceRecordRef`, `answerabilityRecordRef`, one to eight distinct
+`independentEvidenceRefs`, `reviewMethod: source_grounded_visibility_v1`, an
+honest `reviewerRef`, `independentHumanValidation: false`, and true
 `rightsApproved`, `personalDataExcluded`, `nearDuplicatesReviewed`,
 `referenceVerified`. `developmentOnly` is a required boolean; set it true for
 previously supplied plant examples. Model output or a user confirmation alone
-cannot populate verified references.
+cannot populate verified references. This confidence-specific source-supported
+review does not require the separate historical baseline's two human reviewers.
+Corpus v1 is rejected instead of being silently reinterpreted.
+
+Keep the actual review records in the private packet. The source record retains
+asset-level rights and source revisions; the reference record contains
+independent identity support; the answerability record binds the final image
+hashes to visible supporting traits, missing diagnostics and the predeclared
+rank. The automated reviewer must inspect the final pixels against those sources
+before collection. Source labels, a model's judgment or an unverified user
+confirmation alone do not establish a supported reference. Candidate intake
+records with pending checks cannot be converted to verified curation merely to
+fill the quotas. The report explicitly names the automated review method and
+does not claim independent human validation.
 
 Use `evaluation_taxonomy_v2` with reviewed canonical IDs, ranks and unambiguous
 synonyms. Ambiguous/unknown returned names remain named, unmapped outcomes with
