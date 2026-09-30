@@ -7,6 +7,11 @@ import {
   withExploreDbTest,
 } from "./exploreDbTestHelpers.ts";
 
+import {
+  primaryProvenanceFixture,
+  savedIdentityFixture,
+} from "./primaryIdentityTestHelpers.ts";
+
 type AtomicFixture = {
   userId: string;
   speciesId: string;
@@ -444,3 +449,82 @@ async function assertWithdrawnSubject(client: Client, fixture: AtomicFixture) {
   assertEquals(receipt.rows[0].trip, fixture.tripId);
   assertEquals(receipt.rows[0].item, fixture.itemId);
 }
+
+Deno.test("verified selection replacement and clear withdraw actual standard and Event credit", async () => {
+  await withExploreDbTest("primary-field-trip-credit", async (db) => {
+    const fixture = await insertAtomicFixture(db, false);
+    await db.queryArray(
+      "UPDATE public.species_dictionary SET scientific_name='Fixtureus credited' WHERE id=$1",
+      [fixture.speciesId],
+    );
+    await db.queryArray(
+      `INSERT INTO public.scan_ingestion_jobs(scan_id,user_id,status,stage,terminal_reason_code)
+       VALUES ($1,$2,'failed_terminal','server_replay_limit_reached','replay_exhausted')`,
+      [fixture.scanId, fixture.userId],
+    );
+    await db.queryArray(
+      `INSERT INTO public.scan_ingestion_intents(scan_id,user_id,endpoint,request_payload)
+       VALUES ($1,$2,'identify-multimodal',jsonb_build_object('preferredGoal',jsonb_build_object('userFieldTripId',$3::text,'itemId',$4::text)))`,
+      [fixture.scanId, fixture.userId, fixture.tripId, fixture.itemId],
+    );
+    await db.queryArray(
+      `INSERT INTO public.scans(id,user_id,image_storage_urls,ai_confidence_score,is_biological_subject,inference_tier,geoprivacy,identification_provenance,primary_identification)
+       VALUES ($1,$2,ARRAY['https://images.example.invalid/fixture.webp'],1,TRUE,'flash','private',$3::jsonb,$4::jsonb)`,
+      [
+        fixture.scanId,
+        fixture.userId,
+        JSON.stringify(primaryProvenanceFixture),
+        JSON.stringify(savedIdentityFixture().primary_identification),
+      ],
+    );
+    const check = async (count: number, revision: number) => {
+      const state = await contributionState(db, fixture);
+      assertEquals([
+        state.standard_count,
+        state.challenge_count,
+        state.trip_complete,
+        state.challenge_complete,
+        state.badge_count,
+      ], [count, count, count === 1, count === 1, count]);
+      const receipt = await db.queryObject<{ revision: number }>(
+        "SELECT (scan_revision ->> 'confirmed_species_identity_revision')::integer AS revision FROM public.field_trip_scan_progress_receipts WHERE scan_id=$1",
+        [fixture.scanId],
+      );
+      assertEquals(receipt.rows[0].revision, revision);
+    };
+    const review = async (
+      expectedRevision: number,
+      name: string | null,
+      key?: number,
+    ) => {
+      await db.queryArray("SET LOCAL ROLE service_role");
+      await db.queryArray(
+        "SELECT public.apply_verified_scan_species_review($1,$2,$3,$4,$5,$6::jsonb)",
+        [
+          fixture.userId,
+          fixture.scanId,
+          expectedRevision,
+          name === null ? "clear" : "confirm_name",
+          name,
+          name === null ? null : JSON.stringify({
+            scientific_name: name,
+            gbif_taxon_key: key,
+            rank: "SPECIES",
+            status: "ACCEPTED",
+            kingdom: "Plantae",
+          }),
+        ],
+      );
+      await db.queryArray("RESET ROLE");
+    };
+    await check(0, 0);
+    await review(0, "Fixtureus credited", 987600131);
+    await check(1, 1);
+    await review(1, "Fixtureus replacement", 987600132);
+    await check(0, 2);
+    await review(2, "Fixtureus credited", 987600131);
+    await check(1, 3);
+    await review(3, null);
+    await check(0, 4);
+  });
+});

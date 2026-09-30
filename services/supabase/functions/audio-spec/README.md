@@ -199,8 +199,13 @@ null or damaged present wire metadata fails validation. See the
 
 Every stored/reconstructed completion checks the current external reader,
 including quota and ingestion races. V2 requires exact
-`X-Merian-Identification-Protocol: 4`; otherwise the response is
-`426 client_update_required` without result data. Null/V1 replays are unchanged.
+`X-Merian-Identification-Protocol: 4` or `5`; the reserved explicit-primary
+snapshot/schema requires exactly `5`. Otherwise the response is
+`426 client_update_required` without result data. Null/V1 replays without an
+explicit primary snapshot are unchanged. No current model profile emits the new
+snapshot. Native persistence, presentation and shared consumers are implemented,
+and native source advertises protocol 5. Deploy the additive backend before
+shipping that app; the explicit producer still needs separate qualification.
 Only the service-authenticated primary replay worker bypasses client decoding.
 See the
 [result-reader contract](../../../../docs/backend-and-data/05-api-contracts.md#identification-result-readers)

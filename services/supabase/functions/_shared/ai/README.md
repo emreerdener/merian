@@ -31,8 +31,9 @@ observations, text-only, legacy routes and enrichment remain Gemini. See the
   The additive caller-bound recipient preflight is advisory. Edge accepts an
   optional denial-only recipient expectation and uses a ten-argument admission
   overload to stop fresh work if assignment changed. Identification capability 4
-  selects the eleven-argument overload independently of entitlement protocol 3.
-  Native preparation now validates that result, preserves the expectation across
+  or 5 selects the eleven-argument overload independently of entitlement
+  protocol 3. Native source advertises 5; binding minima remain 0 or 4. Native
+  preparation now validates that result, preserves the expectation across
   retries and rechecks the applicable local permission before dispatch. The beta
   catalog assigns still photos to OpenAI and other profiles to Gemini; the
   [beta correction](../../../../../docs/incidents/2026-09-beta-openai-consent-gate.md)
@@ -137,9 +138,9 @@ OpenAI production result is emitted.
 ## Alternative-provider evaluation
 
 `openaiRequest.ts` and `openai.ts` implement an evaluation-only `gpt-6-sol`
-photo/text binding through the same generic single-invocation interface.
-Production assignments remain Gemini-only until the separate catalog activation.
-The photo snapshot is an enabled, separate user-request binding. The pure
+photo/text binding through the same generic single-invocation interface. The
+beta catalog selects the separate `openai_photo_v1` user-request binding for
+still photos and retains Gemini for other complete-input profiles. The pure
 request builder derives strict JSON from the common Identify contract; the
 bounded REST adapter accepts only an explicit evaluator-supplied credential.
 Scripts select it only through `identification_evaluation/providers.ts`.
@@ -172,6 +173,102 @@ remain Gemini. The source composition must be deployed before catalog
 activation. Saved usage retains native output/cache-write counts and reported
 cached tokens, without a Gemini tariff; see the
 [safety contract](../../../../../docs/development-guides/10-safety-and-moderation.md#openai-photo-policy).
+
+`openaiPhotoModels.ts` adds two closed evaluation configurations,
+`openai_photo_luna_low_v1` and `openai_photo_sol_low_v1`. Their request builder
+reuses the complete production photo payload and changes only the model. The new
+evaluation adapter shares production moderation decoding, rejects a returned
+model mismatch, and cannot enter the registry, production result policy or old
+evaluation profiles. Native request preparation supports the production photo
+shape, including optional notes and multiple images; the first comparison
+selects no-description photos. The
+[preparation procedure](../../../../../docs/development-guides/22-alternative-identification-provider.md#lunasol-photo-comparison-preparation)
+owns its offline packet preparation, separately approved durable local runner,
+assistant review and spending limits.
+
+`openaiLunaEvidenceLimits.ts` adds one separately versioned Luna candidate,
+`openai_photo_luna_evidence_limits_low_v1`. Its pure request projection changes
+only the geological evidence-limit and non-biological specificity instructions.
+The two original model profiles, shared prompt and production Sol request remain
+unchanged. Candidate preparation rejects prompt-anchor drift; the pinned prompt
+hash and same-schema tests retain its identity. Only the separate v3 local
+comparison and candidate approval admit execution. Native moderation, exact
+model checks, generation settings and production exclusion remain in place.
+
+`openaiSolRank.ts` owns the isolated Sol biological-rank candidate. It replaces
+conflicting biological instructions and four schema descriptions while retaining
+the strict JSON shape, explanation format, generation and moderation settings.
+`createOpenAISolRankEvaluationAdapter` uses the same bounded transport, exact
+Sol identity and native moderation decoder. Only the separately versioned Sol
+local comparison admits this binding; historical evaluators, the production
+catalog and production result policy reject it. See the
+[rank-consistency plan](../../../../../docs/rfcs/identification-photo-rank-consistency-2026-09-28.md)
+for assistant review, v2 mapping records, spending and interruption controls.
+
+## Isolated explicit-primary Sol candidate
+
+`openaiSolPrimary.ts`, `openaiSolPrimaryInstructions.ts` and
+`openaiSolPrimaryContract.ts` prepare the separate
+`openai_photo_sol_primary_low_v1` candidate. Its strict private output requires
+species/genus/family/unresolved/non-biological resolution and explicit species
+rank on up to two alternatives. `openaiSolPrimaryNormalization.ts` builds an
+in-memory primary snapshot after existing normalization and deterministic
+subject demotion. It does not emit durable provenance or select a species row.
+Its contract, normalization and transport suites run in the candidate workflow
+with network and environment access denied. The separate
+`createOpenAISolPrimaryEvaluationAdapter` reuses the bounded transport while
+selecting the explicit-primary decoder; legacy adapters keep their existing
+decoder. Exact Sol identity, native moderation, deadline, response ceiling and
+single invocation remain required. Historical schemas, prompts and production
+admission remain unchanged. The
+[candidate checkpoint](../../../../../docs/rfcs/identification-primary-resolution-contract-2026-09-29.md#isolated-explicit-primary-candidate--2026-09-29)
+owns its exact identities, tests and remaining qualification work.
+
+The separate offline
+[`prepare_sol_primary_candidate.ts`](../../../scripts/prepare_sol_primary_candidate.ts)
+builder binds both request projections to reviewed private evidence without
+invoking either provider. Its
+[packet checkpoint](../../../../../docs/rfcs/identification-sol-primary-comparison-preparation-2026-09-29.md)
+records five resolution states, pet/lookalike controls and limited references.
+Source review, candidate/control request hashes and proposed scheduling do not
+qualify a runtime binding or confidence policy. The separate
+[`evaluate_sol_primary.ts`](../../../scripts/evaluate_sol_primary.ts) controller
+now binds a fresh eighteen-call plan, private packet, exact clean source,
+credential fingerprint and bounded approval. Its new records preserve primary
+resolution and finite-catalog mapping without storing names or explanations.
+Limited references can permit screen continuation but earn no quality pass;
+review failures and unmapped/ambiguous identities still stop screening. See the
+[runner checkpoint](../../../../../docs/rfcs/identification-sol-primary-comparison-preparation-2026-09-29.md#bounded-runner-implementation--2026-09-29).
+
+The first separately approved eighteen-request comparison is
+[complete](../../../../../docs/rfcs/identification-sol-primary-comparison-results-2026-09-29.md).
+Useful rank behavior did not resolve a concrete visual-grounding failure, so the
+candidate remains excluded from production. Retain the current Sol photo profile
+for both tiers; this completed packet does not qualify confidence thresholds or
+authorize another run.
+
+## Offline observed-traits candidate
+
+`openaiObservedTraits.ts` prepares `openai_photo_sol_observed_traits_low_v1`
+from the current Sol photo request. It changes only the fixed-count visual-trait
+instruction, its schema description and private candidate identity. Request one
+to three supported observations; material visibility limits remain in the
+existing explanation. All other prompt directions, strict fields/bounds,
+complete inputs, generation and moderation settings stay unchanged. The common
+decoder already accepts shorter arrays; there is no new decoder, transport,
+evaluator registration or production binding.
+
+`openaiObservedTraits_test.ts` freezes candidate/control hashes, proves full
+request parity outside that delta, rejects source/snapshot drift and unsupported
+inputs, and exercises unchanged 1–10 array bounds. One to three is an
+instruction, not a stricter validator. A zero-discernible-trait case still needs
+a separate policy; do not fill the list with a visibility placeholder. The
+[candidate record](../../../../../docs/rfcs/identification-openai-observed-traits-candidate-2026-09-29.md)
+owns the hypothesis, evidence limits and targeted beta validation plan. Next
+work integrates a versioned production prompt and verifies its normal request,
+provenance and client behavior, followed by a few ordinary beta smoke scans. No
+dedicated comparison runner is planned for this wording change. These offline
+tests do not establish model improvement or confidence calibration.
 
 ## Scoped audio prompt authority
 

@@ -721,6 +721,9 @@ export const merianDescribeModelContract = deepFreezeJson(object(
 
 const finalCandidateContract = object(
   {
+    taxon_rank: field(text({ enum: ["species"] }), false, {
+      rejectExplicitNull: true,
+    }),
     scientific_name: modelCandidateContract.fields.scientific_name,
     confidence_score: modelCandidateContract.fields.confidence_score,
     distinguishing_feature: field(
@@ -959,10 +962,48 @@ export const identificationProvenanceContract = {
   swift: { name: "IdentificationProvenanceDTO", declarationOrder: 34 },
 } as const satisfies UnionContract;
 
+/** Reserved result schema, with no admitted producer or provider assignment. */
+export const PRIMARY_IDENTIFICATION_SCHEMA = "merian_identify_primary_v1";
+
+export function identificationResultContract(
+  schema: string | undefined,
+): "legacy" | "primary_v1" {
+  return schema === PRIMARY_IDENTIFICATION_SCHEMA ? "primary_v1" : "legacy";
+}
+
+const primaryName = text({ nullable: true, minLength: 1, maxLength: 255 });
+export const primaryIdentificationContract = deepFreezeJson(object({
+  version: field(integer(1, 1), true),
+  resolution: field(
+    text({
+      enum: [
+        "species",
+        "genus",
+        "family",
+        "unresolved_biological",
+        "non_biological",
+      ],
+    }),
+    true,
+  ),
+  scientific_name: field(primaryName, true),
+  common_name: field(primaryName, true),
+}, {
+  unknownKeys: "reject",
+  swift: {
+    name: "PrimaryIdentificationDTO",
+    declarationOrder: 35,
+    preserveRequiredNulls: true,
+  },
+}));
+
 const edgeResponseContract = object(
   {
     scan_id: field(text({ minLength: 1, maxLength: 128 }), true),
     identification_provenance: field(identificationProvenanceContract, false, {
+      rejectExplicitNull: true,
+    }),
+    primary_identification: field(primaryIdentificationContract, false, {
       rejectExplicitNull: true,
     }),
     is_biological_subject: field(truth(), true),
@@ -1243,6 +1284,9 @@ export type IdentifySuccessEnvelope = InferContract<
   typeof identifyWireEnvelopeContract
 >;
 export type ClientPayload = IdentifySuccessEnvelope["data"];
+export type PrimaryIdentification = InferContract<
+  typeof primaryIdentificationContract
+>;
 export type DescribeIdentification = RawDescribeIdentification & {
   blur_score?: number;
 };
@@ -1587,7 +1631,164 @@ export function parseIdentifySuccessEnvelope(
     value,
     "response",
   ) as IdentifySuccessEnvelope;
+  validatePrimaryIdentificationResult(parsed.data);
   return deepFreezeJson(parsed);
+}
+
+function primaryContractError(field: string, message: string): never {
+  throw new ContractValueError([{
+    path: `response.data.${field}`,
+    message,
+  }]);
+}
+
+export function parsePrimaryIdentification(
+  value: unknown,
+): PrimaryIdentification {
+  const primary = parseContract(
+    primaryIdentificationContract,
+    value,
+    "primary_identification",
+  ) as PrimaryIdentification;
+  if (new TextEncoder().encode(JSON.stringify(primary)).byteLength > 4096) {
+    primaryContractError(
+      "primary_identification",
+      "Snapshot exceeds byte limit.",
+    );
+  }
+  for (const key of ["scientific_name", "common_name"] as const) {
+    const name = primary[key];
+    if (
+      name !== null &&
+      (name !== name.trim() || Array.from(name).some((character) => {
+        const code = character.charCodeAt(0);
+        return code <= 31 || code === 127;
+      }))
+    ) {
+      primaryContractError(
+        `primary_identification.${key}`,
+        "Name must be sanitized.",
+      );
+    }
+  }
+  if (
+    (["species", "genus", "family"].includes(primary.resolution) &&
+      primary.scientific_name === null) ||
+    (primary.resolution === "unresolved_biological" &&
+      primary.scientific_name !== null)
+  ) {
+    primaryContractError(
+      "primary_identification",
+      "Name contradicts resolution.",
+    );
+  }
+  return deepFreezeJson(primary);
+}
+
+/** A future qualified profile calls this after the existing subject/name policy. */
+export function normalizePrimaryIdentification(
+  resolution: unknown,
+  subject: Pick<
+    ClientPayload,
+    "scientific_name" | "common_name" | "is_biological_subject"
+  >,
+): PrimaryIdentification {
+  const primary = parsePrimaryIdentification({
+    version: 1,
+    resolution,
+    scientific_name: subject.scientific_name?.trim() || null,
+    common_name: subject.common_name?.trim() || null,
+  });
+  if (
+    subject.is_biological_subject !== (primary.resolution !== "non_biological")
+  ) {
+    primaryContractError(
+      "is_biological_subject",
+      "Subject contradicts resolution.",
+    );
+  }
+  return primary;
+}
+
+/** Final validation also applies to stored and reconstructed responses. */
+function validatePrimaryIdentificationResult(data: ClientPayload): void {
+  const required =
+    identificationResultContract(data.identification_provenance?.schema) ===
+      "primary_v1";
+  const primary = data.primary_identification;
+  if (required !== (primary !== undefined)) {
+    primaryContractError(
+      "primary_identification",
+      "Snapshot and execution schema must agree.",
+    );
+  }
+  if (primary === undefined) {
+    if (
+      data.candidates?.some((candidate) => candidate.taxon_rank !== undefined)
+    ) {
+      primaryContractError(
+        "candidates",
+        "Explicit candidate rank requires a primary snapshot.",
+      );
+    }
+    return;
+  }
+  parsePrimaryIdentification(primary);
+  if (
+    data.is_biological_subject !== (primary.resolution !== "non_biological") ||
+    data.scientific_name !== primary.scientific_name ||
+    data.common_name !== primary.common_name
+  ) {
+    primaryContractError(
+      "primary_identification",
+      "Top-level identity contradicts snapshot.",
+    );
+  }
+  if (primary.resolution === "species") {
+    if (
+      (data.candidates?.length ?? 0) > 2 ||
+      data.candidates?.some((candidate) => candidate.taxon_rank !== "species")
+    ) {
+      primaryContractError(
+        "candidates",
+        "Explicit species alternatives require species rank and at most two entries.",
+      );
+    }
+    return;
+  }
+  if (
+    data.candidates !== null || data.pet_identification !== null ||
+    data.is_new_to_merian_dictionary !== false
+  ) {
+    primaryContractError(
+      "primary_identification",
+      "Non-species result contains species effects.",
+    );
+  }
+  for (
+    const key of [
+      "gbif_taxon_key",
+      "reference_image_url",
+      "wikipedia_url",
+      "wikipedia_overview",
+      "species_insights",
+      "iucn_red_list_status",
+      "alternative_common_names",
+    ] as const
+  ) {
+    if (data[key] != null) {
+      primaryContractError(
+        key,
+        "Species enrichment requires species resolution.",
+      );
+    }
+  }
+  if (primary.resolution === "family" && data.taxonomy?.genus != null) {
+    primaryContractError(
+      "taxonomy.genus",
+      "Family resolution cannot assert a genus.",
+    );
+  }
 }
 
 function deepFreezeJson<T>(value: T): T {

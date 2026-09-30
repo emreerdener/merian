@@ -5,6 +5,7 @@ import { getSystemInstruction } from "../identify/schema.ts";
 import {
   type ContractNode,
   merianModelContract,
+  parseContract,
   parseMerianIdentification,
 } from "../identify/contract.ts";
 import { MEDIA_BUDGETS } from "../mediaBudgets.ts";
@@ -239,6 +240,15 @@ function decodeStrict(
 }
 export function decodeOpenAIDraft(value: unknown) {
   return parseMerianIdentification(decodeStrict(value, merianModelContract));
+}
+
+/** Strict decoding for isolated provider contracts, without widening admission. */
+export function decodeOpenAIContract(value: unknown, contract: ContractNode) {
+  return parseContract(
+    contract,
+    decodeStrict(value, contract),
+    "openai_model_response",
+  );
 }
 export function buildOpenAIRequestParameters(
   request: AIRequest,

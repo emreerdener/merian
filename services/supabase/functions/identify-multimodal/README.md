@@ -216,12 +216,13 @@ unqualified and cannot reach provider invocation or media promotion through this
 route. The exact photo profile separately checks native OpenAI moderation, uses
 unqualified confidence, and promotes allowed media without Gemini ratings or
 strikes. Its source composition is enabled before beta catalog activation. The
-catalog selects OpenAI only for still photos with identification protocol 4.
-Only an admitted exact OpenAI photo assignment can read the credential and
-dispatch. Beta eligibility does not require a new opt-in, but explicit
-withdrawals remain blocking; consent evidence is never synthesized.
+catalog selects OpenAI only for still photos with minimum identification
+protocol 4, accepting readers 4 and 5. Only an admitted exact OpenAI photo
+assignment can read the credential and dispatch. Beta eligibility defers
+OpenAI-specific opt-in enforcement while preserving historical consent receipts;
+consent evidence is never synthesized.
 
-Native callers carry identification capability 4 in a separate header, leaving
+Native callers carry identification capability 5 in a separate header, leaving
 entitlement protocol 3 unchanged. Saved usage preserves reported cached tokens
 and OpenAI output/cache-write units; the scan trigger owns the single success
 ledger event. Unknown units/prices remain unknown. See the
@@ -717,8 +718,13 @@ null or damaged present wire metadata fails validation. See the
 
 Every stored/reconstructed completion checks the current external reader,
 including quota and ingestion races. V2 requires exact
-`X-Merian-Identification-Protocol: 4`; otherwise the response is
-`426 client_update_required` without result data. Null/V1 replays are unchanged.
+`X-Merian-Identification-Protocol: 4` or `5`; the reserved explicit-primary
+snapshot/schema requires exactly `5`. Otherwise the response is
+`426 client_update_required` without result data. Null/V1 replays without an
+explicit primary snapshot are unchanged. No current model profile emits the new
+snapshot. Native persistence, presentation and shared consumers are implemented,
+and native source advertises protocol 5. Deploy the additive backend before
+shipping that app; the explicit producer still needs separate qualification.
 Only the service-authenticated primary replay worker bypasses client decoding.
 See the
 [result-reader contract](../../../../docs/backend-and-data/05-api-contracts.md#identification-result-readers)

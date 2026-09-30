@@ -20,6 +20,15 @@ extension BackgroundDatabaseActor {
     }
 
     func scanRecordSpeciesIdentity(
+        for data: SpeciesData
+    ) throws -> (speciesId: String, isNewDiscovery: Bool) {
+        if data.primaryIdentification != nil && !data.hasSpeciesLevelIdentification {
+            return ("", false)
+        }
+        return try scanRecordSpeciesIdentity(for: data.scientificName)
+    }
+
+    func scanRecordSpeciesIdentity(
         for scientificName: String
     ) throws -> (speciesId: String, isNewDiscovery: Bool) {
         var descriptor = FetchDescriptor<LocalScanRecord>(
@@ -71,8 +80,12 @@ extension BackgroundDatabaseActor {
         videoFilePaths: [String]?,
         capturedMediaJSON: String?
     ) async throws {
-        guard try localScanRecord(id: recordId) == nil else { return }
+        if let existing = try localScanRecord(id: recordId) {
+            try validatePrimaryCompletion(mappedData, existing: existing)
+            return
+        }
 
+        try validatePrimaryCompletion(mappedData, existing: nil)
         let resolvedCapturedMediaJSON: String?
         if let capturedMediaJSON {
             resolvedCapturedMediaJSON = capturedMediaJSON
@@ -87,7 +100,10 @@ extension BackgroundDatabaseActor {
         }
 
         try Task.checkCancellation()
-        guard try localScanRecord(id: recordId) == nil else { return }
+        if let existing = try localScanRecord(id: recordId) {
+            try validatePrimaryCompletion(mappedData, existing: existing)
+            return
+        }
 
         modelContext.insert(LocalScanRecordFactory.makeRecord(
             from: mappedData,
@@ -113,7 +129,10 @@ extension BackgroundDatabaseActor {
         isLiveCapture: Bool,
         fieldNotes: String?
     ) throws {
+        try validatePrimaryCompletion(mappedData, existing: nil)
         if let existing = try localScanRecord(id: recordId) {
+            try validatePrimaryCompletion(mappedData, existing: existing)
+            if existing.primaryIdentification != nil { return }
             modelContext.delete(existing)
         }
         modelContext.insert(LocalScanRecordFactory.makeRecord(
@@ -128,4 +147,17 @@ extension BackgroundDatabaseActor {
             fieldNotes: fieldNotes
         ))
     }
+
+    func validatePrimaryCompletion(_ data: SpeciesData, existing: LocalScanRecord?) throws {
+        if existing?.primaryIdentification != nil && data.primaryIdentification == nil {
+            throw PrimaryIdentification.IntegrityError.missingRequiredSnapshot
+        }
+        try PrimaryIdentificationPersistence.validateMerge(
+            storedPrimary: existing?.primaryIdentificationData,
+            storedProvenance: existing?.identificationProvenanceData,
+            incomingPrimary: data.primaryIdentification,
+            incomingProvenance: data.identificationProvenance
+        )
+    }
+
 }

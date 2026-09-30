@@ -730,6 +730,37 @@ function parseExportScanPayload(
         undefined,
       );
     }
+    if (payload.identification != null) {
+      const identity = payload.identification as Record<string, unknown>;
+      const name = identity.scientific_name;
+      if (
+        typeof identity !== "object" || Array.isArray(identity) ||
+        Object.keys(identity).length !== 3 ||
+        ![
+          "species",
+          "genus",
+          "family",
+          "unresolved_biological",
+          "non_biological",
+        ].includes(identity.rank as string) ||
+        typeof identity.verified_selection !== "boolean" ||
+        (identity.verified_selection && identity.rank !== "species") ||
+        !(name === null ||
+          (typeof name === "string" && name.length > 0 && name.length <= 255 &&
+            name.trim() === name &&
+            !Array.from(name).some((c) =>
+              c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127
+            ))) ||
+        (["species", "genus", "family"].includes(identity.rank as string) &&
+          name === null) ||
+        (identity.rank === "unresolved_biological" && name !== null)
+      ) {
+        throw databaseFailure(
+          "The export identification was invalid.",
+          undefined,
+        );
+      }
+    }
     payload.ecological_interactions = parseBoundedStringArray(
       payload.ecological_interactions,
       MAXIMUM_DWCA_INTERACTIONS,

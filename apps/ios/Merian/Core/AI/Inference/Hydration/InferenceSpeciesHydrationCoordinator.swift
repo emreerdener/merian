@@ -57,7 +57,7 @@ final class InferenceSpeciesHydrationCoordinator {
         callbacks: Callbacks
     ) {
         let data = request.speciesData
-        guard data.hasResolvedBiologicalIdentification,
+        guard data.hasSpeciesLevelIdentification,
               !data.isHumanSubject,
               let scanId = data.scanId else {
             return

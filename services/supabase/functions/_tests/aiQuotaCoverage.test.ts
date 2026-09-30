@@ -627,6 +627,11 @@ Deno.test("OpenAI dispatch stays confined to production composition and its offl
         [
           "_shared/ai/openai.ts",
           "_shared/ai/openaiPhoto.ts",
+          "_shared/ai/openaiPhotoModels.ts",
+          "_shared/ai/openaiObservedTraits.ts",
+          "_shared/ai/openaiSolRank.ts",
+          "_shared/ai/openaiSolPrimary.ts",
+          "_shared/ai/openaiSolPrimaryContract.ts",
           "_shared/ai/production.ts",
         ].some((path) => file.pathname === new URL(path, root).pathname),
         "Only reviewed adapters and the admitted production composition may import OpenAI",
@@ -648,6 +653,41 @@ Deno.test("OpenAI dispatch stays confined to production composition and its offl
     workflow,
     "supabase/functions/_shared/ai/openaiPhoto_test.ts",
   );
+  assertStringIncludes(
+    workflow,
+    "supabase/functions/_shared/ai/openaiPhotoModels_test.ts",
+  );
+  for (
+    const name of [
+      "openaiObservedTraits_test.ts",
+      "openaiSolPrimary_test.ts",
+      "openaiSolPrimaryNormalization_test.ts",
+      "openaiSolPrimaryAdapter_test.ts",
+    ]
+  ) {
+    assertStringIncludes(workflow, "supabase/functions/_shared/ai/" + name);
+  }
+  for (
+    const name of [
+      "openaiPhotoModels.ts",
+      "openaiObservedTraits.ts",
+      "openaiSolRank.ts",
+      "openaiSolPrimary.ts",
+      "openaiSolPrimaryContract.ts",
+      "openaiSolPrimaryInstructions.ts",
+      "openaiSolPrimaryNormalization.ts",
+    ]
+  ) {
+    const configuration = await Deno.readTextFile(
+      new URL("_shared/ai/" + name, root),
+    );
+    assert(
+      !/from ["'][^"']*openai[.]ts["']|\bfetch\s*\(|Deno[.]env/.test(
+        configuration,
+      ),
+      "Evaluation profile configuration cannot own transport or credentials",
+    );
+  }
   assertStringIncludes(
     workflow,
     "--allow-env=NATUREBOOK_OPENAI_API_KEY,GOOGLE_SDK_NODE_LOGGING,WS_NO_BUFFER_UTIL,WS_NO_UTF_8_VALIDATE",

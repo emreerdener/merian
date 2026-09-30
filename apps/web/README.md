@@ -518,3 +518,12 @@ permanent brand and compatibility contract,
 rollout and rollback steps, and
 `../../docs/features-and-hardware/17-public-web-share-pages.md` for the full web
 and Universal Link implementation contract.
+
+## Identification labels
+
+Explore home cards and post detail consume the optional public identification
+rank/source projection through `lib/exploreIdentification.ts`. Broader groups,
+observer selection and community labels are explicit; detail preserves original
+AI labels separately. Malformed present metadata fails closed. Broader/community
+labels cannot substitute a species reference thumbnail or reference carousel.
+Legacy payloads with no identification metadata retain their presentation.

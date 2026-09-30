@@ -85,7 +85,7 @@ BEGIN
     PERFORM SET_CONFIG('request.jwt.claims', JSONB_BUILD_OBJECT('role', 'authenticated', 'sub', (SELECT owner_id FROM reader_fixture))::TEXT, TRUE);
     FOREACH header_value IN ARRAY ARRAY['', '{}', 'broken', '[]', 'null',
         '{"x-merian-entitlement-protocol":"3"}', '{"x-merian-identification-protocol":"3"}',
-        '{"x-merian-identification-protocol":"5"}', '{"x-merian-identification-protocol":"04"}',
+        '{"x-merian-identification-protocol":"6"}', '{"x-merian-identification-protocol":"04"}',
         '{"x-merian-identification-protocol":"4 "}', '{"x-merian-identification-protocol":4}',
         '{"x-merian-identification-protocol":["4"]}', '{"x-merian-identification-protocol":null}',
         '{"X-Merian-Identification-Protocol":"4"}', REPEAT(' ', 32769)] LOOP

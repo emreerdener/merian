@@ -138,7 +138,7 @@ queued-media byte inspection,
 owns main-actor live-row-to-context projection, `Features/Insights` owns
 queued-to-active media presentation and focus-descriptor restoration, and
 `Core/Data/OfflineSync/Persistence` owns cloud-deletion task/job mutations.
-`Models/ActiveSchema` contains the V52 model declarations and deterministic
+`Models/ActiveSchema` contains the V53 model declarations and deterministic
 model/value accessors, never a `ModelContext` fetch workflow. The Models-wide
 architecture suite freezes those boundaries and exempts only the ordered
 historical migration registry from the 600-line review ceiling.
@@ -160,18 +160,22 @@ single-purpose micro-files without changing their declarations or call sites.
 The active schema is:
 
 ```swift
-typealias CurrentSchema = MerianSchemaV52
+typealias CurrentSchema = MerianSchemaV53
 ```
 
-`MerianSchemaV52` is declared in
-`apps/ios/Merian/Models/Schema/SchemaV52.swift`. `SchemaVersions.swift` retains
+`MerianSchemaV53` is declared in
+`apps/ios/Merian/Models/Schema/SchemaV53.swift`. `SchemaVersions.swift` retains
 the frozen V51 owner and every migration plan. The two checksum-distinct V50
 graphs are frozen in `Models/Schema/SchemaV50Snapshots.swift` and
 `Models/Schema/SchemaV50ReleasedActiveSnapshots.swift`; checksum selection
 routes each to its own immutable V50→V51 source bridge. V51 is independently
-frozen in `SchemaV51Snapshots.swift`; all lanes finish with lightweight V51→V52.
-V47 through V50 remain available for fixtures and source-specific startup
-recovery.
+frozen in `SchemaV51Snapshots.swift`; V52 is frozen in
+`SchemaV52ScanSnapshots.swift` and `SchemaV52QueueSnapshots.swift`. All older
+lanes append lightweight V51→V52→V53; the immediate V52 source uses only
+V52→V53. `PrimaryIdentification` owns the immutable original label and rank.
+`PrimaryIdentificationPersistence` validates snapshot/provenance pairing and
+conflicts before live, queued or history writes. V47 through V50 remain
+available for fixtures and source-specific startup recovery.
 
 Active persistent models:
 
@@ -237,7 +241,7 @@ Recent schema milestones:
   optional-queue V48 TestFlight checksum. Startup diagnostics record redacted
   store metadata and attempted plan names so failing devices can share evidence
   without exposing paths, account data, scan text, or media URLs. The existing
-  integer remains an inert released-compatibility field in V52; the current
+  integer remains an inert released-compatibility field in V53; the current
   queue runtime neither reads nor mutates it. Removing it would alter the model
   shape and requires a future intentional migration. `MigrationPlanTests`
   carries the disk-store fixture matrix for image, video, audio,

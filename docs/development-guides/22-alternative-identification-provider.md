@@ -23,6 +23,557 @@ detail. It does not require another Gemini-only benchmark campaign or a repeat
 of the closed concise-explanation screen. Audio experiments cannot establish
 photo/text quality.
 
+## Luna/Sol photo comparison preparation
+
+The
+[Free/Pro model plan](../rfcs/identification-openai-free-pro-models-2026-09-28.md)
+introduces two closed evaluation profiles: `openai_photo_luna_low_v1` and
+`openai_photo_sol_low_v1`. Both use the production photo prompt, strict schema,
+high image detail, low reasoning, 8,192-token output limit, and pinned native
+input/output moderation. Only the model differs. The Sol control therefore
+matches the current production request, including moderation; the completed
+September 27 evaluation remains historical evidence with its original binding.
+
+`_shared/ai/openaiPhotoModels.ts` owns those immutable configurations.
+`createOpenAIPhotoModelEvaluationAdapter` reuses the bounded transport and
+safety decoder, requiring the exact returned model before releasing a draft.
+Neither profile is registered for production or accepted by the historical
+evaluator or hosted workflow. The dedicated local `--photo-model-live` mode owns
+this separate comparison. Production still-photo assignment remains
+`openai_photo_v1` / `gpt-6-sol` for both tiers.
+
+The new `preflight-free-pro-photo` mode performs preparation only. Place these
+private files outside Git:
+
+| File                       | Contract                                                                                                                                                                                                                                              |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `corpus.json`              | Existing exploratory corpus format, exactly 12 development photo cases without descriptions; non-null provisional references and valid media hashes.                                                                                                  |
+| `taxonomy.json`            | Existing taxonomy format, containing every reference taxon.                                                                                                                                                                                           |
+| `photo-model-facts.json`   | `photo_model_facts_v1`, exactly 12 existing-format fact cards bound to each input digest; rank/abstention/non-biological review requirements as applicable.                                                                                           |
+| `photo-model-pricing.json` | `photo_model_pricing_v1`, current USD paid Standard synchronous rates for both exact models, official model-page sources and a review reference.                                                                                                      |
+| `photo-model-plan.json`    | `photo_model_plan_v1` preserves the original $5 proposal; `photo_model_plan_v2` supports an explicitly approved ceiling up to $40. Both bind all four input-file digests, six screen IDs, six challenge IDs, 18 calls and one attempt per assignment. |
+
+For real inputs, the plan's `inputApproval` records the owner's existing OpenAI
+benchmark authorization for that corpus and all selected cases. This is an
+operator evidence record, not app-user provider consent. Synthetic fixtures
+require a null approval and are labeled mechanics-only. Real evidence must have
+unexpired retention and its existing source/eligibility records. The screen
+contains five named biological references and one non-biological control; the
+challenge set also includes a non-biological control and a biological reference
+that requires a higher rank or abstention. Freeze the six challenge references
+before candidate outputs exist.
+
+Run from the repository root, replacing `PRIVATE_PACKET` with the existing
+private packet directory:
+
+```bash
+evaluation_root="PRIVATE_PACKET"
+deno run --frozen --no-prompt --deny-net --deny-env \
+  --config services/supabase/functions/deno.json \
+  --allow-read="$PWD,$evaluation_root" --allow-write="$evaluation_root" \
+  --allow-run=git \
+  services/supabase/scripts/evaluate_identification.ts \
+  preflight-free-pro-photo "$evaluation_root"
+```
+
+`photo-model-preflight.json` contains hashes, source identity, reviewed model
+settings, fixed ordering and a conservative reservation. It stores no photo
+bytes, observation/review prose, references or credential. Six Luna screening
+assignments precede paired challenge assignments; challenge ordering alternates
+Luna/Sol and Sol/Luna. The output always states `dispatchAuthorized: false`;
+`liveControllerAvailable: true` reports implementation availability only. The
+runner requires passing assistant reviews and correct reference decisions on all
+six screen cases before any challenge call. Successful preparation is not a
+completed benchmark or spending approval.
+
+At the September 28 reviewed global Standard rates, reserving 1,050,000 input
+tokens plus 8,192 output tokens per call costs at most $0.268644 for Luna and
+$5.37288 for Sol, or **$35.461008 for the full schedule**. These ceilings
+include long-context and cache-write tariffs; they are not expected per-scan
+prices. The live controller also reserves the 10% regional premium, for
+**$39.0071088** across the 18 calls, regardless of whether that premium applies
+to the account. Preflight reports both reservations and budget-fit flags. Both
+flags were false for the original $5 proposal. The owner-approved v2/$40 plan
+covers both reservations. Do not lower the historical full-context reservation
+using media byte length or raise the approved ceiling implicitly. Any future
+comparison whose budget does not fit must bind justified input-token bounds to
+its exact requests and actual account pricing, or obtain an explicit budget
+revision. OpenAI's
+[input token counting API](https://developers.openai.com/api/docs/guides/token-counting)
+is a possible follow-on mechanism; its request compatibility, billing and
+artifact/dispatch controls are not implemented by this offline mode.
+
+The
+[real preparation record](../rfcs/identification-luna-sol-photo-preparation-2026-09-28.md)
+now records all twelve photos, frozen reference limits and a successful offline
+preflight. The owner approved the $40 maximum for the same 18-call comparison on
+28 September; bind that approval to the reviewed clean revision before live
+execution. Deterministic adapter, controller and launcher tests do not establish
+Luna accuracy, real moderation compatibility or a Free/Pro quality difference.
+
+### Durable local execution
+
+After explicit spending approval, freeze a `photo_model_plan_v2` whose budget
+covers the entire reservation. For this comparison, the owner approved $40
+and the private packet was revised to v2 while preserving the original v1/$5
+proposal. A larger parser limit alone does not authorize spending.
+
+`photo-model-approval.json` uses `photo_model_approval_v1`. It binds the
+`naturebook` project, `18_call_luna_sol_photo_comparison` operation, exact plan
+digest, clean source commit and implementation digest, credential SHA-256,
+approved budget, approval reference, reviewer/delegation references, and an
+approval window of at most 24 hours. It contains no API key. The assistant's
+review delegation comes from the existing instruction to perform evaluation;
+this is not an end-user provider choice. Keep the approval private alongside the
+packet, and create it only for the actual approved revision and budget.
+
+The existing hidden-input launcher now supports:
+
+```bash
+bash services/supabase/scripts/run_openai_evaluation.sh \
+  --photo-model-live PRIVATE_PACKET
+```
+
+It completes offline preflight and rejects an insufficient budget or dirty
+source before prompting for the Naturebook key. The child can access only the
+OpenAI host, one-use loopback review, Git, fixed browser opener and evaluation
+credential. `photoModelAdmission.ts` binds that credential to approval and
+revalidates the scope, expiry, prices, evidence, source and spending limit
+before every dispatch. The current GitHub-hosted comparison workflow does not
+accept these new profiles; its existing secrets do not automatically authorize
+this local runner.
+
+`photoModelRunner.ts` owns an exclusive lock and immutable `photo-model-run/`
+manifest, claims, results and assessments. It reserves the complete schedule
+before the first call and retains each claimed reservation, even when a request
+fails or its bill is unknown. A claim without a result stops permanently as
+interrupted. A missing or unavailable explanation review also stops. Neither a
+restart nor a changed state summary can repeat an attempt. Once a manifest
+exists, source, packet or approval drift/expiry creates an immutable
+configuration stop. Restoring the old inputs cannot clear it. If inputs no
+longer validate, the stop summary leaves totals unknown and preserves the
+original journal. Model mismatch, refusal, invalid safety/output, missing or
+inconsistent billing, and operational failures stop subsequent calls. Six
+successful screen results with passing assistant ratings are required before
+challenges. Challenge quality failures remain visible for comparison; they do
+not trigger replacement calls. An unassessable screening rating also yields
+`screen_failed`; inspect the ratings to distinguish missing reference coverage
+from an observed model error. The first
+[live screen record](../rfcs/identification-luna-sol-photo-screen-results-2026-09-28.md)
+retains one reference-matching Luna result and that reference-coverage stop. It
+does not complete the Luna/Sol comparison.
+
+`photoModelRecords.ts` projects bounded taxonomy IDs, scores, timings, native
+usage categories, exact model, safety disposition and a conservative usage-based
+cost upper bound. Unknown cache writes or service tier remain unpriced. Output
+already includes reasoning, which is never billed twice in the projection. These
+upper bounds are not invoices or expected per-scan prices; report measured cost
+only when the actual pricing basis and all native usage categories permit it. No
+photo, provider prose, reasoning trace, response/error body or key enters the
+journal. Explanations exist only in the one-use assistant review view; only
+bound enum ratings are saved. Finishing all calls never selects or activates a
+production profile. The assistant still writes the quality/cost/latency
+selection record against the frozen references.
+
+### Approved continuation after the reference-coverage stop
+
+The owner approved retaining the first result and completing at most the
+seventeen unattempted assignments under `reference_gaps_recorded_v1`. This is a
+specific continuation of the stopped one-result journal, with a combined maximum
+of 18 calls and $40. Photos, frozen facts, request parameters, prices and
+assignment order stay bound to the original plan. Do not restart the original
+mode, delete its stop or replace its ratings.
+
+Run the network/environment-denied
+`preflight-free-pro-photo-continuation PRIVATE_PACKET` CLI mode against a clean
+reviewed revision. It writes `photo-model-continuation-preflight.json`,
+preserving the original preflight and journal. It validates exactly one
+completed ordinal 1, a correct screening identification, the original
+`screen_failed` stop, and ratings containing only passes and
+`insufficient_reference` gaps. It binds `parentRunDigest` and
+`parentArtifactsDigest` to the original manifest, stop, claim, result, review
+and approval; derived `state.json` is never authority.
+
+Create the private `photo-model-continuation-approval.json` only for this
+approved revision. Its version is `photo_model_continuation_approval_v1` and
+operation is `remaining_17_luna_sol_photo_comparison`. It retains the original
+approval's project, plan, source, credential, budget, reference and
+at-most-24-hour window fields, but binds the new source and current approval
+window. It also requires both parent digests,
+`screeningPolicy: reference_gaps_recorded_v1`, and `maxAdditionalCalls: 17`. The
+old and new approval formats cannot authorize each other's execution mode. The
+original approval is verified at its first claim's timestamp; this preserves
+historical authority without extending its expiry.
+
+```bash
+bash services/supabase/scripts/run_openai_evaluation.sh \
+  --photo-model-continuation-live PRIVATE_PACKET
+```
+
+The launcher runs that separate preflight before hidden key entry. Execution
+holds the original lock before acquiring the sibling `photo-model-continuation/`
+lock, validates the original artifacts before each dispatch and never rewrites
+them. Only ordinals 2–18 can be claimed in the new journal. Accounting includes
+the inherited call and reservation: the full $39.0071088 reservation still fits
+the same $40 ceiling. Interrupted claims cannot be retried, and durable stops
+cannot be cleared by restoring changed inputs.
+
+All six screening identifications must still be correct at the supported rank.
+The revised screen permits only `not_assessable / insufficient_reference` in
+addition to passing explanation ratings. Actual failures, reviewer uncertainty
+or unavailable review still stop screening; provider, safety and billing stops
+also remain. Challenge-quality outcomes stay visible without replacement calls.
+Reference gaps stay unassessable in the report and cannot count as explanation
+passes or establish a Pro advantage.
+
+The v2 aggregate state includes `inheritedCalls`, `newlyClaimedCalls`,
+`referenceGapOrdinals` and `explanationEvidenceComplete`. The launcher requires
+18 combined completed calls, one inherited and seventeen new claims, before
+reporting completion. `complete: true` means the scheduled collection finished;
+it does not mean the evidence is complete or a model is qualified. The assistant
+must still write the selection report, and production activation remains a
+separate decision.
+
+The
+[recorded continuation](../rfcs/identification-luna-sol-photo-screen-results-2026-09-28.md#approved-continuation-outcome-28-september)
+completed the remaining five screening calls and stopped on a mineral
+explanation's unsupported specificity. Six combined primary outcomes matched; no
+challenge or Sol request ran. Preserve this terminal stop and the decision to
+retain the current Sol assignment. Another candidate or paid run requires its
+own bounded plan; the unused portion of this budget is not retry authority.
+
+### Luna evidence-limit candidate comparison
+
+The
+[candidate record](../rfcs/identification-luna-evidence-limits-candidate-2026-09-28.md)
+adds `openai_photo_luna_evidence_limits_low_v1`, a Luna-only projection of two
+instruction lines. Historical `openai_photo_luna_low_v1`, the Sol control,
+production routing and the shared Gemini prompt stay unchanged.
+
+Use a **new private packet root** with the same twelve no-description photos,
+corpus, taxonomy, frozen fact cards and `photo_model_pricing_v1`. Copy only
+required inputs and media, never prior journals, approvals or ratings. Set a new
+plan ID and `version: photo_model_plan_v3`; all other bounded plan fields keep
+their meanings. V3 fixes the candidate Luna profile plus original Sol control,
+18 calls, one attempt per assignment and a ceiling no higher than $40. It uses
+the existing Luna pricing entry only because the exact model is unchanged. The
+six-screen/six-paired-challenge ordering and full reservation are unchanged.
+
+Run the same network/environment-denied `preflight-free-pro-photo` command
+against this **new** packet. V3 preflight includes
+`screeningPolicy: reference_gaps_recorded_v1`. Do not edit the stopped packet to
+v3: its immutable manifest cannot accept different requests and the controller
+will send no new calls. The original continuation mode rejects v3.
+
+After explicit approval of this new experiment, create its private
+`photo-model-approval.json` with `version: photo_model_candidate_approval_v1`,
+`operation: 18_call_luna_evidence_limits_sol_photo_comparison` and
+`screeningPolicy: reference_gaps_recorded_v1`. The other fields are the same
+source/plan/key/budget/time/reviewer bindings as the original approval. Then use
+`--photo-model-live NEW_PRIVATE_PACKET` in the hidden-key launcher. Original and
+continuation approvals cannot authorize this candidate. The implementation does
+not authorize paying for the new comparison from the stopped run's allocation.
+
+This new packet owns its own immutable `photo-model-run/` journal. Its manifest
+binds the screening policy; state separately records reference-gap ordinals and
+whether explanation evidence is complete. Reference gaps stay unassessable;
+actual screen errors, uncertain/unavailable review, safety, provider and billing
+failures still stop. A completed collection is not automatic qualification.
+Assistant review must specifically assess whether the mineral's broader identity
+and variety both respect the evidence limit. The result report must disclose the
+reused screen, six contemporary challenge pairs and every reference gap. Current
+Sol production assignments remain in place pending a separate selection and
+activation decision.
+
+The approved v3 run subsequently completed all eighteen calls and reviews. Its
+[selection report](../rfcs/identification-luna-sol-candidate-results-2026-09-28.md)
+records passed mineral checks, faster and cheaper paired Luna measurements,
+biological quality failures and taxonomy mapping limitations. Retain Sol for
+both tiers. Keep the completed journal immutable; no additional paid calls or
+activation follow from its unused spending ceiling.
+
+### Offline photo catalog audit and rank consistency
+
+The
+[rank-consistency plan](../rfcs/identification-photo-rank-consistency-2026-09-28.md)
+preserves the explanation format and current Sol assignment while preparing
+better rank handling. Its first slice adds a read-only catalog audit and a
+future v2 photo result projection. Run from the repository root with a private
+packet path:
+
+```bash
+deno run --frozen --no-prompt --deny-net --deny-env --deny-write \
+  --allow-read=PRIVATE_PACKET/corpus.json,PRIVATE_PACKET/taxonomy.json \
+  --config services/supabase/functions/deno.json \
+  services/supabase/scripts/audit_photo_taxonomy.ts PRIVATE_PACKET
+```
+
+The command prints bounded JSON and does not save or overwrite any files. Exit 0
+means no catalog/reference consistency issue was detected, 2 reports issues, and
+1 means invalid input or audit failure. Missing references and name collisions
+block consistency; a clear result is neither biological review nor permission to
+call a model. Repair only in a new versioned packet with an explicit
+reference-ID remapping. Completed packet records remain immutable.
+
+The new `photo_model_attempt_v2` parser/projection is offline infrastructure.
+Existing photo runners accept only v1; do not insert v2 into an existing run or
+reuse its approval. The next offline preparation is available:
+
+```bash
+deno run --frozen --no-prompt --deny-net --deny-env \
+  --allow-read=PRIVATE_ROOT --allow-write=PRIVATE_ROOT/new-sol-packet \
+  --config services/supabase/functions/deno.json \
+  services/supabase/scripts/prepare_sol_rank_candidate.ts \
+  PRIVATE_ROOT/completed-packet PRIVATE_ROOT/new-sol-packet \
+  PRIVATE_ROOT/taxonomy-remap.json
+```
+
+Use a private parent outside every repository, canonical paths without symlinks,
+and a destination that does not exist. The helper rejects the current checkout
+and directly marked repository roots. The remap must use
+`photo_taxonomy_remap_v1`, bind `sourceCorpusDigest` and `sourceTaxonomyDigest`,
+set new `corpusId`, `taxonomyVersion`, `catalogRef`, `reviewRef`, and list
+explicit `merges` of `{from,to}` IDs. Merges require identical normalized
+canonical names and ranks; chains, cycles, missing IDs and residual collisions
+fail. References are remapped consistently without changing supported ranks.
+
+The command copies only validated photos, corpus, taxonomy and existing fact
+cards; it writes an explicit repair report and `sol-rank-preparation.json`
+receipt last. Files are private and exclusively created. Historical plans,
+approvals, credentials, pricing and journals are never copied. Incomplete
+destinations cannot be overwritten or resumed; inspect them and use a new
+destination after addressing the failure.
+
+The candidate `openai_photo_sol_rank_limits_low_v1` changes biological
+instructions and descriptive schema guidance, preserving JSON structure, Sol
+settings, mineral rules and the current explanation definition. It is
+evaluation-only and rejected by production and historical live bindings. The
+receipt binds proposed request identities for six screens and six paired
+challenges, but marks live admission, reference review and dispatch unavailable.
+It is not a runnable live plan or a pricing/spending approval. A separate live
+contract is now implemented. Before dispatch, create
+`sol-rank-reference-review.json` from assistant input/fact review, retaining
+provisional references and finite-catalog limits; never mark independent truth
+verified. Bind its digest and the unchanged preparation receipt in a fresh
+`sol-rank-plan.json`, alongside corrected inputs and `sol-rank-pricing.json`.
+The plan fixes six candidate screens and six alternating same-model pairs, 18
+calls maximum, one attempt each. The conservative full-context reservation is
+$106.383024 at the reviewed rates; a new $110 cap and fresh bound approval are
+required, not the previous run's $40 allowance.
+
+Run the scoped offline preflight from a clean reviewed checkout:
+
+```bash
+deno run --frozen --no-prompt --cached-only \
+  --config services/supabase/functions/deno.json \
+  --deny-net --deny-env --allow-run=git \
+  --allow-read="$PWD,/absolute/private/sol-rank-packet" \
+  --allow-write="/absolute/private/sol-rank-packet" \
+  services/supabase/scripts/evaluate_identification.ts \
+  preflight-sol-rank-photo /absolute/private/sol-rank-packet
+```
+
+It writes `sol-rank-preflight.json` with rebuilt request hashes, v2 record
+identity, review policy, source and reservation. Fresh `sol-rank-approval.json`
+binds that plan, clean source, credential fingerprint, reviewer/delegation,
+budget and a window no longer than 24 hours. Then use:
+
+```bash
+bash services/supabase/scripts/run_openai_evaluation.sh \
+  --sol-rank-photo-live /absolute/private/sol-rank-packet
+```
+
+The key is entered once through hidden terminal input and retained only in the
+child process. The assistant reviews transient responses; only bounded results
+and ratings are saved. The launcher checks the new final state and never calls a
+stopped run complete. Inspect `sol-photo-rank-run/state.json` and `summary.json`
+for completion, failed attempts, mapping/reference gaps and phase-specific
+denominators. An unknown mapping is `screen_unassessable`, not a wrong taxon. Do
+not erase a claim, retry an interrupted assignment or reuse old approval.
+
+The
+[first Sol rank run](../rfcs/identification-sol-rank-screen-results-2026-09-29.md)
+stopped after one request. A source-to-fact audit found omitted publisher
+metadata; the recorded failure cannot establish a model defect. Its append-only
+adjudication binds the original journal and source record. Prospective fact
+corrections are separate inputs, not a runnable plan or a replacement historical
+rating. Preserve publisher labels, visible observations and diagnostic limits as
+distinct evidence. Missing coverage is `insufficient_reference`; it is not
+automatically invented evidence or unsupported specificity. A concrete failure
+needs a resolved contradiction or an applicable reviewed diagnostic requirement.
+For new runs, `sol_photo_rank_summary_v2` reports `identityInterpretation` and
+`identityInterpretationCounts` separately from raw reference comparison fields;
+consult both alongside explanation ratings. Limited-reference mismatches are
+unassessable, while actual explanation failures remain visible. Keep historical
+v1 summaries unchanged. New run bindings freeze v2 reporting; an existing v1
+binding is refused before admission without changing any journal file or
+dispatching another call. The separately approved corrected comparison rebuilt
+its receipt and reference review, preserved every model-request digest, and
+completed all eighteen calls under a fresh clean-source approval. Its
+[results](../rfcs/identification-sol-rank-comparison-results-2026-09-29.md)
+record broader-rank improvements and two concrete candidate visual failures.
+Retain the current Sol profile; do not promote this candidate or rerun the
+completed packet. Production rank/enrichment design and confidence calibration
+remain later steps in the linked plan. Future live comparisons still require
+their own clean-source preflight and execution approval.
+
+## Observed-traits OpenAI optimization
+
+The
+[current candidate record](../rfcs/identification-openai-observed-traits-candidate-2026-09-29.md)
+owns `openai_photo_sol_observed_traits_low_v1`. A pure request projection
+changes two fixed-count directions to ask for one to three directly supported
+traits. It preserves the current Sol payload, explanation format and accepted
+1–10 trait array bounds. No adapter, runner or production binding selects it.
+Run its compatibility checks with network and environment access denied:
+
+```bash
+deno test --frozen --no-prompt --deny-net --deny-env \
+  --config services/supabase/functions/deno.json \
+  services/supabase/functions/_shared/ai/openaiObservedTraits_test.ts
+```
+
+These tests establish request isolation and decoding compatibility, not model
+quality. The updated plan treats the two wording changes as a small beta
+improvement: integrate a versioned prompt, run the affected regressions and
+normal CI, then check a few ordinary beta scans. A dedicated comparison runner
+is unnecessary for this change. Preserve explanation format and use the final
+prompt configuration for confidence calibration. Existing experiment budgets
+remain closed; see the candidate record for the exact scope and smoke checks.
+
+## Explicit-primary Sol comparison
+
+The completed Sol rank experiment remains frozen. The separate evaluator profile
+`openai_photo_sol_primary_low_v1` now prepares a required resolution, names and
+species-ranked alternatives under a new private schema. Its pure decoder and
+normalizer check the explicit-primary contract using synthetic fixtures while
+preserving the current photo model, generation, explanation format and
+moderation request. No existing paid-plan parser or production binding selects
+it. See the
+[implementation checkpoint](../rfcs/identification-primary-resolution-contract-2026-09-29.md#isolated-explicit-primary-candidate--2026-09-29)
+for frozen configuration hashes and remaining qualification work.
+
+Run its local contract checks without network or credentials:
+
+```bash
+deno test --frozen --no-prompt --deny-net --deny-env \
+  --config services/supabase/functions/deno.json \
+  services/supabase/functions/_shared/ai/openaiSolPrimary_test.ts \
+  services/supabase/functions/_shared/ai/openaiSolPrimaryNormalization_test.ts \
+  services/supabase/functions/_shared/ai/openaiSolPrimaryAdapter_test.ts
+```
+
+A new live comparison requires its own reviewed packet, bounded plan and
+authorization. The current command only tests implementation; it neither runs an
+identification benchmark nor qualifies a confidence display policy.
+
+The
+[offline comparison packet](../rfcs/identification-sol-primary-comparison-preparation-2026-09-29.md)
+contains twelve cases, including dog, cat and unresolved-biological examples.
+All five resolution states are represented; family and unresolved references
+remain limited. The separately approved eighteen-request run is
+[complete](../rfcs/identification-sol-primary-comparison-results-2026-09-29.md).
+Retain the current Sol profile: the candidate's rank improvements do not cancel
+its visual-grounding failure. Do not rerun the completed packet. Historical
+experiment parsers and production bindings remain closed to this profile.
+
+The current order is OpenAI optimization, then confidence calibration for the
+selected configuration. The
+[completed offline audit](../rfcs/identification-openai-confidence-evidence-audit-2026-09-29.md)
+found that the eighteen matching controls cover only six photos and cannot
+establish new cutoffs. Keep existing display thresholds provisional. The new
+[observed-traits candidate](../rfcs/identification-openai-observed-traits-candidate-2026-09-29.md)
+is offline-only. The historical preparation and execution commands below do not
+admit it or reopen the completed explicit-primary comparison.
+
+To prepare another immutable copy after reviewing its source records, use the
+two-path offline CLI. Both source and destination parent must be private and
+outside the repository. The destination must not exist:
+
+```bash
+evaluation_parent="$HOME/Developer/merian-evaluation"
+deno run --frozen --no-prompt --deny-net --deny-env \
+  --config services/supabase/functions/deno.json \
+  --allow-read="$evaluation_parent" \
+  --allow-write="$evaluation_parent/NEW-PRIMARY-PREPARATION" \
+  services/supabase/scripts/prepare_sol_primary_candidate.ts \
+  "$evaluation_parent/2026-09-29-sol-primary-source-v2" \
+  "$evaluation_parent/NEW-PRIMARY-PREPARATION"
+```
+
+The source supplies `primary-preparation-plan.json` and
+`primary-reference-review.json` under their separate closed contracts. The
+review binds input/reference/fact digests, support limits, private source
+attribution and role evidence. A lookalike comparator must be a distinct
+reviewed species outside the accepted identities. The builder writes
+`primary-preparation.json` last, with coverage and exact request hashes. It
+copies no historical authorization or results and accepts no key or live flag.
+The existing corpus curation permission token does not authorize disclosure to a
+new provider.
+
+### Bounded explicit-primary execution
+
+The separately versioned controller is now implemented. It does not extend the
+historical Sol-rank or photo-model plan parsers. The frozen preparation receipt
+continues to describe the state when it was created; its
+`liveControllerAvailable: false` is historical, not a mutable switch. A new
+`sol-primary-preflight.json` describes current runner readiness.
+
+Before dispatch, the private prepared directory must additionally contain:
+
+- `sol-primary-plan.json`: `sol_photo_primary_plan_v1`, binding the existing
+  packet, preparation receipt, review, current pricing, the exact six screens
+  and six challenges, one attempt each, eighteen calls maximum and a new budget.
+- `sol-primary-pricing.json`: reviewed standard synchronous pricing no older
+  than seven days. Reservation uses the existing full-context Sol ceiling plus
+  the regional multiplier; this is a spending bound, not expected cost.
+- `sol-primary-approval.json`: `sol_photo_primary_approval_v1`, explicitly
+  authorizing `18_call_sol_primary_photo_comparison` for Naturebook, the exact
+  clean source, plan, credential fingerprint and budget. It expires within
+  twenty-four hours and binds assistant review. Historical approvals cannot be
+  relabeled or reused. Real-input disclosure permission belongs to the new plan.
+
+For a separately prepared and authorized future comparison, replace the
+placeholder below with its new private packet. The completed
+`2026-09-29-sol-primary-photo-preparation-v2` journal is historical evidence,
+not a reusable execution target. Preflight performs no model request and needs
+no credential:
+
+```bash
+evaluation_packet="$HOME/Developer/merian-evaluation/NEW-PRIMARY-PREPARATION"
+deno run --frozen --no-prompt --deny-net --deny-env \
+  --config services/supabase/functions/deno.json \
+  --allow-read="$PWD,$evaluation_packet" --allow-write="$evaluation_packet" \
+  --allow-run=git services/supabase/scripts/evaluate_sol_primary.ts \
+  preflight "$evaluation_packet"
+```
+
+After the new bounded execution is authorized, the existing hidden-key launcher
+accepts this separate mode:
+
+```bash
+bash services/supabase/scripts/run_openai_evaluation.sh \
+  --sol-primary-photo-live "$evaluation_packet"
+```
+
+It rejects stale or dirty preflight before prompting, holds the key only in the
+child process environment and grants network access only to the provider and
+private loopback review. The controller revalidates before every durable claim.
+An interrupted claim or missing review stops permanently without replay; the
+reservation remains held. New journals live under `sol-photo-primary-run` and
+use separate record, manifest, binding, review, stop and summary versions.
+
+`primary_reference_limits_v1` admits screens only as `pass` or
+`reference_limited`. The latter requires a predeclared limited reference and
+ratings that are all pass or exactly not-assessable/insufficient-reference. It
+never contributes a quality pass or an explanation-pass count. An unsupported
+visual claim, rank conflict, provider error or unusable review still stops;
+unmapped and ambiguous names are unassessable and stop screening. Challenge
+failures remain visible comparison outcomes; provider or missing-review failure
+stops further calls. Subject and identity disagreements remain in raw comparison
+counts alongside their limited-reference interpretation. No score from this
+pilot qualifies confidence badges or a Free/Pro split.
+
 ## Fixed initial assignment
 
 | Setting                     | Candidate                                                                    |

@@ -18,6 +18,23 @@ import {
   type OpenAIPhotoSnapshot,
 } from "./openaiPhoto.ts";
 
+import {
+  buildOpenAIPhotoModelRequestParameters,
+  type OpenAIPhotoModel,
+  type OpenAIPhotoModelSnapshot,
+} from "./openaiPhotoModels.ts";
+
+import {
+  buildSolPhotoRankRequest,
+  solPhotoRankSnapshot,
+} from "./openaiSolRank.ts";
+
+import {
+  buildSolPhotoPrimaryRequest,
+  solPhotoPrimarySnapshot,
+} from "./openaiSolPrimary.ts";
+import { decodeSolPhotoPrimaryDraft } from "./openaiSolPrimaryContract.ts";
+
 export const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 export const OPENAI_RESPONSE_LIMIT = 512 * 1024;
 const object = (v: unknown): Record<string, unknown> | null =>
@@ -58,6 +75,8 @@ function usageFrom(value: unknown): AIUsage | null {
 function decode(
   value: unknown,
   timing: Pick<AIResponseFacts, "providerDurationMs" | "providerCompletedAt">,
+  expectedModel: OpenAIPhotoModel = "gpt-6-sol",
+  decodeDraft: (value: unknown) => unknown = decodeOpenAIDraft,
 ): AIProviderOutcome {
   const raw = object(value), status = raw?.status;
   const usage = usageFrom(raw?.usage);
@@ -67,11 +86,13 @@ function decode(
     );
   const facts: AIResponseFacts = {
     ...timing,
-    serviceTier: raw?.service_tier === "default" && raw?.model === "gpt-6-sol"
+    serviceTier: raw?.service_tier === "default" && raw?.model === expectedModel
       ? "default"
       : null,
     returnedModel: typeof raw?.model === "string" &&
-        /^gpt-6-sol(?:-[a-zA-Z0-9.-]{1,80})?$/.test(raw.model)
+        new RegExp(`^${expectedModel}(?:-[a-zA-Z0-9.-]{1,80})?$`).test(
+          raw.model,
+        )
       ? raw.model
       : null,
     usage: usage && unexpectedOutput ? { ...usage, toolTokens: null } : usage,
@@ -135,7 +156,7 @@ function decode(
       ...facts,
       responseCharacters: texts[0].length,
       kind: "draft",
-      draft: decodeOpenAIDraft(JSON.parse(texts[0])),
+      draft: decodeDraft(JSON.parse(texts[0])),
     };
   } catch {
     return { ...facts, kind: "invalid_output", reason: "json" };
@@ -163,37 +184,112 @@ export function createOpenAIPhotoAdapter(
     );
     return {
       parameters,
-      decode(value, timing) {
-        const outcome = decode(value, timing);
-        const mediaSafety = openAIPhotoSafety(
-          object(value)?.moderation,
-          hasText,
-        );
-        if (mediaSafety.disposition === "rejected") {
-          const { kind: _kind, draft: _draft, reason: _reason, ...facts } = {
-            draft: undefined,
-            reason: undefined,
-            ...outcome,
-          };
-          // A native denial stays terminal even if generated JSON is malformed.
-          return { ...facts, mediaSafety, kind: "refusal" };
-        }
-        if (outcome.kind !== "draft") return { ...outcome, mediaSafety };
-        const { draft, kind: _kind, ...facts } = outcome;
-        if (
-          mediaSafety.disposition !== "allowed" || facts.returnedModel === null
-        ) {
-          return {
-            ...facts,
-            mediaSafety,
-            kind: "invalid_output",
-            reason: "safety",
-          };
-        }
-        return { ...facts, mediaSafety, kind: "draft", draft };
-      },
+      decode: (value, timing) => decodeModeratedPhoto(value, timing, hasText),
     };
   });
+}
+
+/** Evaluator-only transport; callers still need a separately admitted run. */
+export function createOpenAIPhotoModelEvaluationAdapter(
+  credential: string,
+  fetcher: typeof fetch = fetch,
+): AIAdapter<OpenAIPhotoModelSnapshot> {
+  return createOpenAIAdapter(credential, fetcher, (request, snapshot) => {
+    const parameters = buildOpenAIPhotoModelRequestParameters(
+      request,
+      snapshot,
+    );
+    const hasText = parameters.input[0].content.some((part) =>
+      part.type === "input_text"
+    );
+    const expectedModel = snapshot.model;
+    return {
+      parameters,
+      decode: (value, timing) =>
+        decodeModeratedPhoto(value, timing, hasText, expectedModel, true),
+    };
+  });
+}
+
+/** Closed Sol-rank evaluation adapter; never a production catalog binding. */
+export function createOpenAISolRankEvaluationAdapter(
+  credential: string,
+  fetcher: typeof fetch = fetch,
+): AIAdapter<ReturnType<typeof solPhotoRankSnapshot>> {
+  return createOpenAIAdapter(credential, fetcher, (request, snapshot) => {
+    const parameters = buildSolPhotoRankRequest(request, snapshot);
+    const hasText = parameters.input[0].content.some((p) =>
+      p.type === "input_text"
+    );
+    return {
+      parameters,
+      decode: (value, timing) =>
+        decodeModeratedPhoto(value, timing, hasText, "gpt-6-sol", true),
+    };
+  });
+}
+
+/** Explicit-primary evaluator only; never selected by production composition. */
+export function createOpenAISolPrimaryEvaluationAdapter(
+  credential: string,
+  fetcher: typeof fetch = fetch,
+): AIAdapter<ReturnType<typeof solPhotoPrimarySnapshot>> {
+  return createOpenAIAdapter(credential, fetcher, (request, snapshot) => {
+    const parameters = buildSolPhotoPrimaryRequest(request, snapshot);
+    const hasText = parameters.input[0].content.some((p) =>
+      p.type === "input_text"
+    );
+    return {
+      parameters,
+      decode: (value, timing) =>
+        decodeModeratedPhoto(
+          value,
+          timing,
+          hasText,
+          "gpt-6-sol",
+          true,
+          decodeSolPhotoPrimaryDraft,
+        ),
+    };
+  });
+}
+
+function decodeModeratedPhoto(
+  value: unknown,
+  timing: Pick<AIResponseFacts, "providerDurationMs" | "providerCompletedAt">,
+  hasText: boolean,
+  expectedModel: OpenAIPhotoModel = "gpt-6-sol",
+  exactModel = false,
+  decodeDraft: (value: unknown) => unknown = decodeOpenAIDraft,
+): AIProviderOutcome {
+  const outcome = decode(value, timing, expectedModel, decodeDraft);
+  const mediaSafety = openAIPhotoSafety(
+    object(value)?.moderation,
+    hasText,
+  );
+  if (mediaSafety.disposition === "rejected") {
+    const { kind: _kind, draft: _draft, reason: _reason, ...facts } = {
+      draft: undefined,
+      reason: undefined,
+      ...outcome,
+    };
+    // A native denial stays terminal even if generated JSON is malformed.
+    return { ...facts, mediaSafety, kind: "refusal" };
+  }
+  if (outcome.kind !== "draft") return { ...outcome, mediaSafety };
+  const { draft, kind: _kind, ...facts } = outcome;
+  if (
+    mediaSafety.disposition !== "allowed" || facts.returnedModel === null ||
+    (exactModel && facts.returnedModel !== expectedModel)
+  ) {
+    return {
+      ...facts,
+      mediaSafety,
+      kind: "invalid_output",
+      reason: "safety",
+    };
+  }
+  return { ...facts, mediaSafety, kind: "draft", draft };
 }
 
 function createOpenAIAdapter<Snapshot extends { readonly timeoutMs: number }>(

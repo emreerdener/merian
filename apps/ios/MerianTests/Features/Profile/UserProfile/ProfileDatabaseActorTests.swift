@@ -122,6 +122,29 @@ final class ProfileDatabaseActorTests: XCTestCase {
         XCTAssertEqual(invalidatedPayload.speciesCount, 2)
     }
 
+    func testProfileSpeciesCacheRefreshesAcrossConfirmedReplacementAndClear() async throws {
+        let context = container.mainContext
+        context.insert(LocalScanRecord(speciesId: UUID().uuidString,
+            scientificName: "Examplea testus", commonName: "Example", ecologyType: "forest"))
+        try context.save()
+        let history = HistoricalDatabaseActor(modelContainer: container)
+        try await history.reconcileScanPage(responses: [VerifiedReviewFixtures.row(VerifiedReviewFixtures.history())])
+        let actor = ProfileDatabaseActor(modelContainer: container)
+        let initial = await actor.calculateProfileStats()
+        XCTAssertEqual(initial.speciesCount, 1)
+        for (revision, name, expected) in [(1, "Examplea other" as String?, 2),
+                                           (2, "Examplea testus", 1),
+                                           (3, "Examplea other", 2),
+                                           (4, nil, 1)] {
+            let review = VerifiedReviewFixtures.review(revision, name: name)
+            try await history.reconcileScanPage(responses: [VerifiedReviewFixtures.row(VerifiedReviewFixtures.history(review))])
+            let stats = await actor.calculateProfileStats()
+            XCTAssertEqual(stats.speciesCount, expected)
+            let heatmap = await actor.calculateHeatmapData()
+            XCTAssertEqual(heatmap.totalCaptures, 2)
+        }
+    }
+
     func testPostInferenceAwardsRefreshAfterInPlaceScanMutation() async throws {
         let context = container.mainContext
         let scan = LocalScanRecord(

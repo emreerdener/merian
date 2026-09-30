@@ -410,6 +410,7 @@ struct CoreDataIntegrationArchitectureTests {
 
     private static let expectedHistoricalSyncImports: [String: Set<String>] = [
         "HistoricalSyncPolicy.swift": [],
+        "Decoding/HistoricalScanResponse+Decoding.swift": ["import Foundation"],
         "Decoding/HistoricalScanPageDecoder.swift": [
             "import Foundation",
             "import Supabase"
@@ -422,6 +423,7 @@ struct CoreDataIntegrationArchitectureTests {
             "import os",
             "import SwiftData"
         ],
+        "Persistence/HistoricalPrimaryIdentification.swift": ["import Foundation"],
         "Services/HistoricalSyncCloudClient.swift": [
             "import Foundation",
             "import Supabase"

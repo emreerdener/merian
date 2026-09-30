@@ -22,7 +22,7 @@ boundaries, and the [codebase map](./codebase-map.md) inventories source owners.
 | Database and Edge Functions             | [`services/supabase`](../services/supabase/README.md)                                                     |
 
 The app and widget target iOS 17.2; the companion targets watchOS 10.0. The
-active SwiftData schema is `MerianSchemaV52`. The
+active SwiftData schema is `MerianSchemaV53`. The
 [schema contract](./backend-and-data/04-database-schema.md) and
 [startup recovery guide](./backend-and-data/08-startup-store-recovery.md) own
 migration and install-over requirements.
@@ -267,6 +267,47 @@ production submission or public release.
   neutral confidence presentation for unknown profiles. Compatible-client
   distribution and exact production-profile qualification remain separate; beta
   still-photo activation is recorded in the rollout evidence.
+- **[OpenAI photo models for Free and Pro](./rfcs/identification-openai-free-pro-models-2026-09-28.md):**
+  Proposed Luna model for Free with the current Sol profile retained for Pro, a
+  bounded comparison using existing photo evidence, and staged admission,
+  confidence presentation, and rollout work. Current assignments remain
+  unchanged.
+- **[Luna/Sol photo comparison preparation](./rfcs/identification-luna-sol-photo-preparation-2026-09-28.md):**
+  Frozen twelve-photo packet, durable local controller, offline validation and
+  approved $40 ceiling. The
+  [screening results](./rfcs/identification-luna-sol-photo-screen-results-2026-09-28.md)
+  preserve the original reference-gap stop and approved continuation. All six
+  primary outcomes matched, but the mineral explanation failed the specificity
+  criterion. Paired challenges did not run in those historical journals.
+- **[Luna evidence-limit candidate](./rfcs/identification-luna-evidence-limits-candidate-2026-09-28.md):**
+  A separate Luna prompt candidate addresses mineral specificity while
+  preserving explanation format and the Sol control. Its v3 comparison uses a
+  new private packet and separate approval. The
+  [completed eighteen-call results](./rfcs/identification-luna-sol-candidate-results-2026-09-28.md)
+  show passed mineral checks, faster and cheaper paired Luna calls, and
+  biological quality failures. Retain Sol for both tiers; production is
+  unchanged.
+- **[Photo evidence and rank consistency](./rfcs/identification-photo-rank-consistency-2026-09-28.md):**
+  Catalog audit, mapping records, an isolated Sol prompt candidate, a corrected
+  twelve-case packet and a versioned live comparison controller. The
+  [first screen and source adjudication](./rfcs/identification-sol-rank-screen-results-2026-09-29.md)
+  are inconclusive because frozen reference notes were incomplete. The
+  [corrected eighteen-call comparison](./rfcs/identification-sol-rank-comparison-results-2026-09-29.md)
+  is complete: broader-rank behavior improved, but two candidate visual failures
+  block promotion. Retain the current Sol assignment; production rank handling
+  and confidence calibration remain pending.
+- **[Explicit primary identification resolution](./rfcs/identification-primary-resolution-contract-2026-09-29.md):**
+  Slice 1 adds a dormant versioned answer contract, immutable server storage and
+  recovery, generated Swift wire support and exact protocol-5 reader protection.
+  The native checkpoint adds V53 save/restore and rank-aware presentation. The
+  backend review checkpoint prepares fresh species verification, revisioned
+  confirmation/clear and owner-bound recovery. Native source now advertises
+  protocol 5 after integration of the shared/public/export consumers. Native
+  acknowledgement, history, species totals and public labels preserve revisioned
+  replacement and clear, keeping pending intent and original AI evidence
+  separate. Field Trip credit and immutable exports use the same identity
+  distinction. No new model profile, assignment or confidence policy is
+  activated.
 - **[Identification optimization while preserving current results](./rfcs/identification-optimization-preserving-results-2026-09-27.md):**
   Current plan following verified completion of the provider infrastructure
   milestone. Preserve explanation format and detail while investigating
@@ -282,9 +323,15 @@ production submission or public release.
   adds a separate photo-only v4 experiment with unchanged baselines and
   automatic caching. The 28 September comparison closed inconclusive before any
   candidate call because baseline explanation review was not assessable. Retain
-  the original prompt and complete the photo rollout before more prompt
-  experiments or OpenAI audio. The beta assigns still photos to OpenAI and
-  retains Gemini for other input profiles. The
+  the original prompt. The beta now assigns still photos to OpenAI and retains
+  Gemini for other input profiles. The 29 September sequence resumes
+  optimization before confidence calibration: the
+  [observed-traits candidate](./rfcs/identification-openai-observed-traits-candidate-2026-09-29.md)
+  removes two fixed-count directions in an offline-only Sol request while
+  preserving explanation format. Its updated plan uses versioned beta
+  integration, regression checks and a few ordinary smoke scans instead of a
+  dedicated comparison. Its benefit is unmeasured, and completed experiment
+  budgets stay closed. The
   [earlier provider optimization plan](./rfcs/identification-provider-optimization-plan.md)
   retains implemented measurement and experiment controls. Its
   [26 September concise screen](./rfcs/identification-openai-concise-screen-2026-09-26.md)

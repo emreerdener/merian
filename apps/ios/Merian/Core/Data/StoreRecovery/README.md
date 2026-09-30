@@ -87,3 +87,10 @@ identity. The canonical runtime contract is
 - `MigrationPlanTests` retains the disk-backed source-schema and production
   plan-selection coverage; this refactor does not change a schema or migration
   stage.
+
+The active schema is V53. The immediate V52 source uses
+`MerianRecentV52MigrationPlan` with only lightweight V52→V53. Every older plan
+appends the same stage; checksum retries try current store, V52, V51, both V50
+graphs and then V49 through V42. Both frozen V52 snapshot files are pinned in
+the source guard. Saved scans acquire nil primary/confirmation fields without
+network work or alteration of legacy confidence/review state.

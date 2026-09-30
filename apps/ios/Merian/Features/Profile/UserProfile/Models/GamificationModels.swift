@@ -294,6 +294,7 @@ protocol AchievementRecordRepresentable {
     var confidenceScore: Double? { get }
     var inferenceTier: String? { get }
     var identificationProvenanceData: Data? { get }
+    var primaryIdentificationData: Data? { get }
     var commonName: String? { get }
     var locationName: String? { get }
     var imagePath: String? { get }
@@ -303,6 +304,17 @@ protocol AchievementRecordRepresentable {
 }
 
 extension AchievementRecordRepresentable {
+    var primaryIdentificationData: Data? { nil }
+    var hasSpeciesRankForAchievements: Bool {
+        if let primary = PrimaryIdentification.restoring(
+            stored: primaryIdentificationData,
+            provenance: identificationProvenanceData.map(IdentificationResultProvenance.init(storedData:))
+        ) {
+            return primary.value?.resolution == .species && userIdentificationOverride == nil
+        }
+        return true
+    }
+
     var commonName: String? { nil }
     var locationName: String? { nil }
     var imagePath: String? { nil }

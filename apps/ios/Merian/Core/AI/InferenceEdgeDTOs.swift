@@ -32,6 +32,7 @@ private enum SpeciesInsightsCodingKeys: String, CodingKey {
 }
 
 private enum IdentificationCandidateCodingKeys: String, CodingKey {
+    case taxon_rank
     case scientific_name
     case confidence_score
     case distinguishing_feature
@@ -218,6 +219,7 @@ struct EdgeResponse: Codable {
     }
 
     struct IdentificationCandidate: Codable {
+        let taxon_rank: String?
         let scientific_name: String
         let confidence_score: Double
         let distinguishing_feature: String?
@@ -225,6 +227,8 @@ struct EdgeResponse: Codable {
 
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: IdentificationCandidateCodingKeys.self)
+            taxon_rank = container.contains(.taxon_rank)
+                ? try container.decode(String.self, forKey: .taxon_rank) : nil
             scientific_name = try container.decode(String.self, forKey: .scientific_name)
             confidence_score = try container.decode(Double.self, forKey: .confidence_score)
             distinguishing_feature = try container.decodeIfPresent(String.self, forKey: .distinguishing_feature)
@@ -233,6 +237,7 @@ struct EdgeResponse: Codable {
 
         func encode(to encoder: Encoder) throws {
             var container = encoder.container(keyedBy: IdentificationCandidateCodingKeys.self)
+            try container.encodeIfPresent(taxon_rank, forKey: .taxon_rank)
             try container.encode(scientific_name, forKey: .scientific_name)
             try container.encode(confidence_score, forKey: .confidence_score)
             try container.encodeIfPresent(distinguishing_feature, forKey: .distinguishing_feature)
@@ -265,6 +270,7 @@ struct EdgeResponse: Codable {
 
     let scan_id: String?
     let identification_provenance: IdentificationProvenanceDTO?
+    let primary_identification: PrimaryIdentificationDTO?
     let is_biological_subject: Bool?
     let is_live_capture: Bool?
     let ecology_type: String?
@@ -304,6 +310,7 @@ struct EdgeResponse: Codable {
     enum CodingKeys: String, CodingKey {
         case scan_id
         case identification_provenance
+        case primary_identification
         case is_biological_subject
         case is_live_capture
         case ecology_type
@@ -346,6 +353,8 @@ struct EdgeResponse: Codable {
         scan_id = try container.decodeIfPresent(String.self, forKey: .scan_id)
         identification_provenance = container.contains(.identification_provenance)
             ? try container.decode(IdentificationProvenanceDTO.self, forKey: .identification_provenance) : nil
+        primary_identification = container.contains(.primary_identification)
+            ? try container.decode(PrimaryIdentificationDTO.self, forKey: .primary_identification) : nil
         is_biological_subject = try container.decodeIfPresent(Bool.self, forKey: .is_biological_subject)
         is_live_capture = try container.decodeIfPresent(Bool.self, forKey: .is_live_capture)
         ecology_type = try container.decodeIfPresent(String.self, forKey: .ecology_type)
@@ -745,6 +754,57 @@ enum IdentificationProvenanceDTO: Codable {
         }
     }
 }
+
+struct PrimaryIdentificationDTO: Codable {
+    let version: Int
+    let resolution: String
+    let scientific_name: String?
+    let common_name: String?
+
+    enum CodingKeys: String, CodingKey {
+        case version
+        case resolution
+        case scientific_name
+        case common_name
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let rawContainer = try decoder.container(keyedBy: IdentifyWireCodingKey.self)
+        let allowedKeys: Set<String> = ["version", "resolution", "scientific_name", "common_name"]
+        guard rawContainer.allKeys.allSatisfy({ allowedKeys.contains($0.stringValue) }) else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unexpected field in strict identification metadata."))
+        }
+        version = try container.decode(Int.self, forKey: .version)
+        resolution = try container.decode(String.self, forKey: .resolution)
+        scientific_name = try container.decode(String?.self, forKey: .scientific_name)
+        common_name = try container.decode(String?.self, forKey: .common_name)
+        guard version >= 1 && version <= 1 else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+        }
+        guard ["species", "genus", "family", "unresolved_biological", "non_biological"].contains(resolution) else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+        }
+        if let scientific_name {
+            guard scientific_name.utf16.count >= 1 && scientific_name.utf16.count <= 255 else {
+                throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+            }
+        }
+        if let common_name {
+            guard common_name.utf16.count >= 1 && common_name.utf16.count <= 255 else {
+                throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Invalid identification metadata value."))
+            }
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(version, forKey: .version)
+        try container.encode(resolution, forKey: .resolution)
+        try container.encode(scientific_name, forKey: .scientific_name)
+        try container.encode(common_name, forKey: .common_name)
+    }
+}
 // END GENERATED: Identify wire DTOs
 
 enum IdentifySuccessEnvelopeValidator {
@@ -759,7 +819,8 @@ enum IdentifySuccessEnvelopeValidator {
               scanId.count <= 128,
               let confidenceScore = wrapper.data.confidence_score,
               confidenceScore.isFinite,
-              (0.0...1.0).contains(confidenceScore) else {
+              (0.0...1.0).contains(confidenceScore),
+              PrimaryIdentificationResponseValidator.isValid(wrapper.data) else {
             return false
         }
         return true

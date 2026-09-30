@@ -63,7 +63,7 @@ enum InferenceConfidencePolicy {
 }
 
 extension IdentificationResultProvenance {
-    /// Recognizes the shipped photo profile for display estimates only.
+    /// Recognizes the original and observed-traits photo prompts for display estimates only.
     /// Its recorded numeric confidence remains unqualified for other policies.
     var supportsOpenAIPhotoDisplayBands: Bool {
         guard data.count <= 2_048,
@@ -72,7 +72,7 @@ extension IdentificationResultProvenance {
         return value.provider == "openai" && value.binding == "openai_photo_v1" &&
             value.model == "gpt-6-sol" && value.variant == "multimodal" &&
             value.operation == "scan_identification" && value.policy_version == 1 &&
-            value.prompt == "openai_identify_vision_v1" &&
+            ["openai_identify_vision_v1", "openai_identify_vision_observed_traits_v1"].contains(value.prompt) &&
             value.schema == "merian_openai_identify_v1" &&
             value.confidence == "openai_unqualified_v1" &&
             value.diagnostic_trigger == nil && value.prompt_diagnostic_trigger == nil &&

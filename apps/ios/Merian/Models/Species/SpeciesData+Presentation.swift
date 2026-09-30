@@ -81,8 +81,50 @@ extension SpeciesData {
         !isBiological && !isInferenceErrorPlaceholder
     }
 
+    /// A separate selected taxon, never a replacement for the original AI answer.
+    var verifiedConfirmedSpeciesIdentity: ConfirmedSpeciesReview.Identity? {
+        guard isBiological, primaryIdentification?.value != nil,
+              let review = confirmedSpeciesReview,
+              review.matchesIntent(override: userIdentificationOverride,
+                                   confirmed: userConfirmedIdentification,
+                                   state: userIdentificationOverride != nil ? .userOverridden : userConfirmedIdentification ? .aiConfirmed : .unreviewed) else { return nil }
+        return review.identity
+    }
+
+    /// Broad and unresolved biological observations remain usable without a species association.
+    var isShareableBiologicalObservation: Bool {
+        guard isBiological, !isHumanSubject else { return false }
+        if let primaryIdentification { return primaryIdentification.value != nil }
+        return hasResolvedBiologicalIdentification
+    }
+
+    /// This is deliberately separate from a usable genus/family label.
+    var hasSpeciesLevelIdentification: Bool {
+        if let primaryIdentification {
+            return isBiological && primaryIdentification.value?.resolution == .species && userIdentificationOverride == nil
+        }
+        return hasResolvedBiologicalIdentification
+    }
+
+    /// New explicit classifications are durable even when the model abstains
+    /// with zero confidence. Legacy confidence-zero behavior stays unchanged.
+    var requiresSavedRecord: Bool {
+        primaryIdentification?.value != nil || confidenceScore > 0
+    }
+
+    var primaryRankDescription: String? {
+        switch primaryIdentification?.value?.resolution {
+        case .genus: return "Genus-level identification"
+        case .family: return "Family-level identification"
+        default: return nil
+        }
+    }
+
     var hasResolvedBiologicalIdentification: Bool {
         guard isBiological else { return false }
+        if let primaryIdentification {
+            return primaryIdentification.value?.resolution.isNamedBiologicalTaxon == true
+        }
         let effectiveScientificName = userIdentificationOverride ?? scientificName
         guard SpeciesIdentificationResolutionPolicy.isResolved(
             effectiveScientificName
@@ -128,7 +170,7 @@ extension SpeciesData {
     /// Third-party reference photos are not shown for people, domestic cats, or
     /// domestic dogs. Wild felids and canids retain their reference galleries.
     var shouldSuppressReferenceImages: Bool {
-        if !hasResolvedBiologicalIdentification { return true }
+        if !hasSpeciesLevelIdentification { return true }
         return ReferenceImageVisibilityPolicy.shouldSuppress(
             isHumanSubject: isHumanSubject,
             scientificName: scientificName

@@ -12,7 +12,7 @@ struct HistoricalSyncCloudClientTests {
         let session = transport.makeSession()
         defer { session.invalidateAndCancel() }
         transport.register(path: "/rest/v1/scans") { request in
-            #expect(request.value(forHTTPHeaderField: "X-Merian-Identification-Protocol") == "4")
+            #expect(request.value(forHTTPHeaderField: "X-Merian-Identification-Protocol") == "5")
             #expect(request.value(forHTTPHeaderField: "X-Merian-Identification-Recipient") == nil)
             #expect(request.value(forHTTPHeaderField: "X-Merian-Entitlement-Protocol") == nil)
             let url = try #require(request.url)

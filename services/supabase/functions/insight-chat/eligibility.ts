@@ -1,3 +1,7 @@
+import {
+  effectiveIdentification,
+  identificationIsBiological,
+} from "../_shared/identify/effectiveIdentity.ts";
 import type { ChatScanContext, SpeciesDictionaryContext } from "./types.ts";
 
 const HUMAN_IDENTITIES = new Set([
@@ -51,6 +55,13 @@ export function isFieldChatEligibleScan(scan: ChatScanContext): boolean {
   const overrideName = normalizedIdentity(scan.user_identification_override);
   if (HUMAN_IDENTITIES.has(overrideName)) return false;
 
+  const identity = effectiveIdentification(scan);
+  if (identity.source !== "legacy") {
+    return identificationIsBiological(identity) &&
+      ![identity.scientific_name, identity.common_name].some((name) =>
+        HUMAN_IDENTITIES.has(normalizedIdentity(name))
+      );
+  }
   const scientificName = normalizedIdentity(
     selectedSpecies(scan)?.scientific_name,
   );

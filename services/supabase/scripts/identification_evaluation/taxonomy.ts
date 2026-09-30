@@ -30,7 +30,7 @@ export const noIdentityMapping = (): IdentityMapping => ({
   status: "not_applicable",
   match: null,
 });
-const normalizedName = (name: string) =>
+export const normalizedTaxonomyName = (name: string) =>
   name.normalize("NFC").trim().replace(/\s+/gu, " ").toLowerCase();
 
 /** Frozen catalogs only; never consult a provider, live taxonomy service or label. */
@@ -64,7 +64,7 @@ export function parseTaxonomy(value: unknown): Taxonomy {
     const local = new Set<string>();
     for (const name of names) {
       text(name, 255);
-      const key = reviewed ? normalizedName(name) : name.toLowerCase();
+      const key = reviewed ? normalizedTaxonomyName(name) : name.toLowerCase();
       check(key.length > 0 && !local.has(key));
       local.add(key);
       if (!reviewed) {
@@ -92,10 +92,11 @@ export function resolveTaxon(
       },
     };
   }
-  const key = normalizedName(name);
+  const key = normalizedTaxonomyName(name);
   const matches = taxonomy.taxa.flatMap((t) => {
-    const canonical = normalizedName(t.canonicalName) === key;
-    return canonical || t.synonyms.some((n) => normalizedName(n) === key)
+    const canonical = normalizedTaxonomyName(t.canonicalName) === key;
+    return canonical ||
+        t.synonyms.some((n) => normalizedTaxonomyName(n) === key)
       ? [{
         taxon: t.taxon,
         match: canonical ? "canonical" as const : "synonym" as const,

@@ -420,7 +420,7 @@ struct InferenceArchitectureTests {
             "struct HydrationPlan: Equatable, Sendable",
             "struct DeferredContent: Sendable",
             "@MainActor\n    init(",
-            "record.hasResolvedBiologicalIdentification",
+            "record.hasSpeciesLevelIdentification",
             "record.shouldSuppressReferenceImages",
             "taxonomy?.hasUsableLookalikeValidation != true",
             "Task.detached(priority: .userInitiated)",

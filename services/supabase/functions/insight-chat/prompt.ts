@@ -1,3 +1,4 @@
+import { effectiveIdentification } from "../_shared/identify/effectiveIdentity.ts";
 import { identificationMetricsAreGeminiCompatible } from "../_shared/ai/metricCompatibility.ts";
 import { FIELD_CHAT_SPECIES_KNOWLEDGE_RULES } from "../_shared/fieldChat/speciesKnowledge.ts";
 import {
@@ -130,12 +131,28 @@ function formatNumber(
 }
 
 function selectedSpeciesSource(scan: ChatScanContext): string {
+  const identity = effectiveIdentification(scan);
+  if (identity.source !== "legacy") {
+    return identity.source === "verified_selection"
+      ? "Server-verified species selection (taxonomy, not proof of observation)"
+      : identity.source === "ai_primary"
+      ? "Original AI identification"
+      : "Unavailable";
+  }
   if (scan.confirmed_species_id) return "Confirmed species";
   if (scan.species_id) return "Initial AI species";
   return "Unavailable";
 }
 
 function identificationSource(scan: ChatScanContext): string {
+  const identity = effectiveIdentification(scan);
+  if (identity.source !== "legacy") {
+    return identity.verified
+      ? "Verified owner species selection"
+      : identity.pending_review
+      ? "Pending review; no verified species selection"
+      : "Original AI identification";
+  }
   if (trimText(scan.user_identification_override, 160)) {
     return "User corrected identification";
   }
@@ -154,12 +171,26 @@ function identificationSource(scan: ChatScanContext): string {
 export function resolvedSpecies(
   scan: ChatScanContext,
 ): SpeciesDictionaryContext | null {
+  const identity = effectiveIdentification(scan);
+  if (identity.source !== "legacy") {
+    if (!identity.species_id) return null;
+    const selected = identity.verified
+      ? relationValue(scan.confirmed_species)
+      : relationValue(scan.species_dictionary);
+    return selected?.id === identity.species_id ? selected : null;
+  }
   return relationValue(scan.confirmed_species) ??
     relationValue(scan.species_dictionary);
 }
 
 export function buildScanContextBlock(scan: ChatScanContext): string {
   const species = resolvedSpecies(scan);
+  const identity = effectiveIdentification(scan);
+  const explicit = identity.source !== "legacy";
+  const label = explicit
+    ? identity.common_name ?? identity.scientific_name ??
+      "Unidentified organism"
+    : observationLabel(species);
   const taxonomy = [
     species?.kingdom,
     species?.phylum,
@@ -182,11 +213,17 @@ export function buildScanContextBlock(scan: ChatScanContext): string {
     : unscoredCandidates(scan.candidates);
   const rows: string[] = [
     "[SAVED SCAN CONTEXT]",
-    `Observation Label: ${observationLabel(species)}`,
+    `Observation Label: ${label}`,
     `Observed At: ${scan.timestamp}`,
-    `Common Name: ${englishCommonName(species) ?? "Unavailable"}`,
+    `Common Name: ${
+      explicit
+        ? identity.common_name ?? "Unavailable"
+        : englishCommonName(species) ?? "Unavailable"
+    }`,
     `Scientific Name: ${
-      trimText(species?.scientific_name, 160) ?? "Unavailable"
+      (explicit
+        ? identity.scientific_name
+        : trimText(species?.scientific_name, 160)) ?? "Unavailable"
     }`,
     `Taxonomy: ${taxonomy || "Unavailable"}`,
     `Alternative Common Names: ${
@@ -206,12 +243,25 @@ export function buildScanContextBlock(scan: ChatScanContext): string {
     `User Review State: ${
       trimText(scan.user_review_state, 80) ?? "Unavailable"
     }`,
+    ...(explicit
+      ? [
+        `Original AI Identification: ${JSON.stringify(identity.primary)}`,
+        `Current Identification Rank: ${identity.rank ?? "Unavailable"}`,
+        "The original AI explanation, candidates, traits and scores remain about the original answer. A verified selection establishes accepted species taxonomy only; it does not confirm the observation or transfer AI confidence. Pending or community review is not species authority.",
+      ]
+      : []),
     `AI Confidence: ${metric(scan.ai_confidence_score)}`,
     `User Override: ${
       trimText(scan.user_identification_override, 160) ?? "None"
     }`,
     `User Confirmed ID: ${
-      scan.user_confirmed_identification === true ? "Yes" : "No"
+      explicit
+        ? identity.verified
+          ? "Verified species selection"
+          : "No verified species selection"
+        : scan.user_confirmed_identification === true
+        ? "Yes"
+        : "No"
     }`,
     "",
     "[AI-extracted observation traits]",

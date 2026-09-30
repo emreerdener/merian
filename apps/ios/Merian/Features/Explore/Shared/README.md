@@ -184,3 +184,11 @@ detail, Map, hashtag, comment/reply, and notification reply surfaces.
 generations plus locally confirmed reported IDs. `AppDIContainer` injects the
 shared instance into report/post owners and binds dictionary/widget
 invalidation.
+
+## Identification label presentation
+
+`Models/ExploreIdentificationPresentation.swift` supplies public rank and source
+captions for feed cards, map previews and detail. Observer selection and
+community labels retain the original AI label separately in detail. Species-name
+preferences and reference thumbnails are suppressed when the public projection
+cannot support species presentation; map conversions preserve the same metadata.

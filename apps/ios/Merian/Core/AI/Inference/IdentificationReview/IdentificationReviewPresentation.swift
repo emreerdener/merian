@@ -23,6 +23,10 @@ enum IdentificationReviewPresentation {
     ) -> Action {
         var updated = current
         updated.userIdentificationOverride = scientificName
+        if current.primaryIdentification != nil {
+            updated.userConfirmedIdentification = false
+            return Action(speciesData: updated, referenceState: nil)
+        }
         updated.scientificName = scientificName
         updated.commonName = scientificName
         updated.insightData = InsightData(aiReasoning: "", hazardType: "none")
@@ -50,7 +54,7 @@ enum IdentificationReviewPresentation {
         updated.isFlagged = false
         updated.alternativesExhausted = false
         updated.scientificName = scientificName
-        updated.commonName = scientificName
+        updated.commonName = current.primaryIdentification?.value.map { $0.commonName ?? $0.scientificName ?? "Unknown Subject" } ?? scientificName
         updated.insightData = InsightData(
             aiReasoning: aiReasoning,
             hazardType: "none"

@@ -41,8 +41,8 @@ the migration procedure is
 AI-bound adaptation is intentionally outside this directory. Core AI
 [`Models/`](../Core/AI/Models/) owns capture telemetry and the
 `EdgeResponse`-to-`SpeciesData` mapping because those values depend on inference
-runtime and wire declarations. Generated and handwritten wire DTOs remain under
-Core Network.
+runtime and wire declarations. Generated Identify DTOs remain in Core AI; other
+endpoint wire DTOs remain under Core Network.
 
 ## Change Rules
 
@@ -93,3 +93,18 @@ Run project generation, source membership, the focused model suites, and the
 complete unit target after moving or adding Swift sources. The canonical
 selector list is the Models closure matrix in the
 [testing strategy](../../../../docs/development-guides/08-testing-strategy.md).
+
+## V53 primary identification storage
+
+`PrimaryIdentification` retains the immutable AI label and resolution separately
+from dictionary and review fields. Invalid-present bytes remain distinguishable
+from legacy absence. `LocalScanRecord` pairs that snapshot with its provenance
+marker; a required missing snapshot cannot regain legacy species behavior. V53
+adds optional primary and confirmation bytes. `ConfirmedSpeciesReview` strictly
+validates the separate versioned server envelope, including revision and
+nullable identity. A clear remains a stored envelope after reopening. Typed
+overrides and legacy flags describe pending local intent and never manufacture
+authority; a pending selection cannot borrow the previous confirmation's
+identity. V52 snapshots remain frozen and hash-pinned. The complete migration
+and physical install-over requirements live in the schema and startup recovery
+guides; no protocol-5 producer is enabled by this native checkpoint.

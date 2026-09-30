@@ -52,6 +52,9 @@ struct ExploreMapPreviewCard: View {
                         .fontWeight(.semibold)
                         .lineLimit(2)
 
+                    if let rank = post.identification?.rankDescription {
+                        Text(rank).font(.caption).foregroundStyle(.secondary)
+                    }
                     Text(post.speciesScientificName)
                         .font(.subheadline)
                         .italic()

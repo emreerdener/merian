@@ -705,3 +705,15 @@ Challenge data, the post-reset scan boundary, and explicit restart.
 The contract also verifies that publication status stays detail-only, joins the
 requesting owner's active non-deleted publication, and preserves the
 service-role-only template-detail grant.
+
+## Explicit-primary evidence and replacement
+
+Migration `20260929192008_apply_primary_identity_to_shared_consumers.sql` uses
+validated effective species identity for both regular and Event matching. A
+broad result, optimistic confirmation flag or pending typed name cannot earn
+species credit. Full server-verified selection can supply the taxon separately
+from original AI confidence. Receipts and update triggers include primary,
+provenance, full review/revision and effective ID. Replacement removes old
+mismatched contributions before recomputing even if the trip was complete; clear
+withdraws credit and Event completion/badges while retaining goal preferences.
+Legacy evidence behavior remains unchanged.

@@ -28,17 +28,21 @@ extension SpeciesData {
         self.scanId = edgeResponse.scan_id
         self.presentationRole = .inferenceResult
 
+        let primary = edgeResponse.primary_identification.map(PrimaryIdentification.init(dto:))
+        self.primaryIdentification = primary
         let primaryRawNames = edgeResponse.common_name?.components(separatedBy: ",")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
-        let mappedCommonName = primaryRawNames?.first ?? "Unknown Subject"
-        let mappedScientificName = edgeResponse.scientific_name ?? "Taxonomy Unavailable"
+        let mappedCommonName = primary?.value.map { $0.commonName ?? $0.scientificName ?? "Unknown Subject" }
+            ?? primaryRawNames?.first ?? "Unknown Subject"
+        let mappedScientificName = primary?.value?.scientificName ?? edgeResponse.scientific_name ?? "Taxonomy Unavailable"
         let mappedIsBiological = edgeResponse.is_biological_subject ?? true
         let mappedIsHuman = HumanSubjectIdentityPolicy.matches(
             commonName: mappedCommonName,
             scientificNames: [mappedScientificName]
         )
         let mappedHasResolvedTaxon = mappedIsBiological &&
+            (primary == nil || primary?.value?.resolution == .species) &&
             SpeciesIdentificationResolutionPolicy.isResolved(mappedScientificName) &&
             SpeciesIdentificationResolutionPolicy.isResolved(mappedCommonName)
 

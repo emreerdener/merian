@@ -133,17 +133,23 @@ struct InferenceIdentificationReviewService {
         InferenceIdentificationReviewMutation
     ) async throws -> Void
 
+    private let syncVerifiedReviewHandler: @MainActor (VerifiedSpeciesReviewRequest) async throws -> VerifiedSpeciesReviewOutcome
+
     init(
         loadSpecies: @escaping @MainActor (String) async throws
             -> InferenceSpeciesDictionaryRecord?,
         loadSpeciesID: @escaping @MainActor (String) async throws -> String?,
         syncReview: @escaping @MainActor (
             InferenceIdentificationReviewMutation
-        ) async throws -> Void
+        ) async throws -> Void,
+        syncVerifiedReview: @escaping @MainActor (VerifiedSpeciesReviewRequest) async throws -> VerifiedSpeciesReviewOutcome = { _ in
+            throw ConfirmedSpeciesReview.IntegrityError.invalidRequest
+        }
     ) {
         loadSpeciesHandler = loadSpecies
         loadSpeciesIDHandler = loadSpeciesID
         syncReviewHandler = syncReview
+        syncVerifiedReviewHandler = syncVerifiedReview
     }
 
     @MainActor
@@ -163,6 +169,14 @@ struct InferenceIdentificationReviewService {
         _ mutation: InferenceIdentificationReviewMutation
     ) async throws {
         try await syncReviewHandler(mutation)
+    }
+
+    @MainActor
+    func syncVerifiedReview(_ request: VerifiedSpeciesReviewRequest) async throws -> VerifiedSpeciesReviewOutcome {
+        try Task.checkCancellation()
+        let outcome = try await syncVerifiedReviewHandler(request)
+        try Task.checkCancellation()
+        return outcome
     }
 
     static let live = InferenceIdentificationReviewService(
@@ -203,6 +217,28 @@ struct InferenceIdentificationReviewService {
                     )
                     .execute()
             }
+        },
+        syncVerifiedReview: { request in
+            try await withCurrentAccountLease {
+                do {
+                    let receipt = try await MerianNetworkClient.shared.confirmScanSpecies(request)
+                    return .acknowledged(receipt.review)
+                } catch {
+                    guard case MerianError.httpError(409, _) = error,
+                          EdgeFunctionErrorPolicy.stableCode(from: error) == "species_review_revision_conflict" else { throw error }
+                    try Task.checkCancellation()
+                    // Reconcile once; never resubmit the user's action at a new revision.
+                    let rows: [VerifiedSpeciesReviewRefresh] = try await SupabaseManager.shared.client
+                        .from("scans")
+                        .select("id, primary_identification, identification_provenance, confirmed_species_identity, confirmed_species_identity_revision, user_identification_override, user_confirmed_identification, confirmed_species_id, user_review_state")
+                        .eq("id", value: request.scanID).limit(1).execute().value
+                    guard rows.count == 1, let row = rows.first, row.id == request.scanID,
+                          row.review.revision > request.expectedRevision else {
+                        throw ConfirmedSpeciesReview.IntegrityError.invalidEnvelope
+                    }
+                    return .reconciled(row.review)
+                }
+            }
         }
     )
 
@@ -218,7 +254,9 @@ struct InferenceIdentificationReviewService {
         let lease = try manager.beginUnownedAccountBoundWork()
         defer { manager.finishAccountBoundWork(lease) }
 
+        try Task.checkCancellation()
         let value = try await operation()
+        try Task.checkCancellation()
         guard manager.isAccountBoundWorkLeaseCurrent(lease) else {
             throw SupabaseAuthTransitionError.signOutInProgress
         }

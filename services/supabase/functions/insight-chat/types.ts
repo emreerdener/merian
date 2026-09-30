@@ -1,3 +1,4 @@
+import type { SavedIdentificationFields } from "../_shared/identify/effectiveIdentity.ts";
 export const INSIGHT_CHAT_MODEL = "gemini-2.5-flash";
 export const MAX_USER_MESSAGE_CHARS = 600;
 export const MAX_CHAT_MESSAGE_CHARS = 4000;
@@ -104,7 +105,7 @@ export interface InsightChatPromptSuggestionsPayload {
   prompts: InsightChatPromptSuggestionPayload[];
 }
 
-export interface ChatScanContext {
+export interface ChatScanContext extends SavedIdentificationFields {
   id: string;
   user_id: string;
   timestamp: string;

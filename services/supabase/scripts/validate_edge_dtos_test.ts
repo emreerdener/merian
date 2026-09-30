@@ -69,6 +69,7 @@ Deno.test("contract definitions fail closed through bounded numeric coverage", (
     "Insight",
     "OpenAIGeneration",
     "PetIdentificationDTO",
+    "PrimaryIdentificationDTO",
     "ScanEntitlementMetadataDTO",
     "SpeciesInsights",
     "Taxonomy",
@@ -106,8 +107,8 @@ Deno.test("Swift generation owns nested structure, types, keys, and decoders", (
   assert.match(generated, /struct IdentificationCandidate: Codable/);
   assert.strictEqual(
     generated.match(/rawContainer\.allKeys\.allSatisfy/g)?.length,
-    4,
-    "Both provenance versions and their generation objects reject unknown wire keys",
+    5,
+    "Provenance versions, generation objects and the primary snapshot reject unknown wire keys",
   );
   assert.match(
     generated,

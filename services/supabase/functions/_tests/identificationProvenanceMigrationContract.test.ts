@@ -109,3 +109,65 @@ Deno.test("result readers preserve visibility and fail explicitly before legacy 
     "IdentificationDispatchAuthorization.currentProtocol",
   );
 });
+
+Deno.test("primary-resolution foundation remains dormant and excludes client recovery authority", async () => {
+  const base = new URL("../../", import.meta.url);
+  const sql = await Deno.readTextFile(
+    new URL(
+      "migrations/20260929144441_prepare_primary_identification_resolution.sql",
+      base,
+    ),
+  );
+  assert(
+    !/\b(?:INSERT INTO|UPDATE) internal\.(?:identification_provider_bindings|ai_quota_policies)\b/
+      .test(sql),
+  );
+  assert(!sql.includes("p_recovery_scan"));
+  assert(!/GRANT (?:INSERT|UPDATE)/.test(sql));
+  const recovery = await Deno.readTextFile(
+    new URL("functions/_shared/scanRecovery.ts", base),
+  );
+  assert(!recovery.includes("primary_identification"));
+  const native = await Deno.readTextFile(
+    new URL(
+      "../../apps/ios/Merian/Core/Network/Inference/IdentificationPreflight.swift",
+      base,
+    ),
+  );
+  assertStringIncludes(native, "static let currentProtocol = 5");
+});
+
+Deno.test("shared primary consumers preserve activation, privilege and frozen export boundaries", async () => {
+  const sql = await Deno.readTextFile(
+    new URL(
+      "../../migrations/20260929192008_apply_primary_identity_to_shared_consumers.sql",
+      import.meta.url,
+    ),
+  );
+  // This is a consumer expansion, not authority to activate a producer or export
+  // or to rewrite source rows already frozen for resumable archive work.
+  assert(
+    !/\b(?:UPDATE|INSERT INTO|DELETE FROM)\s+internal\.(?:identification_provider_bindings|ai_quota_policies|dwca_export_release_control|export_job_source_rows)\b/i
+      .test(sql),
+  );
+  assert(
+    !/\b(?:CREATE|ALTER|DROP)\s+POLICY\b|\bGRANT\s+(?:USAGE|SELECT|INSERT|UPDATE)\b/i
+      .test(sql),
+  );
+  const cards = sql.slice(
+    sql.indexOf(
+      "CREATE OR REPLACE FUNCTION public.explore_projected_post_cards",
+    ),
+    sql.indexOf("DROP FUNCTION public.get_explore_feed"),
+  );
+  assert(cards.length > 0);
+  assert(!/SECURITY\s+DEFINER|internal\./i.test(cards));
+  assertStringIncludes(cards, "SET search_path TO ''");
+  const native = await Deno.readTextFile(
+    new URL(
+      "../../../../apps/ios/Merian/Core/Network/Inference/IdentificationPreflight.swift",
+      import.meta.url,
+    ),
+  );
+  assertStringIncludes(native, "static let currentProtocol = 5");
+});

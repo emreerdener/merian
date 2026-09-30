@@ -1301,11 +1301,12 @@ The transaction log for every successful identification.
   model text, account/request/reservation IDs or timing. These fixed facts
   intentionally share the scan's existing public/owner Data API visibility;
   curated Explore responses omit the full value. Identify responses include the
-  optional non-null value, and owner history preserves it in native V52 storage.
-  Migration `20260926160249_persist_identification_result_provenance.sql`
-  enforces an exact bounded shape and atomically stores a recovery copy in the
-  matching ingestion job. Existing rows remain null; updates, including guessed
-  legacy backfills, are rejected. See the
+  optional non-null value, and owner history preserves it in native storage
+  introduced by V52. Migration
+  `20260926160249_persist_identification_result_provenance.sql` enforces an
+  exact bounded shape and atomically stores a recovery copy in the matching
+  ingestion job. Existing rows remain null; updates, including guessed legacy
+  backfills, are rejected. See the
   [provenance record](../rfcs/identification-provider-result-provenance-2026-09-26.md).
   Forward migration
   `20260927165545_accept_openai_identification_provenance_v2.sql` preserves the
@@ -1313,13 +1314,46 @@ The transaction log for every successful identification.
   `reasoning_effort`, `image_detail`). The 2 KiB bound, existing columns,
   triggers, privileges and rows remain unchanged. V2 receives no Gemini metric
   interpretation and enables no provider assignment.
+- `primary_identification` (JSONB, nullable): Dormant explicit AI answer
+  snapshot, added by
+  `20260929144441_prepare_primary_identification_resolution.sql`. Exactly four
+  keys: version 1, one of five supported resolutions, and required nullable
+  scientific/common labels. Strict 4 KiB and 255 UTF-16-unit name bounds match
+  the wire validator. This is observation content under the existing scan
+  visibility/retention policy, not content-free provenance. Only the reserved
+  `merian_identify_primary_v1` provenance schema may and must carry it. Current
+  profiles leave it null; no historical rank backfill occurs. Immutable triggers
+  reject replacement, and client column INSERT/UPDATE remain revoked. A
+  non-species snapshot cannot carry `species_id`, candidates or pet
+  identification; the biological flag must agree. Species alternatives require
+  their own species rank and at most two entries. Independently verified
+  `confirmed_species_id` is a separate identity. Native and shared consumers now
+  preserve the original answer while separately evaluating full verified review
+  authority. The native reader source advertises capability 5; current producer
+  assignments and binding minima remain unchanged.
+- `confirmed_species_identity` (JSONB, nullable) and
+  `confirmed_species_identity_revision` (INTEGER, initially 0): Migration
+  `20260929170458_prepare_verified_scan_species_review.sql` prepares
+  service-owned review authority only for explicit-primary scans. The bounded
+  identity stores version 1, verified dictionary UUID/canonical name, null
+  common name and GBIF key. A service mutation advances revision for
+  confirmation, replacement or clear; an exact preceding-revision retry may
+  return the same receipt. Original AI metadata never changes. Legacy edits
+  invalidate both identity and confirmed FK, preserving review intent and
+  advancing revision. Current legacy scans keep null identity/revision zero.
+  There is no historical confirmation backfill or client write grant. Names
+  follow existing scan visibility and retention; verification establishes
+  taxonomy, not photographic correctness or calibrated model confidence.
 - Result-reader compatibility: migration
   `20260927185833_require_identification_result_reader.sql` adds an invoker
   capability check inside the original owner/public SELECT policy predicates.
-  Visible V2 results require `X-Merian-Identification-Protocol: 4`; unsupported
-  readers receive `PT426` / `client_update_required` for the whole query.
-  Null/V1 reads, visibility predicates, service-role reads and write grants are
-  unchanged. No row, score or provenance is rewritten. See the
+  Visible V2 results require exact identification protocol 4 or 5; explicit
+  primary results and their reserved schema require exactly 5. Native source
+  advertises 5 after consumer integration; deploy the additive backend before
+  distributing that app. Unsupported readers receive `PT426` /
+  `client_update_required` for the whole query. Null/V1 reads, visibility
+  predicates, service-role reads and write grants are unchanged. No row, score
+  or provenance is rewritten. See the
   [reader contract](./05-api-contracts.md#identification-result-readers) for
   current-request replay checks and the required reader-first release order.
 - Metric interpretation: the service-only pure helper
@@ -2328,6 +2362,25 @@ path; supplied client provenance is ignored. Old jobs remain null. Provenance
 survives ordinary retries and owner merge without changing its contents. The
 backup follows the job's existing access and Auth-owner cascade; retained
 scientific scan tombstones keep their content-free value.
+
+`primary_identification` is the nullable server-owned answer backup. The
+existing `copy_scan_identification_provenance` trigger now copies both fields in
+one update, avoiding an intermediate violation of their schema/snapshot pairing.
+Missing-row recovery restores only the exact owner/scan backup, validates the
+recovered biological flag and species association, and ignores client-supplied
+primary JSON. A mismatch or missing required snapshot fails atomically. Existing
+job retention, deletion and owner rules remain in effect. No current producer
+writes this reserved contract.
+
+`confirmed_species_review` is a nullable 8 KiB version-1 envelope containing the
+revision, independent nullable identity and all four legacy review fields. Scan
+creation and review mutations copy it atomically to the exact owner/job with
+matching primary and provenance. Recovery restores that envelope in a BEFORE
+INSERT trigger; absent backup clears client-supplied review fields. This
+includes an explicit clear, so a stale device cannot resurrect confirmation. Job
+writes must match the owned scan; account merge rebinds the backup, and deletion
+requests, row deletion and owner removal clear its observation content. No new
+index or retention job is introduced.
 
 Durable server-side lifecycle ledger for accepted scan ingestion requests. Added
 in migration `20260705120000_add_scan_ingestion_jobs.sql`.
@@ -4327,21 +4380,24 @@ role can read or write either table directly.
 Migration `20260927175708_prepare_openai_photo_routing.sql` adds nullable
 `provider_model` to bindings and attempts. NULL is valid only for the exact
 Gemini tuple and uses that saved quota `model`. The exact OpenAI photo tuple
-requires `gpt-6-sol`, its OpenAI recipient and identification capability 4.
-Binding keys, quota policies and current assignments remain unchanged.
-Photo-only model selection therefore does not change audio/video/content quota
-policy.
+requires `gpt-6-sol`, its OpenAI recipient and minimum identification capability
+4 (accepted readers 4 or 5 after the primary-resolution migration). Binding
+keys, quota policies and current assignments remain unchanged. Photo-only model
+selection therefore does not change audio/video/content quota policy.
 
 The same migration adds binding `minimum_identification_protocol` (0 or 4), and
 attempt minimum/accepted capability snapshots (historical NULL remains unknown).
-The new eleven-argument service reservation snapshots the selected execution
-model and capability atomically, returns the saved execution model, and retains
-all quota-model/policy invariants. The new six-argument authenticated preflight
-returns the separate capability minimum. Old ABIs cannot freshly admit an
-alternate provider. Private `require_identification_capability` scopes internal
-replay proof to the original owner/operation/observation/profile/current
-attempt; worker headers cannot upgrade missing proof. Entitlement protocol stays
-1–3.
+The primary-resolution forward migration recognizes accepted claims 4 and 5
+while retaining all binding minima and the exact existing OpenAI tuple at
+minimum 4. It neither rewrites prior attempts nor admits a new minimum-5
+producer. The new eleven-argument service reservation snapshots the selected
+execution model and capability atomically, returns the saved execution model,
+and retains all quota-model/policy invariants. The new six-argument
+authenticated preflight returns the separate capability minimum. Old ABIs cannot
+freshly admit an alternate provider. Private `require_identification_capability`
+scopes internal replay proof to the original
+owner/operation/observation/profile/current attempt; worker headers cannot
+upgrade missing proof. Entitlement protocol stays 1–3.
 
 The scan usage trigger remains the single successful primary ledger writer.
 OpenAI uses `openai_responses_tokens_v1` and retains bounded native output and
@@ -5400,14 +5456,16 @@ snapshot SHA-256 values, so a property, annotation, default, relationship,
 initializer, or helper edit requires an explicit historical-shape review.
 `SchemaV51Snapshots.swift` freezes all eight `MerianSchemaV51` model classes and
 their relationships; the unchanged goal-hint companion retains its V50 owner.
-`MerianSchemaV52` owns the active global models. Disk migration suites create
-source stores from the frozen snapshots, migrate V49 through V50 and V51 into
-V52, and migrate both V50 graphs through their source-isolated custom plans. The
-V51 fixture verifies production metadata selection and preserves scan, media,
-collection, preference, queue, event, deletion and goal-hint state while adding
-nullable provenance, then verifies a current-schema reopen. That proves
-candidate self-consistency; genuine released-binary physical install-over and
-second-launch gates remain separate release evidence.
+`MerianSchemaV53` owns the active global models. V52 is independently frozen in
+`SchemaV52ScanSnapshots.swift` and `SchemaV52QueueSnapshots.swift`. Disk
+migration suites create source stores from the frozen snapshots, migrate V49
+through V50 and V51 into V53, and migrate both V50 graphs through their
+source-isolated custom plans. The V51 fixture verifies production metadata
+selection and preserves scan, media, collection, preference, queue, event,
+deletion and goal-hint state while adding nullable provenance, then verifies a
+current-schema reopen. That proves candidate self-consistency; genuine
+released-binary physical install-over and second-launch gates remain separate
+release evidence.
 
 There is **no direct model list** in `MerianApp.swift`. The app dynamically
 inherits `CurrentSchema` and the active global models. A schema bump must still
@@ -5432,7 +5490,7 @@ each new row into the migration `ModelContext` before assigning the
 relationship; relationship assignment alone is not a durable insert path while
 SwiftData is inside staged store migration.
 
-The current active schema is `MerianSchemaV52`. Recent milestones:
+The current active schema is `MerianSchemaV53`. Recent milestones:
 
 - V38 added single-value audio/context storage (`audioFilePath`,
   `observationContextJSON`) to both local and offline scan models.
@@ -5472,21 +5530,22 @@ The current active schema is `MerianSchemaV52`. Recent milestones:
   directly to V49 from source-isolated V44→V49, V45→V49, and V46→V49 plans so
   SwiftData never migrates unchanged entities across duplicate-prone recent
   representatives. App startup reads store metadata before creating
-  `ModelContainer`: fresh/current V52 stores open without a migration plan,
+  `ModelContainer`: fresh/current V53 stores open without a migration plan,
   known recent stores use the source-isolated
-  V51/V50/V49/V48/V47/V46/V45/V44/V43/V42 plans, and only unknown older stores
-  use the full historical plan. V51 needs only lightweight V51→V52. Each V50
-  plan contains its custom V50→V51 preference-ownership stage followed by
-  V51→V52; the V49 plan prepends the required lightweight V49→V50 hop. Immediate
-  predecessors therefore never validate unrelated history. The V42 and V43
-  recent plans jump directly to V49 to avoid validating older full-historical
-  custom stages and to keep V42 off the older V42→V43 bridge that still failed
-  on real TestFlight stores, while V45 and V46 deliberately use one matching
-  source representative each before the V49 repair target. Stores that still hit
-  SwiftData's duplicate-checksum validator during plan construction retry with
-  the same source-isolated recent plans before legacy rescue or safe mode. Safe
-  mode itself creates an empty in-memory V52 container without any migration
-  plan; it does not validate this historical ladder again.
+  V52/V51/V50/V49/V48/V47/V46/V45/V44/V43/V42 plans, and only unknown older
+  stores use the full historical plan. V52 needs only lightweight V52→V53; V51
+  uses V51→V52→V53. Each V50 plan contains its custom V50→V51
+  preference-ownership stage followed by V51→V52→V53; the V49 plan prepends the
+  required lightweight V49→V50 hop. Immediate predecessors therefore never
+  validate unrelated history. The V42 and V43 recent plans jump directly to V49
+  to avoid validating older full-historical custom stages and to keep V42 off
+  the older V42→V43 bridge that still failed on real TestFlight stores, while
+  V45 and V46 deliberately use one matching source representative each before
+  the V49 repair target. Stores that still hit SwiftData's duplicate-checksum
+  validator during plan construction retry with the same source-isolated recent
+  plans before legacy rescue or safe mode. Safe mode itself creates an empty
+  in-memory V53 container without any migration plan; it does not validate this
+  historical ladder again.
 - V47 added `OfflineQueuedScan.inferenceImagePaths` and `visualMediaItemsJSON`
   so queued video replay can keep sampled inference frames separate from the
   user-visible playback video timeline.
@@ -5520,7 +5579,7 @@ The current active schema is `MerianSchemaV52`. Recent milestones:
   `MerianReleasedActiveSchemaV50`; unknown V50 checksums fail closed. Separate
   disk fixtures verify both graphs, tombstone true/false values, relationships,
   and the goal-hint companion through their source-exact V50→V51 stages and the
-  shared V51→V52 tail.
+  shared V51→V52→V53 tail.
 - V51 makes `UserSpeciesPreference` account-scoped. Its stable unique ID
   combines the owner UUID and normalized scientific name, while `ownerUserId`
   supports bounded account queries. The custom V50→V51 stage discards
@@ -5537,9 +5596,28 @@ The current active schema is `MerianSchemaV52`. Recent milestones:
   lightweight V51→V52 migration. It stores the bounded, content-free execution
   metadata from Identify and owner history. Nil preserves legacy semantics;
   present unknown or malformed metadata cannot use Gemini confidence bands. All
-  existing plans append this stage and the immediate-predecessor
-  `MerianRecentV51MigrationPlan` validates only V51 and V52. No other stored
-  property changes; outgoing V51 was frozen and compiled before active edits.
+  plans retain this stage. At its introduction, the V51 plan validated only V51
+  and V52; it now appends the V53 stage. No other stored property changed in
+  V52; outgoing V51 was frozen and compiled before active edits. The frozen
+  `MerianSchemaV52` preserves that graph for upgrades to V53.
+
+- V53 adds optional `LocalScanRecord.primaryIdentificationData` and reserved
+  `confirmedSpeciesIdentityData` through lightweight V52→V53. Both remain nil
+  for existing observations. V52 was frozen and compiled before editing the
+  active model. Every older plan appends the stage, and
+  `MerianRecentV52MigrationPlan` contains only V52 and V53. The primary bytes
+  preserve the versioned original AI label and resolution independently of
+  dictionary enrichment or review. Required missing, malformed or unpaired
+  snapshots remain integrity failures, never legacy results. Duplicate explicit
+  completions preserve saved review/media state and reject conflicting identity
+  or provenance. The native review checkpoint now stores the strictly validated
+  server review envelope in the confirmation field: revision, nullable identity
+  and mirrored review tuple. An authoritative clear retains its revision after
+  reopening. No legacy boolean, typed override, dictionary UUID or arbitrary
+  stored bytes establishes this authority. History and acknowledgements merge
+  under one fresh-context transaction gate; pending local intent remains
+  separate. This consumer adds no persisted field or migration and does not
+  enable a protocol-5 producer.
 
 **Edge DTO Layer** (`apps/ios/Merian/Core/AI/InferenceEdgeDTOs.swift`): The
 marked Identify `EdgeResponseWrapper` / `EdgeResponse` graph is generated from
@@ -5776,7 +5854,7 @@ with non-optional defaults (`queueAttemptCount = 0`, `queueUpdatedAt = now`,
 ### `OfflineQueuedScanGoalHint`
 
 Added in released `MerianSchemaV50` and retained through the
-`ActiveOfflineQueuedScanGoalHint` alias in current V52 source. This optional
+`ActiveOfflineQueuedScanGoalHint` alias in current V53 source. This optional
 companion exists only for a queued scan submitted from an eligible live Capture
 goal selection.
 
@@ -6109,7 +6187,7 @@ A top-level album type associated with `LocalScanRecord` nodes, added in
 - `createdAt`: Date
 - `scans`: [LocalScanRecord]? (Inverse `@Relationship` using IDs rather than
   encoded objects, reducing memory pressure.)
-- `isPendingDeletion`: Bool (Active V52 application tombstone, mapped to the
+- `isPendingDeletion`: Bool (Active V53 application tombstone, mapped to the
   released `isDeleted` column with `@Attribute(originalName:)`; the value is
   explicitly projected to the unchanged `is_deleted` Edge field for safe cloud
   erasure instead of destructive state-diffs.)
@@ -6120,7 +6198,7 @@ schema identifier. The original graph is retained in
 `isDeleted` property. The processed later-release graph is retained separately
 in `apps/ios/Merian/Models/Schema/SchemaV50ReleasedActiveSnapshots.swift`; it
 has the exact `isPendingDeletion` Swift property and
-`@Attribute(originalName: "isDeleted")` mapping emitted by that binary. The V52
+`@Attribute(originalName: "isDeleted")` mapping emitted by that binary. The V53
 active model retains the same unambiguous name and wire contract.
 
 `MerianActiveSchemaV50` bridges the original V50 graph, while
@@ -6130,13 +6208,13 @@ selects only the matching allowlisted graph before the custom V50→V51
 preferred-name migration; an unknown V50 signature is preserved through rescue
 instead of guessed. Neither stage alters collection state. The V49
 source-isolated plan contains V49→V50 and V50→V51 hops through the original
-bridge, followed by V51→V52; older recent lanes use the same tail after their
-source-specific repair.
+bridge, followed by V51→V52→V53; older recent lanes use the same tail after
+their source-specific repair.
 
 Disk-backed fixtures create both V50 graphs and verify metadata-based
 `.recentSource(.v50)` selection plus checksum-variant selection, true and false
 tombstones, relationship retention, the V50 goal-hint companion,
-unowned-preference removal, and a V52 relaunch. Collection mutation and
+unowned-preference removal, and a V53 relaunch. Collection mutation and
 database-actor tests cover save/refetch persistence, exact `is_deleted`
 projection, inbound tombstone shielding, and acknowledgement-only purge. The
 source-only rename does not invent delete intent for assignments that were never

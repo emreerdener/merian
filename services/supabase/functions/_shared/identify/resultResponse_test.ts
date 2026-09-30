@@ -115,7 +115,12 @@ function request(endpoint: string, protocol: string | null): Request {
 
 type Stage = "initial" | "quota" | "ingestion";
 type Source = "stored" | "reconstructed";
-function database(stage: Stage, source: Source) {
+function database(
+  stage: Stage,
+  source: Source,
+  savedScan: CompletedScanResponseRow = scan,
+) {
+  const savedEnvelope = buildCompletedIdentifyEnvelope(savedScan, null);
   const events: string[] = [];
   let complete = stage === "initial";
   const response = (data: unknown) => {
@@ -208,14 +213,17 @@ function database(stage: Stage, source: Source) {
               complete
                 ? {
                   status: "complete",
-                  response_envelope: source === "stored" ? envelope : null,
+                  response_envelope: source === "stored" ? savedEnvelope : null,
+                  identification_provenance:
+                    savedScan.identification_provenance,
+                  primary_identification: savedScan.primary_identification,
                 }
                 : null,
             );
           }
           if (table === "scans") {
             assert(complete);
-            return response(scan);
+            return response(savedScan);
           }
           throw new Error(`Unexpected table: ${table}`);
         },
@@ -316,7 +324,7 @@ Deno.test("result emission preserves legacy reads and requires exact V2 reader s
   }, null);
   assertEquals(await identifyResultResponse(req, v1).json(), v1);
   for (const source of ["stored", "reconstructed"] as const) {
-    for (const protocol of [null, "3", "04", "4.0", "5", "4, 4"]) {
+    for (const protocol of [null, "3", "04", "4.0", "6", "4, 4"]) {
       assertEquals(
         completedIdentifyResponse(request("identify", protocol), {
           envelope,
@@ -340,4 +348,80 @@ Deno.test("result emission preserves legacy reads and requires exact V2 reader s
     await identifyResultResponse(request("identify", "4"), envelope).json(),
     envelope,
   );
+});
+
+Deno.test("primary replay requires protocol 5 at every handler and completion branch", async () => {
+  const primaryScan: CompletedScanResponseRow = {
+    ...scan,
+    candidates: null,
+    is_biological_subject: true,
+    identification_provenance: {
+      ...provenance,
+      schema: "merian_identify_primary_v1",
+    },
+    primary_identification: {
+      version: 1,
+      resolution: "genus",
+      scientific_name: "Examplea",
+      common_name: "Synthetic genus",
+    },
+  };
+  const expected = buildCompletedIdentifyEnvelope(primaryScan, null);
+  const stripped = {
+    ...expected,
+    data: { ...expected.data, primary_identification: undefined },
+  };
+  assertEquals(
+    identifyResultResponse(request("identify", "4"), stripped).status,
+    426,
+  );
+  const original = Deno.env.get("AI_QUOTA_IP_HASH_SECRET");
+  const log = console.log, error = console.error;
+  try {
+    Deno.env.set(
+      "AI_QUOTA_IP_HASH_SECRET",
+      "synthetic-reader-test-only".repeat(2),
+    );
+    console.log = console.error = () => {};
+    for (const [endpoint, handler] of Object.entries(handlers)) {
+      for (const stage of ["initial", "quota", "ingestion"] as const) {
+        for (const source of ["stored", "reconstructed"] as const) {
+          for (const protocol of ["4", "5"]) {
+            const db = database(stage, source, primaryScan);
+            const result = await handler(
+              request(endpoint, protocol),
+              user,
+              db.client,
+            );
+            assertEquals(
+              result.status,
+              protocol === "5" ? 200 : 426,
+              `${endpoint}/${stage}/${source}/${protocol}`,
+            );
+            const body = await result.json();
+            if (protocol === "5") assertEquals(body, expected);
+            else {
+              assertEquals(body.code, "client_update_required");
+              assert(!("data" in body));
+            }
+          }
+        }
+      }
+    }
+    for (const protocol of [null, "3", "05", "5.0", "6"]) {
+      assertEquals(
+        identifyResultResponse(request("identify", protocol), expected).status,
+        426,
+      );
+    }
+    assertEquals(
+      await identifyResultResponse(request("identify", "5"), envelope).json(),
+      envelope,
+    );
+  } finally {
+    if (original === undefined) Deno.env.delete("AI_QUOTA_IP_HASH_SECRET");
+    else Deno.env.set("AI_QUOTA_IP_HASH_SECRET", original);
+    console.log = log;
+    console.error = error;
+  }
 });

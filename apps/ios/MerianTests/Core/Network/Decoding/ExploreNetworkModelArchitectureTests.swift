@@ -100,6 +100,7 @@ struct ExploreNetworkModelArchitectureTests {
         "CommunityIdentificationAPIModels.swift",
         "ExploreAuthorProfileAPIModels.swift",
         "ExploreBrowsingAPIModels.swift",
+        "ExploreIdentification.swift",
         "ExploreBrowsingQueryModels.swift",
         "ExploreCommentAPIModels.swift",
         "ExploreLocationSharingAPIModels.swift",

@@ -153,6 +153,8 @@ struct ExplorePost: Decodable, Identifiable, Equatable {
     let hashtags: [String]?
     let speciesCommonName: String
     let speciesScientificName: String
+    // swiftlint:disable:next implicit_optional_initialization
+    var identification: ExploreIdentification? = nil
     let petIdentification: PetIdentification?
     let publicLocationLabel: String?
     let locationSharing: ExplorePostLocationSharing?
@@ -192,6 +194,7 @@ struct ExplorePost: Decodable, Identifiable, Equatable {
     }
 
     func gridThumbnailUrl(localReferenceUrl: String?) -> String {
+        guard identification?.permitsSpeciesPresentation != false else { return heroImageUrl }
         let serverReferenceUrl = referenceThumbnailUrl?
             .trimmingCharacters(in: .whitespacesAndNewlines)
         let localReferenceUrl = localReferenceUrl?

@@ -374,7 +374,7 @@ final class ExploreFeedViewModel {
 
     func refreshPreferredSpeciesNames(modelContext: ModelContext) {
         refreshPreferredSpeciesNames(
-            for: store.allPosts.map(\.speciesScientificName),
+            for: store.allPosts.filter { $0.identification?.permitsSpeciesPresentation != false }.map(\.speciesScientificName),
             modelContext: modelContext
         )
     }
@@ -406,6 +406,7 @@ final class ExploreFeedViewModel {
     }
 
     func resolvedSpeciesCommonName(for post: ExplorePost) -> String {
+        if post.identification?.permitsSpeciesPresentation == false { return post.speciesCommonName }
         if let petLabel = post.petIdentification?.label.trimmingCharacters(in: .whitespacesAndNewlines),
            !petLabel.isEmpty {
             return petLabel

@@ -43,16 +43,17 @@ struct InferenceHistoricalRecordProjection: Sendable {
         resetLocalLookalikes: Bool
     ) {
         let allowsSpeciesHydration =
-            record.hasResolvedBiologicalIdentification &&
+            record.hasSpeciesLevelIdentification &&
             !record.isHumanSubject
         let allowsReferenceImages =
             allowsSpeciesHydration &&
             !record.shouldSuppressReferenceImages
         let shouldResetLocalLookalikes =
             allowsSpeciesHydration && resetLocalLookalikes
-        let overrideScientificName = record.userIdentificationOverride
+        let primary = record.primaryIdentification
+        let overrideScientificName = primary == nil ? record.userIdentificationOverride : nil
         let displayedScientificName =
-            overrideScientificName ?? record.scientificName
+            primary?.value?.scientificName ?? overrideScientificName ?? record.scientificName
         let displayedAIReasoning = overrideScientificName == nil
             ? (record.aiReasoning ?? "")
             : ""
@@ -109,7 +110,7 @@ struct InferenceHistoricalRecordProjection: Sendable {
         self.overrideScientificName = overrideScientificName
         self.mediaSnapshot = record.capturedMediaSnapshot
         self.referenceImageURL = referenceImageURL
-        self.gbifTaxonKey = record.gbifTaxonKey
+        self.gbifTaxonKey = allowsSpeciesHydration ? record.gbifTaxonKey : nil
         self.hydrationPlan = HydrationPlan(
             allowsSpeciesHydration: allowsSpeciesHydration,
             allowsReferenceImages: allowsReferenceImages,
@@ -125,7 +126,8 @@ struct InferenceHistoricalRecordProjection: Sendable {
         )
         self.speciesData = SpeciesData(
             scanId: record.id,
-            commonName: record.commonName,
+            presentationRole: primary != nil && primary?.value == nil ? .inferenceError : .inferenceResult,
+            commonName: primary?.value.map { $0.commonName ?? $0.scientificName ?? "Unknown Subject" } ?? record.commonName,
             scientificName: displayedScientificName,
             insightData: InsightData(
                 aiReasoning: displayedAIReasoning,
@@ -134,8 +136,8 @@ struct InferenceHistoricalRecordProjection: Sendable {
             confidenceScore: record.confidenceScore ?? 0,
             blurScore: nil,
             similarSpecies: nil,
-            wikipediaUrl: record.wikipediaUrl,
-            wikipediaOverview: record.wikipediaOverview,
+            wikipediaUrl: allowsSpeciesHydration ? record.wikipediaUrl : nil,
+            wikipediaOverview: allowsSpeciesHydration ? record.wikipediaOverview : nil,
             referenceImageUrl: referenceImageURL,
             isBiological: record.isBiological,
             isLiveCapture: record.isLiveCapture,
@@ -153,7 +155,7 @@ struct InferenceHistoricalRecordProjection: Sendable {
             gpsLongitude: record.gpsLongitude,
             colors: nil,
             groupTags: nil,
-            iucnRedListStatus: record.iucnRedListStatus,
+            iucnRedListStatus: allowsSpeciesHydration ? record.iucnRedListStatus : nil,
             zoomFactor: record.zoomFactor,
             estimatedSizeCm: record.estimatedSizeCm,
             lifeStage: record.lifeStage,
@@ -164,7 +166,7 @@ struct InferenceHistoricalRecordProjection: Sendable {
             individualCount: record.individualCount,
             ecologicalInteractions: record.ecologicalInteractions,
             aiReasoning: record.aiReasoning,
-            habitatDescription: record.habitatDescription,
+            habitatDescription: allowsSpeciesHydration ? record.habitatDescription : nil,
             gbifTaxonKey: allowsSpeciesHydration
                 ? record.gbifTaxonKey
                 : nil,
@@ -172,6 +174,8 @@ struct InferenceHistoricalRecordProjection: Sendable {
             identificationProvenance: record.identificationProvenanceData.map {
                 IdentificationResultProvenance(storedData: $0)
             },
+            primaryIdentification: primary,
+            confirmedSpeciesReview: record.confirmedSpeciesReview,
             alternativeCommonNames: allowsSpeciesHydration
                 ? record.alternativeCommonNames
                 : nil,
@@ -181,7 +185,7 @@ struct InferenceHistoricalRecordProjection: Sendable {
             candidates: nil,
             imageQualityScore: record.imageQualityScore,
             aiScientificName: record.scientificName,
-            userIdentificationOverride: overrideScientificName,
+            userIdentificationOverride: record.userIdentificationOverride,
             userConfirmedIdentification: record.userConfirmedIdentification,
             isFlagged: record.isFlagged
         )

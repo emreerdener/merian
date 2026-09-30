@@ -19,11 +19,12 @@ also passed offline preflight with provisional references and no model calls.
 Its completed
 [six-photo app benchmark](../../../../docs/rfcs/identification-source-photo-app-benchmark-2026-09-22.md)
 records ordinary-app outcomes and passive measurements separately from the
-direct evaluator's dry schedule. Gemini remains the only production provider;
-video evidence is ordered snapshots and included WAV audio, never a playback
-video.
+direct evaluator's dry schedule. At that September 22 checkpoint, Gemini was the
+only production provider. The later beta OpenAI photo binding is described
+below. Video evidence is ordered snapshots and included WAV audio, never a
+playback video.
 
-Current direction, 27 September 2026: the
+Checkpoint, 27 September 2026: the
 [matched Gemini/OpenAI comparison](../../../../docs/rfcs/identification-gemini-openai-matched-results-2026-09-27.md)
 completed all sixteen scheduled attempts. The
 [current optimization plan](../../../../docs/rfcs/identification-optimization-preserving-results-2026-09-27.md)
@@ -32,6 +33,25 @@ The earlier concise screen remains closed; the commands and profiles below
 remain executable contracts, not instructions to restart it or spend its unused
 allocation. Formal reviewed-corpus counts and qualification requirements are
 unchanged.
+
+Current direction, 29 September 2026: finish OpenAI optimization before
+calibrating confidence for the selected configuration. The new
+[observed-traits candidate](../../../../docs/rfcs/identification-openai-observed-traits-candidate-2026-09-29.md)
+is a pure offline request projection; none of this directory's runners admits
+its identity. It preserves explanation format and changes two fixed-count trait
+directions. The owner chose targeted regression checks and ordinary beta smoke
+scans for this narrow wording change, followed by confidence calibration on the
+final configuration. No new comparison controller or paired run is planned.
+Normal release controls still apply; completed experiments and budgets remain
+closed.
+
+The
+[retained-evidence audit](../../../../docs/rfcs/identification-openai-confidence-evidence-audit-2026-09-29.md)
+verified eighteen compatible controls but only six distinct photos, with no
+Strong-band biological result and no assessable Weak identity result. Retain
+provisional display cutoffs; calibration collection resumes after configuration
+selection. Changed-prompt results cannot be pooled with unchanged-profile
+scores.
 
 The later
 [description app benchmark](../../../../docs/rfcs/identification-description-app-benchmark-2026-09-22.md)
@@ -60,7 +80,8 @@ reviewed-corpus counts remain unchanged.
 ## Alternative-provider comparison
 
 The explicit `openai_gpt_6_sol` evaluation profile supports photos/text through
-OpenAI Responses. Production remains Gemini-only. The
+OpenAI Responses. The separate beta production photo binding uses OpenAI for
+still photos and retains Gemini for other complete-input profiles. The
 [provider guide](../../../../docs/development-guides/22-alternative-identification-provider.md)
 owns the `demo-providers` command, new provider-run/pricing/readiness versions,
 OpenAI-specific input permission, single-provider live runs and credential
@@ -84,6 +105,176 @@ controller without changing provider assignment or measurement. The
 owns public export, exact-source validation, per-provider credential binding,
 conditional remote claims, interruption behavior and summary publication. Source
 implementation does not establish that a hosted comparison has run.
+
+## Free/Pro photo-model preparation
+
+`photoModelContracts.ts` and `photoModelPreparation.ts` own the separate
+`photo_model_plan_v1` ($5 proposal), `photo_model_plan_v2` (up to $40 with
+separate approval), `photo_model_facts_v1`, `photo_model_pricing_v1`, and
+`photo_model_preflight_v1` contracts. The `preflight-free-pro-photo` CLI
+validates 12 frozen no-description photo cases and prepares 12 Luna-low
+assignments plus six production-equivalent Sol-low controls. It denies
+network/environment access, checks contained media bytes, references, fact
+cards, retention and explicit operator input scope, and emits content-free
+digests and costs. It cannot create a live claim, dispatch a provider or change
+production assignment.
+
+The historical `Profile`, run-spec, pricing, experiment and fact-card contracts
+stay unchanged. A new 12-card wrapper reuses individual card validation without
+increasing the old eight-card limit. The
+[provider guide](../../../../docs/development-guides/22-alternative-identification-provider.md#lunasol-photo-comparison-preparation)
+owns packet fields, commands, the spending decision and private approval. The
+real twelve-photo packet is prepared; no Luna quality result is claimed.
+
+`photoModelAdmission.ts`, `photoModelRunner.ts` and `photoModelRecords.ts` own
+separate versioned approval, immutable claims/results/reviews and the durable
+state summary. The existing terminal launcher accepts `--photo-model-live` for
+this controller. It reserves the entire 18-call schedule plus a regional premium
+before the first call, requires a clean source and credential-bound approval,
+and revalidates every dispatch. Six correct Luna screen outcomes with passing
+assistant explanation ratings must precede challenge calls. Missing results,
+missing reviews, unknown billing, refusal or technical failure stop the run;
+restart cannot repeat a claim. A completed challenge run still requires an
+assistant selection report and grants no production authority.
+
+The existing one-use explanation view is shared through
+`normalizedExplanationDisplay`; historical normalization and record parsers
+retain their original profiles. New tests use invented media and mocked
+responses with network and environment access denied. The owner approved the
+v2/$40 packet. Its
+[first live screen](../../../../docs/rfcs/identification-luna-sol-photo-screen-results-2026-09-28.md)
+completed one reference-matching Luna identification, then stopped because a
+material explanatory comparison was not assessable against the frozen notes.
+`screen_failed` includes this reference-coverage outcome; it does not by itself
+establish a wrong identification. The remaining seventeen calls did not run in
+that original journal.
+
+The owner subsequently approved completing only those seventeen assignments
+under `reference_gaps_recorded_v1`, with the same combined 18-call/$40 cap.
+`photoModelContinuation.ts` validates and fingerprints the original manifest,
+terminal stop, claim, result, review and approval. The separate
+`preflight-free-pro-photo-continuation` mode writes
+`photo-model-continuation-preflight.json`; `--photo-model-continuation-live`
+requires a new `photo-model-continuation-approval.json` and writes a sibling
+`photo-model-continuation/` v2 journal. The original journal and first rating
+stay unchanged. Its lock is held before the sibling lock throughout execution,
+and its immutable evidence is rechecked before every dispatch.
+
+The continuation inherits ordinal 1 and its reservation, then admits only
+ordinals 2–18 once. It permits `not_assessable / insufficient_reference` during
+screening while retaining that rating as a reference gap. Wrong identifications,
+actual explanation failures, reviewer uncertainty/unavailability, technical or
+safety failures and unknown billing still stop the screen. Aggregate v2 state
+reports inherited/new calls and `referenceGapOrdinals`; `complete` describes
+finished calls, while `explanationEvidenceComplete` separately requires every
+rating to pass. Neither grants model qualification or production authority.
+
+The approved continuation completed ordinals 2–6, preserving ordinal 1. All six
+primary outcomes matched their provisional references, but the mineral control
+failed the explanation specificity criterion. The retained `screen_failed` stop
+prevented all twelve challenge calls, including every Sol control. The linked
+screening result records the combined timing/cost measurements and decision to
+retain the current Sol assignment. Completing those six calls does not qualify
+Luna or establish a comparative Free/Pro advantage.
+
+The separate
+[Luna evidence-limit candidate](../../../../docs/rfcs/identification-luna-evidence-limits-candidate-2026-09-28.md)
+uses a fresh packet and `photo_model_plan_v3`. Only Luna instructions change;
+Sol, input evidence, facts and model tariffs remain identical. The existing
+18-call controller requires a distinct `photo_model_candidate_approval_v1` for
+`18_call_luna_evidence_limits_sol_photo_comparison`, explicitly binding
+`reference_gaps_recorded_v1`. It records gaps separately and still stops on real
+screening failures. The old approvals and continuation cannot authorize the
+candidate. Use the same preflight/hidden-input launcher against the new root;
+never overwrite or restart the stopped journals. Local verification alone does
+not qualify the model.
+
+The separately approved v3 run completed all eighteen calls. Its
+[results and selection record](../../../../docs/rfcs/identification-luna-sol-candidate-results-2026-09-28.md)
+retain every rating, reference gap and bounded measurement. Mineral evidence
+limits passed, but biological quality failures block the Free switch; retain Sol
+for both tiers. Three named challenge results per profile lack a machine
+taxonomy mapping, including a correct displayed Sol name made ambiguous by
+duplicate catalog identities. Null mappings are not wrong-identification or
+abstention scores. Preserve these journals and repair mapping coverage only in a
+versioned future packet/result contract. No additional calls are authorized.
+
+### Photo rank-consistency preparation
+
+The
+[rank-consistency plan](../../../../docs/rfcs/identification-photo-rank-consistency-2026-09-28.md)
+owns the historical rank work. The current optimization-first ordering above
+supersedes its earlier next steps; completed rank packets remain closed.
+`photoTaxonomyAudit.ts` checks duplicate names and reference IDs/ranks without
+rewriting a frozen catalog. The separate `audit_photo_taxonomy.ts` command reads
+only corpus/catalog inputs; a clear audit does not establish reference quality
+or authorize dispatch. The actual completed packet has two canonical collisions,
+including both species and genus identities. A new offline Sol packet merges
+only these reviewed duplicate IDs; the original packet remains unchanged.
+
+`projectMeasuredPhotoModelOutcome` and `parsePhotoModelMeasurementRecord` add
+the isolated `photo_model_attempt_v2` primary mapping field. They retain enum
+status and canonical/synonym match category, never returned taxon names or
+prose. Historical photo plans and runners remain on v1 and reject v2 records.
+The separate Sol plan/manifest/approval below binds the new projection; old null
+taxon records cannot be repaired retrospectively. Use `assessMeasuredReference`
+to keep mapping gaps separate from identity errors. Only the separately admitted
+Sol mode writes live v2 photo records.
+
+`solPhotoRankCandidate.ts` re-exports `_shared/ai/openaiSolRank.ts`, which
+projects an isolated Sol prompt and four descriptive schema fields. It preserves
+strict JSON structure, generation settings, explanation format and mineral
+rules. Production and old live evaluation constructors reject the new profile.
+`photoTaxonomyRepair.ts` requires a digest-bound explicit remap with equal
+canonical names and ranks; it preserves input evidence, synonyms and supported
+reference ranks.
+
+`prepare_sol_rank_candidate.ts` validates and copies the twelve existing photos
+into a new private packet, preserving completed artifacts and excluding plans,
+approvals, credentials, prices and journals. Its receipt binds
+baseline/candidate request digests and a proposed 18-call schedule, with live
+readiness and dispatch explicitly false. Existing fact cards remain provisional.
+The
+[operator instructions](../../../../docs/development-guides/22-alternative-identification-provider.md#offline-photo-catalog-audit-and-rank-consistency)
+cover the remap fields, scoped offline command and incomplete-directory
+handling. No paid run or confidence calibration occurs in this preparation.
+
+`solPhotoRankLivePreparation.ts` rebuilds these exact requests under
+`sol_photo_rank_plan_v1`, checks a new digest-bound assistant reference review,
+and adds a fresh full-context reservation. The new approval binds source, key
+fingerprint, budget and review delegation. `solPhotoRankRunner.ts` uses a
+separate `sol-photo-rank-run/` journal and only `photo_model_attempt_v2`.
+Historical photo controllers and approvals cannot enter it.
+
+The offline command is `preflight-sol-rank-photo`; the hidden-key launcher mode
+is `--sol-rank-photo-live`. Screens stop separately for genuine failures and
+unassessable mapping/identity references. Missing explanation references are
+recorded as gaps; they never become passes. Results are durable before the
+assistant's temporary review. Interrupted or stopped claims are never retried.
+The summary separates screen/challenge denominators, reference agreement,
+mapping, ratings, paired timing and known cost. Completing all 18 calls grants
+no production or confidence-calibration authority. The
+[first live screen and
+source adjudication](../../../../docs/rfcs/identification-sol-rank-screen-results-2026-09-29.md)
+retain a one-request stop whose explanation failure is undermined by incomplete
+reference notes. Prospective fact corrections are separate; no historical
+record, request or prompt was changed. Missing source coverage must not be
+promoted into proof of a model error. Prospective `sol_photo_rank_summary_v2`
+retains each raw `assessment` and adds `identityInterpretation`, plus separate
+per-phase `identityCounts` and `identityInterpretationCounts`. Limited-reference
+mismatches are `unassessable_limited_reference`; subject disagreement and
+missing mapping remain distinct. Explanation ratings, failures and missing
+reviews are preserved independently. New `sol_photo_rank_run_binding_v2`
+bindings freeze this summary version. Legacy v1 bindings are rejected before
+admission or summary generation; their complete journal, including state, stop
+and summary, remains unchanged even after source or approval inputs change.
+
+The separately approved
+[corrected comparison](../../../../docs/rfcs/identification-sol-rank-comparison-results-2026-09-29.md)
+completed all eighteen calls and reviews. Two candidate visual-evidence failures
+block promotion despite improved broader-rank behavior. Its final v2 summary and
+all 57 JSON journal artifacts were verified offline. Keep this completed packet
+immutable and retain the unchanged Sol production assignment.
 
 ## Shared measurement repair (optimization Slice 1)
 

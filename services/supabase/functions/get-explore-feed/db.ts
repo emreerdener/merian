@@ -1,3 +1,4 @@
+import type { ExploreIdentification } from "../_shared/exploreIdentification.ts";
 import { SupabaseClient } from "@supabase/supabase-js";
 import {
   ExploreFeedFilter,
@@ -22,6 +23,7 @@ export interface ExploreFeedRow {
   hashtags?: string[];
   species_common_name: string;
   species_scientific_name: string;
+  identification?: ExploreIdentification | null;
   pet_identification?: PetIdentification | null;
   public_location_label?: string | null;
   location_sharing: "open" | "obscured" | "private";

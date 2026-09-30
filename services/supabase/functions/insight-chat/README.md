@@ -26,14 +26,16 @@ back to local deterministic chips if this action fails.
 ## Durable Scan Prerequisite
 
 Every action reloads the scan by both `scan_id` and authenticated owner. The row
-must be a completed, resolved, non-Human biological observation; a local iOS
-record, an ingestion job without its scan, another owner's UUID, or a media-only
-staging generation is not chat context. The server checks the confirmed species
-relation before the original relation, rejects `is_biological_subject=false`,
-Human aliases in either selected taxonomy or the user override, and unresolved
-placeholders such as “Unknown Subject,” “Taxonomy Unavailable,” “Unidentified
-Wildlife,” and “No Wildlife Detected.” It never infers eligibility from
-`ai_reasoning` or trusts the client toolbar state.
+must be a completed non-Human biological observation; a local iOS record, an
+ingestion job without its scan, another owner's UUID, or a media-only staging
+generation is not chat context. Legacy rows check the confirmed species relation
+before the original relation and reject unresolved placeholders such as “Unknown
+Subject,” “Taxonomy Unavailable,” “Unidentified Wildlife,” and “No Wildlife
+Detected.” Explicit primary rows use the validated effective identity and
+support broader or unresolved biological subjects. Both paths reject
+`is_biological_subject=false` and Human aliases in selected taxonomy or the user
+override. Neither infers eligibility from `ai_reasoning` or trusts the client
+toolbar state.
 
 Current scan-producer `200` guarantees this row already exists. Before opening
 an older local Insight, iOS preflights `/check-scan-status`. Eligible historical
@@ -49,7 +51,12 @@ means this route did not execute and must remain a temporary
 service-availability failure; it is not evidence that the scan is missing. An
 owned but unsupported Human, unresolved, or non-biological row returns
 `400 unsupported_scan`; reloading or direct endpoint access cannot bypass that
-classification guard.
+classification guard for legacy rows. Valid explicit genus/family/unresolved
+biological snapshots remain eligible after primary/provenance/review validation.
+Their prompt states the original rank and labels, separates an independently
+verified selected taxon from pending review, and keeps original reasoning and
+confidence attached to the original answer. Species relations are used only when
+they match the validated effective species ID.
 
 ## Privacy
 

@@ -125,6 +125,39 @@ action makes at most three attempts with the same immutable installer SHA, then
 verifies exact version `2.9.4`; exhausted retries remain a failed candidate
 rather than being treated as passing evidence.
 
+The OpenAI adapter lane explicitly denies network and environment access. It
+covers the historical evaluation adapter, production photo adapter, and closed
+Luna/Sol photo-model evaluation profiles. The architecture guard permits the
+pure profile owner to reuse request settings while rejecting transport or
+credential ownership there; new evaluation profiles cannot enter production
+admission. The isolated evaluator suite also checks the Luna/Sol controller's
+whole-schedule reservation, immutable claims, interrupted recovery, six-case
+screen barrier, assistant ratings and source/key/approval bindings. The terminal
+launcher suite verifies its new mode with fake credentials and the real scoped
+Deno permission gate; neither suite dispatches a provider.
+
+`photoModelContinuationTests.ts` exercises the separate seventeen-call
+continuation: it inherits the original first result/reservation, preserves its
+artifact bytes, skips its ordinal, and retains reference gaps without treating
+them as passing explanation evidence. Regressions cover wrong identities, actual
+failed/uncertain/unavailable ratings, model/safety/billing failures, parent
+tampering before and between calls, fixed ordering/budget, lock contention with
+either execution mode, interruption without retry, distinct approval formats and
+historical versus current approval windows. Launcher tests require continuation
+preflight before key entry and reject missing/incomplete state or incorrect
+inherited/new aggregate counts. Full completion still carries no production
+authority.
+
+`photoModelCandidateTests.ts` covers the separately versioned evidence-limit
+candidate: unchanged Sol requests and evidence, same-model pricing reuse,
+distinct v3 approval, preserved reference gaps, hard specificity stops, and
+rejection of attempting a new candidate inside a stopped original journal.
+Adapter tests pin the candidate prompt and prove that only two instruction lines
+change, while schema, request options, native moderation and production
+exclusion remain unchanged. Launcher tests cover v3 preparation and reject its
+use in the original continuation mode. These are offline software checks, not
+model-quality measurements.
+
 The production workflow's cumulative undeployed-source scope separately includes
 the generated inference DTO contract, `Core/Network/SupabaseManager.swift`, the
 exact scan- admission bridge in `Core/Network/MerianNetworkClient.swift`, its
@@ -213,15 +246,16 @@ pin tests to historical versioned schemas — a pinned schema silently drops new
 model fields (e.g. `similarSpecies` added in `MerianSchemaV26`), causing
 persistence tests to pass against the wrong shape.
 
-The current persisted schema is V52. Two released-V50 fixtures are required
+The current persisted schema is V53. Two released-V50 fixtures are required
 because builds emitted distinct model checksums under the same schema version.
 The original fixture creates `ScanCollection.isDeleted` and opens through
 `MerianRecentV50MigrationPlan`; the later processed-release fixture creates
 `isPendingDeletion` with `@Attribute(originalName: "isDeleted")` and opens
 through `MerianReleasedActiveV50MigrationPlan`. Both assert the active
-`isPendingDeletion` value after the V50→V51 preference migration and V51→V52
-provenance stage. Keep each fixture's exact property shape frozen; production
-tests should use the active property name and predicate.
+`isPendingDeletion` value after the V50→V51 preference migration, V51→V52
+provenance and V52→V53 primary-identity stages. Keep each fixture's exact
+property shape frozen; production tests should use the active property name and
+predicate.
 
 An in-memory container is not sufficient evidence for a stored-property rename,
 schema migration, restart guarantee, or property-name collision with
@@ -405,7 +439,7 @@ here cover only selector ownership and build/tooling contracts.
 | Durable claims, recovery, duplicate records and restart              | `InferenceLifecyclePersistenceTests`, `LiveCaptureLifecycleTests`, `BackgroundInferenceCompletionTests`, `InferenceReplayTests`, `DiskBackedInferenceAcceptanceTests`                             |
 | Insight restoration, media continuity and dismissal                  | `InsightQueuedHandoffTests`, `InsightShellLifecycleTests`, new disk-backed acceptance; five exact UI cases in the manifest                                                                        |
 | Resource admission and task ownership                                | `MediaStagingBudgetTests`, `AsyncPermitPoolTests`, `InferenceEngineTests` (including backlog cap and Auth hydration/write drains)                                                                 |
-| Startup and V50/V51/V52 compatibility                                | `ModelContainerBootstrapperTests`, `ModelStoreRecoveryCoordinatorTests`, `MigrationPlanTests`                                                                                                     |
+| Startup and V50/V51/V52/V53 compatibility                            | `ModelContainerBootstrapperTests`, `ModelStoreRecoveryCoordinatorTests`, `MigrationPlanTests`                                                                                                     |
 | Secondary product and account transitions                            | `OnboardingViewModelTests`, `OnboardingConsentRecoveryTests`, `ExploreFeedViewModelTests`, `AuthLocalSignOutCoordinatorTests`, `AuthSessionLifecycleCoordinatorTests`, `OfflineJobSchedulerTests` |
 
 The new disk-backed test closes and reopens a private SQLite store, reconciles
@@ -1650,12 +1684,12 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
     must reuse the V45 checksum representative for unchanged local-scan,
     captured-media, and collection models, while V45 and V46 recent plans must
     keep those sources isolated from each other and route directly to V49 before
-    the shared V49→V50→V51→V52 tail. The full historical plan must remain a
-    single linear chain through V42→V49→frozen V50→frozen V51→V52; V43...V48
-    belong only to source-isolated plans. V49 must select a dedicated
-    `[V49, frozen V50, V51, V52]` plan. V50 must select either
-    `[released-active V50, V51, V52]` or `[frozen V50, V51, V52]` from an
-    allowlisted store checksum, and an unknown V50 graph must not be guessed.
+    the shared V49→V50→V51→V52→V53 tail. The full historical plan must remain a
+    single linear chain through V42→V49→frozen V50→frozen V51→frozen V52→V53;
+    V43...V48 belong only to source-isolated plans. V49 must select a dedicated
+    `[V49, frozen V50, V51, V52, V53]` plan. V50 must select either
+    `[released-active V50, V51, V52, V53]` or `[frozen V50, V51, V52, V53]` from
+    an allowlisted store checksum, and an unknown V50 graph must not be guessed.
     The source guardrail must preserve retry order as current store, V51,
     released-active V50, frozen V50, V49, V48, then V47 through V42; checking
     only that every label exists is insufficient. It must also keep the
@@ -2514,7 +2548,7 @@ deletion recovery, VoiceOver, large Dynamic Type, and light/dark appearance.
   600-line ceiling.
 - **`Models/ModelsIntegrationArchitectureTests.swift`**: Audits the complete
   Models boundary after the Species and Captured Media slices. It freezes the
-  root and V52 active-schema inventories, rejects filesystem/network/task and
+  root and V53 active-schema inventories, rejects filesystem/network/task and
   `ModelContext` workflow ownership there, verifies the queued-row projection,
   queued-byte, queued-media-presentation, and cloud-deletion persistence
   adapters have one owner each, requires the live queued-row projection to stay
@@ -3117,7 +3151,7 @@ prove visual parity, live Auth/provider behavior, or migration execution.
   creation, membership mutation, explicit pre-mutation restoration before
   rollback for every mutation kind, and exact
   save-before-invalidation-before-sync ordering. The
-  `testDeleteUsesDurableSyncBoundary` case verifies the active V52
+  `testDeleteUsesDurableSyncBoundary` case verifies the active V53
   `ScanCollection.isPendingDeletion` save-first tombstone boundary and must
   remain enabled; it is a release-blocking regression if it fails.
 - **`CollectionsViewModelTests.swift`**
@@ -5134,15 +5168,15 @@ Generated-project membership must include every Swift file below both mirrored
 Collections directories, and each production Collections file must remain under
 the feature's 600-line review guard.
 
-The V52 matrix keeps the durable-delete regression enabled. It verifies that the
+The V53 matrix keeps the durable-delete regression enabled. It verifies that the
 renamed application tombstone survives `ModelContext.save()`, refetch, disk
 migration from V49, both released-V50 graphs migrating through frozen V51 into
-V52, and a second context, while both V50 fixture graphs remain frozen. Run the
-complete `MigrationPlanTests` suite with the disk-backed V49→V50→V51→V52, both
-V50→V51→V52 and direct V51→V52 fixtures, the focused Collections suites without
-exclusions, startup recovery coverage, and the full `merianTests` target. Any
-duplicate-checksum initialization failure remains a release blocker and must be
-fixed in the migration plan rather than bypassed.
+V53, and a second context, while both V50 fixture graphs remain frozen. Run the
+complete `MigrationPlanTests` suite with the disk-backed V49→V50→V51→V52→V53,
+both V50→V51→V52→V53, V51→V52→V53 and direct V52→V53 fixtures, the focused
+Collections suites without exclusions, startup recovery coverage, and the full
+`merianTests` target. Any duplicate-checksum initialization failure remains a
+release blocker and must be fixed in the migration plan rather than bypassed.
 
 ### Scans Non-Biological
 
@@ -5719,7 +5753,7 @@ across criteria. The manual evidence workflow passes `${{ inputs.* }}` through
 step environment variables before Bash consumes them; direct expression
 interpolation in a `run` script is a workflow-security regression. The
 historical genuine released-binary V49→V50 baseline, the V50 source-variant
-physical install-over to current V52, the released-V51→V52 install-over, and the
+physical install-over to current V53, released-V51/V52→V53 install-over, and the
 canonical external consent/App Store/billing/DPA evidence must also pass.
 Artifact integrity does not authenticate an off-platform issuer or establish
 independent secret administration; follow the
@@ -9702,3 +9736,76 @@ background/interruption behavior still require physical-device verification.
 The [direct-audio validation record](../rfcs/direct-audio-staging-2026-09-27.md)
 records the source base, retained simulator results and screenshots, and
 remaining device checks.
+
+## Dormant primary identity native checkpoint
+
+V53 is exercised by
+`MigrationPlanTests.v52StoreMigratesWithPrimaryIdentityAndPreservesLegacyState`:
+all saved entity types, relationships, provenance, nil new fields, source-plan
+selection and current-store reopening. All supported plans must retain their
+source-specific stages and end with lightweight V52→V53. The V52 snapshots
+compiled before active fields changed and are pinned by the source guard.
+
+`PrimaryIdentificationTests` covers five resolutions, required nullable labels,
+UTF-16 bounds, invalid-present preservation and immutable merge.
+`PrimaryIdentificationNativeTests` covers preparation/history/reopening,
+zero-score durable results, conflicting duplicate completion, original labels
+through typed review, stale taxonomy removal, species statistics/rewards and
+hydration exclusion, and missing-required snapshot recovery failure. The
+complete unit target and source/tooling gates remain required. Native requests
+now advertise protocol 5 after the consumer checkpoint; these synthetic tests do
+not admit a producer, calibrate confidence or authorize deployment. The separate
+review suites below validate confirmation authority.
+
+### Verified review and shared-consumer coverage
+
+`VerifiedSpeciesReviewTests` exercises independent verified selection,
+revisioned history and acknowledgements, pending-intent separation, competing
+contexts, disk reopening and the separate Insight dictionary entry. The original
+AI identity, alternatives, explanation and confidence remain unchanged.
+`ProfileDatabaseActorTests` checks cached totals after confirmation,
+replacement, reconfirmation and clear from another database actor. Native
+taxonomy-based achievement inputs continue to use qualified original evidence.
+
+`ExploreIdentificationTests`, `ExploreMapViewModelTests` and web
+`exploreIdentification.test.ts` cover optional legacy decoding,
+malformed-present rejection, map conversion and copy preservation, rank/source
+labels, and guarded preferred-name/reference-media fallback.
+
+The disposable-database `primaryIdentityConsumersDb.test.ts` compares SQL and
+Edge saved-row policies, exercises actual service/authenticated roles,
+authenticated cross-owner denial, anonymous insufficient-privilege denial,
+Human/placeholders, community matching/mismatching species and genus labels,
+blocking/unsharing, selection and clear. `primary_identity_consumers.sql` checks
+private helper ACLs, invoker mode, fixed search paths, validated identity CHECKs
+and the Field Trip authority trigger. The completed regular/Event credit
+regression lives in `fieldTripAtomicProgressDb.test.ts`. Run every catalog and
+the complete Edge suite sequentially against the same disposable database to
+avoid fixture lock collisions.
+
+DwC-A tests cover explicit broader/selected snapshots and resumed historical
+20-column chunks. No archive column is added and no existing frozen source row
+is rewritten. These synthetic tests use protocol-5 headers when reading explicit
+fixtures; native dispatch and SDK history now advertise that same capability.
+They do not qualify a new producer, change model or confidence policy, activate
+exports, or replace the signed install-over release gate.
+
+### Capability-5 compatibility coverage
+
+`IdentificationPreflightTests` accepts current OpenAI minimum 4 and future
+minimum 5, rejects unknown or recipient-incompatible ready minima, preserves
+permission/update errors and keeps entitlement protocol 3 separate.
+`IdentificationPreflightTransportTests` exercises prepared/live requests for
+Gemini, both recognized OpenAI minima and recovery-only. Dispatcher, request
+executor and historical SDK tests assert capability 5 survives request building,
+auth/transport retries and page/single-record reads.
+
+The `openai_photo_routing.sql` disposable catalog verifies unchanged OpenAI
+minimum 4 with accepted capability 5, plus Gemini minimum 0 under both readers
+for text, audio, mixed photo/audio and sampled-video profiles. Headerless
+internal Gemini retries retain the original accepted 5. Existing reader tests
+continue to reject unknown versions and capability 4 for explicit rows, preserve
+visibility before compatibility errors, and reject a worker's attempt to upgrade
+original capability. Run these with the full catalog and Edge suites, then the
+complete native unit target and four required scan UI smokes. Current production
+provider profiles remain unchanged throughout this reader preparation.

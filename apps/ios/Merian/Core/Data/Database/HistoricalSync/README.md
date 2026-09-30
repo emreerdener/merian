@@ -71,19 +71,21 @@ in the
 ## Result configuration
 
 The sole scan projection selects `identification_provenance`. Accepted metadata
-is stored as stable JSON bytes in V52 and restored through the shared historical
-species projection. Legacy null or omission never clears a present local value;
-malformed present metadata quarantines that row rather than becoming legacy.
-Raw-row pagination and account/save fences are unchanged. Unknown but decodable
-profiles remain present and receive neutral review guidance instead of Gemini
-confidence bands. `IdentificationResultProvenanceTests` verifies these paths.
+is stored as stable JSON bytes in the field introduced by V52 and restored
+through the shared historical species projection. Legacy null or omission never
+clears a present local value; malformed present metadata quarantines that row
+rather than becoming legacy. Raw-row pagination and account/save fences are
+unchanged. Unknown but decodable profiles remain present and receive neutral
+review guidance instead of Gemini confidence bands.
+`IdentificationResultProvenanceTests` verifies these paths.
 
-`MerianSupabaseClientFactory` advertises result-reader capability 4 on SDK
-requests. The backend checks that capability before returning visible V2 rows,
-including a single-scan projection or a page that mixes old and new results.
-Older readers receive a query error; they retain existing local observations and
-must update to hydrate newer cloud results. This is separate from malformed-row
-quarantine and does not hide rows or rewrite metadata. The
+`MerianSupabaseClientFactory` advertises result-reader capability 5 on SDK
+requests. It uses the same constant as inference dispatch. The backend checks
+that capability before returning visible V2 or explicit-primary rows, including
+a single-scan projection or a page that mixes old and new results. Older readers
+receive a query error; they retain existing local observations and must update
+to hydrate newer cloud results. This is separate from malformed-row quarantine
+and does not hide rows or rewrite metadata. The
 [result-reader contract](../../../../../../../docs/backend-and-data/05-api-contracts.md#identification-result-readers)
 owns rollout and rollback requirements.
 
@@ -95,3 +97,31 @@ transport or row-decoding failures. `HistoricalSyncUpdateRequiredTests` covers
 lease fencing, repeat-read suppression, retained local work, and server-owned
 retry pauses. History resumes after a different installed release/build; paused
 identification scans remain available for explicit retry.
+
+The projection also selects `primary_identification`.
+`HistoricalPrimaryIdentification` validates the reserved schema pairing before
+any reconciliation writes, preserves original labels and immutable snapshots,
+and clears species-only caches and stale taxonomy for broader results. Missing
+metadata from an older projection cannot erase a valid stored primary answer.
+Malformed required data cannot become legacy through omission. V53 stores the
+snapshot and separate confirmation bytes; legacy boolean/UUID review fields are
+not independent species authority for an explicit broader answer.
+
+`HistoricalScanResponse+Decoding` uses `VerifiedSpeciesReviewProjection` to
+preserve field presence. Omitted identity and revision mean an older projection;
+explicit null identity with a revision is an authoritative clear. Partial,
+malformed or contradictory projections are rejected per row. Legacy rows may
+project null identity/revision zero without changing their existing review
+rules. `ConfirmedSpeciesReviewPersistence` merges the entire server review tuple
+only at a newer revision; equal conflicting revisions fail, older revisions are
+ignored, and equal matching history preserves pending local intent. Both missing
+local rows and targeted history recovery use this same projection.
+
+History page reconciliation and native review prepare/apply share one bounded,
+synchronous transaction gate and create fresh ModelContexts while holding it.
+This covers fetch, revision comparison and save across otherwise independent
+ModelActors; a cached history context cannot overwrite a newer acknowledgement.
+There is no network suspension while the gate is held. Account leases, page
+bounds, checkpoint saves and cancellation remain with their existing owners. The
+reader header is 5 after shared consumer integration, matching inference
+preflight and dispatch.

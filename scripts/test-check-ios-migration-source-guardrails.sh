@@ -63,7 +63,11 @@ if mode == "forbidden-source":
         1,
     )
     source = source[:start] + plan + source[end:]
-if mode == "missing-v52-full-tail":
+if mode == "missing-v53-full-tail":
+    source = source.replace("            migrateV52toV53", "            removedV53Stage", 1)
+elif mode == "missing-v52-plan":
+    source = source[:source.index("enum MerianRecentV52MigrationPlan")]
+elif mode == "missing-v52-full-tail":
     source = source.replace("            migrateV51toV52", "            removedV52Stage", 1)
 elif mode == "missing-v52-recent-tail":
     start = source.index("enum MerianRecentV50MigrationPlan")
@@ -164,11 +168,13 @@ assert_rejected safe-mode-plan "The empty current-schema safe-mode container mus
 assert_rejected weakened-full-plan-test "MigrationPlanTests must validate the full historical plan independently from safe mode."
 assert_rejected reconstructed-store-path "Store recovery must not reconstruct the SwiftData store under Application Support."
 
-assert_rejected missing-v52-full-tail "Full migration plan must finish with the shared V51 to V52 stage."
-assert_rejected missing-v52-recent-tail "Recent V50 plan must finish with the shared V51 to V52 stage."
-assert_rejected reordered-v52-schema "Full migration plan must end its schemas with frozen V51 then active V52."
-assert_rejected missing-v51-plan "Recent V51 plan must end its schemas with frozen V51 then active V52."
+assert_rejected missing-v52-full-tail "Full migration plan must finish with the shared V51 to V52 to V53 stages."
+assert_rejected missing-v52-recent-tail "Recent V50 plan must finish with the shared V51 to V52 to V53 stages."
+assert_rejected reordered-v52-schema "Full migration plan must end its schemas with frozen V51 and V52 then active V53."
+assert_rejected missing-v51-plan "Recent V51 plan must end its schemas with frozen V51 and V52 then active V53."
 assert_rejected missing-v51-source "RecentSourceSchema must include V51."
 assert_rejected missing-v51-dispatch "ModelContainerFactory recent-source dispatch must handle V51 explicitly."
 
+assert_rejected missing-v53-full-tail "Full migration plan must finish with the shared V51 to V52 to V53 stages."
+assert_rejected missing-v52-plan "Missing V52 source-isolated plan."
 echo "iOS migration source guardrail tests passed."

@@ -18,6 +18,7 @@ import {
   withRunLock,
 } from "./files.ts";
 import { normalizeEvaluationDraft } from "./normalization.ts";
+import type { NormalizedIdentification } from "../../functions/_shared/identify/normalizeIdentification.ts";
 import type { Assignment, AttemptRecord } from "./runContracts.ts";
 import {
   CALIBRATION_EXAMPLES,
@@ -113,6 +114,26 @@ export function explanationDisplay(
     input,
     assignment.profile,
   );
+  return normalizedExplanationDisplay(normalized, request, card);
+}
+
+/** Shared transient view; the caller has already normalized under its exact profile. */
+export function normalizedExplanationDisplay(
+  normalized: {
+    identification: Pick<
+      NormalizedIdentification["identification"],
+      | "ai_reasoning"
+      | "extracted_visual_traits"
+      | "invasive_rationale"
+      | "is_biological_subject"
+      | "scientific_name"
+      | "common_name"
+    >;
+    clientCandidates: NormalizedIdentification["clientCandidates"];
+  },
+  request: MultimodalAIRequest,
+  card: FactCard,
+): ReviewDisplay | null {
   const v = normalized.identification;
   const strings = (x: unknown): string[] =>
     typeof x === "string"

@@ -11,8 +11,8 @@ enum IdentificationRecipientExpectation: String, Codable, Sendable {
 
 struct IdentificationDispatchAuthorization: Sendable {
     static let protocolHeader = "X-Merian-Identification-Protocol"
-    /// V2 result decoding, including cross-device history; independent of entitlement protocol 3.
-    static let currentProtocol = 4
+    /// Explicit primary rank and verified review across all consumers; independent of entitlement protocol 3.
+    static let currentProtocol = 5
     let identificationProtocol = Self.currentProtocol
     let recipient: IdentificationRecipientExpectation
     let validate: @MainActor @Sendable () throws -> Void
@@ -146,10 +146,10 @@ struct IdentificationPreflightResponse: Decodable, Sendable {
         }
         guard minimum <= input.clientProtocol,
               let identificationMinimum = row.minimumIdentificationProtocol,
-              [0, 4].contains(identificationMinimum),
+              [0, 4, 5].contains(identificationMinimum),
               identificationMinimum <= input.identificationProtocol,
               let recipient = row.processorPermission,
-              recipient != .openAI || identificationMinimum == 4 else {
+              recipient != .openAI || [4, 5].contains(identificationMinimum) else {
             throw MerianError.invalidResponse
         }
         if row.decision == .permissionRequired {

@@ -1,3 +1,8 @@
+import {
+  effectiveIdentification,
+  identificationIsBiological,
+  type SavedIdentificationFields,
+} from "../_shared/identify/effectiveIdentity.ts";
 import { SupabaseClient } from "@supabase/supabase-js";
 import { recordAIUsageBestEffort } from "../_shared/aiUsage.ts";
 import { deleteR2ObjectIfPresent, getR2Config } from "../_shared/aws.ts";
@@ -42,7 +47,7 @@ export interface ApprovedAudioMediaOptions {
   quota?: AudioModerationQuota;
 }
 
-export interface ShareEligibleScanRow {
+export interface ShareEligibleScanRow extends SavedIdentificationFields {
   id: string;
   user_id: string;
   geoprivacy: string;
@@ -388,7 +393,7 @@ const COMMUNITY_IDENTIFICATION_PENDING_MESSAGE =
   "Wait for the community to identify this request before sharing it to Explore.";
 
 const SHARE_ELIGIBLE_SCAN_SELECT =
-  "id,user_id,geoprivacy,image_storage_urls,video_storage_urls,audio_storage_urls,captured_media,is_tombstoned,is_biological_subject,user_identification_override,species_id,confirmed_species_id,species_dictionary!scans_species_id_fkey(scientific_name),confirmed_species_dictionary:species_dictionary!scans_confirmed_species_id_fkey(scientific_name)";
+  "id,user_id,geoprivacy,image_storage_urls,video_storage_urls,audio_storage_urls,captured_media,is_tombstoned,is_biological_subject,user_identification_override,user_confirmed_identification,user_review_state,identification_provenance,primary_identification,confirmed_species_identity,confirmed_species_identity_revision,candidates,pet_identification,species_id,confirmed_species_id,species_dictionary!scans_species_id_fkey(scientific_name),confirmed_species_dictionary:species_dictionary!scans_confirmed_species_id_fkey(scientific_name)";
 
 const UNSHAREABLE_SCIENTIFIC_NAMES = new Set([
   "",
@@ -418,6 +423,26 @@ function normalizedIdentity(value: unknown): string {
 }
 
 function assertShareableBiologicalSubject(row: ShareEligibleScanRow): void {
+  const identity = effectiveIdentification(row);
+  if (identity.source !== "legacy") {
+    if (!identificationIsBiological(identity)) {
+      throw makeHttpError(
+        409,
+        "Only biological scans can be shared to Explore.",
+      );
+    }
+    if (
+      [
+        identity.scientific_name,
+        identity.common_name,
+        row.user_identification_override,
+      ]
+        .some((name) => HUMAN_IDENTITIES.has(normalizedIdentity(name)))
+    ) {
+      throw makeHttpError(409, "Human scans cannot be shared to Explore.");
+    }
+    return;
+  }
   if (
     row.is_biological_subject === false ||
     (row.confirmed_species_id == null && row.species_id == null)

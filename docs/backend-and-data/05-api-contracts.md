@@ -424,16 +424,17 @@ enforcement, and backend enforcement together under a reviewed release. The
 current beta does not implement or claim that future UX.
 
 The enabled production composition and beta catalog activation select the exact
-`openai_photo_v1` / `gpt-6-sol` tuple for still photos with identification
-protocol 4. Audio, video snapshots, mixed photo/audio, text-only and legacy
-profiles retain Gemini. `ConsentPolicy.openAIBetaAccessEnabled` mirrors backend
-beta eligibility; `canProcessOpenAI` retains the current-account fence while
-`hasGrantedOpenAI` remains a truthful receipt projection. The ordinary required
-consent gate still handles uncertain consent storage. OpenAI collection actions
-are disabled even if the independent collection flag is accidentally enabled.
-Older app binaries retain their own local checks until updated. Distribution and
-full production-profile qualification are separately tracked; beta activation
-does not claim either. See the
+`openai_photo_v1` / `gpt-6-sol` tuple for still photos with minimum
+identification protocol 4, accepting readers 4 and 5. Audio, video snapshots,
+mixed photo/audio, text-only and legacy profiles retain Gemini.
+`ConsentPolicy.openAIBetaAccessEnabled` mirrors backend beta eligibility;
+`canProcessOpenAI` retains the current-account fence while `hasGrantedOpenAI`
+remains a truthful receipt projection. The ordinary required consent gate still
+handles uncertain consent storage. OpenAI collection actions are disabled even
+if the independent collection flag is accidentally enabled. Older app binaries
+retain their own local checks until updated. Distribution and full
+production-profile qualification are separately tracked; beta activation does
+not claim either. See the
 [photo rollout](../rfcs/identification-openai-photo-rollout-2026-09-28.md).
 
 ## Fleet-Wide Outbound Provider Contract
@@ -2486,8 +2487,8 @@ A binding's `minimum_client_protocol` gates fresh work using the existing
 all current Gemini bindings remain zero. Nonzero minima require a recognized
 protocol at or above the binding requirement; rejection uses the existing
 `426 client_update_required` envelope and rolls back quota/complimentary
-effects. The entitlement protocol range remains 1–3. Identification capability 4
-is a separate contract and does not raise the global cutoff. This is
+effects. The entitlement protocol range remains 1–3. Identification capabilities
+4 and 5 are a separate contract and does not raise the global cutoff. This is
 compatibility evidence, not authentication or end-user provider selection.
 
 Fresh internal retries ignore any worker protocol header. They require accepted
@@ -2508,23 +2509,24 @@ switch.
 Migration `20260927175708_prepare_openai_photo_routing.sql` adds the exact
 dormant photo tuple and a separate `provider_model`. The quota policy model and
 limits are unchanged; the new reservation returns the saved execution model.
-Current rows still resolve Gemini. The native app adds
-`p_identification_protocol: 4` to the six-argument preflight and
-`X-Merian-Identification-Protocol: 4` to the final request alongside the
-recipient expectation. Edge accepts only that exact header value and uses the
-eleven-argument reservation. Missing headers on external requests keep legacy
-ABIs. Internal retries use the eleven-argument ABI with a NULL capability claim
-and may omit the recipient expectation; the database recovers proof from the
-original attempt. Every supplied expectation still rejects assignment drift.
+That migration left rows on Gemini; the later beta activation assigns still
+photos to OpenAI. The native app adds `p_identification_protocol: 5` to the
+six-argument preflight and `X-Merian-Identification-Protocol: 5` to the final
+request alongside the recipient expectation. Edge recognizes exactly 4 or 5 and
+uses the eleven-argument reservation. Missing headers on external requests keep
+legacy ABIs. Internal retries use the eleven-argument ABI with a NULL capability
+claim and may omit the recipient expectation; the database recovers proof from
+the original attempt. Every supplied expectation still rejects assignment drift.
 Invalid or expectation-less capability headers return
 `400 ai_identification_preflight_invalid`. No client field chooses a provider.
 
 Bindings store `minimum_identification_protocol` (0 or 4), and new attempts
-store that minimum plus recognized `accepted_identification_protocol` (4 or
+store that minimum plus recognized `accepted_identification_protocol` (4, 5 or
 NULL). Older attempts remain unknown. Internal retries use the original exact
 owner/operation/observation/profile generation, not a worker claim. Fresh legacy
-admission cannot dispatch an OpenAI tuple. The production composition separately
-rejects OpenAI before credential lookup/commit and refunds the admitted lease.
+admission cannot dispatch an OpenAI tuple. Current photo composition supports
+the closed OpenAI tuple; the dormant primary-resolution foundation does not add
+another producer or change that assignment.
 
 Capability 4 covers the requesting client's V2 decoder. The separate
 [result-reader boundary](#identification-result-readers) checks the current
@@ -2543,11 +2545,13 @@ migrations before deploying these Edge callers through the exact-SHA release
 procedure. The legacy eight-argument identification RPC and both
 `reserve_ai_quota` ABIs remain compatible and Gemini-gated. New callers never
 fall back to them if the routing overload is missing. This infrastructure does
-not activate OpenAI or enable consent collection. Future activation also needs
-qualified historical/public readers, disclosure and credential release, exact
-safety-binding evidence, and complete usage/pricing coverage. V2 confidence
-remains unqualified. The implemented recipient-specific saved-scan recovery
-remains dormant while all assignments are Gemini.
+not itself activate OpenAI or enable consent collection. Subsequent beta photo
+activation and consent deferral are recorded in the
+[photo rollout](../rfcs/identification-openai-photo-rollout-2026-09-28.md). The
+new primary-resolution migration is also dormant preparation: it preserves
+current assignments and requires completed consumers plus separate model
+qualification before any explicit-primary producer can be activated. V2
+confidence remains unqualified for statistical interpretation.
 
 ### Primary identification usage RPCs
 
@@ -2585,10 +2589,11 @@ available quota.
 | `p_client_protocol`         | integer, nullable | Client capability claim; null means unknown; non-null values must be 1–1000       |
 
 The new six-argument overload additionally accepts nullable
-`p_identification_protocol`. Only 4 is recognized as the V2 identification
-capability; this does not change `p_client_protocol` or the entitlement header.
-The five-argument ABI stays available to older callers and returns
-update-required for any binding requiring the new capability.
+`p_identification_protocol`. Exactly 4 and 5 are recognized; 5 also reserves
+support for explicit primary-resolution results. The native app still advertises
+4; this does not change `p_client_protocol` or the entitlement header. The
+five-argument ABI stays available to older callers and returns update-required
+for any binding requiring the new capability.
 
 Accepted profiles are `description_compat_v1`, `vision_compat_v1`,
 `audio_compat_v1`, `multimodal_text_v1`, `multimodal_photo_v1`,
@@ -2671,7 +2676,7 @@ network circuit failure. A legacy OpenAI denial still saves needs-attention
 before releasing its durable owner, but beta recovery presents an explicit retry
 without permission collection. Required Gemini onboarding/synchronization
 remains in place. These controls cannot choose another provider or manufacture a
-receipt. The photo connection advertises identification capability 4
+receipt. The photo connection advertises identification capability 5
 independently of entitlement protocol 3. Preflight is not an activation path or
 evidence of model qualification. Deploy the additive backend contract before
 distributing a native build that requires it. See the
@@ -2709,8 +2714,8 @@ uses provider `openai` and an exact three-field generation object:
 selects the version before decoding its generation object; unknown versions,
 mixed settings and extra keys fail. Activated OpenAI photo assignments use V2;
 other inputs retain their configured provider assignments. Admission and the
-result-reader boundary require identification capability 4 before returning V2
-to an external client; entitlement protocol remains 3. The value contains no
+result-reader boundary require identification capability 4 or 5 before returning
+V2 to an external client; entitlement protocol remains 3. The value contains no
 observation or personal data and never enters the model-output schema. Omission
 means legacy; an explicitly null or malformed Identify field is rejected.
 Required nullable settings retain explicit null when decoded and re-encoded.
@@ -2719,20 +2724,70 @@ completed jobs reconstruct from the immutable owner scan column; null/missing
 columns omit the field, while damaged present metadata fails validation. Neither
 path consults today's provider assignment or makes an inference request.
 
-Owner history selects the same column. SwiftData V52 stores its content-free
-JSON bytes in optional `LocalScanRecord.identificationProvenanceData`; V51 rows
+The dormant primary-resolution contract adds optional non-null
+`data.primary_identification`: exactly `version: 1`, `resolution`,
+`scientific_name` and `common_name`. Resolution is `species`, `genus`, `family`,
+`unresolved_biological` or `non_biological`. Both names are required keys with a
+sanitized 1–255 UTF-16-unit string or explicit null; the object is bounded to 4
+KiB. Species/genus/family require a scientific name; unresolved biological
+requires null. The biological flag and top-level names must exactly agree with
+the snapshot. The reserved provenance schema `merian_identify_primary_v1`
+requires this field, and other schemas reject it. No current profile produces
+this schema, and the live Gemini/OpenAI model-output contracts are unchanged.
+
+Explicit non-species results require null candidates and pet identification, no
+species enrichment and no new-species flag. Species results allow zero to two
+alternatives, each declaring `taxon_rank: "species"`; legacy candidates omit it.
+The snapshot does not qualify a model score or prove taxonomic correctness.
+
+Migration `20260929144441_prepare_primary_identification_resolution.sql` adds
+matching immutable scan/job snapshots. Both snapshots and provenance are copied
+in one owner-scoped transaction. Replay verifies their agreement, retains the
+original labels rather than replacing them from today's dictionary, and checks
+biological/species-association contradictions before any dictionary query. An
+invalid stored envelope can reconstruct from a valid matching scan; a lost or
+conflicting required snapshot is an integrity failure. If an owner insert
+commits between the initial job read and the scan read, replay re-reads its
+exact owner backup before comparing. Client `recovery_scan` never supplies this
+field. The generated Swift DTO maps to native `PrimaryIdentification`; V53 saves
+the original label and rank on live/queued completion and owner history. Missing
+required snapshots, contradictory flags and duplicate identity changes fail
+validation. Broader results retain their labels and a genus/family caption,
+while species hydration, candidates, references, novelty and species statistics
+require species rank. Typed review cannot promote that rank. Validated
+confirmation authority is now consumed by the dormant native review/history
+path. Shared consumers now evaluate original AI evidence separately from
+verified species selection. Public labels, Field Chat, species totals, Field
+Trip credit and new export snapshots retain that distinction. The native reader
+source now advertises protocol 5 across preflight, dispatch, retries and SDK
+reads. It accepts existing minimum-0 Gemini and minimum-4 OpenAI assignments,
+and recognizes a future minimum 5 without accepting arbitrary higher versions.
+The capability claim does not register or activate a new producer. Deploy the
+additive backend before distributing this app; signed install-over verification
+remains a release gate. See the
+[implementation sequence](../rfcs/identification-primary-resolution-contract-2026-09-29.md).
+
+Owner history selects `identification_provenance` and `primary_identification`.
+SwiftData stores provenance in the field introduced by V52 as content-free JSON
+bytes in optional `LocalScanRecord.identificationProvenanceData`; V51 rows
 migrate to nil. Missing legacy cloud metadata cannot erase an existing value.
 Malformed history rows remain quarantined with raw-row pagination intact. Both
-versions use the existing V52 opaque JSON storage; this adds no SwiftData schema
-version or data migration. Recognized exact V1 Gemini profiles retain the
-existing confidence presentation. The exact shipped V2 `openai_photo_v1` profile
-separately receives display-only Strong (`>= 0.95`), Possible (`>= 0.60` and
-`< 0.95`), or Weak (`< 0.60`) labels on every plan tier. The app presents these
-as model estimates; neither `openai_unqualified_v1` nor the stored score
-changes. Unknown or damaged present profiles use neutral review guidance.
-Absence keeps legacy behavior. These display thresholds do not qualify OpenAI
-for candidate filtering, automatic verification, sharing recommendations,
-rewards, public metrics, or evaluation strong/diagnostic metrics. See the
+provenance versions use the same opaque JSON storage. The separate V53
+primary-identity migration adds snapshot and reserved confirmation storage; it
+does not change provenance or the existing confidence policy. Recognized exact
+V1 Gemini profiles retain the existing confidence presentation. The exact V2
+`openai_photo_v1` configuration recognizes both the original
+`openai_identify_vision_v1` and upcoming
+`openai_identify_vision_observed_traits_v1` prompts. Both receive display-only
+Strong (`>= 0.95`), Possible (`>= 0.60` and `< 0.95`), or Weak (`< 0.60`) labels
+on every plan tier. The backend in this reader-preparation release still emits
+the original prompt; the later prompt requires a separate activation after the
+updated app is distributed. The app presents these as model estimates; neither
+`openai_unqualified_v1` nor the stored score changes. Unknown or damaged present
+profiles use neutral review guidance. Absence keeps legacy behavior. These
+display thresholds do not qualify OpenAI for candidate filtering, automatic
+verification, sharing recommendations, rewards, public metrics, or evaluation
+strong/diagnostic metrics. See the
 [display threshold decision](../rfcs/identification-openai-confidence-display-2026-09-28.md).
 This compatibility rule is not empirical calibration, and public Explore
 suggestion projections still require separate provider qualification. See the
@@ -2757,15 +2812,19 @@ the two `scans` SELECT policies' existing owner/public visibility predicates.
 Each policy evaluates the invoker helper
 `internal.require_identification_result_reader` only after its original
 visibility condition succeeds. Null/V1 metadata remains readable by older
-clients. A visible V2 row requires the exact normalized PostgREST header
-`x-merian-identification-protocol: 4`. A missing, malformed or unsupported claim
-raises SQLSTATE `PT426` with message `client_update_required` and a fixed update
-hint. This applies even when a query omits the provenance column. A mixed page
-fails as a whole rather than filtering out newer results. Invisible private,
-non-live or tombstoned rows do not trigger a reader error.
+clients when no explicit primary result is present. A visible V2 row requires
+the exact normalized PostgREST header `x-merian-identification-protocol: 4` or
+`5`. The primary-resolution migration adds the two-argument reader helper and
+requires exactly 5 whenever a primary snapshot or its required schema marker is
+present. The one-argument helper remains a compatibility wrapper and still
+recognizes the schema marker. A missing, malformed or unsupported claim raises
+SQLSTATE `PT426` with message `client_update_required` and a fixed update hint.
+This applies even when a query omits the provenance column. A mixed page fails
+as a whole rather than filtering out newer results. Invisible private, non-live
+or tombstoned rows do not trigger a reader error.
 
 The native `MerianSupabaseClientFactory` supplies
-`X-Merian-Identification-Protocol: 4` globally for SDK reads, including history
+`X-Merian-Identification-Protocol: 5` globally for SDK reads, including history
 pages, single-scan recovery and metadata update/readback. The constant is shared
 with identification dispatch. It describes decoder capability only: it grants no
 identity, visibility, processing permission or provider choice. Existing table
@@ -2789,12 +2848,15 @@ paused work, and same-build manual retry cannot re-enable blocked work. The
 [presentation contract](../system-architecture/10-event-and-presentation-routing.md#update-required-presentation)
 owns app-version recovery and the App Store destination.
 
-Ship and verify a capability-4 reader before activating OpenAI. Older binaries
-may show their existing generic history-sync error, retain local observations,
-and fail to hydrate mixed cloud history until updated; this change cannot add an
-upgrade screen to an installed old binary. Null/V1-only reads continue normally.
-Turning fresh assignments back to Gemini does not remove this reader requirement
-while V2 rows exist. Keep the guard and compatible readers during rollback.
+OpenAI V2 needs a verified capability-4-or-5 reader; explicit-primary results
+need capability 5. Deploy the additive reader/storage backend before
+distributing the capability-5 app, and verify its signed upgrade before
+separately activating a qualified explicit producer. Older binaries may show
+their existing generic history-sync error, retain local observations, and fail
+to hydrate mixed cloud history until updated; this change cannot add an upgrade
+screen to an installed old binary. Null/V1-only reads continue normally. Turning
+fresh assignments back to Gemini does not remove this reader requirement while
+V2 rows exist. Keep the guard and compatible readers during rollback.
 
 ### Completed-result recovery
 
@@ -8101,7 +8163,7 @@ tombstone purge remain in `BackgroundDatabaseActor+CollectionSync.swift`.
 }
 ```
 
-The active iOS V52 model names the durable application value
+The active iOS V53 model names the durable application value
 `ScanCollection.isPendingDeletion` and maps it to the released SwiftData
 `isDeleted` column with `@Attribute(originalName:)`. The two released V50 model
 graphs differ only in their Swift-side property name and keep that same physical
@@ -10051,6 +10113,61 @@ temporary column-level UPDATE grant preserves already-installed app versions; it
 covers only these five metadata columns and must be retired after the minimum
 supported iOS version uses the RPCs.
 
+### Prepared species-confirmation endpoint
+
+`POST /confirm-scan-species` applies only to the reserved explicit-primary
+contract. Native explicit-primary reviews use this endpoint; legacy observations
+remain on the existing RPC. No current model profile produces the new contract.
+
+The authenticated request contains exactly lowercase UUID `scan_id`, integer
+`expected_revision` (0–2,147,483,646), and `action` (`confirm_primary`,
+`confirm_name`, `clear`). Only `confirm_name` includes `scientific_name`,
+bounded to 160 UTF-16 units. Owner, species IDs, proof and arbitrary fields
+cannot be supplied. Primary confirmation takes the saved species-level name;
+broader answers cannot use that action. Clear requires no name or external
+verification.
+
+Confirmation admits through the existing bounded non-AI dictionary counters,
+then obtains fresh accepted SPECIES proof even on a dictionary hit. The
+service-only atomic apply RPC rechecks ownership, tombstones, revision and the
+exact owner-job backup under the scan-generation lock. It does not invoke an AI
+provider. Response `schema_version: 1` contains exact `scan_id` and `review`:
+version 1, revision, nullable identity, `user_identification_override`,
+`user_confirmed_identification`, `confirmed_species_id`, `user_review_state`.
+Identity includes version 1, verified dictionary UUID/scientific name, null
+common name and GBIF key. Original AI output/provenance remain immutable.
+Verification of the selected taxon is independent of model confidence and
+observation truth.
+
+The 8 KiB review envelope preserves existing boolean semantics (`ai_confirmed`
+true; `user_overridden`/`unreviewed` false). Initial revision is zero.
+Replacement and clear advance it; an exact retry from one revision earlier
+returns the same saved state. Other stale/different mutations return
+`409 species_review_revision_conflict`; clients must refresh and reconcile,
+never silently resubmit with a newer revision. Missing/foreign scans share 404;
+unsupported legacy rows return 409; invalid input 400, unverified species 422,
+request budget exhaustion 429, and external verification failure 503. Responses
+are private/no-store; no provider body or observation text appears in errors.
+
+The scan's identity/revision and job's complete review envelope are
+server-owned. Recovery ignores client review authority and restores the exact
+backup (including clear); legacy/community edits invalidate stale identity and
+FK while retaining review intent. Native acknowledgements and owner history
+strictly validate this full envelope and persist it in the existing V53
+`confirmedSpeciesIdentityData` bytes. The field contains revision and nullable
+identity together, so clearing does not erase ordering evidence. History selects
+both authority columns and the four legacy review fields. Omission preserves a
+saved authority; partial presence is invalid, older revisions are ignored, and
+same-revision conflicts fail. Equal history preserves pending local intent;
+newer authoritative state reconciles it. Preparation and acknowledgement never
+change original AI output or calibrate its confidence. The shared consumers use
+this authority separately from original AI evidence; see
+[shared identity semantics](#explicit-identity-in-shared-consumers). Protocol
+stays 4. See the
+[endpoint contract](../../services/supabase/functions/confirm-scan-species/README.md)
+and
+[remaining checkpoints](../rfcs/identification-primary-resolution-contract-2026-09-29.md#remaining-consumer-checkpoints).
+
 ---
 
 ## Deno `/delete-scan` Edge Node
@@ -11811,3 +11928,39 @@ Reference images exclude media belonging to that viewer's reported posts;
 missing eligible media produces the existing empty/null image representation
 without dropping the species. Native callers use this route. The anonymous
 endpoint and its public contract are preserved.
+
+## Explicit identity in shared consumers
+
+The dormant explicit-primary contract is evaluated from the authorized saved
+row, never from client-supplied recovery fields. The full primary/provenance and
+revisioned species review must validate. Pending typed review or a bare
+confirmed ID cannot confer species authority. Valid genus, family and unresolved
+biological observations remain shareable and eligible for biological Field Chat.
+Legacy reads retain their prior behavior.
+
+Explore card RPCs add nullable `identification` with exactly `version: 1`,
+`rank`, `label_source`, `original_rank`, `original_scientific_name` and
+`original_common_name`. Rank is species, genus, family or unresolved_biological;
+source is ai_primary, verified_selection or community. Original fields are
+required nullable values. Legacy cards omit/null this object unless a community
+label applies. A present malformed object fails decoding. No confidence,
+provider settings or review envelope is public. Cards/detail/map/web keep
+existing privacy predicates and original `ai_reasoning`; presentation names its
+original rank separately when a selection or community label is displayed.
+Broader or community display alone supplies no verified species reference or
+preferred species-name substitution.
+
+Insight Field Chat separates original AI evidence, verified taxonomy selection
+and pending review; it never transfers original confidence to a replacement.
+Field Trip receipts track the primary/review revisions and recompute or withdraw
+regular/Event credit, including completed trips, when the selected species
+changes. Reference promotion requires the original species association and
+qualified original metrics for explicit results.
+
+New DwC-A source snapshots add nullable `identification` containing `rank`,
+`scientific_name` and `verified_selection`. Invalid authority gives no effective
+species and a null identification projection. Existing immutable snapshot rows
+and resumable archive format stay unchanged. The 20-column CSV uses the existing
+scientificName, genus/family and identificationVerificationStatus fields to
+preserve the explicit interpretation; a new taxonRank column requires a future
+versioned archive format. No producer, export gate or client protocol changes.

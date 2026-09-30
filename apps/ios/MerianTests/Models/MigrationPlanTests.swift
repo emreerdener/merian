@@ -1218,26 +1218,102 @@ struct MigrationPlanTests {
         #expect(try context.fetch(FetchDescriptor<LocalScanRecord>()).first?.identificationProvenanceData == Data("unknown-present".utf8))
     }
 
-    @Test func allForwardPlansEndWithTheAdditiveProvenanceStage() throws {
+    @Test func v52StoreMigratesWithPrimaryIdentityAndPreservesLegacyState() throws {
+        let url = migrationStoreURL(named: "v52-provenance")
+        defer { keepSQLiteStoreForProcessLifetime(at: url) }
+        let owner = UUID(uuidString: "00000000-0000-4000-8000-000000000052")!
+        do {
+            let schema = Schema(versionedSchema: MerianSchemaV52.self)
+            let container = try makeModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, url: url)])
+            let context = ModelContext(container)
+            let record = MerianSchemaV52.LocalScanRecord(
+                id: "v52-scan", speciesId: "fixture-species", scientificName: "Turdus migratorius",
+                commonName: "American Robin", confidenceScore: 0.9, inferenceTier: "pro",
+                fieldNotes: "Synthetic saved note"
+            )
+            let media = MerianSchemaV52.CapturedMediaEntry(orderIndex: 0, item: .image(.documents("v52-fixture.webp")))
+            record.identificationProvenanceData = Data("legacy-provenance".utf8)
+            context.insert(record)
+            context.insert(media)
+            record.capturedMediaEntries = [media]
+            let collection = MerianSchemaV52.ScanCollection(name: "Fixture collection", scans: [record])
+            context.insert(collection)
+            context.insert(MerianSchemaV52.UserSpeciesPreference(ownerUserID: owner, scientificName: "Turdus migratorius", preferredCommonName: "Robin"))
+            context.insert(MerianSchemaV52.OfflineQueuedScan(id: "v52-queue", queueAttemptCount: 2, queueNeedsAttention: true))
+            context.insert(MerianSchemaV52.OfflineJobRecord(id: "v52-job", kind: .scanIngestion, subjectId: "v52-queue", status: .needsAttention, attemptCount: 2))
+            context.insert(MerianSchemaV52.OfflineQueueEvent(jobId: "v52-job", scanId: "v52-queue", kind: .needsAttention))
+            context.insert(MerianSchemaV52.PendingCloudDeletionTask(scanId: "v52-deletion"))
+            context.insert(MerianActiveSchemaV50.OfflineQueuedScanGoalHint(scanId: "v52-queue", userFieldTripId: "fixture-trip", itemId: "fixture-goal"))
+            try context.save()
+        }
+        let decision = ModelStoreRecoveryCoordinator.migrationDecision(
+            at: url,
+            currentSchemaMajor: CurrentSchema.versionIdentifier.major
+        )
+        #expect(decision.hasStoreArtifacts)
+        #expect(decision.storedSchemaMajorVersion == 52)
+        #expect(decision.hint == .recentSource(.v52))
+        do {
+            let schema = Schema(versionedSchema: CurrentSchema.self)
+            let container = try makeModelContainer(for: schema, migrationPlan: MerianRecentV52MigrationPlan.self, configurations: [ModelConfiguration(schema: schema, url: url)])
+            let context = ModelContext(container)
+            let record = try #require(context.fetch(FetchDescriptor<LocalScanRecord>()).first)
+            #expect(record.id == "v52-scan")
+            #expect(record.identificationProvenanceData == Data("legacy-provenance".utf8))
+            #expect(record.primaryIdentificationData == nil)
+            #expect(record.confirmedSpeciesIdentityData == nil)
+            #expect(record.confidenceScore == 0.9)
+            #expect(record.inferenceTier == "pro")
+            #expect(record.fieldNotes == "Synthetic saved note")
+            #expect(record.capturedMediaEntries?.first?.mediaPath == "v52-fixture.webp")
+            #expect(record.collections?.first?.name == "Fixture collection")
+            let preference = try #require(context.fetch(FetchDescriptor<UserSpeciesPreference>()).first)
+            #expect(preference.ownerUserId == owner.uuidString.lowercased())
+            #expect(preference.preferredCommonName == "Robin")
+            let queued = try #require(context.fetch(FetchDescriptor<OfflineQueuedScan>()).first)
+            #expect(queued.queueNeedsAttention && queued.queueAttemptCount == 2)
+            #expect(try context.fetch(FetchDescriptor<OfflineJobRecord>()).first?.attemptCount == 2)
+            #expect(try context.fetchCount(FetchDescriptor<OfflineQueueEvent>()) == 1)
+            #expect(try context.fetchCount(FetchDescriptor<PendingCloudDeletionTask>()) == 1)
+            #expect(try context.fetch(FetchDescriptor<ActiveOfflineQueuedScanGoalHint>()).first?.itemId == "fixture-goal")
+            record.primaryIdentificationData = try PrimaryIdentification(snapshot: .init(
+                resolution: .genus, scientificName: "Turdus", commonName: "Thrush")).data
+            record.confirmedSpeciesIdentityData = Data("reserved-untrusted-fixture".utf8)
+            try context.save()
+        }
+        let schema = Schema(versionedSchema: CurrentSchema.self)
+        let reopened = try makeModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, url: url)])
+        let context = ModelContext(reopened)
+        let reopenedRecord = try #require(context.fetch(FetchDescriptor<LocalScanRecord>()).first)
+        #expect(reopenedRecord.identificationProvenanceData == Data("legacy-provenance".utf8))
+        #expect(reopenedRecord.primaryIdentificationData.map { PrimaryIdentification(storedData: $0).value?.resolution } == .genus)
+        #expect(reopenedRecord.confirmedSpeciesIdentityData == Data("reserved-untrusted-fixture".utf8))
+        // Persisting reserved bytes is not confirmation authority.
+        #expect(!reopenedRecord.hasSpeciesLevelIdentification)
+    }
+
+    @Test func allForwardPlansEndWithTheAdditivePrimaryIdentityStage() throws {
         let plans: [any SchemaMigrationPlan.Type] = [MerianMigrationPlan.self,
             MerianRecentV42MigrationPlan.self, MerianRecentV43MigrationPlan.self,
             MerianRecentV44MigrationPlan.self, MerianRecentV45MigrationPlan.self,
             MerianRecentV46MigrationPlan.self, MerianRecentV47MigrationPlan.self,
             MerianRecentV48MigrationPlan.self, MerianOptionalQueueV48RecoveryPlan.self,
             MerianRecentV49MigrationPlan.self, MerianRecentV50MigrationPlan.self,
-            MerianReleasedActiveV50MigrationPlan.self, MerianRecentV51MigrationPlan.self]
+            MerianReleasedActiveV50MigrationPlan.self, MerianRecentV51MigrationPlan.self, MerianRecentV52MigrationPlan.self]
         for plan in plans {
-            #expect(plan.schemas.last?.versionIdentifier.major == 52)
+            #expect(plan.schemas.last?.versionIdentifier.major == 53)
             switch try #require(plan.stages.last) {
             case let .lightweight(fromVersion, toVersion):
-                #expect(fromVersion.versionIdentifier.major == 51)
-                #expect(toVersion.versionIdentifier.major == 52)
+                #expect(fromVersion.versionIdentifier.major == 52)
+                #expect(toVersion.versionIdentifier.major == 53)
             default:
-                Issue.record("Provenance requires only the additive V51 to V52 stage.")
+                Issue.record("Primary identity requires only the additive V52 to V53 stage.")
             }
         }
-        #expect(MerianRecentV51MigrationPlan.schemas.map { $0.versionIdentifier.major } == [51, 52])
-        #expect(MerianRecentV51MigrationPlan.stages.count == 1)
+        #expect(MerianRecentV51MigrationPlan.schemas.map { $0.versionIdentifier.major } == [51, 52, 53])
+        #expect(MerianRecentV51MigrationPlan.stages.count == 2)
+        #expect(MerianRecentV52MigrationPlan.schemas.map { $0.versionIdentifier.major } == [52, 53])
+        #expect(MerianRecentV52MigrationPlan.stages.count == 1)
     }
 
     @Test func outgoingV51ModelsAndRelationshipsAreFrozen() throws {
@@ -1264,7 +1340,7 @@ struct MigrationPlanTests {
     @Test func activeCollectionTombstoneUsesSourceOnlyV50RenameMapping() throws {
         let source = try currentScanCollectionSource()
 
-        #expect(CurrentSchema.versionIdentifier.major == 52)
+        #expect(CurrentSchema.versionIdentifier.major == 53)
         #expect(source.contains("@Attribute(originalName: \"isDeleted\")"))
         #expect(source.contains("public var isPendingDeletion: Bool = false"))
         #expect(source.contains("isPendingDeletion: Bool = false"))
@@ -1725,10 +1801,10 @@ struct MigrationPlanTests {
         let schemaMajors = MerianRecentV49MigrationPlan.schemas.map {
             $0.versionIdentifier.major
         }
-        #expect(schemaMajors == [49, 50, 51, 52])
+        #expect(schemaMajors == [49, 50, 51, 52, 53])
 
         let stages = MerianRecentV49MigrationPlan.stages
-        #expect(stages.count == 3)
+        #expect(stages.count == 4)
         switch try #require(stages.first) {
         case let .lightweight(fromVersion, toVersion):
             #expect(fromVersion.versionIdentifier.major == 49)
@@ -1754,8 +1830,8 @@ struct MigrationPlanTests {
         let schemaMajors = MerianRecentV50MigrationPlan.schemas.map {
             $0.versionIdentifier.major
         }
-        #expect(schemaMajors == [50, 51, 52])
-        #expect(MerianRecentV50MigrationPlan.stages.count == 2)
+        #expect(schemaMajors == [50, 51, 52, 53])
+        #expect(MerianRecentV50MigrationPlan.stages.count == 3)
 
         switch try #require(MerianRecentV50MigrationPlan.stages.first) {
         case let .custom(fromVersion, toVersion, _, _):
@@ -1772,8 +1848,8 @@ struct MigrationPlanTests {
         let schemaMajors = MerianReleasedActiveV50MigrationPlan.schemas.map {
             $0.versionIdentifier.major
         }
-        #expect(schemaMajors == [50, 51, 52])
-        #expect(MerianReleasedActiveV50MigrationPlan.stages.count == 2)
+        #expect(schemaMajors == [50, 51, 52, 53])
+        #expect(MerianReleasedActiveV50MigrationPlan.stages.count == 3)
 
         switch try #require(MerianReleasedActiveV50MigrationPlan.stages.first) {
         case let .custom(fromVersion, toVersion, _, _):

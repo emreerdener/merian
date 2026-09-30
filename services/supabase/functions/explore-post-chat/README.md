@@ -128,3 +128,11 @@ deno test --frozen --config services/supabase/functions/deno.json \
 deno check --frozen --config services/supabase/functions/deno.json \
   services/supabase/functions/explore-post-chat/index.ts
 ```
+
+## Rank and label source
+
+Public context includes the optional allowlisted identification rank/source and
+original labels. A community or observer-selected label is not the original AI
+answer and does not inherit its explanation or confidence. Genus/family and
+unresolved observations stay broad; no private review envelope or provider
+configuration enters the public chat projection.

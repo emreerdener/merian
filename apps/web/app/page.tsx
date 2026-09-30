@@ -21,6 +21,7 @@ import {
 import { WaitlistForm } from "@/components/WaitlistForm";
 import { fetchExploreFeedPosts } from "@/lib/explore";
 import { exploreGridPosterUrl } from "@/lib/exploreMedia";
+import { identificationDescription } from "@/lib/exploreIdentification";
 import { publicAuthorHandle } from "@/lib/formatting";
 import { siteConfig } from "@/lib/site";
 
@@ -199,6 +200,11 @@ export default async function HomePage() {
                         </span>
                       </Box>
                       <Stack gap={5} p="md">
+                        {identificationDescription(post.identification) && (
+                          <Text size="xs" c="dimmed">
+                            {identificationDescription(post.identification)}
+                          </Text>
+                        )}
                         <Text fw={750} lineClamp={2}>
                           {post.speciesCommonName || "An everyday discovery"}
                         </Text>

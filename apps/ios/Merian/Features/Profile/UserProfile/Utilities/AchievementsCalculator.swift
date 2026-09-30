@@ -44,7 +44,7 @@ struct AchievementsCalculator {
                 case .externalMilestone:
                     continue
                 case .uniqueSpecies(let qualifyingReason):
-                    guard let reasonText = qualifyingReason(record) else { continue }
+                    guard record.hasSpeciesRankForAchievements, let reasonText = qualifyingReason(record) else { continue }
                     let contribution = makeContribution(for: record, reasonText: reasonText)
                     accumulators[type]?.register(
                         contribution,

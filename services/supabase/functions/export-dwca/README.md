@@ -344,3 +344,19 @@ idempotent email request was accepted. Hosted maximum-shape database/Edge
 measurements remain mandatory exact-SHA evidence before enabling DwC-A.
 Fresh-catalog pgTAP remains mandatory for the base release because the
 default-off database objects are still deployed.
+
+## Explicit identity snapshots and archive compatibility
+
+New frozen source payloads include nullable identification rank, scientific name
+and verified-selection status from the validated saved-row policy. Malformed
+explicit authority supplies neither effective species nor identification; old
+immutable payloads remain unchanged. The worker reads only its frozen payload,
+never today's scan or provider assignment.
+
+The archive remains 20 columns with the existing meta.xml. Explicit broader
+names populate scientificName and genus/family; identificationVerificationStatus
+states AI rank or observer-selected taxonomy without borrowing AI confidence.
+Historical payloads retain their numeric/blank status byte for byte, so a job
+resuming with previously uploaded occurrence chunks remains compatible. A formal
+taxonRank column is deferred until archive version is frozen per job. This work
+does not enable the disabled export service.

@@ -87,7 +87,7 @@ final class InferenceSpeciesPresentationCoordinator {
         referencePolicy:
             InferenceSpeciesHydrationCoordinator.ReferencePolicy
     ) {
-        guard speciesData.hasResolvedBiologicalIdentification,
+        guard speciesData.hasSpeciesLevelIdentification,
               !speciesData.isHumanSubject,
               let scanId = speciesData.scanId else {
             return

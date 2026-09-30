@@ -362,11 +362,15 @@ This README maps that contract to native source and test ownership.
   scan-milestone sequence. Its `+Live` adapter alone constructs
   `BackgroundDatabaseActor`, resolves the shared-post mapping, logs failures,
   and bridges the AppDI-captured event and milestone collaborators. The
-  coordinator derives its local state from the same immutable mutation passed to
-  transport, so those representations cannot diverge. The core coordinator
-  resolves no live singleton, Supabase query, detached task, or unchecked
-  Sendable wrapper. Auth fencing and replacement rejection remain in the shared
-  `InferenceWriteCoordinator` it receives.
+  coordinator derives legacy local state from the same immutable mutation passed
+  to the RPC. Explicit-primary actions instead persist pending intent, send the
+  typed service request, then persist a validated acknowledgement before
+  presentation or post-sync effects. Failed preparation cannot send a request;
+  failed verification leaves pending intent without new authority. A 409 loads
+  current owned review state once and never silently resubmits the selection.
+  The core coordinator resolves no live singleton, Supabase query, detached
+  task, or unchecked Sendable wrapper. Auth fencing and replacement rejection
+  remain in the shared `InferenceWriteCoordinator` it receives.
 - `Inference/IdentificationReview/InferenceReviewWorkflowCoordinator.swift` owns
   the complete override, confirmation, reset, and historical displayed-override
   workflows. It preserves local admission before lookup/cloud work, performs
@@ -1348,13 +1352,19 @@ content-free JSON without depending on generated DTOs.
 `InferenceConfidencePolicy.bands` recognizes only exact known Gemini execution
 profiles at qualified policy version 1 and returns no qualified bands for
 unknown or damaged present values; absence retains legacy interpretation.
-`displayBands` separately recognizes the exact shipped `openai_photo_v1` V2
-profile and supplies Strong at `0.95`, Possible at `0.60`, and Weak below `0.60`
-for every plan tier. These are model-estimate display thresholds derived from
-the structured-output confidence contract, not empirical calibration. Unknown or
-damaged present profiles retain neutral review guidance. Generated provenance
-decoders enforce the executable contract's rejection of unknown fields,
-including generation settings, before DTO encoding can erase them. The generated
+`displayBands` separately recognizes the exact `openai_photo_v1` V2
+configuration with either `openai_identify_vision_v1` or the upcoming
+`openai_identify_vision_observed_traits_v1` prompt. It supplies Strong at
+`0.95`, Possible at `0.60`, and Weak below `0.60` for every plan tier. The
+backend in this reader-preparation release still emits the original prompt;
+recognition of the later version prepares saved-result and badge compatibility
+before its separate activation. See the
+[release sequence](../../../../../docs/rfcs/identification-openai-observed-traits-candidate-2026-09-29.md#reader-preparation-release--29-september-2026).
+These are model-estimate display thresholds derived from the structured-output
+confidence contract, not empirical calibration. Unknown or damaged present
+profiles retain neutral review guidance. Generated provenance decoders enforce
+the executable contract's rejection of unknown fields, including generation
+settings, before DTO encoding can erase them. The generated
 `IdentificationProvenanceDTO` enum reads exact V1 Gemini and V2 OpenAI
 generation shapes, rejects unsupported versions, and re-encodes the original
 flat JSON object. V2 settings survive live parsing, local persistence and owner
@@ -1370,3 +1380,62 @@ not establish calibrated probabilities for any model. See the
 and the
 [beta admission correction](../../../../../docs/incidents/2026-09-beta-openai-consent-gate.md)
 for the current display and admission boundaries.
+
+### Dormant primary-resolution wire support
+
+The generated `EdgeResponse` now accepts optional non-null
+`PrimaryIdentificationDTO` and optional candidate `taxon_rank`. The version-1
+snapshot has an explicit resolution and required nullable labels; strict keys,
+version, enum and UTF-16 bounds are generated from the Edge contract. Native
+domain interpretation, SwiftData persistence, history merging and shared
+consumer support are implemented as recorded in the
+[primary-resolution plan](../../../../../docs/rfcs/identification-primary-resolution-contract-2026-09-29.md).
+`IdentificationDispatchAuthorization.currentProtocol` now advertises 5, the
+exact reader capability required for these results. Current profiles still do
+not produce the reserved schema. Explanation format, provider assignments and
+confidence display remain unchanged.
+
+## Dormant primary identification consumers
+
+`PrimaryIdentification+Edge` validates the reserved snapshot/provenance pairing,
+original labels, biological classification and species-only payload fields. Live
+and queued completion save every valid explicit result, including a zero model
+score. V53 preserves the snapshot through local reopening and history.
+Genus/family answers keep their original label and a plain rank caption; the
+existing confidence badge vocabulary is unchanged. Species hydration, reference
+images, alternatives, novelty and species counts require explicit species rank.
+Typed review stays separate from the original AI answer and cannot promote it.
+
+`PrimaryIdentificationPersistence` protects duplicate completion and history
+against conflicting snapshot/provenance changes; identical duplicates preserve
+saved review/media state. Older history projections may omit metadata without
+erasing an existing snapshot; a live or queued completion missing that required
+snapshot is rejected. Malformed required local metadata projects as an integrity
+failure. The native confirmation checkpoint now consumes validated revisioned
+review authority without changing these species-only eligibility rules. Shared
+consumers preserve the same distinction, and the capability-5 reader remains
+compatible with legacy results and current provider assignments. The
+[primary-resolution plan](../../../../../docs/rfcs/identification-primary-resolution-contract-2026-09-29.md)
+records validation and the separate producer/release gates.
+
+### Revisioned confirmation acknowledgements
+
+`InferenceReviewWorkflowCoordinator` routes only explicit-primary reviews to
+`confirm-scan-species`; legacy observations retain their RPC and dictionary
+hydration. All explicit actions share the review generation and ordered write
+tail. Broader primary answers cannot use `confirm_primary`; selected species use
+`confirm_name`, and reset uses `clear`. Durable preparation precedes pending UI
+state and remote work. Original AI rank, labels, explanation and confidence stay
+unchanged.
+
+`ConfirmedSpeciesReviewPersistence` is the verified-byte writer. Its
+fresh-context transaction is shared with history; the whole server envelope,
+including a null identity at a newer revision, survives reopening in the
+existing V53 field. Legacy fields remain local intent. Acknowledgements cannot
+overwrite newer history, same-revision conflicts fail, and displaced
+presentations cannot receive late callbacks. Auth transitions fence and drain
+the existing review write tail before replacing the account or local store,
+including a suspended local apply. The network account lease rejects results
+from a displaced session. The restored `SpeciesData` carries this authority
+separately; shared species consumers now preserve this authority, and the native
+reader advertises protocol 5 without activating a new producer.

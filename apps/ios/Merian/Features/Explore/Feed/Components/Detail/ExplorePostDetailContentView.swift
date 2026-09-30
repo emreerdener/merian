@@ -214,6 +214,12 @@ struct ExplorePostDetailContentView: View {
 
     private var detailSections: some View {
         VStack(spacing: 24) {
+            if let identification = post.identification {
+                VStack(spacing: 4) {
+                    if let rank = identification.rankDescription { Text(rank).font(.subheadline) }
+                    if let original = identification.originalDescription { Text(original).font(.caption).foregroundStyle(.secondary) }
+                }
+            }
             ExplorePostDetailSpeciesSummary(
                 scientificName: post.speciesScientificName,
                 postCommonName: post.speciesCommonName,

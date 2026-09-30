@@ -337,7 +337,7 @@ extension InsightSheetView {
               let scanId = viewModel.presentedSpeciesScanId,
               let speciesData = inferenceEngine.speciesData,
               speciesData.isBiological,
-              speciesData.hasResolvedBiologicalIdentification,
+              speciesData.isShareableBiologicalObservation,
               !speciesData.isHumanSubject,
               speciesData.scanId?.caseInsensitiveCompare(scanId) == .orderedSame,
               presentedScanId == nil ||

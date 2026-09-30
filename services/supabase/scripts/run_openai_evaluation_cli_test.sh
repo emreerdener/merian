@@ -28,15 +28,16 @@ assert real_deno, "the repository-pinned Deno is required"
 fake = root / "deno"
 fake.write_text(r'''#!/usr/bin/env python3
 import json, os, pathlib, signal, sys
-entry_index = sys.argv.index('services/supabase/scripts/evaluate_identification.ts')
+primary = 'services/supabase/scripts/evaluate_sol_primary.ts' in sys.argv
+entry_index = sys.argv.index('services/supabase/scripts/evaluate_sol_primary.ts' if primary else 'services/supabase/scripts/evaluate_identification.ts')
 mode = sys.argv[entry_index + 1]
 packet = pathlib.Path(sys.argv[entry_index + 2])
-assert mode in ('preflight', '--live', 'experiment-preflight', '--experiment-live')
+assert mode in ('preflight-sol-rank-photo', 'preflight', '--live', 'experiment-preflight', '--experiment-live', 'preflight-free-pro-photo', '--photo-model-live', 'preflight-free-pro-photo-continuation', '--photo-model-continuation-live', '--sol-rank-photo-live')
 assert '--cached-only' in sys.argv
-reviewed = mode in ('experiment-preflight', '--experiment-live') and json.loads((packet / 'experiment.json').read_text()).get('version') in ('identification_experiment_plan_v2', 'identification_experiment_plan_v3', 'identification_experiment_plan_v4')
+reviewed = primary or mode in ('preflight-sol-rank-photo', 'preflight-free-pro-photo', '--photo-model-live', 'preflight-free-pro-photo-continuation', '--photo-model-continuation-live', '--sol-rank-photo-live') or mode in ('experiment-preflight', '--experiment-live') and json.loads((packet / 'experiment.json').read_text()).get('version') in ('identification_experiment_plan_v2', 'identification_experiment_plan_v3', 'identification_experiment_plan_v4')
 assert all(name not in os.environ for name in ('SUPABASE_SERVICE_ROLE_KEY', 'GITHUB_TOKEN', 'OPENAI_API_KEY', 'GIT_CONFIG_COUNT', 'GEMINI_PAID_API_KEY'))
 assert 'synthetic-local-launcher-value' not in ' '.join(sys.argv)
-if mode in ('preflight', 'experiment-preflight'):
+if mode in ('preflight-sol-rank-photo', 'preflight', 'experiment-preflight', 'preflight-free-pro-photo', 'preflight-free-pro-photo-continuation'):
     assert 'OPENAI_EVALUATION_API_KEY' not in os.environ
     assert '--deny-net' in sys.argv and '--deny-env' in sys.argv
 else:
@@ -46,7 +47,7 @@ else:
     assert ('--allow-run=git,/usr/bin/open' if reviewed else '--allow-run=git') in sys.argv
 with (packet / 'calls.jsonl').open('a') as output:
     output.write(json.dumps({'mode': mode, 'runId': sys.argv[entry_index + 3] if mode == '--experiment-live' else None}) + '\n')
-if mode in ('--live', '--experiment-live') and (packet / 'check-permissions').exists():
+if mode in ('--live', '--experiment-live', '--photo-model-live', '--photo-model-continuation-live', '--sol-rank-photo-live') and (packet / 'check-permissions').exists():
     flags = sys.argv[1:entry_index]
     # Use the actual launcher flags and actual permission gate; never invoke a provider.
     code = """
@@ -64,13 +65,62 @@ if ((await Deno.permissions.query({name: "run", command: "/usr/bin/open"})).stat
                            env=os.environ, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if check.returncode:
         sys.exit(check.returncode)
-if mode in ('--live', '--experiment-live') and (packet / 'pause-live').exists():
+if mode in ('--live', '--experiment-live', '--photo-model-live', '--photo-model-continuation-live', '--sol-rank-photo-live') and (packet / 'pause-live').exists():
     (packet / 'claim.marker').write_text('started')
     print(os.environ['OPENAI_EVALUATION_API_KEY'], flush=True)
     signal.pause()
 if (packet / ('fail-' + mode.lstrip('-'))).exists():
     print(os.environ.get('OPENAI_EVALUATION_API_KEY', 'synthetic-upstream-private-output'))
     sys.exit(1)
+if mode in ('preflight-free-pro-photo', 'preflight-free-pro-photo-continuation'):
+    continuation = mode.endswith('-continuation')
+    (packet / ('photo-model-continuation-preflight.json' if continuation else 'photo-model-preflight.json')).write_text(json.dumps({
+        'version':'photo_model_continuation_preflight_v1' if continuation else 'photo_model_preflight_v1',
+        'budgetFitsRegionalReservation': not (packet / 'insufficient-budget').exists(),
+        'evidenceStatus':'provisional_reference_pilot','source':{'dirty':False},
+        'inheritedCalls': 2 if (packet / 'bad-inherited-count').exists() else 1,
+        'maxAdditionalCalls':17,'screeningPolicy':'reference_gaps_recorded_v1'}))
+if mode in ('--photo-model-live', '--photo-model-continuation-live') and not (packet / 'missing-state').exists():
+    continuation = mode == '--photo-model-continuation-live'
+    directory = packet / ('photo-model-continuation' if continuation else 'photo-model-run')
+    directory.mkdir(exist_ok=True)
+    (directory / 'state.json').write_text(json.dumps({'version':'photo_model_state_v2' if continuation else 'photo_model_state_v1',
+        'claimedCalls':18,'completedCalls':18,'inheritedCalls':1,
+        'newlyClaimedCalls': 16 if (packet / 'bad-combined-count').exists() else 17,
+        'screeningPolicy':'reference_gaps_recorded_v1','productionActivationAuthorized':False,
+        'complete': not (packet / 'stop-after-run').exists(), 'stop': 'screen_failed' if (packet / 'stop-after-run').exists() else None}))
+if mode == 'preflight-sol-rank-photo':
+    (packet / 'sol-rank-preflight.json').write_text(json.dumps({
+        'version':'sol_photo_rank_preflight_v1',
+        'budgetFitsRegionalReservation': not (packet / 'insufficient-budget').exists(),
+        'evidenceStatus':'provisional_reused_development_cases',
+        'source':{'dirty': (packet / 'dirty-source').exists()},
+        'recordVersion': 'photo_model_attempt_v1' if (packet / 'old-records').exists() else 'photo_model_attempt_v2',
+        'screeningPolicy':'sol_rank_mapping_and_reference_gaps_v1'}))
+if mode == '--sol-rank-photo-live' and not (packet / 'missing-state').exists():
+    directory = packet / 'sol-photo-rank-run'
+    directory.mkdir(exist_ok=True)
+    (directory / 'state.json').write_text(json.dumps({
+        'version':'sol_photo_rank_state_v1', 'claimedCalls':18, 'completedCalls':18,
+        'screeningPolicy':'sol_rank_mapping_and_reference_gaps_v1',
+        'productionActivationAuthorized': (packet / 'bad-authority').exists(),
+        'complete': not (packet / 'stop-after-run').exists(),
+        'stop': 'screen_unassessable' if (packet / 'stop-after-run').exists() else None}))
+if primary and mode == 'preflight':
+    (packet / 'sol-primary-preflight.json').write_text(json.dumps({
+        'version': 'sol_photo_primary_preflight_v1', 'budgetFitsRegionalReservation': not (packet / 'low-budget').exists(),
+        'evidenceStatus': 'provisional_development_cases', 'source': {'dirty': (packet / 'dirty-source').exists()},
+        'recordVersion': 'photo_model_attempt_v2' if (packet / 'old-records').exists() else 'sol_primary_photo_attempt_v1',
+        'screeningPolicy': 'primary_reference_limits_v1'}))
+if primary and mode == '--live' and not (packet / 'missing-state').exists():
+    directory = packet / 'sol-photo-primary-run'
+    directory.mkdir(exist_ok=True)
+    (directory / 'state.json').write_text(json.dumps({
+        'version': 'sol_photo_primary_state_v1', 'claimedCalls':18, 'completedCalls':18,
+        'screeningPolicy': 'primary_reference_limits_v1',
+        'productionActivationAuthorized': (packet / 'bad-authority').exists(),
+        'complete': not (packet / 'stop-after-run').exists(),
+        'stop': 'screen_unassessable' if (packet / 'stop-after-run').exists() else None}))
 if mode == '--experiment-live':
     run_id = sys.argv[entry_index + 3]
     state_path = packet / 'experiment' / 'state.json'
@@ -150,6 +200,22 @@ assert key not in record.read_text()
 assert terminal('--credential-fingerprint', p) == (1, False), 'must not overwrite a prior fingerprint'
 assert not (p / 'calls.jsonl').exists(), 'fingerprinting must never dispatch'
 
+for marker in (None, 'low-budget', 'dirty-source', 'old-records', 'missing-state', 'bad-authority', 'stop-after-run'):
+    p = packet('primary-' + (marker or 'success'))
+    (p / 'sol-primary-plan.json').write_text(json.dumps({
+        'version': 'sol_photo_primary_plan_v1', 'maxCalls':18, 'attemptsPerAssignment':1,
+        'screeningPolicy':'primary_reference_limits_v1'}))
+    if marker:
+        (p / marker).touch()
+    expected = (0, True) if marker is None else (1, marker not in ('low-budget', 'dirty-source', 'old-records'))
+    assert terminal('--sol-primary-photo-live', p) == expected, marker
+    calls = [json.loads(line)['mode'] for line in (p / 'calls.jsonl').read_text().splitlines()]
+    assert calls == (['preflight', '--live'] if expected[1] else ['preflight'])
+p = packet('primary-reject-historical-plan')
+(p / 'sol-primary-plan.json').write_text(json.dumps({'version': 'sol_photo_rank_plan_v1',
+    'maxCalls':18, 'attemptsPerAssignment':1, 'screeningPolicy':'sol_rank_mapping_and_reference_gaps_v1'}))
+assert terminal('--sol-primary-photo-live', p) == (1, False)
+
 p = packet('live')
 assert terminal('--live', p) == (0, True)
 assert [json.loads(line)['mode'] for line in (p / 'calls.jsonl').read_text().splitlines()] == ['preflight', '--live']
@@ -159,6 +225,79 @@ p = packet('runtime-permissions')
 (p / 'check-permissions').touch()
 assert terminal('--live', p) == (0, True), 'actual launcher grants must satisfy the real Deno admission gate'
 assert [json.loads(line)['mode'] for line in (p / 'calls.jsonl').read_text().splitlines()] == ['preflight', '--live']
+
+def photo_packet(name, version="photo_model_plan_v2"):
+    p = packet(name)
+    (p / 'photo-model-plan.json').write_text(json.dumps({'version':version,'maxCalls':18,'attemptsPerAssignment':1}))
+    return p
+
+def sol_packet(name, version="sol_photo_rank_plan_v1"):
+    p = packet(name)
+    (p / 'sol-rank-plan.json').write_text(json.dumps({'version':version, 'maxCalls':18,
+        'attemptsPerAssignment':1, 'screeningPolicy':'sol_rank_mapping_and_reference_gaps_v1'}))
+    return p
+
+p = sol_packet('sol-rank')
+(p / 'check-permissions').touch()
+assert terminal('--sol-rank-photo-live', p) == (0, True)
+assert [json.loads(line)['mode'] for line in (p / 'calls.jsonl').read_text().splitlines()] == ['preflight-sol-rank-photo', '--sol-rank-photo-live']
+for marker in ('stop-after-run', 'missing-state', 'bad-authority'):
+    p = sol_packet('sol-rank-' + marker)
+    (p / marker).touch()
+    assert terminal('--sol-rank-photo-live', p) == (1, True)
+for marker in ('insufficient-budget', 'dirty-source', 'old-records', 'fail-preflight-sol-rank-photo'):
+    p = sol_packet('sol-rank-' + marker)
+    (p / marker).touch()
+    assert terminal('--sol-rank-photo-live', p) == (1, False)
+p = sol_packet('sol-rank-interrupted')
+(p / 'pause-live').touch()
+assert terminal('--sol-rank-photo-live', p, cancel_live=True) == (1, True)
+assert len((p / 'calls.jsonl').read_text().splitlines()) == 2
+p = sol_packet('sol-rank-reject-old', 'photo_model_plan_v3')
+assert terminal('--sol-rank-photo-live', p) == (1, False)
+p = photo_packet('historical-reject-sol', 'sol_photo_rank_plan_v1')
+assert terminal('--photo-model-live', p) == (1, False)
+assert terminal('--photo-model-continuation-live', p) == (1, False)
+
+p = photo_packet('photo-models')
+(p / 'check-permissions').touch()
+assert terminal('--photo-model-live', p) == (0, True)
+assert [json.loads(line)['mode'] for line in (p / 'calls.jsonl').read_text().splitlines()] == ['preflight-free-pro-photo', '--photo-model-live']
+for marker in ('stop-after-run','missing-state'):
+    p = photo_packet('photo-models-' + marker)
+    (p / marker).touch()
+    assert terminal('--photo-model-live', p) == (1, True), 'a stopped comparison is never reported as complete'
+p = photo_packet('photo-models-insufficient-budget')
+(p / 'insufficient-budget').touch()
+assert terminal('--photo-model-live', p) == (1, False), 'budget preflight must stop before prompting for a key'
+p = photo_packet('photo-models-old-plan')
+(p / 'photo-model-plan.json').write_text(json.dumps({'version':'photo_model_plan_v1','maxCalls':18,'attemptsPerAssignment':1}))
+assert terminal('--photo-model-live', p) == (1, False), 'the original $5 proposal does not authorize an expanded run'
+
+p = photo_packet('photo-candidate', 'photo_model_plan_v3')
+(p / 'check-permissions').touch()
+assert terminal('--photo-model-live', p) == (0, True)
+assert terminal('--photo-model-continuation-live', p) == (1, False), 'the new prompt cannot use old continuation authority'
+for marker in ('stop-after-run', 'missing-state'):
+    p = photo_packet('photo-candidate-' + marker, 'photo_model_plan_v3')
+    (p / marker).touch()
+    assert terminal('--photo-model-live', p) == (1, True)
+p = photo_packet('photo-candidate-insufficient-budget', 'photo_model_plan_v3')
+(p / 'insufficient-budget').touch()
+assert terminal('--photo-model-live', p) == (1, False)
+
+p = photo_packet('photo-continuation')
+(p / 'check-permissions').touch()
+assert terminal('--photo-model-continuation-live', p) == (0, True)
+assert [json.loads(line)['mode'] for line in (p / 'calls.jsonl').read_text().splitlines()] == ['preflight-free-pro-photo-continuation', '--photo-model-continuation-live']
+for marker in ('stop-after-run', 'missing-state', 'bad-combined-count'):
+    p = photo_packet('photo-continuation-' + marker)
+    (p / marker).touch()
+    assert terminal('--photo-model-continuation-live', p) == (1, True)
+for marker in ('insufficient-budget', 'bad-inherited-count', 'fail-preflight-free-pro-photo-continuation'):
+    p = photo_packet('photo-continuation-' + marker)
+    (p / marker).touch()
+    assert terminal('--photo-model-continuation-live', p) == (1, False)
 
 p = packet('controlled-experiment')
 (p / 'experiment.json').write_text(json.dumps({'version': 'identification_experiment_plan_v1', 'mode': 'live',

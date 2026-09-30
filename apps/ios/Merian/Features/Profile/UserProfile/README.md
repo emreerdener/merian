@@ -188,3 +188,12 @@ The protocol requires both fields, preventing a new projection from silently
 forgetting provenance. Public author-profile SQL is a separate activation
 prerequisite; it must receive equivalent treatment before another provider runs.
 `IdentificationResultProvenanceTests` exercises both private snapshot paths.
+
+## Verified species totals
+
+`ProfileDatabaseActor` uses `effectiveSpeciesNameForStatistics` for native
+species totals. Full verified selection may supply a name independently from
+original rank; malformed/pending authority cannot. The fingerprint reads saved
+review state in a fresh context so confirmation, replacement and clear
+invalidate cached totals without a new scan or timestamp. Existing
+taxonomy-dependent achievement evidence remains original-result evidence.

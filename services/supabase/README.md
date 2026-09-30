@@ -23,6 +23,19 @@ request budgets do not consume AI or scan allowances. Apply the service-only
 admission/materialization migration before deploying the endpoint and shipping
 its iOS caller. The public dictionary read stays read-only.
 
+The separate prepared
+[`confirm-scan-species`](functions/confirm-scan-species/README.md) endpoint
+obtains fresh proof before attaching an independent, revisioned species
+selection to a reserved explicit-primary observation. It keeps original AI
+metadata immutable and backs replacement/clear with the owner ingestion job.
+Native acknowledgements and shared consumers now use that authority while
+preserving original AI evidence. Public labels expose only rank/source/names;
+Field Trip replacement/clear reconciles cached credit, and new export snapshots
+preserve rank without rewriting prior jobs. The native reader source now
+advertises capability 5. Legacy results, provider assignments and binding minima
+remain unchanged. See the
+[reader checkpoint](../../docs/rfcs/identification-primary-resolution-contract-2026-09-29.md#capability-5-reader-preparation--2026-09-29).
+
 ## Structure
 
 The [Function directory guide](functions/README.md) groups endpoint entrypoints

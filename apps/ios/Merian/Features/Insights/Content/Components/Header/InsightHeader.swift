@@ -8,6 +8,7 @@ struct InsightHeader: View {
     let confidenceScore: Double?
     let inferenceTier: String?
     var provenance: IdentificationResultProvenance?
+    var primaryRankDescription: String?
     var userIdentificationOverride: String?
     var userConfirmedIdentification: Bool = false
     var isFlagged: Bool = false
@@ -34,6 +35,13 @@ struct InsightHeader: View {
                     aiScientificName: aiScientificName,
                     onAskCommunity: onAskCommunity
                 )
+
+            if let primaryRankDescription {
+                Text(primaryRankDescription)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
 
             // MARK: - Subtitle and Title
             VStack(alignment: .center, spacing: 8) {

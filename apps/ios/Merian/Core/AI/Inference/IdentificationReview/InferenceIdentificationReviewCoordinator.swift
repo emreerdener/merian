@@ -48,6 +48,11 @@ final class InferenceIdentificationReviewCoordinator {
         let logSyncFailure: @MainActor @Sendable (Error) -> Void
     }
 
+    struct VerifiedDependencies {
+        let prepare: @MainActor @Sendable (ModelContainer, InferenceIdentificationReviewMutation) async throws -> VerifiedSpeciesReviewRequest
+        let apply: @MainActor @Sendable (ModelContainer, String, ConfirmedSpeciesReview, InferenceIdentificationReviewMutation?) async throws -> ConfirmedSpeciesReview?
+    }
+
     enum SnapshotPurpose: Sendable, Equatable {
         case confirmation
         case reset
@@ -68,17 +73,20 @@ final class InferenceIdentificationReviewCoordinator {
     private let reviewService: InferenceIdentificationReviewService
     private let snapshotService: InferenceReviewSnapshotService
     private let dependencies: Dependencies
+    private let verifiedDependencies: VerifiedDependencies
 
     init(
         writeCoordinator: InferenceWriteCoordinator,
         reviewService: InferenceIdentificationReviewService,
         snapshotService: InferenceReviewSnapshotService,
-        dependencies: Dependencies
+        dependencies: Dependencies,
+        verifiedDependencies: VerifiedDependencies? = nil
     ) {
         self.writeCoordinator = writeCoordinator
         self.reviewService = reviewService
         self.snapshotService = snapshotService
         self.dependencies = dependencies
+        self.verifiedDependencies = verifiedDependencies ?? .live
     }
 
     var isAuthTransitionFenceActive: Bool {
@@ -207,6 +215,48 @@ final class InferenceIdentificationReviewCoordinator {
                 await persistReview(modelContainer, mutation)
             }
             await self?.syncReview(mutation)
+        }
+    }
+
+    /// Explicit-primary reviews use service authority; the legacy mutation only
+    /// describes pending intent and is never sent to the legacy RPC here.
+    @discardableResult
+    func enqueueVerifiedReviewMutation(
+        _ mutation: InferenceIdentificationReviewMutation,
+        actionGeneration: UInt64,
+        modelContainer: ModelContainer,
+        didPrepare: @escaping @MainActor @Sendable () -> Void = {},
+        didReconcile: @escaping @MainActor @Sendable (ConfirmedSpeciesReview) -> Void
+    ) -> Task<Void, Never>? {
+        enqueueWrite(scanId: mutation.scanID, actionGeneration: actionGeneration) { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                let request = try await self.verifiedDependencies.prepare(modelContainer, mutation)
+                try Task.checkCancellation()
+                guard !self.isAuthTransitionFenceActive,
+                      self.isReviewActionCurrent(scanId: mutation.scanID, generation: actionGeneration) else { return }
+                didPrepare()
+                let outcome = try await self.reviewService.syncVerifiedReview(request)
+                try Task.checkCancellation()
+                guard !self.isAuthTransitionFenceActive else { return }
+                let intent: InferenceIdentificationReviewMutation?
+                switch outcome {
+                case .acknowledged: intent = mutation
+                case .reconciled: intent = nil
+                }
+                let saved = try await self.verifiedDependencies.apply(modelContainer, mutation.scanID, outcome.review, intent)
+                try Task.checkCancellation()
+                guard !self.isAuthTransitionFenceActive else { return }
+                if let saved, self.isReviewActionCurrent(scanId: mutation.scanID, generation: actionGeneration) {
+                    didReconcile(saved)
+                }
+                if let postID = self.dependencies.sharedPostID(mutation.scanID) {
+                    self.dependencies.sendPostRefresh(postID)
+                }
+                await self.dependencies.processIdentificationUpdate(mutation.scanID)
+            } catch {
+                self.dependencies.logSyncFailure(error)
+            }
         }
     }
 

@@ -17,7 +17,7 @@ struct CapturedMediaArchitectureTests {
             // V51 must retain the exact nested released model independently
             // of the active declaration; migration guards pin its snapshot.
             let expectedOwners = expectation.token == "public final class CapturedMediaEntry"
-                ? [expectation.path, "Models/Schema/SchemaV51Snapshots.swift"]
+                ? [expectation.path, "Models/Schema/SchemaV51Snapshots.swift", "Models/Schema/SchemaV52QueueSnapshots.swift"]
                 : [expectation.path]
             #expect(
                 owners == expectedOwners,
@@ -54,10 +54,10 @@ struct CapturedMediaArchitectureTests {
         #expect(valueSources.allSatisfy { !$0.1.contains("submissionMediaProjection") })
     }
 
-    @Test func capturedMediaShapeRemainsStableInV52AndAggregateStaysRetired() throws {
+    @Test func capturedMediaShapeRemainsStableInV53AndAggregateStaysRetired() throws {
         let entry = try source(at: Self.entryPath)
         let schemaVersions = try source(
-            at: "apps/ios/Merian/Models/Schema/SchemaV52.swift"
+            at: "apps/ios/Merian/Models/Schema/SchemaV53.swift"
         )
         let aliases = try source(
             at: "apps/ios/Merian/Models/Aliases.swift"
@@ -70,8 +70,8 @@ struct CapturedMediaArchitectureTests {
             "CapturedMediaEntry stored shape changed without a reviewed migration"
         )
         #expect(!entry.contains("@Relationship"))
-        #expect(aliases.contains("typealias CurrentSchema = MerianSchemaV52"))
-        #expect(schemaVersions.contains("enum MerianSchemaV52"))
+        #expect(aliases.contains("typealias CurrentSchema = MerianSchemaV53"))
+        #expect(schemaVersions.contains("enum MerianSchemaV53"))
         for retiredPath in Self.retiredPaths {
             #expect(
                 !FileManager.default.fileExists(

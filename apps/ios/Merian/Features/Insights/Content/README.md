@@ -307,3 +307,12 @@ Before public consent is enabled, every permission-required alert must provide a
 direct **Review permission** action to the applicable disclosure, return to the
 same saved scan, and require a separate eligible retry. The existing dormant
 sheet is not proof that every future alert has this complete recovery path.
+
+## Verified species selection
+
+`BiologicalView` displays **Your selected species** separately from the original
+AI header, explanation and confidence. **View species details** uses the typed
+Species Dictionary route with `insight_confirmed_species` entry point. Its
+existing dictionary owner resolves enrichment, avoiding reuse of original scan
+taxonomy, hazards or reference imagery for a replacement. Pending or stale local
+review cannot display a prior selection as current authority.
