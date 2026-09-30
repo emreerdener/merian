@@ -30,13 +30,15 @@ struct PrivateScanMapTests {
 
             model.recenter(on: location)
 
-            let expected = MKCoordinateRegion(
-                center: location.coordinate,
-                latitudinalMeters: scenario.expectedWidth,
-                longitudinalMeters: scenario.expectedWidth
-            )
             let region = try #require(model.cameraPosition.region)
-            #expect(abs(region.span.longitudeDelta - expected.span.longitudeDelta) < 0.000_01)
+            let halfWidth = region.span.longitudeDelta / 2
+            let widthMeters = CLLocation(
+                latitude: region.center.latitude, longitude: region.center.longitude - halfWidth
+            ).distance(from: CLLocation(
+                latitude: region.center.latitude, longitude: region.center.longitude + halfWidth
+            ))
+            // MapKit's meter/span conversions are approximate. Match the policy suite's 2% bound.
+            #expect(abs(widthMeters - scenario.expectedWidth) < scenario.expectedWidth * 0.02)
             #expect(region.center.latitude == location.coordinate.latitude)
             #expect(region.center.longitude == location.coordinate.longitude)
             #expect(model.visibleRegion?.span.longitudeDelta == region.span.longitudeDelta)
