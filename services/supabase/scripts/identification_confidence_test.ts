@@ -26,6 +26,23 @@ import {
 } from "./identification_evaluation/taxonomy.ts";
 import { confidencePolicy } from "./identification_evaluation/profiles.ts";
 import { assignConfidenceSplits } from "./identification_evaluation/confidenceSampling.ts";
+import { confidencePricingCurrent } from "./identification_evaluation/confidencePreparation.ts";
+
+Deno.test("confidence paid dispatch accepts only reviewed prices from the preceding seven days", () => {
+  const { pricing } = confidenceFixture();
+  const retrieved = Date.parse(pricing.retrievedAt);
+  assertEquals(confidencePricingCurrent(pricing, retrieved), true);
+  assertEquals(
+    confidencePricingCurrent(pricing, retrieved + 7 * 86400000),
+    true,
+  );
+  assertEquals(confidencePricingCurrent(pricing, retrieved - 1), false);
+  assertEquals(
+    confidencePricingCurrent(pricing, retrieved + 7 * 86400000 + 1),
+    false,
+  );
+  assertEquals(confidencePricingCurrent(pricing, NaN), false);
+});
 
 Deno.test("development selection enforces 40 Strong and exactly 95 percent observed correctness without collapsing Possible", () => {
   const { corpus, observations } = confidenceFixture();

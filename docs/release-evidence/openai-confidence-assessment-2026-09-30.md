@@ -65,13 +65,30 @@ tightening evidence-record separation, all seven confidence tests passed again
 with network and environment access denied. No additional iOS or backend runtime
 change was made in this correction.
 
-Reference preparation has downloaded 193 candidate photos into a private
-200-slot intake packet. None is counted as a frozen eligible reference yet.
-Initial image review found caption leakage, near-duplicates and source labels
-that do not establish species-level answerability; these require resolution
-before collection. The private packet contains draft taxonomy and review
-records, not a runnable frozen corpus. No identification requests or costs have
-been incurred by this study.
+An additional preparation correction binds the actual source, reference and
+answerability records to their cases and image hashes in
+`openai_confidence_manifest_v2`, instead of freezing only opaque record IDs. It
+rechecks the evidence before each dispatch and requires reviewed prices no older
+than seven days for new paid attempts. Reporting remains available after price
+expiry; existing attempt claims and reservations are preserved. This does not
+add an account, credential or human-review approval step.
+
+That correction passed `make test-supabase-tooling`: 479 standard tests, 123
+isolated evaluator tests, 20 inference DTO tests, 21 captured-media DTO tests
+and the shell-contract suites. The eight confidence-scoring/protocol tests
+passed with network and environment access denied. Recursive formatting checked
+1,196 backend/script files and lint checked 998 files. These changes affect
+assessment scripts and documentation, not production inference or the iOS
+reader; the previously recorded iOS results have not been rerun for this
+scripts-only correction.
+
+Reference preparation has downloaded 359 candidate photos across the initial
+intake and two supplements. None is counted as a frozen eligible reference yet.
+Image review found caption leakage, near-duplicates and source labels that do
+not establish species-level answerability; these require resolution before
+collection. The private packet contains draft taxonomy and source-supported
+image reviews, not a runnable frozen corpus. No identification requests or costs
+have been incurred by this study.
 
 Remote exact-SHA CI, release archive/upload, installed-device verification and
 live confidence collection remain separate. This local record does not assert

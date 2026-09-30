@@ -166,6 +166,20 @@ and selected cutoff. A frozen manifest prevents resume under changed inputs,
 pricing or source. Attempts store bounded outcome, canonical identity, rank, raw
 numeric score and accounting only; never media, explanations or credentials.
 
+`confidence-evidence.json` freezes the actual source, reference, answerability
+and independent diagnostic records under `openai_confidence_evidence_v1`. Case
+records bind their final asset hashes and accepted reference; independent
+records retain public source/revision references and reviewed diagnostic facts.
+Preparation rejects missing or inconsistent links and manifest v2 hashes the
+complete bundle. Resume and each dispatch recheck its content, so opaque record
+IDs cannot hide changed evidence. Only the digest enters the report.
+
+Live dispatch applies the existing evaluator's seven-day pricing freshness
+convention and rejects future-dated pricing. Expiry stops new attempts without
+changing reservations or preventing offline reporting. It does not authorize
+replacing a frozen pricing snapshot or restarting the study budget. The scoped
+existing OpenAI key workflow is unchanged.
+
 The hard limits are 200 attempted requests and $10 across both splits. Before
 dispatch, fsync an exclusive claim reserving reviewed maximum input and billable
 output cost, including reasoning tokens. The current pricing contract reserves

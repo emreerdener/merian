@@ -1,7 +1,7 @@
 # Naturebook Identification Evaluation Readiness — PRD
 
 Document ID: NB-PRD-IDENTIFICATION-EVAL-001\
-Version: 0.22\
+Version: 0.23\
 Date: 30 September 2026\
 Status: Evaluation tooling and exploratory Gemini/OpenAI comparison completed;
 confidence tooling prepared; formal reviewed collections pending\
@@ -26,6 +26,11 @@ identity and exact-image answerability records. It does not require two human
 reviewers or claim independent human validation; that requirement belongs to the
 older formal baseline below. Independently supported reference evidence remains
 mandatory.
+
+The study freeze covers the contents of those private evidence records, their
+links to the final images and accepted answers, and the reviewed pricing. A
+changed reference record or expired price review blocks new collection without
+resetting attempts or spend. No additional human approval step is introduced.
 
 Confidence describes estimated correctness at the displayed taxonomic level.
 Keep percentage headings, badge names and explanation layout. The revised OpenAI

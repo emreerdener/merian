@@ -6,12 +6,17 @@ import {
 import { OPENAI_MODEL } from "../../functions/_shared/ai/openaiRequest.ts";
 import { prepareEvidence } from "./assets.ts";
 import { confidenceOrder, parseConfidenceCorpus } from "./confidenceCorpus.ts";
+import { confidenceEvidenceDigest } from "./confidenceEvidence.ts";
 import { CONFIDENCE_PROTOCOL as P } from "./confidenceProtocol.ts";
 import { fingerprintJson } from "./evidence.ts";
 import { claimJson, exists, readJson } from "./files.ts";
 import { reserveCost } from "./profiles.ts";
 import { nanoUsd } from "./confidenceProjection.ts";
-import { parseEvaluationPricing, type SourceIdentity } from "./runContracts.ts";
+import {
+  type OpenAIPricing,
+  parseEvaluationPricing,
+  type SourceIdentity,
+} from "./runContracts.ts";
 import { requireCondition as check } from "./validation.ts";
 
 export async function prepareConfidenceStudy(
@@ -26,6 +31,7 @@ export async function prepareConfidenceStudy(
     await readJson(join(root, "pricing.json")),
   );
   check(pricing.version === "evaluation_openai_pricing_v1");
+  const evidenceDigest = await confidenceEvidenceDigest(root, corpus);
   const reservationNanoUsd = nanoUsd(reserveCost(pricing, OPENAI_MODEL));
   check(Number.isSafeInteger(reservationNanoUsd) && reservationNanoUsd > 0);
   const cases = await confidenceOrder(corpus);
@@ -44,13 +50,14 @@ export async function prepareConfidenceStudy(
     });
   }
   const manifest = {
-    version: "openai_confidence_manifest_v1",
+    version: "openai_confidence_manifest_v2",
     mode: corpus.kind === "synthetic" ? "offline" : "live",
     corpusDigest: await fingerprintJson(corpus),
     taxonomyDigest: await fingerprintJson(taxonomy),
     protocolDigest: await fingerprintJson(P),
     pricingDigest: await fingerprintJson(pricing),
     sourceDigest: source.digest,
+    evidenceDigest,
     assignments,
   };
   const digest = await fingerprintJson(manifest);
@@ -63,3 +70,9 @@ export async function prepareConfidenceStudy(
 export type PreparedConfidenceStudy = Awaited<
   ReturnType<typeof prepareConfidenceStudy>
 >;
+
+/** Reporting stays available after expiry; only new paid dispatch needs fresh prices. */
+export function confidencePricingCurrent(pricing: OpenAIPricing, now: number) {
+  const age = now - Date.parse(pricing.retrievedAt);
+  return Number.isFinite(age) && age >= 0 && age <= P.pricingMaxAgeMs;
+}

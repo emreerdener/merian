@@ -8,6 +8,7 @@ export const CONFIDENCE_PROTOCOL = Object.freeze({
   casesPerSplit: 100,
   maxAttempts: 200,
   budgetNanoUsd: 10_000_000_000,
+  pricingMaxAgeMs: 7 * 86400000,
   possible: 0.60,
   fallbackStrong: 0.95,
   minimumStrongCount: 40,

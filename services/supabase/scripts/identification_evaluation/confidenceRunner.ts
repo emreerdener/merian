@@ -7,6 +7,7 @@ import {
 } from "../../functions/_shared/ai/openaiPhotoConfidence.ts";
 import { prepareEvidence } from "./assets.ts";
 import { CONFIDENCE_PROTOCOL as P } from "./confidenceProtocol.ts";
+import { confidenceEvidenceDigest } from "./confidenceEvidence.ts";
 import { fingerprintJson } from "./evidence.ts";
 import {
   atomicJson,
@@ -21,6 +22,7 @@ import {
   readConfidenceLedger,
 } from "./confidenceLedger.ts";
 import {
+  confidencePricingCurrent,
   prepareConfidenceStudy,
   type PreparedConfidenceStudy,
 } from "./confidencePreparation.ts";
@@ -136,6 +138,7 @@ export async function saveConfidenceReport(
       protocol: study.manifest.protocolDigest,
       pricing: study.manifest.pricingDigest,
       source: study.manifest.sourceDigest,
+      referenceEvidence: study.manifest.evidenceDigest,
       cutoff: selection?.cutoffDigest ?? null,
       requests: study.manifest.assignments.map((a) => ({
         caseId: a.caseId,
@@ -182,6 +185,17 @@ export async function executeConfidenceStudy(
         }
       }
       if (ledger.attempted === P.maxAttempts) break;
+      if (
+        mode === "live" && !confidencePricingCurrent(study.pricing, Date.now())
+      ) {
+        stop = "pricing_review_expired";
+        break;
+      }
+      check(
+        await confidenceEvidenceDigest(root, study.corpus) ===
+          study.manifest.evidenceDigest,
+        "invalid_reference",
+      );
       const a = study.manifest.assignments[ledger.attempted];
       if (
         ledger.settledNanoUsd + ledger.outstandingNanoUsd +

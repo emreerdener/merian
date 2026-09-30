@@ -1,7 +1,7 @@
 # Naturebook Identification Evaluation Readiness — SRD
 
 Document ID: NB-SRD-IDENTIFICATION-EVAL-001\
-Version: 0.21\
+Version: 0.22\
 Date: 30 September 2026\
 Status: Slices 1–3, controlled provider evaluation and matched exploratory
 comparison completed; confidence tooling prepared; formal collections pending\
@@ -38,6 +38,13 @@ contradictory usage retains cost and stops dispatch, while uncertain attempts
 can never replay. Frozen hashes cover inputs, settings, source, taxonomy,
 scoring, prices and cutoff. Report-only billing reconciliation never edits the
 prediction.
+
+Manifest v2 also hashes `confidence-evidence.json` record contents, checks every
+curation link against its case/assets/reference, and rechecks the bundle before
+each dispatch. Opaque IDs alone cannot satisfy the freeze. Paid requests require
+pricing reviewed within the preceding seven days; offline reporting remains
+available after expiry. These checks reuse the existing account/key workflow
+without adding the historical Gemini baseline's processor-approval requirements.
 
 Native display policy maps original, observed-traits and revised prompts
 separately, preserving historical scores/bands through wire decoding, storage

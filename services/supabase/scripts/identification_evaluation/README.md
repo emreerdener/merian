@@ -11,13 +11,13 @@ request; the historical evaluator below keeps its original builders and disabled
 OpenAI confidence metrics. The revised prompt is not active in production.
 
 Prepare one private directory outside Git containing `confidence-corpus.json`,
-`taxonomy.json`, `pricing.json` and the approved media under `assets/`. Use
-`openai_confidence_corpus_v2` with `kind: reference`, `splitSeed: 20260930`,
-`referenceStatus: valid`, the matching reviewed taxonomy version and exactly 200
-cases. Each case contains the existing photo-only `input` (empty description
-texts, frozen region/month), evidence-supported `reference`, exclusive
-`category`, `taxaGroup` and reviewed `curation`. Curation has
-`permission: openai_evaluation`, distinct opaque `sourceRecordRef`,
+`taxonomy.json`, `pricing.json`, `confidence-evidence.json` and the approved
+media under `assets/`. Use `openai_confidence_corpus_v2` with `kind: reference`,
+`splitSeed: 20260930`, `referenceStatus: valid`, the matching reviewed taxonomy
+version and exactly 200 cases. Each case contains the existing photo-only
+`input` (empty description texts, frozen region/month), evidence-supported
+`reference`, exclusive `category`, `taxaGroup` and reviewed `curation`. Curation
+has `permission: openai_evaluation`, distinct opaque `sourceRecordRef`,
 `referenceRecordRef`, `answerabilityRecordRef`, one to eight distinct
 `independentEvidenceRefs`, `reviewMethod: source_grounded_visibility_v1`, an
 honest `reviewerRef`, `independentHumanValidation: false`, and true
@@ -39,12 +39,35 @@ records with pending checks cannot be converted to verified curation merely to
 fill the quotas. The report explicitly names the automated review method and
 does not claim independent human validation.
 
+`confidence-evidence.json` has `version: openai_confidence_evidence_v1` and a
+`records` array. Each record has exactly `id`, `kind`, `reviewerRef`, `caseId`,
+`assetDigests`, `reference`, `relatedRefs`, `sourceUrls`, `sourceRevisionRefs`
+and `findings`. IDs are opaque tokens. Findings are bounded reviewed facts, not
+raw source pages, provider responses or personal data. Public source URLs use
+HTTPS; revision references identify the reviewed source revision or content
+hash.
+
+Each case has three distinct records with matching case ID, final asset hashes
+and curation reviewer. A `source` record has null `reference`, no related
+references and at least one source revision reference; its findings record
+rights and source provenance. A `reference` record repeats the exact predeclared
+reference and links its source record plus all independent evidence records. An
+`answerability` record also repeats the reference, links the
+source/reference/independent records, and records visible traits and missing
+diagnostics. Each `independent` record has null case/reference, empty
+asset/related-reference arrays, and at least one public source URL and revision
+reference. It may support several cases. Missing, duplicate, unlinked,
+wrong-case or mismatched records fail preparation. This structural check does
+not replace the actual scientific review.
+
 Use `evaluation_taxonomy_v2` with reviewed canonical IDs, ranks and unambiguous
 synonyms. Ambiguous/unknown returned names remain named, unmapped outcomes with
 no inferred rank. Use the existing `evaluation_openai_pricing_v1` contract with
 reviewed current synchronous prices and input/output ceilings including
-reasoning tokens. Synthetic fixture prices and labels are never live readiness
-evidence.
+reasoning tokens. Paid dispatch rejects future-dated prices and prices reviewed
+more than seven days ago, using the existing evaluator's freshness convention.
+Reporting remains available after price expiry. Synthetic fixture prices and
+labels are never live readiness evidence.
 
 From the repository root, set `study_dir` to that private directory. Offline
 commands have network/environment denied and fingerprint the source with Git:
@@ -63,11 +86,17 @@ deno run --frozen --no-prompt --deny-net --deny-env \
 
 `assign-splits` applies the deterministic grouped allocation and exact category/
 rank quotas before freezing. It refuses an existing manifest/journal. `prepare`
-verifies every media byte and freezes `confidence-manifest.json`, including
-request/settings, corpus, taxonomy, protocol, pricing and source hashes. It
-produces a non-dispatching readiness file and report; preparation is not a paid
-run. Replace `prepare` with `report` to reconstruct the report without requests.
-Changed files/source fail frozen resume rather than resetting either budget.
+verifies every media byte and freezes `confidence-manifest.json` as
+`openai_confidence_manifest_v2`, including request/settings, corpus, taxonomy,
+protocol, pricing, implementation-source and actual review-record content
+hashes. It produces a non-dispatching readiness file and report; preparation is
+not a paid run. Replace `prepare` with `report` to reconstruct the report
+without requests. Changed files/source fail frozen resume rather than resetting
+either budget. The full evidence bundle is rechecked before every dispatch;
+changing facts behind an unchanged record ID also stops collection. Reports
+expose only the `referenceEvidence` hash, not the private review prose. Existing
+account/key admission is unchanged; no new processor approval or human-review
+step is added.
 
 After the corpus is independently reviewed and the bounded collection is ready,
 the explicit `--live` command uses only `OPENAI_EVALUATION_API_KEY` and

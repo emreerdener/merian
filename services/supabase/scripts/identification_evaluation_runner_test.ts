@@ -65,10 +65,12 @@ import { registerAudioPromptContinuationTests } from "./identification_evaluatio
 import { registerAudioPromptSuccessorTests } from "./identification_evaluation/testing/audioPromptSuccessorTests.ts";
 
 import { registerMeasurementTests } from "./identification_evaluation/testing/measurementRunnerTests.ts";
+import { registerConfidenceEvidenceTests } from "./identification_evaluation/testing/confidenceEvidenceTests.ts";
 
 const scratch = Deno.args[0];
 if (!scratch) throw new Error("evaluation_test_directory_required");
 registerConfidenceRunnerTests(scratch);
+registerConfidenceEvidenceTests(scratch);
 registerPhotoTaxonomyAuditTests(scratch);
 registerSolPhotoRankPreparationTests(scratch);
 registerSolPhotoPrimaryPreparationTests(scratch);
