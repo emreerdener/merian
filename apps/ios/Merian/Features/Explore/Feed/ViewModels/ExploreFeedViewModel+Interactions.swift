@@ -3,14 +3,6 @@ import Foundation
 enum ExploreShareMessageFormatter {
     static let previewMaxDimension = 1024
 
-    static func title(
-        commonName: String,
-        primaryMediaKind: ExploreMediaKind?
-    ) -> String {
-        let introduction = primaryMediaKind == .audio ? "Listen to" : "Check out"
-        return "\(introduction) this \(commonName)"
-    }
-
     static func url(postId: String) -> URL {
         PublicBrand.websiteURL(path: "explore/post/\(postId)")
     }
@@ -21,12 +13,11 @@ enum ExploreShareMessageFormatter {
         images: ExploreHeroImageDependencies = .live
     ) -> LinkShareItemSource {
         let poster = previewImageURL(heroImageURL: post.heroImageUrl, mediaItems: post.resolvedMediaItems)
-        let title = title(commonName: commonName, primaryMediaKind: post.resolvedMediaItems.first?.kind)
         guard let poster else {
-            return LinkShareItemSource(url: url(postId: post.id), title: title)
+            return LinkShareItemSource(url: url(postId: post.id), title: commonName)
         }
         let loadImage = images.loadImage
-        return LinkShareItemSource(url: url(postId: post.id), title: title) {
+        return LinkShareItemSource(url: url(postId: post.id), title: commonName) {
             await loadImage(poster, previewMaxDimension)
         }
     }

@@ -330,6 +330,18 @@ captures the recording controller weakly and must still match the exact active
 recording before forwarding evaluated columns to the manager, so neither the tap
 nor the detached consumer forms a manager/engine retain cycle.
 
+The manager checks recording identity and accepts updates during the current
+startup transition or an active, unpaused recording. This preserves initial
+samples delivered before engine startup returns, while cancellation invalidates
+pending startup callbacks. Pause invalidates start/resume/countdown work but
+retains the recording's stream, tap, WAV, and graph history. Resuming therefore
+continues both PCM capture and graph updates; callbacks delivered while paused
+or after completion cannot advance the graph. Synthetic-PCM manager regression
+tests hold startup open to verify early samples and cancellation, then exercise
+three pause/resume cycles, countdown recovery, and WAV readback to verify every
+resumed segment. Physical microphone-route verification remains required on
+device.
+
 ### Teardown
 
 `AudioRecordingEngineController.tearDown(...)` clears exact ownership, finishes

@@ -73,9 +73,11 @@ editing and reveals an existing tray; it does not submit or stage a previously
 unstaged text-only draft.
 
 Only historical description evidence uses `StagedDescriptionSheet`. It edits a
-local copy: **Done** commits, swipe-dismiss discards unsaved edits, and
-**Remove** commits removal. Opening it stops and fences dictation. Historical
-edits never replace or clear the current supplement. See the
+local copy: **Done** commits, swipe-dismiss discards unsaved edits, and the red
+trash icon in the leading toolbar asks for confirmation before removal.
+Cancelling preserves the description and local edits. Opening it stops and
+fences dictation. Historical edits never replace or clear the current
+supplement. See the
 [Describe and dictation contract](./11-describe-and-voice-dictation.md).
 
 ## Audio completion

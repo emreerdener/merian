@@ -108,7 +108,7 @@ or mutates its own Insight navigation destination. This keeps route commits
 independent of MapKit's render lifecycle and preserves one native back stack.
 The page:
 
-- requests a one-shot current location and shows the system user annotation;
+- requests a one-shot current location and shows the native-backed user pin;
 - falls back to the newest mapped scan when current location is unavailable;
 - offers **Show scans** whenever the current viewport contains no filtered
   scans;
@@ -132,7 +132,10 @@ remains local and available.
 The map layer extends beneath the transparent top navigation toolbar, with its
 top scroll-edge effect hidden, while overlay controls retain their safe-area
 positioning. The shared search sheet supplies the same title/address colors,
-trailing chevrons, plain initial hint, and hidden grabber as Explore Map.
+trailing chevrons, plain initial hint, and hidden grabber as Explore Map. The
+native distance scale stays visible at the bottom trailing edge, opposite the
+Apple Maps attribution. The floating controls leave 28 points below them for
+this scale and attribution row, matching Explore Map.
 
 ## Thumbnail Fallbacks
 
@@ -204,7 +207,7 @@ focused collection-to-map-to-preview-to-Insight and sheet-to-Insight UI test and
 is excluded from Release binaries.
 
 That fixture suppresses the location prompt and therefore validates the
-newest-scan fallback, not a real authorized location or system user annotation.
+newest-scan fallback, not a real authorized location or native-backed user pin.
 The complete automated commands, manual device matrix, and unresolved candidate
 findings are maintained in the canonical
 [Verification Contract](../../../../../../docs/features-and-hardware/28-private-scan-map.md#verification-contract).
@@ -221,3 +224,10 @@ chosen. Place navigation and manual gestures retire late initial camera work;
 store resets dismiss search and invalidate pending navigation. The passive
 Collections snapshot retains its standard style and existing memory-only privacy
 boundary.
+
+**Locate me** uses Core Maps' shared `MapLocateCameraPolicy`, matching Explore's
+roughly 1 km framing while preserving a closer zoom and accommodating the
+location accuracy diameter. It clears the preview, preserves filters, and
+projects the local points without widening an empty viewport. Initial camera
+framing remains unchanged. `PrivateScanMapTests` covers the action, including
+late startup completion and empty snapshot delivery.

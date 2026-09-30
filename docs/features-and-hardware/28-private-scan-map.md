@@ -113,12 +113,21 @@ navigation.
 On first presentation, the page makes one location request:
 
 1. A valid current location centers the initial camera around the user and
-   allows MapKit's system user annotation to render.
+   allows MapKit's native-backed user-location pin to render. It uses the shared
+   blue person pin, anchored at its tip, with maximum MapKit Z priorities to
+   remain above scan markers and clusters, including a selected scan.
 2. A denied, unavailable, invalid, or missing location falls back to the newest
    eligible scan.
 3. Saved scans remain usable when location is denied. The **Locate me** action
    can request again, routes a denied user to Settings, and reports temporary
    unavailability without hiding scan data.
+
+**Locate me** uses the same roughly 1 km framing as Explore Map, preserves an
+already closer viewport's width in meters, and widens only when required by the
+location accuracy diameter. Core Maps' `MapLocateCameraPolicy` owns this shared
+calculation. The action clears the selected preview, retains filters, and
+projects local scans; empty results and late startup completion do not widen the
+camera. Initial camera framing remains unchanged.
 
 When the filtered library contains scans but the current viewport contains none,
 the map presents **Show scans** and fits the complete filtered extent. When
@@ -128,6 +137,8 @@ mapped-scans empty state.
 
 The count and horizontal map-style/search/locate controls sit directly above the
 bottom safe area, in the space normally occupied by the app's bottom navigation.
+They leave 28 points below them for the Apple Maps attribution and an always
+visible native distance scale at the bottom trailing edge, matching Explore Map.
 `N discoveries in view` is the true number of filtered scan points in the
 current region; it is not the number of rendered annotations or clusters.
 
@@ -364,7 +375,7 @@ and the Release archive marker denylist must reject `-seedPrivateScanMapFlow`.
 The configured UI-test launcher includes
 `-seedLocationPermissionPromptSuppressed`. It therefore proves the saved-scan
 fallback path, not a real permission prompt, authorized current location, or
-system user annotation. A location-permission test must launch without that
+native-backed user pin. A location-permission test must launch without that
 argument.
 
 Run the feature checks and iOS gates described in the
@@ -375,20 +386,20 @@ then record manual results against the exact candidate build.
 
 Before release acceptance, record pass/fail evidence for:
 
-| Scenario                                                 | Required result                                                                                                                                                                 |
-| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Fresh permission, Allow Once/While Using                 | Initial camera centers on the real current position; one system user annotation appears; scans remain independent.                                                              |
-| Denied, restricted, and temporarily unavailable location | Initial camera falls back to newest mapped scan; **Locate me** shows the appropriate Settings or unavailable path; saved scans remain usable.                                   |
-| Back during initial refresh                              | The destination exits immediately and does not request location, present permission UI, or publish late map state.                                                              |
-| No scans in the current region                           | **Show scans** fits every filtered scan without clearing filters.                                                                                                               |
-| Deletion while map, preview, list, or Insight is active  | Deleted selection clears or reports **Scan Unavailable**; remaining points/counts update; deleting the last point leaves a stable empty map; Back still returns to Collections. |
-| Destructive account or local-library purge               | Store snapshots, exact-coordinate index state, pending projections, and rendered preview variants clear synchronously; stale work cannot restore them.                          |
-| Coincident points                                        | The cluster remains selectable at maximum zoom and opens all coincident scans in the private sheet.                                                                             |
-| Large library                                            | Pan, zoom, filtering, clustering, and sheet presentation remain responsive and memory-stable.                                                                                   |
-| Dynamic Type                                             | Card, filters, bottom controls, preview, and medium/large sheets remain readable without clipped required actions.                                                              |
-| VoiceOver                                                | Labels, values, selected traits, traversal order, preview action, sheet rows, and Back behavior are correct.                                                                    |
-| Light and dark appearance                                | Map overlays, materials, text, selected states, and thumbnails retain contrast.                                                                                                 |
-| Offline/degraded tiles                                   | Local points, filters, counts, **Show scans**, list, and Insight navigation continue to work even when base-map tiles are missing or stale.                                     |
+| Scenario                                                 | Required result                                                                                                                                                                                                           |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Fresh permission, Allow Once/While Using                 | Initial camera centers on the real current position; one blue person pin appears above overlapping scans/clusters and stays above them through pan, zoom, selection, and live location updates; scans remain independent. |
+| Denied, restricted, and temporarily unavailable location | Initial camera falls back to newest mapped scan; **Locate me** shows the appropriate Settings or unavailable path; saved scans remain usable.                                                                             |
+| Back during initial refresh                              | The destination exits immediately and does not request location, present permission UI, or publish late map state.                                                                                                        |
+| No scans in the current region                           | **Show scans** fits every filtered scan without clearing filters.                                                                                                                                                         |
+| Deletion while map, preview, list, or Insight is active  | Deleted selection clears or reports **Scan Unavailable**; remaining points/counts update; deleting the last point leaves a stable empty map; Back still returns to Collections.                                           |
+| Destructive account or local-library purge               | Store snapshots, exact-coordinate index state, pending projections, and rendered preview variants clear synchronously; stale work cannot restore them.                                                                    |
+| Coincident points                                        | The cluster remains selectable at maximum zoom and opens all coincident scans in the private sheet.                                                                                                                       |
+| Large library                                            | Pan, zoom, filtering, clustering, and sheet presentation remain responsive and memory-stable.                                                                                                                             |
+| Dynamic Type                                             | Card, filters, bottom controls, preview, and medium/large sheets remain readable without clipped required actions.                                                                                                        |
+| VoiceOver                                                | Labels, values, selected traits, traversal order, preview action, sheet rows, and Back behavior are correct.                                                                                                              |
+| Light and dark appearance                                | Map overlays, materials, text, selected states, and thumbnails retain contrast.                                                                                                                                           |
+| Offline/degraded tiles                                   | Local points, filters, counts, **Show scans**, list, and Insight navigation continue to work even when base-map tiles are missing or stale.                                                                               |
 
 ### Candidate Release Status
 
