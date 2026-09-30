@@ -10,7 +10,7 @@ struct ConfidenceHeader: View {
                     .font(.system(.title, design: .serif).weight(.bold))
                     .foregroundStyle(.primary)
                 
-                Text("Naturebook evaluates your capture alongside GPS coordinates, topographic elevation, and weather conditions to power its reasoning models and calculate a precise confidence score.")
+                Text("Naturebook’s confidence score is the AI model’s estimate of how likely the identification is to be correct, based on the available identification evidence.")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                     .multilineTextAlignment(.center)

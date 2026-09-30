@@ -1345,6 +1345,17 @@ The full matrix and release evidence requirements live in the
 
 ## Identification result configuration
 
+30 September extension:
+`InferenceConfidencePolicy.openAIPhotoDisplay(forPrompt:)` now owns separate
+constants for the original, observed-traits and prepared
+`openai_identify_vision_confidence_v1` prompts. All currently use 0.95/0.60;
+only the new profile may adopt a threshold selected by the
+[confidence assessment](../../../../../docs/rfcs/identification-openai-confidence-assessment-2026-09-30.md).
+Historical scores and mappings remain fixed across decoding, persistence,
+reopening and history restoration. The new prompt is not selected by production;
+distribute/device-verify the final reader before activating it. Unknown/altered
+provenance and all automatic qualification rules remain unchanged.
+
 `Models/SpeciesData+EdgeResponse.swift` carries optional generated provenance
 into `SpeciesData` and owns DTO decoding. The shared
 `Models/Species/IdentificationResultProvenance.swift` value preserves
@@ -1353,14 +1364,15 @@ content-free JSON without depending on generated DTOs.
 profiles at qualified policy version 1 and returns no qualified bands for
 unknown or damaged present values; absence retains legacy interpretation.
 `displayBands` separately recognizes the exact shipped `openai_photo_v1` V2
-profile with either `openai_identify_vision_v1` or
-`openai_identify_vision_observed_traits_v1`, keeping the same schema and other
-exact configuration checks. It supplies Strong at `0.95`, Possible at `0.60`,
-and Weak below `0.60` for every plan tier. This preserves original saved results
-and the updated trait prompt without qualifying arbitrary future prompts. After
-existing additive backend/migration prerequisites are deployed, distribute this
-reader before this prompt revision; older builds can decode the new result but
-show Needs review for its unfamiliar prompt. These are model-estimate display
+profile with `openai_identify_vision_v1`,
+`openai_identify_vision_observed_traits_v1` or the prepared
+`openai_identify_vision_confidence_v1`, keeping the same schema and other exact
+configuration checks. It supplies Strong at `0.95`, Possible at `0.60`, and Weak
+below `0.60` for every plan tier. This preserves original saved results and the
+updated trait prompt without qualifying arbitrary future prompts. After existing
+additive backend/migration prerequisites are deployed, distribute this reader
+before this prompt revision; older builds can decode the new result but show
+Needs review for its unfamiliar prompt. These are model-estimate display
 thresholds derived from the structured-output confidence contract, not empirical
 calibration. Unknown or damaged present profiles retain neutral review guidance.
 Generated provenance decoders enforce the executable contract's rejection of

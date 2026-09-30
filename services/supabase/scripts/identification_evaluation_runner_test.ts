@@ -1,3 +1,4 @@
+import { registerConfidenceRunnerTests } from "./identification_evaluation/testing/confidenceRunnerTests.ts";
 import { registerSolPrimaryLiveTests } from "./identification_evaluation/testing/solPhotoPrimaryLiveTests.ts";
 import { registerSolRankLiveTests } from "./identification_evaluation/testing/solPhotoRankLiveTests.ts";
 import { registerSolPhotoRankPreparationTests } from "./identification_evaluation/testing/solPhotoRankPreparationTests.ts";
@@ -67,6 +68,7 @@ import { registerMeasurementTests } from "./identification_evaluation/testing/me
 
 const scratch = Deno.args[0];
 if (!scratch) throw new Error("evaluation_test_directory_required");
+registerConfidenceRunnerTests(scratch);
 registerPhotoTaxonomyAuditTests(scratch);
 registerSolPhotoRankPreparationTests(scratch);
 registerSolPhotoPrimaryPreparationTests(scratch);

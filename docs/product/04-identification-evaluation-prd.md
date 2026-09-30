@@ -1,14 +1,37 @@
 # Naturebook Identification Evaluation Readiness — PRD
 
 Document ID: NB-PRD-IDENTIFICATION-EVAL-001\
-Version: 0.21\
-Date: 27 September 2026\
+Version: 0.22\
+Date: 30 September 2026\
 Status: Evaluation tooling and exploratory Gemini/OpenAI comparison completed;
-formal reviewed baseline pending; production remains Gemini\
+confidence tooling prepared; formal reviewed collections pending\
 Suggested owners: Product and Backend, with a biological reference reviewer\
 Companion: [Evaluation Readiness SRD](../rfcs/identification-evaluation-srd.md)
 
-## Current checkpoint — 27 September 2026
+## Confidence assessment extension — 30 September 2026
+
+The approved
+[OpenAI confidence study](../rfcs/identification-openai-confidence-assessment-2026-09-30.md)
+adds a separate 200-observation photo-only assessment, with 100 development and
+100 held-out cases, 200 attempts and a $10 total ceiling. The fixed diagnostic
+mixture, independently supported rank-aware references, frozen taxonomy,
+denominators and decision rule in that contract supersede earlier generic pilot
+sizes/expansion advice only for this study. No automatic expansion is allowed.
+Reviewed genus-only and unresolved references remain eligible; unknown ground
+truth is excluded before freezing. Retained exploratory packets do not meet the
+new formal corpus requirements.
+
+Confidence describes estimated correctness at the displayed taxonomic level.
+Keep percentage headings, badge names and explanation layout. The revised OpenAI
+prompt removes conflicting score anchors while preserving observed traits and
+current model/settings. Badge reliability remains separate from individual
+probability calibration and automatic verification. Historical profiles keep
+0.95/0.60; revised confidence also retains that fallback until the predeclared
+validation succeeds. Reader distribution/device verification precedes any
+separately authorized backend activation. Historical findings below remain
+unchanged.
+
+## Prior checkpoint — 27 September 2026
 
 The [OpenAI pilot](../rfcs/identification-openai-photo-text-pilot-2026-09-25.md)
 and

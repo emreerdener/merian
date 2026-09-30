@@ -34,6 +34,10 @@ import {
   solPhotoPrimarySnapshot,
 } from "./openaiSolPrimary.ts";
 import { decodeSolPhotoPrimaryDraft } from "./openaiSolPrimaryContract.ts";
+import {
+  buildOpenAIConfidenceRequest,
+  openAIConfidenceSnapshot,
+} from "./openaiPhotoConfidence.ts";
 
 export const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 export const OPENAI_RESPONSE_LIMIT = 512 * 1024;
@@ -250,6 +254,23 @@ export function createOpenAISolPrimaryEvaluationAdapter(
           true,
           decodeSolPhotoPrimaryDraft,
         ),
+    };
+  });
+}
+
+/** Prepared confidence assessment only; active production still uses its exact snapshot. */
+export function createOpenAIConfidenceEvaluationAdapter(
+  credential: string,
+  fetcher: typeof fetch = fetch,
+): AIAdapter<ReturnType<typeof openAIConfidenceSnapshot>> {
+  return createOpenAIAdapter(credential, fetcher, (request, snapshot) => {
+    const parameters = buildOpenAIConfidenceRequest(request, snapshot);
+    const hasText = parameters.input[0].content.some((p) =>
+      p.type === "input_text"
+    );
+    return {
+      parameters,
+      decode: (value, timing) => decodeModeratedPhoto(value, timing, hasText),
     };
   });
 }

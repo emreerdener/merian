@@ -2778,21 +2778,33 @@ does not change provenance or the existing confidence policy. Recognized exact
 V1 Gemini profiles retain the existing confidence presentation. The exact V2
 `openai_photo_v1` profile separately receives display-only Strong (`>= 0.95`),
 Possible (`>= 0.60` and `< 0.95`), or Weak (`< 0.60`) labels on every plan tier.
-Recognition explicitly allows the original prompt `openai_identify_vision_v1`
-and the revised `openai_identify_vision_observed_traits_v1` with the same
-`merian_openai_identify_v1` schema and all other exact configuration checks. The
-revision changes only the trait instruction and its schema description;
-provenance V2 and response fields/bounds remain unchanged. Saved results keep
-their original prompt identity. After the additive backend/migration
-prerequisites above are deployed, distribute the updated native reader before
-deploying this prompt revision: older readers decode this shape but show Needs
-review for the new prompt. Capabilities 4/5 do not distinguish these prompt
-revisions. The app presents these as model estimates; neither
-`openai_unqualified_v1` nor the stored score changes. Unknown or damaged present
-profiles use neutral review guidance. Absence keeps legacy behavior. These
-display thresholds do not qualify OpenAI for candidate filtering, automatic
-verification, sharing recommendations, rewards, public metrics, or evaluation
-strong/diagnostic metrics. See the
+Recognition explicitly allows the original prompt `openai_identify_vision_v1`,
+`openai_identify_vision_observed_traits_v1` and the prepared
+`openai_identify_vision_confidence_v1` with the same `merian_openai_identify_v1`
+schema and all other exact configuration checks. Observed-traits changes its
+trait instruction and schema description; the prepared confidence revision
+changes the confidence instructions and description. Provenance V2 and response
+fields/bounds remain unchanged. Saved results keep their original prompt
+identity. After the additive backend/migration prerequisites above are deployed,
+distribute the updated native reader before deploying this prompt revision:
+older readers decode this shape but show Needs review for the new prompt.
+Capabilities 4/5 do not distinguish these prompt revisions. The app presents
+these as model estimates; neither `openai_unqualified_v1` nor the stored score
+changes. Unknown or damaged present profiles use neutral review guidance.
+Absence keeps legacy behavior. These display thresholds do not qualify OpenAI
+for candidate filtering, automatic verification, sharing recommendations,
+rewards, public metrics, or the historical evaluator's strong/diagnostic
+metrics. The separate `identification_openai_confidence_assessment_v1` study
+measures named-answer confidence with a frozen taxonomy and its own report; it
+does not qualify automatic policies or alter historical reports. Each native
+prompt now owns an explicit display mapping. The original and observed-traits
+mappings stay 0.95/0.60; revised confidence also retains that fallback until its
+study passes. The confidence prompt is evaluation-only in backend source. Its
+final reader must be distributed and device-verified before a separately
+authorized activation; there is no new response field or primary-rank
+capability. See the
+[assessment contract](../rfcs/identification-openai-confidence-assessment-2026-09-30.md)
+and
 [display threshold decision](../rfcs/identification-openai-confidence-display-2026-09-28.md).
 This compatibility rule is not empirical calibration, and public Explore
 suggestion projections still require separate provider qualification. See the

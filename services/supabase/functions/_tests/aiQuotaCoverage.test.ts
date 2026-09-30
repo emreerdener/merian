@@ -627,6 +627,7 @@ Deno.test("OpenAI dispatch stays confined to production composition and its offl
         [
           "_shared/ai/openai.ts",
           "_shared/ai/openaiPhoto.ts",
+          "_shared/ai/openaiPhotoConfidence.ts",
           "_shared/ai/openaiPhotoModels.ts",
           "_shared/ai/openaiObservedTraits.ts",
           "_shared/ai/openaiSolRank.ts",
@@ -652,6 +653,10 @@ Deno.test("OpenAI dispatch stays confined to production composition and its offl
   assertStringIncludes(
     workflow,
     "supabase/functions/_shared/ai/openaiPhoto_test.ts",
+  );
+  assertStringIncludes(
+    workflow,
+    "supabase/functions/_shared/ai/openaiPhotoConfidence_test.ts",
   );
   assertStringIncludes(
     workflow,

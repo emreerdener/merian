@@ -1,5 +1,109 @@
 # Identification evaluation tooling
 
+## OpenAI confidence assessment
+
+`../assess_openai_confidence.ts` owns the separate
+`identification_openai_confidence_assessment_v1` report. Follow the
+[frozen study contract](../../../../docs/rfcs/identification-openai-confidence-assessment-2026-09-30.md)
+for reference, rank, category, outcome, denominator and decision rules. It uses
+the revised production-equivalent `openai_identify_vision_confidence_v1`
+request; the historical evaluator below keeps its original builders and disabled
+OpenAI confidence metrics. The revised prompt is not active in production.
+
+Prepare one private directory outside Git containing `confidence-corpus.json`,
+`taxonomy.json`, `pricing.json` and the approved media under `assets/`. Use
+`openai_confidence_corpus_v1` with `kind: reference`, `splitSeed: 20260930`,
+`referenceStatus: valid`, the matching reviewed taxonomy version and exactly 200
+cases. Each case contains the existing photo-only `input` (empty description
+texts, frozen region/month), evidence-supported `reference`, exclusive
+`category`, `taxaGroup` and reviewed `curation`. Curation has
+`permission: openai_evaluation`, opaque `sourceRecordRef`/`referenceRecordRef`,
+two distinct `reviewerRefs`, `adjudication: agreed|resolved`, and true
+`rightsApproved`, `personalDataExcluded`, `nearDuplicatesReviewed`,
+`referenceVerified`. `developmentOnly` is a required boolean; set it true for
+previously supplied plant examples. Model output or a user confirmation alone
+cannot populate verified references.
+
+Use `evaluation_taxonomy_v2` with reviewed canonical IDs, ranks and unambiguous
+synonyms. Ambiguous/unknown returned names remain named, unmapped outcomes with
+no inferred rank. Use the existing `evaluation_openai_pricing_v1` contract with
+reviewed current synchronous prices and input/output ceilings including
+reasoning tokens. Synthetic fixture prices and labels are never live readiness
+evidence.
+
+From the repository root, set `study_dir` to that private directory. Offline
+commands have network/environment denied and fingerprint the source with Git:
+
+```bash
+deno run --frozen --no-prompt --deny-net --deny-env \
+  --config services/supabase/functions/deno.json \
+  --allow-read="$PWD,$study_dir" --allow-write="$study_dir" --allow-run=git \
+  services/supabase/scripts/assess_openai_confidence.ts assign-splits "$study_dir"
+
+deno run --frozen --no-prompt --deny-net --deny-env \
+  --config services/supabase/functions/deno.json \
+  --allow-read="$PWD,$study_dir" --allow-write="$study_dir" --allow-run=git \
+  services/supabase/scripts/assess_openai_confidence.ts prepare "$study_dir"
+```
+
+`assign-splits` applies the deterministic grouped allocation and exact category/
+rank quotas before freezing. It refuses an existing manifest/journal. `prepare`
+verifies every media byte and freezes `confidence-manifest.json`, including
+request/settings, corpus, taxonomy, protocol, pricing and source hashes. It
+produces a non-dispatching readiness file and report; preparation is not a paid
+run. Replace `prepare` with `report` to reconstruct the report without requests.
+Changed files/source fail frozen resume rather than resetting either budget.
+
+After the corpus is independently reviewed and the bounded collection is ready,
+the explicit `--live` command uses only `OPENAI_EVALUATION_API_KEY` and
+`api.openai.com:443`. Supply the existing key through the established
+hidden-input or scoped-secret process; never put it in a command, file, chat or
+artifact:
+
+```bash
+deno run --frozen --no-prompt \
+  --config services/supabase/functions/deno.json \
+  --allow-read="$PWD,$study_dir" --allow-write="$study_dir" --allow-run=git \
+  --allow-net=api.openai.com:443 --allow-env=OPENAI_EVALUATION_API_KEY \
+  services/supabase/scripts/assess_openai_confidence.ts --live "$study_dir"
+```
+
+Both splits share one journal, 200 attempted requests and $10. No automatic
+retries or replacement cases exist. Before invocation, exclusive fsynced claims
+in `confidence-attempts/` reserve conservative cost including maximum reasoning
+output. The next reservation must fit alongside settled and outstanding costs.
+Missing/contradictory usage, unexpected returned model/tier, failed or uncertain
+execution retains cost and stops. Mismatched model/tier drafts receive no scored
+identification even if billing is later reconciled. Resume skips every claim,
+including uncertain calls. Do not delete claims, copy to a fresh run to reset
+budgets or alter the manifest.
+
+`confidence-selection.json` immutably records the lowest qualifying development
+cutoff, its hash and development-result hash before any held-out request. No
+candidate stops collection at 100 attempts and retains 0.95. Incomplete or
+failed validation also retains 0.95, without searching held-out results for
+another threshold. `confidence-report.json` includes fixed raw-score bins,
+Wilson intervals, scheduled denominators, category/rank breakdowns, all outcome
+classes, budget completeness and hashes. Synthetic tests can pass the mechanics
+rule but cannot recommend a live threshold.
+
+When genuine provider billing evidence resolves an outstanding attempt, retain a
+private immutable `<caseId>.reconciliation.json` next to its claim, with exactly
+`version: openai_confidence_reconciliation_v1`, the claim's `claimDigest`,
+opaque `billingEvidenceRef` and `reviewRef`, and integer `settledNanoUsd` within
+its reserved ceiling. It settles accounting only; the uncertain/failed
+prediction and consumed request remain. No receipt is synthesized from missing
+usage. A subsequently invalidated reference is recorded in
+`confidence-invalidation.json` with
+`version: openai_confidence_invalidation_v1`, `manifestDigest` and opaque
+`reviewRef`; it stops dispatch and makes a threshold decision ineligible without
+rewriting the frozen references.
+
+Current readiness: no eligible formal development or validation corpus has been
+collected. The implementation and synthetic tests do not establish calibration.
+The new reader keeps 0.95/0.60 until a real decision; distribute and verify the
+final mapping on a device before separately authorized backend activation.
+
 Slices 1–3 of the
 [PRD](../../../../docs/product/04-identification-evaluation-prd.md) and
 [SRD](../../../../docs/rfcs/identification-evaluation-srd.md) are implemented

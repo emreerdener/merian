@@ -10,7 +10,19 @@ enum InferenceConfidencePolicy {
 
     /// Matches the structured-output confidence contract's morphology anchors:
     /// diagnostic at 0.95, probable at 0.60. Not empirical calibration.
-    static let openAIPhotoDisplay = DisplayBands(strong: 0.95, possible: 0.60)
+    static let openAIOriginalPhotoDisplay = DisplayBands(strong: 0.95, possible: 0.60)
+    static let openAIObservedTraitsPhotoDisplay = DisplayBands(strong: 0.95, possible: 0.60)
+    // Retain the provisional cutoff until the frozen confidence assessment validates a replacement.
+    static let openAIConfidencePhotoDisplay = DisplayBands(strong: 0.95, possible: 0.60)
+
+    static func openAIPhotoDisplay(forPrompt prompt: String) -> DisplayBands? {
+        switch prompt {
+        case "openai_identify_vision_v1": return openAIOriginalPhotoDisplay
+        case "openai_identify_vision_observed_traits_v1": return openAIObservedTraitsPhotoDisplay
+        case "openai_identify_vision_confidence_v1": return openAIConfidencePhotoDisplay
+        default: return nil
+        }
+    }
 
     static func displayBands(
         forInferenceTier tier: String?,
@@ -19,7 +31,7 @@ enum InferenceConfidencePolicy {
         if let qualified = bands(forInferenceTier: tier, provenance: provenance) {
             return DisplayBands(strong: qualified.strong, possible: qualified.possible)
         }
-        return provenance?.supportsOpenAIPhotoDisplayBands == true ? openAIPhotoDisplay : nil
+        return provenance?.openAIPhotoDisplayBands
     }
 
     struct Bands: Sendable, Equatable {
@@ -63,22 +75,26 @@ enum InferenceConfidencePolicy {
 }
 
 extension IdentificationResultProvenance {
-    /// Recognizes the original and observed-traits photo prompts for display estimates only.
+    /// Each recognized photo prompt owns its historical display policy.
     /// Its recorded numeric confidence remains unqualified for other policies.
     var supportsOpenAIPhotoDisplayBands: Bool {
+        openAIPhotoDisplayBands != nil
+    }
+
+    var openAIPhotoDisplayBands: InferenceConfidencePolicy.DisplayBands? {
         guard data.count <= 2_048,
               let decoded = try? JSONDecoder().decode(IdentificationProvenanceDTO.self, from: data),
-              case .v2(let value) = decoded else { return false }
-        return value.provider == "openai" && value.binding == "openai_photo_v1" &&
+              case .v2(let value) = decoded else { return nil }
+        guard value.provider == "openai" && value.binding == "openai_photo_v1" &&
             value.model == "gpt-6-sol" && value.variant == "multimodal" &&
             value.operation == "scan_identification" && value.policy_version == 1 &&
-            ["openai_identify_vision_v1", "openai_identify_vision_observed_traits_v1"].contains(value.prompt) &&
             value.schema == "merian_openai_identify_v1" &&
             value.confidence == "openai_unqualified_v1" &&
             value.diagnostic_trigger == nil && value.prompt_diagnostic_trigger == nil &&
             value.safety == "openai_photo_moderation_v1" && value.timeout_ms == 90_000 &&
             value.generation.max_output_tokens == 8_192 &&
-            value.generation.reasoning_effort == "low" && value.generation.image_detail == "high"
+            value.generation.reasoning_effort == "low" && value.generation.image_detail == "high" else { return nil }
+        return InferenceConfidencePolicy.openAIPhotoDisplay(forPrompt: value.prompt)
     }
 
     func supportsGeminiBands(forInferenceTier tier: String?) -> Bool {

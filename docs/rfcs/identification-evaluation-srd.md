@@ -1,14 +1,45 @@
 # Naturebook Identification Evaluation Readiness — SRD
 
 Document ID: NB-SRD-IDENTIFICATION-EVAL-001\
-Version: 0.20\
-Date: 27 September 2026\
+Version: 0.21\
+Date: 30 September 2026\
 Status: Slices 1–3, controlled provider evaluation and matched exploratory
-comparison completed; formal reviewed baseline pending\
+comparison completed; confidence tooling prepared; formal collections pending\
 Product authority:
 [Evaluation Readiness PRD](../product/04-identification-evaluation-prd.md)
 
-## Current checkpoint — 27 September 2026
+## OpenAI confidence assessment extension — 30 September 2026
+
+The separate
+[confidence assessment contract](identification-openai-confidence-assessment-2026-09-30.md)
+is implemented by `assess_openai_confidence.ts` and the `confidence*.ts` owners
+in `services/supabase/scripts/identification_evaluation`. Its report version is
+`identification_openai_confidence_assessment_v1`; historical profiles, request
+construction and disabled OpenAI confidence metrics stay frozen.
+
+The new path reuses prepared media, the revised production-equivalent request,
+adapter decoding and normalization. Exact reviewed taxonomy names/synonyms
+resolve both ID and rank; unmapped/ambiguous names keep null identity/rank and
+remain named failures in precision denominators. It adds no wire rank field. The
+seeded group allocator, category/rank quotas, raw bins, Wilson intervals,
+development-only selection and immutable pre-validation cutoff implement the
+approved protocol. See the linked contract for exact denominators and fallback.
+
+The shared ledger fsyncs each exclusive attempt and conservative cost
+reservation before invocation; both splits share the 200/$10 limits. Unknown or
+contradictory usage retains cost and stops dispatch, while uncertain attempts
+can never replay. Frozen hashes cover inputs, settings, source, taxonomy,
+scoring, prices and cutoff. Report-only billing reconciliation never edits the
+prediction.
+
+Native display policy maps original, observed-traits and revised prompts
+separately, preserving historical scores/bands through wire decoding, storage
+and history restoration. The explanatory body changes without heading/layout
+changes. Production admission still selects observed-traits, and
+installed-reader evidence is required before separately authorized
+confidence-prompt activation.
+
+## Prior checkpoint — 27 September 2026
 
 The
 [alternative-provider guide](../development-guides/22-alternative-identification-provider.md)

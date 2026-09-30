@@ -255,6 +255,18 @@ authorize another run.
 
 ## Observed-traits production prompt and frozen candidate
 
+The separate `openaiPhotoConfidence.ts` prepares
+`openai_identify_vision_confidence_v1` from this production request, replacing
+only confidence instructions and its schema description while retaining the
+observed-traits improvements. `createOpenAIConfidenceEvaluationAdapter` uses the
+same one-shot transport, decoder and moderation. The evaluation-only binding is
+rejected by production admission/result policy; the active production selector
+continues to use observed-traits. The native reader recognizes the prepared
+prompt with its own provisional 0.95/0.60 mapping. See the
+[confidence assessment](../../../../../docs/rfcs/identification-openai-confidence-assessment-2026-09-30.md)
+for fixed study rules, installed-reader evidence and later activation.
+Historical builders and Gemini remain unchanged.
+
 `openaiObservedTraits.ts` prepares `openai_photo_sol_observed_traits_low_v1`
 from the frozen original Sol photo request. It changes only the fixed-count
 visual-trait instruction, its schema description and private candidate identity.

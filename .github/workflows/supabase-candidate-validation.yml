@@ -339,6 +339,7 @@ jobs:
             --config supabase/functions/deno.json \
             supabase/functions/_shared/ai/openai_test.ts \
             supabase/functions/_shared/ai/openaiPhoto_test.ts \
+            supabase/functions/_shared/ai/openaiPhotoConfidence_test.ts \
             supabase/functions/_shared/ai/openaiPhotoModels_test.ts \
             supabase/functions/_shared/ai/openaiObservedTraits_test.ts \
             supabase/functions/_shared/ai/openaiSolPrimary_test.ts \

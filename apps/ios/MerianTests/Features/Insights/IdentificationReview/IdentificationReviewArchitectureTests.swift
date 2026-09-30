@@ -4,6 +4,17 @@ import Testing
 @testable import Merian
 
 struct IdentificationReviewArchitectureTests {
+    @Test func confidenceCopyPreservesHeadingAndExplanationLayout() throws {
+        let source = try contents(of: sourceRoot().appendingPathComponent("Confidence/Components/ConfidenceHeader.swift"))
+        #expect(source.contains("Naturebook’s confidence score is the AI model’s estimate of how likely the identification is to be correct, based on the available identification evidence."))
+        #expect(!source.contains("precise confidence score"))
+        for token in ["Text(title)", "VStack(spacing: 16)", "VStack(spacing: 8)",
+                      ".font(.system(.title, design: .serif).weight(.bold))", ".font(.subheadline)",
+                      ".multilineTextAlignment(.center)", ".padding(.horizontal, 24)", ".lineSpacing(4)"] {
+            #expect(source.contains(token))
+        }
+    }
+
     @Test func ownershipDirectoriesAndLineCeilingRemainPresent() throws {
         let root = try sourceRoot()
         for directory in [

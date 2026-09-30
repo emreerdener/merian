@@ -1,5 +1,14 @@
 # OpenAI photo confidence display
 
+Current extension, 30 September: the
+[confidence assessment contract](identification-openai-confidence-assessment-2026-09-30.md)
+adds a prepared OpenAI-only prompt and a third explicitly mapped native profile.
+Original and observed-traits results retain 0.95/0.60. The revised profile also
+retains 0.95/0.60 pending the reviewed study. `ConfidenceHeader` now describes a
+model-generated estimate instead of claiming a precise score; its percentage
+heading and layout are unchanged. The reader must be distributed and verified
+before backend activation. The dated findings below remain historical evidence.
+
 Date: 2026-09-28
 
 Status: Implemented for native review; distribution remains a separate release

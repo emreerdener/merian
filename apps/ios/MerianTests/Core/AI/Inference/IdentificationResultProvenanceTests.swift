@@ -39,10 +39,10 @@ struct IdentificationResultProvenanceTests {
         return value
     }
 
-    private func envelope(metadata: Any?) throws -> Data {
+    private func envelope(metadata: Any?, score: Double = 0.999) throws -> Data {
         var data: [String: Any] = ["scan_id": "00000000-0000-4000-8000-000000000052",
             "scientific_name": "Turdus migratorius", "common_name": "American Robin",
-            "confidence_score": 0.999, "inference_tier": "flash", "is_biological_subject": true]
+            "confidence_score": score, "inference_tier": "flash", "is_biological_subject": true]
         if let metadata { data["identification_provenance"] = metadata }
         return try JSONSerialization.data(withJSONObject: ["success": true, "data": data])
     }
@@ -120,7 +120,7 @@ struct IdentificationResultProvenanceTests {
         #expect(InferenceConfidencePolicy.bands(forInferenceTier: "pro", provenance: nil) == InferenceConfidencePolicy.pro)
     }
 
-    @Test(arguments: ["gemini", "openai_identify_vision_v1", "openai_identify_vision_observed_traits_v1"])
+    @Test(arguments: ["gemini", "openai_identify_vision_v1", "openai_identify_vision_observed_traits_v1", "openai_identify_vision_confidence_v1"])
     func wirePreparationLocalPersistenceAndReopenShareProvenance(profile: String) async throws {
         let openAI = profile != "gemini"
         let prepared = try await InferenceResponsePreparationService.live.prepare(
@@ -204,12 +204,12 @@ struct IdentificationResultProvenanceTests {
         #expect(legacy.mappedData.identificationConfidenceBands == InferenceConfidencePolicy.flash)
     }
 
-    @Test(arguments: [0.0, 0.59, 0.60, 0.949, 0.95, 1.0],
-          ["openai_identify_vision_v1", "openai_identify_vision_observed_traits_v1"])
+    @Test(arguments: [0.0, 0.599, 0.60, 0.601, 0.949, 0.95, 0.951, 1.0],
+          ["openai_identify_vision_v1", "openai_identify_vision_observed_traits_v1", "openai_identify_vision_confidence_v1"])
     func openAIPhotoDisplayBoundariesDoNotQualifyScoresForOtherPolicies(score: Double, prompt: String) throws {
         let value = try provenance(openAIMetadata(prompt: prompt))
-        let expected = [0.0: "Weak match", 0.59: "Weak match", 0.60: "Possible match",
-                        0.949: "Possible match", 0.95: "Strong match", 1.0: "Strong match"]
+        let expected = [0.0: "Weak match", 0.599: "Weak match", 0.60: "Possible match", 0.601: "Possible match",
+                        0.949: "Possible match", 0.95: "Strong match", 0.951: "Strong match", 1.0: "Strong match"]
         #expect(value.supportsOpenAIPhotoDisplayBands)
         for tier in ["flash", "pro"] {
             #expect(InferenceConfidencePolicy.displayBands(forInferenceTier: tier, provenance: value) ==
@@ -243,7 +243,7 @@ struct IdentificationResultProvenanceTests {
             isUserConfirmed: false, analyzingPhrase: "Analyzing").style == .analyzing)
     }
 
-    @Test(arguments: ["openai_identify_vision_v1", "openai_identify_vision_observed_traits_v1"])
+    @Test(arguments: ["openai_identify_vision_v1", "openai_identify_vision_observed_traits_v1", "openai_identify_vision_confidence_v1"])
     func unknownOrDamagedOpenAIProfilesKeepReviewGuidance(prompt: String) throws {
         let changes: [(String, Any)] = [
             ("model", "future-model"), ("binding", "future_binding_v1"),
@@ -271,6 +271,42 @@ struct IdentificationResultProvenanceTests {
             #expect(ConfidenceExplanationPresentation.headerTitle(confidenceScore: 0.999,
                 inferenceTier: "pro", provenance: value, hasUserOverride: false,
                 isUserConfirmed: false) == "Review identification")
+        }
+    }
+
+    @Test(arguments: [0.599, 0.60, 0.601, 0.949, 0.95, 0.951],
+          ["openai_identify_vision_v1", "openai_identify_vision_observed_traits_v1", "openai_identify_vision_confidence_v1"])
+    func confidenceProfileBoundariesSurviveWireReopenAndHistoryRestore(score: Double, prompt: String) async throws {
+        let expected = score < 0.60 ? "Weak match" : score < 0.95 ? "Possible match" : "Strong match"
+        let prepared = try await InferenceResponsePreparationService.live.prepare(
+            resultData: envelope(metadata: openAIMetadata(prompt: prompt), score: score), telemetry: nil,
+            audioFilePaths: nil, videoFilePaths: nil, expectedScanId: nil)
+        let record = LocalScanRecordFactory.makeRecord(from: prepared.mappedData,
+            recordId: "00000000-0000-4000-8000-000000000052", speciesId: "fixture-species",
+            timestamp: Date(), captureDate: Date(), capturedMediaJSON: nil,
+            coverImagePath: nil, isLiveCapture: true, fieldNotes: nil)
+        let context = try ScanRepositoryTestSupport.makeContext()
+        context.insert(record); try context.save()
+        let reopened = ModelContext(context.container)
+        let saved = try #require(reopened.fetch(FetchDescriptor<LocalScanRecord>()).first)
+        let row: [String: Any] = ["id": record.id, "timestamp": "2026-09-30T12:00:00.000Z",
+            "inference_tier": "flash", "ai_confidence_score": score, "is_biological_subject": true,
+            "explore_posts": NSNull(), "identification_provenance": openAIMetadata(prompt: prompt)]
+        let response = try JSONDecoder().decode(HistoricalScanResponse.self,
+            from: JSONSerialization.data(withJSONObject: row))
+        let restoredContext = try ScanRepositoryTestSupport.makeContext()
+        let actor = HistoricalDatabaseActor(modelContainer: restoredContext.container)
+        #expect(try await actor.reconcileScanPage(responses: [response]) == 1)
+        let restored = try #require(ModelContext(restoredContext.container).fetch(FetchDescriptor<LocalScanRecord>()).first)
+        for stored in [saved, restored] {
+            let result = InferenceHistoricalRecordProjection(record: stored, resetLocalLookalikes: false).speciesData
+            #expect(result.confidenceScore == score)
+            #expect(result.identificationProvenance == prepared.mappedData.identificationProvenance)
+            #expect(InferenceConfidencePolicy.displayBands(forInferenceTier: "flash", provenance: result.identificationProvenance) ==
+                InferenceConfidencePolicy.DisplayBands(strong: 0.95, possible: 0.60))
+            #expect(ConfidenceBadgePresentation.resolve(confidenceScore: score, inferenceTier: "flash",
+                provenance: result.identificationProvenance, hasUserOverride: false,
+                isUserConfirmed: false, analyzingPhrase: nil).label == expected)
         }
     }
 

@@ -230,6 +230,13 @@ both prompt versions before deploying this prompt revision; otherwise older
 readers show Needs review despite decoding the result successfully. See the
 [versioned prompt record](../../../../docs/rfcs/identification-openai-observed-traits-candidate-2026-09-29.md#production-integration--29-september-2026).
 
+The newer `openai_identify_vision_confidence_v1` is prepared for the separate
+[confidence assessment](../../../../docs/rfcs/identification-openai-confidence-assessment-2026-09-30.md)
+only. This route does not admit its evaluation binding or select its prompt.
+Native recognition alone does not activate it: final mapping and copy must be
+distributed and device-verified before a separate target-specific backend
+activation request. No HTTP field, capability version or stored score changes.
+
 Native callers carry identification capability 5 in a separate header, leaving
 entitlement protocol 3 unchanged. Saved usage preserves reported cached tokens
 and OpenAI output/cache-write units; the scan trigger owns the single success
