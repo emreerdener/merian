@@ -3,7 +3,9 @@
 Date: 29 September 2026
 
 Status: Offline request candidate implemented; provider behavior is unmeasured.
-No live adapter, evaluator registration or production assignment selects it.
+No live adapter, evaluator registration or production assignment selects it. The
+later owner decision below replaces the proposed dedicated comparison with
+focused regression checks and a small ordinary beta smoke check.
 
 ## Decision and evidence
 
@@ -60,8 +62,8 @@ zero unplanned request differences and zero production-admission changes**.
 - A true zero-discernible-trait observation cannot be represented under the
   retained minimum of one. Do not invent a visibility placeholder to satisfy it.
   This narrow hypothesis covers observations with at least one directly visible
-  trait; a zero-trait abstention policy requires separate design before any
-  promotion decision.
+  trait. A zero-trait abstention policy remains separate work; this change does
+  not alter that existing contract limitation or add a new placeholder.
 - Instructions do not enforce biological truth. Compatibility tests cannot
   demonstrate that a model avoids hallucinations or handles unseen anatomy.
 - Remaining rank, species-specificity, alternative-count and confidence-anchor
@@ -122,30 +124,44 @@ passed. Independent read-only review found no remaining issue after the CI
 inventory and current-order documentation corrections. Hosted CI, database
 execution, provider calls and deployment were not performed by this slice.
 
-## Next decision and stopping rule
+## Validation decision update — 29 September 2026
 
-Before any paid test, prepare a separately versioned, bounded comparison against
-the unchanged current Sol control. Declare the exact cases, reviewed visible
-features, failure criteria, request limit and spend ceiling. Existing approved
-budgets and closed packet commands do not authorize this new identity. The
-current slice prepares the request only and has no dispatch capability.
+The earlier plan proposed a dedicated control/candidate comparison. The owner
+challenged its proportionality for this small beta wording change. The revised
+plan uses targeted regression validation and a brief ordinary-app smoke check;
+there is no new comparison runner, paired benchmark or statistical improvement
+claim. This decision is specific to the two trait directions, with the same
+model, evidence, output shape, explanation format and generation settings.
 
-Use existing reviewed photos where their evidence can support the question. Each
-included case needs at least one assessable visible trait. Limited identity
-references must remain limited and receive no false correctness credit. Do not
-redo the broad Gemini/OpenAI comparison or add descriptions merely for coverage.
+A prompt change can still affect individual identifications and score
+distributions. The completed compatibility tests establish isolation, not model
+accuracy. Accept the narrow beta change on that basis without claiming that it
+has reduced hallucinations, improved accuracy or made identification faster.
+Formal provider qualification and confidence calibration retain their separate
+requirements.
 
-The main question is whether the candidate reduces unsupported visual claims.
-Review traits and explanation together against visible evidence. Require no new
-critical grounding, safety, subject-selection, assessable identity/rank or
-explanation-format regression. A lower trait count by itself is not success.
-Record latency and usage only as descriptive secondary measures. The assistant
-performs the reviews; no owner calibration exercise is required.
+Next implementation steps:
 
-Stop after the bounded comparison. Failure or an inconclusive result retains the
-baseline; it does not authorize a parameter sweep. A promising small development
-screen is still not production qualification. Once the configuration is
-selected, resume the separate
-[confidence task](./identification-openai-confidence-display-2026-09-28.md#sequence-update--optimization-first),
-using only evidence compatible with that exact configuration. OpenAI audio and
-Free/Pro model differentiation remain later work.
+1. Integrate the wording into a separately versioned OpenAI photo prompt using
+   the existing production request path. Preserve historical prompt identities,
+   correct saved provenance and existing compatible-client/badge behavior. The
+   evaluation-only identity above cannot itself become a production assignment.
+2. Run the affected request, decoding, provenance and consumer regression checks
+   plus normal CI. Preserve Gemini, full observation inputs, moderation, the
+   explanation definition and trait-array bounds. Do not build an experiment
+   controller for this change.
+3. Following the normal beta release process, check a few ordinary scans: a
+   clear biological photo, an unclear photo and a non-biological scene. Include
+   a multiple-photo observation among those checks. Confirm successful
+   processing, coherent traits, normal explanations, saving and reopening. Use
+   existing approved test material; the assistant handles the checks where
+   available. This is a functional smoke check, not an accuracy estimate. An
+   observed regression is a reason to correct or revert the change.
+4. Freeze the integrated prompt configuration and proceed to confidence
+   calibration. Keep earlier scores tied to their original configuration rather
+   than pooling changed-prompt results automatically. OpenAI audio follows the
+   confidence work; further optimization candidates are deferred.
+
+Existing comparison packets and budgets remain closed. No provider request or
+production mutation runs as part of this documentation update. The normal
+release authorization and deployment controls continue to apply.

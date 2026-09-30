@@ -5,7 +5,10 @@ Status, 29 September: OpenAI optimization resumes before confidence calibration.
 The new observed-traits candidate is implemented for offline request
 preparation; its model behavior is unmeasured. The beta retains its current Sol
 photo profile for both tiers and Gemini for other input profiles. Earlier
-checkpoint sections below preserve their original scope and evidence.
+checkpoint sections below preserve their original scope and evidence. The latest
+validation decision uses focused regression checks and an ordinary beta smoke
+check for the observed-traits wording change; a dedicated comparison is no
+longer the next step.
 
 ## Decision
 
@@ -275,8 +278,15 @@ fixed-count directions removed and zero other request changes.
 Implementation now provides a pure builder and compatibility tests, without a
 new dispatch path or production assignment. The known grounding failure
 motivates the hypothesis but does not prove its cause or that the candidate
-improves it. A later bounded comparison needs reviewed visible-feature
-references and its own execution plan. Stop at its declared limit and retain the
-baseline if the result is inconclusive. No broad Gemini/OpenAI rerun is needed.
-After selecting the configuration, finish confidence calibration; OpenAI audio
-and Free/Pro model differentiation follow separately.
+improves it.
+
+Later owner decision: a dedicated comparison is disproportionate to this small
+beta wording change. Follow the
+[targeted validation decision](./identification-openai-observed-traits-candidate-2026-09-29.md#validation-decision-update--29-september-2026):
+version the production prompt, preserve provenance and client compatibility, run
+regression checks and normal CI, then verify a few ordinary beta scans. This
+supersedes the comparison-first next step for this candidate only; it does not
+claim measured quality or speed improvement. No comparison controller or broad
+Gemini/OpenAI rerun is needed. After integration, freeze that configuration and
+finish confidence calibration. OpenAI audio and Free/Pro model differentiation
+follow separately; additional optimization candidates are deferred.

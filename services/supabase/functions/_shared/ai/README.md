@@ -264,9 +264,11 @@ inputs, and exercises unchanged 1–10 array bounds. One to three is an
 instruction, not a stricter validator. A zero-discernible-trait case still needs
 a separate policy; do not fill the list with a visibility placeholder. The
 [candidate record](../../../../../docs/rfcs/identification-openai-observed-traits-candidate-2026-09-29.md)
-owns the hypothesis, evidence limits and future bounded-comparison criteria.
-These offline tests do not establish model improvement or confidence
-calibration.
+owns the hypothesis, evidence limits and targeted beta validation plan. Next
+work integrates a versioned production prompt and verifies its normal request,
+provenance and client behavior, followed by a few ordinary beta smoke scans. No
+dedicated comparison runner is planned for this wording change. These offline
+tests do not establish model improvement or confidence calibration.
 
 ## Scoped audio prompt authority
 

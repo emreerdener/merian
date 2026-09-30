@@ -328,8 +328,10 @@ production submission or public release.
   optimization before confidence calibration: the
   [observed-traits candidate](./rfcs/identification-openai-observed-traits-candidate-2026-09-29.md)
   removes two fixed-count directions in an offline-only Sol request while
-  preserving explanation format. Its benefit is unmeasured, and completed
-  experiment budgets stay closed. The
+  preserving explanation format. Its updated plan uses versioned beta
+  integration, regression checks and a few ordinary smoke scans instead of a
+  dedicated comparison. Its benefit is unmeasured, and completed experiment
+  budgets stay closed. The
   [earlier provider optimization plan](./rfcs/identification-provider-optimization-plan.md)
   retains implemented measurement and experiment controls. Its
   [26 September concise screen](./rfcs/identification-openai-concise-screen-2026-09-26.md)

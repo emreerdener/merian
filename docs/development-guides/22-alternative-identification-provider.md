@@ -434,10 +434,12 @@ deno test --frozen --no-prompt --deny-net --deny-env \
 ```
 
 These tests establish request isolation and decoding compatibility, not model
-quality. A later bounded comparison needs its own reviewed cases and execution
-plan. Preserve the current explanation format and choose the configuration
-before resuming confidence calibration. Existing experiment budgets remain
-closed.
+quality. The updated plan treats the two wording changes as a small beta
+improvement: integrate a versioned prompt, run the affected regressions and
+normal CI, then check a few ordinary beta scans. A dedicated comparison runner
+is unnecessary for this change. Preserve explanation format and use the final
+prompt configuration for confidence calibration. Existing experiment budgets
+remain closed; see the candidate record for the exact scope and smoke checks.
 
 ## Explicit-primary Sol comparison
 
