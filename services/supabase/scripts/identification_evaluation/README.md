@@ -109,18 +109,63 @@ deno run --frozen --no-prompt \
   --config services/supabase/functions/deno.json \
   --allow-read="$PWD,$study_dir" --allow-write="$study_dir" --allow-run=git \
   --allow-net=api.openai.com:443 --allow-env=OPENAI_EVALUATION_API_KEY \
+  --deny-env='SUPABASE_*,R2_*,GOOGLE_*,GEMINI_*,WS_*,OPENAI_API_KEY' \
   services/supabase/scripts/assess_openai_confidence.ts --live "$study_dir"
 ```
 
-Both splits share one journal, 200 attempted requests and $10. No automatic
-retries or replacement cases exist. Before invocation, exclusive fsynced claims
-in `confidence-attempts/` reserve conservative cost including maximum reasoning
-output. The next reservation must fit alongside settled and outstanding costs.
-Missing/contradictory usage, unexpected returned model/tier, failed or uncertain
-execution retains cost and stops. Mismatched model/tier drafts receive no scored
-identification even if billing is later reconciled. Resume skips every claim,
-including uncertain calls. Do not delete claims, copy to a fresh run to reset
-budgets or alter the manifest.
+The explicit environment denials are required by credential admission;
+`--no-prompt` alone leaves ungranted variables in the `prompt` state. The
+documented grants/denials passed a synthetic-key admission check without a
+network request.
+
+Both splits share one journal, 200 attempted requests and an initial $10
+ceiling. The explicit owner-approved $20 continuation below is cumulative. No
+automatic retries or replacement cases exist. Before invocation, exclusive
+fsynced claims in `confidence-attempts/` reserve conservative cost including
+maximum reasoning output. The next reservation must fit alongside settled and
+outstanding costs. Required missing/contradictory usage, unexpected returned
+model/tier, failed or uncertain execution retains cost and stops. Mismatched
+model/tier drafts receive no scored identification even if billing is later
+reconciled. Resume skips every claim, including uncertain calls. Do not delete
+claims, copy to a fresh run to reset budgets or alter the manifest.
+
+`openai_confidence_result_v2` adds bounded numeric accounting evidence. It keeps
+optional missing cache-write counts null and accepts valid positive counts,
+while charging all input at the maximum reviewed rate. Explicit contradictory
+cache writes fail in the confidence-only decoder before an absent count could
+mask them. Required input/output/reasoning/cached/total counts and
+tool/model/tier checks remain enforced. The ledger recomputes v2 settlement from
+these facts and continues accepting original v1 records; neither version retains
+model prose, raw responses or request identifiers.
+
+After an owner-approved accounting repair and genuine billing reconciliation,
+the offline command below may create one exclusive continuation. Set
+`manifest_digest` to the original frozen manifest digest and use opaque
+`authorization_ref`/`review_ref` values identifying the actual owner decision
+and source review:
+
+```bash
+deno run --frozen --no-prompt --deny-net --deny-env \
+  --config services/supabase/functions/deno.json \
+  --allow-read="$PWD,$study_dir" --allow-write="$study_dir" --allow-run=git \
+  services/supabase/scripts/assess_openai_confidence.ts prepare-continuation \
+  "$study_dir" "$manifest_digest" "$authorization_ref" "$review_ref"
+```
+
+This writes `confidence-continuation.json` with
+`version: openai_confidence_continuation_v1`, the original manifest/source,
+replacement `SourceIdentity`, approval/review references,
+`budgetKind:
+cumulative_total`, fixed `budgetNanoUsd: 20000000000`,
+`maxAttempts: 200`, the reconciled prefix's attempted/settled/outstanding counts
+and exact-file digest, and `nextOrdinal`. It refuses unreconciled predecessors,
+altered study inputs, wrong manifest identity and an existing continuation.
+Requests retain their original digest, settings, order and per-case reservation.
+The same `--live` command then starts at the next original case and enforces
+cumulative accounting. Source or prefix drift fails; never delete the amendment
+to reset an attempt. Original protocol/manifest files stay immutable. Reports
+add `continuation` and `executionSource` hashes while preserving the original
+`source` hash.
 
 `confidence-selection.json` immutably records the lowest qualifying development
 cutoff, its hash and development-result hash before any held-out request. No
@@ -143,10 +188,33 @@ usage. A subsequently invalidated reference is recorded in
 `reviewRef`; it stops dispatch and makes a threshold decision ineligible without
 rewriting the frozen references.
 
-Current readiness: no eligible formal development or validation corpus has been
-collected. The implementation and synthetic tests do not establish calibration.
-The new reader keeps 0.95/0.60 until a real decision; distribute and verify the
-final mapping on a device before separately authorized backend activation.
+Current readiness, September 30: the private 200-photo confidence reference
+corpus is frozen and passed offline preparation, with 100 development and 100
+held-out cases and all category/rank quotas satisfied. Its linked source,
+reference, answerability and independent diagnostic evidence is frozen with the
+requests. One identification completed, then the runner stopped for billing
+reconciliation before a second call. The original artifact lacks numeric usage;
+the accounting correction cannot reconstruct it or authorize replay. Reviewed
+provider usage has now reconciled its upper cost at $0.03499, and the exclusive
+$20 cumulative continuation resumed at ordinal 2. All 100 development attempts
+are now complete (99 normalized, one invalid output), with $3.512790008
+conservatively accounted and zero outstanding reservation. No cutoff met both
+rules, so the runner recorded `no_development_cutoff` and left the 100 held-out
+cases unattempted. The
+[results record](../../../../docs/rfcs/identification-openai-confidence-results-2026-09-30.md)
+reports the retained 0.95/0.60 fallback and its limits. The
+[release record](../../../../docs/release-evidence/openai-confidence-assessment-2026-09-30.md)
+retains the hashes. Synthetic tests and corpus readiness do not establish
+calibration. The new reader keeps 0.95/0.60 following this fallback decision;
+distribute and verify the final mapping on a device before separately authorized
+backend activation.
+
+The current conservative reservation is $5.37288 per sequential call, including
+the full model-context and output ceilings at reviewed maximum rates. Successful
+complete usage releases the unused reservation before the next call. The shared
+200-request/effective-budget limits are ceilings, not a completion guarantee.
+Insufficient headroom or unresolved usage stops dispatch without changing
+settings, adding retries or expanding the budget.
 
 Slices 1–3 of the
 [PRD](../../../../docs/product/04-identification-evaluation-prd.md) and
@@ -154,7 +222,8 @@ Slices 1–3 of the
 here as local, offline tooling. The production route and tooling reuse the same
 pure normalization helper. No production function imports these scripts modules.
 The CLI runs offline by default and has a separate, explicitly gated live mode.
-No formal reviewed corpus has been collected. The September 25
+The historical multi-provider baseline has no formal reviewed corpus. The
+September 25
 [OpenAI photo/text pilot](../../../../docs/rfcs/identification-openai-photo-text-pilot-2026-09-25.md)
 completed seven paid direct-evaluator results and retained one unknown execution
 across eight unique attempted cases. Its provisional references do not establish

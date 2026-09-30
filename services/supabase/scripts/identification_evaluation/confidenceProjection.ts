@@ -1,8 +1,10 @@
 import type { AIProviderOutcome } from "../../functions/_shared/ai/contracts.ts";
 import { normalizeIdentification } from "../../functions/_shared/identify/normalizeIdentification.ts";
 import { OPENAI_MODEL } from "../../functions/_shared/ai/openaiRequest.ts";
-import { estimateCost } from "./profiles.ts";
-import { projectUsage } from "./projection.ts";
+import {
+  confidenceAccounting,
+  confidenceCost,
+} from "./confidenceAccounting.ts";
 import type { OpenAIPricing } from "./runContracts.ts";
 import {
   noIdentityMapping,
@@ -14,7 +16,7 @@ import {
   parseConfidenceObservation,
 } from "./confidenceScoring.ts";
 
-export const nanoUsd = (usd: number) => Math.ceil(usd * 1e9);
+export { nanoUsd } from "./confidenceAccounting.ts";
 
 /** Only taxonomy IDs, rank, numeric evidence and outcomes survive this boundary. */
 export function projectConfidenceOutcome(
@@ -23,19 +25,7 @@ export function projectConfidenceOutcome(
   taxonomy: ReviewedTaxonomy,
   pricing: OpenAIPricing,
 ) {
-  const usage = projectUsage(outcome.usage, true);
-  // Unknown execution and contradictory accounting never release a reservation.
-  const usable = outcome.kind !== "unknown_execution" &&
-    outcome.kind !== "operational_failure" &&
-    outcome.returnedModel === OPENAI_MODEL &&
-    outcome.serviceTier === "default" &&
-    usage !== null && usage.promptTokens !== null &&
-    usage.candidateTokens !== null &&
-    usage.thinkingTokens !== null && usage.totalTokens ===
-      usage.promptTokens + usage.candidateTokens + usage.thinkingTokens &&
-    usage.cachedTokens !== null && usage.toolTokens === 0 &&
-    usage.cacheWriteTokens === 0;
-  const cost = usable ? estimateCost(pricing, OPENAI_MODEL, usage) : null;
+  const accounting = confidenceAccounting(outcome);
   let observation: ConfidenceObservation = {
     prediction: {
       caseId,
@@ -80,5 +70,9 @@ export function projectConfidenceOutcome(
       /* The invalid_output outcome above retains the scheduled case. */
     }
   }
-  return { observation, settledNanoUsd: cost === null ? null : nanoUsd(cost) };
+  return {
+    observation,
+    accounting,
+    settledNanoUsd: confidenceCost(accounting, pricing),
+  };
 }

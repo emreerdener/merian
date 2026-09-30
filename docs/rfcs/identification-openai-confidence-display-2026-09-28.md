@@ -4,10 +4,13 @@ Current extension, 30 September: the
 [confidence assessment contract](identification-openai-confidence-assessment-2026-09-30.md)
 adds a prepared OpenAI-only prompt and a third explicitly mapped native profile.
 Original and observed-traits results retain 0.95/0.60. The revised profile also
-retains 0.95/0.60 pending the reviewed study. `ConfidenceHeader` now describes a
-model-generated estimate instead of claiming a precise score; its percentage
-heading and layout are unchanged. The reader must be distributed and verified
-before backend activation. The dated findings below remain historical evidence.
+retains 0.95/0.60 after the
+[development assessment](identification-openai-confidence-results-2026-09-30.md)
+found no eligible cutoff; this is fallback retention, not accuracy
+qualification. `ConfidenceHeader` now describes a model-generated estimate
+instead of claiming a precise score; its percentage heading and layout are
+unchanged. The reader must be distributed and verified before backend
+activation. The dated findings below remain historical evidence.
 
 Date: 2026-09-28
 

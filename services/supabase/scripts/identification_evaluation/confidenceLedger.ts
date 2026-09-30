@@ -3,6 +3,11 @@ import type { PreparedConfidenceStudy } from "./confidencePreparation.ts";
 import { CONFIDENCE_PROTOCOL as P } from "./confidenceProtocol.ts";
 import { fingerprintJson } from "./evidence.ts";
 import { exists, privateDirectory, readJson } from "./files.ts";
+import { confidenceJournalPrefixDigest } from "./confidenceContinuation.ts";
+import {
+  confidenceCost,
+  parseConfidenceAccounting,
+} from "./confidenceAccounting.ts";
 import {
   fields,
   integer,
@@ -58,16 +63,28 @@ export async function readConfidenceLedger(
       mapping: null,
     };
     if (await exists(base + ".result.json")) {
-      const r = fields(await readJson(base + ".result.json"), [
+      const value = await readJson(base + ".result.json");
+      const v2 = (value as { version?: unknown })?.version ===
+        "openai_confidence_result_v2";
+      const r = fields(value, [
         "version",
         "claimDigest",
         "observation",
         "settledNanoUsd",
+        ...(v2 ? ["accounting"] : []),
       ]);
       check(
-        r.version === "openai_confidence_result_v1" &&
+        (r.version === "openai_confidence_result_v1" || v2) &&
           r.claimDigest === await fingerprintJson(claim),
       );
+      if (v2) {
+        check(
+          r.settledNanoUsd === confidenceCost(
+            parseConfidenceAccounting(r.accounting),
+            study.pricing,
+          ),
+        );
+      }
       observation = parseConfidenceObservation(r.observation);
       check(
         observation.prediction.caseId === a.caseId &&
@@ -100,6 +117,12 @@ export async function readConfidenceLedger(
     if (charged === null) outstandingNanoUsd += a.reservationNanoUsd;
     else settledNanoUsd += charged;
     observations.push(observation);
+    if (study.continuation?.journalPrefix.attempted === attempted) {
+      const prefix = study.continuation.journalPrefix;
+      check(
+        prefix.settledNanoUsd === settledNanoUsd && outstandingNanoUsd === 0,
+      );
+    }
   }
   for await (const entry of Deno.readDir(journal)) {
     check(entry.isFile && !entry.isSymlink && allowed.has(entry.name));
@@ -107,8 +130,19 @@ export async function readConfidenceLedger(
   check(
     attempted <= P.maxAttempts &&
       Number.isSafeInteger(settledNanoUsd + outstandingNanoUsd) &&
-      settledNanoUsd + outstandingNanoUsd <= P.budgetNanoUsd,
+      settledNanoUsd + outstandingNanoUsd <= study.budgetNanoUsd,
   );
+  if (study.continuation) {
+    const prefix = study.continuation.journalPrefix;
+    check(
+      attempted >= prefix.attempted &&
+        await confidenceJournalPrefixDigest(
+            root,
+            study.manifest.assignments
+              .slice(0, prefix.attempted).map((a) => a.caseId),
+          ) === prefix.digest,
+    );
+  }
   return {
     journal,
     observations,

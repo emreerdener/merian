@@ -19,7 +19,10 @@ import {
   parseConfidenceCorpus,
 } from "./identification_evaluation/confidenceCorpus.ts";
 import { assignConfidenceSplits } from "./identification_evaluation/confidenceSampling.ts";
-import { prepareConfidenceStudy } from "./identification_evaluation/confidencePreparation.ts";
+import {
+  prepareConfidenceContinuation,
+  prepareConfidenceStudy,
+} from "./identification_evaluation/confidencePreparation.ts";
 import {
   executeConfidenceStudy,
   saveConfidenceReport,
@@ -30,9 +33,15 @@ import {
 } from "./identification_evaluation/validation.ts";
 
 export async function main(args = Deno.args) {
-  check(args.length === 2);
+  check(args.length === (args[0] === "prepare-continuation" ? 5 : 2));
   const [mode, path] = args;
-  member(mode, ["assign-splits", "prepare", "report", "--live"]);
+  member(mode, [
+    "assign-splits",
+    "prepare",
+    "report",
+    "prepare-continuation",
+    "--live",
+  ]);
   if (mode !== "--live") await assertOfflinePermissions();
   const repository = fileURLToPath(new URL("../../../", import.meta.url));
   const root = await privateDirectory(path);
@@ -53,6 +62,18 @@ export async function main(args = Deno.args) {
     });
   }
   const source = await sourceIdentity(repository);
+  if (mode === "prepare-continuation") {
+    return await withRunLock(root, async () => {
+      const study = await prepareConfidenceContinuation(
+        root,
+        source,
+        args[2],
+        args[3],
+        args[4],
+      );
+      await saveConfidenceReport(root, study);
+    });
+  }
   if (mode === "--live") {
     await executeConfidenceStudy(
       root,
@@ -71,7 +92,8 @@ export async function main(args = Deno.args) {
           referenceStatus: study.corpus.referenceStatus,
           mode: study.manifest.mode,
           initialReservationWithinBudget:
-            study.manifest.assignments[0].reservationNanoUsd <= 10_000_000_000,
+            study.manifest.assignments[0].reservationNanoUsd <=
+              study.budgetNanoUsd,
         });
       }
       await saveConfidenceReport(root, study);

@@ -259,10 +259,13 @@ The separate `openaiPhotoConfidence.ts` prepares
 `openai_identify_vision_confidence_v1` from this production request, replacing
 only confidence instructions and its schema description while retaining the
 observed-traits improvements. `createOpenAIConfidenceEvaluationAdapter` uses the
-same one-shot transport, decoder and moderation. The evaluation-only binding is
-rejected by production admission/result policy; the active production selector
-continues to use observed-traits. The native reader recognizes the prepared
-prompt with its own provisional 0.95/0.60 mapping. See the
+same one-shot transport, identification decoder and moderation. Its accounting
+projection additionally rejects explicitly malformed or contradictory
+cache-write counts, preserving the distinction from an omitted optional
+breakdown; historical production adapters are unchanged. The evaluation-only
+binding is rejected by production admission/result policy; the active production
+selector continues to use observed-traits. The native reader recognizes the
+prepared prompt with its own provisional 0.95/0.60 mapping. See the
 [confidence assessment](../../../../../docs/rfcs/identification-openai-confidence-assessment-2026-09-30.md)
 for fixed study rules, installed-reader evidence and later activation.
 Historical builders and Gemini remain unchanged.

@@ -1,10 +1,11 @@
 # Naturebook Identification Evaluation Readiness — PRD
 
 Document ID: NB-PRD-IDENTIFICATION-EVAL-001\
-Version: 0.23\
+Version: 0.25\
 Date: 30 September 2026\
 Status: Evaluation tooling and exploratory Gemini/OpenAI comparison completed;
-confidence tooling prepared; formal reviewed collections pending\
+confidence development assessment completed with no eligible cutoff; held-out
+collection not started and 0.95/0.60 retained\
 Suggested owners: Product and Backend, with a biological reference reviewer\
 Companion: [Evaluation Readiness SRD](../rfcs/identification-evaluation-srd.md)
 
@@ -13,13 +14,15 @@ Companion: [Evaluation Readiness SRD](../rfcs/identification-evaluation-srd.md)
 The approved
 [OpenAI confidence study](../rfcs/identification-openai-confidence-assessment-2026-09-30.md)
 adds a separate 200-observation photo-only assessment, with 100 development and
-100 held-out cases, 200 attempts and a $10 total ceiling. The fixed diagnostic
-mixture, independently supported rank-aware references, frozen taxonomy,
-denominators and decision rule in that contract supersede earlier generic pilot
-sizes/expansion advice only for this study. No automatic expansion is allowed.
-Reviewed genus-only and unresolved references remain eligible; unknown ground
-truth is excluded before freezing. Retained exploratory packets do not meet the
-new formal corpus requirements.
+100 held-out cases and 200 attempts. The original $10 ceiling is preserved in
+the frozen protocol; the owner subsequently approved a higher budget, bounded to
+$20 through the explicit continuation described in the study contract. The fixed
+diagnostic mixture, independently supported rank-aware references, frozen
+taxonomy, denominators and decision rule in that contract supersede earlier
+generic pilot sizes/expansion advice only for this study. No automatic expansion
+is allowed. Reviewed genus-only and unresolved references remain eligible;
+unknown ground truth is excluded before freezing. Retained exploratory packets
+do not meet the new formal corpus requirements.
 
 This confidence study uses source-supported automated review with separate
 identity and exact-image answerability records. It does not require two human
@@ -27,10 +30,38 @@ reviewers or claim independent human validation; that requirement belongs to the
 older formal baseline below. Independently supported reference evidence remains
 mandatory.
 
+Preparation checkpoint: the separate confidence study now has 200 frozen,
+source-supported photos, allocated to 100 development and 100 held-out cases
+with the exact category and rank quotas. The private packet binds 674 evidence
+records, 74 independent diagnostic sources and 91 reviewed canonical taxa.
+Offline preparation passed. One identification completed; collection stopped
+before the second because usage could not be reconciled. Provider usage evidence
+subsequently resolved that hold with a $0.03499 conservative cost allowance; the
+approved $20 continuation resumes at the second original case. Its first result
+and consumed attempt remain recorded. No threshold is qualified. The
+[release record](../release-evidence/openai-confidence-assessment-2026-09-30.md)
+retains the freeze hashes and remaining execution/device evidence.
+
+Completed development outcome: all 100 first attempts are accounted for, with 99
+normalized results and one invalid output. None of the 40 candidate cutoffs met
+both minimum count and correctness requirements, so the runner stopped without
+dispatching the 100 held-out cases. Conservative accounted cost was
+$3.512790008, with no outstanding reservation. Retain 0.95/0.60 without claiming
+qualification; the
+[results record](../rfcs/identification-openai-confidence-results-2026-09-30.md)
+separates mapping failures, biological errors and coverage limitations. No
+additional paid collection follows from this outcome.
+
 The study freeze covers the contents of those private evidence records, their
 links to the final images and accepted answers, and the reviewed pricing. A
 changed reference record or expired price review blocks new collection without
 resetting attempts or spend. No additional human approval step is introduced.
+
+The accounting repair accepts valid cache-write usage and prices an omitted
+optional write breakdown at the maximum reviewed input rate. Required missing or
+contradictory usage still stops collection. The continuation preserves all 200
+original cases, requests and scoring rules; the larger cumulative cap is not
+permission to repeat or replace any case.
 
 Confidence describes estimated correctness at the displayed taxonomic level.
 Keep percentage headings, badge names and explanation layout. The revised OpenAI

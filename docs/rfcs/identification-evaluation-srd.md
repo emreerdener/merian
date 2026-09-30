@@ -1,10 +1,11 @@
 # Naturebook Identification Evaluation Readiness — SRD
 
 Document ID: NB-SRD-IDENTIFICATION-EVAL-001\
-Version: 0.22\
+Version: 0.24\
 Date: 30 September 2026\
 Status: Slices 1–3, controlled provider evaluation and matched exploratory
-comparison completed; confidence tooling prepared; formal collections pending\
+comparison completed; confidence development assessment completed with no
+eligible cutoff; held-out unattempted and 0.95/0.60 retained\
 Product authority:
 [Evaluation Readiness PRD](../product/04-identification-evaluation-prd.md)
 
@@ -33,8 +34,9 @@ development-only selection and immutable pre-validation cutoff implement the
 approved protocol. See the linked contract for exact denominators and fallback.
 
 The shared ledger fsyncs each exclusive attempt and conservative cost
-reservation before invocation; both splits share the 200/$10 limits. Unknown or
-contradictory usage retains cost and stops dispatch, while uncertain attempts
+reservation before invocation; both splits share the original 200/$10 limits,
+with the separately approved cumulative $20 continuation below. Required missing
+or contradictory usage retains cost and stops dispatch, while uncertain attempts
 can never replay. Frozen hashes cover inputs, settings, source, taxonomy,
 scoring, prices and cutoff. Report-only billing reconciliation never edits the
 prediction.
@@ -45,6 +47,47 @@ each dispatch. Opaque IDs alone cannot satisfy the freeze. Paid requests require
 pricing reviewed within the preceding seven days; offline reporting remains
 available after expiry. These checks reuse the existing account/key workflow
 without adding the historical Gemini baseline's processor-approval requirements.
+
+The September 30 private confidence packet passed `assign-splits` and offline
+`prepare`: 200 cases, 100 per split, 674 linked evidence records, 74 diagnostic
+sources and 91 canonical taxa. Every split has the required 20 cases in each
+category and ten genus-only plus ten unresolved limited-evidence cases. All
+description/context fields are empty or null. The manifest and per-case request
+hashes are frozen before any paid call; the
+[release record](../release-evidence/openai-confidence-assessment-2026-09-30.md)
+records their identifiers. The first paid identification completed and is
+retained; unresolved accounting initially stopped collection before a second
+request. A reviewed provider-usage record now settles its conservative upper
+cost at $0.03499. The immutable continuation starts at ordinal 2 with a
+cumulative $20 cap, one consumed attempt and no outstanding reservation. The
+subsequent development run completed all 100 attempts (99 normalized, one
+invalid output) and recorded `no_development_cutoff`. Held-out cases remain
+unattempted. The
+[results record](identification-openai-confidence-results-2026-09-30.md)
+preserves the decision, denominators, cost completeness and report hashes; no
+cutoff was selected or qualified.
+
+Reviewed long-context/cache-write rates reserve $5.37288 before each sequential
+dispatch. Complete usage replaces that reservation with conservative measured
+cost before another call. The limits are hard maxima, not a guarantee that all
+200 requests can complete: insufficient headroom or unresolved usage stops the
+study, and incomplete collection retains 0.95. Model/generation settings remain
+unchanged.
+
+The owner approved a higher budget after that accounting stop. An explicit
+`openai_confidence_continuation_v1` records a cumulative $20 cap and the same
+200-attempt limit. It binds the original manifest, reviewed replacement source,
+reconciled journal-prefix bytes/counters and next ordinal. Preparation rederives
+every original input/request/settings/evidence hash and never overwrites the
+manifest or first result. Missing billing evidence prevents continuation.
+
+New `openai_confidence_result_v2` records retain bounded numeric usage and
+accounting facts. The reader recomputes their conservative settlement; v1
+records remain readable. Optional cache-write counts stay null when absent; all
+input is charged at the maximum reviewed rate. Valid positive writes are
+accepted; contradictory explicit counts remain unsettled. This extra validation
+is limited to the confidence adapter; historical production decoding is
+unchanged.
 
 Native display policy maps original, observed-traits and revised prompts
 separately, preserving historical scores/bands through wire decoding, storage

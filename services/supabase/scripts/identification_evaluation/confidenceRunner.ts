@@ -116,7 +116,7 @@ export async function saveConfidenceReport(
   const accounting = {
     attempted: ledger.attempted,
     maxAttempts: P.maxAttempts,
-    budgetNanoUsd: P.budgetNanoUsd,
+    budgetNanoUsd: study.budgetNanoUsd,
     settledNanoUsd: ledger.settledNanoUsd,
     outstandingNanoUsd: ledger.outstandingNanoUsd,
     costComplete: ledger.costComplete,
@@ -140,6 +140,11 @@ export async function saveConfidenceReport(
       source: study.manifest.sourceDigest,
       referenceEvidence: study.manifest.evidenceDigest,
       cutoff: selection?.cutoffDigest ?? null,
+      continuation: study.continuation
+        ? await fingerprintJson(study.continuation)
+        : null,
+      executionSource: study.continuation?.replacementSource.digest ??
+        study.manifest.sourceDigest,
       requests: study.manifest.assignments.map((a) => ({
         caseId: a.caseId,
         request: a.requestDigest,
@@ -199,7 +204,7 @@ export async function executeConfidenceStudy(
       const a = study.manifest.assignments[ledger.attempted];
       if (
         ledger.settledNanoUsd + ledger.outstandingNanoUsd +
-            a.reservationNanoUsd > P.budgetNanoUsd
+            a.reservationNanoUsd > study.budgetNanoUsd
       ) {
         stop = "budget_exhausted";
         break;
@@ -230,7 +235,7 @@ export async function executeConfidenceStudy(
           check(result.settledNanoUsd <= a.reservationNanoUsd);
         }
         await claimJson(base + ".result.json", {
-          version: "openai_confidence_result_v1",
+          version: "openai_confidence_result_v2",
           claimDigest: await fingerprintJson(claim),
           ...result,
         });

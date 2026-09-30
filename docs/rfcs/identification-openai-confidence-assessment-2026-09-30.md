@@ -2,9 +2,11 @@
 
 Date: 30 September 2026
 
-Status: Implemented locally; reviewed corpus, live collection, reader
-distribution and backend activation remain pending. No new threshold has been
-established.
+Status: Implemented locally; development collection completed with no eligible
+cutoff. The 100 held-out cases were not dispatched; retain 0.95/0.60 without
+qualification. See the
+[results record](identification-openai-confidence-results-2026-09-30.md). Reader
+distribution and backend activation remain pending.
 
 ## Meaning and scope
 
@@ -180,21 +182,67 @@ changing reservations or preventing offline reporting. It does not authorize
 replacing a frozen pricing snapshot or restarting the study budget. The scoped
 existing OpenAI key workflow is unchanged.
 
-The hard limits are 200 attempted requests and $10 across both splits. Before
+The original hard limits are 200 attempted requests and $10 across both splits.
+The later owner-approved $20 continuation is specified below; the frozen
+protocol remains intact. Before
 dispatch, fsync an exclusive claim reserving reviewed maximum input and billable
 output cost, including reasoning tokens. The current pricing contract reserves
 the full model input-context ceiling, not a bytes-to-tokens guess. Reconciled
-cost plus outstanding reservations plus the next reservation must fit $10.
-Charge all input at the highest reviewed rate without assuming a cache discount;
-output already includes reasoning and is not charged twice.
+cost plus outstanding reservations plus the next reservation must fit the
+effective cumulative cap ($10 without a continuation, $20 with one). Charge all
+input at the highest reviewed rate without assuming a cache discount; output
+already includes reasoning and is not charged twice.
 
-Failures and uncertain executions consume a request. Missing/contradictory
-usage, unknown execution or unpriced model/tier retains the reservation and
-stops dispatch. A reviewed provider-billing reconciliation can settle cost; it
-cannot rewrite the outcome or permit another attempt. Claims use exclusive
-creation and file/directory sync; the study uses a process lock. Torn/altered
-artifacts fail closed. No retries, replacement observations, new run ID to reset
-budgets, or automatic expansion is supported.
+Failures and uncertain executions consume a request. Required
+missing/contradictory usage, unknown execution or unpriced model/tier retains
+the reservation and stops dispatch. A reviewed provider-billing reconciliation
+can settle cost; it cannot rewrite the outcome or permit another attempt. Claims
+use exclusive creation and file/directory sync; the study uses a process lock.
+Torn/altered artifacts fail closed. No retries, replacement observations, new
+run ID to reset budgets, or automatic expansion is supported.
+
+### Accounting correction and explicit continuation
+
+On September 30, the first request completed with a normalized identification,
+but its v1 cost projection returned unknown. The old record did not retain
+numeric usage, so it cannot establish which field caused the stop. A genuine
+provider usage/billing receipt was required before another call; the result,
+score and consumed request cannot be replaced. The supplied usage export and
+matching one-minute provider UI bucket subsequently resolved the accounting hold
+with a $0.03499 upper cost allowance. The immutable continuation was prepared
+with one consumed attempt and ordinal 2 next; the release record retains its
+hash and source identity.
+
+The zero-only cache-write condition was overconstrained:
+[OpenAI documents positive cache-write counts](https://developers.openai.com/api/docs/guides/prompt-caching).
+The corrected assessment accepts valid nonnegative counts with cached plus write
+tokens no greater than input tokens. An omitted optional write count remains
+null and is conservatively bounded by charging every input token at the maximum
+reviewed rate, including cache writes. No zero is invented. Explicitly
+malformed/contradictory writes, missing required token totals, unknown
+model/tier or uncertain execution still retain reservations and stop dispatch.
+Historical adapters remain unchanged. New `openai_confidence_result_v2` records
+retain only bounded numeric accounting facts alongside the existing observation;
+readers recompute their upper cost and continue accepting immutable v1 results.
+
+The owner explicitly permitted a higher budget; this correction uses **$20
+cumulative**, with **200 total attempts** unchanged. Offline
+`prepare-continuation` exclusively creates `openai_confidence_continuation_v1`
+after genuine predecessor reconciliation. It binds the original manifest/source
+digests, complete replacement source identity, authorization/review references,
+fixed cumulative cap, original attempt limit, reconciled journal prefix and next
+ordinal. The prefix digest covers exact bytes of existing
+claims/results/reconciliations, including absent results where appropriate.
+Reconstruct and match corpus, taxonomy, evidence, pricing, protocol, order and
+every request/settings digest before accepting it.
+
+The continuation uses the same directory and original claim format. The old
+manifest, claims and results are never overwritten. Dispatch starts at the next
+unclaimed original case, counts all prior cost and attempts, rechecks the prefix
+and replacement source on resume, and still stops on unreconciled usage. The
+report retains original hashes and adds continuation/execution-source hashes.
+This correction changes accounting only, not sampling, prompt, generation,
+normalization, scoring, selection criteria or the frozen possible/strong rules.
 
 See the
 [tooling instructions](../../services/supabase/scripts/identification_evaluation/README.md#openai-confidence-assessment)
@@ -224,10 +272,18 @@ still show Needs review. Then request backend activation explicitly, naming the
 target, and use the normal exact-SHA release procedure. Archive/upload remains
 owner-handled. No audio evaluation is included.
 
-Current evidence: existing packets provide no eligible 100-case development or
-100-case held-out corpus. The largest retained packet has 12 development-only
-observations with provisional references, not 200 independently supported cases.
-No paid collection ran for this change. The provisional threshold stays
-0.95/0.60. The
+Current evidence: a separate 200-photo reference packet passed offline
+preparation on September 30, with the exact 100 development/100 held-out
+allocation and category/rank quotas. Its source-supported automated review,
+taxonomy, pricing and production-equivalent request hashes are frozen; the
+earlier exploratory packets retain their provisional status. Development
+collection completed with 99 normalized results and one invalid output across
+100 attempted cases. No candidate cutoff met both development requirements, so
+the 100 held-out cases remain unattempted. The provisional threshold stays
+0.95/0.60; it is retained by fallback, not qualified by this study. The
+[results record](identification-openai-confidence-results-2026-09-30.md) reports
+the measured precision, mapping failures and uncertainty. The
 [release record](../release-evidence/openai-confidence-assessment-2026-09-30.md)
-tracks remaining collection and installed-reader evidence.
+records the freeze, completed development stop and remaining installed-reader
+evidence. All attempted costs are reconciled, with a conservative total of
+$3.512790008. No further paid collection is scheduled under this assessment.

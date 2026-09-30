@@ -270,7 +270,24 @@ export function createOpenAIConfidenceEvaluationAdapter(
     );
     return {
       parameters,
-      decode: (value, timing) => decodeModeratedPhoto(value, timing, hasText),
+      decode: (value, timing) => {
+        const outcome = decodeModeratedPhoto(value, timing, hasText);
+        const nativeUsage = object(object(value)?.usage);
+        const writes = object(nativeUsage?.input_tokens_details)
+          ?.cache_write_tokens;
+        // The assessment may conservatively price an omitted optional breakdown,
+        // but must distinguish it from an explicitly contradictory write count.
+        if (
+          writes != null && (count(writes) === null ||
+            outcome.usage?.promptTokens == null ||
+            outcome.usage.cachedTokens == null ||
+            Number(writes) + outcome.usage.cachedTokens >
+              outcome.usage.promptTokens)
+        ) {
+          return { ...outcome, usage: null };
+        }
+        return outcome;
+      },
     };
   });
 }
