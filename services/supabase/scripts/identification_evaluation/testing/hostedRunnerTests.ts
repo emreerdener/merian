@@ -178,6 +178,24 @@ export function registerHostedTests(scratch: string) {
           digest: "9".repeat(64),
         })
       );
+      const otherSdkSource = {
+        ...f.spec.source,
+        sdk: "npm:@google/genai@2.24.0",
+      };
+      await assertRejects(() =>
+        stageHostedBundle(
+          join(f.parent, "wrong-sdk"),
+          bytes,
+          info.sha256,
+          otherSdkSource,
+        )
+      );
+      await assertRejects(() =>
+        checkHostedPacket(staged, otherSdkSource, f.now)
+      );
+      await assertRejects(() =>
+        prepareHostedExperiment(staged, otherSdkSource, f.now)
+      );
       for (
         const mutate of [
           (b: typeof bundle) => {

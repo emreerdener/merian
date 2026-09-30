@@ -4,7 +4,7 @@
     "jsr:@std/assert@1.0.19": "1.0.19",
     "jsr:@std/encoding@1.0.11": "1.0.11",
     "jsr:@std/internal@^1.0.12": "1.0.14",
-    "npm:@google/genai@2.23.0": "2.23.0",
+    "npm:@google/genai@2.24.0": "2.24.0",
     "npm:@supabase/supabase-js@2.116.0": "2.116.0",
     "npm:aws4fetch@1.0.20": "1.0.20",
     "npm:jose@6.2.12": "6.2.12",
@@ -26,8 +26,8 @@
     }
   },
   "npm": {
-    "@google/genai@2.23.0": {
-      "integrity": "sha512-NFMzktoZ7jJg9AA3vUbWZocnkQP6DSGzL21ORwdVcBWkHli3k7v6B9zy07M4bTiKDAyIWfUh2J/oLYxCu0hNpQ==",
+    "@google/genai@2.24.0": {
+      "integrity": "sha512-bIu5eoxF1AaPWs9ivmUJGp1RpDHyapoODvWvnkzRDx2CTIW6UJXFhDdjj0BlRve3ZHMMuEkQBVrA/ALqpW4apA==",
       "dependencies": [
         "google-auth-library",
         "p-retry",
@@ -111,8 +111,8 @@
         "@supabase/storage-js"
       ]
     },
-    "@types/node@26.6.2": {
-      "integrity": "sha512-X1P21scMv4zGKLYqjdGjaKa7COa0RKVYYZZN/NfvLQ1JegxFhdhpZG/Lyn8AXx6CDUavKAd11v6BvfpkDByK8g==",
+    "@types/node@26.6.3": {
+      "integrity": "sha512-dsqMQQoeTLqu9wynDD00q573mNzso3IdQOAfHRJqLCcmCFPoGo9A1bDpUcv/9tnKpErQWv9uKeGfl37EIS02Yg==",
       "dependencies": [
         "undici-types"
       ]
@@ -347,8 +347,8 @@
     "web-streams-polyfill@3.3.3": {
       "integrity": "sha512-d2JWLCivmZYTSIoge9MsgFCZrt571BikcWGYkjC1khllbTeDlGqZ2D8vD8E/lJa8WGWbb7Plm8/XJYV7IJHZZw=="
     },
-    "ws@8.21.3": {
-      "integrity": "sha512-201TZ/kPWxoPr/OKWjquZR1SWKXcvxdH+e1xrx89b3YbmzLMFCLfnaG1HFIgWzJOEWZ7MvpK++odZufgYR50Rw=="
+    "ws@8.22.0": {
+      "integrity": "sha512-Ydggc987+RO0AnWtZ/7Wq9FtNvcrL1b/RO0ud9mWjUPgDrsAAwQSF51sm2hm1XofbU/4jkpGEsLFsZZxU+1DOg=="
     }
   },
   "remote": {
@@ -516,7 +516,7 @@
     "dependencies": [
       "jsr:@std/assert@1.0.19",
       "jsr:@std/encoding@1.0.11",
-      "npm:@google/genai@2.23.0",
+      "npm:@google/genai@2.24.0",
       "npm:@supabase/supabase-js@2.116.0",
       "npm:aws4fetch@1.0.20",
       "npm:jose@6.2.12",
