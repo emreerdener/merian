@@ -44,6 +44,25 @@ Deno.test("hosted review rejects widened providers, mutable source, expiry and m
   assertThrows(() => r2Endpoint("other.example/path"));
 });
 
+Deno.test("hosted specs admit only reviewed SDKs without rewriting their source identity", async () => {
+  const original = await hostedSpecFixture();
+  for (const sdk of ["npm:@google/genai@2.23.0", "npm:@google/genai@2.24.0"]) {
+    const spec = { ...original, source: { ...original.source, sdk } };
+    assertEquals(parseHostedSpec(spec).source, spec.source);
+  }
+  for (
+    const sdk of [
+      "npm:@google/genai@2.22.0",
+      "npm:@google/genai@2.25.0",
+      "npm:@google/genai@latest",
+    ]
+  ) {
+    assertThrows(() =>
+      parseHostedSpec({ ...original, source: { ...original.source, sdk } })
+    );
+  }
+});
+
 Deno.test("hosted R2 claim uses one exclusive write and authenticated readback; racing rerun cannot win", async () => {
   const claim = makeHostedClaim(
     await hostedSpecFixture(),
