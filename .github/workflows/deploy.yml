@@ -76,8 +76,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
-      deploy_allowed: ${{ steps.release-hold.outputs.deploy_allowed }}
-      release_status: ${{ steps.release-hold.outputs.release_status }}
+      deploy_allowed: ${{ steps.candidate.outputs.current == 'true' && steps.release-hold.outputs.deploy_allowed == 'true' }}
+      release_status: ${{ steps.candidate.outputs.status == 'superseded' && 'superseded' || steps.release-hold.outputs.release_status }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -87,32 +87,17 @@ jobs:
           persist-credentials: false
 
       - name: Verify exact clean hold candidate
-        run: |
-          checked_out_sha="$(git rev-parse HEAD)"
-          main_sha="$(git rev-parse refs/remotes/origin/main)"
-          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
-            echo "Production deployment must originate from refs/heads/main." >&2
-            exit 1
-          fi
-          if [ "$checked_out_sha" != "$GITHUB_SHA" ]; then
-            echo "Production hold checkout does not match GITHUB_SHA." >&2
-            exit 1
-          fi
-          if [ "$checked_out_sha" != "$main_sha" ]; then
-            echo "Production hold candidate is not the current origin/main head." >&2
-            exit 1
-          fi
-          if [ -n "$(git status --porcelain)" ]; then
-            echo "Production hold checkout is not clean." >&2
-            exit 1
-          fi
+        id: candidate
+        run: bash services/supabase/scripts/verify_production_hold_candidate.sh
 
       - name: Setup Deno
+        if: steps.candidate.outputs.current == 'true'
         uses: ./.github/actions/setup-deno
         with:
           deno-version: v2.9.4
 
       - name: Evaluate production release holds
+        if: steps.candidate.outputs.current == 'true'
         id: release-hold
         run: |
           deno run --frozen --config services/supabase/functions/deno.json \

@@ -297,7 +297,7 @@ Deno.test("Supabase candidate validation is reusable and production-isolated", a
     holdDependency,
   );
   const holdOutputs = deployWorkflow.indexOf(
-    "deploy_allowed: ${{ steps.release-hold.outputs.deploy_allowed }}",
+    "deploy_allowed: ${{ steps.candidate.outputs.current == 'true' && steps.release-hold.outputs.deploy_allowed == 'true' }}",
     holdJob,
   );
   const deployJob = deployWorkflow.indexOf("  deploy:", holdVerifier);
@@ -336,9 +336,9 @@ Deno.test("Supabase candidate validation is reusable and production-isolated", a
     const exactEvidence of [
       "ref: ${{ github.sha }}",
       "fetch-depth: 0",
-      "git rev-parse HEAD",
-      "refs/remotes/origin/main",
-      '"$GITHUB_REF" != "refs/heads/main"',
+      "run: bash services/supabase/scripts/verify_production_hold_candidate.sh",
+      "id: candidate",
+      "if: steps.candidate.outputs.current == 'true'",
       '"$GITHUB_SHA"',
       "--candidate-sha",
       "--mode source-status",

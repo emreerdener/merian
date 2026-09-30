@@ -182,9 +182,12 @@ The candidate workflow declares no Production environment, receives no
 production secrets, and contains no database push, Function deployment, or
 production smoke. Its green summary is exact-SHA database/runtime evidence; it
 is not evidence that production changed and does not authorize deployment. The
-production workflow next runs a non-Production source hold gate that requires
-the exact checkout to be the current `refs/heads/main`/`origin/main` head. A
-valid active hold reports `release_status=held` and `deploy_allowed=false`, so
+production workflow next runs a non-Production source hold gate that requires an
+exact, clean `refs/heads/main` checkout. If that SHA is an ancestor of a newer
+`origin/main`, it reports `release_status=superseded` and `deploy_allowed=false`
+as a successful no-op before Production access. A diverged, mismatched, or dirty
+candidate still fails closed. Only the current main head evaluates source holds.
+A valid active hold reports `release_status=held` and `deploy_allowed=false`, so
 the validated workflow remains green while the downstream Production job is
 skipped before environment secrets or mutation. A missing, malformed, duplicate,
 or required-ID-absent manifest still fails the workflow. When the source status
@@ -2868,14 +2871,20 @@ supabase --workdir services functions deploy
 That command is the emergency/manual full-fleet path. Production CI computes the
 affected functions from the transitive runtime import graph, excludes erased
 explicit type-only edges, deploys bounded batches, and isolates retries to
-members of a failed batch. Whole-tree Deno checks still validate compile-only
-imports. A manual workflow dispatch intentionally selects the full fleet. Every
-deployment finishes with a graph-derived all-route handler-marker probe,
-followed by stricter fail-closed authorization probes for fifteen
-customer-critical scan, signing, share-state, Explore media-incident, Field
-Chat, dictionary search, Community, identity-handoff, and deletion routes. It
-then reaches the exact no-write SQLSTATE `22023` boundary in
-`ensure_scan_user_profile`, `publish_scan_to_explore_atomically`,
+members of a failed batch. Local bundling uses one job so each Function retains
+Deno config discovery and access to the mounted shared frozen lock. The helper
+requires Docker and CLI `2.109.1`, prepares its `edge-runtime:v1.74.2` image via
+Supabase's ECR → GHCR → Docker Hub mirrors, and tags the selected mirror as the
+CLI's canonical ECR image. All mirrors failing stops deployment. API bundling is
+excluded because its source upload omits the referenced shared lock. Whole-tree
+Deno checks still validate compile-only imports. A manual workflow dispatch
+intentionally selects the full fleet. Every deployment finishes with a
+graph-derived all-route handler-marker probe, followed by stricter fail-closed
+authorization probes for fifteen customer-critical scan, signing, share-state,
+Explore media-incident, Field Chat, dictionary search, Community,
+identity-handoff, and deletion routes. It then reaches the exact no-write
+SQLSTATE `22023` boundary in `ensure_scan_user_profile`,
+`publish_scan_to_explore_atomically`,
 `request_community_identification_atomically`, `recover_missing_owned_scan`,
 `get_media_abandoned_scan_recovery_proofs`, `reserve_field_chat_send`, and
 `recover_stale_field_chat_quota` with server authority. It also reaches the
