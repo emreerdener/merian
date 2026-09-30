@@ -125,7 +125,10 @@ export function parseHostedSpec(value: unknown): HostedSpec {
       s.dirty === false,
   );
   hash(s.digest);
-  check(s.sdk === "npm:@google/genai@2.23.0");
+  check(
+    s.sdk === "npm:@google/genai@2.23.0" ||
+      s.sdk === "npm:@google/genai@2.24.0",
+  );
   const w = fields(v.window, ["startsAt", "expiresAt"]);
   timestamp(w.startsAt);
   timestamp(w.expiresAt);
