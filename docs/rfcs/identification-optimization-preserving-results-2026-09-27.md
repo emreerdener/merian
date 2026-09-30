@@ -2,13 +2,13 @@
 
 Date: 27 September 2026\
 Status, 29 September: OpenAI optimization resumes before confidence calibration.
-The new observed-traits candidate is implemented for offline request
-preparation; its model behavior is unmeasured. The beta retains its current Sol
-photo profile for both tiers and Gemini for other input profiles. Earlier
-checkpoint sections below preserve their original scope and evidence. The latest
-validation decision uses focused regression checks and an ordinary beta smoke
-check for the observed-traits wording change; a dedicated comparison is no
-longer the next step.
+The observed-traits wording is integrated into the production photo request in
+source, with a new prompt identity and native support for both prompt versions.
+Its model benefit remains unmeasured. Sol, explanation format and provisional
+display cutoffs stay fixed for both tiers; Gemini retains other input profiles.
+Release and ordinary beta smoke scans remain pending. Earlier checkpoint
+sections preserve their original scope and evidence. No dedicated comparison
+runner or paid benchmark is required for this narrow change.
 
 ## Decision
 
@@ -290,3 +290,21 @@ claim measured quality or speed improvement. No comparison controller or broad
 Gemini/OpenAI rerun is needed. After integration, freeze that configuration and
 finish confidence calibration. OpenAI audio and Free/Pro model differentiation
 follow separately; additional optimization candidates are deferred.
+
+## Integration checkpoint — 29 September 2026
+
+The production builder now applies only the two observed-trait directions under
+`openai_identify_vision_observed_traits_v1`. It retains the production binding,
+schema name and shape, model, explanation and generation settings. The native
+reader recognizes this revision and the original prompt for the same provisional
+badges. Frozen evaluation builders reconstruct the old request directly so
+previous measurements keep their identity.
+
+The
+[integration record](./identification-openai-observed-traits-candidate-2026-09-29.md#production-integration--29-september-2026)
+owns validation and release order. After existing additive backend and migration
+prerequisites are deployed, distribute the native reader before deploying this
+prompt revision, then perform the ordinary beta smoke checks. Calibrate the
+resulting configuration after those checks; the earlier audit remains evidence
+about the pre-update prompt only. Do not automatically pool its scores with the
+new prompt.

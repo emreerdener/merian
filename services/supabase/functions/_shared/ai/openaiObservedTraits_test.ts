@@ -70,7 +70,6 @@ Deno.test("observed-traits request changes only two directions and schema identi
       openAIPhotoSnapshot(request, 1),
     );
     const base = baseline(request);
-    assertEquals(base, production);
     const expected = structuredClone(base);
     expected.instructions = expected.instructions.replace(
       baselineDirection,
@@ -79,6 +78,7 @@ Deno.test("observed-traits request changes only two directions and schema identi
     expected.text.format.schema.properties!.extracted_visual_traits
       .description =
         "Extract one to three distinct physical or structural traits directly supported by the supplied visual evidence. Return only supportable observations, without inventing, repeating or inferring unseen anatomy to reach three. Visibility limitations belong in ai_reasoning, not as substitute traits.";
+    assertEquals(production, expected);
     assertEquals(candidate(request), {
       ...expected,
       text: {
@@ -86,7 +86,7 @@ Deno.test("observed-traits request changes only two directions and schema identi
         format: { ...expected.text.format, name: OBSERVED_TRAITS_SCHEMA },
       },
     });
-    assertEquals(baseline(request), production);
+    assertEquals(baseline(request), base);
     assertEquals(request, originalInput);
   }
 });

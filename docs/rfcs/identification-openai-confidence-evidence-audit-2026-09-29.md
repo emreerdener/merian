@@ -10,6 +10,13 @@ findings remain valid for the audited profile. The owner's later
 defers calibration collection until the configuration is selected; it supersedes
 this audit's earlier confidence-first next-work ordering.
 
+Later integration note, 29 September: the
+[observed-traits production revision](./identification-openai-observed-traits-candidate-2026-09-29.md#production-integration--29-september-2026)
+is implemented in source. Every reference below to the current or equivalent
+production request describes the original `openai_identify_vision_v1` at this
+audit checkpoint. Its frozen controls retain that request; they do not establish
+calibration for the revised prompt. The audit and original counts are unchanged.
+
 ## Decision and scope
 
 The

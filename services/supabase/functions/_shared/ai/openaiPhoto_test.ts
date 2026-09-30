@@ -20,7 +20,7 @@ import {
   openAITextFixture,
 } from "./testing/openaiFixtures.ts";
 
-Deno.test("photo candidate keeps all evidence and measured generation settings with one inline moderation request", async () => {
+Deno.test("production photo changes only the two trait directions while preserving evidence, settings and inline moderation", async () => {
   const base = photoRequest(),
     request = { ...base, evidence: [...base.evidence] },
     snapshot = openAIPhotoSnapshot(request, 2);
@@ -28,6 +28,14 @@ Deno.test("photo candidate keeps all evidence and measured generation settings w
     ...buildOpenAIRequestParameters(request, openAIEvaluationSnapshot(request)),
     moderation: { model: OPENAI_PHOTO_MODERATION_MODEL },
   };
+  expected.instructions = expected.instructions.replace(
+    "You MUST extract 3 structural observations in `extracted_visual_traits` BEFORE determining `is_biological_subject` or `scientific_name`.",
+    "Extract one to three distinct physical or structural observations in `extracted_visual_traits` BEFORE determining `is_biological_subject` or `scientific_name`. Include only features directly supported by the supplied visual evidence. If only one or two features are supportable, return those; never invent, repeat or infer unseen anatomy to reach three. Keep material visibility limitations in the existing 1–3 sentence `ai_reasoning`, not as substitute traits.",
+  );
+  expected.text.format.schema.properties!.extracted_visual_traits.description =
+    "Extract one to three distinct physical or structural traits directly supported by the supplied visual evidence. Return only supportable observations, without inventing, repeating or inferring unseen anatomy to reach three. Visibility limitations belong in ai_reasoning, not as substitute traits.";
+  assertEquals(snapshot.prompt, "openai_identify_vision_observed_traits_v1");
+  assertEquals(snapshot.schema, "merian_openai_identify_v1");
   assertEquals(buildOpenAIPhotoRequestParameters(request, snapshot), expected);
   assert(
     !("moderation" in
@@ -72,7 +80,7 @@ Deno.test("photo candidate keeps all evidence and measured generation settings w
   assertEquals(calls, 1);
 });
 
-Deno.test("photo candidate never admits text-only, audio, sampled video or altered configuration", () => {
+Deno.test("production photo never admits text-only, audio, sampled video or altered configuration", () => {
   const base = photoRequest();
   const cases: MultimodalAIRequest[] = [openAITextFixture(), {
     ...base,
@@ -104,6 +112,9 @@ Deno.test("photo candidate never admits text-only, audio, sampled video or alter
   const snapshot = openAIPhotoSnapshot(base, 2);
   for (
     const change of [
+      { prompt: "openai_identify_vision_v1" },
+      { prompt: "unknown_prompt_v1" },
+      { schema: "merian_openai_observed_traits_v1" },
       { safety: undefined },
       { moderationModel: "omni-moderation-latest" },
       { generation: { ...snapshot.generation, reasoningEffort: "high" } },

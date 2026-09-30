@@ -192,3 +192,23 @@ results must not be pooled as if they used it. After optimization, use reviewed
 identity/rank evidence, missing score-range coverage and separate validation
 evidence for the selected profile. Closed comparisons and their unused budgets
 remain closed.
+
+## Observed-traits prompt integration — 2026-09-29
+
+The updated native reader explicitly recognizes both production photo prompts:
+`openai_identify_vision_v1` and `openai_identify_vision_observed_traits_v1`.
+Every other profile check, the 0.95/0.60 provisional display cutoffs and
+`openai_unqualified_v1` remain unchanged. Existing scans keep their recorded
+prompt; unknown or altered profiles retain neutral review guidance. The update
+does not qualify automatic verification, rewards, candidate suppression or
+sharing recommendations.
+
+After the existing additive backend and migration prerequisites are deployed,
+distribute this reader before deploying this prompt revision. An older build can
+decode the same result but displays Needs review for the unfamiliar prompt;
+identification capabilities 4/5 do not distinguish these revisions. No database
+migration or DTO shape change is required. The
+[integration record](./identification-openai-observed-traits-candidate-2026-09-29.md#production-integration--29-september-2026)
+owns release checks. Calibration must use the final configuration; the retained
+control audit describes the original prompt and is not recalibrated by this
+edit.

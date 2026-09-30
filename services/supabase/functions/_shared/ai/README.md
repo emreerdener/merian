@@ -163,6 +163,10 @@ compares this candidate with the unchanged OpenAI baseline; it does not select a
 production adapter or alter the photo binding.
 
 `openaiPhoto.ts` separately prepares the production `openai_photo_v1` profile.
+Its prompt `openai_identify_vision_observed_traits_v1` requests one to three
+directly supported traits. The same owner projects only that instruction and the
+trait schema description; the schema name `merian_openai_identify_v1`, 1–10
+array bounds, explanation format and all other request settings stay fixed.
 `createOpenAIPhotoAdapter` reuses the bounded transport, adding pinned inline
 input/output moderation to one request and releasing a draft only after its
 native safety policy allows it. Moderation rejection remains a refusal even if
@@ -176,12 +180,14 @@ cached tokens, without a Gemini tariff; see the
 
 `openaiPhotoModels.ts` adds two closed evaluation configurations,
 `openai_photo_luna_low_v1` and `openai_photo_sol_low_v1`. Their request builder
-reuses the complete production photo payload and changes only the model. The new
-evaluation adapter shares production moderation decoding, rejects a returned
-model mismatch, and cannot enter the registry, production result policy or old
-evaluation profiles. Native request preparation supports the production photo
-shape, including optional notes and multiple images; the first comparison
-selects no-description photos. The
+reconstructs the frozen original photo payload directly from `openaiRequest.ts`
+with native moderation and changes only the model. Its original
+`openai_identify_vision_v1` instructions and hashes do not follow later
+production prompt revisions. The evaluation adapter shares production moderation
+decoding, rejects a returned model mismatch, and cannot enter the registry,
+production result policy or old evaluation profiles. Native request preparation
+supports the production photo shape, including optional notes and multiple
+images; the first comparison selects no-description photos. The
 [preparation procedure](../../../../../docs/development-guides/22-alternative-identification-provider.md#lunasol-photo-comparison-preparation)
 owns its offline packet preparation, separately approved durable local runner,
 assistant review and spending limits.
@@ -247,13 +253,13 @@ candidate remains excluded from production. Retain the current Sol photo profile
 for both tiers; this completed packet does not qualify confidence thresholds or
 authorize another run.
 
-## Offline observed-traits candidate
+## Observed-traits production prompt and frozen candidate
 
 `openaiObservedTraits.ts` prepares `openai_photo_sol_observed_traits_low_v1`
-from the current Sol photo request. It changes only the fixed-count visual-trait
-instruction, its schema description and private candidate identity. Request one
-to three supported observations; material visibility limits remain in the
-existing explanation. All other prompt directions, strict fields/bounds,
+from the frozen original Sol photo request. It changes only the fixed-count
+visual-trait instruction, its schema description and private candidate identity.
+Request one to three supported observations; material visibility limits remain
+in the existing explanation. All other prompt directions, strict fields/bounds,
 complete inputs, generation and moderation settings stay unchanged. The common
 decoder already accepts shorter arrays; there is no new decoder, transport,
 evaluator registration or production binding.
@@ -264,11 +270,16 @@ inputs, and exercises unchanged 1–10 array bounds. One to three is an
 instruction, not a stricter validator. A zero-discernible-trait case still needs
 a separate policy; do not fill the list with a visibility placeholder. The
 [candidate record](../../../../../docs/rfcs/identification-openai-observed-traits-candidate-2026-09-29.md)
-owns the hypothesis, evidence limits and targeted beta validation plan. Next
-work integrates a versioned production prompt and verifies its normal request,
-provenance and client behavior, followed by a few ordinary beta smoke scans. No
-dedicated comparison runner is planned for this wording change. These offline
-tests do not establish model improvement or confidence calibration.
+owns the hypothesis, evidence limits and targeted beta validation plan.
+Production now reuses the two pure projections from `openaiPhoto.ts` with its
+own admitted binding and unchanged schema name. The frozen candidate identity
+remains evaluation-only; its text-format hash differs because its name differs.
+Native display policy recognizes both original and revised production prompts.
+After existing additive backend/migration prerequisites are deployed, distribute
+that reader before deploying this prompt revision; older readers can still
+decode the result but show Needs review for the unfamiliar prompt. Ordinary beta
+smoke scans follow release. No dedicated comparison runner is planned, and these
+offline tests do not establish model improvement or confidence calibration.
 
 ## Scoped audio prompt authority
 
