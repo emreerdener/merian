@@ -463,12 +463,15 @@ overlapping attempts do not emit success feedback.
 
 ## Deferred OpenAI consent during beta
 
-`Components/AIProcessingPrivacySection.swift` remains a dormant disclosure
-component backed by `ConsentManager.aiProcessingPermissions`. During beta the
-coordinator hides the section and rejects collection actions, regardless of past
-OpenAI grants or revocations. Users do not choose the provider: the server
-assigns still photos to OpenAI, while other input profiles retain Gemini.
-Existing receipt history and required Gemini onboarding remain unchanged.
+Settings contains no **AI privacy** section or **OpenAI identification**
+setting. `SettingsTabView` does not compose the AI processing disclosure
+component. `Components/AIProcessingPrivacySection.swift` remains available to
+the dormant queued-scan recovery sheet, backed by
+`ConsentManager.aiProcessingPermissions`. During beta the coordinator hides that
+disclosure and rejects collection actions, regardless of past OpenAI grants or
+revocations. Users do not choose the provider: the server assigns still photos
+to OpenAI, while other input profiles retain Gemini. Existing receipt history
+and required Gemini onboarding remain unchanged.
 
 Before public consent collection is enabled, every permission-required alert
 must provide a direct **Review permission** action, then return to the same

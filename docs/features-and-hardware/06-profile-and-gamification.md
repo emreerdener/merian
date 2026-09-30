@@ -75,6 +75,10 @@ dependency value. `Core/Network/Auth/` owns deterministic account-deletion
 classification and phase sequencing; `SupabaseManager` retains live protocol,
 recovery, and durable Apple-fallback effect assembly.
 
+Settings contains no **AI privacy** section or **OpenAI identification**
+setting. The dormant queued-scan permission recovery component and consent
+ledger retain their existing owners and behavior.
+
 The geoprivacy picker updates the shared display binding optimistically while
 `GeoprivacySettingsViewModel` serializes server writes and coalesces rapid taps
 to the latest selection. Its live adapter captures the expected account and uses

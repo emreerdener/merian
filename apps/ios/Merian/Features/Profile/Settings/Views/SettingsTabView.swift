@@ -49,8 +49,6 @@ struct SettingsTabView: View {
                     )
                 }
 
-                AIProcessingPrivacySection()
-
                 Community(
                     changelogActive: $changelogActive,
                     showWhatsNew: isPresenting(.whatsNew),
