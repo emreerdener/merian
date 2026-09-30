@@ -154,3 +154,22 @@ Completion means an evidence-backed recommendation to retain or change the
 current display cutoffs, with the limits of that conclusion made explicit and
 any required implementation verified. A new candidate or another comparison is
 not itself completion of the confidence task.
+
+## Retained-evidence audit — 2026-09-29
+
+The
+[offline evidence audit](identification-openai-confidence-evidence-audit-2026-09-29.md)
+is complete. Eighteen Sol controls were verified against the current production
+request, but they represent only six distinct photos. The fifteen named
+biological outputs occupy Possible fourteen times and Weak once; none reaches
+Strong. The only Weak identity reference is limited, and the repeated
+development observations do not supply independent calibration evidence.
+
+Retain 0.95/0.60 as provisional display cutoffs. The audit does not validate a
+new boundary or qualify automatic confidence-based behavior. Older evaluation
+bindings and changed-prompt candidates remain separate. No paid requests ran.
+
+The next useful collection is a single-profile confidence study with reliable
+identity/rank labels and coverage of the missing score ranges. Its inputs,
+reliability objective, validation split and bounded execution plan must be
+prepared for that purpose. A competing model or prompt arm is unnecessary.

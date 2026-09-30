@@ -455,10 +455,14 @@ experiment parsers and production bindings remain closed to this profile.
 
 The current priority is
 [confidence-threshold calibration](../rfcs/identification-openai-confidence-display-2026-09-28.md#calibration-priority--2026-09-29)
-using retained evidence for the current Sol profile. Further comparisons are
-deferred unless they directly resolve a threshold question. The preparation and
-execution commands below remain available tooling, not a recommendation to run
-another model or prompt comparison.
+using retained evidence for the current Sol profile. The
+[completed offline audit](../rfcs/identification-openai-confidence-evidence-audit-2026-09-29.md)
+found that the eighteen matching controls cover only six photos and cannot
+establish new cutoffs. The remaining evidence need is a single-profile
+calibration collection. Further comparisons are deferred unless they directly
+resolve a threshold question. The preparation and execution commands below
+remain available tooling, not a recommendation to run another model or prompt
+comparison.
 
 To prepare another immutable copy after reviewing its source records, use the
 two-path offline CLI. Both source and destination parent must be private and
