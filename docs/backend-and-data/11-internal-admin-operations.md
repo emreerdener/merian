@@ -182,9 +182,11 @@ Promote/direct manual promotion. Record and verify the external deployment
 control during initial setup and after changing GitHub or Vercel integration
 settings.
 
-The checked-in dependency graph, reviewed on 2026-09-19, is:
+The checked-in dependency graph, reviewed on 2026-09-30, is:
 
-- Next.js 16.3.5, pinned exactly above the
+- Next.js 16.3.6, including the
+  [next/og ImageResponse RCE fix](https://github.com/vercel/next.js/security/advisories/GHSA-vcvr-r3jv-pc5j),
+  pinned exactly above the
   [Windows-hosted RCE](https://github.com/advisories/GHSA-p293-qw3h-jr36) and
   [AVIF image-optimization RCE](https://github.com/advisories/GHSA-2xp9-vwfh-vxw4)
   patched floors;
