@@ -102,3 +102,55 @@ by the normal complete pull-request iOS gate. Archive/upload and installed-build
 verification follow the existing native release process. No paid benchmark is
 required for this presentation change, and no empirical calibration claim is
 introduced.
+
+## Calibration priority — 2026-09-29
+
+The owner's current direction is **no further comparisons unless they directly
+contribute to resolving confidence thresholds**. The active task is to validate
+or adjust Strong / Possible / Weak for the current production Sol photo profile,
+retained for both Free and Pro. Preserve the current explanation format. Model
+selection, prompt optimization and qualification of the explicit-primary
+producer are deferred; they are not prerequisites for this calibration work.
+
+The 0.95/0.60 display cutoffs above remain provisional. No cutoff or
+`openai_unqualified_v1` policy changes merely because the model is more capable,
+the plan tier changes, or a development comparison finishes. Calibration should
+measure how scores correspond to correctness, including confident mistakes. It
+does not require eliminating every identification error first.
+
+Proceed using existing evidence:
+
+1. Inventory retained scores, exact execution profiles, input cases and reviewed
+   identity references. Establish whether the evaluation binding is equivalent
+   to the current production binding before pooling results. Keep changed
+   prompts, schemas, models and moderation bindings separate. Missing scores
+   remain missing; do not reconstruct them from explanation ratings or rerun
+   cases just to complete an inventory.
+2. Deduplicate repeated observations and distinguish identity correctness from
+   explanation quality. Preserve errors, abstentions and limited/unassessable
+   references. Only assessable labels can support measured correctness; a
+   reference gap is neither a correct nor an incorrect identification.
+3. Examine coverage and errors across raw-score ranges, including the existing
+   0.60 and 0.95 boundaries. Report sample counts, input/rank coverage and
+   uncertainty with any proposed cutoff. Use separately reserved evidence for
+   validation rather than reporting threshold-selection cases as independent
+   confirmation. Keep badge display, calibrated-probability claims and automated
+   acceptance/reward policies distinct.
+4. If the retained evidence cannot resolve a cutoff, identify the precise gap
+   and the smallest useful calibration collection. Any additional comparison
+   must state the threshold question it answers and how its outcome would change
+   the decision. General model ranking, latency, cost or prompt improvements are
+   insufficient reasons for another run. Existing execution and budget controls
+   still apply; this planning update does not start a paid request.
+
+The
+[completed explicit-primary comparison](identification-sol-primary-comparison-results-2026-09-29.md)
+remains development evidence, with its results and limitations intact. Its new
+candidate remains unqualified and inactive. The control's retained evidence may
+be assessed for calibration eligibility; it must not automatically be treated as
+a representative calibration set. Do not repeat that completed packet.
+
+Completion means an evidence-backed recommendation to retain or change the
+current display cutoffs, with the limits of that conclusion made explicit and
+any required implementation verified. A new candidate or another comparison is
+not itself completion of the confidence task.

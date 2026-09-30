@@ -20,9 +20,13 @@ unchanged; the activation slices are not ready to proceed.
 
 The completed candidate comparison does not support activating Luna. Its mineral
 wording passed, but the challenge review found incorrect biological
-identifications and unsupported finer ranks. Retain Sol for both tiers. Next
-complete biological rank consistency before confidence thresholds; do not expand
-this paid run. The original target design below remains a proposal. The
+identifications and unsupported finer ranks. Retain Sol for both tiers. The
+owner's 29 September direction makes
+[confidence-threshold calibration](identification-openai-confidence-display-2026-09-28.md#calibration-priority--2026-09-29)
+the active task. Use existing evidence first; conduct no further comparisons
+unless they directly resolve a confidence-threshold question. Further model
+selection and prompt optimization are deferred. The original target design below
+remains a proposal. The
 [rank-consistency follow-up](identification-photo-rank-consistency-2026-09-28.md)
 now implements catalog auditing, mapping-aware records, an isolated Sol
 candidate, a corrected twelve-case packet, assistant input review and a
@@ -35,9 +39,12 @@ reference notes undermine the explanation failure. A separately approved
 then completed all eighteen calls and six pairs. The candidate respected broader
 ranks on three cases but had two concrete visual-evidence failures; retain the
 unchanged Sol profile and close that experiment without promotion. The
-production rank contract required before broader-rank results reach species
-enrichment remains pending, followed by confidence calibration for the selected
-profile.
+[explicit-primary foundation](identification-primary-resolution-contract-2026-09-29.md)
+is now implemented locally. Its separate
+[candidate comparison](identification-sol-primary-comparison-results-2026-09-29.md)
+also completed, with a remaining visual-grounding failure preventing promotion.
+That producer stays inactive; calibrating the current production Sol profile
+does not depend on qualifying it.
 
 Introduce separate, versioned OpenAI photo profiles selected by the backend's
 existing Free/Pro admission decision. Evaluate Luna for Free and retain the

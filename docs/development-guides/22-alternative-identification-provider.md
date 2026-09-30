@@ -453,6 +453,13 @@ Retain the current Sol profile: the candidate's rank improvements do not cancel
 its visual-grounding failure. Do not rerun the completed packet. Historical
 experiment parsers and production bindings remain closed to this profile.
 
+The current priority is
+[confidence-threshold calibration](../rfcs/identification-openai-confidence-display-2026-09-28.md#calibration-priority--2026-09-29)
+using retained evidence for the current Sol profile. Further comparisons are
+deferred unless they directly resolve a threshold question. The preparation and
+execution commands below remain available tooling, not a recommendation to run
+another model or prompt comparison.
+
 To prepare another immutable copy after reviewing its source records, use the
 two-path offline CLI. Both source and destination parent must be private and
 outside the repository. The destination must not exist:

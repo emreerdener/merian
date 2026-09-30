@@ -10,6 +10,13 @@ choices, but the fly challenge still produced a concrete visual-grounding
 failure. This experiment is complete; producer qualification and confidence
 thresholds remain unfinished.
 
+Planning update — 2026-09-29: the owner has redirected the next work to
+[confidence thresholds for the current Sol profile](identification-openai-confidence-display-2026-09-28.md#calibration-priority--2026-09-29).
+Use existing evidence first. No further comparison should run unless it directly
+contributes to resolving those thresholds. Further prompt/model optimization is
+deferred. This supersedes the next-work ordering below while preserving the
+completed experiment's results and its decision against candidate promotion.
+
 ## What was compared
 
 The candidate was `openai_photo_sol_primary_low_v1`; the control was
