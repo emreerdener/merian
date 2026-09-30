@@ -1352,13 +1352,19 @@ content-free JSON without depending on generated DTOs.
 `InferenceConfidencePolicy.bands` recognizes only exact known Gemini execution
 profiles at qualified policy version 1 and returns no qualified bands for
 unknown or damaged present values; absence retains legacy interpretation.
-`displayBands` separately recognizes the exact shipped `openai_photo_v1` V2
-profile and supplies Strong at `0.95`, Possible at `0.60`, and Weak below `0.60`
-for every plan tier. These are model-estimate display thresholds derived from
-the structured-output confidence contract, not empirical calibration. Unknown or
-damaged present profiles retain neutral review guidance. Generated provenance
-decoders enforce the executable contract's rejection of unknown fields,
-including generation settings, before DTO encoding can erase them. The generated
+`displayBands` separately recognizes the exact `openai_photo_v1` V2
+configuration with either `openai_identify_vision_v1` or the upcoming
+`openai_identify_vision_observed_traits_v1` prompt. It supplies Strong at
+`0.95`, Possible at `0.60`, and Weak below `0.60` for every plan tier. The
+backend in this reader-preparation release still emits the original prompt;
+recognition of the later version prepares saved-result and badge compatibility
+before its separate activation. See the
+[release sequence](../../../../../docs/rfcs/identification-openai-observed-traits-candidate-2026-09-29.md#reader-preparation-release--29-september-2026).
+These are model-estimate display thresholds derived from the structured-output
+confidence contract, not empirical calibration. Unknown or damaged present
+profiles retain neutral review guidance. Generated provenance decoders enforce
+the executable contract's rejection of unknown fields, including generation
+settings, before DTO encoding can erase them. The generated
 `IdentificationProvenanceDTO` enum reads exact V1 Gemini and V2 OpenAI
 generation shapes, rejects unsupported versions, and re-encodes the original
 flat JSON object. V2 settings survive live parsing, local persistence and owner

@@ -2775,10 +2775,14 @@ Malformed history rows remain quarantined with raw-row pagination intact. Both
 provenance versions use the same opaque JSON storage. The separate V53
 primary-identity migration adds snapshot and reserved confirmation storage; it
 does not change provenance or the existing confidence policy. Recognized exact
-V1 Gemini profiles retain the existing confidence presentation. The exact
-shipped V2 `openai_photo_v1` profile separately receives display-only Strong
-(`>= 0.95`), Possible (`>= 0.60` and `< 0.95`), or Weak (`< 0.60`) labels on
-every plan tier. The app presents these as model estimates; neither
+V1 Gemini profiles retain the existing confidence presentation. The exact V2
+`openai_photo_v1` configuration recognizes both the original
+`openai_identify_vision_v1` and upcoming
+`openai_identify_vision_observed_traits_v1` prompts. Both receive display-only
+Strong (`>= 0.95`), Possible (`>= 0.60` and `< 0.95`), or Weak (`< 0.60`) labels
+on every plan tier. The backend in this reader-preparation release still emits
+the original prompt; the later prompt requires a separate activation after the
+updated app is distributed. The app presents these as model estimates; neither
 `openai_unqualified_v1` nor the stored score changes. Unknown or damaged present
 profiles use neutral review guidance. Absence keeps legacy behavior. These
 display thresholds do not qualify OpenAI for candidate filtering, automatic

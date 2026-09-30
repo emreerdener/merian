@@ -2063,8 +2063,12 @@ unpaid-Service terms.
 | Possible match | Orange | 60% – <95%        |
 | Weak match     | Gray   | Below 60%         |
 
-OpenAI thresholds apply only to the exact recognized V2 production profile. They
-use the structured-output contract's morphology anchors and describe model
+OpenAI thresholds apply only to the exact recognized V2 production
+configuration, with either the original `openai_identify_vision_v1` prompt or
+the upcoming `openai_identify_vision_observed_traits_v1` prompt. This reader
+release prepares display compatibility for the later prompt while the backend
+still selects the original. All other provenance checks remain exact. They use
+the structured-output contract's morphology anchors and describe model
 estimates, not measured probabilities of correct identification. The sheet
 explains that limitation. The numeric score and `openai_unqualified_v1`
 provenance remain unchanged. Unknown or damaged present profiles retain Needs
