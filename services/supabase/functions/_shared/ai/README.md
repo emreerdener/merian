@@ -33,8 +33,10 @@ observations, text-only, legacy routes and enrichment remain Gemini. See the
   overload to stop fresh work if assignment changed. Identification capability 4
   selects the eleven-argument overload independently of entitlement protocol 3.
   Native preparation now validates that result, preserves the expectation across
-  retries and rechecks local permission before dispatch; Gemini remains the sole
-  active assignment. See the
+  retries and rechecks the applicable local permission before dispatch. The beta
+  catalog assigns still photos to OpenAI and other profiles to Gemini; the
+  [beta correction](../../../../../docs/incidents/2026-09-beta-openai-consent-gate.md)
+  defers OpenAI-specific permission collection and enforcement. See the
   [admission contract](../../../../../docs/backend-and-data/05-api-contracts.md#provider-bound-identification-reservations).
 - `registry.ts` independently checks that identification assignment and resolves
   `gemini_baseline_v1` or the exact `openai_photo_v1` from the database-selected
@@ -169,7 +171,7 @@ exact binding. Beta catalog rows select it only for still photos; other profiles
 remain Gemini. The source composition must be deployed before catalog
 activation. Saved usage retains native output/cache-write counts and reported
 cached tokens, without a Gemini tariff; see the
-[safety contract](../../../../../docs/development-guides/10-safety-and-moderation.md#dormant-openai-photo-policy).
+[safety contract](../../../../../docs/development-guides/10-safety-and-moderation.md#openai-photo-policy).
 
 ## Scoped audio prompt authority
 

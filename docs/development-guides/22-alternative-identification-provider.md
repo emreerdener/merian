@@ -213,7 +213,10 @@ its existing independent-reference requirements. Freeze the small case list and
 budget before execution, then compare identity agreement, unresolved answers,
 failures, latency and estimated cost. OpenAI raw scores remain unqualified;
 Strong/diagnostic metrics are not estimable until a confidence policy is
-qualified.
+qualified. The native app's
+[OpenAI display thresholds](../rfcs/identification-openai-confidence-display-2026-09-28.md)
+only choose existing UI labels; they do not qualify these benchmark metrics or
+retroactively change retained reports.
 
 The executable owners are `runContracts.ts` and `admission.ts`:
 

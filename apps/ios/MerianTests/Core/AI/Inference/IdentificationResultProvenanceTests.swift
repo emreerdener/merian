@@ -137,7 +137,24 @@ struct IdentificationResultProvenanceTests {
         context.insert(record)
         try context.save()
         let reopened = ModelContext(context.container)
-        #expect(try reopened.fetch(FetchDescriptor<LocalScanRecord>()).first?.identificationProvenanceData == original.data)
+        let reopenedRecord = try #require(reopened.fetch(FetchDescriptor<LocalScanRecord>()).first)
+        #expect(reopenedRecord.identificationProvenanceData == original.data)
+        let reopenedProjection = InferenceHistoricalRecordProjection(record: reopenedRecord, resetLocalLookalikes: false)
+        for result in [prepared.mappedData, projection.speciesData, reopenedProjection.speciesData] {
+            #expect(result.confidenceScore == 0.999)
+            let badge = ConfidenceBadgePresentation.resolve(confidenceScore: result.confidenceScore,
+                inferenceTier: result.inferenceTier, provenance: result.identificationProvenance,
+                hasUserOverride: false, isUserConfirmed: false, analyzingPhrase: nil)
+            #expect(badge.label == "Strong match")
+            #expect(result.identificationConfidenceBands == (openAI ? nil : InferenceConfidencePolicy.flash))
+            let sharing = InsightSheetTestSupport.shareRecommendationViewModel(
+                confidence: result.confidenceScore, inferenceTier: result.inferenceTier)
+            sharing.inferenceEngine?.speciesData = result
+            let resultScanID = try #require(result.scanId)
+            InsightSheetTestSupport.bindToolbarPresentation(sharing, scanId: resultScanID)
+            #expect(sharing.canRequestCommunityIdentification)
+            #expect(sharing.shareRecommendation == (openAI ? .askCommunity : .publishToExplore))
+        }
     }
 
     @Test func versionedMetadataRejectsMixedGenerationShapesAndUnknownVersions() throws {
@@ -186,6 +203,74 @@ struct IdentificationResultProvenanceTests {
         #expect(legacy.mappedData.identificationConfidenceBands == InferenceConfidencePolicy.flash)
     }
 
+    @Test(arguments: [0.0, 0.59, 0.60, 0.949, 0.95, 1.0])
+    func openAIPhotoDisplayBoundariesDoNotQualifyScoresForOtherPolicies(score: Double) throws {
+        let value = try provenance(openAIMetadata())
+        let expected = [0.0: "Weak match", 0.59: "Weak match", 0.60: "Possible match",
+                        0.949: "Possible match", 0.95: "Strong match", 1.0: "Strong match"]
+        #expect(value.supportsOpenAIPhotoDisplayBands)
+        for tier in ["flash", "pro"] {
+            #expect(InferenceConfidencePolicy.displayBands(forInferenceTier: tier, provenance: value) ==
+                InferenceConfidencePolicy.DisplayBands(strong: 0.95, possible: 0.60))
+            #expect(InferenceConfidencePolicy.bands(forInferenceTier: tier, provenance: value) == nil)
+            let badge = ConfidenceBadgePresentation.resolve(confidenceScore: score,
+                inferenceTier: tier, provenance: value, hasUserOverride: false,
+                isUserConfirmed: false, analyzingPhrase: nil)
+            #expect(badge.label == expected[score])
+            #expect(badge.isVisible == (score > 0))
+            #expect(ConfidenceExplanationPresentation.headerTitle(confidenceScore: score,
+                inferenceTier: tier, provenance: value, hasUserOverride: false,
+                isUserConfirmed: false) == "\(Int(round(score * 100)))% confident")
+            #expect(CandidateReviewVisibilityPolicy.shouldSurfaceForReviewCollection(
+                primaryConfidence: score, inferenceTier: tier, provenance: value, candidates: []))
+            #expect(ModelTierBadgePresentation.resolve(confidenceScore: score,
+                inferenceTier: tier, provenance: value, isSubscribed: false,
+                isProActive: false, hasComplimentaryAccess: false,
+                complimentaryScansRemaining: 0, isComplimentaryExhausted: false) == nil)
+        }
+        #expect(ConfidenceExplanationPresentation.modelDescription(inferenceTier: "pro", provenance: value)
+            .contains("not a measured probability"))
+        for overridden in [false, true] {
+            let confirmed = ConfidenceBadgePresentation.resolve(confidenceScore: score,
+                inferenceTier: "pro", provenance: value, hasUserOverride: overridden,
+                isUserConfirmed: !overridden, analyzingPhrase: nil)
+            #expect(confirmed.label == "Confirmed" && confirmed.style == .confirmed)
+        }
+        #expect(ConfidenceBadgePresentation.resolve(confidenceScore: score,
+            inferenceTier: "pro", provenance: value, hasUserOverride: false,
+            isUserConfirmed: false, analyzingPhrase: "Analyzing").style == .analyzing)
+    }
+
+    @Test func unknownOrDamagedOpenAIProfilesKeepReviewGuidance() throws {
+        let changes: [(String, Any)] = [
+            ("model", "future-model"), ("binding", "future_binding_v1"),
+            ("prompt", "future_prompt_v1"), ("schema", "future_schema_v1"),
+            ("confidence", "future_confidence_v1"), ("policy_version", 2),
+            ("safety", NSNull()), ("timeout_ms", 60_000),
+            ("diagnostic_trigger", 0.9), ("prompt_diagnostic_trigger", 0.9),
+            ("generation", ["max_output_tokens": 4_096, "reasoning_effort": "low", "image_detail": "high"]),
+            ("generation", ["max_output_tokens": 8_192, "reasoning_effort": "medium", "image_detail": "high"]),
+            ("generation", ["max_output_tokens": 8_192, "reasoning_effort": "low", "image_detail": "auto"])
+        ]
+        var values = try changes.map { key, changed -> IdentificationResultProvenance in
+            var object = openAIMetadata(); object[key] = changed
+            return IdentificationResultProvenance(storedData: try JSONSerialization.data(withJSONObject: object))
+        }
+        values += [Data(), Data("{}".utf8), Data(repeating: 65, count: 2_049)]
+            .map(IdentificationResultProvenance.init(storedData:))
+        for value in values {
+            #expect(!value.supportsOpenAIPhotoDisplayBands)
+            #expect(InferenceConfidencePolicy.displayBands(forInferenceTier: "pro", provenance: value) == nil)
+            let badge = ConfidenceBadgePresentation.resolve(confidenceScore: 0.999,
+                inferenceTier: "pro", provenance: value, hasUserOverride: false,
+                isUserConfirmed: false, analyzingPhrase: nil)
+            #expect(badge.label == "Needs review" && badge.style == .unknown && badge.isVisible)
+            #expect(ConfidenceExplanationPresentation.headerTitle(confidenceScore: 0.999,
+                inferenceTier: "pro", provenance: value, hasUserOverride: false,
+                isUserConfirmed: false) == "Review identification")
+        }
+    }
+
     @Test func unqualifiedScoresRemainReviewableWithoutMatchLabels() throws {
         var object = metadata(); object["provider"] = "openai"
         let value = try provenance(object)
@@ -211,7 +296,8 @@ struct IdentificationResultProvenanceTests {
         let legacy = LocalScanRecord(id: "legacy", speciesId: "legacy-species", scientificName: "Fixture legacy", commonName: "Legacy fixture", confidenceScore: 0.999)
         var object = metadata(); object["provider"] = "unknown"
         let unknown = LocalScanRecord(id: "unknown", speciesId: "unknown-species", scientificName: "Fixture unknown", commonName: "Unknown fixture", confidenceScore: 0.999, inferenceTier: "flash", identificationProvenanceData: try provenance(object).data)
-        context.insert(legacy); context.insert(unknown); try context.save()
+        let openAI = LocalScanRecord(id: "openai", speciesId: "openai-species", scientificName: "Fixture OpenAI", commonName: "OpenAI fixture", confidenceScore: 0.999, inferenceTier: "flash", identificationProvenanceData: try provenance(openAIMetadata()).data)
+        context.insert(legacy); context.insert(unknown); context.insert(openAI); try context.save()
         let actor = ProfileDatabaseActor(modelContainer: context.container)
         let stats = await actor.calculateAll()
         #expect(stats.awards.first { $0.type == .perfectLens }?.currentCount == 1)

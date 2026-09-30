@@ -2440,13 +2440,21 @@ package manifests. JOSE 6.2.12 uses the Deno WebCrypto runtime for Apple RS256
 identity verification and ES256 Apple client-secret/APNs signing. Real-crypto
 tests retain fixed algorithm, issuer, audience, signature, expiry, and
 safe-error behavior using only generated keys and synthetic JWKS responses.
-Google Gen AI 2.23.0 retains `models.generateContent` with the existing model
+Google Gen AI 2.24.0 retains `models.generateContent` with the existing model
 choices, schemas, thinking budgets, 90-second HTTP timeout, and no SDK retry
 options. The real-SDK tests in `_shared/gemini_test.ts` intercept HTTP using
 synthetic input to check Field Chat JSON, image/audio parts, schema constraints,
 thought exclusion, safety, token usage, paid-key denial, single-attempt errors,
 and timeout cancellation. These tests do not make paid provider calls or
-establish live model quality. See the
+establish live model quality. Hosted provider-comparison specifications accept
+the reviewed 2.23.0 and 2.24.0 SDKs, but staging, checking, and preparation
+require the complete exact source identity, including its SDK. A historical
+bundle therefore requires its original checkout and dependency graph; a new SDK
+requires a new reviewed bundle. The frozen audio-prompt execution, continuation,
+and successor protocols remain bound to their original 2.23.0 tooling. Use their
+original reviewed checkout; 2.24.0 audio trials require a separately versioned
+and reviewed protocol. Dependency validation does not authorize any paid run or
+requalify old evidence. See the
 [dependency maintenance policy](../../docs/CONTRIBUTING.md#dependency-maintenance).
 
 After changing a pin in `functions/deno.json`, regenerate the function-local

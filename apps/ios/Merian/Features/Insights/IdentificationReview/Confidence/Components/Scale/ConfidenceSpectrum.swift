@@ -7,12 +7,13 @@ struct ConfidenceSpectrum: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if let bands = InferenceConfidencePolicy.bands(
+            if let bands = InferenceConfidencePolicy.displayBands(
                 forInferenceTier: inferenceTier, provenance: provenance
             ) {
                 let strongPct = Int(bands.strong * 100)
                 let possiblePct = Int(bands.possible * 100)
-                ModelInfoSection(inferenceTier: inferenceTier)
+                let isOpenAIPhoto = provenance?.supportsOpenAIPhotoDisplayBands == true
+                ModelInfoSection(inferenceTier: inferenceTier, provenance: provenance)
                     .padding(.bottom, 24)
 
                 SpectrumNode(
@@ -20,7 +21,9 @@ struct ConfidenceSpectrum: View {
                     nextColor: .orange,
                     percentage: "\(strongPct)% – 100%",
                     title: "Strong match",
-                    description: "Extremely certain. The key morphological traits match the model flawlessly."
+                    description: isOpenAIPhoto
+                        ? "The AI rates the visible diagnostic features as a strong match, with similar species ruled out by those features."
+                        : "Extremely certain. The key morphological traits match the model flawlessly."
                 )
 
                 SpectrumNode(
@@ -28,7 +31,9 @@ struct ConfidenceSpectrum: View {
                     nextColor: .gray,
                     percentage: "\(possiblePct)% – \(strongPct - 1)%",
                     title: "Possible match",
-                    description: "A likely match, but key identifying traits may be obscured, blurry, or missing."
+                    description: isOpenAIPhoto
+                        ? "A probable or likely match, but similar species may still fit the visible features."
+                        : "A likely match, but key identifying traits may be obscured, blurry, or missing."
                 )
 
                 SpectrumNode(
@@ -36,7 +41,9 @@ struct ConfidenceSpectrum: View {
                     nextColor: nil,
                     percentage: "Below \(possiblePct)%",
                     title: "Weak match",
-                    description: "The model is uncertain. Try capturing another angle or bringing it into focus."
+                    description: isOpenAIPhoto
+                        ? "The AI finds too little diagnostic detail for a reliable match. Another angle or clearer photo may help."
+                        : "The model is uncertain. Try capturing another angle or bringing it into focus."
                 )
             } else {
                 Text("Review the observation and its identifying traits to check this suggestion.")

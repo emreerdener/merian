@@ -201,9 +201,10 @@ production submission or public release.
   product document.
 - **[`/product/03-identification-foundation-prd.md`](./product/03-identification-foundation-prd.md)**
   — Completed Gemini-only provider-flexibility foundation and its original
-  acceptance contract, with links to later dormant OpenAI infrastructure and
-  optimization work. Gemini remains on production tasks. Video capture supplies
-  sampled images and any included companion audio to inference.
+  acceptance contract, with links to the later OpenAI photo beta rollout and
+  optimization work. Still photos now use OpenAI; other input profiles remain
+  Gemini. Video capture supplies sampled images and any included companion audio
+  to inference.
 - **[`/rfcs/identification-foundation-srd.md`](./rfcs/identification-foundation-srd.md)**
   — Companion system requirements for the Gemini adapter, actual-input
   capability checks, existing consent/confidence and recovery behavior, and a
@@ -250,7 +251,10 @@ production submission or public release.
   [beta correction](./incidents/2026-09-beta-openai-consent-gate.md) defers all
   OpenAI-specific collection/enforcement and enables owned explicit retry for
   legacy pauses. Ordinary Gemini consent remains required for onboarding and
-  inference. The subsequent
+  inference. The
+  [OpenAI confidence display decision](./rfcs/identification-openai-confidence-display-2026-09-28.md)
+  keeps Strong / Possible / Weak with independent model-estimate thresholds,
+  without qualifying scores for rewards or benchmark metrics. The subsequent
   [durable provenance slice](./rfcs/identification-provider-result-provenance-2026-09-26.md)
   preserves each saved Gemini result's configuration, and the
   [app-controlled routing slice](./rfcs/identification-provider-input-routing-2026-09-26.md)
