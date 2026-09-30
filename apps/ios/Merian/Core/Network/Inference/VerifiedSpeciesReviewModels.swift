@@ -48,7 +48,7 @@ struct VerifiedSpeciesReviewRequest: Encodable, Equatable, Sendable {
     func validate(_ receipt: VerifiedSpeciesReviewReceipt) throws {
         guard receipt.scanID == scanID, receipt.review.revision == expectedRevision + 1,
               receipt.review.userReviewState == (action == .clear ? .unreviewed : action == .confirmPrimary ? .aiConfirmed : .userOverridden),
-              (action == .clear ? receipt.review.identity == nil : receipt.review.identity != nil),
+              action == .clear ? receipt.review.identity == nil : receipt.review.identity != nil,
               action != .confirmName || receipt.review.userIdentificationOverride == scientificName else {
             throw ConfirmedSpeciesReview.IntegrityError.invalidEnvelope
         }
@@ -135,6 +135,9 @@ enum VerifiedSpeciesReviewOutcome: Equatable, Sendable {
     case reconciled(ConfirmedSpeciesReview)
 
     var review: ConfirmedSpeciesReview {
-        switch self { case .acknowledged(let review), .reconciled(let review): return review }
+        switch self {
+        case .acknowledged(let review), .reconciled(let review):
+            return review
+        }
     }
 }

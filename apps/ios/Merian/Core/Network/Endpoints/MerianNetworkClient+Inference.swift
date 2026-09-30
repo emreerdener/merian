@@ -421,7 +421,6 @@ extension MerianNetworkClient {
     }
 }
 
-
 extension MerianNetworkClient {
     /// Review writes already hold an account-work lease drained by Auth. Leave
     /// unauthorized-session recovery to their caller to avoid a recursive drain.

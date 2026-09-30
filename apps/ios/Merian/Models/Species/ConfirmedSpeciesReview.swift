@@ -10,14 +10,6 @@ struct ConfirmedSpeciesReview: Codable, Equatable, Sendable {
         let commonName: String?
         let gbifTaxonKey: Int
 
-        private enum CodingKeys: String, CodingKey {
-            case version
-            case speciesID = "species_id"
-            case scientificName = "scientific_name"
-            case commonName = "common_name"
-            case gbifTaxonKey = "gbif_taxon_key"
-        }
-
         init(from decoder: Decoder) throws {
             try ReviewFieldKey.requireExact(decoder, keys: [
                 "version", "species_id", "scientific_name", "common_name", "gbif_taxon_key"
@@ -178,5 +170,15 @@ struct ReviewFieldKey: CodingKey {
         guard Set(raw.allKeys.map(\.stringValue)) == keys else {
             throw ConfirmedSpeciesReview.IntegrityError.invalidEnvelope
         }
+    }
+}
+
+extension ConfirmedSpeciesReview.Identity {
+    private enum CodingKeys: String, CodingKey {
+        case version
+        case speciesID = "species_id"
+        case scientificName = "scientific_name"
+        case commonName = "common_name"
+        case gbifTaxonKey = "gbif_taxon_key"
     }
 }

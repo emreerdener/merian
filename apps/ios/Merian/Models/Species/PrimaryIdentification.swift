@@ -19,12 +19,6 @@ struct PrimaryIdentification: Equatable, Sendable {
         let scientificName: String?
         let commonName: String?
 
-        private enum CodingKeys: String, CodingKey {
-            case version, resolution
-            case scientificName = "scientific_name"
-            case commonName = "common_name"
-        }
-
         init(resolution: Resolution, scientificName: String?, commonName: String?) throws {
             self.version = 1
             self.resolution = resolution
@@ -123,5 +117,13 @@ struct PrimaryIdentification: Equatable, Sendable {
         let intValue: Int? = nil
         init?(stringValue: String) { self.stringValue = stringValue }
         init?(intValue: Int) { return nil }
+    }
+}
+
+extension PrimaryIdentification.Snapshot {
+    private enum CodingKeys: String, CodingKey {
+        case version, resolution
+        case scientificName = "scientific_name"
+        case commonName = "common_name"
     }
 }

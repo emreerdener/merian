@@ -113,7 +113,6 @@ extension InferenceIdentificationReviewCoordinator.Dependencies {
     }
 }
 
-
 @MainActor
 extension InferenceIdentificationReviewCoordinator.VerifiedDependencies {
     static var live: Self {

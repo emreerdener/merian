@@ -62,8 +62,10 @@ extension BackgroundDatabaseActor {
         }
     }
 
-    func applyVerifiedSpeciesReview(scanID: String, review: ConfirmedSpeciesReview,
-                                   acknowledging intent: InferenceIdentificationReviewMutation?) throws -> ConfirmedSpeciesReview? {
+    func applyVerifiedSpeciesReview(
+        scanID: String, review: ConfirmedSpeciesReview,
+        acknowledging intent: InferenceIdentificationReviewMutation?
+    ) throws -> ConfirmedSpeciesReview? {
         try withReviewRecord(scanID) { record, context in
             guard record.primaryIdentification?.value != nil else {
                 throw ConfirmedSpeciesReview.IntegrityError.invalidEnvelope
