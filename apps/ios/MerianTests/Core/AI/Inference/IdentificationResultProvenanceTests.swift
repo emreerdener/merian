@@ -24,13 +24,13 @@ struct IdentificationResultProvenanceTests {
         return IdentificationResultProvenance(dto: dto)
     }
 
-    private func openAIMetadata() -> [String: Any] {
+    private func openAIMetadata(prompt: String = "openai_identify_vision_v1") -> [String: Any] {
         var value = metadata()
         value["version"] = 2
         value["provider"] = "openai"
         value["binding"] = "openai_photo_v1"
         value["model"] = "gpt-6-sol"
-        value["prompt"] = "openai_identify_vision_v1"
+        value["prompt"] = prompt
         value["schema"] = "merian_openai_identify_v1"
         value["confidence"] = "openai_unqualified_v1"
         value["diagnostic_trigger"] = NSNull()
@@ -120,10 +120,11 @@ struct IdentificationResultProvenanceTests {
         #expect(InferenceConfidencePolicy.bands(forInferenceTier: "pro", provenance: nil) == InferenceConfidencePolicy.pro)
     }
 
-    @Test(arguments: [false, true])
-    func wirePreparationLocalPersistenceAndReopenShareProvenance(openAI: Bool) async throws {
+    @Test(arguments: ["gemini", "openai_identify_vision_v1", "openai_identify_vision_observed_traits_v1"])
+    func wirePreparationLocalPersistenceAndReopenShareProvenance(profile: String) async throws {
+        let openAI = profile != "gemini"
         let prepared = try await InferenceResponsePreparationService.live.prepare(
-            resultData: envelope(metadata: openAI ? openAIMetadata() : metadata()), telemetry: nil,
+            resultData: envelope(metadata: openAI ? openAIMetadata(prompt: profile) : metadata()), telemetry: nil,
             audioFilePaths: nil, videoFilePaths: nil, expectedScanId: nil)
         let original = try #require(prepared.mappedData.identificationProvenance)
         let record = LocalScanRecordFactory.makeRecord(from: prepared.mappedData,
@@ -203,9 +204,10 @@ struct IdentificationResultProvenanceTests {
         #expect(legacy.mappedData.identificationConfidenceBands == InferenceConfidencePolicy.flash)
     }
 
-    @Test(arguments: [0.0, 0.59, 0.60, 0.949, 0.95, 1.0])
-    func openAIPhotoDisplayBoundariesDoNotQualifyScoresForOtherPolicies(score: Double) throws {
-        let value = try provenance(openAIMetadata())
+    @Test(arguments: [0.0, 0.59, 0.60, 0.949, 0.95, 1.0],
+          ["openai_identify_vision_v1", "openai_identify_vision_observed_traits_v1"])
+    func openAIPhotoDisplayBoundariesDoNotQualifyScoresForOtherPolicies(score: Double, prompt: String) throws {
+        let value = try provenance(openAIMetadata(prompt: prompt))
         let expected = [0.0: "Weak match", 0.59: "Weak match", 0.60: "Possible match",
                         0.949: "Possible match", 0.95: "Strong match", 1.0: "Strong match"]
         #expect(value.supportsOpenAIPhotoDisplayBands)
@@ -241,7 +243,8 @@ struct IdentificationResultProvenanceTests {
             isUserConfirmed: false, analyzingPhrase: "Analyzing").style == .analyzing)
     }
 
-    @Test func unknownOrDamagedOpenAIProfilesKeepReviewGuidance() throws {
+    @Test(arguments: ["openai_identify_vision_v1", "openai_identify_vision_observed_traits_v1"])
+    func unknownOrDamagedOpenAIProfilesKeepReviewGuidance(prompt: String) throws {
         let changes: [(String, Any)] = [
             ("model", "future-model"), ("binding", "future_binding_v1"),
             ("prompt", "future_prompt_v1"), ("schema", "future_schema_v1"),
@@ -253,7 +256,7 @@ struct IdentificationResultProvenanceTests {
             ("generation", ["max_output_tokens": 8_192, "reasoning_effort": "low", "image_detail": "auto"])
         ]
         var values = try changes.map { key, changed -> IdentificationResultProvenance in
-            var object = openAIMetadata(); object[key] = changed
+            var object = openAIMetadata(prompt: prompt); object[key] = changed
             return IdentificationResultProvenance(storedData: try JSONSerialization.data(withJSONObject: object))
         }
         values += [Data(), Data("{}".utf8), Data(repeating: 65, count: 2_049)]
