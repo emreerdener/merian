@@ -197,7 +197,7 @@ provide the legacy JavaScript compiler API. See Microsoft's
 
 ### Dependency maintenance
 
-All direct Mantine packages are pinned together at 9.6.1. Dependabot groups
+All direct Mantine packages are pinned together at 9.6.2. Dependabot groups
 minor and patch updates because Mantine uses exact peer versions. Node types
 remain on the supported Node 24 major. React and React DOM are paired at 19.3.0
 with matching 19.3 type declarations; Dependabot groups those packages and the
