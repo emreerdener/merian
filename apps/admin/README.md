@@ -136,7 +136,7 @@ Vercel Deployment Check so a production build is not promoted to the custom
 domain until the exact commit's check passed; never treat Force Promote or a
 direct manual deployment as routine bypass authority.
 
-Mantine core and hooks are pinned together at 9.6.1. Dependabot groups their
+Mantine core and hooks are pinned together at 9.6.2. Dependabot groups their
 minor and patch updates; keep their exact peer versions aligned. Node types
 remain on the supported Node 24 major. React and React DOM are paired at 19.3.0
 with matching 19.3 type declarations; Dependabot groups those packages and the
