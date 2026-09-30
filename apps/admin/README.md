@@ -116,7 +116,7 @@ npm run build
 that complete sequence for every pull request and every affected `main` push. It
 deliberately reports on every pull request so GitHub can require a stable check
 without path-filtered changes remaining pending. The currently protected graph
-pins Next.js 16.3.5 and PostCSS 8.5.28 and overrides Next.js's private Sharp
+pins Next.js 16.3.6 and PostCSS 8.5.28 and overrides Next.js's private Sharp
 dependency to 0.35.4. `lib/dependency-security.test.ts` rejects a lockfile below
 those floors or a workflow that drops or reorders the frozen install, blocking
 audit, tests, type-check, and production build. Keep the overrides until a
