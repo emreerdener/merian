@@ -503,7 +503,7 @@ profile updates, and Explore feed projections.
   `deno.json` that points at the shared frozen `functions/dependencies.lock`.
   Runtime imports use those aliases instead of direct `esm.sh`, `deno.land`,
   npm, or JSR specifiers. The whole fleet uses one exact
-  `@supabase/supabase-js@2.116.0` graph; `_shared/claimsAuth.ts` remains the
+  `@supabase/supabase-js@2.117.2` graph; `_shared/claimsAuth.ts` remains the
   opt-in authentication policy boundary for cached-JWKS claims verification, not
   a second SDK dependency. Generated configs explicitly retain Deno's one-day
   minimum dependency age; reviewed versions already present in the frozen lock
@@ -2434,19 +2434,19 @@ schema. After an intentional media-wire change, run
 `make validate-edge-dto-contract`.
 
 The reviewed maintenance graph pins `@std/encoding` to 1.0.11 and the JSZip
-archive-test dependency to 3.10.2. Supabase JS is aligned at the reviewed
-2.116.0 version across the Edge fleet, public web, and internal admin. JOSE
-6.2.12 uses the Deno WebCrypto runtime for Apple RS256 identity verification and
-ES256 Apple client-secret/APNs signing. Real-crypto tests retain fixed
-algorithm, issuer, audience, signature, expiry, and safe-error behavior using
-only generated keys and synthetic JWKS responses. Google Gen AI 2.23.0 retains
-`models.generateContent` with the existing model choices, schemas, thinking
-budgets, 90-second HTTP timeout, and no SDK retry options. The real-SDK tests in
-`_shared/gemini_test.ts` intercept HTTP using synthetic input to check Field
-Chat JSON, image/audio parts, schema constraints, thought exclusion, safety,
-token usage, paid-key denial, single-attempt errors, and timeout cancellation.
-These tests do not make paid provider calls or establish live model quality. See
-the
+archive-test dependency to 3.10.2. Supabase JS uses the reviewed 2.117.2 version
+across the Edge fleet. Public web and internal admin own their pins in their
+package manifests. JOSE 6.2.12 uses the Deno WebCrypto runtime for Apple RS256
+identity verification and ES256 Apple client-secret/APNs signing. Real-crypto
+tests retain fixed algorithm, issuer, audience, signature, expiry, and
+safe-error behavior using only generated keys and synthetic JWKS responses.
+Google Gen AI 2.23.0 retains `models.generateContent` with the existing model
+choices, schemas, thinking budgets, 90-second HTTP timeout, and no SDK retry
+options. The real-SDK tests in `_shared/gemini_test.ts` intercept HTTP using
+synthetic input to check Field Chat JSON, image/audio parts, schema constraints,
+thought exclusion, safety, token usage, paid-key denial, single-attempt errors,
+and timeout cancellation. These tests do not make paid provider calls or
+establish live model quality. See the
 [dependency maintenance policy](../../docs/CONTRIBUTING.md#dependency-maintenance).
 
 After changing a pin in `functions/deno.json`, regenerate the function-local
