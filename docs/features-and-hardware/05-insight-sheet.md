@@ -2032,8 +2032,8 @@ identification decisions before falling back to the confidence-band logic:
 | User override  | "Confirmed" | Green | `checkmark.circle.fill` | `userIdentificationOverride != nil`   |
 | User confirmed | "Confirmed" | Green | `checkmark.circle.fill` | `userConfirmedIdentification == true` |
 
-**Confidence bands** (when no review state is set — managed dynamically via
-`InferenceConfidencePolicy.bands(forInferenceTier: inferenceTier)`):
+**Confidence display bands** (when no review state is set — resolved from the
+saved execution profile by `InferenceConfidencePolicy.displayBands`):
 
 **Gemini 2.5 Flash (Ordinary Naturebook Tier)**
 
@@ -2043,8 +2043,8 @@ unpaid-Service terms.
 
 | Band label     | Color  | Score range |
 | -------------- | ------ | ----------- |
-| Strong match   | Green  | ≥ 96%       |
-| Possible match | Orange | 75% – 95%   |
+| Strong match   | Green  | ≥ 95%       |
+| Possible match | Orange | 75% – <95%  |
 | Weak match     | Gray   | Below 75%   |
 
 **Gemini 2.5 Pro (Premium Tier)**
@@ -2052,34 +2052,57 @@ unpaid-Service terms.
 | Band label     | Color  | Score range |
 | -------------- | ------ | ----------- |
 | Strong match   | Green  | ≥ 85%       |
-| Possible match | Orange | 65% – 84%   |
+| Possible match | Orange | 65% – <85%  |
 | Weak match     | Gray   | Below 65%   |
 
-The inclusive lower edge of **Possible match** is also the server-side automatic
-evidence gate for Field trip goals: `0.75` for Flash and `0.65` for Pro. An
-unreviewed **Weak match** remains pending and does not advance an outing or
-Event until the user confirms the identification or a confirmed
-correction/community resolution supplies stronger evidence. See the
+**OpenAI photo (`openai_photo_v1`, every plan tier)**
+
+| Band label     | Color  | Model score range |
+| -------------- | ------ | ----------------- |
+| Strong match   | Green  | ≥ 95%             |
+| Possible match | Orange | 60% – <95%        |
+| Weak match     | Gray   | Below 60%         |
+
+OpenAI thresholds apply only to the exact recognized V2 production profile. They
+use the structured-output contract's morphology anchors and describe model
+estimates, not measured probabilities of correct identification. The sheet
+explains that limitation. The numeric score and `openai_unqualified_v1`
+provenance remain unchanged. Unknown or damaged present profiles retain Needs
+review; legacy records without provenance keep their existing behavior. See the
+[threshold decision](../rfcs/identification-openai-confidence-display-2026-09-28.md)
+for evidence limitations and the stricter structured-schema anchor.
+
+Display bands do not qualify OpenAI for candidate suppression, automatic
+verification, score-based sharing or upgrade recommendations, rewards, or public
+confidence metrics. Those consumers retain `InferenceConfidencePolicy.bands` /
+`SpeciesData.identificationConfidenceBands` and the corresponding server
+qualification rules.
+
+For Gemini, the inclusive lower edge of **Possible match** is also the
+server-side automatic evidence gate for Field trip goals: `0.75` for Flash and
+`0.65` for Pro. An unreviewed **Weak match** remains pending and does not
+advance an outing or Event until the user confirms the identification or a
+confirmed correction/community resolution supplies stronger evidence. See the
 [canonical Field Trip policy](25-field-trips.md#identification-evidence-policy).
 
 The badge renders for override/confirmed states even when `confidenceScore == 0`
 (historical scans where confidence is unavailable).
 
 `ConfidenceSpectrum` renders a vertical list of `SpectrumNode` items using the
-same `InferenceConfidencePolicy` bands so the displayed percentage ranges are
-always in sync with the badge logic.
+same `InferenceConfidencePolicy.displayBands` as the badge. Classification uses
+the raw score; the percentage header rounds it for display.
 
 `ConfidenceExplanationSheet` opens as a bottom sheet from the badge tap. It
 contains `ConfidenceHeader`, `ConfidenceSpectrum`, `ModelInfoSection`,
 `AIMistakesBanner`, and `ProTips` (which conditionally shows a location
-permission prompt when GPS access is not granted). `ModelInfoSection` sits
-between `ConfidenceSpectrum` and `AIMistakesBanner` and surfaces which
-Naturebook AI tier processed the scan — "Naturebook AI Standard" for free/Flash
-scans, "Naturebook AI Pro" for Pro scans, with a "Powered by Gemini 2.5 Pro"
-footnote on the Pro variant. The sheet reads stored candidates for the
-alternatives-exhausted Review again path and
-`CandidateReviewVisibilityPolicy.visibleCandidates(for:)` for normal candidate
-display. Review-state cards rendered at the top of the sheet (mutually
+permission prompt when GPS access is not granted). `ModelInfoSection` appears at
+the start of the recognized confidence spectrum. Gemini retains its Naturebook
+AI branding, Flash/Pro chip and existing tier explanation. OpenAI shows
+Naturebook AI with model-estimate guidance and no Flash/Pro chip or plan-based
+accuracy claim, because its exact photo profile is the same across plans. The
+sheet reads stored candidates for the alternatives-exhausted Review again path
+and `CandidateReviewVisibilityPolicy.visibleCandidates(for:)` for normal
+candidate display. Review-state cards rendered at the top of the sheet (mutually
 exclusive, evaluated in order):
 
 Actions that leave Confidence explanation are

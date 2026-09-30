@@ -1,6 +1,27 @@
 import Foundation
 
 enum InferenceConfidencePolicy {
+    /// User-facing estimates only; never use these bands for rewards,
+    /// automatic verification, public metrics, or candidate suppression.
+    struct DisplayBands: Sendable, Equatable {
+        let strong: Double
+        let possible: Double
+    }
+
+    /// Matches the structured-output confidence contract's morphology anchors:
+    /// diagnostic at 0.95, probable at 0.60. Not empirical calibration.
+    static let openAIPhotoDisplay = DisplayBands(strong: 0.95, possible: 0.60)
+
+    static func displayBands(
+        forInferenceTier tier: String?,
+        provenance: IdentificationResultProvenance? = nil
+    ) -> DisplayBands? {
+        if let qualified = bands(forInferenceTier: tier, provenance: provenance) {
+            return DisplayBands(strong: qualified.strong, possible: qualified.possible)
+        }
+        return provenance?.supportsOpenAIPhotoDisplayBands == true ? openAIPhotoDisplay : nil
+    }
+
     struct Bands: Sendable, Equatable {
         /// Minimum score for the green "Strong match" UI.
         let strong: Double
@@ -42,6 +63,24 @@ enum InferenceConfidencePolicy {
 }
 
 extension IdentificationResultProvenance {
+    /// Recognizes the shipped photo profile for display estimates only.
+    /// Its recorded numeric confidence remains unqualified for other policies.
+    var supportsOpenAIPhotoDisplayBands: Bool {
+        guard data.count <= 2_048,
+              let decoded = try? JSONDecoder().decode(IdentificationProvenanceDTO.self, from: data),
+              case .v2(let value) = decoded else { return false }
+        return value.provider == "openai" && value.binding == "openai_photo_v1" &&
+            value.model == "gpt-6-sol" && value.variant == "multimodal" &&
+            value.operation == "scan_identification" && value.policy_version == 1 &&
+            value.prompt == "openai_identify_vision_v1" &&
+            value.schema == "merian_openai_identify_v1" &&
+            value.confidence == "openai_unqualified_v1" &&
+            value.diagnostic_trigger == nil && value.prompt_diagnostic_trigger == nil &&
+            value.safety == "openai_photo_moderation_v1" && value.timeout_ms == 90_000 &&
+            value.generation.max_output_tokens == 8_192 &&
+            value.generation.reasoning_effort == "low" && value.generation.image_detail == "high"
+    }
+
     func supportsGeminiBands(forInferenceTier tier: String?) -> Bool {
         guard data.count <= 2_048,
               let decoded = try? JSONDecoder().decode(IdentificationProvenanceDTO.self, from: data),
