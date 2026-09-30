@@ -177,13 +177,12 @@ need live backend behavior. See the canonical destination matrix in
 
 ### Supabase client compatibility
 
-Supabase JS is pinned to 2.116.0, aligned with the Edge fleet. Public and
-privileged clients retain their separate credential boundaries; the privileged
-factory stays server-only and removes only the opaque API-key-as-Bearer
-fallback.
+Supabase JS is pinned to 2.117.2. Public and privileged clients retain their
+separate credential boundaries; the privileged factory stays server-only and
+removes only the opaque API-key-as-Bearer fallback.
 
 See the
-[SDK release notes](https://github.com/supabase/supabase-js/releases/tag/v2.116.0).
+[SDK release notes](https://github.com/supabase/supabase-js/releases/tag/v2.117.2).
 Dependency upgrades must preserve authentication, cookie, and request-transport
 behavior.
 
