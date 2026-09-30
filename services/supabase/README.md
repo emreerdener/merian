@@ -182,9 +182,12 @@ The candidate workflow declares no Production environment, receives no
 production secrets, and contains no database push, Function deployment, or
 production smoke. Its green summary is exact-SHA database/runtime evidence; it
 is not evidence that production changed and does not authorize deployment. The
-production workflow next runs a non-Production source hold gate that requires
-the exact checkout to be the current `refs/heads/main`/`origin/main` head. A
-valid active hold reports `release_status=held` and `deploy_allowed=false`, so
+production workflow next runs a non-Production source hold gate that requires an
+exact, clean `refs/heads/main` checkout. If that SHA is an ancestor of a newer
+`origin/main`, it reports `release_status=superseded` and `deploy_allowed=false`
+as a successful no-op before Production access. A diverged, mismatched, or dirty
+candidate still fails closed. Only the current main head evaluates source holds.
+A valid active hold reports `release_status=held` and `deploy_allowed=false`, so
 the validated workflow remains green while the downstream Production job is
 skipped before environment secrets or mutation. A missing, malformed, duplicate,
 or required-ID-absent manifest still fails the workflow. When the source status
