@@ -30,7 +30,7 @@
     "@mantine/spotlight": "9.6.2",
     "@mantine/tiptap": "9.6.2",
     "@supabase/supabase-js": "2.116.0",
-    "@tabler/icons-react": "3.46.0",
+    "@tabler/icons-react": "3.48.0",
     "@tiptap/extension-link": "3.31.3",
     "@tiptap/pm": "3.31.3",
     "@tiptap/react": "3.31.3",
