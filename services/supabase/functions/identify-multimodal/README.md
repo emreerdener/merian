@@ -220,22 +220,24 @@ catalog selects OpenAI only for still photos with minimum identification
 protocol 4, accepting readers 4 and 5. Only an admitted exact OpenAI photo
 assignment can read the credential and dispatch. Beta eligibility defers
 OpenAI-specific opt-in enforcement while preserving historical consent receipts;
-consent evidence is never synthesized. The production photo snapshot now uses
-`openai_identify_vision_observed_traits_v1`: one to three directly supported
-traits, with the same explanation format, schema name, array bounds and model
-settings. Saved provenance records that revision; historical results and
-benchmark payloads keep their original identities. After existing additive
-backend/migration prerequisites are deployed, distribute native recognition of
-both prompt versions before deploying this prompt revision; otherwise older
-readers show Needs review despite decoding the result successfully. See the
-[versioned prompt record](../../../../docs/rfcs/identification-openai-observed-traits-candidate-2026-09-29.md#production-integration--29-september-2026).
+consent evidence is never synthesized. The production photo snapshot uses
+`openai_identify_vision_confidence_v1`: one to three directly supported traits,
+plus the assessed confidence instructions without a prescribed score range or
+conflicting diagnostic anchors. Model/settings, moderation, explanation format,
+schema fields and bounds remain unchanged. The existing `openai_photo_v1`
+assignment is authoritative; no new catalog row, secret or capability is needed.
+The separate confidence assessment binding remains rejected by this route.
 
-The newer `openai_identify_vision_confidence_v1` is prepared for the separate
-[confidence assessment](../../../../docs/rfcs/identification-openai-confidence-assessment-2026-09-30.md)
-only. This route does not admit its evaluation binding or select its prompt.
-Native recognition alone does not activate it: final mapping and copy must be
-distributed and device-verified before a separate target-specific backend
-activation request. No HTTP field, capability version or stored score changes.
+Saved provenance records the new prompt only for fresh attempts. Historical
+responses and completed replays keep their original scores and provenance.
+Updated readers recognize all three known OpenAI photo prompts; older readers
+may show Needs review. Strong/Possible remain 0.95/0.60 and confidence stays
+`openai_unqualified_v1`. The owner reports a released reader and explicitly
+requested production activation. See the
+[activation record](../../../../docs/release-evidence/openai-confidence-activation-2026-09-30.md)
+for the exact deployed source and verification limitations, and the
+[assessment](../../../../docs/rfcs/identification-openai-confidence-assessment-2026-09-30.md)
+for the unchanged frozen study contract.
 
 Native callers carry identification capability 5 in a separate header, leaving
 entitlement protocol 3 unchanged. Saved usage preserves reported cached tokens

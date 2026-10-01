@@ -258,6 +258,8 @@ production submission or public release.
   [confidence assessment](./rfcs/identification-openai-confidence-assessment-2026-09-30.md)
   and its
   [development results](./rfcs/identification-openai-confidence-results-2026-09-30.md)
+  and
+  [production activation](./release-evidence/openai-confidence-activation-2026-09-30.md)
   retain 0.95/0.60: none of the predeclared cutoffs passed after 100 development
   attempts, so the held-out split was not dispatched. The subsequent
   [durable provenance slice](./rfcs/identification-provider-result-provenance-2026-09-26.md)

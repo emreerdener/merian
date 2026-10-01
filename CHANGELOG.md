@@ -6,6 +6,13 @@ TestFlight, App Store, support, and QA.
 
 ## Unreleased
 
+### Identification confidence
+
+- OpenAI photo identification now estimates confidence without a prescribed
+  range for ordinary photos. Uncertainty about finer details or the presence of
+  alternatives no longer automatically reduces confidence in a supported match.
+  Existing match labels, badge thresholds and saved results are preserved.
+
 ### What’s New
 
 - A short update sheet introduces 2.2× faster AI identifications, location

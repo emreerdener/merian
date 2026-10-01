@@ -71,7 +71,7 @@ Deno.test({
       assertEquals(prepared.snapshot.binding, "openai_photo_v1");
       assertEquals(
         prepared.snapshot.prompt,
-        "openai_identify_vision_observed_traits_v1",
+        "openai_identify_vision_confidence_v1",
       );
       assertEquals(prepared.snapshot.schema, "merian_openai_identify_v1");
       const freeAuthority = photoAuthority();

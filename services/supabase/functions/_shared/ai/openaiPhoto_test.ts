@@ -1,4 +1,8 @@
 import { assert, assertEquals, assertRejects, assertThrows } from "@std/assert";
+import {
+  openAIConfidenceInstructions,
+  openAIConfidenceSchema,
+} from "./openaiConfidenceRules.ts";
 import type { MultimodalAIRequest } from "./contracts.ts";
 import { createAIExecution } from "./execution.ts";
 import { prepareMultimodalResultPolicy } from "./multimodalResultPolicy.ts";
@@ -20,7 +24,7 @@ import {
   openAITextFixture,
 } from "./testing/openaiFixtures.ts";
 
-Deno.test("production photo changes only the two trait directions while preserving evidence, settings and inline moderation", async () => {
+Deno.test("production photo applies the assessed confidence and trait rules while preserving evidence, settings and inline moderation", async () => {
   const base = photoRequest(),
     request = { ...base, evidence: [...base.evidence] },
     snapshot = openAIPhotoSnapshot(request, 2);
@@ -34,7 +38,11 @@ Deno.test("production photo changes only the two trait directions while preservi
   );
   expected.text.format.schema.properties!.extracted_visual_traits.description =
     "Extract one to three distinct physical or structural traits directly supported by the supplied visual evidence. Return only supportable observations, without inventing, repeating or inferring unseen anatomy to reach three. Visibility limitations belong in ai_reasoning, not as substitute traits.";
-  assertEquals(snapshot.prompt, "openai_identify_vision_observed_traits_v1");
+  expected.instructions = openAIConfidenceInstructions(expected.instructions);
+  expected.text.format.schema = openAIConfidenceSchema(
+    expected.text.format.schema,
+  );
+  assertEquals(snapshot.prompt, "openai_identify_vision_confidence_v1");
   assertEquals(snapshot.schema, "merian_openai_identify_v1");
   assertEquals(buildOpenAIPhotoRequestParameters(request, snapshot), expected);
   assert(

@@ -1,5 +1,13 @@
 # OpenAI photo confidence display
 
+Activation addendum, 30 September: the owner reported a released iOS build and
+fresh device scan, then explicitly requested activation on production project
+`qlarqavoqhkuwzmevrmf`. The production photo builder now selects the assessed
+confidence prompt. The study and historical findings below are preserved;
+0.95/0.60 and `openai_unqualified_v1` remain unchanged. Deployment and the
+limits of independently captured reader evidence are tracked in the
+[activation record](../release-evidence/openai-confidence-activation-2026-09-30.md).
+
 Current extension, 30 September: the
 [confidence assessment contract](identification-openai-confidence-assessment-2026-09-30.md)
 adds a prepared OpenAI-only prompt and a third explicitly mapped native profile.

@@ -8,8 +8,15 @@ import {
 } from "./openai.ts";
 import {
   buildOpenAIPhotoRequestParameters,
+  OPENAI_PHOTO_MODERATION_MODEL,
+  openAIObservedTraitsInstructions,
+  openAIObservedTraitsSchema,
   openAIPhotoSnapshot,
 } from "./openaiPhoto.ts";
+import {
+  buildOpenAIRequestParameters,
+  openAIEvaluationSnapshot,
+} from "./openaiRequest.ts";
 import {
   buildOpenAIConfidenceRequest,
   OPENAI_PHOTO_CONFIDENCE_RULE,
@@ -23,7 +30,7 @@ import {
   openAIResponseFixture,
 } from "./testing/openaiFixtures.ts";
 
-Deno.test("confidence candidate preserves observed traits, geography, model, schema shape and production transport parity", async () => {
+Deno.test("activated confidence prompt preserves the assessed request and normalized results in both production and evaluation", async () => {
   const request = openAIPhotoRequestFixture(),
     snapshot = openAIConfidenceSnapshot(request);
   const production = buildOpenAIPhotoRequestParameters(
@@ -31,19 +38,30 @@ Deno.test("confidence candidate preserves observed traits, geography, model, sch
     openAIPhotoSnapshot(request, 1),
   );
   const actual = buildOpenAIConfidenceRequest(request, snapshot);
-  assertEquals(snapshot.prompt, "openai_identify_vision_confidence_v1");
-  assertEquals(snapshot.confidence, "openai_unqualified_v1");
-  assertEquals(actual, {
-    ...production,
-    instructions: openAIConfidenceInstructions(production.instructions),
+  const historical = buildOpenAIRequestParameters(
+    request,
+    openAIEvaluationSnapshot(request),
+  );
+  const expected = {
+    ...historical,
+    instructions: openAIConfidenceInstructions(
+      openAIObservedTraitsInstructions(historical.instructions),
+    ),
     text: {
-      ...production.text,
+      ...historical.text,
       format: {
-        ...production.text.format,
-        schema: openAIConfidenceSchema(production.text.format.schema),
+        ...historical.text.format,
+        schema: openAIConfidenceSchema(
+          openAIObservedTraitsSchema(historical.text.format.schema),
+        ),
       },
     },
-  });
+    moderation: { model: OPENAI_PHOTO_MODERATION_MODEL },
+  };
+  assertEquals(snapshot.prompt, "openai_identify_vision_confidence_v1");
+  assertEquals(snapshot.confidence, "openai_unqualified_v1");
+  assertEquals(actual, expected);
+  assertEquals(production, expected);
   const allInstructions = actual.instructions +
     JSON.stringify(actual.text.format.schema);
   for (
@@ -62,10 +80,10 @@ Deno.test("confidence candidate preserves observed traits, geography, model, sch
     actual.text.format.schema.properties!.confidence_score.description,
     OPENAI_PHOTO_CONFIDENCE_RULE,
   );
-  assert(production.instructions.includes("0.70–0.88"));
+  assert(historical.instructions.includes("0.70–0.88"));
   assertThrows(() =>
     openAIConfidenceInstructions(
-      production.instructions + production.instructions,
+      historical.instructions + historical.instructions,
     )
   );
   assertThrows(() =>
@@ -98,16 +116,46 @@ Deno.test("confidence candidate preserves observed traits, geography, model, sch
   assertEquals(result.mediaSafety?.disposition, "allowed");
   await assertRejects(() => execution.invoke());
   assertEquals(calls, 1);
-  // The current production adapter must not accidentally activate this candidate.
-  assertThrows(() =>
-    createOpenAIPhotoAdapter("synthetic-confidence").prepare(
-      request,
-      { ...openAIPhotoSnapshot(request, 1), prompt: snapshot.prompt } as never,
-    )
-  );
+  // The revised prompt is active, but evaluation authority is still never admitted.
+  let productionCalls = 0;
+  const productionResult = await createAIExecution(
+    createOpenAIPhotoAdapter("synthetic-confidence", (_url, init) => {
+      productionCalls++;
+      assertEquals(
+        JSON.parse(String(init?.body)),
+        JSON.parse(JSON.stringify(actual)),
+      );
+      return Promise.resolve(Response.json({
+        ...openAIResponseFixture(),
+        moderation: openAIPhotoModerationFixture(),
+      }));
+    }),
+    request,
+    openAIPhotoSnapshot(request, 1),
+  ).invoke();
+  assertEquals(productionCalls, 1);
+  assertEquals(productionResult.kind, result.kind);
+  if (productionResult.kind !== "draft" || result.kind !== "draft") {
+    throw new Error("draft_required");
+  }
+  assertEquals(productionResult.draft, result.draft);
+  assertEquals(productionResult.mediaSafety, result.mediaSafety);
+  for (
+    const rejected of [snapshot, {
+      ...openAIPhotoSnapshot(request, 1),
+      prompt: "openai_identify_vision_observed_traits_v1",
+    }]
+  ) {
+    assertThrows(() =>
+      createOpenAIPhotoAdapter("synthetic-confidence").prepare(
+        request,
+        rejected as never,
+      )
+    );
+  }
   assertEquals(
     openAIPhotoSnapshot(request, 1).prompt,
-    "openai_identify_vision_observed_traits_v1",
+    "openai_identify_vision_confidence_v1",
   );
   assertEquals(
     isIdentificationProviderAssignment({

@@ -2779,11 +2779,11 @@ V1 Gemini profiles retain the existing confidence presentation. The exact V2
 `openai_photo_v1` profile separately receives display-only Strong (`>= 0.95`),
 Possible (`>= 0.60` and `< 0.95`), or Weak (`< 0.60`) labels on every plan tier.
 Recognition explicitly allows the original prompt `openai_identify_vision_v1`,
-`openai_identify_vision_observed_traits_v1` and the prepared
+`openai_identify_vision_observed_traits_v1` and the active
 `openai_identify_vision_confidence_v1` with the same `merian_openai_identify_v1`
 schema and all other exact configuration checks. Observed-traits changes its
-trait instruction and schema description; the prepared confidence revision
-changes the confidence instructions and description. Provenance V2 and response
+trait instruction and schema description; the confidence revision changes the
+confidence instructions and description. Provenance V2 and response
 fields/bounds remain unchanged. Saved results keep their original prompt
 identity. After the additive backend/migration prerequisites above are deployed,
 distribute the updated native reader before deploying this prompt revision:
@@ -2799,10 +2799,13 @@ measures named-answer confidence with a frozen taxonomy and its own report; it
 does not qualify automatic policies or alter historical reports. Each native
 prompt now owns an explicit display mapping. The original and observed-traits
 mappings stay 0.95/0.60; revised confidence also retains that fallback until its
-study passes. The confidence prompt is evaluation-only in backend source. Its
-final reader must be distributed and device-verified before a separately
-authorized activation; there is no new response field or primary-rank
-capability. See the
+study passes. The completed study selected no cutoff. Production now selects
+this prompt through the existing photo binding, while its assessment binding
+remains evaluation-only. The owner reports a released reader and has explicitly
+requested production activation; see the
+[activation record](../release-evidence/openai-confidence-activation-2026-09-30.md)
+for deployment evidence and reader-verification limits. There is no new response
+field or primary-rank capability. See the
 [assessment contract](../rfcs/identification-openai-confidence-assessment-2026-09-30.md)
 and
 [display threshold decision](../rfcs/identification-openai-confidence-display-2026-09-28.md).

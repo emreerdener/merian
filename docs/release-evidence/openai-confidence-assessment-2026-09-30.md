@@ -1,5 +1,9 @@
 # OpenAI confidence preparation — 30 September 2026
 
+Later activation work is tracked separately in the
+[30 September activation record](openai-confidence-activation-2026-09-30.md).
+The inactive and local-only checkpoints below describe the assessment as run.
+
 Status: local implementation and validation; development assessment completed
 with no eligible cutoff; held-out not dispatched; no deployment or distribution.
 

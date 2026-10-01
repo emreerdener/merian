@@ -163,19 +163,22 @@ compares this candidate with the unchanged OpenAI baseline; it does not select a
 production adapter or alter the photo binding.
 
 `openaiPhoto.ts` separately prepares the production `openai_photo_v1` profile.
-Its prompt `openai_identify_vision_observed_traits_v1` requests one to three
-directly supported traits. The same owner projects only that instruction and the
-trait schema description; the schema name `merian_openai_identify_v1`, 1–10
-array bounds, explanation format and all other request settings stay fixed.
-`createOpenAIPhotoAdapter` reuses the bounded transport, adding pinned inline
-input/output moderation to one request and releasing a draft only after its
-native safety policy allows it. Moderation rejection remains a refusal even if
-generated JSON is invalid. Missing evidence cannot become Gemini safety ratings.
-The registry, capability-aware admission and media-promotion path support this
-exact binding. Beta catalog rows select it only for still photos; other profiles
-remain Gemini. The source composition must be deployed before catalog
-activation. Saved usage retains native output/cache-write counts and reported
-cached tokens, without a Gemini tariff; see the
+Its prompt `openai_identify_vision_confidence_v1` retains one to three directly
+supported traits and applies the assessed confidence rules from
+`openaiConfidenceRules.ts`. It removes the prescribed 70–88% range and
+conflicting anchors; finer-detail uncertainty and required alternatives do not
+automatically reduce confidence in a supported named identification. The schema
+name `merian_openai_identify_v1`, 1–10 array bounds, explanation format, model
+and generation settings stay fixed. `createOpenAIPhotoAdapter` reuses the
+bounded transport, adding pinned inline input/output moderation to one request
+and releasing a draft only after its native safety policy allows it. Moderation
+rejection remains a refusal even if generated JSON is invalid. Missing evidence
+cannot become Gemini safety ratings. The registry, capability-aware admission
+and media-promotion path support this exact binding. Beta catalog rows select it
+only for still photos; other profiles remain Gemini. The source composition must
+be deployed before catalog activation. Saved usage retains native
+output/cache-write counts and reported cached tokens, without a Gemini tariff;
+see the
 [safety contract](../../../../../docs/development-guides/10-safety-and-moderation.md#openai-photo-policy).
 
 `openaiPhotoModels.ts` adds two closed evaluation configurations,
@@ -253,22 +256,22 @@ candidate remains excluded from production. Retain the current Sol photo profile
 for both tiers; this completed packet does not qualify confidence thresholds or
 authorize another run.
 
-## Observed-traits production prompt and frozen candidate
+## Confidence production prompt and frozen candidates
 
-The separate `openaiPhotoConfidence.ts` prepares
-`openai_identify_vision_confidence_v1` from this production request, replacing
-only confidence instructions and its schema description while retaining the
-observed-traits improvements. `createOpenAIConfidenceEvaluationAdapter` uses the
-same one-shot transport, identification decoder and moderation. Its accounting
-projection additionally rejects explicitly malformed or contradictory
-cache-write counts, preserving the distinction from an omitted optional
-breakdown; historical production adapters are unchanged. The evaluation-only
-binding is rejected by production admission/result policy; the active production
-selector continues to use observed-traits. The native reader recognizes the
-prepared prompt with its own provisional 0.95/0.60 mapping. See the
-[confidence assessment](../../../../../docs/rfcs/identification-openai-confidence-assessment-2026-09-30.md)
-for fixed study rules, installed-reader evidence and later activation.
-Historical builders and Gemini remain unchanged.
+Production `openaiPhoto.ts` applies `openaiConfidenceRules.ts` after the
+unchanged observed-traits transformation. `openaiPhotoConfidence.ts` uses that
+same request builder for assessment, preserving all 200 frozen request/settings
+digests. `createOpenAIConfidenceEvaluationAdapter` retains its separate
+evaluation binding and accounting checks; that binding is still rejected by
+production admission/result policy. The active production binding remains
+`openai_photo_v1`, with confidence `openai_unqualified_v1`, one identification
+call and native moderation. Original and observed-traits evaluator requests,
+stored scores, historical provenance and Gemini remain unchanged. The native
+reader maps all three known photo prompts separately to 0.95/0.60. The completed
+assessment selected no new cutoff and establishes no calibrated percentages. See
+the
+[activation record](../../../../../docs/release-evidence/openai-confidence-activation-2026-09-30.md)
+for the authorized target, validation, deployment and rollback evidence.
 
 `openaiObservedTraits.ts` prepares `openai_photo_sol_observed_traits_low_v1`
 from the frozen original Sol photo request. It changes only the fixed-count

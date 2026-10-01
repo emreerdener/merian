@@ -1,5 +1,13 @@
 # OpenAI confidence assessment — development results
 
+Activation addendum, 30 September: the owner reported a released iOS build and
+fresh device scan, then explicitly requested activation on production project
+`qlarqavoqhkuwzmevrmf`. The production photo builder now selects the assessed
+confidence prompt. The study and historical findings below are preserved;
+0.95/0.60 and `openai_unqualified_v1` remain unchanged. Deployment and the
+limits of independently captured reader evidence are tracked in the
+[activation record](../release-evidence/openai-confidence-activation-2026-09-30.md).
+
 Date: 30 September 2026
 
 Status: Development collection completed; no eligible cutoff. Held-out

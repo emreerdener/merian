@@ -1,4 +1,8 @@
 import { assert, assertEquals, assertThrows } from "@std/assert";
+import {
+  openAIConfidenceInstructions,
+  openAIConfidenceSchema,
+} from "./openaiConfidenceRules.ts";
 import type { AIAttemptSnapshot, MultimodalAIRequest } from "./contracts.ts";
 import { isIdentificationProviderAssignment } from "./admission.ts";
 import { prepareMultimodalResultPolicy } from "./multimodalResultPolicy.ts";
@@ -78,7 +82,17 @@ Deno.test("observed-traits request changes only two directions and schema identi
     expected.text.format.schema.properties!.extracted_visual_traits
       .description =
         "Extract one to three distinct physical or structural traits directly supported by the supplied visual evidence. Return only supportable observations, without inventing, repeating or inferring unseen anatomy to reach three. Visibility limitations belong in ai_reasoning, not as substitute traits.";
-    assertEquals(production, expected);
+    assertEquals(production, {
+      ...expected,
+      instructions: openAIConfidenceInstructions(expected.instructions),
+      text: {
+        ...expected.text,
+        format: {
+          ...expected.text.format,
+          schema: openAIConfidenceSchema(expected.text.format.schema),
+        },
+      },
+    });
     assertEquals(candidate(request), {
       ...expected,
       text: {

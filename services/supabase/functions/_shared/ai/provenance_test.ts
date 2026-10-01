@@ -66,7 +66,7 @@ Deno.test("OpenAI provenance v2 records native settings without invented Gemini 
   const value = identificationProvenance(snapshot);
   assertEquals(value.version, 2);
   assertEquals(value.provider, "openai");
-  assertEquals(value.prompt, "openai_identify_vision_observed_traits_v1");
+  assertEquals(value.prompt, "openai_identify_vision_confidence_v1");
   assertEquals(value.schema, "merian_openai_identify_v1");
   assertEquals(value.safety, "openai_photo_moderation_v1");
   assertEquals(value.confidence, "openai_unqualified_v1");

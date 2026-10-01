@@ -9,7 +9,13 @@ import {
   type OpenAISchema,
 } from "./openaiRequest.ts";
 
-export const OPENAI_PHOTO_PROMPT = "openai_identify_vision_observed_traits_v1";
+import {
+  OPENAI_PHOTO_CONFIDENCE_PROMPT,
+  openAIConfidenceInstructions,
+  openAIConfidenceSchema,
+} from "./openaiConfidenceRules.ts";
+
+export const OPENAI_PHOTO_PROMPT = OPENAI_PHOTO_CONFIDENCE_PROMPT;
 
 const originalInstruction =
   "You MUST extract 3 structural observations in `extracted_visual_traits` BEFORE determining `is_biological_subject` or `scientific_name`.";
@@ -135,20 +141,24 @@ export function buildOpenAIPhotoRequestParameters(
 ) {
   assertOpenAIPhotoInput(request);
   assertOpenAIPhotoSnapshot(snapshot);
-  // The prompt revision owns both evidence directions. The output shape and
-  // schema name stay stable; frozen evaluation profiles build the old base directly.
+  // Keep observed-traits improvements and apply the assessed confidence rules.
+  // Historical evaluators build their own frozen requests from the old base.
   const baseline = buildOpenAIRequestParameters(
     request,
     openAIEvaluationSnapshot(request),
   );
   return {
     ...baseline,
-    instructions: openAIObservedTraitsInstructions(baseline.instructions),
+    instructions: openAIConfidenceInstructions(
+      openAIObservedTraitsInstructions(baseline.instructions),
+    ),
     text: {
       ...baseline.text,
       format: {
         ...baseline.text.format,
-        schema: openAIObservedTraitsSchema(baseline.text.format.schema),
+        schema: openAIConfidenceSchema(
+          openAIObservedTraitsSchema(baseline.text.format.schema),
+        ),
       },
     },
     moderation: { model: snapshot.moderationModel },

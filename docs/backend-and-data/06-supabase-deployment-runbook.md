@@ -54,6 +54,24 @@ public consent rollout, pair enforcement with a direct **Review permission**
 action on every relevant alert and return to the same saved scan for explicit
 retry. Do not re-enable only the server gate.
 
+## OpenAI confidence prompt activation
+
+The owner-authorized 30 September activation switches the existing production
+photo builder to `openai_identify_vision_confidence_v1`. It uses the completed
+assessment request without changing model/settings, response shape, moderation,
+provider assignment, saved scores or 0.95/0.60 display bands. No migration or
+secret update is required for the switch. The confidence evaluation binding
+remains excluded from production admission. See the
+[activation record](../release-evidence/openai-confidence-activation-2026-09-30.md)
+for the exact source, target, reader evidence, checks and deployment result.
+
+Ship through the ordinary exact-SHA candidate and Production workflow. The
+updated reader recognizes this prompt; old readers may show Needs review. A
+rollback is a reviewed forward source change restoring the observed-traits
+selector/request transformation followed by the same workflow. Keep reader
+support, historical provenance and saved scores intact; never resubmit completed
+observations or change badge cutoffs as part of rollback.
+
 ## Dormant primary identification foundation
 
 The source preparation for explicit primary resolution is not a provider

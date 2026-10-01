@@ -9,6 +9,13 @@ collection not started and 0.95/0.60 retained\
 Suggested owners: Product and Backend, with a biological reference reviewer\
 Companion: [Evaluation Readiness SRD](../rfcs/identification-evaluation-srd.md)
 
+Production integration, 30 September: the owner explicitly requested activation
+of the assessed confidence prompt after reporting a released reader and fresh
+scan. The production path now uses the exact assessed request. This does not
+reopen collection, alter references or select a new threshold. See the
+[activation record](../release-evidence/openai-confidence-activation-2026-09-30.md)
+for validation, deployment and device-evidence limitations.
+
 ## Confidence assessment extension — 30 September 2026
 
 The approved

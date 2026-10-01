@@ -9,6 +9,13 @@ eligible cutoff; held-out unattempted and 0.95/0.60 retained\
 Product authority:
 [Evaluation Readiness PRD](../product/04-identification-evaluation-prd.md)
 
+Production integration, 30 September: the owner explicitly requested activation
+of the assessed confidence prompt after reporting a released reader and fresh
+scan. The production path now uses the exact assessed request. This does not
+reopen collection, alter references or select a new threshold. See the
+[activation record](../release-evidence/openai-confidence-activation-2026-09-30.md)
+for validation, deployment and device-evidence limitations.
+
 ## OpenAI confidence assessment extension — 30 September 2026
 
 The separate

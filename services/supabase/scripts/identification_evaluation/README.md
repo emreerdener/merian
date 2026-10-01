@@ -8,7 +8,12 @@
 for reference, rank, category, outcome, denominator and decision rules. It uses
 the revised production-equivalent `openai_identify_vision_confidence_v1`
 request; the historical evaluator below keeps its original builders and disabled
-OpenAI confidence metrics. The revised prompt is not active in production.
+OpenAI confidence metrics. Production now selects the same revised request under
+its existing `openai_photo_v1` authority; the assessment binding remains
+excluded from production. All 200 frozen request/settings digests were checked
+offline before activation; no further provider calls or study changes were made.
+See the
+[activation record](../../../../docs/release-evidence/openai-confidence-activation-2026-09-30.md).
 
 Prepare one private directory outside Git containing `confidence-corpus.json`,
 `taxonomy.json`, `pricing.json`, `confidence-evidence.json` and the approved
