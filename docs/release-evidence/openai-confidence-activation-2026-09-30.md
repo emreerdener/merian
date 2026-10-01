@@ -1,7 +1,7 @@
 # OpenAI confidence prompt activation — 30 September 2026
 
-Status: source activation prepared; exact-SHA production deployment pending.
-Target: Supabase production `qlarqavoqhkuwzmevrmf` through the existing GitHub
+Status: deployed successfully; exact-SHA production checks passed. Target:
+Supabase production `qlarqavoqhkuwzmevrmf` through the existing GitHub
 `Production` workflow. The owner explicitly requested this activation after
 reporting a newly released iOS build and a fresh device identification. No iOS
 archive/upload, new benchmark, threshold change or other provider activation is
@@ -52,8 +52,9 @@ created.
 - Recursive formatting, lint, function configuration and dependency-graph checks
   passed. The identification entrypoint type check, generated deployment
   identity check and changed-Markdown formatting check passed.
-- Exact GitHub deployment evidence remains pending. Local checks do not
-  establish production activation.
+- GitHub's exact-SHA candidate validation passed, including disposable-database
+  validation, the complete backend suite and database lint/advisors. Production
+  deployment and its live endpoint smoke checks also passed.
 
 The
 [completed assessment](../rfcs/identification-openai-confidence-results-2026-09-30.md)
@@ -62,10 +63,28 @@ population accuracy or calibrated individual percentages.
 
 ## Release and recovery
 
-Commit and push the reviewed source to `main`; the existing workflow validates
-the exact SHA in a disposable database before the protected Production job.
-Retain its function deployment and post-deploy authorization smoke evidence. No
-migration, catalog assignment or new credential is needed for this switch.
+Activation source commit: `0bb150eddcd9cf11799322a047f1e48186fb4b7b`. GitHub
+[production release run 36805540080](https://github.com/emreerdener/merian/actions/runs/36805540080)
+completed successfully after the push to `main`. The generated identification
+backend bundle digest is
+`d94e15ab774091a8c14c6161ce138d4d23b7bb3655189a1abcd647384189cc9b`.
+
+The protected Production job checked out and verified that exact source SHA. It
+deployed `identify-multimodal` to `qlarqavoqhkuwzmevrmf` at
+`2026-10-01T02:32:17Z` (30 September, 9:32 p.m. CDT). The affected dependency
+plan also redeployed `identify`, `identify-describe`, `audio-spec`,
+`enrich-scan` and `refresh-species-model-content`. All function deployments
+succeeded.
+
+The production endpoint smoke step passed; the identification route reached its
+fail-closed Merian handler at `2026-10-01T02:34:30Z`. The subsequent Ghost merge
+health audit and the overall deploy job also succeeded. No new migration,
+catalog assignment or credential was introduced for this switch. Existing
+workflow secret synchronization and privilege checks remained in place.
+
+No paid live identification was submitted during activation. The deployed source
+selects the revised prompt; post-deploy authorization smokes do not establish
+the biological correctness or confidence score of a new photograph.
 
 Recovery is a reviewed forward source change restoring the previous
 observed-traits prompt selector and request transformation, followed by the same
@@ -73,6 +92,6 @@ validated Production workflow. Keep the confidence reader, saved results,
 historical provenance and evaluation journals. Never retry completed scans or
 rewrite scores during rollback. No rollback has been performed.
 
-Monitor the deployment and its built-in post-deploy checks through completion;
-subsequent beta photo checks belong to the owner. A successful deployment proves
-the selected code was released, not biological correctness of a future scan.
+Deployment and built-in post-deploy checks were followed through completion.
+Subsequent beta photo checks belong to the owner. Existing scores are preserved;
+new identification requests use the revised prompt.
