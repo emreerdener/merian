@@ -170,8 +170,8 @@ assert_rejected reconstructed-store-path "Store recovery must not reconstruct th
 
 assert_rejected missing-v52-full-tail "Full migration plan must finish with the shared V51 to V52 to V53 stages."
 assert_rejected missing-v52-recent-tail "Recent V50 plan must finish with the shared V51 to V52 to V53 stages."
-assert_rejected reordered-v52-schema "Full migration plan must end its schemas with frozen V51 and V52 then active V53."
-assert_rejected missing-v51-plan "Recent V51 plan must end its schemas with frozen V51 and V52 then active V53."
+assert_rejected reordered-v52-schema "Full migration plan must end its schemas with frozen V51 and V52 and V53 then active V54."
+assert_rejected missing-v51-plan "Recent V51 plan must end its schemas with frozen V51 and V52 and V53 then active V54."
 assert_rejected missing-v51-source "RecentSourceSchema must include V51."
 assert_rejected missing-v51-dispatch "ModelContainerFactory recent-source dispatch must handle V51 explicitly."
 

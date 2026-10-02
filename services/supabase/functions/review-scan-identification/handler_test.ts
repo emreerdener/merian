@@ -40,28 +40,33 @@ function request(value: unknown) {
 function harness(revision = 0) {
   const calls: string[] = [];
   const deps: NonNullable<Parameters<typeof handleReview>[3]> = {
-    find: async (_db, owner, scan) => {
+    find: (_db, owner, scan) => {
       assertEquals(owner, id);
       assertEquals(scan, id);
       calls.push("find");
-      return { revision, primary: null, name: "Fixtureus species" };
+      return Promise.resolve({
+        revision,
+        primary: null,
+        name: "Fixtureus species",
+      });
     },
-    admit: async () => {
+    admit: () => {
       calls.push("admit");
+      return Promise.resolve();
     },
-    verify: async () => {
+    verify: () => {
       calls.push("verify");
-      return {
+      return Promise.resolve({
         scientific_name: "Fixtureus species",
         gbif_taxon_key: 987600001,
         rank: "SPECIES",
         status: "ACCEPTED",
         kingdom: "Plantae",
-      };
+      });
     },
-    apply: async () => {
+    apply: () => {
       calls.push("apply");
-      return receipt;
+      return Promise.resolve(receipt);
     },
   };
   return { calls, deps };
@@ -89,13 +94,12 @@ Deno.test("confirmation retry checks the receipt before quota and taxonomy", asy
 });
 Deno.test("a mismatched retry propagates its atomic revision conflict", async () => {
   const { calls, deps } = harness(1);
-  deps.apply = async () => {
-    throw publicHttpError(
+  deps.apply = () =>
+    Promise.reject(publicHttpError(
       409,
       "Changed",
       "identification_review_revision_conflict",
-    );
-  };
+    ));
   await assertRejects(() => handleReview(request(base), user, admin, deps));
   assertEquals(calls, ["find"]);
 });
