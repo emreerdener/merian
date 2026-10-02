@@ -137,6 +137,24 @@ OpenAI production result is emitted.
 
 ## Alternative-provider evaluation
 
+`openaiPhotoEvidence.ts` applies the existing rank-limit wording to the
+activated confidence photo builder under separate evaluation authority. Only
+instructions and schema descriptions change; generation, pixels, explanation
+format, confidence directions, moderation and output shape remain unchanged. The
+[1 October photo decision](../../../../../docs/rfcs/identification-photo-provider-decision-2026-10-01.md)
+owns development selection and the separately frozen provider comparison. This
+candidate does not alter production admission or the historical rank candidate.
+Its completed 60-observation validation did not justify promotion; released
+Sol-low remains the beta recommendation.
+
+`openaiPhotoReasoning.ts` defines closed low/medium evaluation snapshots using
+the activated production photo builder. Low has the same request bytes; medium
+changes only `reasoning.effort`. The shared adapter preserves native moderation,
+bounded transport and strict usage accounting. Neither snapshot is admitted by
+the production catalog. The separate
+[12-call pilot](../../../../../docs/rfcs/identification-sol-reasoning-pilot-2026-09-30.md)
+does not widen historical evaluator contracts or change Free/Pro assignment.
+
 `openaiRequest.ts` and `openai.ts` implement an evaluation-only `gpt-6-sol`
 photo/text binding through the same generic single-invocation interface. The
 beta catalog selects the separate `openai_photo_v1` user-request binding for
@@ -215,6 +233,23 @@ catalog and production result policy reject it. See the
 for assistant review, v2 mapping records, spending and interruption controls.
 
 ## Isolated explicit-primary Sol candidate
+
+The October follow-up `openaiPhotoPrimary.ts` prepares a **different,
+evaluation-only** `openai_photo_confidence_primary_low_v1` candidate from the
+current confidence photo builder. It reuses the strict primary
+decoder/normalizer below but changes only resolution, rank-consistent names,
+species-only alternatives and their instructions/format identity. Current
+confidence, traits, explanation, image inputs, generation and moderation
+settings remain intact. `createOpenAIPhotoPrimaryEvaluationAdapter` connects it
+to the bounded transport with exact-model decoding and conservative cache-write
+accounting. The separate 20-observation, 40-call development runner records
+content-free normalization diagnostics; paid dispatch requires an approved plan.
+It has no production admission or durable production schema identity. See the
+[development protocol](../../../../../docs/rfcs/identification-photo-primary-screen-2026-10-01.md)
+for the completed 40-call screen. The candidate improved observed supported
+outcomes from 7/20 to 11/20 but failed its regression and abstention criteria;
+it remains evaluation-only. Historical candidates and their results below remain
+unchanged.
 
 `openaiSolPrimary.ts`, `openaiSolPrimaryInstructions.ts` and
 `openaiSolPrimaryContract.ts` prepare the separate
@@ -562,3 +597,10 @@ while keeping descriptive evidence. New immutable export snapshots freeze the
 SQL predicate's boolean for the DwC-A worker. See the
 [chat/export record](../../../../../docs/rfcs/identification-chat-export-metrics-2026-09-26.md)
 for compatibility, rollout and verification.
+
+The trusted `createOpenAIPhotoEvaluationTransport` helper also supports the
+scripts-only diagnostic-feature candidate through a supplied request builder and
+decoder. It retains exact-model, moderation, service-tier and usage checks. It
+does not register a production binding. Collection, private review and approval
+controls are owned by the
+[feature workflow](../../../../../docs/rfcs/identification-photo-feature-workflow-2026-10-01.md).

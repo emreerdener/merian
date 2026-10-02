@@ -102,6 +102,9 @@ import SwiftData
     /// Generation currently allowed to mutate the global upload-sync latch.
     /// Expiration and completion paths must compare this value before clearing state.
     @ObservationIgnored var syncGeneration: UUID?
+    var identificationReviewSyncGeneration: UUID?
+    var identificationReviewSyncTask: Task<Void, Never>?
+
     /// Active collection sync task. Cancelled immediately on connectivity loss.
     /// Returns `true` when the attempt succeeded and `false` when the pending bit
     /// should be left in place for a later retry opportunity.
@@ -506,6 +509,8 @@ import SwiftData
                         }
                     }
                     self.syncGeneration = nil
+                    self.identificationReviewSyncGeneration = nil
+                    self.identificationReviewSyncTask?.cancel()
                     self.collectionSyncTask?.cancel()
                     // Cancel any pending backoff retry — it must not fire while offline.
                     self.retryBackoffTask?.cancel()

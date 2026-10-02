@@ -212,9 +212,9 @@ require_v52_tail() {
   local plan_name="$2"
   local compact
   compact="$(tr '\n' ' ' <<< "$plan_text")"
-  grep -Eq 'MerianSchemaV51\.self,[[:space:]]*MerianSchemaV52\.self,[[:space:]]*MerianSchemaV53\.self,?[[:space:]]*\]' <<< "$compact" \
-    || fail "$plan_name must end its schemas with frozen V51 and V52 then active V53."
-  grep -Eq 'migrateV51toV52,[[:space:]]*(MerianMigrationPlan\.)?migrateV52toV53,?[[:space:]]*\]' <<< "$compact" \
+  grep -Eq 'MerianSchemaV51\.self,[[:space:]]*MerianSchemaV52\.self,[[:space:]]*MerianSchemaV53\.self,[[:space:]]*MerianSchemaV54\.self,?[[:space:]]*\]' <<< "$compact" \
+    || fail "$plan_name must end its schemas with frozen V51 and V52 and V53 then active V54."
+  grep -Eq 'migrateV51toV52,[[:space:]]*(MerianMigrationPlan\.)?migrateV52toV53,[[:space:]]*(MerianMigrationPlan\.)?migrateV53toV54,?[[:space:]]*\]' <<< "$compact" \
     || fail "$plan_name must finish with the shared V51 to V52 to V53 stages."
 }
 
@@ -384,8 +384,8 @@ contains "$schema_file" "MerianSchemaV49.CapturedMediaEntry.makeEntries(" \
   || fail "V49 queue repair must create frozen V49 captured-media rows."
 contains "$test_file" "MerianSchemaV49.OfflineQueuedScan(id: queuedId)" \
   || fail "V49 disk fixtures must be created with the frozen V49 queue model."
-contains "$alias_file" "typealias CurrentSchema = MerianSchemaV53" \
-  || fail "CurrentSchema must remain aligned with V53."
+contains "$alias_file" "typealias CurrentSchema = MerianSchemaV54" \
+  || fail "CurrentSchema must remain aligned with V54."
 contains "$alias_file" "typealias ActiveOfflineQueuedScanGoalHint = MerianActiveSchemaV50.OfflineQueuedScanGoalHint" \
   || fail "The active goal-hint alias must remain aligned with active V50."
 contains "$schema_file" "static let migrateV50toV51 = MigrationStage.custom" \
@@ -528,9 +528,9 @@ recent_v51_plan="$(extract_block "enum MerianRecentV51MigrationPlan" "enum Meria
 require_v52_tail "$recent_v50_plan" "Recent V50 plan"
 require_v52_tail "$released_active_v50_plan" "Released-active V50 plan"
 require_v52_tail "$recent_v51_plan" "Recent V51 plan"
-grep -Fq '[MerianSchemaV51.self, MerianSchemaV52.self, MerianSchemaV53.self]' <<< "$recent_v51_plan" \
+grep -Fq '[MerianSchemaV51.self, MerianSchemaV52.self, MerianSchemaV53.self, MerianSchemaV54.self]' <<< "$recent_v51_plan" \
   || fail "Recent V51 plan must validate only the V51, V52 and V53 tail."
-grep -Fq '[MerianMigrationPlan.migrateV51toV52, MerianMigrationPlan.migrateV52toV53]' <<< "$recent_v51_plan" \
+grep -Fq '[MerianMigrationPlan.migrateV51toV52, MerianMigrationPlan.migrateV52toV53, MerianMigrationPlan.migrateV53toV54]' <<< "$recent_v51_plan" \
   || fail "Recent V51 plan must run only the additive provenance and primary identity stages."
 contains "$schema_file" "static let migrateV51toV52 = MigrationStage.lightweight(" \
   || fail "V51 to V52 must remain an additive lightweight migration."
@@ -790,6 +790,7 @@ checksum_retry_dispatch="$(
 )"
 checksum_retry_markers=(
   'named: "checksum-current-store"'
+  'named: "checksum-recent-v53"'
   'named: "checksum-recent-v52"'
   'named: "checksum-recent-v51"'
   'named: "checksum-recent-v50-released-active"'
@@ -919,7 +920,13 @@ done
 contains "$schema_v53_file" "enum MerianSchemaV53: VersionedSchema" || fail "Missing active V53 schema."
 contains "$schema_file" "static let migrateV52toV53 = MigrationStage.lightweight(" || fail "V52 to V53 must remain additive."
 recent_v52_plan="$(extract_block "enum MerianRecentV52MigrationPlan" "END_OF_FILE")"
-grep -Fq '[MerianSchemaV52.self, MerianSchemaV53.self]' <<< "$recent_v52_plan" || fail "Missing V52 source-isolated plan."
-grep -Fq '[MerianMigrationPlan.migrateV52toV53]' <<< "$recent_v52_plan" || fail "Missing V52 additive stage."
+grep -Fq '[MerianSchemaV52.self, MerianSchemaV53.self, MerianSchemaV54.self]' <<< "$recent_v52_plan" || fail "Missing V52 source-isolated plan."
+grep -Fq '[MerianMigrationPlan.migrateV52toV53, MerianMigrationPlan.migrateV53toV54]' <<< "$recent_v52_plan" || fail "Missing V52 additive stage."
 contains "$test_file" "v52StoreMigratesWithPrimaryIdentityAndPreservesLegacyState" || fail "Missing V52 disk migration and relaunch fixture."
 contains "$startup_scope_file" "$schema_v53_file" || fail "Startup Safety must include active V53."
+
+[ "$(shasum -a 256 "apps/ios/Merian/Models/Schema/SchemaV53ScanSnapshots.swift" | awk '{print $1}')" = "ab6103db4dd85791dd35445a0e75045897fad3a7958bf7570aea2dd83257e157" ] || fail "V53 frozen snapshot changed: ScanSnapshots"
+
+[ "$(shasum -a 256 "apps/ios/Merian/Models/Schema/SchemaV53QueueSnapshots.swift" | awk '{print $1}')" = "7a3dcc94b6a6ec7cd606bd0e525520c36529c1e8d9ad68e1dacfaa06f772c81c" ] || fail "V53 frozen snapshot changed: QueueSnapshots"
+
+contains "$schema_file" "static let migrateV53toV54 = MigrationStage.lightweight(" || fail "Missing V54 additive stage."

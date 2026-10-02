@@ -5,10 +5,11 @@ import SwiftUI
 struct CandidateVerificationView: View {
     let isWeakMatch: Bool
     let confirmButtonTitle: String
-    let onConfirm: () -> Void
+    let onConfirm: () async -> Void
     var onAskCommunity: (() -> Void)?
     let onDismiss: () -> Void
     var showDismissButton: Bool = true
+    var showsOriginalConfirmation: Bool = true
     let feedback: IdentificationReviewFeedbackDependencies
 
     @Environment(\.colorScheme) private var colorScheme
@@ -35,11 +36,13 @@ struct CandidateVerificationView: View {
                 
                 // Action Buttons
                 VStack(spacing: 12) {
-                    SlideToConfirm(
-                        label: confirmButtonTitle,
-                        onConfirm: onConfirm,
-                        feedback: feedback
-                    )
+                    if showsOriginalConfirmation {
+                        SlideToConfirm(
+                            label: confirmButtonTitle,
+                            onConfirm: onConfirm,
+                            feedback: feedback
+                        )
+                    }
                     
                     if let onAskCommunity {
                         Button {

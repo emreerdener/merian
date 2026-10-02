@@ -29,6 +29,7 @@ if (import.meta.main) {
     skillCatalog: [
       "merian-api-contracts",
       "merian-docs-sync",
+      "merian-identification-evaluation",
       "merian-incident-response",
       "merian-ios",
       "merian-release",

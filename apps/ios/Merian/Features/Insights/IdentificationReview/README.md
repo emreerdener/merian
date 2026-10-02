@@ -121,3 +121,60 @@ refinement loads. `IdentificationReviewArchitectureTests` enforces the folder
 owners, Services-only live effects, platform-neutral Models, retired legacy
 locations, absence of unchecked sendability, and the 600-line production-file
 ceiling.
+
+## Identification rejection menu action
+
+**Mark as incorrect** is the last action in the scan menu’s Identification
+section and appears below Ask the community in the confidence sheet’s button
+stack. Both actions are red and show a confirmation alert with a destructive
+Mark as incorrect action and Cancel before saving. Confirmation calls the
+retained `InferenceEngine.markIdentificationIncorrect` workflow for the captured
+scan. Already rejected, pending, and ineligible identifications do not offer the
+action. The original identification names, reasoning, and reference content
+remain visible. The confidence badge turns red and reads **Incorrect**, and the
+confidence sheet heading reflects that state. A red **Marked as incorrect** card
+above the candidates mirrors the Match confirmed layout, with an inline **Undo**
+action.
+
+Saved review decisions and queued operations remain intact. A presentation-only
+copy restores the original AI result and confidence without restoring species
+authority, statistics, or Field Trip credit. Background review sync continues.
+
+When an identification is marked incorrect, candidate cards and the end of the
+candidate swipe deck hide the green original-identification confirmation slider.
+Alternative candidate selection remains available.
+
+After a rejection is saved locally, a brief **Marked as incorrect** toast offers
+**Undo**. The menu offers **Undo incorrect** while the original rejection
+remains reversible. The confidence sheet offers **Undo** in the incorrect-state
+card; the completed candidate-review screen retains its neutral gray Undo
+button. The menu shows **Incorrect mark undone** after Undo is saved locally.
+Undo needs no confirmation, restores the confidence presentation and candidate
+confirmation controls, and does not confirm the species. It uses the durable
+review queue, including when the rejection has not yet synced. Reanalysis
+proposals awaiting acceptance and conflicts do not offer rejection Undo.
+
+After Undo, **Mark as incorrect** is available immediately, including while Undo
+is waiting to sync. Repeated rejection and Undo operations remain ordered in the
+durable queue.
+
+The exhausted candidate-review screen offers **Mark as incorrect** last in its
+action stack as a red slide-to-confirm control. Completing the slide saves the
+mark directly, without an additional dialog, and shows the immediate Undo toast.
+A reversible rejection replaces that action with **Undo incorrect**. The
+completion screen scrolls when its content exceeds the available height.
+
+**Review alternatives** remains in the scan menu after all candidates have been
+reviewed. It reopens the stored candidate list without clearing saved completion
+state or resurfacing the inline candidate card.
+
+In the confidence sheet, the incorrect-state card replaces the standalone gray
+Undo button. Menu and completed candidate-review Undo actions remain available.
+
+Confirmation sliders await their action, show progress while it runs, and reset
+when the action returns instead of permanently displaying a success checkmark.
+The candidate owner reports success only when the same scan is confirmed and no
+AI-review intent remains pending. Failed confirmation can be retried; an already
+queued confirmation explains that it is waiting to sync without enqueueing a
+duplicate. Explicit-primary confirmation awaits the existing serialized review
+operation before evaluating the result.

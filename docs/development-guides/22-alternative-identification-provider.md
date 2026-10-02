@@ -1,5 +1,54 @@
 # Alternative identification provider evaluation
 
+Start with the [research index](../research/identification/README.md) and its
+experiment/data registers for the current decision and exposure history. The
+[capability matrix](../research/identification/capabilities.md) records
+task-specific evidence; the
+[qualification contract](../research/identification/benchmark-contract.md) owns
+prospective acceptance and assignment rules. This guide owns implementation and
+operating procedures; chronological study sections retain their original scope
+and do not authorize new collection.
+
+The
+[1 October calibration gap audit](../rfcs/identification-calibration-gap-audit-2026-10-01.md)
+reuses the existing explicit-primary foundation and defines development-only
+mapping diagnostics plus a current-confidence explicit-resolution candidate. It
+made no provider calls and changed no thresholds. Unknown name hashes remain
+unverified; the completed provider comparison stays closed.
+
+The completed, separately authorized
+[1 October photo decision](../rfcs/identification-photo-provider-decision-2026-10-01.md)
+retains released Sol-low for beta. On 60 balanced held-out observations,
+released OpenAI supported 45/60 outcomes, Gemini Pro 49/60 and the evidence
+candidate 47/60. Neither challenger met the frozen superiority rule; the
+candidate lost three species-supported outcomes. The 220-call study accounted
+for $8.023640041 with zero outstanding reservations. The smaller held-out sample
+follows precollection clustering exclusions; conclusions concern that diagnostic
+mixture and assistant-reviewed references. Historical studies remain closed, and
+production is unchanged.
+
+The completed owner-approved
+[focused Gemini recheck](../rfcs/identification-gemini-photo-recheck-2026-09-30.md)
+made six Gemini Pro calls on the same four prepared assets as the completed
+reasoning pilot. Gemini matched two of three reviewed reference cases versus one
+for recorded Sol-low; its butterfly answer remained unmapped and unverified.
+Gemini returned Golden Pothos on all three supplied-photo repeats, which lack an
+independent reference, and averaged 15.771 seconds versus Sol-low's 6.805
+seconds. The selected diagnostic cases do not establish provider-wide accuracy.
+Both runs closed at $0.686069501 conservative accounted cost under the prior $10
+ceiling; no further calls or production changes followed. Its
+[local tooling](../../services/supabase/scripts/identification_evaluation/README.md#focused-gemini-photo-recheck)
+uses the existing production Gemini request without changing production routing.
+
+The separate
+[Sol low/medium reasoning pilot](../rfcs/identification-sol-reasoning-pilot-2026-09-30.md)
+uses the activated confidence prompt, twelve predeclared calls and a $10 cap.
+Its
+[tooling procedure](../../services/supabase/scripts/identification_evaluation/README.md#sol-reasoning-pilot)
+owns `evaluate_openai_reasoning.ts` and the hidden-key `run_openai_reasoning.sh`
+launcher. It does not change production assignment, historical profiles, or
+confidence thresholds.
+
 The first alternative is `gpt-6-sol` through OpenAI's Responses API. The shared
 adapter supports controlled local and hosted evaluation. The separate production
 `openai_photo_v1` binding adds pinned inline moderation and V2 result metadata;
@@ -994,3 +1043,17 @@ boundaries. Follow the
 Photo/text could then receive one provider and audio-containing observations
 another, using complete-task capability checks. This slice enables that work
 without changing today's production assignment.
+
+## Current-baseline primary development screen
+
+The
+[separate development protocol](../rfcs/identification-photo-primary-screen-2026-10-01.md)
+connects the current-baseline explicit-primary candidate to the existing
+evaluator. It schedules 20 exposed observations in two arms with content-free
+normalization diagnostics, paired pass criteria, durable no-retry claims and a
+separate $10/40-call ceiling. The completed screen used 40 calls and
+$1.541925002 in conservative accounting. Supported outcomes rose from 7/20 to
+11/20, but the candidate failed the frozen screen: one species-reference loss,
+one historical gain not retained and no appropriate abstention on six unresolved
+cases. Retain the released configuration. The budget is closed; production
+routing and confidence thresholds remain unchanged.

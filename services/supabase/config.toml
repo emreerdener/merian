@@ -739,3 +739,6 @@ verify_jwt = false
 
 [functions.species-dictionary-for-viewer]
 verify_jwt = false
+
+[functions.review-scan-identification]
+verify_jwt = false

@@ -17,8 +17,8 @@ TestFlight, App Store, support, and QA.
 
 - A short update sheet introduces 2.2× faster AI identifications, location
   search in Scans and Explore maps, descriptions available to everyone to help
-  improve accuracy, emoji reactions on Explore posts, and louder previews for
-  quiet recordings.
+  improve accuracy, marking AI identifications as incorrect, emoji reactions on
+  Explore posts, and louder previews for quiet recordings.
 - Existing users see each set of highlights once after updating. Reopen it from
   Settings → Resources → What’s new.
 

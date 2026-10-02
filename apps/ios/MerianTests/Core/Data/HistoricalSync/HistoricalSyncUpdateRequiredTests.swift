@@ -30,7 +30,7 @@ struct HistoricalSyncUpdateRequiredTests {
             let defaults = try #require(UserDefaults(suiteName: suite))
             defer { defaults.removePersistentDomain(forName: suite) }
             let lease = AccountBoundWorkLease(id: UUID(), session: AuthTransitionSession(userID: UUID(), isAnonymous: false))
-            let update = AppUpdateCoordinator(defaults: defaults, buildIdentity: "1:10") { lease.session.userID }
+            let update = AppUpdateCoordinator(defaults: defaults, buildIdentity: "1:10", allowsUpdatePrompt: true) { lease.session.userID }
             var fetchCount = 0, finishCount = 0
             let client = HistoricalSyncCloudClient(
                 beginAccountWork: { lease }, finishAccountWork: { _ in finishCount += 1 },
@@ -65,7 +65,7 @@ struct HistoricalSyncUpdateRequiredTests {
         let defaults = try #require(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         let lease = AccountBoundWorkLease(id: UUID(), session: AuthTransitionSession(userID: UUID(), isAnonymous: false))
-        let update = AppUpdateCoordinator(defaults: defaults, buildIdentity: "1:10") { lease.session.userID }
+        let update = AppUpdateCoordinator(defaults: defaults, buildIdentity: "1:10", allowsUpdatePrompt: true) { lease.session.userID }
         var fetchCount = 0, collectionFetchCount = 0, finishCount = 0
         let client = HistoricalSyncCloudClient(
             beginAccountWork: { lease }, finishAccountWork: { _ in finishCount += 1 },
@@ -102,7 +102,7 @@ struct HistoricalSyncUpdateRequiredTests {
         let defaults = try #require(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         let account = UUID()
-        let update = AppUpdateCoordinator(defaults: defaults, buildIdentity: "1:10") { account }
+        let update = AppUpdateCoordinator(defaults: defaults, buildIdentity: "1:10", allowsUpdatePrompt: true) { account }
         update.record(.history)
         update.dismiss()
         let manager = OfflineQueueManager.shared

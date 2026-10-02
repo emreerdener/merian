@@ -1,5 +1,191 @@
 # Identification evaluation tooling
 
+For study selection, completed results and data lineage, start with the
+[research index](../../../../docs/research/identification/README.md). This file
+owns evaluator implementation and commands. Historical examples and prepared
+packets are not current execution authorizations.
+
+## Prospective development diagnostics
+
+`developmentProjection.ts` exposes the pure `projectDevelopmentDraft` boundary
+for in-memory legacy or explicit-primary photo drafts. Its separately versioned
+`photo_development_diagnostics_v1` record retains bounded pre/post name flags,
+sanitizer/pet changes, mapping stages/status, declared/effective resolution and
+catalog rank. Names, explanations and raw normalization diagnostics never
+escape. The returned observation uses the existing scorer contract; a
+declared/catalog rank conflict is `invalid_output`, and unmapped/ambiguous names
+stay unverified. Legacy output never acquires an inferred declared rank.
+
+This helper performs no I/O or provider invocation. Collectors must supply
+moderation, accounting, durable claims and exact profile binding before using
+it. The completed
+[current-primary screen](../../../../docs/rfcs/identification-photo-primary-screen-2026-10-01.md)
+integrates this projection with those controls. No existing historical runner or
+record parser is changed. `../identification_evaluation_development_test.ts`
+covers the projection offline; the new request builder is
+`functions/_shared/ai/openaiPhotoPrimary.ts`. See the
+[implementation checkpoint](../../../../docs/rfcs/identification-calibration-gap-audit-2026-10-01.md#offline-implementation-follow-up--1-october-2026)
+for the original isolation checkpoint; the later screen completed without
+qualifying the candidate.
+
+## Separate photo provider decision
+
+`../evaluate_photo_decision.ts` and `photoDecision*.ts` reuse the current
+corpus, builders, accounting, taxonomy and journal helpers for the
+[1 October decision](../../../../docs/rfcs/identification-photo-provider-decision-2026-10-01.md).
+The completed study retains released Sol-low: neither challenger met the frozen
+superiority rule. It made 220 calls, accounted for $8.023640041 and left zero
+outstanding reservations. Closed packet evidence never authorizes another run.
+
+A private `decision-plan.json` binds 20 exposed development and 60 reviewed
+validation cases, both recipient permissions, root, expiry and exposure review.
+Retain `confidence-corpus.json`, `confidence-evidence.json`, `taxonomy.json`,
+`openai-pricing.json`, `gemini-pricing.json`, `exposure-review.json`, and
+`prior-exposure-evidence.json` with approved assets. The exposure record binds
+semantic clusters across all original cases; prior manifest/claims prove the
+recorded development exposure. The old corpus itself stays immutable.
+
+Offline `prepare`, `report`, `next`, and `select` require network/environment
+access denied, repository/packet reads, packet writes and Git execution.
+`prepare` exclusively freezes `decision-manifest.json`; `select` exclusively
+freezes `validation-freeze.json` after all forty development outcomes. Source or
+input drift rejects resume. `decision-attempts/` owns fsynced claims/results;
+`decision-report.json` is derived and never authorizes replay.
+
+`bash services/supabase/scripts/run_photo_decision.sh PRIVATE_PACKET` uses one
+hidden session for both existing keys, or the already established scoped
+in-memory session. It launches one isolated provider process per scheduled arm;
+OpenAI cannot read Gemini credentials and conversely. No automatic retry exists.
+The internal `--one-live` mode claims one slot before invocation. A sibling
+`.photo-decision-authorizations/` receipt binds the owner authorization and
+packet root. Copying or resetting packets cannot establish a new spending
+authority. The launcher stops on unknown accounting, budget exhaustion or a
+failed command. It never emits provider prose, raw bodies or keys. See the RFC
+for the frozen selection/statistics, private artifact list and production
+compatibility limits.
+
+## Focused Gemini photo recheck
+
+`../evaluate_gemini_photo_baseline.ts` and `geminiPhotoBaselinePilot.ts` own the
+six-call Gemini follow-up to the completed Sol reasoning pilot. Follow the
+[fixed comparison contract](../../../../docs/rfcs/identification-gemini-photo-recheck-2026-09-30.md).
+This local path invokes the existing Gemini Pro adapter and compares with
+recorded OpenAI results; it changes no deployed profile and makes no OpenAI
+calls.
+
+The approved September 30 packet completed all six attempts and is closed. See
+the linked comparison record for outcomes, costs and evidence hashes. Preserve
+its claims and original OpenAI baseline; these instructions do not authorize
+another paid run.
+
+Prepare a new private 0700 directory outside Git. Copy the original
+`reasoning-plan.json`, `reasoning-manifest.json` and `reasoning-report.json`
+unchanged as `baseline-plan.json`, `baseline-manifest.json` and
+`baseline-report.json`; copy its `taxonomy.json` and exact approved `assets/`.
+Add a current `evaluation_pricing_v1` card in `pricing.json` and
+`gemini-plan.json` with version `gemini_photo_baseline_pilot_v1`, `mode`, opaque
+`authorizationRef`, canonical real-path `packetRootDigest`, canonical JSON
+`baselineReportDigest`, ISO `retainUntil`, `paidServiceApproved: true`, and
+`inputPermission: gemini`. These fields record the owner's actual authorization;
+copying or editing them does not establish a new authorization.
+
+With `gemini_dir` set to that directory, prepare without credentials or network:
+
+```bash
+deno run --frozen --no-prompt --cached-only --deny-net --deny-env \
+  --config services/supabase/functions/deno.json \
+  --allow-read="$PWD,$gemini_dir" --allow-write="$gemini_dir" --allow-run=git \
+  services/supabase/scripts/evaluate_gemini_photo_baseline.ts prepare "$gemini_dir"
+```
+
+Start the hidden-key launcher:
+
+```bash
+bash services/supabase/scripts/run_gemini_photo_baseline.sh "$gemini_dir"
+```
+
+Paste the existing paid Gemini key at its hidden prompt. The scrubbed process
+environment grants the exact SDK variable allowlist; overrides remain unset. The
+key never enters an argument or artifact. The sibling
+`.gemini-baseline-authorizations/` receipt binds the original path and frozen
+manifest. `gemini-attempts/` holds claims and safe result projections;
+`gemini-report.json` includes prior OpenAI cost and outstanding reservations.
+The launcher succeeds only after all six calls complete without a stop. Use
+`report` instead of `prepare` for an offline report refresh. Do not clear
+claims, replace failed cases or copy the packet to repeat calls. No explanation
+review or owner rating is required.
+
+## Sol reasoning pilot
+
+`../evaluate_openai_reasoning.ts` owns a separate fixed 12-call, $10 comparison
+of Sol-low and Sol-medium using the activated confidence prompt. Follow the
+[pilot contract](../../../../docs/rfcs/identification-sol-reasoning-pilot-2026-09-30.md)
+for case selection, review, limitations and the production integration boundary.
+Production and historical evaluator profiles remain unchanged.
+
+Prepare a private 0700 directory outside Git with `reasoning-plan.json`,
+`taxonomy.json`, `pricing.json` and metadata-free media in `assets/`. The plan
+uses `version: openai_photo_reasoning_pilot_v1`, `mode: live`, an opaque
+`authorizationRef`, a `packetRootDigest` (the canonical JSON fingerprint of the
+approved directory's real path), and exactly four `cases`. Each case has a
+photo-only development `input` with no description, `reference`, bounded
+`facts`, opaque `evidenceRef`, and true `rightsApproved`/`personalDataExcluded`.
+The first reference is null (repeatability only); the other three use
+predeclared reviewed references. Reuse `evaluation_taxonomy_v2` and
+`evaluation_openai_pricing_v1`; source facts never enter provider requests.
+
+With `pilot_dir` set to that directory, compute `packetRootDigest` before
+freezing the approved plan:
+
+```bash
+python3 - "$pilot_dir" <<'PY'
+import hashlib, json, os, sys
+value = json.dumps(os.path.realpath(sys.argv[1]), ensure_ascii=False)
+print(hashlib.sha256(value.encode("utf-8")).hexdigest())
+PY
+```
+
+Then freeze and inspect the packet offline:
+
+```bash
+deno run --frozen --no-prompt --deny-net --deny-env \
+  --config services/supabase/functions/deno.json \
+  --allow-read="$PWD,$pilot_dir" --allow-write="$pilot_dir" --allow-run=git \
+  services/supabase/scripts/evaluate_openai_reasoning.ts prepare "$pilot_dir"
+```
+
+After the owner-approved preparation, start the hidden-key launcher:
+
+```bash
+bash services/supabase/scripts/run_openai_reasoning.sh "$pilot_dir"
+```
+
+The assistant completes each transient explanation review. No further owner
+scoring is required. The launcher grants only the OpenAI endpoint, loopback
+review, private packet, and fixed browser opener. Its child environment contains
+only the evaluation key and runtime essentials; broad service credentials are
+denied. It never saves a key or passes it in an argument.
+
+`reasoning-manifest.json` freezes all twelve assignments, source and input
+digests. Live execution requires that manifest and binds the approval to its
+canonical packet directory through a sibling `.reasoning-authorizations/`
+receipt. The launcher grants access to that receipt directory; copying the
+packet cannot reuse its authorization, including when moved to a different
+parent directory: preparation also verifies the root fixed in the approved plan.
+`reasoning-attempts/` contains exclusive claims, bounded result facts and enum
+reviews. A normalized scientific-name hash supports repeatability comparisons
+without deriving rank or correctness for unmapped names. `reasoning-report.json`
+distinguishes completion from stops; the launcher exits successfully only after
+all twelve reviewed calls complete. Use the offline `report` command in place of
+`prepare` to inspect the existing run. Never delete claims or create a fresh
+packet to replay a failed/uncertain call. Missing usage retains the reservation
+and stops; reviewed reconciliation or another experiment requires a separately
+recorded decision.
+
+The plan is owner-controlled input, not an authorization service. Rewriting its
+root or authorization reference is outside the approved run and requires a new
+explicit decision; local receipts do not authenticate manually edited plans.
+
 ## OpenAI confidence assessment
 
 `../assess_openai_confidence.ts` owns the separate
@@ -1885,3 +2071,80 @@ requires the reviewed 60-group development corpus, exact processor/pricing
 records and an explicitly authorized bounded run. Held-out evaluation and
 decision qualification remain later work. Neither synthetic results nor the
 small provisional pilot establish a provider accuracy, cost or latency win.
+
+## Current-baseline primary development screen
+
+The
+[separate development protocol](../../../../docs/rfcs/identification-photo-primary-screen-2026-10-01.md)
+connects the current-baseline explicit-primary candidate to the existing
+evaluator. It schedules 20 exposed observations in two arms with content-free
+normalization diagnostics, paired pass criteria, durable no-retry claims and a
+separate $10/40-call ceiling. The completed screen used 40 calls and
+$1.541925002 in conservative accounting. Supported outcomes rose from 7/20 to
+11/20, but the candidate failed the frozen screen: one species-reference loss,
+one historical gain not retained and no appropriate abstention on six unresolved
+cases. Retain the released configuration. The budget is closed; production
+routing and confidence thresholds remain unchanged.
+
+## Offline feature-observation preparation
+
+The
+[October 1 preparation record](../../../../docs/rfcs/identification-photo-feature-preparation-2026-10-01.md)
+owns this engineering prototype and its limitations. It materializes the
+separately adjudicated 18-case exposed development set and excludes both
+reference holds. It has no live collector or paid execution mode.
+
+Run from the repository root with the original primary-screen archive as the
+second argument and a new private directory as the last argument:
+
+```bash
+deno run --frozen --config services/supabase/functions/deno.json \
+  --allow-read="$PWD,$PARENT_PACKET,$OUTPUT_PACKET" \
+  --allow-write="$OUTPUT_PACKET" --allow-run=git --deny-net --deny-env \
+  services/supabase/scripts/prepare_photo_feature_screen.ts \
+  "$PWD" "$PARENT_PACKET" \
+  docs/research/identification/answerability-adjudication-2026-10-01.json \
+  "$OUTPUT_PACKET"
+```
+
+`PARENT_PACKET` and `OUTPUT_PACKET` denote operator-selected local paths, not
+credentials. The output directory must already exist with mode 0700 when its
+parent is outside the read grant; it must be empty. Preparation rejects a
+mismatched executing checkout, changed adjudication/parent bytes, altered
+images, reference holds introduced into scoring and nonempty output directories.
+Files are owner-only, and the manifest records the original retention deadline.
+
+`photoFeatureReview.ts` returns bounded projections only. Its trusted callback
+interface is preparatory: two function objects do not prove reviewer
+independence, and `allFeaturesSupported` does not authorize a scientific gain. A
+subsequent integrated workflow supplies image/card/token binding, privacy,
+reviewer assignments, moderation and durable accounting, with the prospective
+conservative double-coding amendment described below.
+
+## Bounded feature collection and review
+
+The
+[workflow record](../../../../docs/rfcs/identification-photo-feature-workflow-2026-10-01.md)
+owns the implemented 36-slot collector and its pre-collection review amendment.
+The earlier preparation CLI stays offline-only. The separate
+`evaluate_photo_features.ts` accepts `--check`, `--report` or `--live`, followed
+by the private prepared packet and plan paths. Check/report read no credentials.
+Use `--deny-net --deny-env`, `--allow-run=git`, repository/packet read access
+and packet-only write access for offline checking, with the functions Deno
+config.
+
+`photoFeatureExecution.ts` validates the pinned adjudication, taxonomy, source,
+images, references and pricing. `photoFeatureRun.ts` freezes assignments, claims
+attempts before dispatch, retains uncertain reservations and never replays a
+partial run. `photoFeatureInstrument.ts` binds two categorical reviews to each
+image/card/feature set; `photoFeatureView.ts` uses the existing private loopback
+browser transport. `photoFeatureScoring.ts` computes the frozen paired hurdle,
+keeping all scheduled cases. Model prose stays transient.
+
+Live mode requires a separately issued, run/root/pricing/budget-bound user
+approval receipt before provider preflight and a one-use authorization ledger.
+The CLI cannot issue that approval. See the workflow record for fields and
+limitations. Reviewer identifiers are opaque slots, and `local_interactive` does
+not establish human identity or scientific independence. Disagreement earns no
+credit; the implementation does not claim dispute adjudication. No paid run or
+new accuracy result is implied by this integration.

@@ -7,9 +7,10 @@ struct CandidateAlternativesView: View {
     let confirmButtonTitle: String
     let isWeakMatch: Bool
     let onReviewAlternatives: () -> Void
-    let onConfirm: () -> Void
+    let onConfirm: () async -> Void
     let onDismiss: () -> Void
     var showDismissButton: Bool = true
+    var showsOriginalConfirmation: Bool = true
     let imageDependencies: SimilarSpeciesImageDependencies
     let feedback: IdentificationReviewFeedbackDependencies
 
@@ -99,11 +100,13 @@ struct CandidateAlternativesView: View {
     private var actionButtons: some View {
         VStack(spacing: 16) {
             reviewAlternativesButton
-            SlideToConfirm(
-                label: confirmButtonTitle,
-                onConfirm: onConfirm,
-                feedback: feedback
-            )
+            if showsOriginalConfirmation {
+                SlideToConfirm(
+                    label: confirmButtonTitle,
+                    onConfirm: onConfirm,
+                    feedback: feedback
+                )
+            }
         }
     }
 

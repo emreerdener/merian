@@ -54,10 +54,10 @@ code that violates these principles will not be merged.
 ## Codex Repository Setup
 
 Codex is the only supported repository development agent. Universal rules live
-in root `AGENTS.md`; eight focused `$merian-*` skills are canonical under
-`skills/` and discovered through `.agents/skills/`. Three project-scoped,
-read-only specialist agents under `.codex/agents/` support evidence gathering
-and independent review, never parallel edits.
+in root `AGENTS.md`; focused `$merian-*` skills are canonical under `skills/`
+and discovered through `.agents/skills/`. Three project-scoped, read-only
+specialist agents under `.codex/agents/` support evidence gathering and
+independent review, never parallel edits.
 
 Run this before submitting any change to agent instructions, skills, custom
 agents, compatibility workflow pointers, or evaluation infrastructure:
@@ -92,6 +92,18 @@ resolve the owning invariant rather than silently choosing whichever statement
 is convenient. Historical facts remain historical even after the architecture
 changes. Format every changed Markdown file and never claim an unrun check
 passed.
+
+## Identification research records
+
+The [research index](research/identification/README.md) owns the current
+research decision and navigation. `docs/research/identification/catalog.json`
+owns the experiment/dataset summaries; its generated registers link original
+RFCs and evidence without replacing them. `capabilities.json` in that directory
+owns task/configuration assessments and generates `capabilities.md`;
+`benchmark-contract.md` owns qualification requirements. Update affected
+assessments when a study closes. Use `$merian-identification-evaluation` for
+research tasks and `make validate-identification-research` after catalog
+changes. Preserve private manifests and per-observation exposure outside Git.
 
 ## Setting Up the Development Environment
 

@@ -177,7 +177,7 @@ DECLARE fixture primary_fixture%ROWTYPE; caller TEXT; claim TEXT; denied BOOLEAN
 BEGIN
     SELECT * INTO fixture FROM primary_fixture;
     PERFORM SET_CONFIG('request.jwt.claims',JSONB_BUILD_OBJECT('role','authenticated','sub',fixture.owner_id)::TEXT,TRUE);
-    FOREACH claim IN ARRAY ARRAY['{}','{"x-merian-identification-protocol":"4"}','{"x-merian-identification-protocol":"6"}',
+    FOREACH claim IN ARRAY ARRAY['{}','{"x-merian-identification-protocol":"4"}','{"x-merian-identification-protocol":"7"}',
         '{"x-merian-identification-protocol":5}','{"x-merian-identification-protocol":"05"}'] LOOP
         PERFORM SET_CONFIG('request.headers',claim,TRUE);
         FOREACH caller IN ARRAY ARRAY['anon','authenticated'] LOOP

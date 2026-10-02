@@ -1,40 +1,48 @@
 # 17. AI Engineering & LLMOps
 
-Naturebook's inference engine uses `gemini-2.5-flash` for the ordinary
-Naturebook tier and `gemini-2.5-pro` for the Pro tier, running inside serverless
-Deno Edge Functions to protect provider keys and enforce structured output.
-“Ordinary” describes Naturebook product access, not an unpaid Google API
-project: production requires only `GEMINI_PAID_API_KEY` from the approved
-billing-enabled project, with no unpaid-key fallback.
+Naturebook's checked-in beta assignment selects OpenAI `gpt-6-sol` with low
+reasoning for primary still-photo identification on both product tiers. Other
+complete-input profiles retain Gemini, with model and generation settings
+selected by the admitted operation and entitlement. Provider calls run inside
+Deno Edge Functions. Gemini uses the approved billing-enabled
+`GEMINI_PAID_API_KEY`; the OpenAI still-photo adapter uses
+`NATUREBOOK_OPENAI_API_KEY`. Neither key nor a client parameter chooses the
+provider.
 
-The backend provider boundary now begins at
-[`_shared/ai/`](../../services/supabase/functions/_shared/ai/README.md). The
-primary `identify-multimodal` and compatibility `identify-describe`, `identify`,
-and `audio-spec` routes use a fixed Gemini registry to capture the
-database-admitted model and their distinct generation profiles, then a
-single-invocation executor calls the Gemini adapter. Primary evidence preserves
-text, image/snapshot order, included WAV audio, and source lineage; playback
-video stays with persistence. The handlers retain consent, quota, validation,
-and durable-result ownership. Image compatibility retains explicit safety
-settings and its separate model/tier configuration; legacy audio retains its own
-prompt, 2048-token budgets, and `scan_audio_identification` operation.
-Biological overview, lookalike, and group-tag tasks use the same boundary
-through `enrich-scan`, `groupTagQuota.ts`, and `refresh-species-model-content`.
-User calls carry admitted reservations; public jobs carry claimed task/attempt
-bounds and use Flash without a user quota reservation. See the
-[implementation tracker](../rfcs/identification-foundation-srd.md#implementation-slices).
-That provider-boundary refactor introduced no alternate live provider, automatic
-failover, or native-video inference. The subsequent audio confidence V2 contract
-clarifies the score by audio result state while preserving Gemini and its
-settings; see the
+The provider boundary begins at
+[`_shared/ai/`](../../services/supabase/functions/_shared/ai/README.md).
+Database-owned assignments, validated by `admission.ts` and `registry.ts`, bind
+the complete input profile, provider, model, operation and recipient permission.
+`production.ts` composes Gemini and the enabled OpenAI photo adapter; the
+single-invocation executor provides no automatic provider failover. Primary
+text, audio, video snapshots, mixed observations, compatibility routes and
+enrichment remain on their Gemini paths. Primary evidence preserves text,
+image/snapshot order, included WAV audio and source lineage; playback video
+stays with persistence. The handlers retain consent, quota, validation and
+durable-result ownership.
+
+Biological overview, lookalike and group-tag tasks use this boundary through
+`enrich-scan`, `groupTagQuota.ts` and `refresh-species-model-content`. User
+calls carry admitted reservations; public jobs carry claimed task/attempt bounds
+and use Flash without a user quota reservation. The
+[original provider-boundary refactor](../rfcs/identification-foundation-srd.md#implementation-slices)
+preserved Gemini; subsequent still-photo activation is a separate release. Audio
+confidence V2 retains Gemini and its settings while clarifying confidence by
+result state; see its
 [implementation record](../rfcs/identification-audio-confidence-v2-2026-09-24.md).
 
-The evaluation-only OpenAI adapter now supports photo/text requests through the
-shared executor, with a separate binding and unqualified confidence policy.
-Production composition and admission remain Gemini-only. The
+The
+[30 September activation record](../release-evidence/openai-confidence-activation-2026-09-30.md)
+records `openai_identify_vision_confidence_v1` on the existing `openai_photo_v1`
+binding. This is release evidence, not a fresh hosted audit or a statistical
+calibration guarantee. Separate OpenAI photo/text evaluation bindings and
+experimental candidates remain evaluation-only. The
 [alternative-provider guide](../development-guides/22-alternative-identification-provider.md)
-owns its input capabilities, disclosure gates, usage interpretation and
-comparison procedure.
+owns integration and operating procedures. The
+[capability matrix](../research/identification/capabilities.md) and
+[qualification contract](../research/identification/benchmark-contract.md) own
+research evidence and prospective task qualification; they cannot activate
+product routing.
 
 The separate default-off
 [audio prompt comparison](../rfcs/identification-audio-uncertainty-comparison-plan-2026-09-24.md)
@@ -1238,18 +1246,19 @@ provider dispatch:
      `iucn_red_list_status` without slowing the first response from
      `/identify-multimodal`. `gbif_taxon_key` is fetched natively from GBIF APIs
      and then served back on later cache hits.
-- **Tier-Based Model Selection**: The schema generated from
-  `merianModelContract` is applied to all requests regardless of tier. Model
-  selection is tier-based: effective Pro users use `gemini-2.5-pro` for maximum
-  identification depth (rare species, fossils, subspecies, cultivars); effective
-  free users use `gemini-2.5-flash` for 2–3× lower latency. `_shared/aiQuota.ts`
-  obtains the model from an atomic database reservation rather than trusting the
-  client or isolate memory. The reservation separates model choice from paid
-  storage: paid subscribers and active paid 7-day passes return
-  `plan = "pro_paid"`; held or available lifetime credits return
-  `plan = "pro_complimentary"`; and exhausted compatible single-evidence
-  captures return `plan = "free"` through the separate daily Flash policy.
-  `pro_trial` is retained only for historical reservations and reports.
+- **Provider and Model Selection**: The database reservation selects the
+  provider binding and model for the complete input profile. The checked-in beta
+  still-photo assignment uses `gpt-6-sol` for both tiers; Gemini-assigned
+  identification profiles retain their admitted Flash/Pro selection and native
+  schema. Product tier alone is not evidence of greater identification depth or
+  a guaranteed latency ratio. `_shared/aiQuota.ts` obtains the model from atomic
+  admission rather than trusting client input or isolate memory. Reservation
+  entitlement and paid storage remain separate: paid subscribers and active paid
+  passes use `pro_paid`, eligible lifetime credits use `pro_complimentary`, and
+  eligible exhausted captures use `free`. `pro_trial` is historical. See the
+  [entitlement contract](../backend-and-data/18-complimentary-pro-scans.md) and
+  [provider boundary](../../services/supabase/functions/_shared/ai/README.md)
+  for current admission details.
 - **Fossil, Geological & Non-Biological Handling**: The system instruction
   explicitly distinguishes liveness from biological identity. Fossils, pressed
   plants, museum specimens, and dried organisms are
@@ -2226,6 +2235,11 @@ insight sheet display.
 
 ### Benchmark Timing
 
+The examples below preserve the Gemini baseline instrumentation and its legacy
+metric names. They do not describe every current provider assignment; use the
+[measurement guide](../development-guides/21-identification-app-measurement.md)
+for exact current runtime provenance and provider-versus-app timing.
+
 Timing starts when Analyze is tapped, before environmental context and durable
 queue persistence. `[⏱ BENCH]` markers and response headers provide both client
 and server boundaries:
@@ -2264,12 +2278,13 @@ non-Gemini p95 ≤1 second, and response-to-first-render p95 ≤300 ms. Region
 selection remains automatic until an A/B test demonstrates at least a 150 ms p95
 improvement with no failure-rate increase.
 
-This work deliberately does not change inference economics or semantics. Free
-remains `gemini-2.5-flash`, Pro remains `gemini-2.5-pro`, and thinking budgets,
-schema, image resolutions, output-token limits, prompts, and one primary
-identification Gemini call per scan remain fixed. If measured end-to-end p95
-remains high while the `gemini` timing dominates, that model duration is the
-documented latency floor.
+The original Gemini latency work did not change inference economics or
+semantics: Free remained `gemini-2.5-flash`, Pro remained `gemini-2.5-pro`, and
+thinking budgets, schema, image resolutions, output-token limits, prompts, and
+one primary identification Gemini call per scan stayed fixed. Those historical
+defaults do not override the later OpenAI still-photo assignment above. Provider
+duration remains a component of end-to-end latency; qualification must measure
+the exact selected configuration.
 
 ### Production Rollout Gate
 

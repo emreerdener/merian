@@ -85,6 +85,9 @@ struct TopToolbar: ToolbarContent {
         }
     }
 
+    @State private var showsIncorrectConfirmation = false
+    @State private var pendingIncorrectAction: (() -> Void)?
+
     @Environment(\.dismiss) var dismiss
 
     let commonName: String
@@ -107,6 +110,8 @@ struct TopToolbar: ToolbarContent {
     var onReanalyze: (() -> Void)?
     var onReviewAlternatives: (() -> Void)?
     var onConfirmIdentification: (() -> Void)?
+    var onUndoIncorrect: (() -> Void)?
+    var onMarkIncorrect: (() -> Void)?
     var onAskCommunity: (() -> Void)?
     var sharedExplorePostId: String?
     var sharedCommunityIdentificationRequestId: String?
@@ -141,6 +146,8 @@ struct TopToolbar: ToolbarContent {
         onReanalyze: (() -> Void)? = nil,
         onReviewAlternatives: (() -> Void)? = nil,
         onConfirmIdentification: (() -> Void)? = nil,
+        onUndoIncorrect: (() -> Void)? = nil,
+        onMarkIncorrect: (() -> Void)? = nil,
         onAskCommunity: (() -> Void)? = nil,
         sharedExplorePostId: String? = nil,
         sharedCommunityIdentificationRequestId: String? = nil,
@@ -174,6 +181,8 @@ struct TopToolbar: ToolbarContent {
         self.onReanalyze = onReanalyze
         self.onReviewAlternatives = onReviewAlternatives
         self.onConfirmIdentification = onConfirmIdentification
+        self.onUndoIncorrect = onUndoIncorrect
+        self.onMarkIncorrect = onMarkIncorrect
         self.onAskCommunity = onAskCommunity
         self.sharedExplorePostId = sharedExplorePostId
         self.sharedCommunityIdentificationRequestId = sharedCommunityIdentificationRequestId
@@ -268,6 +277,18 @@ struct TopToolbar: ToolbarContent {
                 .imageOverlayToolbarIconChrome(
                     isFallbackActive: shouldUseContainedToolbarChrome
                 )
+        }
+        .alert("Mark identification as incorrect?", isPresented: $showsIncorrectConfirmation) {
+            Button("Mark as incorrect", role: .destructive) {
+                let action = pendingIncorrectAction
+                pendingIncorrectAction = nil
+                action?()
+            }
+            Button("Cancel", role: .cancel) {
+                pendingIncorrectAction = nil
+            }
+        } message: {
+            Text("Your scan, photos, and notes will be kept.")
         }
         .accessibilityIdentifier("InsightTopMenu")
         .accessibilityLabel("Scan actions")
@@ -407,6 +428,18 @@ struct TopToolbar: ToolbarContent {
                     }
                 }) {
                     Label(communityAction.title, systemImage: communityAction.systemImage)
+                }
+            }
+            if let onUndoIncorrect {
+                Button(action: onUndoIncorrect) {
+                    Label("Undo incorrect", systemImage: "arrow.uturn.backward")
+                }
+            } else if let onMarkIncorrect {
+                Button(role: .destructive) {
+                    pendingIncorrectAction = onMarkIncorrect
+                    showsIncorrectConfirmation = true
+                } label: {
+                    Label("Mark as incorrect", systemImage: "xmark.circle")
                 }
             }
         }

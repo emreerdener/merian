@@ -150,6 +150,13 @@ struct InsightShellCapabilitiesTests {
         #expect(viewModel.canConfirm == true)
         #expect(viewModel.canReviewAlternatives == true)
         #expect(viewModel.canReanalyze == true)
+
+        engine.speciesData?.alternativesExhausted = true
+        #expect(viewModel.canReviewAlternatives)
+        #expect(viewModel.candidateSwipeCandidates.map(\.scientificName) == ["Pieris rapae"])
+        #expect(engine.speciesData?.alternativesExhausted == true)
+        #expect(viewModel.reviewAlternativeCandidates.isEmpty)
+        #expect(!viewModel.canConfirm)
     }
 
     @Test func testShareRecommendationUsesFlashStrongThreshold() {

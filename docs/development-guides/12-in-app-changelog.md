@@ -71,12 +71,12 @@ blocked from Release archives. Test launches do not write acknowledgement.
 
 The current copy uses the product-supplied **2.2× faster AI identifications**
 claim, map location search, descriptions available to everyone to help improve
-accuracy, emoji reactions on Explore posts, and boosted previews for quiet
-recordings. This change adds presentation, not performance measurement or
-provider deployment evidence. Keep the release’s actual capabilities aligned
-with its curated copy. `WhatsNewLaunchTests` covers first-install suppression,
-upgrade acknowledgement, new highlight sets, recovery deferral, test isolation,
-and root consent priority.
+accuracy, marking AI identifications as incorrect, emoji reactions on Explore
+posts, and boosted previews for quiet recordings. This change adds presentation,
+not performance measurement or provider deployment evidence. Keep the release’s
+actual capabilities aligned with its curated copy. `WhatsNewLaunchTests` covers
+first-install suppression, upgrade acknowledgement, new highlight sets, recovery
+deferral, test isolation, and root consent priority.
 
 ## JSON Schema
 

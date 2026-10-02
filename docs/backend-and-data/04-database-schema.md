@@ -5456,16 +5456,17 @@ snapshot SHA-256 values, so a property, annotation, default, relationship,
 initializer, or helper edit requires an explicit historical-shape review.
 `SchemaV51Snapshots.swift` freezes all eight `MerianSchemaV51` model classes and
 their relationships; the unchanged goal-hint companion retains its V50 owner.
-`MerianSchemaV53` owns the active global models. V52 is independently frozen in
-`SchemaV52ScanSnapshots.swift` and `SchemaV52QueueSnapshots.swift`. Disk
-migration suites create source stores from the frozen snapshots, migrate V49
-through V50 and V51 into V53, and migrate both V50 graphs through their
-source-isolated custom plans. The V51 fixture verifies production metadata
-selection and preserves scan, media, collection, preference, queue, event,
-deletion and goal-hint state while adding nullable provenance, then verifies a
-current-schema reopen. That proves candidate self-consistency; genuine
-released-binary physical install-over and second-launch gates remain separate
-release evidence.
+`MerianSchemaV54` owns the active global models. V53 is independently frozen in
+`SchemaV53ScanSnapshots.swift` and `SchemaV53QueueSnapshots.swift`. V52 is
+independently frozen in `SchemaV52ScanSnapshots.swift` and
+`SchemaV52QueueSnapshots.swift`. Disk migration suites create source stores from
+the frozen snapshots, migrate V49 through V50 and V51 into V54, and migrate both
+V50 graphs through their source-isolated custom plans. The V51 fixture verifies
+production metadata selection and preserves scan, media, collection, preference,
+queue, event, deletion and goal-hint state while adding nullable provenance,
+then verifies a current-schema reopen. That proves candidate self-consistency;
+genuine released-binary physical install-over and second-launch gates remain
+separate release evidence.
 
 There is **no direct model list** in `MerianApp.swift`. The app dynamically
 inherits `CurrentSchema` and the active global models. A schema bump must still
@@ -5490,7 +5491,7 @@ each new row into the migration `ModelContext` before assigning the
 relationship; relationship assignment alone is not a durable insert path while
 SwiftData is inside staged store migration.
 
-The current active schema is `MerianSchemaV53`. Recent milestones:
+The current active schema is `MerianSchemaV54`. Recent milestones:
 
 - V38 added single-value audio/context storage (`audioFilePath`,
   `observationContextJSON`) to both local and offline scan models.
@@ -5530,22 +5531,22 @@ The current active schema is `MerianSchemaV53`. Recent milestones:
   directly to V49 from source-isolated V44→V49, V45→V49, and V46→V49 plans so
   SwiftData never migrates unchanged entities across duplicate-prone recent
   representatives. App startup reads store metadata before creating
-  `ModelContainer`: fresh/current V53 stores open without a migration plan,
+  `ModelContainer`: fresh/current V54 stores open without a migration plan,
   known recent stores use the source-isolated
-  V52/V51/V50/V49/V48/V47/V46/V45/V44/V43/V42 plans, and only unknown older
-  stores use the full historical plan. V52 needs only lightweight V52→V53; V51
-  uses V51→V52→V53. Each V50 plan contains its custom V50→V51
-  preference-ownership stage followed by V51→V52→V53; the V49 plan prepends the
-  required lightweight V49→V50 hop. Immediate predecessors therefore never
-  validate unrelated history. The V42 and V43 recent plans jump directly to V49
-  to avoid validating older full-historical custom stages and to keep V42 off
-  the older V42→V43 bridge that still failed on real TestFlight stores, while
-  V45 and V46 deliberately use one matching source representative each before
-  the V49 repair target. Stores that still hit SwiftData's duplicate-checksum
-  validator during plan construction retry with the same source-isolated recent
-  plans before legacy rescue or safe mode. Safe mode itself creates an empty
-  in-memory V53 container without any migration plan; it does not validate this
-  historical ladder again.
+  V53/V52/V51/V50/V49/V48/V47/V46/V45/V44/V43/V42 plans, and only unknown older
+  stores use the full historical plan. V53 needs only lightweight V53→V54; V52
+  and V51 retain their previous stages and append V53→V54. Each V50 plan
+  contains its custom V50→V51 preference-ownership stage followed by
+  V51→V52→V53; the V49 plan prepends the required lightweight V49→V50 hop.
+  Immediate predecessors therefore never validate unrelated history. The V42 and
+  V43 recent plans jump directly to V49 to avoid validating older
+  full-historical custom stages and to keep V42 off the older V42→V43 bridge
+  that still failed on real TestFlight stores, while V45 and V46 deliberately
+  use one matching source representative each before the V49 repair target.
+  Stores that still hit SwiftData's duplicate-checksum validator during plan
+  construction retry with the same source-isolated recent plans before legacy
+  rescue or safe mode. Safe mode itself creates an empty in-memory V54 container
+  without any migration plan; it does not validate this historical ladder again.
 - V47 added `OfflineQueuedScan.inferenceImagePaths` and `visualMediaItemsJSON`
   so queued video replay can keep sampled inference frames separate from the
   user-visible playback video timeline.
@@ -5605,8 +5606,8 @@ The current active schema is `MerianSchemaV53`. Recent milestones:
   `confirmedSpeciesIdentityData` through lightweight V52→V53. Both remain nil
   for existing observations. V52 was frozen and compiled before editing the
   active model. Every older plan appends the stage, and
-  `MerianRecentV52MigrationPlan` contains only V52 and V53. The primary bytes
-  preserve the versioned original AI label and resolution independently of
+  `MerianRecentV52MigrationPlan` now contains V52, V53, and V54. The primary
+  bytes preserve the versioned original AI label and resolution independently of
   dictionary enrichment or review. Required missing, malformed or unpaired
   snapshots remain integrity failures, never legacy results. Duplicate explicit
   completions preserve saved review/media state and reject conflicting identity
@@ -5854,7 +5855,7 @@ with non-optional defaults (`queueAttemptCount = 0`, `queueUpdatedAt = now`,
 ### `OfflineQueuedScanGoalHint`
 
 Added in released `MerianSchemaV50` and retained through the
-`ActiveOfflineQueuedScanGoalHint` alias in current V53 source. This optional
+`ActiveOfflineQueuedScanGoalHint` alias in current V54 source. This optional
 companion exists only for a queued scan submitted from an eligible live Capture
 goal selection.
 
@@ -6187,7 +6188,7 @@ A top-level album type associated with `LocalScanRecord` nodes, added in
 - `createdAt`: Date
 - `scans`: [LocalScanRecord]? (Inverse `@Relationship` using IDs rather than
   encoded objects, reducing memory pressure.)
-- `isPendingDeletion`: Bool (Active V53 application tombstone, mapped to the
+- `isPendingDeletion`: Bool (Active V54 application tombstone, mapped to the
   released `isDeleted` column with `@Attribute(originalName:)`; the value is
   explicitly projected to the unchanged `is_deleted` Edge field for safe cloud
   erasure instead of destructive state-diffs.)
@@ -6367,3 +6368,37 @@ permits 20 daily provider calls for free and 120 for Pro, independently of
 scan/chat allowances. See the
 [endpoint contract](../../services/supabase/functions/species-discovery-search/README.md)
 and disposable `species_discovery_search.sql` catalog/denial tests.
+
+### Identification rejection authority and V54
+
+The active graph is now `MerianSchemaV54`. V53 is independently frozen in
+`SchemaV53ScanSnapshots.swift` and `SchemaV53QueueSnapshots.swift` before adding
+optional `LocalScanRecord.aiIdentificationReviewData`.
+`MerianRecentV53MigrationPlan` contains V53→V54; all earlier supported lanes
+append that lightweight stage. Existing stores retain their scans, original
+identification, confirmations, collections, and queue jobs. The new optional
+bytes start nil. They store local pending intent separately from acknowledged
+server authority. No new legacy `UserReviewState` enum case is introduced.
+
+`scans.ai_identification_review` and the matching `scan_ingestion_jobs` backup
+contain a strict, bounded versioned review envelope. The service-only
+`apply_scan_identification_review` routine owns revisioned mutations. Direct
+client authority writes are denied. Raw reads are owner-only through the bounded
+`get_owned_scan_ai_reviews` RPC; ordinary public scan column grants deliberately
+exclude the envelope. Older saved observations get their first owner-job
+snapshot from the locked authoritative scan, not a client recovery payload.
+Deletion and tombstone paths remove retained review authority.
+
+`internal.scan_effective_identification` removes species identity while
+`ai_rejected` or `awaiting_acceptance`. Field Trip update triggers and receipt
+revisions include the review. Trusted community consensus provides a separate
+request-bound authority without creating a GBIF owner-selection envelope;
+withdrawal/reversal makes the scan unresolved again. The effective projection's
+`verified_selection` category includes this trusted community selection, with
+`verified` true only at species rank. Original AI bytes remain unchanged.
+
+See
+[the API contract](./05-api-contracts.md#owner-rejection-of-an-identification)
+for client behavior and the owning route for exact envelope fields. The SQL
+fixture is `services/supabase/tests/identification_rejection.sql`; native
+coverage is in `AIIdentificationReviewTests` and `MigrationPlanTests`.

@@ -732,6 +732,13 @@ protocol details. Dismissal suppresses repeated prompts for that account during
 the process, without clearing the persisted pause or restricting local library
 access. An explicit retry can reopen the prompt.
 
+Debug builds on physical devices and all simulator builds suppress this prompt,
+including after relaunch and explicit retry, because these development
+installations have no App Store update path. The coordinator still records and
+enforces compatibility pauses; suppression does not authorize incompatible
+requests or clear saved recovery state. Release device builds retain the update
+prompt.
+
 **Update app** opens Naturebook's verified App Store listing,
 `https://apps.apple.com/app/id6760208440`. Opening or returning from the store
 does not prove an update was installed. Only a changed bundle release/build

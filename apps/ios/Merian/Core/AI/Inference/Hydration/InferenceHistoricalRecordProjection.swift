@@ -42,12 +42,19 @@ struct InferenceHistoricalRecordProjection: Sendable {
         record: LocalScanRecord,
         resetLocalLookalikes: Bool
     ) {
+        // Retain the prior cached presentation without changing stored authority.
+        let showsLegacyPresentation = record.aiIdentificationReviewData != nil
+        let originalIsSpecies = record.isBiological && (record.primaryIdentification.map {
+            $0.value?.resolution == .species
+        } ?? (SpeciesIdentificationResolutionPolicy.isResolved(record.scientificName) &&
+            SpeciesIdentificationResolutionPolicy.isResolved(record.commonName)))
         let allowsSpeciesHydration =
-            record.hasSpeciesLevelIdentification &&
+            (showsLegacyPresentation ? originalIsSpecies : record.hasSpeciesLevelIdentification) &&
             !record.isHumanSubject
-        let allowsReferenceImages =
-            allowsSpeciesHydration &&
-            !record.shouldSuppressReferenceImages
+        let suppressesReferenceImages = showsLegacyPresentation
+            ? ReferenceImageVisibilityPolicy.shouldSuppress(isHumanSubject: record.isHumanSubject, scientificName: record.scientificName)
+            : record.shouldSuppressReferenceImages
+        let allowsReferenceImages = allowsSpeciesHydration && !suppressesReferenceImages
         let shouldResetLocalLookalikes =
             allowsSpeciesHydration && resetLocalLookalikes
         let primary = record.primaryIdentification
@@ -186,6 +193,7 @@ struct InferenceHistoricalRecordProjection: Sendable {
             imageQualityScore: record.imageQualityScore,
             aiScientificName: record.scientificName,
             userIdentificationOverride: record.userIdentificationOverride,
+            aiReview: record.localAIIdentificationReview,
             userConfirmedIdentification: record.userConfirmedIdentification,
             isFlagged: record.isFlagged
         )

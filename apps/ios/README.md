@@ -1674,3 +1674,50 @@ contract, not pin freshness, so release candidates must also compile the Release
 TLS branch and pass the focused pinned-transport suite. See the
 [iOS App Transport Security Contract](../../docs/development-guides/17-ios-transport-security.md)
 for the complete boundary and release gate.
+
+### Identification rejection menu action
+
+**Mark as incorrect** is the last action in the scan menu’s Identification
+section and appears below Ask the community in the confidence sheet’s button
+stack. Both actions are red and show a confirmation alert with a destructive
+Mark as incorrect action and Cancel before saving. Confirmation calls the
+retained `InferenceEngine.markIdentificationIncorrect` workflow for the captured
+scan. Already rejected, pending, and ineligible identifications do not offer the
+action. The original identification names, reasoning, and reference content
+remain visible. The confidence badge turns red and reads **Incorrect**, and the
+confidence sheet heading reflects that state. A red **Marked as incorrect** card
+above the candidates mirrors the Match confirmed layout, with an inline **Undo**
+action.
+
+Saved review decisions and queued operations remain intact. A presentation-only
+copy restores the original AI result and confidence without restoring species
+authority, statistics, or Field Trip credit. Background review sync continues.
+
+`IdentificationReviewSyncService` owns atomic local intent/outbox writes,
+account-bound network acknowledgements, retry ordering, and conflict
+reconciliation. The optional V54 review bytes separate optimistic presentation
+from server authority. `OfflineJobScheduler` drains this work before Field Trip
+reconciliation and arms persisted retry deadlines. A reanalysis result retains
+the source until its rejection handoff is acknowledged, then awaits acceptance.
+If reanalysis yields a non-biological result, both scans remain saved and the
+original retains its unresolved decision. `HistoricalSyncCloudClient` fetches
+raw owner review history through a bounded owner-only RPC rather than public
+scan columns. Protocol 6 is required for these affected states. Community
+authority retains its request lineage and does not reuse the old AI species or
+confidence.
+
+The canonical behavior and wire contract live in
+[API contracts](../../docs/backend-and-data/05-api-contracts.md#owner-rejection-of-an-identification).
+
+After a rejection is saved locally, a brief **Marked as incorrect** toast offers
+**Undo**. The menu offers **Undo incorrect** while the original rejection
+remains reversible. The confidence sheet offers **Undo** in the incorrect-state
+card; the completed candidate-review screen retains its neutral gray Undo
+button. Undo needs no confirmation, restores the confidence presentation and
+candidate confirmation controls, and does not confirm the species. It uses the
+durable review queue, including when the rejection has not yet synced.
+Reanalysis proposals awaiting acceptance and conflicts do not offer rejection
+Undo.
+
+In the confidence sheet, the incorrect-state card replaces the standalone gray
+Undo button. Menu and completed candidate-review Undo actions remain available.

@@ -9,15 +9,26 @@ import Observation
     private let store: ClientUpdateRequirementStore
     private let currentAccountID: @MainActor () -> UUID?
     private let build: String
+    private let allowsUpdatePrompt: Bool
     private var dismissedAccounts: Set<UUID> = []
+
+    nonisolated static var platformAllowsUpdatePrompt: Bool {
+        #if DEBUG || targetEnvironment(simulator)
+        false
+        #else
+        true
+        #endif
+    }
 
     init(
         defaults: UserDefaults = .standard,
         buildIdentity: String? = nil,
+        allowsUpdatePrompt: Bool = AppUpdateCoordinator.platformAllowsUpdatePrompt,
         currentAccountID: @escaping @MainActor () -> UUID?
     ) {
         store = ClientUpdateRequirementStore(defaults: defaults)
         self.currentAccountID = currentAccountID
+        self.allowsUpdatePrompt = allowsUpdatePrompt
         build = buildIdentity ?? ["CFBundleShortVersionString", "CFBundleVersion"]
             .map { Bundle.main.object(forInfoDictionaryKey: $0) as? String ?? "unknown" }
             .joined(separator: ":")
@@ -74,7 +85,9 @@ import Observation
     }
 
     func refresh() {
-        guard let accountID = currentAccountID() else {
+        // Development installations have no App Store update path. Keep their
+        // compatibility pauses intact without presenting an unavailable action.
+        guard allowsUpdatePrompt, let accountID = currentAccountID() else {
             showsPrompt = false
             return
         }

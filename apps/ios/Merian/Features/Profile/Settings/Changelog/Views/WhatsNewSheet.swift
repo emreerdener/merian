@@ -40,6 +40,12 @@ struct WhatsNewSheet: View {
                         )
 
                         highlight(
+                            symbol: "xmark.circle",
+                            title: "Mark as incorrect",
+                            detail: "Flag an AI identification when it doesn’t match what you found."
+                        )
+
+                        highlight(
                             symbol: "face.smiling",
                             title: "React with emojis",
                             detail: "Add emoji reactions to Explore posts to celebrate discoveries and share how you feel."

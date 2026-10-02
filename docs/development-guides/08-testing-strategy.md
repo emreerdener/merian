@@ -9809,3 +9809,55 @@ visibility before compatibility errors, and reject a worker's attempt to upgrade
 original capability. Run these with the full catalog and Edge suites, then the
 complete native unit target and four required scan UI smokes. Current production
 provider profiles remain unchanged throughout this reader preparation.
+
+### Identification rejection checks
+
+The retained rejection infrastructure uses `AIIdentificationReviewTests` for
+durable offline intent, evidence preservation, ordered Undo revisions,
+malformed-envelope handling, replacement staging, and presentation without
+clearing stored rejection. The rejection UI and its feature-specific UI tests
+are removed. `MigrationPlanTests` includes a disk-backed V53→V54 fixture; the
+independently frozen V53 graph must continue to compile. The focused native
+suite also includes `InferenceScanReplacementTests`,
+`IdentificationPreflightTests`, and `HistoricalSyncCloudClientTests`.
+
+The new route's Deno contract/handler tests exercise exact payloads, owner
+binding, revision conflicts and idempotent retries without duplicate quota or
+GBIF calls. `services/supabase/tests/identification_rejection.sql` exercises
+actual database roles, owner-only history, unresolved species eligibility,
+reanalysis proposals, reader capability, and tombstone cleanup. Run it with the
+complete catalog suite against a disposable database rebuilt from checked-in
+migrations. Source verification does not establish production availability.
+
+### Current-baseline primary development screen — October 2026
+
+`openaiPhotoPrimary_test.ts` and `openaiPhotoPrimaryAdapter_test.ts` verify
+request parity, private identity, exact-model decoding, malformed ranks,
+moderation and single-call transport. They run in the offline candidate
+workflow. `identification_evaluation_development_test.ts` verifies content-free
+projection and rank-conflict rejection. The isolated runner suite registers
+`photoPrimaryScreenTests.ts` for the full synthetic 40-slot sequence, approval
+rejection, paired abstention scoring, source/scope binding, interruption and
+uncertain-accounting retention. `run_photo_primary_screen_cli_test.sh` checks
+credential isolation and no-retry launcher behavior with synthetic credentials
+and no network. The discovery-based tooling gate includes these suites.
+
+These checks qualify evaluator software, not accuracy or confidence thresholds.
+The [screen protocol](../rfcs/identification-photo-primary-screen-2026-10-01.md)
+owns the exposed case selection and separate paid-execution boundary.
+
+## Identification research catalog checks
+
+`make validate-identification-research` validates the structured
+[research catalog](../research/identification/catalog.json), source links,
+dataset references, coverage of identification RFCs and generated register
+freshness, including the generated task-to-model capability matrix. It tests
+rejection of ambiguous IDs, invalid/unknown measurements, private source paths,
+cross-modality qualification and qualification without completed validation or
+matching public task-contract/configuration/benchmark commitments. Those
+commitments do not authenticate the private corpus or scientific decision.
+`make validate-agent-assets` includes this offline gate; Agent Quality
+deterministic CI therefore enforces it. The docs suite also includes research
+skill routing and evidence-boundary scenarios. These checks validate record
+organization; they do not establish biological accuracy or exposure from private
+ledgers.

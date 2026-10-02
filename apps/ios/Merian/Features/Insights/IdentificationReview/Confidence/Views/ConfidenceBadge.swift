@@ -72,7 +72,8 @@ struct ConfidenceBadge: View {
             provenance: provenance,
             hasUserOverride: userIdentificationOverride != nil,
             isUserConfirmed: userConfirmedIdentification,
-            analyzingPhrase: analyzingPhrase
+            analyzingPhrase: analyzingPhrase,
+            isIncorrect: inferenceEngine.speciesData?.aiReview.isUnresolved == true
         )
     }
 
@@ -84,6 +85,8 @@ struct ConfidenceBadge: View {
             return .blue
         case .confirmed, .strong:
             return .green
+        case .incorrect:
+            return .red
         case .possible:
             return .orange
         case .weak, .unknown:

@@ -59,6 +59,40 @@ final class InferenceReviewWorkflowCoordinator {
         self.speciesHydrationCoordinator = speciesHydrationCoordinator
     }
 
+    func submitOwnerReview(
+        action: AIIdentificationReviewRequest.Action, expectedScanID: String?, scientificName: String? = nil,
+        modelContext: ModelContext?, callbacks: Callbacks, onLocalSave: (@MainActor () -> Void)? = nil
+    ) async {
+        guard !reviewCoordinator.isAuthTransitionFenceActive,
+              let context = modelContext,
+              let current = callbacks.speciesHydration.currentSpeciesData(), let scanID = current.scanId,
+              matchesExpectedScan(expectedScanID, scanID: scanID) else { return }
+        let generation = callbacks.speciesHydration.currentPresentationGeneration()
+        let reviewGeneration = reviewCoordinator.beginReviewAction(scanId: scanID)
+        cancelSpeciesHydration(callbacks: callbacks)
+        do {
+            let state = try IdentificationReviewSyncService().enqueue(scanID: scanID, action: action,
+                scientificName: scientificName, context: context)
+            var updated = current; updated.aiReview = state
+            if state.isUnresolved || action == .undo { updated.userConfirmedIdentification = false }
+            callbacks.applyPresentation(.init(speciesData: updated, referenceState: nil))
+            onLocalSave?()
+            await OfflineQueueManager.shared.syncPendingIdentificationReviews()
+            guard !reviewCoordinator.isAuthTransitionFenceActive,
+                  callbacks.speciesHydration.currentPresentationGeneration() == generation,
+                  callbacks.speciesHydration.currentSpeciesData()?.scanId == scanID,
+                  reviewCoordinator.isReviewActionCurrent(scanId: scanID, generation: reviewGeneration),
+                  let record = try IdentificationReviewSyncService.record(scanID, context: ModelContext(context.container)) else { return }
+            var refreshed = updated; refreshed.aiReview = record.localAIIdentificationReview
+            refreshed.userConfirmedIdentification = record.userConfirmedIdentification
+            refreshed.userIdentificationOverride = record.userIdentificationOverride
+            refreshed.confirmedSpeciesReview = record.confirmedSpeciesReview
+            callbacks.applyPresentation(.init(speciesData: refreshed, referenceState: nil))
+        } catch {
+            MerianLog.data.error("Identification review could not be saved locally.")
+        }
+    }
+
     func applyOverride(
         _ request: OverrideRequest,
         callbacks: Callbacks
@@ -160,8 +194,9 @@ final class InferenceReviewWorkflowCoordinator {
 
         if let primary = current.primaryIdentification {
             guard primary.value?.resolution == .species, let container = request.modelContext?.container else { return }
-            submitVerified(.aiConfirmation(scanID: scanID, confirmedSpeciesID: nil),
+            let confirmation = submitVerified(.aiConfirmation(scanID: scanID, confirmedSpeciesID: nil),
                            current: current, container: container, callbacks: callbacks)
+            await confirmation?.value
             return
         }
 
@@ -389,11 +424,12 @@ final class InferenceReviewWorkflowCoordinator {
         return speciesID
     }
 
+    @discardableResult
     private func submitVerified(
         _ mutation: InferenceIdentificationReviewMutation, current: SpeciesData,
         container: ModelContainer, callbacks: Callbacks
-    ) {
-        guard current.primaryIdentification?.value != nil else { return }
+    ) -> Task<Void, Never>? {
+        guard current.primaryIdentification?.value != nil else { return nil }
         let generation = reviewCoordinator.beginReviewAction(scanId: mutation.scanID)
         let presentationGeneration = callbacks.speciesHydration.currentPresentationGeneration()
         cancelSpeciesHydration(callbacks: callbacks)
@@ -403,7 +439,7 @@ final class InferenceReviewWorkflowCoordinator {
         pending.userIdentificationOverride = mutation.override
         pending.userConfirmedIdentification = mutation.confirmed
         let pendingPresentation = pending
-        reviewCoordinator.enqueueVerifiedReviewMutation(
+        return reviewCoordinator.enqueueVerifiedReviewMutation(
             mutation, actionGeneration: generation, modelContainer: container,
             didPrepare: {
                 guard callbacks.speciesHydration.currentPresentationGeneration() == presentationGeneration,

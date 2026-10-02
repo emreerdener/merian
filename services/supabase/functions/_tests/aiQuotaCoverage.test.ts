@@ -633,6 +633,7 @@ Deno.test("OpenAI dispatch stays confined to production composition and its offl
           "_shared/ai/openaiObservedTraits.ts",
           "_shared/ai/openaiSolRank.ts",
           "_shared/ai/openaiSolPrimary.ts",
+          "_shared/ai/openaiPhotoPrimary.ts",
           "_shared/ai/openaiSolPrimaryContract.ts",
           "_shared/ai/production.ts",
         ].some((path) => file.pathname === new URL(path, root).pathname),
@@ -666,7 +667,10 @@ Deno.test("OpenAI dispatch stays confined to production composition and its offl
   for (
     const name of [
       "openaiObservedTraits_test.ts",
+      "openaiPhotoReasoning_test.ts",
       "openaiSolPrimary_test.ts",
+      "openaiPhotoPrimary_test.ts",
+      "openaiPhotoPrimaryAdapter_test.ts",
       "openaiSolPrimaryNormalization_test.ts",
       "openaiSolPrimaryAdapter_test.ts",
     ]
@@ -680,6 +684,7 @@ Deno.test("OpenAI dispatch stays confined to production composition and its offl
       "openaiObservedTraits.ts",
       "openaiSolRank.ts",
       "openaiSolPrimary.ts",
+      "openaiPhotoPrimary.ts",
       "openaiSolPrimaryContract.ts",
       "openaiSolPrimaryInstructions.ts",
       "openaiSolPrimaryNormalization.ts",

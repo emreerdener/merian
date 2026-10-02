@@ -46,8 +46,20 @@ export async function confidenceEvidenceDigest(
   corpus: ConfidenceCorpus,
 ): Promise<string | null> {
   if (corpus.kind === "synthetic") return null;
-  const bundle = fields(
+  return await validateConfidenceEvidence(
     await readJson(join(root, "confidence-evidence.json")),
+    corpus,
+  );
+}
+
+/** Validate already byte-bound evidence without re-reading a mutable path. */
+export async function validateConfidenceEvidence(
+  value: unknown,
+  corpus: ConfidenceCorpus,
+): Promise<string | null> {
+  if (corpus.kind === "synthetic") return null;
+  const bundle = fields(
+    value,
     [
       "version",
       "records",

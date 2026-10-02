@@ -1,4 +1,9 @@
+import { registerPhotoFeatureRunTests } from "./identification_evaluation/testing/photoFeatureRunTests.ts";
+import { registerPhotoPrimaryScreenTests } from "./identification_evaluation/testing/photoPrimaryScreenTests.ts";
+import { registerPhotoDecisionTests } from "./identification_evaluation/testing/photoDecisionTests.ts";
 import { registerConfidenceRunnerTests } from "./identification_evaluation/testing/confidenceRunnerTests.ts";
+import { registerReasoningPilotTests } from "./identification_evaluation/testing/reasoningPilotTests.ts";
+import { registerGeminiPhotoBaselineTests } from "./identification_evaluation/testing/geminiPhotoBaselineTests.ts";
 import { registerConfidenceAccountingTests } from "./identification_evaluation/testing/confidenceAccountingTests.ts";
 import { registerConfidenceContinuationTests } from "./identification_evaluation/testing/confidenceContinuationTests.ts";
 import { registerSolPrimaryLiveTests } from "./identification_evaluation/testing/solPhotoPrimaryLiveTests.ts";
@@ -71,7 +76,12 @@ import { registerConfidenceEvidenceTests } from "./identification_evaluation/tes
 
 const scratch = Deno.args[0];
 if (!scratch) throw new Error("evaluation_test_directory_required");
+registerPhotoFeatureRunTests(scratch);
+registerPhotoPrimaryScreenTests(scratch);
+registerPhotoDecisionTests(scratch);
 registerConfidenceRunnerTests(scratch);
+registerReasoningPilotTests(scratch);
+registerGeminiPhotoBaselineTests(scratch);
 registerConfidenceAccountingTests();
 registerConfidenceContinuationTests(scratch);
 registerConfidenceEvidenceTests(scratch);

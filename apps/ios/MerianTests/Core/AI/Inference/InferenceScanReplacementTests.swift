@@ -144,6 +144,24 @@ struct InferenceScanReplacementTests {
 
     private enum SaveFailure: Error { case expected }
 
+    @Test func nonBiologicalReanalysisPreservesRejectedSource() throws {
+        let context = try makeContext()
+        let original = try insertRecord(id: "00000000-0000-4000-8000-000000000001", into: context)
+        let replacement = try insertRecord(id: "replacement", into: context)
+        original.aiIdentificationReviewData = try LocalAIIdentificationReview(authority: .init(
+            revision: 1, state: .aiRejected, originScanID: original.id,
+            originIdentification: nil
+        )).storedData()
+        try context.save()
+        #expect(InferenceScanReplacement.transferMetadata(
+            from: original.id, after: .persisted(result(id: replacement.id)), modelContext: context
+        ) == nil)
+        #expect(original.localAIIdentificationReview.isUnresolved)
+        #expect(replacement.aiIdentificationReviewData == nil)
+        #expect(try context.fetchCount(FetchDescriptor<LocalScanRecord>()) == 2)
+        #expect(try context.fetchCount(FetchDescriptor<OfflineJobRecord>()) == 0)
+    }
+
     private func makeContext() throws -> ModelContext {
         let schema = Schema(CurrentSchema.models)
         let container = try ModelContainer(

@@ -2895,3 +2895,15 @@ independent readers and viewer-aware reference-media helpers enforce durable
 hiding. `species-dictionary-for-viewer` is the native authenticated dictionary
 boundary. See
 [the current contract](features-and-hardware/30-reported-content-visibility.md).
+
+## Identification research ownership
+
+[`docs/research/identification`](research/identification/README.md) owns the
+research index, structured study catalog and capability matrix, generated
+registers, qualification contract and research procedure.
+`scripts/identification-research-catalog.ts` validates source links, RFC
+coverage and generated views; `identification-research-catalog-capabilities.ts`
+checks task/configuration/evidence links and qualification metadata. Neither
+runs models or reads private evidence. The repository-discovered
+[`merian-identification-evaluation`](../skills/merian-identification-evaluation/SKILL.md)
+skill routes research tasks into these records and the existing evaluator.

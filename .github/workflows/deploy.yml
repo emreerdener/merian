@@ -1155,6 +1155,7 @@ jobs:
             species-discovery-search
             resolve-species-dictionary
             confirm-scan-species
+            review-scan-identification
             request-community-identification
             transfer-signout-purchases
             resolve-purchase-principal

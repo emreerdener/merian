@@ -1,5 +1,16 @@
 # OpenAI identification confidence assessment
 
+Audit addendum, 1 October: the separate
+[photo provider decision](identification-photo-provider-decision-2026-10-01.md)
+found that unique prepared-image hashes and the recorded group labels did not
+establish independent observations for every held-out case. Three final
+answerability records retained pending grouping notes. Historical attempt counts
+and observed outcomes below remain unchanged; the original
+independence/uncertainty interpretation needs that qualification. The new study
+excludes suspect related subjects before collection, records semantic clusters,
+and uses 60 balanced held-out observations. It does not complete or reopen this
+confidence study.
+
 Activation addendum, 30 September: the owner reported a released iOS build and
 fresh device scan, then explicitly requested activation on production project
 `qlarqavoqhkuwzmevrmf`. The production photo builder now selects the assessed

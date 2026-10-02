@@ -1,0 +1,4 @@
+interface:
+  display_name: "Merian Identification Evaluation"
+  short_description: "Plan and interpret identification research"
+  default_prompt: "Use $merian-identification-evaluation to ground this identification research task in existing experiments, data exposure and the appropriate evaluator."

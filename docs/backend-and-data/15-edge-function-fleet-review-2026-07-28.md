@@ -201,6 +201,7 @@ check-public-username
 check-scan-status
 community-taxonomy-status
 confirm-scan-species
+review-scan-identification
 create-explore-comment
 delete-explore-comment
 delete-scan

@@ -6,9 +6,10 @@ import SwiftData
 final class OfflineJobScheduler {
     static let shared = OfflineJobScheduler()
 
-    /// The six existing drain effects, separated from scheduling policy so
+    /// The drain effects, separated from scheduling policy so
     /// tests can exercise their ordering without starting live queue work.
     struct DrainOperations {
+        var syncIdentificationReviews: @MainActor (OfflineQueueManager) async -> Void = { _ in }
         let reconcileFunding: @MainActor (OfflineQueueManager) async -> Void
         let syncPendingScans: @MainActor (OfflineQueueManager) -> Void
         let replayInference: @MainActor (OfflineQueueManager) -> Void
@@ -17,6 +18,7 @@ final class OfflineJobScheduler {
         let syncCollections: @MainActor (OfflineQueueManager) -> Void
 
         fileprivate static let live = DrainOperations(
+            syncIdentificationReviews: { await $0.syncPendingIdentificationReviews() },
             reconcileFunding: { await $0.reconcileDeferredFundingReservations() },
             syncPendingScans: { $0.syncPendingScans() },
             replayInference: { $0.replayInferenceForUploadedScans() },
@@ -60,6 +62,7 @@ final class OfflineJobScheduler {
         scheduleNextPersistedWake(using: manager)
         await drainOperations.reconcileFunding(manager)
         drainOperations.syncPendingScans(manager)
+        await drainOperations.syncIdentificationReviews(manager)
         drainOperations.replayInference(manager)
         await drainOperations.replayFieldTripProgress(manager)
         await drainOperations.syncPendingDeletions(manager)

@@ -2590,10 +2590,10 @@ available quota.
 
 The new six-argument overload additionally accepts nullable
 `p_identification_protocol`. Exactly 4 and 5 are recognized; 5 also reserves
-support for explicit primary-resolution results. The native app still advertises
-4; this does not change `p_client_protocol` or the entitlement header. The
-five-argument ABI stays available to older callers and returns update-required
-for any binding requiring the new capability.
+support for explicit primary-resolution results. The native source now
+advertises 5; this does not change `p_client_protocol` or the entitlement
+header. The five-argument ABI stays available to older callers and returns
+update-required for any binding requiring the new capability.
 
 Accepted profiles are `description_compat_v1`, `vision_compat_v1`,
 `audio_compat_v1`, `multimodal_text_v1`, `multimodal_photo_v1`,
@@ -11984,3 +11984,32 @@ and resumable archive format stay unchanged. The 20-column CSV uses the existing
 scientificName, genus/family and identificationVerificationStatus fields to
 preserve the explicit interpretation; a new taxonRank column requires a future
 versioned archive format. No producer, export gate or client protocol changes.
+
+## Owner rejection of an identification
+
+`POST /review-scan-identification` is the owner-authenticated, revisioned
+boundary for **Mark as incorrect**, Undo, verified acceptance, and replacement
+handoff. Its executable request/receipt contract and error behavior are
+documented in
+[the owning route](../../services/supabase/functions/review-scan-identification/README.md).
+It applies to legacy and explicit-primary observations. Rejecting an AI answer
+requires no alternative name or external taxonomy lookup. The scan remains saved
+and unresolved, with no effective species or species-level Field Trip credit.
+Undo restores the AI suggestion as unreviewed; reanalysis proposals need
+explicit acceptance or authoritative community resolution. A non-biological
+reanalysis result is saved separately and does not retire the rejected original.
+
+Review authority is separate from original AI evidence and verified owner
+selection. Community authority comes from the consensus transaction, carries its
+request lineage, and is revoked when that consensus is withdrawn or reversed.
+Genus-level community resolutions remain free of species credit. Neither
+rejection nor consensus changes model confidence or rewrites AI prose.
+
+The raw `ai_identification_review` envelope is owner-private. Public scan column
+grants exclude it; owner history uses `get_owned_scan_ai_reviews(p_scan_ids)`
+with a maximum of 100 IDs and current review fields in the same snapshot.
+Protocol 6 readers understand rejected, proposed, and community-resolved
+identifications. Older readers receive `client_update_required` for affected
+rows. Admission recognizes 4, 5, and 6 without raising provider binding minima.
+Ship this backend contract before the corresponding native reader. No release or
+deployment is implied by repository implementation.

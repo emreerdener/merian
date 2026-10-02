@@ -6,6 +6,15 @@ networking, and hardware orchestration logic. The repository, Xcode project,
 targets, modules, bundle IDs, persistence, and backend identifiers retain Merian
 as their permanent engineering identity.
 
+## Identification research
+
+Start with the [research index](research/identification/README.md) for the
+current decision, generated experiment/dataset registers,
+[task-to-model capability matrix](research/identification/capabilities.md), and
+benchmark qualification/maintenance procedures. The chronological records below
+retain their historical scope; an old preparation or held-out label does not
+describe current execution/exposure.
+
 ## Current Snapshot
 
 Use this page to find the owning document. Current contracts describe intended
@@ -303,6 +312,11 @@ production submission or public release.
   is complete: broader-rank behavior improved, but two candidate visual failures
   block promotion. Retain the current Sol assignment; production rank handling
   and confidence calibration remain pending.
+- **[Photo calibration gap audit and next implementation](./rfcs/identification-calibration-gap-audit-2026-10-01.md):**
+  Completed offline catalog/record audit and design reusing the dormant
+  explicit-primary foundation. Separates missing mapping evidence from
+  biological errors, defines future producer/reader acceptance, and leaves
+  confidence and production unchanged.
 - **[Explicit primary identification resolution](./rfcs/identification-primary-resolution-contract-2026-09-29.md):**
   Slice 1 adds a dormant versioned answer contract, immutable server storage and
   recovery, generated Swift wire support and exact protocol-5 reader protection.

@@ -75,15 +75,15 @@ final class InferenceLiveCompletionCoordinator {
         }
 
         var speciesData = completedResult.speciesData
+        dependencies.transferReplacementMetadataAndDeleteOriginal(targetEradicationScanId, outcome, modelContext)
+        if let context = modelContext, let scanID = speciesData.scanId,
+           let record = try? IdentificationReviewSyncService.record(scanID, context: context) {
+            speciesData.aiReview = record.localAIIdentificationReview
+        }
         if completedResult.isNewDiscovery && speciesData.hasSpeciesLevelIdentification {
             speciesData.isNewDiscovery = true
             dependencies.recordNewSpeciesDiscovered()
         }
-        dependencies.transferReplacementMetadataAndDeleteOriginal(
-            targetEradicationScanId,
-            outcome,
-            modelContext
-        )
         dependencies.recordCircuitSuccess()
         dependencies.trackCompletedScan(
             speciesData.inferenceTier,

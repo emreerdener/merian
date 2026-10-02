@@ -2,6 +2,8 @@ import Foundation
 
 extension HistoricalScanResponse {
     private enum CodingKeys: String, CodingKey {
+        case confirmed_species_id, user_review_state
+        case ai_identification_review
         case id
         case created_at
         case image_storage_urls
@@ -92,6 +94,9 @@ extension HistoricalScanResponse {
         image_quality_score = try values.decodeIfPresent(Int.self, forKey: .image_quality_score)
         species_dictionary = try values.decodeIfPresent(CloudSpeciesDictionary.self, forKey: .species_dictionary)
         explore_posts = try values.decodeIfPresent(HistoricalExplorePostResponse.self, forKey: .explore_posts)
+        reviewConfirmedSpeciesID = try values.decodeIfPresent(String.self, forKey: .confirmed_species_id)
+        reviewState = try values.decodeIfPresent(UserReviewState.self, forKey: .user_review_state)
+        aiIdentificationReview = try values.decodeIfPresent(AIIdentificationReview.self, forKey: .ai_identification_review)
         confirmedSpeciesReview = try VerifiedSpeciesReviewProjection.decode(
             from: decoder, hasPrimary: primary_identification != nil)
     }

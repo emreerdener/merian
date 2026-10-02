@@ -6,6 +6,7 @@ const repositoryRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const projectSkills = [
   "merian-api-contracts",
   "merian-docs-sync",
+  "merian-identification-evaluation",
   "merian-incident-response",
   "merian-ios",
   "merian-release",

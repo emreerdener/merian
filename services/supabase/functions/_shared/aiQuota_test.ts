@@ -116,8 +116,11 @@ Deno.test("identification capability is separate from entitlement and cannot sel
             requestId: REQUEST_ID,
           },
         ), AIQuotaError);
-      assertEquals(calls, ["4", "5"].includes(capability) ? 1 : 0);
-      assertEquals(error.status, ["4", "5"].includes(capability) ? 426 : 400);
+      assertEquals(calls, ["4", "5", "6"].includes(capability) ? 1 : 0);
+      assertEquals(
+        error.status,
+        ["4", "5", "6"].includes(capability) ? 426 : 400,
+      );
     }
   } finally {
     if (prior === undefined) Deno.env.delete("AI_QUOTA_IP_HASH_SECRET");

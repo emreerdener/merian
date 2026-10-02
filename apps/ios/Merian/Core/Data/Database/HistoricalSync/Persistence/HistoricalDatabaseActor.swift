@@ -279,6 +279,18 @@ actor HistoricalDatabaseActor {
                         existing.userConfirmedIdentification = true; chunkDidUpdate = true
                     }
                 }
+                if let review = res.aiIdentificationReview {
+                    var local = existing.localAIIdentificationReview
+                    if review.revision >= (local.authority?.revision ?? 0), existing.primaryIdentification == nil {
+                        existing.userIdentificationOverride = res.user_identification_override
+                        existing.userConfirmedIdentification = res.user_confirmed_identification ?? false
+                        existing.confirmedSpeciesId = res.reviewConfirmedSpeciesID
+                        existing.userReviewState = res.reviewState ?? .unreviewed
+                    }
+                    local.authority = try AIIdentificationReview.merging(stored: local.authority, incoming: review)
+                    existing.aiIdentificationReviewData = try local.storedData()
+                    chunkDidUpdate = true
+                }
                 if try ConfirmedSpeciesReviewPersistence.merge(res.confirmedSpeciesReview, into: existing) { chunkDidUpdate = true }
                 if try HistoricalPrimaryIdentification.merge(res, into: existing) { chunkDidUpdate = true }
                 if let provenance = res.identification_provenance {
@@ -397,6 +409,7 @@ actor HistoricalDatabaseActor {
                 },
                 primaryIdentificationData: primary?.data,
                 confirmedSpeciesIdentityData: try scan.confirmedSpeciesReview?.storedData(),
+                aiIdentificationReviewData: try LocalAIIdentificationReview(authority: scan.aiIdentificationReview).storedData(),
                 customTags: scan.custom_tags ?? [],
                 hasBeenViewed: true,
                 userIdentificationOverride: scan.user_identification_override,

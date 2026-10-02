@@ -460,6 +460,25 @@ import SwiftData
         )
     }
 
+    func markIdentificationIncorrect(
+        expectedScanId: String, modelContext: ModelContext,
+        onLocalSave: (@MainActor () -> Void)? = nil
+    ) async {
+        await identificationReviewWorkflowCoordinator.submitOwnerReview(action: .reject, expectedScanID: expectedScanId,
+            modelContext: modelContext, callbacks: speciesPresentationCoordinator.makeReviewWorkflowCallbacks(),
+            onLocalSave: onLocalSave)
+    }
+
+    func undoIncorrectIdentification(
+        expectedScanId: String, modelContext: ModelContext,
+        onLocalSave: (@MainActor () -> Void)? = nil
+    ) async {
+        guard speciesData?.canUndoIncorrectIdentification == true else { return }
+        await identificationReviewWorkflowCoordinator.submitOwnerReview(action: .undo, expectedScanID: expectedScanId,
+            modelContext: modelContext, callbacks: speciesPresentationCoordinator.makeReviewWorkflowCallbacks(),
+            onLocalSave: onLocalSave)
+    }
+
     // MARK: - Identification Override
 
     /// Called when the user selects a candidate as their preferred identification.
@@ -470,6 +489,11 @@ import SwiftData
         expectedScanId: String? = nil,
         modelContext: ModelContext?
     ) async {
+        if speciesData?.aiReview.authority != nil || speciesData?.aiReview.pending != nil {
+            await identificationReviewWorkflowCoordinator.submitOwnerReview(action: .confirmName, expectedScanID: expectedScanId,
+                scientificName: scientificName, modelContext: modelContext, callbacks: speciesPresentationCoordinator.makeReviewWorkflowCallbacks())
+            return
+        }
         await identificationReviewWorkflowCoordinator.applyOverride(
             .init(
                 scientificName: scientificName,
@@ -487,6 +511,11 @@ import SwiftData
         expectedScanId: String? = nil,
         modelContext: ModelContext?
     ) async {
+        if speciesData?.aiReview.authority != nil || speciesData?.aiReview.pending != nil {
+            await identificationReviewWorkflowCoordinator.submitOwnerReview(action: .confirmPrimary, expectedScanID: expectedScanId,
+                modelContext: modelContext, callbacks: speciesPresentationCoordinator.makeReviewWorkflowCallbacks())
+            return
+        }
         await identificationReviewWorkflowCoordinator.confirm(
             .init(
                 expectedScanID: expectedScanId,
@@ -505,6 +534,11 @@ import SwiftData
         expectedScanId: String? = nil,
         modelContext: ModelContext?
     ) async {
+        if speciesData?.aiReview.authority != nil || speciesData?.aiReview.pending != nil {
+            await identificationReviewWorkflowCoordinator.submitOwnerReview(action: .undo, expectedScanID: expectedScanId,
+                modelContext: modelContext, callbacks: speciesPresentationCoordinator.makeReviewWorkflowCallbacks())
+            return
+        }
         await identificationReviewWorkflowCoordinator.reset(
             .init(
                 expectedScanID: expectedScanId,

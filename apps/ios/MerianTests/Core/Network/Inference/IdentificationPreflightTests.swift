@@ -22,7 +22,7 @@ struct IdentificationPreflightTests {
         #expect((object["p_original_analysis_id"] as? String)?.lowercased() == scanID)
         #expect(object["p_input_profile"] as? String == "multimodal_photo_v1")
         #expect(object["p_client_protocol"] as? Int == 3)
-        #expect(object["p_identification_protocol"] as? Int == 5)
+        #expect(object["p_identification_protocol"] as? Int == 6)
         #expect(!String(decoding: data, as: UTF8.self).contains("synthetic"))
     }
 

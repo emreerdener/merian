@@ -1,3 +1,5 @@
+import Foundation
+import SwiftData
 import Testing
 
 @testable import Merian
@@ -114,6 +116,76 @@ struct CandidateReviewViewModelTests {
             scanId: "another-scan",
             presentationGeneration: 4
         ))
+    }
+
+    @Test func failedConfirmationDoesNotReportSuccessAndCanBeRetried() async throws {
+        let container = try ModelContainer(for: Schema(versionedSchema: CurrentSchema.self),
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let engine = confirmationEngine()
+        var attempts = 0
+        let viewModel = CandidateReviewViewModel(dependencies: .init(confirmOriginal: { engine, _, _ in
+            attempts += 1
+            if attempts == 2 { engine.speciesData?.userConfirmedIdentification = true }
+        }))
+        let subject = subject(scanId: "confirmation", generation: engine.scanPresentationGeneration)
+        let first = await viewModel.confirmOriginal(subject: subject, inferenceEngine: engine,
+            modelContext: container.mainContext)
+        #expect(!first)
+        #expect(viewModel.confirmationMessage != nil)
+        let second = await viewModel.confirmOriginal(subject: subject, inferenceEngine: engine,
+            modelContext: container.mainContext)
+        #expect(second)
+        #expect(viewModel.confirmationMessage == nil)
+        #expect(attempts == 2)
+    }
+
+    @Test func queuedConfirmationIsNotSuccessAndRetryDoesNotDuplicateIt() async throws {
+        let container = try ModelContainer(for: Schema(versionedSchema: CurrentSchema.self),
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let engine = confirmationEngine()
+        var attempts = 0
+        let viewModel = CandidateReviewViewModel(dependencies: .init(confirmOriginal: { engine, _, _ in
+            attempts += 1
+            engine.speciesData?.aiReview.pending = AIIdentificationReviewRequest(
+                scanID: "confirmation", expectedRevision: 0, operationID: "synthetic-operation",
+                action: .confirmPrimary, scientificName: nil, expectedSpeciesReviewRevision: nil)
+        }))
+        let subject = subject(scanId: "confirmation", generation: engine.scanPresentationGeneration)
+        let first = await viewModel.confirmOriginal(subject: subject, inferenceEngine: engine,
+            modelContext: container.mainContext)
+        #expect(!first)
+        #expect(viewModel.confirmationMessage?.contains("waiting to sync") == true)
+        let second = await viewModel.confirmOriginal(subject: subject, inferenceEngine: engine,
+            modelContext: container.mainContext)
+        #expect(!second)
+        #expect(attempts == 1)
+    }
+
+    @Test func confirmationCompletionCannotReportSuccessForAReplacementScan() async throws {
+        let container = try ModelContainer(for: Schema(versionedSchema: CurrentSchema.self),
+            configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let engine = confirmationEngine()
+        let viewModel = CandidateReviewViewModel(dependencies: .init(confirmOriginal: { engine, _, _ in
+            engine.speciesData = SpeciesData(scanId: "replacement", commonName: "Replacement",
+                scientificName: "Fixtureus replacement",
+                insightData: InsightData(aiReasoning: "Synthetic observation", hazardType: "none"),
+                confidenceScore: 0.8, isBiological: true)
+            engine.speciesData?.userConfirmedIdentification = true
+        }))
+        let subject = subject(scanId: "confirmation", generation: engine.scanPresentationGeneration)
+        let confirmed = await viewModel.confirmOriginal(subject: subject, inferenceEngine: engine,
+            modelContext: container.mainContext)
+        #expect(!confirmed)
+        #expect(viewModel.confirmationMessage == nil)
+    }
+
+    private func confirmationEngine() -> InferenceEngine {
+        let engine = InferenceEngine()
+        engine.speciesData = SpeciesData(scanId: "confirmation", commonName: "Fixture",
+            scientificName: "Fixtureus species",
+            insightData: InsightData(aiReasoning: "Synthetic observation", hazardType: "none"),
+            confidenceScore: 0.8, isBiological: true)
+        return engine
     }
 
     private func makeViewModel() -> CandidateReviewViewModel {

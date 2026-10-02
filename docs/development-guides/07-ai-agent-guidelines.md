@@ -527,18 +527,19 @@ delegation rules. Task procedures use progressive disclosure: canonical skills
 live under `skills/` and their repository discovery links live only under
 `.agents/skills/`.
 
-The eight project skills are:
+The project skills are:
 
-| Skill                          | Responsibility                                                                                                       |
-| ------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
-| `$merian-ios`                  | SwiftUI/watchOS, XcodeGen, dependency injection, offline capture, architecture hygiene, and runtime-quality evidence |
-| `$merian-swiftdata-migrations` | Outgoing-schema freeze order, historical types, migration stages, and startup recovery                               |
-| `$merian-supabase`             | Merian database, RLS, Edge, security, client, and candidate-validation overlay                                       |
-| `$merian-api-contracts`        | Deno, generated Swift, and web payload coordination through generate → review diff → validate                        |
-| `$merian-web-admin`            | Public web/internal admin trust boundaries and package-local verification                                            |
-| `$merian-docs-sync`            | Documentation authority, ownership synchronization, stale-reference cleanup, and historical-record preservation      |
-| `$merian-incident-response`    | Regression-first incident diagnosis, remediation, status separation, privacy, and evidence-backed closure            |
-| `$merian-release`              | Explicitly authorized TestFlight, Supabase production, RevenueCat, and rollout procedures                            |
+| Skill                               | Responsibility                                                                                                         |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `$merian-ios`                       | SwiftUI/watchOS, XcodeGen, dependency injection, offline capture, architecture hygiene, and runtime-quality evidence   |
+| `$merian-swiftdata-migrations`      | Outgoing-schema freeze order, historical types, migration stages, and startup recovery                                 |
+| `$merian-supabase`                  | Merian database, RLS, Edge, security, client, and candidate-validation overlay                                         |
+| `$merian-api-contracts`             | Deno, generated Swift, and web payload coordination through generate → review diff → validate                          |
+| `$merian-web-admin`                 | Public web/internal admin trust boundaries and package-local verification                                              |
+| `$merian-identification-evaluation` | Identification research, task benchmark qualification, model assignment evidence, data lineage and evaluator selection |
+| `$merian-docs-sync`                 | Documentation authority, ownership synchronization, stale-reference cleanup, and historical-record preservation        |
+| `$merian-incident-response`         | Regression-first incident diagnosis, remediation, status separation, privacy, and evidence-backed closure              |
+| `$merian-release`                   | Explicitly authorized TestFlight, Supabase production, RevenueCat, and rollout procedures                              |
 
 `$merian-release` cannot be invoked implicitly. Implementation, preparation,
 candidate validation, or green CI never authorizes a deployment or publication.

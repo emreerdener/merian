@@ -23,6 +23,10 @@ struct ConfidenceExplanationSheet: View {
 
     @State private var viewModel: ConfidenceExplanationViewModel
     @State private var showPaywall = false
+    @State private var showsIncorrectConfirmation = false
+    @State private var reviewToast: ToastPayload?
+    @State private var reviewToastAction: (() -> Void)?
+    @State private var pendingIncorrectSubject: IdentificationReviewSubject?
 
     init(
         scanId: String,
@@ -85,7 +89,8 @@ struct ConfidenceExplanationSheet: View {
     }
 
     private var headerTitle: String {
-        ConfidenceExplanationPresentation.headerTitle(
+        if inferenceEngine.speciesData?.aiReview.isUnresolved == true { return "Incorrect" }
+        return ConfidenceExplanationPresentation.headerTitle(
             confidenceScore: confidenceScore,
             inferenceTier: inferenceTier,
             provenance: provenance,
@@ -127,6 +132,51 @@ struct ConfidenceExplanationSheet: View {
         }
     }
 
+    private var undoIncorrectAction: (() -> Void)? {
+        guard isSubjectPresentationCurrent,
+              inferenceEngine.speciesData?.canUndoIncorrectIdentification == true else { return nil }
+        let expectedSubject = subject
+        return { undoIncorrect(expectedSubject: expectedSubject) }
+    }
+
+    private func undoIncorrect(expectedSubject: IdentificationReviewSubject) {
+        Task { @MainActor in
+            guard expectedSubject.matches(subject), isSubjectPresentationCurrent,
+                  inferenceEngine.speciesData?.canUndoIncorrectIdentification == true else { return }
+            reviewToast = nil
+            reviewToastAction = nil
+            await inferenceEngine.undoIncorrectIdentification(expectedScanId: expectedSubject.scanId, modelContext: modelContext)
+        }
+    }
+
+    private var incorrectAction: (() -> Void)? {
+        guard isSubjectPresentationCurrent,
+              viewModel.refinementSnapshot != nil,
+              inferenceEngine.speciesData?.canMarkIdentificationIncorrect == true else { return nil }
+        return {
+            pendingIncorrectSubject = subject
+            showsIncorrectConfirmation = true
+        }
+    }
+
+    private func confirmIncorrectIdentification() {
+        guard let expectedSubject = pendingIncorrectSubject else { return }
+        pendingIncorrectSubject = nil
+        Task { @MainActor in
+            guard expectedSubject.matches(subject), isSubjectPresentationCurrent,
+                  inferenceEngine.speciesData?.canMarkIdentificationIncorrect == true else { return }
+            await inferenceEngine.markIdentificationIncorrect(
+                expectedScanId: scanId,
+                modelContext: modelContext,
+                onLocalSave: {
+                    guard expectedSubject.matches(subject), isSubjectPresentationCurrent else { return }
+                    reviewToastAction = { undoIncorrect(expectedSubject: expectedSubject) }
+                    reviewToast = .information("Marked as incorrect", action: .init(id: .undo, title: "Undo"))
+                }
+            )
+        }
+    }
+
     private var actionContext: ConfidenceExplanationActionContext {
         ConfidenceExplanationActionContext(
             scanId: scanId,
@@ -144,7 +194,16 @@ struct ConfidenceExplanationSheet: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 32) {
-                ConfidenceHeader(title: headerTitle)
+                ConfidenceHeader(
+                    title: headerTitle,
+                    showsExplanation: inferenceEngine.speciesData?.aiReview.isUnresolved != true
+                        && !userConfirmedIdentification && userIdentificationOverride == nil
+                )
+
+                if inferenceEngine.speciesData?.aiReview.isUnresolved == true {
+                    IncorrectIdentificationView(onUndo: undoIncorrectAction)
+                        .padding(.horizontal, 16)
+                }
 
                 let candidates = visibleReviewCandidates
                 let storedCandidateCount = storedCandidates.count
@@ -196,7 +255,7 @@ struct ConfidenceExplanationSheet: View {
                         }
                     )
                     .padding(.horizontal, 16)
-                } else if userConfirmedIdentification {
+                } else if userConfirmedIdentification && inferenceEngine.speciesData?.aiReview.isUnresolved != true {
                     ConfirmedView(
                         onReset: {
                             guard isSubjectPresentationCurrent else { return }
@@ -229,11 +288,12 @@ struct ConfidenceExplanationSheet: View {
 
                 let onReanalyze = refinementAction
                 let onAskCommunity = communityRequestAction
-                if onReanalyze != nil || onAskCommunity != nil {
+                if onReanalyze != nil || onAskCommunity != nil || incorrectAction != nil {
                     ConfidenceSheetActionButtons(
                         isReanalyzeLocked: !revenueCatManager.canStartProScan,
                         onReanalyze: onReanalyze,
                         onAskCommunity: onAskCommunity,
+                        onMarkIncorrect: incorrectAction,
                         feedback: viewModel.feedback
                     )
                     .padding(.horizontal, 16)
@@ -260,6 +320,21 @@ struct ConfidenceExplanationSheet: View {
             .padding(.top, 32)
             .padding(.bottom, 48)
         }
+        .alert("Identification confirmation", isPresented: Binding(
+            get: { viewModel.candidateReview.confirmationMessage != nil },
+            set: { if !$0 { viewModel.candidateReview.confirmationMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) { viewModel.candidateReview.confirmationMessage = nil }
+        } message: {
+            Text(viewModel.candidateReview.confirmationMessage ?? "")
+        }
+        .alert("Mark identification as incorrect?", isPresented: $showsIncorrectConfirmation) {
+            Button("Mark as incorrect", role: .destructive, action: confirmIncorrectIdentification)
+            Button("Cancel", role: .cancel) { pendingIncorrectSubject = nil }
+        } message: {
+            Text("Your scan, photos, and notes will be kept.")
+        }
+        .merianSystemFeedback(toast: $reviewToast, toastAction: $reviewToastAction, showsAchievementToasts: false)
         .transparentTopToolbar()
         .sheet(
             isPresented: swipeModalPresentedBinding,

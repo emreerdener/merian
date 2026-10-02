@@ -65,7 +65,7 @@ validate-markdown-format:
 test-markdown-format-tooling:
 	bash scripts/test-check-changed-markdown-format.sh
 
-validate-agent-assets:
+validate-agent-assets: validate-identification-research
 	deno fmt --check \
 		scripts/validate-agent-assets.ts \
 		scripts/render-agent-eval-input.ts \
@@ -250,3 +250,13 @@ db-push:
 functions-deploy:
 	@bash services/supabase/scripts/require_supabase_cli_version.sh
 	supabase --workdir $(SUPABASE_WORKDIR) functions deploy
+
+.PHONY: generate-identification-research validate-identification-research
+generate-identification-research:
+	deno run --allow-read=docs --allow-write=docs/research/identification --allow-run=deno scripts/identification-research-catalog.ts --write
+
+validate-identification-research:
+	deno fmt --check scripts/identification-research-catalog*.ts docs/research/identification/catalog.json docs/research/identification/capabilities.json
+	deno lint scripts/identification-research-catalog*.ts
+	deno test --allow-read=docs/research/identification/catalog.json,docs/research/identification/capabilities.json scripts/identification-research-catalog_test.ts
+	deno run --allow-read=docs --allow-run=deno scripts/identification-research-catalog.ts --check

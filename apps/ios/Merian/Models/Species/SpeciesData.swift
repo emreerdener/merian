@@ -96,6 +96,7 @@ struct SpeciesData: Sendable {
     var isFlagged: Bool
     /// True when the user exhausted the alternative candidates without choosing one.
     var alternativesExhausted: Bool = false
+    var aiReview = LocalAIIdentificationReview()
 
     var audioFilePaths: [String]?
     var videoFilePaths: [String]?
@@ -155,6 +156,7 @@ extension SpeciesData {
         imageQualityScore: Int? = nil,
         aiScientificName: String = "",
         userIdentificationOverride: String? = nil,
+        aiReview: LocalAIIdentificationReview = .init(),
         userConfirmedIdentification: Bool = false,
         isFlagged: Bool = false,
         alternativesExhausted: Bool = false,
@@ -216,6 +218,7 @@ extension SpeciesData {
         self.imageQualityScore = imageQualityScore
         self.aiScientificName = aiScientificName.isEmpty ? scientificName : aiScientificName
         self.userIdentificationOverride = userIdentificationOverride
+        self.aiReview = aiReview
         self.userConfirmedIdentification = userConfirmedIdentification
         self.isFlagged = isFlagged
         self.alternativesExhausted = alternativesExhausted

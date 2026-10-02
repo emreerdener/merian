@@ -33,6 +33,13 @@ enum InferenceScanReplacement {
                   !replacement.isDeleted,
                   !original.isDeleted else { return nil }
 
+            // A non-biological result has no identification acceptance controls.
+            // Keep the rejected observation rather than silently resolving it.
+            if original.localAIIdentificationReview.isUnresolved && !result.speciesData.isBiological {
+                return nil
+            }
+            let previousReview = replacement.aiIdentificationReviewData
+            let carriesReview = original.localAIIdentificationReview.isUnresolved
             let previousTags = replacement.customTags
             let previousCollections = replacement.collections
             let previousNotes = replacement.fieldNotes
@@ -50,17 +57,26 @@ enum InferenceScanReplacement {
                !replacementHasNotes {
                 replacement.fieldNotes = original.fieldNotes
             }
-            // Identification review state belongs to the new analysis, not the
-            // user's retained tags, collection memberships, or field notes.
+
             do {
+                if carriesReview {
+                    try IdentificationReviewSyncService().carryRejection(from: original, to: replacement, context: context)
+                }
                 try saveMetadata(context)
             } catch {
                 // Restore only our staged values. A context-wide rollback would
                 // discard unrelated user edits in the presentation context.
+                if carriesReview, let operation = replacement.localAIIdentificationReview.pending?.operationID,
+                   let job = try? context.fetchOfflineJob(id: "identification-review:\(operation)") { context.delete(job) }
+                replacement.aiIdentificationReviewData = previousReview
                 replacement.customTags = previousTags
                 replacement.collections = previousCollections
                 replacement.fieldNotes = previousNotes
                 throw error
+            }
+            if carriesReview {
+                Task { await OfflineQueueManager.shared.syncPendingIdentificationReviews() }
+                return nil // The durable carry receipt owns deletion of the original.
             }
             return original
         } catch {

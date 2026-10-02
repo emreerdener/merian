@@ -69,6 +69,27 @@ enum SpeciesIdentificationResolutionPolicy {
 }
 
 extension SpeciesData {
+    var canUndoIncorrectIdentification: Bool {
+        aiReview.state == .aiRejected && !aiReview.needsAttention
+            && (aiReview.pending == nil || aiReview.pending?.action == .reject)
+    }
+
+    var canMarkIdentificationIncorrect: Bool {
+        isBiological && !isHumanSubject && hasResolvedBiologicalIdentification
+            && !aiReview.isUnresolved && aiReview.community == nil
+            && (aiReview.pending == nil || aiReview.pending?.action == .undo)
+            && !aiReview.needsAttention
+            && userIdentificationOverride == nil
+    }
+
+    /// Prior UI presentation while rejection support has no user-facing surface.
+    /// Never use this copy for persistence, statistics, or identification authority.
+    var legacyIdentificationPresentation: SpeciesData {
+        var presentation = self
+        presentation.aiReview = .init()
+        return presentation
+    }
+
     /// True for transient inference failures such as network timeouts and
     /// provider-admission decisions. These values use `isBiological == false`
     /// only to avoid biological result UI; they are not model classifications.
@@ -83,7 +104,7 @@ extension SpeciesData {
 
     /// A separate selected taxon, never a replacement for the original AI answer.
     var verifiedConfirmedSpeciesIdentity: ConfirmedSpeciesReview.Identity? {
-        guard isBiological, primaryIdentification?.value != nil,
+        guard !aiReview.isUnresolved, isBiological, primaryIdentification?.value != nil,
               let review = confirmedSpeciesReview,
               review.matchesIntent(override: userIdentificationOverride,
                                    confirmed: userConfirmedIdentification,
@@ -94,12 +115,15 @@ extension SpeciesData {
     /// Broad and unresolved biological observations remain usable without a species association.
     var isShareableBiologicalObservation: Bool {
         guard isBiological, !isHumanSubject else { return false }
+        if aiReview.isUnresolved { return true }
         if let primaryIdentification { return primaryIdentification.value != nil }
         return hasResolvedBiologicalIdentification
     }
 
     /// This is deliberately separate from a usable genus/family label.
     var hasSpeciesLevelIdentification: Bool {
+        if let community = aiReview.community { return community.rank == "species" }
+        if aiReview.isUnresolved { return false }
         if let primaryIdentification {
             return isBiological && primaryIdentification.value?.resolution == .species && userIdentificationOverride == nil
         }
@@ -121,6 +145,8 @@ extension SpeciesData {
     }
 
     var hasResolvedBiologicalIdentification: Bool {
+        if aiReview.community != nil { return true }
+        if aiReview.isUnresolved { return false }
         guard isBiological else { return false }
         if let primaryIdentification {
             return primaryIdentification.value?.resolution.isNamedBiologicalTaxon == true
@@ -137,11 +163,9 @@ extension SpeciesData {
         isBiological && !hasResolvedBiologicalIdentification
     }
 
-    /// Identity confidence is shown only for a resolved taxon (including Human).
-    /// Unresolved audio may retain animal-presence confidence without a match badge.
-    /// Confirmed and override state are presented separately.
+    /// UI uses the original confidence while review authority remains separate.
     var presentationConfidenceScore: Double? {
-        hasResolvedBiologicalIdentification ? confidenceScore : nil
+        legacyIdentificationPresentation.hasResolvedBiologicalIdentification ? confidenceScore : nil
     }
 
     /// Audio-only compatibility records may still contain legacy placeholder
@@ -149,7 +173,7 @@ extension SpeciesData {
     func subjectDisplayName(isAudioOnlyObservation: Bool) -> String {
         guard isAudioOnlyObservation else { return commonName }
         if isHumanSubject { return "Human" }
-        if isUnresolvedBiologicalSubject { return "Unidentified Wildlife" }
+        if legacyIdentificationPresentation.isUnresolvedBiologicalSubject { return "Unidentified Wildlife" }
         if isClassifiedNonBiological { return "No wildlife detected" }
         return commonName
     }
@@ -170,7 +194,7 @@ extension SpeciesData {
     /// Third-party reference photos are not shown for people, domestic cats, or
     /// domestic dogs. Wild felids and canids retain their reference galleries.
     var shouldSuppressReferenceImages: Bool {
-        if !hasSpeciesLevelIdentification { return true }
+        if !legacyIdentificationPresentation.hasSpeciesLevelIdentification { return true }
         return ReferenceImageVisibilityPolicy.shouldSuppress(
             isHumanSubject: isHumanSubject,
             scientificName: scientificName

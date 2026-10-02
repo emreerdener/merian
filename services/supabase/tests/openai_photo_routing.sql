@@ -238,7 +238,7 @@ BEGIN
         (SELECT COUNT(*) FROM internal.identification_provider_attempts),
         (SELECT COUNT(*) FROM internal.complimentary_scan_usage)
     ) INTO before_counts;
-    FOREACH protocol IN ARRAY ARRAY[NULL,3,6] LOOP
+    FOREACH protocol IN ARRAY ARRAY[NULL,3,7] LOOP
         denied := FALSE;
         BEGIN
             PERFORM public.reserve_identification_quota(test_user_id,'scan_identification',test_request_id,
@@ -350,7 +350,7 @@ BEGIN
     IF NOT denied THEN RAISE EXCEPTION 'Gemini attempt accepted OpenAI minimum capability'; END IF;
     PERFORM public.finalize_ai_quota_reservation(repeated.reservation_id,test_user_id,repeated.lease_token,'refunded');
     FOREACH profile IN ARRAY ARRAY['multimodal_text_v1','multimodal_audio_v1','multimodal_photo_audio_v1','multimodal_video_frames_v1','multimodal_video_audio_v1'] LOOP
-        FOREACH protocol IN ARRAY ARRAY[4, 5] LOOP
+        FOREACH protocol IN ARRAY ARRAY[4, 5, 6] LOOP
             test_request_id := extensions.gen_random_uuid();
             SELECT * INTO STRICT preview FROM public.get_my_identification_preflight(
                 'scan_identification',profile,FALSE,test_request_id,3,protocol);

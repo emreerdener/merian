@@ -5,12 +5,52 @@ import Testing
 @MainActor
 @Suite("App update compatibility recovery")
 struct AppUpdateCoordinatorTests {
+    @Test func unavailableUpdatePathSuppressesFreshRestoredAndRetryPrompts() throws {
+        let suite = "app-update-tests-\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let account = UUID()
+        let original = AppUpdateCoordinator(
+            defaults: defaults, buildIdentity: "1:10", allowsUpdatePrompt: false
+        ) { account }
+        for scope in ClientUpdateRequirementStore.Scope.allCases {
+            original.record(scope)
+            #expect(original.requiresUpdate(scope, accountID: account))
+            #expect(!original.showsPrompt)
+        }
+        let relaunched = AppUpdateCoordinator(
+            defaults: defaults, buildIdentity: "1:10", allowsUpdatePrompt: false
+        ) { account }
+        relaunched.refresh()
+        #expect(!relaunched.showsPrompt)
+        for code in ["client_update_required", "server_result_local_recovery_update_required"] {
+            #expect(relaunched.blocksRetry(errorCode: code))
+            #expect(!relaunched.showsPrompt)
+        }
+        #expect(!relaunched.shouldRetryHistoryAfterUpdate)
+    }
+
+    @Test func defaultPromptAvailabilityMatchesBuildAndPlatform() throws {
+        let suite = "app-update-tests-\(UUID())"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let account = UUID()
+        let subject = AppUpdateCoordinator(defaults: defaults, buildIdentity: "1:10") { account }
+        subject.record(.history)
+        #if DEBUG || targetEnvironment(simulator)
+        #expect(!subject.showsPrompt)
+        #else
+        #expect(subject.showsPrompt)
+        #endif
+        #expect(subject.requiresUpdate(.history, accountID: account))
+    }
+
     @Test func dismissalAndRelaunchPreservePauseUntilInstalledBuildChanges() throws {
         let suite = "app-update-tests-\(UUID())"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         let account = UUID()
-        let original = AppUpdateCoordinator(defaults: defaults, buildIdentity: "1:10") { account }
+        let original = AppUpdateCoordinator(defaults: defaults, buildIdentity: "1:10", allowsUpdatePrompt: true) { account }
         original.record(.history)
         original.record(.identification)
         #expect(original.showsPrompt)
@@ -21,12 +61,12 @@ struct AppUpdateCoordinatorTests {
         #expect(original.blocksRetry(errorCode: "client_update_required"))
         #expect(original.showsPrompt)
 
-        let relaunched = AppUpdateCoordinator(defaults: defaults, buildIdentity: "1:10") { account }
+        let relaunched = AppUpdateCoordinator(defaults: defaults, buildIdentity: "1:10", allowsUpdatePrompt: true) { account }
         relaunched.refresh()
         #expect(relaunched.showsPrompt)
         #expect(!relaunched.shouldRetryHistoryAfterUpdate)
 
-        let updated = AppUpdateCoordinator(defaults: defaults, buildIdentity: "1:11") { account }
+        let updated = AppUpdateCoordinator(defaults: defaults, buildIdentity: "1:11", allowsUpdatePrompt: true) { account }
         updated.refresh()
         #expect(!updated.showsPrompt)
         #expect(!updated.requiresUpdate(.history, accountID: account))
@@ -43,7 +83,7 @@ struct AppUpdateCoordinatorTests {
         defer { defaults.removePersistentDomain(forName: suite) }
         let first = UUID(), second = UUID()
         var current: UUID? = first
-        let subject = AppUpdateCoordinator(defaults: defaults, buildIdentity: "1:10") { current }
+        let subject = AppUpdateCoordinator(defaults: defaults, buildIdentity: "1:10", allowsUpdatePrompt: true) { current }
         subject.record(.history, accountID: first)
         current = second
         subject.refresh()
@@ -64,14 +104,14 @@ struct AppUpdateCoordinatorTests {
         let defaults = try #require(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         let account = UUID()
-        let subject = AppUpdateCoordinator(defaults: defaults, buildIdentity: "1:10") { account }
+        let subject = AppUpdateCoordinator(defaults: defaults, buildIdentity: "1:10", allowsUpdatePrompt: true) { account }
         subject.record(.identification)
         #expect(!subject.requiresUpdate(.history, accountID: account))
         #expect(!subject.blocksRetry(errorCode: "server_result_local_recovery_update_required"))
         subject.record(.history)
         subject.historySucceeded(accountID: account)
         #expect(subject.requiresUpdate(.history, accountID: account))
-        let updated = AppUpdateCoordinator(defaults: defaults, buildIdentity: "1:11") { account }
+        let updated = AppUpdateCoordinator(defaults: defaults, buildIdentity: "1:11", allowsUpdatePrompt: true) { account }
         updated.historySucceeded(accountID: account)
         #expect(subject.requiresUpdate(.identification, accountID: account))
         #expect(!subject.requiresUpdate(.history, accountID: account))

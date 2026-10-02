@@ -324,7 +324,7 @@ Deno.test("result emission preserves legacy reads and requires exact V2 reader s
   }, null);
   assertEquals(await identifyResultResponse(req, v1).json(), v1);
   for (const source of ["stored", "reconstructed"] as const) {
-    for (const protocol of [null, "3", "04", "4.0", "6", "4, 4"]) {
+    for (const protocol of [null, "3", "04", "4.0", "7", "4, 4"]) {
       assertEquals(
         completedIdentifyResponse(request("identify", protocol), {
           envelope,
@@ -386,7 +386,7 @@ Deno.test("primary replay requires protocol 5 at every handler and completion br
     for (const [endpoint, handler] of Object.entries(handlers)) {
       for (const stage of ["initial", "quota", "ingestion"] as const) {
         for (const source of ["stored", "reconstructed"] as const) {
-          for (const protocol of ["4", "5"]) {
+          for (const protocol of ["4", "5", "6"]) {
             const db = database(stage, source, primaryScan);
             const result = await handler(
               request(endpoint, protocol),
@@ -395,11 +395,11 @@ Deno.test("primary replay requires protocol 5 at every handler and completion br
             );
             assertEquals(
               result.status,
-              protocol === "5" ? 200 : 426,
+              protocol !== "4" ? 200 : 426,
               `${endpoint}/${stage}/${source}/${protocol}`,
             );
             const body = await result.json();
-            if (protocol === "5") assertEquals(body, expected);
+            if (protocol !== "4") assertEquals(body, expected);
             else {
               assertEquals(body.code, "client_update_required");
               assert(!("data" in body));
@@ -408,7 +408,7 @@ Deno.test("primary replay requires protocol 5 at every handler and completion br
         }
       }
     }
-    for (const protocol of [null, "3", "05", "5.0", "6"]) {
+    for (const protocol of [null, "3", "05", "5.0", "7"]) {
       assertEquals(
         identifyResultResponse(request("identify", protocol), expected).status,
         426,

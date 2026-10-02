@@ -20,9 +20,9 @@ export function identifyResultResponse(
         envelope.data.identification_provenance?.schema,
       ) === "primary_v1";
   const supported = requiresPrimaryReader
-    ? protocol === "5"
+    ? (protocol === "5" || protocol === "6")
     : envelope.data.identification_provenance?.version !== 2 ||
-      protocol === "4" || protocol === "5";
+      protocol === "4" || (protocol === "5" || protocol === "6");
   if (!supported && !internalReplay) {
     return publicErrorResponse(
       req,

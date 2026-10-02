@@ -108,6 +108,8 @@ extension LocalScanRecord {
 
     /// Species totals can use a verified selection while the original AI rank stays unchanged.
     var effectiveSpeciesNameForStatistics: String? {
+        if localAIIdentificationReview.isUnresolved { return nil }
+        if let community = localAIIdentificationReview.community { return community.rank == "species" ? community.scientific_name : nil }
         if primaryIdentification != nil {
             guard primaryIdentification?.value != nil,
                   confirmedSpeciesIdentityData == nil || confirmedSpeciesReview != nil else { return nil }
@@ -118,6 +120,7 @@ extension LocalScanRecord {
 
     /// A pending local change cannot borrow the previous selection's authority.
     var verifiedConfirmedSpeciesIdentity: ConfirmedSpeciesReview.Identity? {
+        guard !localAIIdentificationReview.isUnresolved, localAIIdentificationReview.community == nil else { return nil }
         guard let review = confirmedSpeciesReview,
               review.matchesIntent(override: userIdentificationOverride,
                                    confirmed: userConfirmedIdentification, state: userReviewState) else { return nil }

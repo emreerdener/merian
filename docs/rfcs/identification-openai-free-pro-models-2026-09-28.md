@@ -2,6 +2,17 @@
 
 Date: 2026-09-28
 
+September 30 follow-up: the owner-approved
+[Sol low/medium pilot](identification-sol-reasoning-pilot-2026-09-30.md) using
+the activated confidence prompt, the supplied repeatability photo and three
+existing difficult reference cases completed all twelve calls. Medium improved
+one scientific-name mapping, but retained the butterfly error and did not
+resolve the supplied-photo inconsistency. Mean provider time increased from 6.8
+to 11.1 seconds and conservative accounted cost increased about 16%. The mixed
+result does not support promoting medium; retain Sol-low for both tiers. This
+closes the pilot without reopening the Luna experiments or changing production
+assignment or confidence thresholds.
+
 Status: Slices 1 and 2 are complete locally: versioned evaluation profiles,
 bounded execution and a documented selection decision. The original Luna screen
 stopped on reference coverage; its approved continuation stopped on mineral

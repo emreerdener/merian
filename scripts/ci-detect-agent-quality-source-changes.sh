@@ -106,7 +106,7 @@ for path in "${changed_files[@]}"; do
       agent_scope=true
       need_api=true
       ;;
-    skills/merian-docs-sync/*)
+    skills/merian-docs-sync/*|skills/merian-identification-evaluation/*|docs/research/identification/*|scripts/identification-research-catalog*)
       agent_scope=true
       need_docs=true
       ;;

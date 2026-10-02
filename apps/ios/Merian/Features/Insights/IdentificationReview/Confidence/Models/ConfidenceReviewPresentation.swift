@@ -31,6 +31,7 @@ struct ConfidenceBadgePresentation: Equatable {
     enum Style: Equatable {
         case analyzing
         case confirmed
+        case incorrect
         case strong
         case possible
         case weak
@@ -52,7 +53,8 @@ struct ConfidenceBadgePresentation: Equatable {
         provenance: IdentificationResultProvenance? = nil,
         hasUserOverride: Bool,
         isUserConfirmed: Bool,
-        analyzingPhrase: String?
+        analyzingPhrase: String?,
+        isIncorrect: Bool = false
     ) -> Self {
         if let analyzingPhrase {
             let label = analyzingPhrase.hasSuffix("...")
@@ -64,6 +66,9 @@ struct ConfidenceBadgePresentation: Equatable {
                 style: .analyzing,
                 isVisible: true
             )
+        }
+        if isIncorrect {
+            return Self(label: "Incorrect", icon: "xmark.circle.fill", style: .incorrect, isVisible: true)
         }
         if hasUserOverride || isUserConfirmed {
             return Self(

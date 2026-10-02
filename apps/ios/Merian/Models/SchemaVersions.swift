@@ -3119,7 +3119,8 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             MerianActiveSchemaV50.self,
             MerianSchemaV51.self,
             MerianSchemaV52.self,
-            MerianSchemaV53.self
+            MerianSchemaV53.self,
+            MerianSchemaV54.self
         ]
     }
 
@@ -3170,7 +3171,8 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
             migrateV49toV50,
             migrateV50toV51,
             migrateV51toV52,
-            migrateV52toV53
+            migrateV52toV53,
+            migrateV53toV54
         ]
     }
 
@@ -3476,6 +3478,11 @@ enum MerianMigrationPlan: SchemaMigrationPlan {
     /// migration never has to synthesize the new unique compound identifier for
     /// legacy rows. The target cleanup is a defensive guard against an
     /// incomplete source purge.
+    static let migrateV53toV54 = MigrationStage.lightweight(
+        fromVersion: MerianSchemaV53.self,
+        toVersion: MerianSchemaV54.self
+    )
+
     static let migrateV52toV53 = MigrationStage.lightweight(
         fromVersion: MerianSchemaV52.self,
         toVersion: MerianSchemaV53.self
@@ -4096,7 +4103,8 @@ enum MerianRecentV42MigrationPlan: SchemaMigrationPlan {
             MerianActiveSchemaV50.self,
             MerianSchemaV51.self,
             MerianSchemaV52.self,
-            MerianSchemaV53.self
+            MerianSchemaV53.self,
+            MerianSchemaV54.self
         ]
     }
 
@@ -4106,7 +4114,8 @@ enum MerianRecentV42MigrationPlan: SchemaMigrationPlan {
             MerianMigrationPlan.migrateV49toV50,
             MerianMigrationPlan.migrateV50toV51,
             MerianMigrationPlan.migrateV51toV52,
-            MerianMigrationPlan.migrateV52toV53
+            MerianMigrationPlan.migrateV52toV53,
+            MerianMigrationPlan.migrateV53toV54
         ]
     }
 }
@@ -4122,7 +4131,8 @@ enum MerianRecentV43MigrationPlan: SchemaMigrationPlan {
             MerianActiveSchemaV50.self,
             MerianSchemaV51.self,
             MerianSchemaV52.self,
-            MerianSchemaV53.self
+            MerianSchemaV53.self,
+            MerianSchemaV54.self
         ]
     }
 
@@ -4132,7 +4142,8 @@ enum MerianRecentV43MigrationPlan: SchemaMigrationPlan {
             MerianMigrationPlan.migrateV49toV50,
             MerianMigrationPlan.migrateV50toV51,
             MerianMigrationPlan.migrateV51toV52,
-            MerianMigrationPlan.migrateV52toV53
+            MerianMigrationPlan.migrateV52toV53,
+            MerianMigrationPlan.migrateV53toV54
         ]
     }
 }
@@ -4145,7 +4156,8 @@ enum MerianRecentV44MigrationPlan: SchemaMigrationPlan {
             MerianActiveSchemaV50.self,
             MerianSchemaV51.self,
             MerianSchemaV52.self,
-            MerianSchemaV53.self
+            MerianSchemaV53.self,
+            MerianSchemaV54.self
         ]
     }
 
@@ -4155,7 +4167,8 @@ enum MerianRecentV44MigrationPlan: SchemaMigrationPlan {
             MerianMigrationPlan.migrateV49toV50,
             MerianMigrationPlan.migrateV50toV51,
             MerianMigrationPlan.migrateV51toV52,
-            MerianMigrationPlan.migrateV52toV53
+            MerianMigrationPlan.migrateV52toV53,
+            MerianMigrationPlan.migrateV53toV54
         ]
     }
 }
@@ -4169,7 +4182,8 @@ enum MerianRecentV45MigrationPlan: SchemaMigrationPlan {
             MerianActiveSchemaV50.self,
             MerianSchemaV51.self,
             MerianSchemaV52.self,
-            MerianSchemaV53.self
+            MerianSchemaV53.self,
+            MerianSchemaV54.self
         ]
     }
 
@@ -4179,7 +4193,8 @@ enum MerianRecentV45MigrationPlan: SchemaMigrationPlan {
             MerianMigrationPlan.migrateV49toV50,
             MerianMigrationPlan.migrateV50toV51,
             MerianMigrationPlan.migrateV51toV52,
-            MerianMigrationPlan.migrateV52toV53
+            MerianMigrationPlan.migrateV52toV53,
+            MerianMigrationPlan.migrateV53toV54
         ]
     }
 }
@@ -4195,7 +4210,8 @@ enum MerianRecentV46MigrationPlan: SchemaMigrationPlan {
             MerianActiveSchemaV50.self,
             MerianSchemaV51.self,
             MerianSchemaV52.self,
-            MerianSchemaV53.self
+            MerianSchemaV53.self,
+            MerianSchemaV54.self
         ]
     }
 
@@ -4205,7 +4221,8 @@ enum MerianRecentV46MigrationPlan: SchemaMigrationPlan {
             MerianMigrationPlan.migrateV49toV50,
             MerianMigrationPlan.migrateV50toV51,
             MerianMigrationPlan.migrateV51toV52,
-            MerianMigrationPlan.migrateV52toV53
+            MerianMigrationPlan.migrateV52toV53,
+            MerianMigrationPlan.migrateV53toV54
         ]
     }
 }
@@ -4219,7 +4236,8 @@ enum MerianRecentV47MigrationPlan: SchemaMigrationPlan {
             MerianActiveSchemaV50.self,
             MerianSchemaV51.self,
             MerianSchemaV52.self,
-            MerianSchemaV53.self
+            MerianSchemaV53.self,
+            MerianSchemaV54.self
         ]
     }
 
@@ -4229,7 +4247,8 @@ enum MerianRecentV47MigrationPlan: SchemaMigrationPlan {
             MerianMigrationPlan.migrateV49toV50,
             MerianMigrationPlan.migrateV50toV51,
             MerianMigrationPlan.migrateV51toV52,
-            MerianMigrationPlan.migrateV52toV53
+            MerianMigrationPlan.migrateV52toV53,
+            MerianMigrationPlan.migrateV53toV54
         ]
     }
 }
@@ -4243,7 +4262,8 @@ enum MerianRecentV48MigrationPlan: SchemaMigrationPlan {
             MerianActiveSchemaV50.self,
             MerianSchemaV51.self,
             MerianSchemaV52.self,
-            MerianSchemaV53.self
+            MerianSchemaV53.self,
+            MerianSchemaV54.self
         ]
     }
 
@@ -4253,7 +4273,8 @@ enum MerianRecentV48MigrationPlan: SchemaMigrationPlan {
             MerianMigrationPlan.migrateV49toV50,
             MerianMigrationPlan.migrateV50toV51,
             MerianMigrationPlan.migrateV51toV52,
-            MerianMigrationPlan.migrateV52toV53
+            MerianMigrationPlan.migrateV52toV53,
+            MerianMigrationPlan.migrateV53toV54
         ]
     }
 }
@@ -4267,7 +4288,8 @@ enum MerianOptionalQueueV48RecoveryPlan: SchemaMigrationPlan {
             MerianActiveSchemaV50.self,
             MerianSchemaV51.self,
             MerianSchemaV52.self,
-            MerianSchemaV53.self
+            MerianSchemaV53.self,
+            MerianSchemaV54.self
         ]
     }
 
@@ -4277,7 +4299,8 @@ enum MerianOptionalQueueV48RecoveryPlan: SchemaMigrationPlan {
             MerianMigrationPlan.migrateV49toV50,
             MerianMigrationPlan.migrateV50toV51,
             MerianMigrationPlan.migrateV51toV52,
-            MerianMigrationPlan.migrateV52toV53
+            MerianMigrationPlan.migrateV52toV53,
+            MerianMigrationPlan.migrateV53toV54
         ]
     }
 }
@@ -4291,7 +4314,8 @@ enum MerianRecentV49MigrationPlan: SchemaMigrationPlan {
             MerianActiveSchemaV50.self,
             MerianSchemaV51.self,
             MerianSchemaV52.self,
-            MerianSchemaV53.self
+            MerianSchemaV53.self,
+            MerianSchemaV54.self
         ]
     }
 
@@ -4300,7 +4324,8 @@ enum MerianRecentV49MigrationPlan: SchemaMigrationPlan {
             MerianMigrationPlan.migrateV49toV50,
             MerianMigrationPlan.migrateV50toV51,
             MerianMigrationPlan.migrateV51toV52,
-            MerianMigrationPlan.migrateV52toV53
+            MerianMigrationPlan.migrateV52toV53,
+            MerianMigrationPlan.migrateV53toV54
         ]
     }
 }
@@ -4312,7 +4337,8 @@ enum MerianRecentV50MigrationPlan: SchemaMigrationPlan {
             MerianActiveSchemaV50.self,
             MerianSchemaV51.self,
             MerianSchemaV52.self,
-            MerianSchemaV53.self
+            MerianSchemaV53.self,
+            MerianSchemaV54.self
         ]
     }
 
@@ -4320,7 +4346,8 @@ enum MerianRecentV50MigrationPlan: SchemaMigrationPlan {
         [
             MerianMigrationPlan.migrateV50toV51,
             MerianMigrationPlan.migrateV51toV52,
-            MerianMigrationPlan.migrateV52toV53
+            MerianMigrationPlan.migrateV52toV53,
+            MerianMigrationPlan.migrateV53toV54
         ]
     }
 }
@@ -4333,7 +4360,8 @@ enum MerianReleasedActiveV50MigrationPlan: SchemaMigrationPlan {
             MerianReleasedActiveSchemaV50.self,
             MerianSchemaV51.self,
             MerianSchemaV52.self,
-            MerianSchemaV53.self
+            MerianSchemaV53.self,
+            MerianSchemaV54.self
         ]
     }
 
@@ -4341,7 +4369,8 @@ enum MerianReleasedActiveV50MigrationPlan: SchemaMigrationPlan {
         [
             MerianMigrationPlan.migrateReleasedActiveV50toV51,
             MerianMigrationPlan.migrateV51toV52,
-            MerianMigrationPlan.migrateV52toV53
+            MerianMigrationPlan.migrateV52toV53,
+            MerianMigrationPlan.migrateV53toV54
         ]
     }
 }
@@ -4349,21 +4378,26 @@ enum MerianReleasedActiveV50MigrationPlan: SchemaMigrationPlan {
 /// Installed V51 stores need only the additive provenance hop.
 enum MerianRecentV51MigrationPlan: SchemaMigrationPlan {
     static var schemas: [any VersionedSchema.Type] {
-        [MerianSchemaV51.self, MerianSchemaV52.self, MerianSchemaV53.self]
+        [MerianSchemaV51.self, MerianSchemaV52.self, MerianSchemaV53.self, MerianSchemaV54.self]
     }
 
     static var stages: [MigrationStage] {
-        [MerianMigrationPlan.migrateV51toV52, MerianMigrationPlan.migrateV52toV53]
+        [MerianMigrationPlan.migrateV51toV52, MerianMigrationPlan.migrateV52toV53, MerianMigrationPlan.migrateV53toV54]
     }
 }
 
 /// Installed V52 stores need only the additive identity storage hop.
 enum MerianRecentV52MigrationPlan: SchemaMigrationPlan {
     static var schemas: [any VersionedSchema.Type] {
-        [MerianSchemaV52.self, MerianSchemaV53.self]
+        [MerianSchemaV52.self, MerianSchemaV53.self, MerianSchemaV54.self]
     }
 
     static var stages: [MigrationStage] {
-        [MerianMigrationPlan.migrateV52toV53]
+        [MerianMigrationPlan.migrateV52toV53, MerianMigrationPlan.migrateV53toV54]
     }
+}
+
+enum MerianRecentV53MigrationPlan: SchemaMigrationPlan {
+    static var schemas: [any VersionedSchema.Type] { [MerianSchemaV53.self, MerianSchemaV54.self] }
+    static var stages: [MigrationStage] { [MerianMigrationPlan.migrateV53toV54] }
 }

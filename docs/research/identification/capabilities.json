@@ -1,0 +1,412 @@
+{
+  "version": 1,
+  "reviewedThrough": "2026-10-01",
+  "tasks": [
+    {
+      "id": "photo-identification",
+      "title": "Photo identification",
+      "modality": "photo",
+      "primaryMetric": "Evidence-supported outcome per scheduled observation; separate named precision, yield and supported rank.",
+      "coverage": "Species, genus/family, unresolved biology, nonbiology, lookalikes and cultivated subjects; subject/near-duplicate clusters kept together.",
+      "qualificationRequirements": "Frozen paired held-out comparison; practical effect and uncertainty, category guardrails, mapping and technical failures; task-specific latency/cost ceilings.",
+      "nextAction": "Retain released photo configuration. Advance only a candidate that passes development, then audit unexposed eligibility and freeze a new validation protocol."
+    },
+    {
+      "id": "photo-evidence-sufficiency",
+      "title": "Recognizing insufficient visual evidence",
+      "modality": "photo",
+      "primaryMetric": "Supported rank or appropriate biological abstention per scheduled observation; retain species answers when supported.",
+      "coverage": "Sharp but nondiagnostic images, missing views, occlusion, small subjects, genus/family references, biological and nonbiological controls.",
+      "qualificationRequirements": "Feature claims independently assessed against exact pixels; no hindsight relabeling; false abstention and unsupported specificity measured separately.",
+      "nextAction": "Use the prepared 18-case exposed screen as development only; it has no model results. Follow its frozen hurdle before any new validation."
+    },
+    {
+      "id": "photo-confidence",
+      "title": "Calibrated confidence for photo answers",
+      "modality": "photo",
+      "primaryMetric": "Precision and coverage at prospectively selected thresholds, with uncertainty; calibration error only as a supplementary measure.",
+      "coverage": "Final selected configuration, every supported rank and subject state, high-score errors, abstentions, mapping gaps and technical failures.",
+      "qualificationRequirements": "Separate calibration and untouched validation sets; select thresholds on calibration only; freeze target precision, minimum coverage and interval rule.",
+      "nextAction": "Select a worthwhile identification configuration first. Existing fallback thresholds carry no new calibration guarantee."
+    },
+    {
+      "id": "photo-explanation",
+      "title": "Photo explanation grounding",
+      "modality": "photo",
+      "primaryMetric": "Fraction of scheduled explanations with supported visual claims, consistent uncertainty and useful alternatives; unassessable references separate.",
+      "coverage": "Lookalikes, unsupported specificity, missing views, correct and incorrect identifications, insufficient-reference controls.",
+      "qualificationRequirements": "Blinded independent review with anchored rubric, agreement reporting and predeclared dispute policy; correctness alone does not qualify explanations.",
+      "nextAction": "Strengthen diagnostic references and review coverage; reuse the private review machinery, preserving limits of assistant-led review."
+    },
+    {
+      "id": "audio-identification",
+      "title": "Audio identification",
+      "modality": "audio",
+      "primaryMetric": "Evidence-supported audible caller identification or appropriate unresolved/nonbiological outcome per scheduled clip.",
+      "coverage": "Verified synchronized callers, near-confusable calls, multiple/background sources, silence, machinery and environmental sounds; source-recording clusters.",
+      "qualificationRequirements": "Audible reference adjudication before calls; fixed DSP/context and paired unseen clips; source label alone is insufficient.",
+      "nextAction": "Resolve disputed audible references before another quality comparison; preserve the demonstrated DSP and confidence-semantic fixes as separate engineering evidence."
+    },
+    {
+      "id": "description-identification",
+      "title": "Identification from descriptions",
+      "modality": "text",
+      "primaryMetric": "Most specific identification supported by the supplied text per scheduled description.",
+      "coverage": "Species/genus-only descriptions, ambiguous traits, insufficient context and nonbiological controls; paraphrase clusters.",
+      "qualificationRequirements": "References limited to information in the model-visible text; no hidden image/source-label inference; paired unseen descriptions.",
+      "nextAction": "Build reviewed description-only references and audit exposure; current mixed pilots do not qualify this task."
+    },
+    {
+      "id": "video-identification",
+      "title": "Video identification",
+      "modality": "video",
+      "primaryMetric": "Supported outcome per scheduled source observation through a frozen frame/audio preparation pipeline.",
+      "coverage": "Changing views, subject selection, movement, poor frames and controls; all clips/frames of the same source stay in one split.",
+      "qualificationRequirements": "Evaluate the full declared pipeline; photo performance cannot qualify video or isolate model effect from preprocessing.",
+      "nextAction": "Define approved representative video assets and source-cluster/reference rules before comparing models."
+    }
+  ],
+  "configurations": [
+    {
+      "id": "sol-confidence-photo",
+      "provider": "openai",
+      "model": "gpt-6-sol",
+      "profile": "not_applicable",
+      "binding": "openai_photo_confidence_evaluation_v1",
+      "prompt": "openai_identify_vision_confidence_v1",
+      "schema": "merian_openai_identify_v1",
+      "preprocessing": "Same prepared single-photo JPEGs within each study; high detail for OpenAI. No phone-pipeline accuracy claim.",
+      "context": "No reference labels or description hints; identical frozen study context.",
+      "settings": "Low reasoning; 8192 output tokens; inline moderation. Historical released configuration, not a live deployment attestation. The native snapshot has no profile field; its binding/prompt/schema identify the request.",
+      "studyIds": [
+        "photo-provider-decision",
+        "photo-primary-october",
+        "confidence-development"
+      ]
+    },
+    {
+      "id": "gemini-photo-pro",
+      "provider": "google",
+      "model": "gemini-2.5-pro",
+      "profile": null,
+      "binding": null,
+      "prompt": "identify_vision_v1",
+      "schema": null,
+      "preprocessing": "Same prepared JPEGs as Sol in the October comparison.",
+      "context": "No reference labels or description hints; identical frozen study context.",
+      "settings": "Temperature 0.1, seed 42, 8192 output and 5000 thinking tokens, 90 seconds. Preserved provider-native prompt/safety.",
+      "studyIds": [
+        "photo-provider-decision"
+      ]
+    },
+    {
+      "id": "sol-evidence-photo",
+      "provider": "openai",
+      "model": "gpt-6-sol",
+      "profile": "not_applicable",
+      "binding": "openai_photo_evidence_evaluation_v1",
+      "prompt": "openai_identify_vision_evidence_v1",
+      "schema": "merian_openai_identify_v1",
+      "preprocessing": "Same prepared single-photo JPEGs within each study; high detail for OpenAI. No phone-pipeline accuracy claim.",
+      "context": "No reference labels or description hints; identical frozen study context.",
+      "settings": "Confidence request plus evidence-limit instructions; low reasoning; same explanation and normalization. The native snapshot has no profile field; its binding/prompt/schema identify the request.",
+      "studyIds": [
+        "photo-provider-decision"
+      ]
+    },
+    {
+      "id": "sol-primary-october",
+      "provider": "openai",
+      "model": "gpt-6-sol",
+      "profile": "openai_photo_confidence_primary_low_v1",
+      "binding": "openai_photo_confidence_primary_evaluation_v1",
+      "prompt": "openai_identify_vision_confidence_primary_v1",
+      "schema": "merian_openai_confidence_primary_evaluation_v1",
+      "preprocessing": "Same prepared single-photo JPEGs within each study; high detail for OpenAI. No phone-pipeline accuracy claim.",
+      "context": "No reference labels or description hints; identical frozen study context.",
+      "settings": "Low reasoning; explicit primary state/rank schema; October confidence-derived candidate. Distinct from September primary profile.",
+      "studyIds": [
+        "photo-primary-october",
+        "photo-feature-workflow"
+      ]
+    },
+    {
+      "id": "sol-feature-photo",
+      "provider": "openai",
+      "model": "gpt-6-sol",
+      "profile": "openai_photo_feature_observation_low_v1",
+      "binding": "openai_photo_feature_observation_evaluation_v1",
+      "prompt": "openai_identify_vision_feature_observation_v1",
+      "schema": "merian_openai_feature_observation_evaluation_v1",
+      "preprocessing": "Same prepared single-photo JPEGs within each study; high detail for OpenAI. No phone-pipeline accuracy claim.",
+      "context": "No reference labels or description hints; identical frozen study context.",
+      "settings": "Primary candidate plus at most three private feature observations; offline implementation only.",
+      "studyIds": [
+        "photo-feature-workflow"
+      ]
+    },
+    {
+      "id": "luna-evidence-photo",
+      "provider": "openai",
+      "model": "gpt-6-luna",
+      "profile": "openai_photo_luna_evidence_limits_low_v1",
+      "binding": null,
+      "prompt": null,
+      "schema": null,
+      "preprocessing": null,
+      "context": null,
+      "settings": "Historical evidence-limits profile. Recover complete identity from its frozen study before reuse; no inference from the current confidence prompt.",
+      "studyIds": [
+        "luna-evidence-candidate"
+      ]
+    },
+    {
+      "id": "sol-rank-september",
+      "provider": "openai",
+      "model": "gpt-6-sol",
+      "profile": "openai_photo_sol_rank_limits_low_v1",
+      "binding": "openai_sol_rank_evaluation_v1",
+      "prompt": null,
+      "schema": null,
+      "preprocessing": null,
+      "context": null,
+      "settings": "Low reasoning and high image detail on the older photo prompt; corrected-reference development comparison, not the October evidence candidate.",
+      "studyIds": [
+        "sol-rank-corrected"
+      ]
+    },
+    {
+      "id": "gemini-audio-v2",
+      "provider": "google",
+      "model": "gemini-2.5-pro",
+      "profile": null,
+      "binding": null,
+      "prompt": null,
+      "schema": null,
+      "preprocessing": null,
+      "context": "audio-minimal-v1; audio-only provider evidence.",
+      "settings": "Historical V2 fixed-context audio runs; full native identity stays in linked frozen records. No merging with ordinary-context or legacy-DSP results.",
+      "studyIds": [
+        "audio-v2-regression",
+        "audio-visible-caller"
+      ]
+    },
+    {
+      "id": "gemini-description-video-legacy",
+      "provider": "google",
+      "model": "gemini-2.5-pro",
+      "profile": null,
+      "binding": null,
+      "prompt": null,
+      "schema": null,
+      "preprocessing": null,
+      "context": null,
+      "settings": "Historical app route in description/video replay; complete per-modality request identity has not been materialized into this register.",
+      "studyIds": [
+        "description-video-replay"
+      ]
+    },
+    {
+      "id": "sol-description-september",
+      "provider": "openai",
+      "model": "gpt-6-sol",
+      "profile": null,
+      "binding": null,
+      "prompt": null,
+      "schema": null,
+      "preprocessing": "Frozen text descriptions only; no source images supplied.",
+      "context": "Same two descriptions within the September matched comparison.",
+      "settings": "Historical matched-comparison text configuration; full native request identity must be recovered from the frozen record. Distinct from the later photo configuration.",
+      "studyIds": [
+        "matched-gemini-openai"
+      ]
+    },
+    {
+      "id": "gemini-description-september",
+      "provider": "google",
+      "model": "gemini-2.5-pro",
+      "profile": null,
+      "binding": null,
+      "prompt": null,
+      "schema": null,
+      "preprocessing": "Frozen text descriptions only; no source images supplied.",
+      "context": "Same two descriptions within the September matched comparison.",
+      "settings": "Historical matched-comparison text configuration; full native request identity must be recovered from the frozen record. Distinct from the later photo configuration.",
+      "studyIds": [
+        "matched-gemini-openai"
+      ]
+    }
+  ],
+  "assessments": [
+    {
+      "taskId": "photo-identification",
+      "configurationId": "sol-confidence-photo",
+      "status": "retained_baseline",
+      "studyIds": [
+        "photo-provider-decision"
+      ],
+      "findings": "45/60 supported outcomes in the frozen October validation mixture; retained after neither challenger qualified.",
+      "operations": "Mean provider time 6.874 s; conservative validation cost $2.244005514 for 60 attempts; not app latency or invoice cost.",
+      "limitations": "Assistant-reviewed diagnostic mixture; no general production accuracy, confidence or superiority guarantee.",
+      "qualification": null
+    },
+    {
+      "taskId": "photo-identification",
+      "configurationId": "gemini-photo-pro",
+      "status": "inconclusive",
+      "studyIds": [
+        "photo-provider-decision"
+      ],
+      "findings": "49/60 versus 45/60; paired gains/losses 4/0. Superiority criterion not met.",
+      "operations": "Mean provider time 16.092 s; conservative validation cost $2.076105003 for 60 attempts; different accounting basis from invoice.",
+      "limitations": "Paired difference +6.7 pp, simultaneous interval -6.9 to +19.1 pp; mapping-dependent gains, three for one species. No equivalence or automatic model switch.",
+      "qualification": null
+    },
+    {
+      "taskId": "photo-identification",
+      "configurationId": "sol-evidence-photo",
+      "status": "did_not_qualify",
+      "studyIds": [
+        "photo-provider-decision"
+      ],
+      "findings": "47/60 versus 45/60; paired gains/losses 5/3; failed frozen validation advancement.",
+      "operations": "Mean provider time 6.018 s; conservative validation cost $2.212358520 for 60 attempts.",
+      "limitations": "Paired difference +3.3 pp, simultaneous interval -14.8 to +20.8 pp; genus gains with species losses and no abstention gain.",
+      "qualification": null
+    },
+    {
+      "taskId": "photo-identification",
+      "configurationId": "luna-evidence-photo",
+      "status": "did_not_qualify",
+      "studyIds": [
+        "luna-evidence-candidate"
+      ],
+      "findings": "Mineral wording improved, but biological/specificity failures prevented promotion.",
+      "operations": "No comparable current-config cost/latency estimate in this matrix; see original study.",
+      "limitations": "Exposed small development challenge set; not a universal judgment on Luna.",
+      "qualification": null
+    },
+    {
+      "taskId": "photo-evidence-sufficiency",
+      "configurationId": "sol-confidence-photo",
+      "status": "insufficient_evidence",
+      "studyIds": [
+        "photo-provider-decision",
+        "photo-primary-october"
+      ],
+      "findings": "All six unresolved biological cases named in each study; aggregate species results do not establish evidence sufficiency.",
+      "operations": "See linked study-specific accounting; do not pool their repeated observations.",
+      "limitations": "Original references later received separate prospective adjudication; historical scores unchanged.",
+      "qualification": null
+    },
+    {
+      "taskId": "photo-evidence-sufficiency",
+      "configurationId": "sol-primary-october",
+      "status": "did_not_qualify",
+      "studyIds": [
+        "photo-primary-october"
+      ],
+      "findings": "11/20 versus 7/20 supported outcomes; no unresolved gain and one paired species loss; advancement failed.",
+      "operations": "Mean provider time 6.36 s and conservative candidate cost $0.783563002 for 20 attempts.",
+      "limitations": "Selected exposed observations; development signal only.",
+      "qualification": null
+    },
+    {
+      "taskId": "photo-evidence-sufficiency",
+      "configurationId": "sol-feature-photo",
+      "status": "awaiting_results",
+      "studyIds": [
+        "photo-feature-workflow"
+      ],
+      "findings": "Collector and private double-coding review implemented; 18 observations and 36 calls proposed.",
+      "operations": "Zero provider attempts/charges in engineering record; model latency/cost unknown.",
+      "limitations": "Provisional exposed references; synthetic software passes are not model evidence.",
+      "qualification": null
+    },
+    {
+      "taskId": "photo-confidence",
+      "configurationId": "sol-confidence-photo",
+      "status": "insufficient_evidence",
+      "studyIds": [
+        "confidence-development"
+      ],
+      "findings": "No eligible development cutoff; untouched validation phase did not run.",
+      "operations": "Original 100 development attempts; no new collection implied.",
+      "limitations": "Fallback 0.95/0.60 is not calibrated assurance; later comparisons do not qualify thresholds.",
+      "qualification": null
+    },
+    {
+      "taskId": "photo-explanation",
+      "configurationId": "sol-rank-september",
+      "status": "insufficient_evidence",
+      "studyIds": [
+        "sol-rank-corrected"
+      ],
+      "findings": "Two candidate challenge explanations contradicted visible evidence despite three broader-rank gains.",
+      "operations": "18 total study calls include screening and comparator; not 18 independent candidate observations.",
+      "limitations": "Assistant-led, exposed review with reference gaps; no independent explanation-quality qualification.",
+      "qualification": null
+    },
+    {
+      "taskId": "audio-identification",
+      "configurationId": "gemini-audio-v2",
+      "status": "insufficient_evidence",
+      "studyIds": [
+        "audio-v2-regression",
+        "audio-visible-caller"
+      ],
+      "findings": "Provisional agreements and unresolved source/caller disagreements; no audible species qualification.",
+      "operations": "App-submission timing/accounting belongs to each source record; no paired current-provider estimate.",
+      "limitations": "Source labels and visible-caller review are not independent audible species adjudication.",
+      "qualification": null
+    },
+    {
+      "taskId": "description-identification",
+      "configurationId": "gemini-description-video-legacy",
+      "status": "insufficient_evidence",
+      "studyIds": [
+        "description-video-replay"
+      ],
+      "findings": "Genus-supported description overclaimed species; exploratory repeated case only.",
+      "operations": "No representative task-level latency/cost estimate.",
+      "limitations": "Mixed-study record does not establish a description benchmark or model-wide capability.",
+      "qualification": null
+    },
+    {
+      "taskId": "video-identification",
+      "configurationId": "gemini-description-video-legacy",
+      "status": "insufficient_evidence",
+      "studyIds": [
+        "description-video-replay"
+      ],
+      "findings": "Exploratory video included an ambiguous nonbiological control receiving a biological response.",
+      "operations": "No representative task-level latency/cost estimate.",
+      "limitations": "A reused source and pipeline observation cannot establish video accuracy.",
+      "qualification": null
+    },
+    {
+      "taskId": "description-identification",
+      "configurationId": "sol-description-september",
+      "status": "insufficient_evidence",
+      "studyIds": [
+        "matched-gemini-openai"
+      ],
+      "findings": "Both providers overclaimed species on the genus-supported description. Sol correctly rejected the nonbiological description.",
+      "operations": "Description median provider time 6.87 s over only two inputs; no separately reported description-only cost.",
+      "limitations": "Two reused provisional description cases; no independent reference review, representative latency or general superiority claim.",
+      "qualification": null
+    },
+    {
+      "taskId": "description-identification",
+      "configurationId": "gemini-description-september",
+      "status": "insufficient_evidence",
+      "studyIds": [
+        "matched-gemini-openai"
+      ],
+      "findings": "Both providers overclaimed species on the genus-supported description. Gemini normalized the nonbiological description as biological with an unmapped identity.",
+      "operations": "Description median provider time 17.17 s over only two inputs; no separately reported description-only cost.",
+      "limitations": "Two reused provisional description cases; no independent reference review, representative latency or general superiority claim.",
+      "qualification": null
+    }
+  ]
+}

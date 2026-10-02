@@ -1,0 +1,534 @@
+{
+  "version": "photo_answerability_audit_v1",
+  "date": "2026-10-01",
+  "reviewer": "assistant-answerability-review-v1",
+  "independentHumanValidation": false,
+  "blindedToPriorOutcomes": false,
+  "purpose": "Review holds and prospective design only; no replacement accepted answers or historical rescoring.",
+  "providerCalls": 0,
+  "providerChargesUsd": 0,
+  "pixelsReviewed": 20,
+  "evidenceRoot": "2026-10-01-photo-primary-screen-v1/study",
+  "sourceFileByteSha256": {
+    "confidence-corpus.json": "7c61aad596787e26be17a405b70f5964778f71a3dcf5c0177472ec818f1d0c31",
+    "confidence-evidence.json": "67f2da7b5887fa367e66086336a56b313f67653d79c7ba233f7eac7758a08233",
+    "taxonomy.json": "d98237edee843499b788b3d2be59fe1f3cc23e5835dffba78a4e37c1c7266192",
+    "screen-manifest.json": "2091e48f89676ea20deb5537f15a7011547af4da5bfa79e258d87fe2f20f98ae"
+  },
+  "cases": [
+    {
+      "caseId": "c0003",
+      "assetSha256": "76693d3b4debca9653781024de815c9532fde11b56bf54de58af15c260e9ceed",
+      "historicalReference": {
+        "subject": "biological",
+        "resolution": "named",
+        "supportedRank": "species",
+        "acceptableTaxa": [
+          {
+            "id": "gbif:7987658",
+            "rank": "species"
+          }
+        ]
+      },
+      "reviewDisposition": "retain_provisional_species",
+      "visible": "Elongated pale cap with hanging scales and darker crown; pale stalk visible.",
+      "limitation": "Mapping remains unverified in both screen arms; do not infer the unknown name.",
+      "referenceRecordRef": "reference-c0003",
+      "answerabilityRecordRef": "answerability-c0003",
+      "diagnosticEvidenceRefs": [
+        "independent-coprinus-mdc-v1",
+        "independent-coprinus-key-v1"
+      ],
+      "proposedMechanisms": []
+    },
+    {
+      "caseId": "c0005",
+      "assetSha256": "26ac46ab97c333c491ef87a2d66fd959b9f31e2f4c608e2dddcfdd3da97a6a1e",
+      "historicalReference": {
+        "subject": "biological",
+        "resolution": "named",
+        "supportedRank": "species",
+        "acceptableTaxa": [
+          {
+            "id": "gbif:3314876",
+            "rank": "species"
+          }
+        ]
+      },
+      "reviewDisposition": "hold_species_reference",
+      "visible": "Damaged or dissected pale chambered fruiting bodies and dark internal material; mature pitted cap surface not clearly exposed.",
+      "limitation": "Shared reference wording asserts a diagnostic mature head not established by these pixels.",
+      "referenceRecordRef": "reference-c0005",
+      "answerabilityRecordRef": "answerability-c0005",
+      "diagnosticEvidenceRefs": [
+        "diagnostic-5299e39be793d18f",
+        "diagnostic-bfd10367f8d38a39"
+      ],
+      "proposedMechanisms": []
+    },
+    {
+      "caseId": "c0006",
+      "assetSha256": "28f39548cc3a9513a838e656d5b476c31283ab397de81d5f6266f161155dcf37",
+      "historicalReference": {
+        "subject": "biological",
+        "resolution": "named",
+        "supportedRank": "species",
+        "acceptableTaxa": [
+          {
+            "id": "gbif:3314876",
+            "rank": "species"
+          }
+        ]
+      },
+      "reviewDisposition": "hold_species_reference",
+      "visible": "White chambered stalk; dark slimy head with flies obscuring much of its surface.",
+      "limitation": "Cannot confidently distinguish reticulate relief from slime texture; species regression claim needs reference adjudication.",
+      "referenceRecordRef": "reference-c0006",
+      "answerabilityRecordRef": "answerability-c0006",
+      "diagnosticEvidenceRefs": [
+        "diagnostic-5299e39be793d18f",
+        "diagnostic-bfd10367f8d38a39"
+      ],
+      "proposedMechanisms": []
+    },
+    {
+      "caseId": "c0007",
+      "assetSha256": "01ed731388bc1e138713477f83d158f3cf45ec4df6376f8a024f5a6e6026d1fd",
+      "historicalReference": {
+        "subject": "biological",
+        "resolution": "named",
+        "supportedRank": "genus",
+        "acceptableTaxa": [
+          {
+            "id": "gbif:5239475",
+            "rank": "genus"
+          }
+        ]
+      },
+      "reviewDisposition": "retain_provisional_genus",
+      "visible": "Red interconnected cage with conspicuous projections around openings.",
+      "limitation": "Source species label cannot settle competing opening morphology; retain genus review boundary.",
+      "referenceRecordRef": "reference-c0007",
+      "answerabilityRecordRef": "answerability-c0007",
+      "diagnosticEvidenceRefs": [
+        "independent-clathrus-key-v1"
+      ],
+      "proposedMechanisms": [
+        3
+      ]
+    },
+    {
+      "caseId": "c0012",
+      "assetSha256": "de29c8cffe754aff944472918fc93f28e81112bd49d25e132b6237b3c7c9f4d6",
+      "historicalReference": {
+        "subject": "biological",
+        "resolution": "named",
+        "supportedRank": "species",
+        "acceptableTaxa": [
+          {
+            "id": "gbif:4990191",
+            "rank": "species"
+          }
+        ]
+      },
+      "reviewDisposition": "retain_provisional_species",
+      "visible": "Red-orange convex beetle with seven-spot arrangement and contrasting pronotal markings.",
+      "limitation": "Some head detail is hidden; existing species support remains provisional.",
+      "referenceRecordRef": "reference-c0012",
+      "answerabilityRecordRef": "answerability-c0012",
+      "diagnosticEvidenceRefs": [
+        "diagnostic-32a34ba80ecd6585"
+      ],
+      "proposedMechanisms": []
+    },
+    {
+      "caseId": "c0013",
+      "assetSha256": "2a46d9c98e409c148ee69ba7b285ff6c4e037771ed95258cfb96567ece9f6591",
+      "historicalReference": {
+        "subject": "biological",
+        "resolution": "named",
+        "supportedRank": "species",
+        "acceptableTaxa": [
+          {
+            "id": "gbif:5170994",
+            "rank": "species"
+          }
+        ]
+      },
+      "reviewDisposition": "retain_provisional_species",
+      "visible": "Orb-web spider with broad yellow, pale and dark transverse abdominal bands and banded legs.",
+      "limitation": "Distinctive mature appearance supports existing reference; no independent human validation.",
+      "referenceRecordRef": "reference-c0013",
+      "answerabilityRecordRef": "answerability-c0013",
+      "diagnosticEvidenceRefs": [
+        "diagnostic-5e8adbc5cb99b9ba"
+      ],
+      "proposedMechanisms": []
+    },
+    {
+      "caseId": "c0017",
+      "assetSha256": "98c662f3a67813ac62140c4dd65748c67aea976f84b8793221ccca8e0890a6b3",
+      "historicalReference": {
+        "subject": "biological",
+        "resolution": "named",
+        "supportedRank": "species",
+        "acceptableTaxa": [
+          {
+            "id": "gbif:2482593",
+            "rank": "species"
+          }
+        ]
+      },
+      "reviewDisposition": "retain_provisional_species",
+      "visible": "Blue head and back, pale face/chest and dark neck band.",
+      "limitation": "Correct future evidence wording: barred wing/tail pattern is outside this crop.",
+      "referenceRecordRef": "reference-c0017",
+      "answerabilityRecordRef": "answerability-c0017",
+      "diagnosticEvidenceRefs": [
+        "diagnostic-d681cefc5bc83cf3"
+      ],
+      "proposedMechanisms": []
+    },
+    {
+      "caseId": "c0021",
+      "assetSha256": "f16c2608974d4f9af5397afbbcfaedf917601f4f2d2eefece95b93c3ecbbcb29",
+      "historicalReference": {
+        "subject": "biological",
+        "resolution": "named",
+        "supportedRank": "genus",
+        "acceptableTaxa": [
+          {
+            "id": "gbif:2437489",
+            "rank": "genus"
+          }
+        ]
+      },
+      "reviewDisposition": "retain_provisional_genus",
+      "visible": "Black squirrel with bushy tail, visible face and limbs.",
+      "limitation": "Coat colour alone is not a species discriminator.",
+      "referenceRecordRef": "reference-c0021",
+      "answerabilityRecordRef": "answerability-c0021",
+      "diagnosticEvidenceRefs": [
+        "diagnostic-edda510b2af57cd4",
+        "diagnostic-56a8611c25bf1f31"
+      ],
+      "proposedMechanisms": [
+        3
+      ]
+    },
+    {
+      "caseId": "c0027",
+      "assetSha256": "828aa1671213bd8efbeb7dc05b0ba15c653726c247fe037678573f751330567b",
+      "historicalReference": {
+        "subject": "biological",
+        "resolution": "unresolved",
+        "supportedRank": null,
+        "acceptableTaxa": []
+      },
+      "reviewDisposition": "hold_resolution_reference",
+      "visible": "White compound flower umbels dominate; main stem surface and complete bracts are not resolved.",
+      "limitation": "Divided foliage asserted by old card is not clearly visible; assess family support separately from species exclusion.",
+      "referenceRecordRef": "reference-c0027",
+      "answerabilityRecordRef": "answerability-c0027",
+      "diagnosticEvidenceRefs": [
+        "diagnostic-7ee642c4cb22f5a3"
+      ],
+      "proposedMechanisms": [
+        1,
+        2
+      ]
+    },
+    {
+      "caseId": "c0031",
+      "assetSha256": "9831eafccba7c868ad9be6ed37149e3831bbd7385cf7c33432eead2e873d9fe3",
+      "historicalReference": {
+        "subject": "biological",
+        "resolution": "unresolved",
+        "supportedRank": null,
+        "acceptableTaxa": []
+      },
+      "reviewDisposition": "hold_resolution_reference",
+      "visible": "Overlapping zoned brackets with curled edges and some pale surfaces.",
+      "limitation": "Some surfaces are visible, but true pore size and distribution are not resolved; do not equate unclear pores with absent pores.",
+      "referenceRecordRef": "reference-c0031",
+      "answerabilityRecordRef": "answerability-c0031",
+      "diagnosticEvidenceRefs": [
+        "diagnostic-b0afec8d2b2eb1fd"
+      ],
+      "proposedMechanisms": [
+        2,
+        3
+      ]
+    },
+    {
+      "caseId": "c0032",
+      "assetSha256": "15d7fb6727e628154c001542e0a6c0bde618ce47f78f5f76dae3fa8d5a8da654",
+      "historicalReference": {
+        "subject": "biological",
+        "resolution": "unresolved",
+        "supportedRank": null,
+        "acceptableTaxa": []
+      },
+      "reviewDisposition": "hold_resolution_reference",
+      "visible": "Small tan/yellow-edged brackets on wood, mostly upper/oblique views.",
+      "limitation": "Underside texture and diagnostic reactions are not established; review supported broader rank explicitly.",
+      "referenceRecordRef": "reference-c0032",
+      "answerabilityRecordRef": "answerability-c0032",
+      "diagnosticEvidenceRefs": [
+        "diagnostic-13788fbe70ebf726"
+      ],
+      "proposedMechanisms": [
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "caseId": "c0049",
+      "assetSha256": "ebd5e791af49a0f0679b046d4a8878f24ecd0d101586a94e295944a4339cd891",
+      "historicalReference": {
+        "subject": "biological",
+        "resolution": "named",
+        "supportedRank": "genus",
+        "acceptableTaxa": [
+          {
+            "id": "gbif:8395064",
+            "rank": "genus"
+          }
+        ]
+      },
+      "reviewDisposition": "retain_provisional_genus",
+      "visible": "Serrate compound leaflets, stem and unopened flower bud.",
+      "limitation": "Bud is present in this case too; species/horticultural lineage unresolved.",
+      "referenceRecordRef": "reference-c0049",
+      "answerabilityRecordRef": "answerability-c0049",
+      "diagnosticEvidenceRefs": [
+        "diagnostic-aa986de67fde9bde"
+      ],
+      "proposedMechanisms": [
+        1,
+        3
+      ]
+    },
+    {
+      "caseId": "c0050",
+      "assetSha256": "5861556acc2dbcf926775de770dfc048b19f9a13b37312111e0e966095051eb9",
+      "historicalReference": {
+        "subject": "biological",
+        "resolution": "named",
+        "supportedRank": "genus",
+        "acceptableTaxa": [
+          {
+            "id": "gbif:1340278",
+            "rank": "genus"
+          }
+        ]
+      },
+      "reviewDisposition": "retain_provisional_genus",
+      "visible": "Hairy bee shown front-obliquely on a flower; abdomen partly hidden.",
+      "limitation": "Visibility loss differs from the dorsal bee control c0195; do not use identical visibility wording.",
+      "referenceRecordRef": "reference-c0050",
+      "answerabilityRecordRef": "answerability-c0050",
+      "diagnosticEvidenceRefs": [
+        "diagnostic-fb9c654628a25450"
+      ],
+      "proposedMechanisms": [
+        1,
+        3
+      ]
+    },
+    {
+      "caseId": "c0062",
+      "assetSha256": "ab82d7086683f7daa236de2b552ae42d1be896c8e140b5214502809ad3b7137c",
+      "historicalReference": {
+        "subject": "biological",
+        "resolution": "unresolved",
+        "supportedRank": null,
+        "acceptableTaxa": []
+      },
+      "reviewDisposition": "hold_resolution_reference",
+      "visible": "Trunk and many aerial roots; a few peripheral leaves are present.",
+      "limitation": "Leaf attachment, scale, stipules and reproductive structures are insufficiently established; not a leaf-free image.",
+      "referenceRecordRef": "reference-c0062",
+      "answerabilityRecordRef": "answerability-c0062",
+      "diagnosticEvidenceRefs": [
+        "diagnostic-8c21b18b54ccc2ea"
+      ],
+      "proposedMechanisms": [
+        2,
+        3
+      ]
+    },
+    {
+      "caseId": "c0080",
+      "assetSha256": "d4fde63b686b8e9300f1daa60583698f064cfe54aeaedca48183c511b3f12c06",
+      "historicalReference": {
+        "subject": "non_biological",
+        "resolution": "unresolved",
+        "supportedRank": null,
+        "acceptableTaxa": []
+      },
+      "reviewDisposition": "retain_nonbiological",
+      "visible": "Angular translucent specimen with repeating cleavage surfaces.",
+      "limitation": "Supports nonbiological only; no exact material identification.",
+      "referenceRecordRef": "reference-c0080",
+      "answerabilityRecordRef": "answerability-c0080",
+      "diagnosticEvidenceRefs": [
+        "diagnostic-9f8148207e514b31"
+      ],
+      "proposedMechanisms": []
+    },
+    {
+      "caseId": "c0081",
+      "assetSha256": "68005011645471fe7ea82402f4c233126b9ea2faf35a8dd492c6a9996c245c8d",
+      "historicalReference": {
+        "subject": "non_biological",
+        "resolution": "unresolved",
+        "supportedRank": null,
+        "acceptableTaxa": []
+      },
+      "reviewDisposition": "retain_nonbiological",
+      "visible": "Yellow-orange angular specimen with broad cleavage faces.",
+      "limitation": "Supports nonbiological only; no exact material identification.",
+      "referenceRecordRef": "reference-c0081",
+      "answerabilityRecordRef": "answerability-c0081",
+      "diagnosticEvidenceRefs": [
+        "diagnostic-9f8148207e514b31"
+      ],
+      "proposedMechanisms": []
+    },
+    {
+      "caseId": "c0112",
+      "assetSha256": "7436d979f573ec9f660d85ab6f52a7c2504477e2047b3717a0f8f031908dfa1e",
+      "historicalReference": {
+        "subject": "biological",
+        "resolution": "named",
+        "supportedRank": "species",
+        "acceptableTaxa": [
+          {
+            "id": "gbif:2874199",
+            "rank": "species"
+          }
+        ]
+      },
+      "reviewDisposition": "retain_provisional_species",
+      "visible": "Ten pale tepals, multicoloured corona, five stamens and three purple styles are visible.",
+      "limitation": "Floral combination supports existing reference; full lobed leaf shape is not established by cropped background foliage.",
+      "referenceRecordRef": "reference-c0112",
+      "answerabilityRecordRef": "answerability-c0112",
+      "diagnosticEvidenceRefs": [
+        "diagnostic-d629b8b754f4660e"
+      ],
+      "proposedMechanisms": []
+    },
+    {
+      "caseId": "c0135",
+      "assetSha256": "2772d768b878e44550fb600d5a60d758831ffc038bffa8f571bcae2f1fa333c8",
+      "historicalReference": {
+        "subject": "biological",
+        "resolution": "unresolved",
+        "supportedRank": null,
+        "acceptableTaxa": []
+      },
+      "reviewDisposition": "hold_resolution_reference",
+      "visible": "White long-necked bird; bill silhouette visible; legs and feet obscured by grass.",
+      "limitation": "Bill is not entirely invisible; colour/lores and comparative size are insufficiently secure. Assess family separately.",
+      "referenceRecordRef": "reference-c0135",
+      "answerabilityRecordRef": "answerability-c0135",
+      "diagnosticEvidenceRefs": [
+        "diagnostic-fc15378d56a60ce8"
+      ],
+      "proposedMechanisms": [
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "caseId": "c0194",
+      "assetSha256": "4b9d43c3e8fe37ca3ab7f87de58c236dc36ae9323ad889bdc7917510c6e6106b",
+      "historicalReference": {
+        "subject": "biological",
+        "resolution": "unresolved",
+        "supportedRank": null,
+        "acceptableTaxa": []
+      },
+      "reviewDisposition": "hold_resolution_reference",
+      "visible": "Mottled gull-like bird from low frontal angle; folded wing and much of legs/tail obscured.",
+      "limitation": "Visible plumage and partial leg detail do not settle species; genus and family require explicit separate adjudication.",
+      "referenceRecordRef": "reference-c0194",
+      "answerabilityRecordRef": "answerability-c0194",
+      "diagnosticEvidenceRefs": [
+        "diagnostic-ed4c3c47948d9868"
+      ],
+      "proposedMechanisms": [
+        1,
+        3
+      ]
+    },
+    {
+      "caseId": "c0195",
+      "assetSha256": "40a26c60704f8c39e60a9a0343e47ab215f3c33afd4dfc344c0e5a61065c8555",
+      "historicalReference": {
+        "subject": "biological",
+        "resolution": "named",
+        "supportedRank": "genus",
+        "acceptableTaxa": [
+          {
+            "id": "gbif:1340278",
+            "rank": "genus"
+          }
+        ]
+      },
+      "reviewDisposition": "retain_provisional_genus",
+      "visible": "Dorsal hairy bee with black/yellow bands and pale tail.",
+      "limitation": "Much colour pattern is visible; species overlap, not merely blur or missing abdomen, limits resolution.",
+      "referenceRecordRef": "reference-c0195",
+      "answerabilityRecordRef": "answerability-c0195",
+      "diagnosticEvidenceRefs": [
+        "diagnostic-fb9c654628a25450"
+      ],
+      "proposedMechanisms": [
+        3
+      ]
+    }
+  ],
+  "exposureAudit": {
+    "scope": "available_local_records_only",
+    "review": "read-only metadata and claim joins; no remaining-case pixels inspected",
+    "corpusCases": 200,
+    "originalDevelopmentCases": 100,
+    "originalHeldOutCases": 100,
+    "originalConfidenceDevelopmentClaims": 100,
+    "decisionDevelopmentCases": 20,
+    "decisionDevelopmentClaims": 40,
+    "decisionValidationCases": 60,
+    "decisionValidationClaims": 180,
+    "primaryScreenCases": 20,
+    "primaryScreenClaims": 40,
+    "primaryCasesFromDecisionDevelopment": 6,
+    "primaryCasesFromDecisionValidation": 14,
+    "remainingOriginalHeldOutCases": 40,
+    "recordedAttemptsOnRemainingCases": 0,
+    "reviewedClusters": 194,
+    "multiCaseClusters": 5,
+    "crossOriginalSplitClusters": 2,
+    "remainingCasesInMultiCaseClusters": 0,
+    "reasoningRecheckExactCorpusOverlaps": 3,
+    "reasoningRecheckExactHeldOutOverlaps": 0,
+    "remainingEligibility": "No recorded local attempt in reviewed archives; not certified fresh validation. Requires current permission, retention, later attempt, lineage and rank-reference review.",
+    "sourceFileByteSha256": {
+      "2026-10-01-photo-decision-v1/study/exposure-review.json": "ef80234e94c83757de73ec0190240363a248d97b1d6374fab2e8e9b8bc737e38",
+      "2026-10-01-photo-decision-v1/study/prior-exposure-evidence.json": "40a3ce8f36643897c44b6371c50d4a0b2d3faeaf51447f599a2ab739e65693c9",
+      "2026-10-01-photo-decision-v1/study/decision-manifest.json": "25f3c4bed5287148f90ba0859bee3767223704d5cf51b1149de6b5c774595796",
+      "2026-10-01-photo-decision-v1/study/clustering-review.json": "d815ca9456b6098f8e055765bc402bf345e94dc3eb22cb0c23626876065b161f",
+      "2026-10-01-photo-primary-screen-v1/study/screen-exposure.json": "a28cb51c50bafc33bdaddf170b478ba7750abb051719717a07d13b14198649af"
+    }
+  },
+  "proposedMechanismLegend": {
+    "1": "unphotographed structure",
+    "2": "obscured or unresolved detail",
+    "3": "visible but shared character"
+  },
+  "proposedMechanismStatus": "Design annotations only; freeze membership and mechanisms with adjudicated references before collection."
+}

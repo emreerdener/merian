@@ -1,0 +1,1009 @@
+{
+  "version": 1,
+  "reviewedThrough": "2026-10-01",
+  "studies": [
+    {
+      "id": "exploratory-foundation",
+      "title": "Exploratory mechanics and two-photo app measurements",
+      "date": "2026-09-22",
+      "modality": "mixed",
+      "kind": "engineering",
+      "state": "closed",
+      "configuration": "Synthetic evaluator plus existing Gemini production app path",
+      "datasets": [
+        "exploratory-photo-text"
+      ],
+      "attempts": null,
+      "attemptUnit": "unknown",
+      "accountedUsd": null,
+      "accounting": "24 synthetic cases are mechanics only; ordinary app submissions and reruns are documented separately, no complete provider ledger.",
+      "outcome": "Synthetic 24/24 mechanics pass; partial two-photo app telemetry.",
+      "limitations": "Flower unverified; cat provisional; repeated timing runs overlap.",
+      "decision": "Use as engineering evidence only.",
+      "production": "No production change established by this study.",
+      "sources": [
+        "docs/rfcs/identification-exploratory-benchmark-2026-09-22.md",
+        "docs/rfcs/identification-production-app-benchmark-2026-09-22.md",
+        "docs/rfcs/identification-measured-app-benchmark-2026-09-22.md",
+        "docs/rfcs/identification-recorder-repair-2026-09-22.md",
+        "docs/rfcs/identification-timing-capture-verification-2026-09-22.md"
+      ]
+    },
+    {
+      "id": "source-photo-app",
+      "title": "Six-source-photo app baseline",
+      "date": "2026-09-22",
+      "modality": "photo",
+      "kind": "development",
+      "state": "closed",
+      "configuration": "Gemini 2.5 Pro, ordinary app context",
+      "datasets": [
+        "exploratory-photo-text"
+      ],
+      "attempts": 6,
+      "attemptUnit": "app_submissions",
+      "accountedUsd": null,
+      "accounting": "Per-result estimates reported; no verified total bill.",
+      "outcome": "Five provisional biological agreements and a nonbiological mineral.",
+      "limitations": "Selected exposed development cases; provisional references; no population accuracy or calibration claim.",
+      "decision": "Exploratory baseline only.",
+      "production": "No production change established by this study.",
+      "sources": [
+        "docs/rfcs/identification-source-photo-pilot-2026-09-22.md",
+        "docs/rfcs/identification-source-photo-app-benchmark-2026-09-22.md"
+      ]
+    },
+    {
+      "id": "description-video-replay",
+      "title": "Description and video exploration",
+      "date": "2026-09-22",
+      "modality": "mixed",
+      "kind": "development",
+      "state": "closed",
+      "configuration": "Existing Gemini app route; description repeat and first video",
+      "datasets": [
+        "exploratory-photo-text"
+      ],
+      "attempts": 4,
+      "attemptUnit": "app_submissions",
+      "accountedUsd": null,
+      "accounting": "Two initial descriptions plus one repeated description and one video; shared cross-modality totals are not a study-only ledger.",
+      "outcome": "Genus-supported description overclaimed species; ambiguous nonbiological control received biological response.",
+      "limitations": "Repeated description is one reused group; provisional references.",
+      "decision": "No model or confidence qualification.",
+      "production": "No production change established by this study.",
+      "sources": [
+        "docs/rfcs/identification-description-app-benchmark-2026-09-22.md",
+        "docs/rfcs/identification-replay-app-benchmark-2026-09-22.md"
+      ]
+    },
+    {
+      "id": "openai-photo-text-pilot",
+      "title": "First OpenAI photo/text pilot",
+      "date": "2026-09-25",
+      "modality": "mixed",
+      "kind": "development",
+      "state": "stopped",
+      "configuration": "gpt-6-sol evaluation adapter",
+      "datasets": [
+        "exploratory-photo-text"
+      ],
+      "attempts": 8,
+      "attemptUnit": "provider_attempts",
+      "accountedUsd": 0.17579,
+      "accounting": "Known usage for seven calls only; one uncertain attempt retained its reservation. See original ledger for unresolved liability.",
+      "outcome": "Seven normalized outputs; eighth attempt uncertain.",
+      "limitations": "Selected exposed development cases; provisional references; no population accuracy or calibration claim.",
+      "decision": "Adapter demonstrated; no production assignment change.",
+      "production": "No production change established by this study.",
+      "sources": [
+        "docs/rfcs/identification-openai-photo-text-pilot-2026-09-25.md"
+      ]
+    },
+    {
+      "id": "concise-screen",
+      "title": "Concise-explanation screen",
+      "date": "2026-09-26",
+      "modality": "photo",
+      "kind": "development",
+      "state": "stopped",
+      "configuration": "OpenAI control; concise candidate never dispatched",
+      "datasets": [
+        "exploratory-photo-text"
+      ],
+      "attempts": 1,
+      "attemptUnit": "provider_attempts",
+      "accountedUsd": 0.02946,
+      "accounting": "Conservative usage-based estimate, not invoice reconciliation; do not sum overlapping reports.",
+      "outcome": "Stopped after control due insufficient explanation-reference coverage.",
+      "limitations": "Selected exposed development cases; provisional references; no population accuracy or calibration claim.",
+      "decision": "Inconclusive; closed.",
+      "production": "No production change established by this study.",
+      "sources": [
+        "docs/rfcs/identification-openai-concise-screen-2026-09-26.md"
+      ]
+    },
+    {
+      "id": "matched-gemini-openai",
+      "title": "Matched Gemini/OpenAI exploratory comparison",
+      "date": "2026-09-27",
+      "modality": "mixed",
+      "kind": "development",
+      "state": "closed",
+      "configuration": "Gemini Pro versus gpt-6-sol; six photos and two descriptions",
+      "datasets": [
+        "exploratory-photo-text"
+      ],
+      "attempts": 16,
+      "attemptUnit": "provider_attempts",
+      "accountedUsd": 0.4788475,
+      "accounting": "Combined conservative estimate; Gemini cost method incomplete, not invoice.",
+      "outcome": "Five provisional biological photo agreements and mineral rejection in each arm; OpenAI faster on selected inputs.",
+      "limitations": "Selected exposed development cases; provisional references; no population accuracy or calibration claim.",
+      "decision": "Proceed to integration planning; no general provider superiority.",
+      "production": "Platform deployment recorded separately; this experiment did not switch photo routing.",
+      "sources": [
+        "docs/rfcs/identification-gemini-openai-matched-comparison-2026-09-27.md",
+        "docs/rfcs/identification-gemini-openai-matched-results-2026-09-27.md"
+      ]
+    },
+    {
+      "id": "luna-original-screen",
+      "title": "Original Luna screen and continuation",
+      "date": "2026-09-28",
+      "modality": "photo",
+      "kind": "development",
+      "state": "stopped",
+      "configuration": "openai_photo_luna_low_v1; Sol challenge arm unattempted",
+      "datasets": [
+        "photo-difficult"
+      ],
+      "attempts": 6,
+      "attemptUnit": "provider_attempts",
+      "accountedUsd": 0.010719231,
+      "accounting": "Conservative usage-based estimate, not invoice reconciliation; do not sum overlapping reports. Historical controller held $1.7730504; spending bound differs from estimated usage.",
+      "outcome": "Initial Bison screen stopped on a reference-coverage gap; its approved continuation reached a mineral specificity failure, leaving all 12 challenge slots unattempted.",
+      "limitations": "Selected exposed development cases; provisional references; no population accuracy or calibration claim.",
+      "decision": "No Luna promotion; original and continuation closed.",
+      "production": "No production change established by this study.",
+      "sources": [
+        "docs/rfcs/identification-openai-free-pro-models-2026-09-28.md",
+        "docs/rfcs/identification-luna-sol-photo-preparation-2026-09-28.md",
+        "docs/rfcs/identification-luna-sol-photo-screen-results-2026-09-28.md"
+      ]
+    },
+    {
+      "id": "luna-evidence-candidate",
+      "title": "Separately approved Luna evidence-limit candidate",
+      "date": "2026-09-28",
+      "modality": "photo",
+      "kind": "development",
+      "state": "closed",
+      "configuration": "openai_photo_luna_evidence_limits_low_v1 versus openai_photo_sol_low_v1",
+      "datasets": [
+        "photo-difficult"
+      ],
+      "attempts": 18,
+      "attemptUnit": "provider_attempts",
+      "accountedUsd": 0.223535414,
+      "accounting": "Conservative usage-based estimate, not invoice reconciliation; do not sum overlapping reports. Separate new 18-call study; excludes original six-call Luna screen.",
+      "outcome": "Mineral wording improved; biological and specificity failures remained.",
+      "limitations": "Selected exposed development cases; provisional references; no population accuracy or calibration claim.",
+      "decision": "Retain Sol for both tiers.",
+      "production": "No production change established by this study.",
+      "sources": [
+        "docs/rfcs/identification-luna-evidence-limits-candidate-2026-09-28.md",
+        "docs/rfcs/identification-luna-sol-candidate-results-2026-09-28.md"
+      ]
+    },
+    {
+      "id": "sol-rank-stopped",
+      "title": "First Sol rank screen and source adjudication",
+      "date": "2026-09-29",
+      "modality": "photo",
+      "kind": "development",
+      "state": "stopped",
+      "configuration": "openai_photo_sol_rank_limits_low_v1",
+      "datasets": [
+        "photo-difficult"
+      ],
+      "attempts": 1,
+      "attemptUnit": "provider_attempts",
+      "accountedUsd": 0.031647001,
+      "accounting": "Conservative usage-based estimate, not invoice reconciliation; do not sum overlapping reports.",
+      "outcome": "Stopped screen; omitted publisher metadata made the failure interpretation inconclusive.",
+      "limitations": "Reference correction cannot retroactively turn the frozen run into a pass.",
+      "decision": "Preserve stop; corrected-reference comparison is separate.",
+      "production": "No production change established by this study.",
+      "sources": [
+        "docs/rfcs/identification-sol-rank-screen-results-2026-09-29.md"
+      ]
+    },
+    {
+      "id": "sol-rank-corrected",
+      "title": "Corrected-reference Sol rank comparison",
+      "date": "2026-09-29",
+      "modality": "photo",
+      "kind": "development",
+      "state": "closed",
+      "configuration": "Sol rank-limits candidate versus unchanged Sol-low",
+      "datasets": [
+        "photo-difficult"
+      ],
+      "attempts": 18,
+      "attemptUnit": "provider_attempts",
+      "accountedUsd": 0.59753101,
+      "accounting": "Conservative usage-based estimate, not invoice reconciliation; do not sum overlapping reports. Excludes stopped predecessor.",
+      "outcome": "Broader rank gains, but two candidate visual-grounding failures.",
+      "limitations": "Selected exposed development cases; provisional references; no population accuracy or calibration claim.",
+      "decision": "Do not promote candidate.",
+      "production": "No production change established by this study.",
+      "sources": [
+        "docs/rfcs/identification-photo-rank-consistency-2026-09-28.md",
+        "docs/rfcs/identification-sol-rank-comparison-results-2026-09-29.md"
+      ]
+    },
+    {
+      "id": "sol-primary-september",
+      "title": "September explicit-primary Sol comparison",
+      "date": "2026-09-29",
+      "modality": "photo",
+      "kind": "development",
+      "state": "closed",
+      "configuration": "openai_photo_sol_primary_low_v1 versus openai_photo_sol_low_v1",
+      "datasets": [
+        "photo-primary-september"
+      ],
+      "attempts": 18,
+      "attemptUnit": "provider_attempts",
+      "accountedUsd": 0.614284005,
+      "accounting": "Conservative usage-based estimate, not invoice reconciliation; do not sum overlapping reports.",
+      "outcome": "All five states exercised; broader-rank improvements but fly visual-grounding failure.",
+      "limitations": "Assistant review, limited references and reused challenges; state coverage is not identification qualification.",
+      "decision": "Retain current Sol; no candidate promotion.",
+      "production": "No production change established by this study.",
+      "sources": [
+        "docs/rfcs/identification-sol-primary-comparison-preparation-2026-09-29.md",
+        "docs/rfcs/identification-sol-primary-comparison-results-2026-09-29.md",
+        "docs/rfcs/identification-primary-resolution-contract-2026-09-29.md"
+      ]
+    },
+    {
+      "id": "confidence-development",
+      "title": "Confidence cutoff development assessment",
+      "date": "2026-09-30",
+      "modality": "photo",
+      "kind": "calibration",
+      "state": "closed",
+      "configuration": "gpt-6-sol confidence photo profile; original 100/100 split",
+      "datasets": [
+        "confidence-photo-v2"
+      ],
+      "attempts": 100,
+      "attemptUnit": "provider_attempts",
+      "accountedUsd": 3.512790008,
+      "accounting": "Conservative usage-based estimate, not invoice reconciliation; do not sum overlapping reports. Includes original attempt plus bounded continuation; no held-out collection in this study.",
+      "outcome": "99 normalized and one invalid outcome; no eligible development cutoff.",
+      "limitations": "Source-grounded assistant review; no independent human validation. Later studies expose some original held-out cases.",
+      "decision": "Keep 0.95/0.60 fallback; no calibrated guarantee.",
+      "production": "Assessed prompt later activated via separate release record; thresholds not qualified.",
+      "sources": [
+        "docs/rfcs/identification-openai-confidence-assessment-2026-09-30.md",
+        "docs/rfcs/identification-openai-confidence-results-2026-09-30.md",
+        "docs/release-evidence/openai-confidence-activation-2026-09-30.md",
+        "docs/release-evidence/openai-confidence-assessment-2026-09-30.md"
+      ]
+    },
+    {
+      "id": "sol-reasoning",
+      "title": "Sol low/medium reasoning pilot",
+      "date": "2026-09-30",
+      "modality": "photo",
+      "kind": "development",
+      "state": "closed",
+      "configuration": "gpt-6-sol low versus medium; confidence prompt",
+      "datasets": [
+        "reasoning-four-photo"
+      ],
+      "attempts": 12,
+      "attemptUnit": "provider_attempts",
+      "accountedUsd": 0.468209501,
+      "accounting": "Conservative usage-based estimate, not invoice reconciliation; do not sum overlapping reports.",
+      "outcome": "Medium did not justify promotion or resolve disputed supplied-photo identification.",
+      "limitations": "Repeated supplied photo has no independent reference; three reference cases only.",
+      "decision": "Retain low.",
+      "production": "No production change established by this study.",
+      "sources": [
+        "docs/rfcs/identification-sol-reasoning-pilot-2026-09-30.md"
+      ]
+    },
+    {
+      "id": "gemini-recheck",
+      "title": "Gemini photo recheck with historical Sol controls",
+      "date": "2026-09-30",
+      "modality": "photo",
+      "kind": "development",
+      "state": "closed",
+      "configuration": "Preserved Gemini Pro versus historical Sol low/medium",
+      "datasets": [
+        "reasoning-four-photo"
+      ],
+      "attempts": 6,
+      "attemptUnit": "provider_attempts",
+      "accountedUsd": 0.21786,
+      "accounting": "Conservative usage-based estimate, not invoice reconciliation; do not sum overlapping reports. Six new Gemini calls only; report combined $0.686069501 includes preceding Sol pilot.",
+      "outcome": "Gemini matched 2/3 references versus recorded Sol-low 1/3; one output unmapped.",
+      "limitations": "Historical controls and repeated owner photo; no provider-wide superiority.",
+      "decision": "Inform next controlled comparison; no activation.",
+      "production": "No production change established by this study.",
+      "sources": [
+        "docs/rfcs/identification-gemini-photo-recheck-2026-09-30.md"
+      ]
+    },
+    {
+      "id": "photo-provider-decision",
+      "title": "Bounded photo provider decision",
+      "date": "2026-10-01",
+      "modality": "photo",
+      "kind": "validation",
+      "state": "closed",
+      "configuration": "Released Sol-low, Sol evidence-limit candidate, preserved Gemini Pro",
+      "datasets": [
+        "confidence-photo-v2"
+      ],
+      "attempts": 220,
+      "attemptUnit": "provider_attempts",
+      "accountedUsd": 8.023640041,
+      "accounting": "Conservative usage-based estimate, not invoice reconciliation; do not sum overlapping reports. 40 development and 180 validation calls; zero outstanding reservations.",
+      "outcome": "Validation supported outcomes: 45/60 released, 49/60 Gemini, 47/60 candidate; neither met frozen superiority.",
+      "limitations": "Selected diagnostic mixture; 60 distinct validation observations; assistant-reviewed references.",
+      "decision": "Retain released Sol-low; budget closed.",
+      "production": "No production change established by this study.",
+      "sources": [
+        "docs/rfcs/identification-photo-provider-decision-2026-10-01.md"
+      ]
+    },
+    {
+      "id": "calibration-gap-audit",
+      "title": "Calibration and mapping gap audit",
+      "date": "2026-10-01",
+      "modality": "photo",
+      "kind": "audit",
+      "state": "closed",
+      "configuration": "Offline inspection of existing taxonomy, normalization and evidence",
+      "datasets": [
+        "confidence-photo-v2"
+      ],
+      "attempts": 0,
+      "attemptUnit": "none",
+      "accountedUsd": 0,
+      "accounting": "No provider calls.",
+      "outcome": "No demonstrated safe alias addition; explicit-resolution and content-free diagnostics prepared.",
+      "limitations": "Unmapped hashes cannot reveal missing identities; software tests are not quality evidence.",
+      "decision": "Investigate evidence sufficiency; do not change thresholds.",
+      "production": "No production change established by this study.",
+      "sources": [
+        "docs/rfcs/identification-calibration-gap-audit-2026-10-01.md"
+      ]
+    },
+    {
+      "id": "photo-primary-october",
+      "title": "Current-baseline explicit-primary development screen",
+      "date": "2026-10-01",
+      "modality": "photo",
+      "kind": "development",
+      "state": "closed",
+      "configuration": "openai_photo_confidence_primary_low_v1 versus current confidence baseline",
+      "datasets": [
+        "confidence-photo-v2"
+      ],
+      "attempts": 40,
+      "attemptUnit": "provider_attempts",
+      "accountedUsd": 1.541925002,
+      "accounting": "Conservative usage-based estimate, not invoice reconciliation; do not sum overlapping reports. Zero reservations and retries; separate budget closed.",
+      "outcome": "11/20 versus 7/20; five paired wins/one loss, genus 4/5 versus 0/5; abstention 0/6 in both.",
+      "limitations": "Twenty deliberately exposed cases; no confirmatory inference.",
+      "decision": "Failed frozen screen; retain released configuration.",
+      "production": "No production change established by this study.",
+      "sources": [
+        "docs/rfcs/identification-photo-primary-screen-2026-10-01.md"
+      ]
+    },
+    {
+      "id": "audio-first",
+      "title": "First audio app replay",
+      "date": "2026-09-22",
+      "modality": "audio",
+      "kind": "development",
+      "state": "closed",
+      "configuration": "Gemini 2.5 Pro, ordinary app context",
+      "datasets": [
+        "audio-first"
+      ],
+      "attempts": 1,
+      "attemptUnit": "app_submissions",
+      "accountedUsd": 0.0291825,
+      "accounting": "Known primary-attempt estimates only; app submissions are not an attested complete provider-call ledger or total bill. Cross-modality $0.0933925 total must not be attributed to audio alone.",
+      "outcome": "Strong mismatch against disputed source label.",
+      "limitations": "Independent review unresolved; no accuracy inference.",
+      "decision": "Reference review required.",
+      "production": "No production change established by this study.",
+      "sources": [
+        "docs/rfcs/identification-audio-app-benchmark-2026-09-22.md",
+        "docs/rfcs/identification-audio-reference-review-2026-09-22.md"
+      ]
+    },
+    {
+      "id": "audio-six-baseline",
+      "title": "Six-audio exploratory baseline",
+      "date": "2026-09-22",
+      "modality": "audio",
+      "kind": "development",
+      "state": "closed",
+      "configuration": "Gemini 2.5 Pro ordinary app requests",
+      "datasets": [
+        "audio-six"
+      ],
+      "attempts": 6,
+      "attemptUnit": "app_submissions",
+      "accountedUsd": 0.1480925,
+      "accounting": "Known primary-attempt estimates only; app submissions are not an attested complete provider-call ledger or total bill.",
+      "outcome": "Three animal/source-label disagreements; three nonbiological controls rejected.",
+      "limitations": "Source labels and/or owner review; not independent biological validation.",
+      "decision": "Exploratory regression baseline only.",
+      "production": "No production change established by this study.",
+      "sources": [
+        "docs/rfcs/identification-audio-six-preparation-2026-09-22.md",
+        "docs/rfcs/identification-audio-six-app-benchmark-2026-09-22.md"
+      ]
+    },
+    {
+      "id": "audio-dsp-fix",
+      "title": "Audio path investigation and DSP correction",
+      "date": "2026-09-23",
+      "modality": "audio",
+      "kind": "engineering",
+      "state": "closed",
+      "configuration": "Linear resampling/full windows to sinc resampling/partial-tail measurement",
+      "datasets": [
+        "audio-six"
+      ],
+      "attempts": 0,
+      "attemptUnit": "none",
+      "accountedUsd": 0,
+      "accounting": "Offline trace and synthetic signal checks; deployment is separate from paid quality collection.",
+      "outcome": "Demonstrated aliasing/tail defects corrected.",
+      "limitations": "Does not explain species errors or prove model quality.",
+      "decision": "Retain deterministic processing correction.",
+      "production": "Production deployment recorded 23 September.",
+      "sources": [
+        "docs/rfcs/identification-audio-path-verification-2026-09-22.md",
+        "docs/rfcs/identification-audio-preprocessing-fix-2026-09-23.md",
+        "docs/release-evidence/identification-audio-preprocessing-deployment-2026-09-23.md"
+      ]
+    },
+    {
+      "id": "audio-dsp-pairs",
+      "title": "Fixed-context DSP paired comparison",
+      "date": "2026-09-23",
+      "modality": "audio",
+      "kind": "development",
+      "state": "closed",
+      "configuration": "Legacy/current processing, Gemini 2.5 Pro, audio-minimal-v1",
+      "datasets": [
+        "audio-six"
+      ],
+      "attempts": 12,
+      "attemptUnit": "app_submissions",
+      "accountedUsd": 0.29523,
+      "accounting": "Known primary-attempt estimates only; app submissions are not an attested complete provider-call ledger or total bill. Two execution segments; first stopped after seven slots, documented continuation completed the same study.",
+      "outcome": "Controls rejected; animal/source disagreements remain unresolved.",
+      "limitations": "Six units, combined DSP changes; neither component effect isolated.",
+      "decision": "Keep current processing; no accuracy/calibration claim.",
+      "production": "Temporary comparison assignment removed; ordinary current processor preserved.",
+      "sources": [
+        "docs/rfcs/identification-audio-processing-comparison-2026-09-23.md",
+        "docs/rfcs/identification-audio-processing-comparison-completed-2026-09-23.md",
+        "docs/rfcs/identification-audio-comparison-assignment-2026-09-23.md",
+        "docs/rfcs/identification-audio-comparison-provenance-2026-09-23.md",
+        "docs/rfcs/identification-audio-comparison-app-integration-2026-09-23.md"
+      ]
+    },
+    {
+      "id": "audio-expanded-baseline",
+      "title": "Expanded ordinary-context audio baseline",
+      "date": "2026-09-24",
+      "modality": "audio",
+      "kind": "development",
+      "state": "closed",
+      "configuration": "Gemini 2.5 Pro, ordinary context",
+      "datasets": [
+        "audio-expanded"
+      ],
+      "attempts": 6,
+      "attemptUnit": "app_submissions",
+      "accountedUsd": 0.142955,
+      "accounting": "Known primary-attempt estimates only; app submissions are not an attested complete provider-call ledger or total bill.",
+      "outcome": "Two animal provisional agreements, two disagreements; rain falsely biological, chainsaw rejected.",
+      "limitations": "Source labels and/or owner review; not independent biological validation.",
+      "decision": "Investigate rain/reference and confidence semantics.",
+      "production": "No production change established by this study.",
+      "sources": [
+        "docs/rfcs/identification-audio-reference-expansion-2026-09-24.md",
+        "docs/rfcs/identification-audio-expansion-app-benchmark-2026-09-24.md"
+      ]
+    },
+    {
+      "id": "audio-confidence-v2",
+      "title": "Rain diagnostic and confidence V2 implementation",
+      "date": "2026-09-24",
+      "modality": "audio",
+      "kind": "engineering",
+      "state": "closed",
+      "configuration": "Audio V2 subject versus species confidence semantics",
+      "datasets": [
+        "audio-expanded"
+      ],
+      "attempts": 0,
+      "attemptUnit": "none",
+      "accountedUsd": 0,
+      "accounting": "Diagnostic/implementation only; follow-up app calls belong to separate regression entry.",
+      "outcome": "Found semantic mismatch between source-classification confidence and species Strong badge.",
+      "limitations": "Model scores remain uncalibrated; rain error cause not established.",
+      "decision": "Separate confidence meanings.",
+      "production": "Production V2 deployment recorded 24 September.",
+      "sources": [
+        "docs/rfcs/identification-audio-rain-diagnostic-2026-09-24.md",
+        "docs/rfcs/identification-audio-confidence-v2-2026-09-24.md",
+        "docs/release-evidence/identification-audio-confidence-v2-deployment-2026-09-24.md"
+      ]
+    },
+    {
+      "id": "audio-v2-regression",
+      "title": "Audio V2 fixed-context regression and reference review",
+      "date": "2026-09-24",
+      "modality": "audio",
+      "kind": "development",
+      "state": "closed",
+      "configuration": "Gemini 2.5 Pro V2, audio-minimal-v1",
+      "datasets": [
+        "audio-expanded"
+      ],
+      "attempts": 6,
+      "attemptUnit": "app_submissions",
+      "accountedUsd": 0.15065,
+      "accounting": "Known primary-attempt estimates only; app submissions are not an attested complete provider-call ledger or total bill.",
+      "outcome": "Two provisional animal agreements, two source disagreements; controls retained; no numeric confidence observed.",
+      "limitations": "Different context from prior run; disputed references excluded from future species decisions.",
+      "decision": "Regression evidence only; no causal quality/calibration claim.",
+      "production": "Uses separately deployed V2.",
+      "sources": [
+        "docs/rfcs/identification-audio-confidence-v2-app-benchmark-2026-09-24.md",
+        "docs/rfcs/identification-audio-disputed-reference-review-2026-09-24.md"
+      ]
+    },
+    {
+      "id": "audio-visible-caller",
+      "title": "Two visible-caller audio observations",
+      "date": "2026-09-24",
+      "modality": "audio",
+      "kind": "development",
+      "state": "closed",
+      "configuration": "Gemini 2.5 Pro V2, fixed context, audio-only provider evidence",
+      "datasets": [
+        "audio-visible"
+      ],
+      "attempts": 2,
+      "attemptUnit": "app_submissions",
+      "accountedUsd": 0.0546975,
+      "accounting": "Known primary-attempt estimates only; app submissions are not an attested complete provider-call ledger or total bill.",
+      "outcome": "Pika/source disagreement; rooster mapped to accepted taxon.",
+      "limitations": "Caller synchronization/species not independently adjudicated.",
+      "decision": "No accuracy/calibration qualification.",
+      "production": "No production change established by this study.",
+      "sources": [
+        "docs/rfcs/identification-audio-visible-caller-preparation-2026-09-24.md",
+        "docs/rfcs/identification-audio-visible-caller-app-benchmark-2026-09-24.md"
+      ]
+    },
+    {
+      "id": "audio-uncertainty-design",
+      "title": "Species-evidence audio prompt comparison design",
+      "date": "2026-09-24",
+      "modality": "audio",
+      "kind": "development",
+      "state": "prepared",
+      "configuration": "V2 control versus identify_audio_uncertainty_experiment_v1",
+      "datasets": [
+        "audio-uncertainty-proposal"
+      ],
+      "attempts": 0,
+      "attemptUnit": "none",
+      "accountedUsd": 0,
+      "accounting": "36 planned slots are not executed calls; no paid execution established by reviewed records.",
+      "outcome": "Offline preparation and integration checks; no model results.",
+      "limitations": "Six clips x two arms x three repeats; repeats are clustered.",
+      "decision": "Requires reviewed release/freeze and execution authorization if resumed.",
+      "production": "No experiment deployment or execution established.",
+      "sources": [
+        "docs/rfcs/identification-audio-uncertainty-comparison-plan-2026-09-24.md",
+        "docs/rfcs/identification-experiment-plans/2026-09-24-audio-uncertainty/design.json"
+      ]
+    },
+    {
+      "id": "photo-answerability-audit",
+      "title": "Exact-image answerability and exposure audit",
+      "date": "2026-10-01",
+      "modality": "photo",
+      "kind": "audit",
+      "state": "closed",
+      "configuration": "Read-only review of 20 exposed explicit-primary-screen images and existing evidence; no new model configuration",
+      "datasets": [
+        "confidence-photo-v2"
+      ],
+      "attempts": 0,
+      "attemptUnit": "none",
+      "accountedUsd": 0,
+      "accounting": "Offline analysis; zero provider calls, charges or reservations. Earlier paid budgets remain closed.",
+      "outcome": "20 exact image hashes verified; two species-reference holds, six unresolved-rank review holds, and per-image visibility-note corrections.",
+      "limitations": "Outcome-aware assistant review, not independent human validation. Original scores unchanged; reviewed dispositions are not replacement accepted answers.",
+      "decision": "Resolve reference/rank holds before another paid screen. Conditional two-arm feature-observation experiment proposed, not implemented or authorized. Retain released Sol-low.",
+      "production": "No runtime, threshold or deployment change.",
+      "sources": [
+        "docs/rfcs/identification-answerability-audit-2026-10-01.md",
+        "docs/research/identification/answerability-review-2026-10-01.json"
+      ]
+    },
+    {
+      "id": "photo-reference-adjudication",
+      "title": "Versioned photo reference and rank adjudication",
+      "date": "2026-10-01",
+      "modality": "photo",
+      "kind": "audit",
+      "state": "closed",
+      "configuration": "Exact-image reference overlay and three verified GBIF family additions; no new model run",
+      "datasets": [
+        "confidence-photo-v2"
+      ],
+      "attempts": 0,
+      "attemptUnit": "none",
+      "accountedUsd": 0,
+      "accounting": "Offline reference review; zero identification provider calls, charges or reservations. Public taxonomy lookup only.",
+      "outcome": "18 accepted provisional development references: five species, six genus, three family, two unresolved biological and two nonbiological; two explicit reference holds.",
+      "limitations": "Assistant review, primary outcome-aware, no independent human validation. Original scores and answer keys preserved; not a runnable or authorized collection packet.",
+      "decision": "Use the versioned 18-case frame for offline candidate preparation; conditional 36-attempt development design requires an unresolved-case gain as well as broader-rank benefit. No paid authorization.",
+      "production": "No application behavior, confidence threshold or deployment change.",
+      "sources": [
+        "docs/rfcs/identification-reference-adjudication-2026-10-01.md",
+        "docs/research/identification/answerability-adjudication-2026-10-01.json"
+      ]
+    },
+    {
+      "id": "photo-feature-offline-preparation",
+      "title": "Photo diagnostic-feature candidate offline preparation",
+      "date": "2026-10-01",
+      "modality": "photo",
+      "kind": "engineering",
+      "state": "closed",
+      "configuration": "Explicit-primary Sol-low comparator; bounded diagnostic-feature request and transient review contract prototype. No live dispatcher.",
+      "datasets": [
+        "confidence-photo-v2"
+      ],
+      "attempts": 0,
+      "attemptUnit": "none",
+      "accountedUsd": 0,
+      "accounting": "Offline implementation and preparation only; closed study budgets are not reused.",
+      "outcome": "Prepared 18-case reference/taxonomy/input bindings and 36 proposed arm assignments; software validation only.",
+      "limitations": "Assistant-reviewed exposed references; two holds excluded; no paid collector, integrated reviewer assignment/adjudication or new biological results.",
+      "decision": "Complete execution/review integration and a new authorized freeze before a paid screen. Keep released configuration.",
+      "production": "No production configuration change.",
+      "sources": [
+        "docs/rfcs/identification-photo-feature-preparation-2026-10-01.md"
+      ]
+    },
+    {
+      "id": "photo-feature-workflow",
+      "title": "Photo feature collection and review implementation",
+      "date": "2026-10-01",
+      "modality": "photo",
+      "kind": "engineering",
+      "state": "closed",
+      "configuration": "Explicit-primary comparator and bounded diagnostic-feature candidate; 36-slot collector, private double coding and paired advancement report.",
+      "datasets": [
+        "confidence-photo-v2"
+      ],
+      "attempts": 0,
+      "attemptUnit": "none",
+      "accountedUsd": 0,
+      "accounting": "Offline validation only; synthetic providers and judgments. No new provider charges or reservations.",
+      "outcome": "Implemented immutable attempt accounting, transient review, image/card/result-bound categorical receipts and frozen development hurdle.",
+      "limitations": "Exposed provisional assistant-reviewed references; browser slots do not establish independent humans; conservative disagreement rejection replaces proposed adjudication. No accuracy result.",
+      "decision": "Prepare isolated source and current pricing, actual reviewers and new spending authorization before paid execution. Keep released configuration.",
+      "production": "No production configuration or deployment change.",
+      "sources": [
+        "docs/rfcs/identification-photo-feature-workflow-2026-10-01.md"
+      ]
+    }
+  ],
+  "datasets": [
+    {
+      "id": "exploratory-photo-text",
+      "title": "Early public-source photo, description and replay groups",
+      "lineage": "September 22 app baselines; six photo and two description groups reused in September 25 and 27 comparisons. Two-photo telemetry reruns overlap earlier submissions.",
+      "exposure": "Exposed development; repetitions are not new independent observations.",
+      "referenceQuality": "Source labels and/or owner review; not independent biological validation.",
+      "retention": "Retention/availability must be checked in the original private packet before reuse; this index grants no access.",
+      "sources": [
+        "docs/rfcs/identification-source-photo-pilot-2026-09-22.md",
+        "docs/rfcs/identification-description-app-benchmark-2026-09-22.md",
+        "docs/rfcs/identification-gemini-openai-matched-results-2026-09-27.md"
+      ]
+    },
+    {
+      "id": "photo-difficult",
+      "title": "Photo model and rank challenge family",
+      "lineage": "September 28 Luna screen/candidate and September 29 Sol rank studies reuse screening assets and difficult challenge groups. Corrected fact cards define new reference versions, not new image exposure.",
+      "exposure": "Exposed development; no held-out qualification.",
+      "referenceQuality": "Assistant-reviewed provisional and limited-rank references; first Sol rank screen required source adjudication.",
+      "retention": "Retention/availability must be checked in the original private packet before reuse; this index grants no access.",
+      "sources": [
+        "docs/rfcs/identification-luna-sol-candidate-results-2026-09-28.md",
+        "docs/rfcs/identification-sol-rank-screen-results-2026-09-29.md",
+        "docs/rfcs/identification-sol-rank-comparison-results-2026-09-29.md"
+      ]
+    },
+    {
+      "id": "photo-primary-september",
+      "title": "September explicit-primary packet",
+      "lineage": "Twelve photos: nine retained development cases and added dog, cat and unresolved-biological coverage; six shared challenges.",
+      "exposure": "Development with reused challenge subjects.",
+      "referenceQuality": "Assistant review; limited references remain unassessable, not automatically correct.",
+      "retention": "Retention/availability must be checked in the original private packet before reuse; this index grants no access.",
+      "sources": [
+        "docs/rfcs/identification-sol-primary-comparison-preparation-2026-09-29.md",
+        "docs/rfcs/identification-sol-primary-comparison-results-2026-09-29.md"
+      ]
+    },
+    {
+      "id": "confidence-photo-v2",
+      "title": "200-photo source-grounded confidence corpus",
+      "lineage": "Original 100-development/100-held-out split. September 30 attempted 100 development observations. October 1 separately selected 20 exposed development and 60 previously unexposed validation observations; later primary screen reused 20 already exposed observations.",
+      "exposure": "Original split labels do not establish current eligibility. Check per-case asset/cluster hashes and all three studies\u2019 attempt ledgers; no remaining-case count here certifies freshness.",
+      "referenceQuality": "Source-grounded assistant review, 91 canonical taxa; explicitly not independent human validation. Genus-only, unresolved and nonbiological references remain in scoring. October 1 exact-image audit flags two species references and six unresolved-rank references for adjudication before future scoring; historical accepted answers are unchanged. A separate adjudication accepts 18 provisional development references and retains c0005/c0062 holds; four ranks change prospectively, including three family answers.",
+      "retention": "October 1 private archives retained through 2026-10-22; check source permissions and actual availability for every reuse.",
+      "sources": [
+        "docs/rfcs/identification-openai-confidence-assessment-2026-09-30.md",
+        "docs/rfcs/identification-openai-confidence-results-2026-09-30.md",
+        "docs/rfcs/identification-photo-provider-decision-2026-10-01.md",
+        "docs/rfcs/identification-photo-primary-screen-2026-10-01.md",
+        "docs/rfcs/identification-answerability-audit-2026-10-01.md",
+        "docs/rfcs/identification-reference-adjudication-2026-10-01.md"
+      ]
+    },
+    {
+      "id": "reasoning-four-photo",
+      "title": "Reasoning/recheck four-photo diagnostic packet",
+      "lineage": "Three reference cases plus owner-supplied photo, reused by low/medium and Gemini follow-up; the supplied photo has three repeats per arm.",
+      "exposure": "Exposed diagnostics, not four independent validated species observations.",
+      "referenceQuality": "Owner photo has no independently established reference. Assistant-reviewed reference cases; unknown mappings stay unverified.",
+      "retention": "See private reasoning/recheck archives and original retention records.",
+      "sources": [
+        "docs/rfcs/identification-sol-reasoning-pilot-2026-09-30.md",
+        "docs/rfcs/identification-gemini-photo-recheck-2026-09-30.md"
+      ]
+    },
+    {
+      "id": "audio-first",
+      "title": "First audio replay group",
+      "lineage": "One prepared ten-second source clip from cross-modality replay plan.",
+      "exposure": "Exposed exploratory group; repeated diagnostics do not make a validation set.",
+      "referenceQuality": "Source label disputed by model and diagnostic review; independent adjudication unresolved.",
+      "retention": "Retention/availability must be checked in the original private packet before reuse; this index grants no access.",
+      "sources": [
+        "docs/rfcs/identification-audio-reference-review-2026-09-22.md",
+        "docs/rfcs/identification-audio-app-benchmark-2026-09-22.md"
+      ]
+    },
+    {
+      "id": "audio-six",
+      "title": "Six-clip baseline and DSP pairs",
+      "lineage": "Three source-labelled animals and three nonbiological controls; same six clips reused in paired legacy/current DSP comparison.",
+      "exposure": "Exposed; 12 paired calls are six observation units.",
+      "referenceQuality": "Source labels and/or owner review; not independent biological validation. Formal reviewed 60/240 split was not populated.",
+      "retention": "Retention/availability must be checked in the original private packet before reuse; this index grants no access.",
+      "sources": [
+        "docs/rfcs/identification-audio-six-preparation-2026-09-22.md",
+        "docs/rfcs/identification-audio-processing-comparison-completed-2026-09-23.md"
+      ]
+    },
+    {
+      "id": "audio-expanded",
+      "title": "Expanded six-clip ordinary/V2 family",
+      "lineage": "Four source-labelled animals plus rain and chainsaw. Exact assets reused between ordinary-context and fixed-context V2 observations.",
+      "exposure": "Exposed; changed context prevents a clean prompt-only causal comparison.",
+      "referenceQuality": "No independent biological validation. Disputed robin and frog references excluded from future species decisions pending adjudication.",
+      "retention": "Retention/availability must be checked in the original private packet before reuse; this index grants no access.",
+      "sources": [
+        "docs/rfcs/identification-audio-reference-expansion-2026-09-24.md",
+        "docs/rfcs/identification-audio-disputed-reference-review-2026-09-24.md",
+        "docs/rfcs/identification-audio-confidence-v2-app-benchmark-2026-09-24.md"
+      ]
+    },
+    {
+      "id": "audio-visible",
+      "title": "Visible-caller two-clip packet",
+      "lineage": "Pika and rooster; source video reviewed but extra visual context excluded from provider audio input.",
+      "exposure": "Exposed exploratory; source-video review is not held-out model evidence.",
+      "referenceQuality": "Synchronization/caller/species review is not independent biological validation.",
+      "retention": "Retention/availability must be checked in the original private packet before reuse; this index grants no access.",
+      "sources": [
+        "docs/rfcs/identification-audio-visible-caller-preparation-2026-09-24.md",
+        "docs/rfcs/identification-audio-visible-caller-app-benchmark-2026-09-24.md"
+      ]
+    },
+    {
+      "id": "audio-uncertainty-proposal",
+      "title": "Audio uncertainty comparison design",
+      "lineage": "Six proposed clips, two prompt arms and three repeats; exact membership belongs to the checked-in design and private preparation manifest.",
+      "exposure": "Preparation only in the reviewed record. Do not infer fresh subjects from a new packet or treat 36 planned slots as 36 observations.",
+      "referenceQuality": "Frozen design specifies references and controls; unresolved reference limitations remain explicit.",
+      "retention": "Retention/availability must be checked in the original private packet before reuse; this index grants no access.",
+      "sources": [
+        "docs/rfcs/identification-audio-uncertainty-comparison-plan-2026-09-24.md",
+        "docs/rfcs/identification-experiment-plans/2026-09-24-audio-uncertainty/design.json"
+      ]
+    }
+  ],
+  "supportingDocuments": [
+    {
+      "path": "docs/rfcs/identification-bottleneck-audit-2026-09-27.md",
+      "title": "Identification bottleneck audit \u2014 Slice 1",
+      "role": "Supporting plan, contract, audit or implementation history; not an additional paid study entry."
+    },
+    {
+      "path": "docs/rfcs/identification-chat-export-metrics-2026-09-26.md",
+      "title": "Identification metrics in Field Chat and exports \u2014 26 September 2026",
+      "role": "Supporting plan, contract, audit or implementation history; not an additional paid study entry."
+    },
+    {
+      "path": "docs/rfcs/identification-client-result-provenance-2026-09-26.md",
+      "title": "Identification client result provenance \u2014 26 September 2026",
+      "role": "Supporting plan, contract, audit or implementation history; not an additional paid study entry."
+    },
+    {
+      "path": "docs/rfcs/identification-evaluation-srd.md",
+      "title": "Naturebook Identification Evaluation Readiness \u2014 SRD",
+      "role": "Supporting plan, contract, audit or implementation history; not an additional paid study entry."
+    },
+    {
+      "path": "docs/rfcs/identification-fixed-context-replay-2026-09-23.md",
+      "title": "Fixed-context audio replay",
+      "role": "Supporting plan, contract, audit or implementation history; not an additional paid study entry."
+    },
+    {
+      "path": "docs/rfcs/identification-foundation-baseline.md",
+      "title": "AI provider flexibility \u2014 Slice 1 baseline",
+      "role": "Supporting plan, contract, audit or implementation history; not an additional paid study entry."
+    },
+    {
+      "path": "docs/rfcs/identification-foundation-srd.md",
+      "title": "Naturebook AI Provider Flexibility \u2014 SRD",
+      "role": "Supporting plan, contract, audit or implementation history; not an additional paid study entry."
+    },
+    {
+      "path": "docs/rfcs/identification-foundation-verification.md",
+      "title": "AI provider flexibility \u2014 local verification and release preparation",
+      "role": "Supporting plan, contract, audit or implementation history; not an additional paid study entry."
+    },
+    {
+      "path": "docs/rfcs/identification-native-recipient-preflight-2026-09-26.md",
+      "title": "Native identification recipient preflight \u2014 26 September 2026",
+      "role": "Supporting plan, contract, audit or implementation history; not an additional paid study entry."
+    },
+    {
+      "path": "docs/rfcs/identification-openai-confidence-display-2026-09-28.md",
+      "title": "OpenAI photo confidence display",
+      "role": "Supporting plan, contract, audit or implementation history; not an additional paid study entry."
+    },
+    {
+      "path": "docs/rfcs/identification-openai-confidence-evidence-audit-2026-09-29.md",
+      "title": "OpenAI confidence thresholds: retained-evidence audit",
+      "role": "Supporting plan, contract, audit or implementation history; not an additional paid study entry."
+    },
+    {
+      "path": "docs/rfcs/identification-openai-null-fields-candidate-2026-09-27.md",
+      "title": "OpenAI explicit-null prompt candidate",
+      "role": "Supporting plan, contract, audit or implementation history; not an additional paid study entry."
+    },
+    {
+      "path": "docs/rfcs/identification-openai-observed-traits-candidate-2026-09-29.md",
+      "title": "OpenAI observed-traits candidate",
+      "role": "Supporting plan, contract, audit or implementation history; not an additional paid study entry."
+    },
+    {
+      "path": "docs/rfcs/identification-openai-photo-integration-2026-09-27.md",
+      "title": "OpenAI photo integration",
+      "role": "Supporting plan, contract, audit or implementation history; not an additional paid study entry."
+    },
+    {
+      "path": "docs/rfcs/identification-openai-photo-rollout-2026-09-28.md",
+      "title": "OpenAI photo rollout",
+      "role": "Supporting plan, contract, audit or implementation history; not an additional paid study entry."
+    },
+    {
+      "path": "docs/rfcs/identification-openai-prompt-review-2026-09-27.md",
+      "title": "OpenAI identification prompt and context review",
+      "role": "Supporting plan, contract, audit or implementation history; not an additional paid study entry."
+    },
+    {
+      "path": "docs/rfcs/identification-optimization-preserving-results-2026-09-27.md",
+      "title": "Identification optimization while preserving current results",
+      "role": "Supporting plan, contract, audit or implementation history; not an additional paid study entry."
+    },
+    {
+      "path": "docs/rfcs/identification-provider-client-compatibility-2026-09-26.md",
+      "title": "Identification client compatibility \u2014 26 September 2026",
+      "role": "Supporting plan, contract, audit or implementation history; not an additional paid study entry."
+    },
+    {
+      "path": "docs/rfcs/identification-provider-flexibility-review-2026-09-26.md",
+      "title": "Provider-flexibility implementation review",
+      "role": "Supporting plan, contract, audit or implementation history; not an additional paid study entry."
+    },
+    {
+      "path": "docs/rfcs/identification-provider-input-routing-2026-09-26.md",
+      "title": "App-controlled identification input routing \u2014 26 September 2026",
+      "role": "Supporting plan, contract, audit or implementation history; not an additional paid study entry."
+    },
+    {
+      "path": "docs/rfcs/identification-provider-openai-consent-2026-09-26.md",
+      "title": "Independent OpenAI consent infrastructure",
+      "role": "Supporting plan, contract, audit or implementation history; not an additional paid study entry."
+    },
+    {
+      "path": "docs/rfcs/identification-provider-optimization-plan.md",
+      "title": "Identification provider optimization plan",
+      "role": "Supporting plan, contract, audit or implementation history; not an additional paid study entry."
+    },
+    {
+      "path": "docs/rfcs/identification-provider-production-admission-2026-09-26.md",
+      "title": "Provider-bound identification admission",
+      "role": "Supporting plan, contract, audit or implementation history; not an additional paid study entry."
+    },
+    {
+      "path": "docs/rfcs/identification-provider-result-provenance-2026-09-26.md",
+      "title": "Durable identification result provenance",
+      "role": "Supporting plan, contract, audit or implementation history; not an additional paid study entry."
+    },
+    {
+      "path": "docs/rfcs/identification-provider-usage-attribution-2026-09-26.md",
+      "title": "Identification provider usage attribution",
+      "role": "Supporting plan, contract, audit or implementation history; not an additional paid study entry."
+    },
+    {
+      "path": "docs/rfcs/identification-public-metric-compatibility-2026-09-26.md",
+      "title": "Identification public metric compatibility \u2014 26 September 2026",
+      "role": "Supporting plan, contract, audit or implementation history; not an additional paid study entry."
+    },
+    {
+      "path": "docs/rfcs/identification-recipient-preflight-2026-09-26.md",
+      "title": "Identification recipient preflight \u2014 26 September 2026",
+      "role": "Supporting plan, contract, audit or implementation history; not an additional paid study entry."
+    },
+    {
+      "path": "docs/rfcs/identification-shared-content-qualification-2026-09-26.md",
+      "title": "Shared species-content qualification",
+      "role": "Supporting plan, contract, audit or implementation history; not an additional paid study entry."
+    },
+    {
+      "path": "docs/release-evidence/openai-beta-photo-activation-2026-09-28.md",
+      "title": "OpenAI beta still-photo activation",
+      "role": "Release or foundational evidence; no independent accuracy result."
+    },
+    {
+      "path": "docs/research/identification/benchmark-contract.md",
+      "title": "Task benchmark qualification and model assignment",
+      "role": "Current prospective qualification contract for the generated capability matrix; no new experiment, paid authorization or routing change."
+    }
+  ]
+}

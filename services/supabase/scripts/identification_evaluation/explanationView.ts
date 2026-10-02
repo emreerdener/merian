@@ -87,14 +87,16 @@ export async function assertPrivateReviewReady() {
   listener.close();
 }
 /** Pure handler for transport/security tests; returned display data is ephemeral. */
-export function reviewSession(
-  initial: ReviewDisplay,
+export function privateReviewSession<T>(
+  initial: unknown,
   origin: () => string,
   secret: string,
+  client: string,
+  parse: (value: unknown) => T,
 ) {
-  let display: ReviewDisplay | null = initial, ended = false;
-  let complete!: (ratings: Ratings | null) => void;
-  const result = new Promise<Ratings | null>((resolve) => {
+  let display: unknown = initial, ended = false;
+  let complete!: (ratings: T | null) => void;
+  const result = new Promise<T | null>((resolve) => {
     complete = resolve;
   });
   const close = () => {
@@ -120,7 +122,7 @@ export function reviewSession(
             `default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline'; img-src data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
         };
         return new Response(
-          `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Naturebook explanation review</title><style>body{font:17px system-ui;max-width:860px;margin:40px auto;padding:24px}p{white-space:pre-wrap}img{max-width:100%;max-height:600px}label,select{display:block;margin:20px 0}select,button{font:inherit;padding:12px;width:100%}</style><main>Opening private review…</main><script nonce="${nonce}">${CLIENT}</script></html>`,
+          `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Naturebook explanation review</title><style>body{font:17px system-ui;max-width:860px;margin:40px auto;padding:24px}p{white-space:pre-wrap}img{max-width:100%;max-height:600px}label,select{display:block;margin:20px 0}select,button{font:inherit;padding:12px;width:100%}</style><main>Opening private review…</main><script nonce="${nonce}">${client}</script></html>`,
           { headers: h },
         );
       }
@@ -139,13 +141,7 @@ export function reviewSession(
       }
       if (request.method === "GET" && url.pathname === "/view") {
         return reply(
-          JSON.stringify({
-            ...display,
-            criteria: CRITERIA,
-            rubric: RUBRIC.criteria,
-            fail: FAIL_REASONS,
-            unassessed: UNASSESSED_REASONS,
-          }),
+          JSON.stringify(display),
           200,
           "application/json",
         );
@@ -155,7 +151,7 @@ export function reviewSession(
           request.headers.get("origin") !== origin() ||
           request.headers.get("content-type") !== "application/json"
         ) return reply("Unavailable", 403);
-        const ratings = parseRatings(await boundedJson(request));
+        const ratings = parse(await boundedJson(request));
         if (ended) return reply("Review ended", 410);
         ended = true;
         display = null;
@@ -170,10 +166,12 @@ export function reviewSession(
   return { handler, result, close };
 }
 /** Fixed opener, scrubbed child environment. Neither URL capability nor content is logged. */
-export async function openPrivateReview(
-  display: ReviewDisplay,
+export async function openPrivateView<T>(
+  display: unknown,
   timeoutMs: number,
-): Promise<Ratings | null> {
+  client: string,
+  parse: (value: unknown) => T,
+): Promise<T | null> {
   check(
     Number.isSafeInteger(timeoutMs) && timeoutMs >= 1000 && timeoutMs <= 600000,
   );
@@ -183,7 +181,13 @@ export async function openPrivateReview(
     crypto.getRandomValues(new Uint8Array(32)),
     (n) => n.toString(16).padStart(2, "0"),
   ).join("");
-  const session = reviewSession(display, () => origin, secret);
+  const session = privateReviewSession(
+    display,
+    () => origin,
+    secret,
+    client,
+    parse,
+  );
   const server = Deno.serve({
     hostname: "127.0.0.1",
     port: 0,
@@ -215,4 +219,36 @@ export async function openPrivateReview(
       clearTimeout(force);
     }
   }
+}
+
+const explanationPayload = (display: ReviewDisplay) => ({
+  ...display,
+  criteria: CRITERIA,
+  rubric: RUBRIC.criteria,
+  fail: FAIL_REASONS,
+  unassessed: UNASSESSED_REASONS,
+});
+export function reviewSession(
+  initial: ReviewDisplay,
+  origin: () => string,
+  secret: string,
+) {
+  return privateReviewSession(
+    explanationPayload(initial),
+    origin,
+    secret,
+    CLIENT,
+    parseRatings,
+  );
+}
+export function openPrivateReview(
+  display: ReviewDisplay,
+  timeoutMs: number,
+): Promise<Ratings | null> {
+  return openPrivateView(
+    explanationPayload(display),
+    timeoutMs,
+    CLIENT,
+    parseRatings,
+  );
 }

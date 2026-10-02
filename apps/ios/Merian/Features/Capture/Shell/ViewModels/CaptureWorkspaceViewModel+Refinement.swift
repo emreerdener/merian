@@ -50,7 +50,7 @@ extension CaptureWorkspaceViewModel {
     private func canStartRefinement(from record: LocalScanRecord, entryPoint: RefinementEntryPoint) -> Bool {
         switch entryPoint {
         case .standard:
-            true
+            record.localAIIdentificationReview.pending == nil && !record.localAIIdentificationReview.needsAttention
         case .nonBiologicalCorrection:
             !record.isBiological
         }

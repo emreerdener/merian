@@ -1218,6 +1218,31 @@ struct MigrationPlanTests {
         #expect(try context.fetch(FetchDescriptor<LocalScanRecord>()).first?.identificationProvenanceData == Data("unknown-present".utf8))
     }
 
+    @Test func v53StorePreservesReviewAndAddsDurableRejectionStorage() throws {
+        let url = migrationStoreURL(named: "v53-rejection")
+        defer { keepSQLiteStoreForProcessLifetime(at: url) }
+        do {
+            let schema = Schema(versionedSchema: MerianSchemaV53.self)
+            let container = try makeModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, url: url)])
+            let context = ModelContext(container)
+            let scan = MerianSchemaV53.LocalScanRecord(id: "v53-scan", speciesId: "fixture", scientificName: "Synthetic species", commonName: "Fixture", userConfirmedIdentification: true)
+            context.insert(scan)
+            context.insert(MerianSchemaV53.ScanCollection(name: "Fixture", scans: [scan]))
+            try context.save()
+        }
+        let decision = ModelStoreRecoveryCoordinator.migrationDecision(at: url, currentSchemaMajor: CurrentSchema.versionIdentifier.major)
+        #expect(decision.hint == .recentSource(.v53))
+        let schema = Schema(versionedSchema: CurrentSchema.self)
+        let container = try makeModelContainer(for: schema, migrationPlan: MerianRecentV53MigrationPlan.self, configurations: [ModelConfiguration(schema: schema, url: url)])
+        let context = ModelContext(container)
+        let scan = try #require(context.fetch(FetchDescriptor<LocalScanRecord>()).first)
+        #expect(scan.userConfirmedIdentification)
+        #expect(scan.aiIdentificationReviewData == nil)
+        #expect(scan.collections?.first?.name == "Fixture")
+        scan.aiIdentificationReviewData = try LocalAIIdentificationReview().storedData()
+        try context.save()
+    }
+
     @Test func v52StoreMigratesWithPrimaryIdentityAndPreservesLegacyState() throws {
         let url = migrationStoreURL(named: "v52-provenance")
         defer { keepSQLiteStoreForProcessLifetime(at: url) }
@@ -1301,19 +1326,19 @@ struct MigrationPlanTests {
             MerianRecentV49MigrationPlan.self, MerianRecentV50MigrationPlan.self,
             MerianReleasedActiveV50MigrationPlan.self, MerianRecentV51MigrationPlan.self, MerianRecentV52MigrationPlan.self]
         for plan in plans {
-            #expect(plan.schemas.last?.versionIdentifier.major == 53)
+            #expect(plan.schemas.last?.versionIdentifier.major == 54)
             switch try #require(plan.stages.last) {
             case let .lightweight(fromVersion, toVersion):
-                #expect(fromVersion.versionIdentifier.major == 52)
-                #expect(toVersion.versionIdentifier.major == 53)
+                #expect(fromVersion.versionIdentifier.major == 53)
+                #expect(toVersion.versionIdentifier.major == 54)
             default:
                 Issue.record("Primary identity requires only the additive V52 to V53 stage.")
             }
         }
-        #expect(MerianRecentV51MigrationPlan.schemas.map { $0.versionIdentifier.major } == [51, 52, 53])
-        #expect(MerianRecentV51MigrationPlan.stages.count == 2)
-        #expect(MerianRecentV52MigrationPlan.schemas.map { $0.versionIdentifier.major } == [52, 53])
-        #expect(MerianRecentV52MigrationPlan.stages.count == 1)
+        #expect(MerianRecentV51MigrationPlan.schemas.map { $0.versionIdentifier.major } == [51, 52, 53, 54])
+        #expect(MerianRecentV51MigrationPlan.stages.count == 3)
+        #expect(MerianRecentV52MigrationPlan.schemas.map { $0.versionIdentifier.major } == [52, 53, 54])
+        #expect(MerianRecentV52MigrationPlan.stages.count == 2)
     }
 
     @Test func outgoingV51ModelsAndRelationshipsAreFrozen() throws {
@@ -1340,7 +1365,7 @@ struct MigrationPlanTests {
     @Test func activeCollectionTombstoneUsesSourceOnlyV50RenameMapping() throws {
         let source = try currentScanCollectionSource()
 
-        #expect(CurrentSchema.versionIdentifier.major == 53)
+        #expect(CurrentSchema.versionIdentifier.major == 54)
         #expect(source.contains("@Attribute(originalName: \"isDeleted\")"))
         #expect(source.contains("public var isPendingDeletion: Bool = false"))
         #expect(source.contains("isPendingDeletion: Bool = false"))
@@ -1801,10 +1826,10 @@ struct MigrationPlanTests {
         let schemaMajors = MerianRecentV49MigrationPlan.schemas.map {
             $0.versionIdentifier.major
         }
-        #expect(schemaMajors == [49, 50, 51, 52, 53])
+        #expect(schemaMajors == [49, 50, 51, 52, 53, 54])
 
         let stages = MerianRecentV49MigrationPlan.stages
-        #expect(stages.count == 4)
+        #expect(stages.count == 5)
         switch try #require(stages.first) {
         case let .lightweight(fromVersion, toVersion):
             #expect(fromVersion.versionIdentifier.major == 49)
@@ -1830,8 +1855,8 @@ struct MigrationPlanTests {
         let schemaMajors = MerianRecentV50MigrationPlan.schemas.map {
             $0.versionIdentifier.major
         }
-        #expect(schemaMajors == [50, 51, 52, 53])
-        #expect(MerianRecentV50MigrationPlan.stages.count == 3)
+        #expect(schemaMajors == [50, 51, 52, 53, 54])
+        #expect(MerianRecentV50MigrationPlan.stages.count == 4)
 
         switch try #require(MerianRecentV50MigrationPlan.stages.first) {
         case let .custom(fromVersion, toVersion, _, _):
@@ -1848,8 +1873,8 @@ struct MigrationPlanTests {
         let schemaMajors = MerianReleasedActiveV50MigrationPlan.schemas.map {
             $0.versionIdentifier.major
         }
-        #expect(schemaMajors == [50, 51, 52, 53])
-        #expect(MerianReleasedActiveV50MigrationPlan.stages.count == 3)
+        #expect(schemaMajors == [50, 51, 52, 53, 54])
+        #expect(MerianReleasedActiveV50MigrationPlan.stages.count == 4)
 
         switch try #require(MerianReleasedActiveV50MigrationPlan.stages.first) {
         case let .custom(fromVersion, toVersion, _, _):

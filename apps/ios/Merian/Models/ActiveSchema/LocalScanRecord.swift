@@ -89,6 +89,7 @@ public final class LocalScanRecord {
     /// Reserved for the independently validated, revisioned server confirmation.
     /// Legacy confirmedSpeciesId/typed overrides never populate this authority.
     @Attribute public var confirmedSpeciesIdentityData: Data?
+    @Attribute public var aiIdentificationReviewData: Data?
     
     /// User-defined custom tags for personal categorization and search indexing.
     @Attribute public var customTags: [String] = []
@@ -186,6 +187,7 @@ public final class LocalScanRecord {
         identificationProvenanceData: Data? = nil,
         primaryIdentificationData: Data? = nil,
         confirmedSpeciesIdentityData: Data? = nil,
+        aiIdentificationReviewData: Data? = nil,
         customTags: [String] = [],
         hasBeenViewed: Bool = false,
         userIdentificationOverride: String? = nil,
@@ -260,6 +262,7 @@ public final class LocalScanRecord {
         self.identificationProvenanceData = identificationProvenanceData
         self.primaryIdentificationData = primaryIdentificationData
         self.confirmedSpeciesIdentityData = confirmedSpeciesIdentityData
+        self.aiIdentificationReviewData = aiIdentificationReviewData
         self.customTags = customTags
         self.hasBeenViewed = hasBeenViewed
         self.userIdentificationOverride = userIdentificationOverride
@@ -292,7 +295,11 @@ extension LocalScanRecord {
         )
     }
 
+    var localAIIdentificationReview: LocalAIIdentificationReview { LocalAIIdentificationReview.restoring(aiIdentificationReviewData) }
+
     var hasSpeciesLevelIdentification: Bool {
+        if let community = localAIIdentificationReview.community { return community.rank == "species" }
+        if localAIIdentificationReview.isUnresolved { return false }
         if let primaryIdentification {
             return isBiological && primaryIdentification.value?.resolution == .species && userIdentificationOverride == nil
         }
@@ -300,6 +307,8 @@ extension LocalScanRecord {
     }
 
     var hasResolvedBiologicalIdentification: Bool {
+        if localAIIdentificationReview.community != nil { return true }
+        if localAIIdentificationReview.isUnresolved { return false }
         guard isBiological else { return false }
         if let primaryIdentification {
             return primaryIdentification.value?.resolution.isNamedBiologicalTaxon == true
@@ -324,7 +333,7 @@ extension LocalScanRecord {
     }
 
     var shouldSuppressReferenceImages: Bool {
-        if !hasSpeciesLevelIdentification { return true }
+        if !hasSpeciesLevelIdentification || localAIIdentificationReview.community != nil { return true }
         return ReferenceImageVisibilityPolicy.shouldSuppress(
             isHumanSubject: isHumanSubject,
             scientificName: scientificName

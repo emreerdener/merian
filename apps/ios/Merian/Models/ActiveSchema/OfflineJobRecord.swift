@@ -4,6 +4,7 @@ import SwiftData
 public enum OfflineJobKind: String, Codable, Sendable, CaseIterable {
     case scanIngestion
     case cloudDeletion
+    case identificationReviewSync
     case collectionSync
     case speciesPreferenceSync
     case future

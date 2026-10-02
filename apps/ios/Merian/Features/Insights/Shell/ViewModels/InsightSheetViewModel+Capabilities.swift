@@ -7,6 +7,19 @@ extension InsightSheetViewModel {
         return speciesData.userConfirmedIdentification || speciesData.userIdentificationOverride != nil
     }
 
+    var canUndoIncorrect: Bool {
+        queuedContext == nil && presentedLocalRecordScanId != nil && !isProcessing
+            && inferenceEngine?.speciesData?.canUndoIncorrectIdentification == true
+    }
+
+    var canMarkIncorrect: Bool {
+        guard queuedContext == nil,
+              presentedLocalRecordScanId != nil,
+              !isProcessing,
+              let species = inferenceEngine?.speciesData else { return false }
+        return species.canMarkIdentificationIncorrect
+    }
+
     var canReanalyze: Bool {
         guard queuedContext == nil else { return false }
         return presentedLocalRecordScanId != nil
@@ -14,7 +27,7 @@ extension InsightSheetViewModel {
 
     var canReviewAlternatives: Bool {
         guard queuedContext == nil else { return false }
-        return !reviewAlternativeCandidates.isEmpty
+        return !menuReviewCandidates.isEmpty
     }
 
     var canReviewIdentificationConcernCandidates: Bool {
@@ -24,6 +37,13 @@ extension InsightSheetViewModel {
     var reviewAlternativeCandidates: [IdentificationCandidate] {
         guard queuedContext == nil else { return [] }
         return CandidateReviewVisibilityPolicy.visibleCandidates(for: inferenceEngine?.speciesData)
+    }
+
+    private var menuReviewCandidates: [IdentificationCandidate] {
+        guard queuedContext == nil, var species = inferenceEngine?.speciesData else { return [] }
+        // Explicit review can reopen completed candidates without resetting saved progress.
+        species.alternativesExhausted = false
+        return CandidateReviewVisibilityPolicy.visibleCandidates(for: species)
     }
 
     var identificationConcernCandidates: [IdentificationCandidate] {
@@ -43,7 +63,7 @@ extension InsightSheetViewModel {
     var candidateSwipeCandidates: [IdentificationCandidate] {
         switch state.candidateSwipePresentationSource {
         case .standard:
-            return reviewAlternativeCandidates
+            return menuReviewCandidates
         case .identificationConcern:
             return identificationConcernCandidates
         }

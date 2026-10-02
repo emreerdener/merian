@@ -10,6 +10,9 @@ final class CandidateReviewViewModel {
     private(set) var pendingDismissalRequest: CandidateSwipeDismissalRequest?
     private(set) var dismissedScanId: String?
 
+    var confirmationMessage: String?
+    private var confirmingSubject: IdentificationReviewSubject?
+
     private let dependencies: CandidateReviewDependencies
 
     init(dependencies: CandidateReviewDependencies) {
@@ -88,13 +91,33 @@ final class CandidateReviewViewModel {
         inferenceEngine: InferenceEngine,
         modelContext: ModelContext
     ) async -> Bool {
-        guard isCurrent(subject, in: inferenceEngine) else { return false }
+        guard isCurrent(subject, in: inferenceEngine),
+              inferenceEngine.speciesData?.aiReview.isUnresolved != true else { return false }
+        guard confirmingSubject == nil else { return false }
+        confirmationMessage = nil
+        guard inferenceEngine.speciesData?.aiReview.pending?.action != .confirmPrimary else {
+            confirmationMessage = "Your confirmation is saved on this device and is waiting to sync."
+            return false
+        }
+        confirmingSubject = subject
+        defer { confirmingSubject = nil }
         await dependencies.confirmOriginal(
             inferenceEngine,
             subject.scanId,
             modelContext
         )
-        return isCurrent(subject, in: inferenceEngine)
+        guard isCurrent(subject, in: inferenceEngine) else { return false }
+        guard let species = inferenceEngine.speciesData,
+              species.userConfirmedIdentification,
+              !species.aiReview.isUnresolved,
+              species.aiReview.pending == nil,
+              !species.aiReview.needsAttention else {
+            confirmationMessage = inferenceEngine.speciesData?.aiReview.pending?.action == .confirmPrimary
+                ? "Your confirmation is saved on this device and is waiting to sync."
+                : "The identification could not be confirmed. Please try again."
+            return false
+        }
+        return true
     }
 
     func applyOverride(

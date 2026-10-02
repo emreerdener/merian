@@ -112,5 +112,8 @@ view. See the
 pause and prompt dismissal state. The root uses `Presentation/AppRootAlertHost`
 and one `AppRootAlertPolicy` to defer the update prompt behind account-deletion
 recovery, Apple-revocation cleanup, and onboarding. The App Store action does
-not clear the pause; see the
+not clear the pause. Debug builds on physical devices and all simulator builds
+suppress the update prompt because these installations have no App Store update
+path; compatibility pauses still apply. Release device builds retain the prompt.
+See the
 [update-required UX contract](../../../../docs/system-architecture/10-event-and-presentation-routing.md#update-required-presentation).

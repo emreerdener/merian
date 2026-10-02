@@ -29,3 +29,11 @@ To keep the synchronous router clean and properly typed, logic is decoupled:
   `is_shadowbanned = false`).
 - **`types.ts`**: Statically guarantees the `FeedScan` boundaries so Deno
   doesn't drop explicitly defined columns before HTTP validation.
+
+## Identification review privacy
+
+The service query reads the private review envelope only to project public
+output. `projectDiscoveryScan` always removes that envelope. For rejected
+identifications and community resolutions, this legacy feed also omits the
+original AI species join and confidence, which no longer describe the effective
+identification.

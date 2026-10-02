@@ -12,7 +12,7 @@ enum IdentificationRecipientExpectation: String, Codable, Sendable {
 struct IdentificationDispatchAuthorization: Sendable {
     static let protocolHeader = "X-Merian-Identification-Protocol"
     /// Explicit primary rank and verified review across all consumers; independent of entitlement protocol 3.
-    static let currentProtocol = 5
+    static let currentProtocol = 6
     let identificationProtocol = Self.currentProtocol
     let recipient: IdentificationRecipientExpectation
     let validate: @MainActor @Sendable () throws -> Void

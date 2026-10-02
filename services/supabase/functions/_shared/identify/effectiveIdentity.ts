@@ -1,4 +1,8 @@
 import {
+  hasUnresolvedAIReview,
+  parseAIIdentificationReview,
+} from "./aiIdentificationReview.ts";
+import {
   identificationProvenanceContract,
   parseContract,
   parsePrimaryIdentification,
@@ -9,6 +13,7 @@ import { parseSpeciesReview, type SpeciesReview } from "./speciesReview.ts";
 
 /** Trusted saved-row projection only; never apply this to client recovery JSON. */
 export interface SavedIdentificationFields {
+  ai_identification_review?: unknown;
   primary_identification?: unknown;
   identification_provenance?: unknown;
   confirmed_species_identity?: unknown;
@@ -51,6 +56,36 @@ export function effectiveIdentification(
     verified: false,
     pending_review: false,
   };
+  try {
+    if (hasUnresolvedAIReview(row.ai_identification_review)) {
+      return {
+        ...empty,
+        source: "ai_primary",
+        rank: "unresolved_biological",
+        common_name: "Identification unresolved",
+        pending_review: true,
+        primary: row.primary_identification == null
+          ? null
+          : parsePrimaryIdentification(row.primary_identification),
+      };
+    }
+  } catch {
+    return empty;
+  }
+  const community = row.ai_identification_review == null
+    ? null
+    : parseAIIdentificationReview(row.ai_identification_review).community;
+  if (community) {
+    return {
+      ...empty,
+      source: "verified_selection",
+      rank: community.rank,
+      scientific_name: community.scientific_name,
+      common_name: community.common_name,
+      species_id: community.species_id,
+      verified: community.rank === "species",
+    };
+  }
   const schema = record(row.identification_provenance)?.schema;
   if (
     row.primary_identification == null &&

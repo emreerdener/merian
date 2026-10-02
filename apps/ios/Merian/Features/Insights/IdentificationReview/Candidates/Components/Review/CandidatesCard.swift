@@ -83,7 +83,7 @@ struct CandidatesCard: View {
         }
     }
 
-    private func confirmOriginal(scanId: String, generation: UInt64) {
+    private func confirmOriginal(scanId: String, generation: UInt64) async {
         guard isSubjectPresentationCurrent(
             scanId: scanId,
             generation: generation
@@ -94,15 +94,13 @@ struct CandidatesCard: View {
             scanId: scanId,
             presentationGeneration: generation
         )
+        guard await viewModel.confirmOriginal(
+            subject: subject,
+            inferenceEngine: inferenceEngine,
+            modelContext: modelContext
+        ) else { return }
         viewModel.feedback.successPulse()
-        Task { @MainActor in
-            guard await viewModel.confirmOriginal(
-                subject: subject,
-                inferenceEngine: inferenceEngine,
-                modelContext: modelContext
-            ) else { return }
-            onMatchConfirmed?()
-        }
+        onMatchConfirmed?()
     }
 
     var body: some View {
@@ -122,7 +120,7 @@ struct CandidatesCard: View {
                     confirmButtonTitle: confirmButtonTitle,
                     onConfirm: {
                         guard let presentedScanId else { return }
-                        confirmOriginal(
+                        await confirmOriginal(
                             scanId: presentedScanId,
                             generation: presentedGeneration
                         )
@@ -144,6 +142,7 @@ struct CandidatesCard: View {
                         )
                     },
                     showDismissButton: showDismissButton,
+                    showsOriginalConfirmation: inferenceEngine.speciesData?.aiReview.isUnresolved != true,
                     feedback: viewModel.feedback
                 )
             } else {
@@ -168,7 +167,7 @@ struct CandidatesCard: View {
                     },
                     onConfirm: {
                         guard let presentedScanId else { return }
-                        confirmOriginal(
+                        await confirmOriginal(
                             scanId: presentedScanId,
                             generation: presentedGeneration
                         )
@@ -189,10 +188,20 @@ struct CandidatesCard: View {
                         )
                     },
                     showDismissButton: showDismissButton,
+                    showsOriginalConfirmation: inferenceEngine.speciesData?.aiReview.isUnresolved != true,
                     imageDependencies: viewModel.imageDependencies,
                     feedback: viewModel.feedback
                 )
             }
+        }
+        .id("\(presentedScanId ?? ""):\(presentedGeneration)")
+        .alert("Identification confirmation", isPresented: Binding(
+            get: { viewModel.confirmationMessage != nil },
+            set: { if !$0 { viewModel.confirmationMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) { viewModel.confirmationMessage = nil }
+        } message: {
+            Text(viewModel.confirmationMessage ?? "")
         }
         .sheet(
             isPresented: swipeModalPresentedBinding,
@@ -272,10 +281,12 @@ struct CandidatesCard: View {
                 )
             }
         case .confirmOriginal:
-            confirmOriginal(
-                scanId: request.scanId,
-                generation: request.presentationGeneration
-            )
+            Task { @MainActor in
+                await confirmOriginal(
+                    scanId: request.scanId,
+                    generation: request.presentationGeneration
+                )
+            }
         case .askCommunity:
             onAskCommunity?()
         case .refineScan:

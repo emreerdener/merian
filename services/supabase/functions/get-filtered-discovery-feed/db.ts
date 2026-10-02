@@ -1,5 +1,23 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { FeedScan } from "./types.ts";
+import { parseAIIdentificationReview } from "../_shared/identify/aiIdentificationReview.ts";
+
+/** Legacy feed cannot display review authority; never leak raw owner history or old species. */
+export function projectDiscoveryScan(scan: FeedScan): FeedScan {
+  const { ai_identification_review, ...publicScan } = scan;
+  if (ai_identification_review == null) return publicScan;
+  const review = parseAIIdentificationReview(ai_identification_review);
+  if (review.state !== "clear" || review.community !== null) {
+    delete publicScan.species_dictionary;
+    delete publicScan.ai_confidence_score;
+    // Without a current species this legacy feed cannot apply its IUCN mask.
+    delete publicScan.gps_lat_public;
+    delete publicScan.gps_long_public;
+    delete publicScan.gps_lat_exact;
+    delete publicScan.gps_long_exact;
+  }
+  return publicScan;
+}
 
 async function fetchBlockedUserIds(
   userId: string,
@@ -40,6 +58,7 @@ async function fetchDiscoveryFeedViaFallback(
         weather_condition,
         weather_temperature_f,
         ai_confidence_score,
+        ai_identification_review,
         species_dictionary (
           id,
           scientific_name,
@@ -64,7 +83,7 @@ async function fetchDiscoveryFeedViaFallback(
     throw new Error(`Failed to fetch discovery feed: ${feedError.message}`);
   }
 
-  return feedData as FeedScan[];
+  return (feedData as FeedScan[]).map(projectDiscoveryScan);
 }
 
 function isMissingFilteredFeedRpc(error: unknown): boolean {
@@ -105,6 +124,7 @@ export async function fetchDiscoveryFeed(
           weather_condition,
           weather_temperature_f,
           ai_confidence_score,
+        ai_identification_review,
           species_dictionary (
             id,
             scientific_name,
@@ -121,7 +141,7 @@ export async function fetchDiscoveryFeed(
       throw new Error(`Failed to fetch discovery feed: ${feedError.message}`);
     }
 
-    return feedData as FeedScan[];
+    return (feedData as FeedScan[]).map(projectDiscoveryScan);
   } catch (error) {
     if (!isMissingFilteredFeedRpc(error)) {
       throw error;

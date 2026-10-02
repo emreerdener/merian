@@ -166,6 +166,18 @@ enum ModelContainerFactory {
 
         do {
             return try makePersistentContainer(
+                migrationPlan: MerianRecentV53MigrationPlan.self,
+                named: "checksum-recent-v53",
+                diagnostic: &diagnostic
+            )
+        } catch let recentV53Error {
+            MerianLog.general.error(
+                "ModelContainer V53 checksum-safe retry failed: \(recentV53Error.localizedDescription, privacy: .private)"
+            )
+        }
+
+        do {
+            return try makePersistentContainer(
                 migrationPlan: MerianRecentV52MigrationPlan.self,
                 named: "checksum-recent-v52",
                 diagnostic: &diagnostic
@@ -376,6 +388,8 @@ enum ModelContainerFactory {
         diagnostic: inout StartupStoreDiagnostic
     ) throws -> ModelContainer {
         switch source {
+        case .v53:
+            return try makePersistentContainer(migrationPlan: MerianRecentV53MigrationPlan.self, named: "recent-v53", diagnostic: &diagnostic)
         case .v52:
             return try makePersistentContainer(
                 migrationPlan: MerianRecentV52MigrationPlan.self,

@@ -43,7 +43,8 @@ enum CandidateReviewVisibilityPolicy {
     }
 
     static func visibleCandidates(for speciesData: SpeciesData?) -> [IdentificationCandidate] {
-        guard let speciesData, speciesData.hasSpeciesLevelIdentification else { return [] }
+        guard let speciesData = speciesData?.legacyIdentificationPresentation,
+              speciesData.hasSpeciesLevelIdentification else { return [] }
 
         return visibleCandidates(
             primaryConfidence: speciesData.confidenceScore,

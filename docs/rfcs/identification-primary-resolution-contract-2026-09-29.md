@@ -2,6 +2,14 @@
 
 Date: 2026-09-29
 
+Follow-up, 1 October: the
+[calibration gap audit and implementation design](identification-calibration-gap-audit-2026-10-01.md)
+confirms that this dormant foundation should be reused. Remaining work is
+prospective mapping observability and qualification of a separately versioned
+producer based on the current confidence prompt, followed by rank-aware live
+orchestration. No additional rank field, DTO or SwiftData migration is proposed.
+The failed historical candidates remain unqualified and their studies closed.
+
 Status: Slice 1 and the native persistence, backend review authority and native
 review acknowledgement checkpoints of Slice 2 are implemented locally. The
 shared-consumer and capability-5 reader checkpoints are implemented and locally

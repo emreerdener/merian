@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 // MARK: - Candidate Swipe Modal
@@ -16,6 +17,7 @@ struct CandidateSwipeModal: View {
     // MARK: - Environment
     
     @Environment(InferenceEngine.self) private var inferenceEngine
+    @Environment(\.modelContext) private var modelContext
 
     // Explicit binding instead of @Environment(\.dismiss) — the dismiss environment value
     // leaks up through nested sheets in SwiftUI and can erroneously close the outer
@@ -30,6 +32,8 @@ struct CandidateSwipeModal: View {
     @State private var topCardIsDragging = false
     @State private var isDismissing = false
     @State private var showPaywall = false
+    @State private var reviewToast: ToastPayload?
+    @State private var reviewToastAction: (() -> Void)?
     @State private var delayedDismissalAction: CandidateSwipeDismissalAction?
     @State private var viewModel: CandidateReviewViewModel
 
@@ -92,7 +96,14 @@ struct CandidateSwipeModal: View {
                 if let confirmed = session.confirmedCandidate {
                     confirmedStateContent(candidate: confirmed)
                 } else if session.isExhausted && !isDismissing {
-                    exhaustedStateContent
+                    GeometryReader { geometry in
+                        ScrollView {
+                            exhaustedStateContent
+                                .padding(.vertical, 24)
+                                .frame(maxWidth: .infinity)
+                                .frame(minHeight: geometry.size.height)
+                        }
+                    }
                 } else if isGridMode {
                     gridContent
                 } else {
@@ -138,6 +149,7 @@ struct CandidateSwipeModal: View {
                 }
             }
         }
+        .merianSystemFeedback(toast: $reviewToast, toastAction: $reviewToastAction, showsAchievementToasts: false)
         .onDisappear {
             if session.isExhausted,
                !isDismissing,
@@ -323,15 +335,71 @@ extension CandidateSwipeModal {
                     )
                 }
 
-                SlideToConfirm(
-                    label: confirmButtonTitle,
-                    onConfirm: {
-                        requestDismissal(action: .confirmOriginal)
-                    },
-                    feedback: viewModel.feedback
-                )
+                if inferenceEngine.speciesData?.aiReview.isUnresolved != true {
+                    SlideToConfirm(
+                        label: confirmButtonTitle,
+                        onConfirm: {
+                            requestDismissal(action: .confirmOriginal)
+                        },
+                        feedback: viewModel.feedback
+                    )
+                }
+                if isSubjectPresentationCurrent {
+                    if inferenceEngine.speciesData?.canUndoIncorrectIdentification == true {
+                        let expectedSubject = subject
+                        reviewStateButton("Undo incorrect", icon: "arrow.uturn.backward", color: .gray) {
+                            undoIncorrect(expectedSubject: expectedSubject)
+                        }
+                    } else if inferenceEngine.speciesData?.canMarkIdentificationIncorrect == true {
+                        let expectedSubject = subject
+                        SlideToConfirm(
+                            label: "Mark as incorrect",
+                            onConfirm: { confirmIncorrectIdentification(expectedSubject: expectedSubject) },
+                            feedback: viewModel.feedback,
+                            color: .red
+                        )
+                    }
+                }
             }
             .padding(.horizontal, 24)
+        }
+    }
+
+    private func reviewStateButton(
+        _ title: String, icon: String, color: Color, role: ButtonRole? = nil,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(role: role, action: action) {
+            Label(title, systemImage: icon)
+                .font(.headline)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
+                .foregroundStyle(.primary)
+                .background(color.opacity(0.14), in: Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func confirmIncorrectIdentification(expectedSubject: IdentificationReviewSubject) {
+        Task { @MainActor in
+            guard expectedSubject.matches(subject), isSubjectPresentationCurrent,
+                  inferenceEngine.speciesData?.canMarkIdentificationIncorrect == true else { return }
+            await inferenceEngine.markIdentificationIncorrect(expectedScanId: expectedSubject.scanId, modelContext: modelContext,
+                onLocalSave: {
+                    guard expectedSubject.matches(subject), isSubjectPresentationCurrent else { return }
+                    reviewToastAction = { undoIncorrect(expectedSubject: expectedSubject) }
+                    reviewToast = .information("Marked as incorrect", action: .init(id: .undo, title: "Undo"))
+                })
+        }
+    }
+
+    private func undoIncorrect(expectedSubject: IdentificationReviewSubject) {
+        Task { @MainActor in
+            guard expectedSubject.matches(subject), isSubjectPresentationCurrent,
+                  inferenceEngine.speciesData?.canUndoIncorrectIdentification == true else { return }
+            reviewToast = nil
+            reviewToastAction = nil
+            await inferenceEngine.undoIncorrectIdentification(expectedScanId: expectedSubject.scanId, modelContext: modelContext)
         }
     }
 

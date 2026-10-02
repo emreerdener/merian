@@ -18,6 +18,7 @@ extension ModelStoreRecoveryCoordinator {
         case v50 = 50
         case v51 = 51
         case v52 = 52
+        case v53 = 53
     }
 
     /// V50 was shipped with two distinct model graphs under the same schema

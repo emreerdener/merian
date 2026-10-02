@@ -88,7 +88,7 @@ struct HistoricalSyncCloudClient {
             SupabaseManager.shared.isAccountBoundWorkLeaseCurrent(lease)
         },
         fetchScanPage: { request in
-            try await SupabaseManager.shared.client
+            let data = try await SupabaseManager.shared.client
                 .from("scans")
                 .select(Self.historicalScanSelectColumns)
                 .eq("user_id", value: request.userID)
@@ -99,9 +99,10 @@ struct HistoricalSyncCloudClient {
                 )
                 .execute()
                 .data
+            return try await Self.withOwnerReviews(data)
         },
         fetchScan: { request in
-            try await SupabaseManager.shared.client
+            let data = try await SupabaseManager.shared.client
                 .from("scans")
                 .select(Self.historicalScanSelectColumns)
                 .eq("user_id", value: request.userID)
@@ -109,6 +110,7 @@ struct HistoricalSyncCloudClient {
                 .limit(1)
                 .execute()
                 .data
+            return try await Self.withOwnerReviews(data)
         },
         fetchCollectionPage: { request in
             try await SupabaseManager.shared.client
@@ -123,6 +125,35 @@ struct HistoricalSyncCloudClient {
                 .value
         }
     )
+
+    /// Fetch private authority separately from the publicly readable scan projection.
+    /// Require every row so a partial lookup cannot silently restore a rejected ID.
+    private static func withOwnerReviews(_ data: Data) async throws -> Data {
+        guard var rows = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
+            throw HistoricalScanPageContractError.invalidTopLevel
+        }
+        struct Lookup: Encodable { let p_scan_ids: [String] }
+        for start in stride(from: 0, to: rows.count, by: 100) {
+            let end = min(start + 100, rows.count)
+            let ids = try rows[start..<end].map { row -> String in
+                guard let id = row["id"] as? String else { throw HistoricalScanPageContractError.invalidTopLevel }
+                return id
+            }
+            let response = try await SupabaseManager.shared.client.rpc("get_owned_scan_ai_reviews", params: Lookup(p_scan_ids: ids)).execute().data
+            guard let reviews = try JSONSerialization.jsonObject(with: response) as? [[String: Any]] else {
+                throw HistoricalScanPageContractError.invalidTopLevel
+            }
+            for index in start..<end {
+                guard let id = rows[index]["id"] as? String,
+                      let review = reviews.first(where: { ($0["scan_id"] as? String)?.lowercased() == id.lowercased() }),
+                      let authority = review["review"] else { throw HistoricalScanPageContractError.invalidTopLevel }
+                rows[index]["ai_identification_review"] = authority
+                guard let fields = review["review_fields"] as? [String: Any] else { throw HistoricalScanPageContractError.invalidTopLevel }
+                rows[index].merge(fields) { _, current in current }
+            }
+        }
+        return try JSONSerialization.data(withJSONObject: rows)
+    }
 
     private static let historicalScanSelectColumns =
         "id, image_storage_urls, video_storage_urls, audio_storage_urls, " +

@@ -373,13 +373,15 @@ BEGIN
             'authenticated can mutate or reference an unexpected scan column';
     END IF;
 
-    IF NOT pg_catalog.HAS_TABLE_PRIVILEGE(
+    IF NOT pg_catalog.HAS_COLUMN_PRIVILEGE(
         'anon',
         'public.scans',
+        'id',
         'SELECT'
-    ) OR NOT pg_catalog.HAS_TABLE_PRIVILEGE(
+    ) OR NOT pg_catalog.HAS_COLUMN_PRIVILEGE(
         'authenticated',
         'public.scans',
+        'id',
         'SELECT'
     ) OR NOT pg_catalog.HAS_TABLE_PRIVILEGE(
         'service_role',

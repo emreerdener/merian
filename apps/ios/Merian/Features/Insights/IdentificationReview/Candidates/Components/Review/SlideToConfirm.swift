@@ -3,7 +3,7 @@ import SwiftUI
 /// A pill-shaped drag-to-confirm control for identification-review actions.
 struct SlideToConfirm: View {
     let label: String
-    let onConfirm: () -> Void
+    let onConfirm: () async -> Void
     let feedback: IdentificationReviewFeedbackDependencies
     var color: Color = .green
 
@@ -51,13 +51,18 @@ struct SlideToConfirm: View {
         )
         .task(id: isCompleted) {
             guard isCompleted else { return }
+            defer {
+                dragOffset = 0
+                isCompleted = false
+                hasPlayedEdgeHaptic = false
+            }
             do {
                 try await Task.sleep(for: .milliseconds(380))
             } catch {
                 return
             }
             guard !Task.isCancelled, isCompleted else { return }
-            onConfirm()
+            await onConfirm()
         }
     }
 
@@ -81,9 +86,8 @@ struct SlideToConfirm: View {
     @ViewBuilder
     private func thumbSymbol(progress: CGFloat) -> some View {
         if isCompleted {
-            Image(systemName: "checkmark")
-                .font(.system(size: 18, weight: .bold))
-                .foregroundColor(.white)
+            ProgressView()
+                .tint(.white)
                 .transition(.scale.combined(with: .opacity))
         } else {
             HStack(spacing: -8) {
@@ -144,7 +148,7 @@ struct SlideToConfirm: View {
     }
 
     private func fire(maxOffset: CGFloat) {
-        feedback.successPulse()
+        feedback.lightImpact()
         withAnimation(.spring(response: 0.28, dampingFraction: 0.82)) {
             dragOffset = maxOffset
             isCompleted = true

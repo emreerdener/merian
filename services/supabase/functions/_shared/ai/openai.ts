@@ -35,9 +35,22 @@ import {
 } from "./openaiSolPrimary.ts";
 import { decodeSolPhotoPrimaryDraft } from "./openaiSolPrimaryContract.ts";
 import {
+  buildOpenAIPhotoPrimaryRequest,
+  openAIPhotoPrimarySnapshot,
+} from "./openaiPhotoPrimary.ts";
+import {
   buildOpenAIConfidenceRequest,
   openAIConfidenceSnapshot,
 } from "./openaiPhotoConfidence.ts";
+import {
+  buildOpenAIPhotoReasoningRequest,
+  openAIPhotoReasoningSnapshot,
+} from "./openaiPhotoReasoning.ts";
+
+import {
+  buildOpenAIPhotoEvidenceRequest,
+  openAIPhotoEvidenceSnapshot,
+} from "./openaiPhotoEvidence.ts";
 
 export const OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses";
 export const OPENAI_RESPONSE_LIMIT = 512 * 1024;
@@ -270,26 +283,123 @@ export function createOpenAIConfidenceEvaluationAdapter(
     );
     return {
       parameters,
-      decode: (value, timing) => {
-        const outcome = decodeModeratedPhoto(value, timing, hasText);
-        const nativeUsage = object(object(value)?.usage);
-        const writes = object(nativeUsage?.input_tokens_details)
-          ?.cache_write_tokens;
-        // The assessment may conservatively price an omitted optional breakdown,
-        // but must distinguish it from an explicitly contradictory write count.
-        if (
-          writes != null && (count(writes) === null ||
-            outcome.usage?.promptTokens == null ||
-            outcome.usage.cachedTokens == null ||
-            Number(writes) + outcome.usage.cachedTokens >
-              outcome.usage.promptTokens)
-        ) {
-          return { ...outcome, usage: null };
-        }
-        return outcome;
-      },
+      decode: (value, timing) => decodeAccountedPhoto(value, timing, hasText),
     };
   });
+}
+
+/** Same bounded transport and moderation; only the explicit evaluator may use it. */
+export function createOpenAIPhotoReasoningEvaluationAdapter(
+  credential: string,
+  fetcher: typeof fetch = fetch,
+): AIAdapter<ReturnType<typeof openAIPhotoReasoningSnapshot>> {
+  return createOpenAIAdapter(credential, fetcher, (request, snapshot) => {
+    const parameters = buildOpenAIPhotoReasoningRequest(request, snapshot);
+    const hasText = parameters.input[0].content.some((p) =>
+      p.type === "input_text"
+    );
+    return {
+      parameters,
+      decode: (value, timing) => decodeAccountedPhoto(value, timing, hasText),
+    };
+  });
+}
+
+/** Evaluation-only evidence-limit candidate, with unchanged bounded safety decoding. */
+export function createOpenAIPhotoEvidenceEvaluationAdapter(
+  credential: string,
+  fetcher: typeof fetch = fetch,
+): AIAdapter<ReturnType<typeof openAIPhotoEvidenceSnapshot>> {
+  return createOpenAIAdapter(credential, fetcher, (request, snapshot) => {
+    const parameters = buildOpenAIPhotoEvidenceRequest(request, snapshot);
+    const hasText = parameters.input[0].content.some((p) =>
+      p.type === "input_text"
+    );
+    return {
+      parameters,
+      decode: (value, timing) => decodeAccountedPhoto(value, timing, hasText),
+    };
+  });
+}
+
+/** Current-confidence explicit-primary evaluator; no production registration. */
+export function createOpenAIPhotoPrimaryEvaluationAdapter(
+  credential: string,
+  fetcher: typeof fetch = fetch,
+): AIAdapter<ReturnType<typeof openAIPhotoPrimarySnapshot>> {
+  return createOpenAIAdapter(credential, fetcher, (request, snapshot) => {
+    const parameters = buildOpenAIPhotoPrimaryRequest(request, snapshot);
+    const hasText = parameters.input[0].content.some((p) =>
+      p.type === "input_text"
+    );
+    return {
+      parameters,
+      decode: (value, timing) =>
+        decodeAccountedPhoto(
+          value,
+          timing,
+          hasText,
+          decodeSolPhotoPrimaryDraft,
+          true,
+        ),
+    };
+  });
+}
+
+/** Trusted evaluator extension; never registered for production admission. */
+export function createOpenAIPhotoEvaluationTransport<
+  S extends { readonly timeoutMs: number },
+>(
+  credential: string,
+  build: (
+    request: AIRequest,
+    snapshot: S,
+  ) => Omit<ReturnType<typeof buildOpenAIPhotoPrimaryRequest>, "text"> & {
+    text: unknown;
+  },
+  decodeDraft: (value: unknown) => unknown,
+  fetcher: typeof fetch = fetch,
+): AIAdapter<S> {
+  return createOpenAIAdapter(credential, fetcher, (request, snapshot) => {
+    const parameters = build(request, snapshot);
+    const hasText = parameters.input[0].content.some((p) =>
+      p.type === "input_text"
+    );
+    return {
+      parameters,
+      decode: (value, timing) =>
+        decodeAccountedPhoto(value, timing, hasText, decodeDraft, true),
+    };
+  });
+}
+
+function decodeAccountedPhoto(
+  value: unknown,
+  timing: Pick<AIResponseFacts, "providerDurationMs" | "providerCompletedAt">,
+  hasText: boolean,
+  decodeDraft: (value: unknown) => unknown = decodeOpenAIDraft,
+  exactModel = false,
+): AIProviderOutcome {
+  const outcome = decodeModeratedPhoto(
+    value,
+    timing,
+    hasText,
+    "gpt-6-sol",
+    exactModel,
+    decodeDraft,
+  );
+  const nativeUsage = object(object(value)?.usage);
+  const writes = object(nativeUsage?.input_tokens_details)?.cache_write_tokens;
+  // Omitted optional counts may be conservatively priced; contradictions may not.
+  if (
+    writes != null && (count(writes) === null ||
+      outcome.usage?.promptTokens == null ||
+      outcome.usage.cachedTokens == null ||
+      Number(writes) + outcome.usage.cachedTokens > outcome.usage.promptTokens)
+  ) {
+    return { ...outcome, usage: null };
+  }
+  return outcome;
 }
 
 function decodeModeratedPhoto(

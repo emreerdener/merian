@@ -16,7 +16,7 @@ enum NetworkEndpointTestSupport {
         ]))
         #expect(input["p_operation"] as? String == "scan_identification")
         #expect(input["p_client_protocol"] as? Int == 3)
-        #expect(input["p_identification_protocol"] as? Int == 5)
+        #expect(input["p_identification_protocol"] as? Int == 6)
         let profile = try #require(input["p_input_profile"] as? String)
         let json = "[{\"input_profile\":\"\(profile)\",\"decision\":\"ready\",\"processor_permission\":\"google_gemini\",\"minimum_client_protocol\":0,\"minimum_identification_protocol\":0}]"
         return try response(to: request, json: json)

@@ -22,6 +22,12 @@ assert_output true '["ios"]' skills/merian-ios/SKILL.md
 assert_output true '["ios","supabase"]' \
   skills/merian-ios/SKILL.md skills/merian-supabase/SKILL.md
 assert_output true '["docs"]' skills/merian-docs-sync/SKILL.md
+assert_output true '["docs"]' skills/merian-identification-evaluation/SKILL.md
+assert_output true '["docs"]' docs/research/identification/catalog.json
+assert_output true '["docs"]' scripts/identification-research-catalog.ts
+assert_output true '["docs"]' scripts/identification-research-catalog-capabilities.ts
+assert_output true '["docs"]' docs/research/identification/capabilities.json
+assert_output true '["docs"]' docs/research/identification/benchmark-contract.md
 assert_output true '["incidents"]' skills/merian-incident-response/SKILL.md
 assert_output true '["ios","docs","incidents"]' \
   skills/merian-ios/SKILL.md \

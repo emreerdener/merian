@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ConfidenceHeader: View {
     let title: String
+    var showsExplanation: Bool = true
     
     var body: some View {
         VStack(spacing: 16) {
@@ -10,12 +11,14 @@ struct ConfidenceHeader: View {
                     .font(.system(.title, design: .serif).weight(.bold))
                     .foregroundStyle(.primary)
                 
-                Text("Naturebook’s confidence score is the AI model’s estimate of how likely the identification is to be correct, based on the available identification evidence.")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 24)
-                    .lineSpacing(4)
+                if showsExplanation {
+                    Text("Naturebook’s confidence score is the AI model’s estimate of how likely the identification is to be correct, based on the available identification evidence.")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 24)
+                        .lineSpacing(4)
+                }
             }
         }
     }
