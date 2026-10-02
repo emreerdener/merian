@@ -31,6 +31,9 @@ final class InferenceLiveCompletionCoordinator {
             @MainActor (String, SpeciesData, ModelContainer?) -> Void
         let commitFundingSettlement:
             @MainActor (InferenceResponseSettlement) -> Bool
+        var loadReviewState: @MainActor (String, ModelContext) throws -> LocalAIIdentificationReview? = {
+            try IdentificationReviewSyncService.record($0, context: $1)?.localAIIdentificationReview
+        }
     }
 
     struct PreparedCompletion {
@@ -76,9 +79,15 @@ final class InferenceLiveCompletionCoordinator {
 
         var speciesData = completedResult.speciesData
         dependencies.transferReplacementMetadataAndDeleteOriginal(targetEradicationScanId, outcome, modelContext)
-        if let context = modelContext, let scanID = speciesData.scanId,
-           let record = try? IdentificationReviewSyncService.record(scanID, context: context) {
-            speciesData.aiReview = record.localAIIdentificationReview
+        if let context = modelContext, let scanID = speciesData.scanId {
+            do {
+                if let review = try dependencies.loadReviewState(scanID, context) {
+                    speciesData.aiReview = review
+                }
+            } catch {
+                MerianLog.data.error("Completion review state could not be read; withholding discovery and follow-up effects.")
+                return nil
+            }
         }
         if completedResult.isNewDiscovery && speciesData.hasSpeciesLevelIdentification {
             speciesData.isNewDiscovery = true

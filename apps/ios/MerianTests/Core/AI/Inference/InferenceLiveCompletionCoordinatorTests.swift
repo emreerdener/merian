@@ -1,4 +1,5 @@
 import Foundation
+import SwiftData
 import Testing
 
 @testable import Merian
@@ -19,6 +20,8 @@ private final class InferenceLiveCompletionHarness {
         case queueRetired(String, UUID, Bool, String)
     }
 
+    var replacementOperation: ((ModelContext?) -> Void)?
+    var failReviewRead = false
     var notificationsEnabled = true
     var queueDeleteResult = true
     var deleteOperation: (@MainActor () async -> Bool)?
@@ -70,7 +73,8 @@ private final class InferenceLiveCompletionHarness {
                 recordNewSpeciesDiscovered: { [self] in
                     events.append(.discovery)
                 },
-                transferReplacementMetadataAndDeleteOriginal: { [self] scanId, outcome, _ in
+                transferReplacementMetadataAndDeleteOriginal: { [self] scanId, outcome, context in
+                    replacementOperation?(context)
                     events.append(
                         .replacement(scanId, Self.label(for: outcome))
                     )
@@ -101,6 +105,10 @@ private final class InferenceLiveCompletionHarness {
                 commitFundingSettlement: { [self] settlement in
                     events.append(.fundingSettlement(settlement.scanId))
                     return true
+                },
+                loadReviewState: { [self] scanID, context in
+                    if failReviewRead { throw CocoaError(.fileReadUnknown) }
+                    return try IdentificationReviewSyncService.record(scanID, context: context)?.localAIIdentificationReview
                 }
             )
         )
@@ -145,11 +153,43 @@ struct InferenceLiveCompletionCoordinatorTests {
             completion?.mediaPathsToKeep == ["audio.m4a", "video.mov"]
         )
         #expect(harness.events == [
-            .discovery,
             .replacement("original-scan", "persisted"),
+            .discovery,
             .circuitSuccess,
             .telemetry("pro", "pro_paid")
         ])
+    }
+
+    @Test func rejectedReplacementIsProjectedBeforeDiscoveryCredit() throws {
+        let context = ModelContext(try ModelContainer(for: Schema(versionedSchema: CurrentSchema.self), configurations: ModelConfiguration(isStoredInMemoryOnly: true)))
+        let source = LocalScanRecord(id: "00000000-0000-4000-8000-000000000001", speciesId: "species", scientificName: "Fixtureus species", commonName: "Fixture")
+        source.aiIdentificationReviewData = try LocalAIIdentificationReview(authority: .init(revision: 1, state: .aiRejected, originScanID: source.id, originIdentification: nil)).storedData()
+        let replacement = LocalScanRecord(id: "result-scan", speciesId: "replacement", scientificName: "Fixtureus replacement", commonName: "Replacement")
+        context.insert(source); context.insert(replacement); try context.save()
+        let harness = InferenceLiveCompletionHarness()
+        // Exercise coordinator ordering with the same durable carry used by replacement.
+        harness.replacementOperation = { _ in
+            do {
+                let service = IdentificationReviewSyncService(dependencies: .init(ownerID: { UUID(uuidString: "00000000-0000-4000-8000-000000000002") }))
+                try service.carryRejection(from: source, to: replacement, context: context)
+                try context.save()
+            } catch { Issue.record(error) }
+        }
+        let completion = try #require(harness.makeSystem().coordinator.prepare(
+            outcome: .persisted(result(isNewDiscovery: true)), targetEradicationScanId: source.id, modelContext: context))
+        #expect(completion.speciesData.aiReview.isUnresolved)
+        #expect(!completion.speciesData.hasSpeciesLevelIdentification)
+        #expect(!harness.events.contains(.discovery))
+    }
+
+    @Test func unreadableReviewWithholdsCreditAndTelemetry() throws {
+        let context = ModelContext(try ModelContainer(for: Schema(versionedSchema: CurrentSchema.self), configurations: ModelConfiguration(isStoredInMemoryOnly: true)))
+        let harness = InferenceLiveCompletionHarness()
+        harness.failReviewRead = true
+        let completion = harness.makeSystem().coordinator.prepare(
+            outcome: .persisted(result(isNewDiscovery: true)), targetEradicationScanId: nil, modelContext: context)
+        #expect(completion == nil)
+        #expect(harness.events == [.replacement(nil, "persisted")])
     }
 
     @Test func noRecordCompletionIsAcceptedButRejectedPersistenceIsInert() {

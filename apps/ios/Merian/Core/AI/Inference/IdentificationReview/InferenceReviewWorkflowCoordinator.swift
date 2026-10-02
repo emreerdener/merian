@@ -42,6 +42,11 @@ final class InferenceReviewWorkflowCoordinator {
             InferenceSpeciesHydrationCoordinator.Callbacks
     }
 
+    struct Dependencies {
+        var syncPendingIdentificationReviews: @MainActor () async -> Void
+    }
+
+    private let dependencies: Dependencies
     private let reviewCoordinator:
         InferenceIdentificationReviewCoordinator
     private let taskCoordinator: InferenceHydrationCoordinator
@@ -52,8 +57,10 @@ final class InferenceReviewWorkflowCoordinator {
         reviewCoordinator: InferenceIdentificationReviewCoordinator,
         taskCoordinator: InferenceHydrationCoordinator,
         speciesHydrationCoordinator:
-            InferenceSpeciesHydrationCoordinator
+            InferenceSpeciesHydrationCoordinator,
+        dependencies: Dependencies? = nil
     ) {
+        self.dependencies = dependencies ?? .live
         self.reviewCoordinator = reviewCoordinator
         self.taskCoordinator = taskCoordinator
         self.speciesHydrationCoordinator = speciesHydrationCoordinator
@@ -77,7 +84,7 @@ final class InferenceReviewWorkflowCoordinator {
             if state.isUnresolved || action == .undo { updated.userConfirmedIdentification = false }
             callbacks.applyPresentation(.init(speciesData: updated, referenceState: nil))
             onLocalSave?()
-            await OfflineQueueManager.shared.syncPendingIdentificationReviews()
+            await dependencies.syncPendingIdentificationReviews()
             guard !reviewCoordinator.isAuthTransitionFenceActive,
                   callbacks.speciesHydration.currentPresentationGeneration() == generation,
                   callbacks.speciesHydration.currentSpeciesData()?.scanId == scanID,
@@ -97,6 +104,12 @@ final class InferenceReviewWorkflowCoordinator {
         _ request: OverrideRequest,
         callbacks: Callbacks
     ) async {
+        if let current = callbacks.speciesHydration.currentSpeciesData(),
+           current.aiReview.authority != nil || current.aiReview.pending != nil {
+            await submitOwnerReview(action: .confirmName, expectedScanID: request.expectedScanID,
+                scientificName: request.scientificName, modelContext: request.modelContainer.map { ModelContext($0) }, callbacks: callbacks)
+            return
+        }
         guard !reviewCoordinator.isAuthTransitionFenceActive,
               let current = callbacks.speciesHydration.currentSpeciesData(),
               let scanID = current.scanId,
@@ -184,6 +197,12 @@ final class InferenceReviewWorkflowCoordinator {
         _ request: ConfirmationRequest,
         callbacks: Callbacks
     ) async {
+        if let current = callbacks.speciesHydration.currentSpeciesData(),
+           current.aiReview.authority != nil || current.aiReview.pending != nil {
+            await submitOwnerReview(action: .confirmPrimary, expectedScanID: request.expectedScanID,
+                modelContext: request.modelContext, callbacks: callbacks)
+            return
+        }
         guard !reviewCoordinator.isAuthTransitionFenceActive,
               let current = callbacks.speciesHydration.currentSpeciesData(),
               let scanID = current.scanId,
@@ -238,6 +257,12 @@ final class InferenceReviewWorkflowCoordinator {
         _ request: ResetRequest,
         callbacks: Callbacks
     ) async {
+        if let current = callbacks.speciesHydration.currentSpeciesData(),
+           current.aiReview.authority != nil || current.aiReview.pending != nil {
+            await submitOwnerReview(action: .undo, expectedScanID: request.expectedScanID,
+                modelContext: request.modelContext, callbacks: callbacks)
+            return
+        }
         guard !reviewCoordinator.isAuthTransitionFenceActive,
               let current = callbacks.speciesHydration.currentSpeciesData(),
               let scanID = current.scanId,

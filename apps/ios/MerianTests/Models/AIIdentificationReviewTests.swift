@@ -131,4 +131,50 @@ struct AIIdentificationReviewTests {
         #expect(try ModelContext(container).fetchCount(FetchDescriptor<OfflineJobRecord>()) == 2)
     }
 
+    @Test func unreadableOutboxPreservesIntentAndNeverDispatches() async throws {
+        let container = try ModelContainer(for: Schema(versionedSchema: CurrentSchema.self), configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+        let context = ModelContext(container)
+        context.insert(LocalScanRecord(id: scanID, speciesId: "species", scientificName: "Fixtureus species", commonName: "Fixture"))
+        try context.save()
+        var calls = 0
+        var dependencies = IdentificationReviewSyncService.Dependencies(ownerID: { ownerID }, submit: { _ in
+            calls += 1
+            throw ConfirmedSpeciesReview.IntegrityError.invalidRequest
+        })
+        dependencies.loadPendingJobs = { _, _ in throw CocoaError(.fileReadUnknown) }
+        let service = IdentificationReviewSyncService(dependencies: dependencies)
+        let queued = try service.enqueue(scanID: scanID, action: .reject, context: context)
+        await service.drain(context: context)
+        let verification = ModelContext(container)
+        #expect(calls == 0)
+        #expect(try verification.fetchCount(FetchDescriptor<OfflineJobRecord>()) == 1)
+        #expect(try IdentificationReviewSyncService.record(scanID, context: verification)?.localAIIdentificationReview.pending == queued.pending)
+    }
+
+    @Test(arguments: [false, true])
+    func historicalReviewMergePreservesRevisionAndPrimaryAuthority(hasPrimary: Bool) throws {
+        let record = LocalScanRecord(id: scanID, speciesId: "species", scientificName: "Fixtureus species", commonName: "Fixture")
+        record.userIdentificationOverride = "Fixtureus local"
+        if hasPrimary {
+            record.primaryIdentificationData = try PrimaryIdentification(snapshot: .init(resolution: .species, scientificName: "Fixtureus species", commonName: nil)).data
+        }
+        func response(revision: Int, state: AIIdentificationReview.State) throws -> HistoricalScanResponse {
+            let review = AIIdentificationReview(revision: revision, state: state, originScanID: scanID, originIdentification: nil)
+            let payload: [String: Any] = ["id": scanID,
+                "ai_identification_review": try JSONSerialization.jsonObject(with: review.storedData()),
+                "user_identification_override": "Fixtureus remote"]
+            return try JSONDecoder().decode(HistoricalScanResponse.self, from: JSONSerialization.data(withJSONObject: payload))
+        }
+        #expect(try HistoricalPrimaryIdentification.mergeAIIdentificationReview(response(revision: 2, state: .aiRejected), into: record))
+        #expect(record.localAIIdentificationReview.authority?.revision == 2)
+        #expect(record.userIdentificationOverride == (hasPrimary ? "Fixtureus local" : "Fixtureus remote"))
+        let stored = record.localAIIdentificationReview
+        #expect(throws: ConfirmedSpeciesReview.IntegrityError.self) {
+            try HistoricalPrimaryIdentification.mergeAIIdentificationReview(response(revision: 2, state: .clear), into: record)
+        }
+        #expect(record.localAIIdentificationReview == stored)
+        _ = try HistoricalPrimaryIdentification.mergeAIIdentificationReview(response(revision: 1, state: .clear), into: record)
+        #expect(record.localAIIdentificationReview == stored)
+    }
+
 }

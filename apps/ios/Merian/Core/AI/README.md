@@ -380,7 +380,11 @@ This README maps that contract to native source and test ownership.
   Cancellation-ignoring dictionary and species-ID fallback results therefore
   cannot update observable state, enqueue stale persistence, or escape to their
   caller. The coordinator receives the write/effect and species-hydration
-  owners; it resolves no live singleton or endpoint itself.
+  owners; it resolves no live singleton or endpoint itself. It also selects the
+  durable owner-review path when a presentation has rejection authority or
+  pending intent. `InferenceReviewWorkflowCoordinator+Live.swift` supplies its
+  injected queue-sync dependency; the engine keeps only the public forwarding
+  methods.
 - `Inference/IdentificationReview/IdentificationReviewPresentation.swift` owns
   the pure full-value mappings for override placeholders, AI confirmation,
   reset, and Species Dictionary hydration. It returns typed engine presentation
@@ -1402,8 +1406,8 @@ version, enum and UTF-16 bounds are generated from the Edge contract. Native
 domain interpretation, SwiftData persistence, history merging and shared
 consumer support are implemented as recorded in the
 [primary-resolution plan](../../../../../docs/rfcs/identification-primary-resolution-contract-2026-09-29.md).
-`IdentificationDispatchAuthorization.currentProtocol` now advertises 5, the
-exact reader capability required for these results. Current profiles still do
+`IdentificationDispatchAuthorization.currentProtocol` advertises 6, supporting
+these capability-5 results and owner-review authority. Current profiles still do
 not produce the reserved schema. Explanation format, provider assignments and
 confidence display remain unchanged.
 
@@ -1450,4 +1454,5 @@ the existing review write tail before replacing the account or local store,
 including a suspended local apply. The network account lease rejects results
 from a displaced session. The restored `SpeciesData` carries this authority
 separately; shared species consumers now preserve this authority, and the native
-reader advertises protocol 5 without activating a new producer.
+reader advertises protocol 6 for owner-review-aware results without activating a
+new producer.

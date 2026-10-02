@@ -499,7 +499,9 @@ its capture integration:
   local-before-cloud admission, registered review hydration, and exact post-
   suspension presentation fencing. The pure presentation mapper returns paired
   full-value `SpeciesData`, reference-media, and persistence-patch actions.
-  `InferenceEngine` retains stable public methods.
+  `InferenceEngine` retains stable public methods. The workflow also selects the
+  durable owner-review path for existing rejection authority or pending intent;
+  its `+Live` adapter supplies the injected queue-sync operation.
   `InferenceSpeciesPresentationCoordinator` coordinates observable commits
   through `InferencePresentationState`; its single hydration callback bundle is
   the workflow's source for current presentation, generation, exact-identity

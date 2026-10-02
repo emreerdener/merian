@@ -254,6 +254,15 @@ final class CollectionsViewModelTests: XCTestCase {
         let detailAfter = detail.refreshIdentity(scans: scans)
         XCTAssertNotEqual(catalogBefore, catalogAfter)
         XCTAssertNotEqual(detailBefore, detailAfter)
+
+        scan.aiIdentificationReviewData = Data([1, 2, 3])
+        let rejectedCatalog = catalog.refreshIdentity(scans: scans, collections: [], hiddenSmartCollectionIDs: [])
+        let rejectedDetail = detail.refreshIdentity(scans: scans)
+        XCTAssertNotEqual(catalogAfter, rejectedCatalog)
+        XCTAssertNotEqual(detailAfter, rejectedDetail)
+        scan.aiIdentificationReviewData = Data([3, 2, 1])
+        XCTAssertNotEqual(rejectedCatalog, catalog.refreshIdentity(scans: scans, collections: [], hiddenSmartCollectionIDs: []))
+        XCTAssertNotEqual(rejectedDetail, detail.refreshIdentity(scans: scans))
     }
 
     func testSmartDetailUsesInjectedShareStateAndHideFeedback() {

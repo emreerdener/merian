@@ -14,10 +14,10 @@ struct CapturedMediaArchitectureTests {
                     ? source.relativePath
                     : nil
             }
-            // V51 must retain the exact nested released model independently
-            // of the active declaration; migration guards pin its snapshot.
+            // Released V51–V53 retain frozen nested models independently
+            // of the active declaration; migration guards pin their snapshots.
             let expectedOwners = expectation.token == "public final class CapturedMediaEntry"
-                ? [expectation.path, "Models/Schema/SchemaV51Snapshots.swift", "Models/Schema/SchemaV52QueueSnapshots.swift"]
+                ? [expectation.path, "Models/Schema/SchemaV51Snapshots.swift", "Models/Schema/SchemaV52QueueSnapshots.swift", "Models/Schema/SchemaV53QueueSnapshots.swift"]
                 : [expectation.path]
             #expect(
                 owners == expectedOwners,
@@ -54,10 +54,10 @@ struct CapturedMediaArchitectureTests {
         #expect(valueSources.allSatisfy { !$0.1.contains("submissionMediaProjection") })
     }
 
-    @Test func capturedMediaShapeRemainsStableInV53AndAggregateStaysRetired() throws {
+    @Test func capturedMediaShapeRemainsStableInV54AndAggregateStaysRetired() throws {
         let entry = try source(at: Self.entryPath)
         let schemaVersions = try source(
-            at: "apps/ios/Merian/Models/Schema/SchemaV53.swift"
+            at: "apps/ios/Merian/Models/Schema/SchemaV54.swift"
         )
         let aliases = try source(
             at: "apps/ios/Merian/Models/Aliases.swift"
@@ -70,8 +70,8 @@ struct CapturedMediaArchitectureTests {
             "CapturedMediaEntry stored shape changed without a reviewed migration"
         )
         #expect(!entry.contains("@Relationship"))
-        #expect(aliases.contains("typealias CurrentSchema = MerianSchemaV53"))
-        #expect(schemaVersions.contains("enum MerianSchemaV53"))
+        #expect(aliases.contains("typealias CurrentSchema = MerianSchemaV54"))
+        #expect(schemaVersions.contains("enum MerianSchemaV54"))
         for retiredPath in Self.retiredPaths {
             #expect(
                 !FileManager.default.fileExists(

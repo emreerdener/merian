@@ -3,6 +3,22 @@ import Foundation
 /// Keeps immutable AI identity separate from mutable dictionary and review data.
 /// Both paged history and single-scan recovery use the same checked projection.
 enum HistoricalPrimaryIdentification {
+    static func mergeAIIdentificationReview(_ response: HistoricalScanResponse, into record: LocalScanRecord) throws -> Bool {
+        guard let review = response.aiIdentificationReview else { return false }
+        var local = record.localAIIdentificationReview
+        // Validate equal revisions before staging any associated legacy fields.
+        let authority = try AIIdentificationReview.merging(stored: local.authority, incoming: review)
+        if review.revision >= (local.authority?.revision ?? 0), record.primaryIdentification == nil {
+            record.userIdentificationOverride = response.user_identification_override
+            record.userConfirmedIdentification = response.user_confirmed_identification ?? false
+            record.confirmedSpeciesId = response.reviewConfirmedSpeciesID
+            record.userReviewState = response.reviewState ?? .unreviewed
+        }
+        local.authority = authority
+        record.aiIdentificationReviewData = try local.storedData()
+        return true
+    }
+
     static func validate(_ response: HistoricalScanResponse) throws -> PrimaryIdentification? {
         let primary = response.primary_identification.map(PrimaryIdentification.init(dto:))
         guard PrimaryIdentificationProvenancePolicy.requiresSnapshot(response.identification_provenance) == (primary != nil) else {

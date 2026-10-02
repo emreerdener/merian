@@ -308,7 +308,11 @@ struct OfflineSyncFoundationArchitectureTests {
         "func writeQueueDiagnosticsExport":
             "Services/OfflineQueueManager+Diagnostics.swift",
         "func pruneOfflineQueueEvents":
-            "Services/OfflineQueueManager+Diagnostics.swift"
+            "Services/OfflineQueueManager+Diagnostics.swift",
+        "struct IdentificationReviewSyncService":
+            "Services/IdentificationReviewSyncService.swift",
+        "func syncPendingIdentificationReviews":
+            "Services/OfflineQueueManager+IdentificationReview.swift"
     ]
 
     private static let focusedOwnerDirectories: Set<String> = [
@@ -340,7 +344,9 @@ struct OfflineSyncFoundationArchitectureTests {
         "Policies/OfflineQueueStoragePolicy.swift",
         "Policies/OfflineScanJobMetadataContract.swift",
         "Policies/ScanConnectivityFailurePolicy.swift",
-        "Services/OfflineQueueManager+Diagnostics.swift"
+        "Services/OfflineQueueManager+Diagnostics.swift",
+        "Services/IdentificationReviewSyncService.swift",
+        "Services/OfflineQueueManager+IdentificationReview.swift"
     ]
 
     private static let modelAndPolicyPaths: Set<String> = [
@@ -361,6 +367,8 @@ struct OfflineSyncFoundationArchitectureTests {
     ]
 
     private static let expectedImportsByPath: [String: Set<String>] = [
+        "Services/IdentificationReviewSyncService.swift": ["import Foundation", "import Supabase", "import SwiftData"],
+        "Services/OfflineQueueManager+IdentificationReview.swift": ["import Foundation", "import SwiftData"],
         "Coordinators/GenerationTaskRegistry.swift": ["import Foundation"],
         "Models/CollectionSyncSnapshot.swift": ["import Foundation"],
         "Models/ExtractedScanData.swift": [

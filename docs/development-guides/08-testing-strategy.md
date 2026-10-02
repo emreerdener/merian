@@ -9814,12 +9814,16 @@ provider profiles remain unchanged throughout this reader preparation.
 
 The retained rejection infrastructure uses `AIIdentificationReviewTests` for
 durable offline intent, evidence preservation, ordered Undo revisions,
-malformed-envelope handling, replacement staging, and presentation without
-clearing stored rejection. The rejection UI and its feature-specific UI tests
-are removed. `MigrationPlanTests` includes a disk-backed V53→V54 fixture; the
-independently frozen V53 graph must continue to compile. The focused native
-suite also includes `InferenceScanReplacementTests`,
-`IdentificationPreflightTests`, and `HistoricalSyncCloudClientTests`.
+malformed-envelope handling, replacement staging, unreadable-outbox retention,
+revision-aware historical rejection merging, and presentation without clearing
+stored rejection. `InferenceLiveCompletionCoordinatorTests` verifies that
+durable replacement review state is projected before discovery credit, and that
+an unreadable review withholds discovery and completion follow-up effects. The
+rejection UI and its feature-specific UI tests are removed. `MigrationPlanTests`
+includes a disk-backed V53→V54 fixture; the independently frozen V53 graph must
+continue to compile. The focused native suite also includes
+`InferenceScanReplacementTests`, `IdentificationPreflightTests`, and
+`HistoricalSyncCloudClientTests`.
 
 The new route's Deno contract/handler tests exercise exact payloads, owner
 binding, revision conflicts and idempotent retries without duplicate quota or

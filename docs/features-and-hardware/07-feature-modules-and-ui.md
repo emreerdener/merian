@@ -408,6 +408,14 @@ production Shell and Library file remains below the 600-line review guard.
   reflecting only posts shared or opened on the current installation. This
   intent can include a moderated or quarantined post that the public Profile
   grid currently suppresses.
+- **Incorrect identifications**: Needs review includes scans marked incorrect
+  (including unresolved reanalysis proposals) regardless of the original
+  confidence or prior review flags. Undo restores the usual confidence,
+  competitive-alternative, and review-state filters: strong noncompetitive scans
+  leave; scans still needing review remain. The smart collection appears with
+  one matching scan. Catalog and open detail refresh identities include the
+  persisted AI-review payload, so local rejection and Undo refresh membership
+  without waiting for cloud sync.
 - **Smart Collection Boundary**: `SmartCollectionDetailView` is read-only and
   live-generated from current `LocalScanRecord` matches. Smart collections are
   not converted into `ScanCollection` rows, do not enqueue

@@ -218,6 +218,11 @@ files above.
 
 ### Durable Read Invariant
 
+`IdentificationReviewSyncService` aborts and logs when an outbox read,
+reconciliation read, encoding, or save fails. Fresh mutation contexts disable
+autosave, so partially staged authority and dependent-job deletion cannot commit
+after an error. Previously saved running or waiting jobs remain retryable.
+
 SwiftData absence is a valid domain result only after a successful read. No
 production Swift file under `Core/Data` may use `try?` with `fetch` or
 `fetchCount`; read failures log privately and abort the associated mutation or

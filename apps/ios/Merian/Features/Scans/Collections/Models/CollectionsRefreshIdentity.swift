@@ -16,6 +16,7 @@ struct CollectionScanRefreshIdentity: Equatable {
         let hazardType: String
         let confidenceBitPattern: UInt64?
         let candidatesData: Data?
+        let aiIdentificationReviewData: Data?
         let userReviewState: String
         let inferenceTier: String?
         let scientificName: String
@@ -37,6 +38,7 @@ struct CollectionScanRefreshIdentity: Equatable {
             hazardType = scan.hazardType
             confidenceBitPattern = scan.confidenceScore?.bitPattern
             candidatesData = scan.candidatesData
+            aiIdentificationReviewData = scan.aiIdentificationReviewData
             userReviewState = scan.userReviewState.rawValue
             inferenceTier = scan.inferenceTier
             scientificName = scan.scientificName

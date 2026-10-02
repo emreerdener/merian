@@ -4,7 +4,7 @@ enum SmartCollectionSuggester {
     private static let maximumSuggestions = 6
     private static let maximumFeaturedScans = 24
     private static let minimumRecentScans = 3
-    private static let minimumReviewScans = 2
+    private static let minimumReviewScans = 1
     private static let minimumSharedScans = 1
     private static let minimumTaxonomyScans = 3
     private static let minimumLocationScans = 3
@@ -358,6 +358,7 @@ enum SmartCollectionSuggester {
     }
 
     private static func isReviewCandidate(_ scan: LocalScanRecord) -> Bool {
+        if scan.localAIIdentificationReview.isUnresolved { return true }
         guard scan.userReviewState == .unreviewed else { return false }
         return CandidateReviewVisibilityPolicy.shouldSurfaceForReviewCollection(
             primaryConfidence: scan.confidenceScore,

@@ -896,7 +896,10 @@ snapshot preflight, local-before-cloud admission, registered review hydration,
 dictionary/enrichment fallback, review mutation, and reference-image follow-up.
 It revalidates scan, species, presentation, review generation, cancellation, and
 Auth state after external suspension so stale results cannot publish or enqueue
-persistence. The engine retains the public review signatures.
+persistence. It also selects the durable owner-review route for existing
+rejection authority or pending intent;
+`InferenceReviewWorkflowCoordinator+Live.swift` provides queue synchronization
+through an injected dependency. The engine retains the public review signatures.
 `Inference/Hydration/InferenceSpeciesPresentationCoordinator.swift` coordinates
 observable commits through `InferencePresentationState`, supplies the workflow's
 single hydration callback bundle as its current-species,

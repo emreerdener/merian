@@ -153,3 +153,13 @@ Back navigation, VoiceOver, and large Dynamic Type. Every production file in
 this feature remains below the 600-line review guard. Do not report the
 Collections matrix or release gate as green while the durable-delete, V50→V51
 migration, or complete migration-plan suite fails.
+
+## Incorrect identifications
+
+Needs review includes scans marked incorrect (including unresolved reanalysis
+proposals) regardless of the original confidence or prior review flags. Undo
+restores the usual confidence, competitive-alternative, and review-state
+filters: strong noncompetitive scans leave; scans still needing review remain.
+The smart collection appears with one matching scan. Catalog and open detail
+refresh identities include the persisted AI-review payload, so local rejection
+and Undo refresh membership without waiting for cloud sync.

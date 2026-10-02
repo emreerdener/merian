@@ -22,7 +22,7 @@ struct IdentificationPreflightTransportTests {
         }
         fixture.transport.register(path: "/identify-multimodal") { request in
             #expect(request.value(forHTTPHeaderField: IdentificationRecipientExpectation.header) == recipient)
-            #expect(request.value(forHTTPHeaderField: IdentificationDispatchAuthorization.protocolHeader) == "5")
+            #expect(request.value(forHTTPHeaderField: IdentificationDispatchAuthorization.protocolHeader) == "6")
             return try NetworkEndpointTestSupport.response(to: request, json: #"{"success":true}"#)
         }
         let prepared = try await fixture.client.buildMultiModalRequest(

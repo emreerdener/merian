@@ -140,8 +140,10 @@ struct SpeciesModelsArchitectureTests {
     }
 
     private static let speciesSourcePaths = [
+        "AIIdentificationReview.swift",
         "ConfirmedSpeciesReview.swift",
         "IdentificationResultProvenance.swift",
+        "LocalAIIdentificationReview.swift",
         "PrimaryIdentification.swift",
         "SimilarSpecies.swift",
         "SpeciesData+Presentation.swift",
@@ -172,6 +174,8 @@ struct SpeciesModelsArchitectureTests {
         "apps/ios/MerianTests/Core/AI/Models/CaptureTelemetryTests.swift"
 
     private static let declarationOwners: [(token: String, path: String)] = [
+        ("struct AIIdentificationReview: Codable, Equatable, Sendable", "Models/Species/AIIdentificationReview.swift"),
+        ("struct LocalAIIdentificationReview: Codable, Equatable, Sendable", "Models/Species/LocalAIIdentificationReview.swift"),
         ("struct ConfirmedSpeciesReview: Codable, Equatable, Sendable", "Models/Species/ConfirmedSpeciesReview.swift"),
         ("struct CaptureTelemetry: Sendable", "Core/AI/Models/CaptureTelemetry.swift"),
         ("struct SpeciesData: Sendable", "Models/Species/SpeciesData.swift"),

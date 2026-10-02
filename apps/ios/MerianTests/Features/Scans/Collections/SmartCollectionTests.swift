@@ -248,7 +248,7 @@ struct SmartCollectionTests {
         #expect(snapshot.scans.allSatisfy { $0.commonName.hasPrefix("Competitive Flash") })
     }
 
-    @Test("Needs review suppresses reviewed or flagged scans")
+    @Test("Needs review suppresses reviewed scans but retains legacy-flagged candidates")
     func testNeedsReviewSuppressesReviewedStates() throws {
         let candidates = try encodedCandidates(confidenceScores: [0.82])
         let scans = [
@@ -284,7 +284,34 @@ struct SmartCollectionTests {
             referenceDate: referenceDate
         )
 
-        #expect(!suggestions.map(\.title).contains("Needs review"))
+        let review = try #require(suggestions.first { $0.definition.rule == .needsReview })
+        #expect(review.scans.map(\.commonName) == ["Flagged Flash"])
+    }
+
+    @Test("Incorrect marks include strong scans; Undo restores normal review eligibility")
+    func testIncorrectAndUndoReviewMembership() throws {
+        let strong = try makeScan(name: "Strong", confidenceScore: 0.99, timestamp: referenceDate)
+        let possible = try makeScan(name: "Possible", confidenceScore: 0.70, timestamp: referenceDate)
+        for scan in [strong, possible] {
+            scan.aiIdentificationReviewData = try LocalAIIdentificationReview(
+                optimisticState: .aiRejected).storedData()
+            let rejected = try #require(SmartCollectionSuggester.suggestions(
+                from: [scan], existingCollections: [], referenceDate: referenceDate
+            ).first { $0.definition.rule == .needsReview })
+            #expect(rejected.scans.map(\.id) == [scan.id])
+
+            // Undo takes effect locally even before the server acknowledges it.
+            scan.aiIdentificationReviewData = try LocalAIIdentificationReview(
+                authority: .init(revision: 1, state: .aiRejected, originScanID: scan.id.lowercased(), originIdentification: nil),
+                pending: .init(scanID: scan.id, expectedRevision: 1, operationID: UUID().uuidString,
+                    action: .undo, scientificName: nil, expectedSpeciesReviewRevision: nil),
+                optimisticState: .clear).storedData()
+            let undone = SmartCollectionSuggester.refreshedSnapshot(for: rejected, from: [scan])
+            #expect(undone.scans.isEmpty == (scan.id == strong.id))
+            let catalog = SmartCollectionSuggester.suggestions(from: [scan], existingCollections: [],
+                referenceDate: referenceDate)
+            #expect(catalog.contains { $0.definition.rule == .needsReview } == (scan.id == possible.id))
+        }
     }
 
     @Test("Shared scans emit a smart collection and respect duplicate suppression")

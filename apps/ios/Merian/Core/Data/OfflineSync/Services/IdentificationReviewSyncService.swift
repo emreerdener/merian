@@ -11,6 +11,9 @@ struct IdentificationReviewSyncService {
         let request: AIIdentificationReviewRequest
     }
     @MainActor struct Dependencies {
+        var loadPendingJobs: (ModelContext, FetchDescriptor<OfflineJobRecord>) throws -> [OfflineJobRecord] = {
+            try $0.fetch($1)
+        }
         var beginWork: () throws -> AccountBoundWorkLease = { try SupabaseManager.shared.beginUnownedAccountBoundWork() }
         var finishWork: (AccountBoundWorkLease) -> Void = { SupabaseManager.shared.finishAccountBoundWork($0) }
         var isWorkCurrent: (AccountBoundWorkLease) -> Bool = { SupabaseManager.shared.isAccountBoundWorkLeaseCurrent($0) }
@@ -35,6 +38,7 @@ struct IdentificationReviewSyncService {
         guard let ownerID = dependencies.ownerID() else { throw ConfirmedSpeciesReview.IntegrityError.invalidRequest }
         // Use a fresh context so a review cannot commit unrelated presentation edits.
         let write = ModelContext(context.container)
+        write.autosaveEnabled = false
         guard let scan = try Self.record(scanID, context: write) else { throw ConfirmedSpeciesReview.IntegrityError.missingRecord }
         var local = scan.localAIIdentificationReview
         guard !local.needsAttention else { throw ConfirmedSpeciesReview.IntegrityError.conflictingRevision }
@@ -80,11 +84,20 @@ struct IdentificationReviewSyncService {
     }
 
     func drain(context: ModelContext) async {
+        do {
+            try await drainPending(context: context)
+        } catch {
+            MerianLog.data.error("Identification review persistence failed; durable work remains retryable.")
+        }
+    }
+
+    private func drainPending(context: ModelContext) async throws {
         let write = ModelContext(context.container)
+        write.autosaveEnabled = false
         let kind = OfflineJobKind.identificationReviewSync.rawValue
         var descriptor = FetchDescriptor<OfflineJobRecord>(predicate: #Predicate { $0.kindRaw == kind }, sortBy: [SortDescriptor(\.createdAt)])
         descriptor.fetchLimit = 100
-        guard let jobs = try? write.fetch(descriptor) else { return }
+        let jobs = try dependencies.loadPendingJobs(write, descriptor)
         var blockedSubjects = Set<String?>()
         for job in jobs {
             guard !Task.isCancelled else { return }
@@ -110,6 +123,7 @@ struct IdentificationReviewSyncService {
                 guard dependencies.isWorkCurrent(lease), dependencies.ownerID() == payload.ownerID else { return }
                 // Re-fetch through a new context after suspension: deletion/new intent can win.
                 let commit = ModelContext(context.container)
+                commit.autosaveEnabled = false
                 guard let current = try Self.record(payload.request.scanID, context: commit),
                       let currentJob = try commit.fetchOfflineJob(id: job.id) else { continue }
                 var currentState = current.localAIIdentificationReview
@@ -142,7 +156,8 @@ struct IdentificationReviewSyncService {
             } catch {
                 guard dependencies.isWorkCurrent(lease) else { return }
                 let failed = ModelContext(context.container)
-                guard let currentJob = try? failed.fetchOfflineJob(id: job.id) else { continue }
+                failed.autosaveEnabled = false
+                guard let currentJob = try failed.fetchOfflineJob(id: job.id) else { continue }
                 // Later operations for this scan depend on this exact revision.
                 // A failed predecessor must never allow its successor to overtake it.
                 let code = EdgeFunctionErrorPolicy.stableCode(from: error)
@@ -150,38 +165,39 @@ struct IdentificationReviewSyncService {
                 let permanent = ["invalid_identification_review", "species_not_verified", "identification_review_not_found"].contains(code ?? "")
                 if isConflict || permanent {
                     currentJob.status = .waiting; currentJob.nextRunAt = Date().addingTimeInterval(30)
-                    if let scan = try? Self.record(payload.request.scanID, context: failed) {
+                    if let scan = try Self.record(payload.request.scanID, context: failed) {
                         var state = scan.localAIIdentificationReview; state.needsAttention = true
-                        scan.aiIdentificationReviewData = try? state.storedData()
+                        scan.aiIdentificationReviewData = try state.storedData()
                     }
                 } else {
                     currentJob.status = .waiting
                     currentJob.nextRunAt = Date().addingTimeInterval(min(300, pow(2, Double(min(job.attemptCount, 8)))))
                 }
                 currentJob.lastErrorCode = isConflict || permanent ? "identification_review_reconcile" : "identification_review_sync_failed"
-                try? failed.save()
+                try failed.save()
                 if isConflict || permanent, let snapshot = try? await dependencies.fetchLatest(payload.request.scanID),
                    dependencies.isWorkCurrent(lease), dependencies.ownerID() == payload.ownerID {
                     let reconcile = ModelContext(context.container)
-                    if let scan = try? Self.record(payload.request.scanID, context: reconcile) {
+                    reconcile.autosaveEnabled = false
+                    if let scan = try Self.record(payload.request.scanID, context: reconcile) {
                         var state = scan.localAIIdentificationReview
                         state.authority = snapshot.review; state.pending = nil; state.optimisticState = nil
                         state.needsAttention = false; state.conflictReconciled = true
-                        scan.aiIdentificationReviewData = try? state.storedData()
+                        scan.aiIdentificationReviewData = try state.storedData()
                         scan.userIdentificationOverride = snapshot.review_fields.user_identification_override
                         scan.userConfirmedIdentification = snapshot.review_fields.user_confirmed_identification
                         scan.confirmedSpeciesId = snapshot.review_fields.confirmed_species_id
                         scan.userReviewState = snapshot.review_fields.user_review_state
                         if scan.primaryIdentificationData != nil {
                             let fields = snapshot.review_fields
-                            scan.confirmedSpeciesIdentityData = try? ConfirmedSpeciesReview(revision: fields.confirmed_species_identity_revision,
+                            scan.confirmedSpeciesIdentityData = try ConfirmedSpeciesReview(revision: fields.confirmed_species_identity_revision,
                                 identity: fields.confirmed_species_identity, override: fields.user_identification_override,
                                 confirmed: fields.user_confirmed_identification, speciesID: fields.confirmed_species_id, state: fields.user_review_state).storedData()
                         }
                         // Drop dependent intent. Never rebase an old decision onto another device's decision.
-                        let all = (try? reconcile.fetch(descriptor)) ?? []
+                        let all = try dependencies.loadPendingJobs(reconcile, descriptor)
                         for dependent in all where dependent.subjectId == job.subjectId { reconcile.delete(dependent) }
-                        try? reconcile.save()
+                        try reconcile.save()
                     }
                 }
                 return

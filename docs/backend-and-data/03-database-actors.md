@@ -524,9 +524,12 @@ Historical hydration has four bounded owners. `HistoricalSyncModels.swift`
 contains request values and unchanged wire DTOs,
 `HistoricalScanPageDecoder.swift` owns row-isolated PostgREST decoding,
 `HistoricalSyncCloudClient.swift` is the sole live Auth/PostgREST adapter, and
-this actor owns only SwiftData reconciliation. `ScanRepository.swift` retains
-push-before-pull ordering, pagination, account-lease checks, and app-event
-orchestration.
+this actor owns only SwiftData reconciliation.
+`HistoricalPrimaryIdentification.mergeAIIdentificationReview` owns
+revision-aware rejection projection, including equal-revision conflict
+validation before legacy field updates; the actor retains the page transaction
+and save boundary. `ScanRepository.swift` retains push-before-pull ordering,
+pagination, account-lease checks, and app-event orchestration.
 
 **Responsibilities:**
 

@@ -61,6 +61,7 @@ struct InferenceArchitectureTests {
             "IdentificationReview/InferenceIdentificationReviewCoordinator.swift",
             "IdentificationReview/InferenceIdentificationReviewCoordinator+Live.swift",
             "IdentificationReview/InferenceReviewWorkflowCoordinator.swift",
+            "IdentificationReview/InferenceReviewWorkflowCoordinator+Live.swift",
             "IdentificationReview/IdentificationReviewPresentation.swift"
         ] {
             let file = try sourceRoot().appendingPathComponent(relativePath)

@@ -79,7 +79,7 @@ unchanged. Unknown but decodable profiles remain present and receive neutral
 review guidance instead of Gemini confidence bands.
 `IdentificationResultProvenanceTests` verifies these paths.
 
-`MerianSupabaseClientFactory` advertises result-reader capability 5 on SDK
+`MerianSupabaseClientFactory` advertises result-reader capability 6 on SDK
 requests. It uses the same constant as inference dispatch. The backend checks
 that capability before returning visible V2 or explicit-primary rows, including
 a single-scan projection or a page that mixes old and new results. Older readers
@@ -100,7 +100,10 @@ identification scans remain available for explicit retry.
 
 The projection also selects `primary_identification`.
 `HistoricalPrimaryIdentification` validates the reserved schema pairing before
-any reconciliation writes, preserves original labels and immutable snapshots,
+any reconciliation writes. Its `mergeAIIdentificationReview` helper applies
+revision-checked rejection authority while preserving pending local intent and
+explicit-primary review fields. Equal-revision conflicts fail before legacy
+fields are staged. The helper preserves original labels and immutable snapshots,
 and clears species-only caches and stale taxonomy for broader results. Missing
 metadata from an older projection cannot erase a valid stored primary answer.
 Malformed required data cannot become legacy through omission. V53 stores the
@@ -123,5 +126,5 @@ This covers fetch, revision comparison and save across otherwise independent
 ModelActors; a cached history context cannot overwrite a newer acknowledgement.
 There is no network suspension while the gate is held. Account leases, page
 bounds, checkpoint saves and cancellation remain with their existing owners. The
-reader header is 5 after shared consumer integration, matching inference
-preflight and dispatch.
+reader header is 6 for owner-review-aware results, matching inference preflight
+and dispatch.

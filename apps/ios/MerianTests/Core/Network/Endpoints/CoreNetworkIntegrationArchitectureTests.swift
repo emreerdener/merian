@@ -4137,6 +4137,7 @@ struct CoreNetworkIntegrationArchitectureTests {
             containing: "SupabaseManager.shared",
             in: sources,
             equal: [
+                "Endpoints/MerianNetworkClient+AIReview.swift",
                 "Inference/InferenceIdentificationReviewService.swift",
                 "Recovery/MerianNetworkClient+OwnedScanRecovery.swift",
                 "Transport/AuthenticatedRequestExecutor.swift",
@@ -4175,7 +4176,10 @@ struct CoreNetworkIntegrationArchitectureTests {
         expectOwners(
             containing: ".rpc(",
             in: sources,
-            equal: ["Inference/InferenceIdentificationReviewService.swift"]
+            equal: [
+                "Endpoints/MerianNetworkClient+AIReview.swift",
+                "Inference/InferenceIdentificationReviewService.swift"
+            ]
         )
         expectOwners(
             containing: "DetachedWork.value(",
@@ -4279,6 +4283,7 @@ struct CoreNetworkIntegrationArchitectureTests {
         // Verified review writes are drained by Auth's existing write tail;
         // refreshing the session from that route could wait on its own work.
         #expect(unauthorizedRecoveryOptOutOwners == [
+            "Endpoints/MerianNetworkClient+AIReview.swift",
             "MerianNetworkClient.swift",
             "Endpoints/MerianNetworkClient+Collections.swift",
             "Endpoints/MerianNetworkClient+Inference.swift",
@@ -4463,6 +4468,7 @@ struct CoreNetworkIntegrationArchitectureTests {
     }
 
     private static let endpointOwnerFilenames: Set<String> = [
+        "MerianNetworkClient+AIReview.swift",
         "MerianNetworkClient+AccountDeletion.swift",
         "MerianNetworkClient+CommunityIdentification.swift",
         "MerianNetworkClient+Collections.swift",

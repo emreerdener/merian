@@ -481,19 +481,12 @@ import SwiftData
 
     // MARK: - Identification Override
 
-    /// Called when the user selects a candidate as their preferred identification.
-    /// Immediately updates display state, persists locally, syncs to cloud, and hydrates
-    /// species data for the override species from `species_dictionary`.
+    /// Delegates candidate acceptance to the authority-aware review workflow.
     func applyIdentificationOverride(
         scientificName: String,
         expectedScanId: String? = nil,
         modelContext: ModelContext?
     ) async {
-        if speciesData?.aiReview.authority != nil || speciesData?.aiReview.pending != nil {
-            await identificationReviewWorkflowCoordinator.submitOwnerReview(action: .confirmName, expectedScanID: expectedScanId,
-                scientificName: scientificName, modelContext: modelContext, callbacks: speciesPresentationCoordinator.makeReviewWorkflowCallbacks())
-            return
-        }
         await identificationReviewWorkflowCoordinator.applyOverride(
             .init(
                 scientificName: scientificName,
@@ -505,17 +498,11 @@ import SwiftData
         )
     }
 
-    /// Called when the user confirms the AI's primary identification ("Yes, correct").
-    /// Persists locally and syncs confirmation to the cloud scan record.
+    /// Delegates AI confirmation to the authority-aware review workflow.
     func confirmAIIdentification(
         expectedScanId: String? = nil,
         modelContext: ModelContext?
     ) async {
-        if speciesData?.aiReview.authority != nil || speciesData?.aiReview.pending != nil {
-            await identificationReviewWorkflowCoordinator.submitOwnerReview(action: .confirmPrimary, expectedScanID: expectedScanId,
-                modelContext: modelContext, callbacks: speciesPresentationCoordinator.makeReviewWorkflowCallbacks())
-            return
-        }
         await identificationReviewWorkflowCoordinator.confirm(
             .init(
                 expectedScanID: expectedScanId,
@@ -526,19 +513,11 @@ import SwiftData
         )
     }
 
-    /// Resets all identification review state, reverting the scan back to the AI's original
-    /// identification. Called by Undo (from `.overridden`) and Change (from `.confirmed`).
-    /// Clears both `userIdentificationOverride` and `userConfirmedIdentification` locally,
-    /// syncs both columns to null/false in the cloud, and re-hydrates the AI species data.
+    /// Delegates Undo and Change to the authority-aware review workflow.
     func resetIdentificationReview(
         expectedScanId: String? = nil,
         modelContext: ModelContext?
     ) async {
-        if speciesData?.aiReview.authority != nil || speciesData?.aiReview.pending != nil {
-            await identificationReviewWorkflowCoordinator.submitOwnerReview(action: .undo, expectedScanID: expectedScanId,
-                modelContext: modelContext, callbacks: speciesPresentationCoordinator.makeReviewWorkflowCallbacks())
-            return
-        }
         await identificationReviewWorkflowCoordinator.reset(
             .init(
                 expectedScanID: expectedScanId,
