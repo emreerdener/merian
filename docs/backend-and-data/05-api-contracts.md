@@ -2452,6 +2452,14 @@ existing eight admission inputs and returns it with `provider`, `binding` and
 compatible ten-argument overload described below. Public Identify JSON payloads
 remain unchanged.
 
+The prepared
+[3 October Gemini photo return](../rfcs/identification-gemini-photo-return-2026-10-03.md)
+changes the catalog assignment for new still photos only. Gemini remains
+compatible with existing request/result shapes and confidence readers;
+Pro/complimentary uses Pro and free fallback uses Flash. The OpenAI beta
+assignment described below is the preceding deployed state. No hosted activation
+is claimed.
+
 The backend chooses the assignment. Applicable end-user processing permission
 gates that assignment; it cannot select a different provider or fallback. The
 beta catalog assigns still-photo rows to the exact OpenAI photo tuple; all other

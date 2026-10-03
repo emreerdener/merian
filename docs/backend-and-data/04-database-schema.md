@@ -4377,6 +4377,13 @@ rows use `legacy_v1`; new rows distinguish the three compatibility
 representations plus six primary text/photo/audio/video combinations. No API
 role can read or write either table directly.
 
+The prepared
+[3 October photo return](../rfcs/identification-gemini-photo-return-2026-10-03.md)
+restores only new still-photo catalog assignments to Gemini, with
+`provider_model = NULL` and identification minimum zero. Existing quota-model
+selection, entitlement minima and immutable attempt/result snapshots remain
+unchanged. This source migration is not evidence of hosted application.
+
 Migration `20260927175708_prepare_openai_photo_routing.sql` adds nullable
 `provider_model` to bindings and attempts. NULL is valid only for the exact
 Gemini tuple and uses that saved quota `model`. The exact OpenAI photo tuple

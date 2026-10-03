@@ -1,5 +1,12 @@
 \set ON_ERROR_STOP on
 BEGIN;
+-- Exercise the preserved OpenAI configuration and replay after a Gemini switch.
+-- Current default assignments are tested by gemini_photo_return.sql.
+UPDATE internal.identification_provider_bindings
+SET provider = 'openai', binding = 'openai_photo_v1',
+    processor_permission = 'openai', provider_model = 'gpt-6-sol',
+    minimum_identification_protocol = 4
+WHERE operation = 'scan_identification' AND input_profile = 'multimodal_photo_v1';
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SELECT extensions.plan(1);
 DO $test$

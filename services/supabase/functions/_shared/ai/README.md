@@ -573,6 +573,17 @@ using the repository command and methodology in that record. It compares cached
 native SDK requests with real shared preparation/invocation on synthetic inputs;
 it measures neither provider latency nor end-to-end product timing.
 
+## Prepared Gemini photo return
+
+The
+[3 October candidate](../../../../../docs/rfcs/identification-gemini-photo-return-2026-10-03.md)
+restores new photo assignments to `gemini_baseline_v1`: Gemini 2.5 Pro for
+Pro/complimentary scans, Flash for free fallback. It requires only the scoped
+database assignment migration; both adapters, historical confidence readers and
+completed-result replay remain intact. Statements describing the OpenAI beta
+assignment below refer to the preceding deployed state; local source preparation
+does not prove activation.
+
 ## Future provider assignments
 
 Follow [Adding a provider later](ADDING_PROVIDERS.md) for exact input/task

@@ -27,6 +27,13 @@ does not attest to the current hosted deployment.
 
 ## Current decision
 
+Product follow-up, 3 October: the owner approved preparing a
+[Gemini photo return](../../rfcs/identification-gemini-photo-return-2026-10-03.md)
+based on repeated real-use feedback. This is not deployed and does not confer
+benchmark qualification. The research findings and earlier baseline
+recommendation below remain historical evidence; the new product proposal
+restores the existing Gemini Pro/Flash tier policy.
+
 Keep the released Sol-low photo configuration described in the
 [30 September activation record](../../release-evidence/openai-confidence-activation-2026-09-30.md).
 Verify implementation and deployment evidence separately before asserting what a
