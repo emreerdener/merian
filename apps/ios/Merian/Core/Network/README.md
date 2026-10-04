@@ -3833,3 +3833,16 @@ bridges to endpoint extensions. The coordinator receives account and transport
 closures from that private boundary; it does not resolve global network or
 session state. Native retry policy includes the viewer route, while the
 anonymous dictionary route has no native endpoint owner.
+
+## Prepared observation publication transport
+
+`Endpoints/MerianNetworkClient+ObservationPublication.swift` owns exact
+immutable admission and operation-status reads using
+`performAuthenticatedJSONDataPost`. Both require the initiating owner and
+disable classified-401 session recovery, leaving durable retry to the future
+queue owner. They never generate a successor operation or call legacy sharing.
+Strict bounded models under `Models/ObservationPublication` preserve ordered
+consent, explicit nulls, Unicode-scalar note limits and all three
+operation/observation/analysis IDs. Private extra fields and malformed receipts
+fail closed. Historical admission never implies current visibility or a post ID.
+The outbox and UI are not yet connected; no production activation changes.

@@ -4282,10 +4282,11 @@ struct CoreNetworkIntegrationArchitectureTests {
                     : nil
             }
         )
-        // Verified review writes are drained by Auth's existing write tail;
-        // refreshing the session from that route could wait on its own work.
+        // Verified review and prepared durable publication use Auth-drained
+        // work; refreshing these sessions could recursively await their own task.
         #expect(unauthorizedRecoveryOptOutOwners == [
             "Endpoints/MerianNetworkClient+AIReview.swift",
+            "Endpoints/MerianNetworkClient+ObservationPublication.swift",
             "MerianNetworkClient.swift",
             "Endpoints/MerianNetworkClient+Collections.swift",
             "Endpoints/MerianNetworkClient+Inference.swift",
@@ -4485,6 +4486,7 @@ struct CoreNetworkIntegrationArchitectureTests {
         "MerianNetworkClient+IdentificationPreflight.swift",
         "MerianNetworkClient+MediaStorage.swift",
         "MerianNetworkClient+Notifications.swift",
+        "MerianNetworkClient+ObservationPublication.swift",
         "MerianNetworkClient+ProductFeedback.swift",
         "MerianNetworkClient+PublicProfile.swift",
         "MerianNetworkClient+ScanEnrichment.swift",

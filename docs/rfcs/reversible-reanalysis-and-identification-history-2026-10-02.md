@@ -2604,3 +2604,13 @@ no-store on every branch. Missing, foreign and deleted operations remain opaque.
 Historical admission does not assert current publication eligibility or provide
 a post link. No native consumer or activation is added; native delivery must
 persist exact operation identity before I/O and remain account/deletion fenced.
+
+### Native wire preparation checkpoint (October 4)
+
+Strict native publication request/receipt models and account-bound endpoint
+calls now cover durable intake and exact-operation polling. They preserve
+immutable consent and reject private response fields or mismatched identities.
+The existing raw-JSON bridge already supports expected-owner dispatch and
+deferred 401 recovery, so no core transport extension was needed. No queue, UI
+or activation is connected in this slice; future persistence must retain minimal
+terminal status across restart and erase it with the scan.

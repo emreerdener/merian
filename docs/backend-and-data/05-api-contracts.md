@@ -14018,3 +14018,24 @@ method and body failures, uses `Cache-Control: private, no-store`. The RPC is
 bounded to twelve seconds, with no automatic retry and no mutation. Native
 durable delivery is a separate slice. The route is prepared but not released;
 all publication activation gates remain false.
+
+## Native publication wire boundary
+
+Prepared native admission and status calls now use the existing pinned raw-JSON
+transport with a required expected account at dispatch. Classified-401 recovery
+is deferred to the future durable owner, preventing recursive Auth-drain waits.
+No new retry policy, legacy sharing fallback or operation-ID generator is added.
+The immutable native request validates the same revisions, lowercase UUIDs,
+explicit nulls, ordered 1–6 unique media IDs, 1,000-code-point note bound and
+3,800-byte encoded request cap as the HTTP boundary. Its strict restoration path
+rejects missing/extra fields and Boolean revisions before network dispatch.
+
+Admission responses require exact fields, accepted status, valid timestamp and
+matching operation/observation/analysis IDs. Status responses require only the
+five documented fields and closed status enum, again matching all three IDs.
+Responses are bounded to 4 KiB before parsing. Native `admitted` is historical
+operation evidence, never current public eligibility or a post ID. Dedicated
+wire/transport tests exercise immutable consent, malformed/private fields,
+missing-account dispatch prevention, and ambiguous admission without automatic
+replay. Durable persistence, post-await deletion/account fencing and UI delivery
+remain separate; all activation gates remain false.
