@@ -830,3 +830,13 @@ publication wins; private cleanup IDs still require registry claims. Owner
 status exposes only the existing needs-action state. Settlement has its own
 closed gate; no worker or activation is added. See the
 [copy outcome contract](05-api-contracts.md#prepared-durable-copy-needs-action-outcomes).
+
+## Unsupported-source settlement activation
+
+The independently default-false `publication_source_settlement_enabled` gate
+permits metadata-derived HEIC remediation through the existing service-only
+finalizer. It does not enable provider dispatch, copying, scheduling or
+deployment. Existing attempts retain their recovery lifecycle; no quota is
+admitted or refunded. Stored outcomes replay after gate closure and deletion
+wins. Verified container rejection, runtime qualification and native delivery
+remain separate activation requirements.

@@ -976,3 +976,28 @@ Deno.test("copy settlement derives immutable needs-action without changing provi
   assert(!sql.includes("reserve_ai_quota"));
   assert(!sql.includes("TO authenticated"));
 });
+
+Deno.test("unsupported publication source settlement is gated and cannot replace provider attempts", async () => {
+  const sql = await migration(
+    "20261004172757_settle_unsupported_publication_sources",
+  );
+  assertStringIncludes(
+    sql,
+    "publication_source_settlement_enabled BOOLEAN NOT NULL DEFAULT FALSE",
+  );
+  assertStringIncludes(sql, "AND cardinality(attempt_ids)=0");
+  assertStringIncludes(
+    sql,
+    "NOT EXISTS(SELECT 1 FROM internal.observation_photo_moderation_attempts WHERE operation_id=p_operation)",
+  );
+  assertStringIncludes(
+    sql,
+    "WHERE s->>'content_type' NOT IN ('image/jpeg','image/png')",
+  );
+  assert(
+    sql.indexOf("SELECT * INTO outcome") <
+      sql.indexOf("PERFORM internal.assert_publication_operation_work"),
+  );
+  assert(!sql.includes("reserve_ai_quota"));
+  assert(!sql.includes("TO authenticated"));
+});

@@ -579,3 +579,13 @@ publication wins; private cleanup IDs still require registry claims. Owner
 status exposes only the existing needs-action state. Settlement has its own
 closed gate; no worker or activation is added. See the
 [copy outcome contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-durable-copy-needs-action-outcomes).
+
+## Unsupported source types
+
+`publicationModerationRepository.finalize()` recognizes the strict
+`unsupported_source_type` needs-action receipt. SQL can derive it from immutable
+non-JPEG/PNG source metadata only before any provider attempt, under its
+independent default-false gate. The worker consumes it before preflight. This
+does not classify byte/container failures: those still need a verified
+source-bound attestation. No provider or complimentary quota changes, implicit
+retries, or copy-work creation occur.

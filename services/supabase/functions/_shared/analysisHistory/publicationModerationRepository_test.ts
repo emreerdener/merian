@@ -265,11 +265,20 @@ Deno.test("moderation repository distinguishes provider cutoff from result settl
 });
 Deno.test("moderation repository strictly validates finalizer phase receipts", async () => {
   for (
-    const value of [{ finalized: false }, {
-      finalized: true,
-      status: "photos_approved",
-      reason: null,
-    }, { finalized: true, status: "needs_action", reason: "unknown_execution" }]
+    const value of [
+      { finalized: false },
+      {
+        finalized: true,
+        status: "photos_approved",
+        reason: null,
+      },
+      { finalized: true, status: "needs_action", reason: "unknown_execution" },
+      {
+        finalized: true,
+        status: "needs_action",
+        reason: "unsupported_source_type",
+      },
+    ]
   ) {
     const repo = publicationModerationRepository(
       client(() => value),

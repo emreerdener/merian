@@ -213,7 +213,12 @@ export function publicationModerationRepository(
         row.finalized !== true ||
         !((row.status === "photos_approved" && row.reason === null) ||
           (row.status === "needs_action" &&
-            ["photo_rejected", "unknown_execution", "cancelled"].includes(
+            [
+              "photo_rejected",
+              "unknown_execution",
+              "cancelled",
+              "unsupported_source_type",
+            ].includes(
               row.reason as string,
             )))
       ) invalidHistory();

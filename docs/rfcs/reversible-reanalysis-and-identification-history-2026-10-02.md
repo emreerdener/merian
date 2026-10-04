@@ -2564,3 +2564,14 @@ retaining targeted cleanup. Publication and deletion win over settlement replay.
 The existing owner status reports needs-action without private details. Upstream
 unsupported-source attestation and the service execution owner remain pending;
 all gates remain disabled.
+
+## Implementation checkpoint: unsupported source types
+
+The prepared moderation finalizer now retires zero-attempt operations whose
+immutable source type cannot enter public-copy validation (currently HEIC),
+behind an independent default-false gate. The private immutable needs-action
+outcome survives lost replies and prevents repeated reclamation without charging
+quota. Existing provider attempts retain their original recovery rules. Verified
+container attestation, bounded copy service integration, owner/native delivery
+and runtime/CDN qualification remain incomplete. This checkpoint authorizes no
+activation or deployment.

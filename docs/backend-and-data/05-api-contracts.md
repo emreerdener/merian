@@ -13877,5 +13877,35 @@ Gate closure, a changed review/privacy/consent revision, expired worker token,
 and transport uncertainty are not terminal content facts. They remain
 recoverable under existing authority and cleanup rules. A note with a legacy
 copy also remains pending rather than being silently discarded. This slice does
-not yet settle upstream unsupported-source/container preflight failures or
-connect the copy HTTP service owner. All activation gates remain false.
+not yet settle verified container preflight failures or connect the copy HTTP
+service owner. Unsupported source types are handled separately below. All
+activation gates remain false.
+
+## Prepared unsupported publication source settlement
+
+With the independent default-false `publication_source_settlement_enabled` gate,
+`finalize_publication_photo_moderation` derives `unsupported_source_type` from
+immutable intent source metadata when any source is outside JPEG/PNG. HEIC is
+accepted as private evidence but is not supported by public-copy container
+validation. This result requires exact live moderation work, owner/deletion
+checks, an accepted operation, no publication and **no existing provider
+attempts of any state**. Existing provider attempts keep their original
+completion/retirement lifecycle. No provider or complimentary quota is changed.
+
+The immutable moderation outcome records `needs_action`, the private reason, and
+an empty attempt array; removing moderation work commits atomically with it. It
+never seeds copy work. Historical outcomes replay before token and gate checks;
+deletion wins. The service repository accepts the exact finalizer receipt, and
+the existing worker consumes it before preflight or new provider admission.
+Owner status remains the same five-field envelope and exposes only needs-action,
+not private source facts or reasons. Stored publication retains precedence in
+owner status; finalization cannot replace a publication.
+
+Attempt-backed outcomes retain their existing constraints: complete approval has
+one to six nonnull ordered attempt IDs, while terminal provider failures can
+retain null slots for unattempted siblings. Only the source-type reason allows
+zero attempt slots. This is metadata-derived remediation, not proof that a
+JPEG/PNG container is invalid. Container rejection still requires a verified
+source-bound attestation; read failures, digest uncertainty, network, storage,
+timeouts and authority changes never become this outcome. All gates remain
+false.

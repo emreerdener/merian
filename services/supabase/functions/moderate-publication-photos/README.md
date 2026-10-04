@@ -13,8 +13,11 @@ original attempts and finalizes durable outcomes before external work. It
 recovers one dispatched attempt (expiry retirement only), cancels one
 undispatched reservation after a cohort refusal, or verifies the full ordered
 cohort and prepares one photo before quota and one provider invocation. No
-successor is automatically created. Unsupported or unavailable sources back off
-without new quota; permanent remediation policy remains an activation condition.
+successor is automatically created. Unsupported source types can settle before
+any provider attempt through the independent default-false source-settlement
+gate. Unavailable sources and unattested container failures still back off
+without new quota; verified container remediation remains an activation
+condition.
 
 A shared 135-second request deadline bounds all awaited I/O. New work/provider
 execution stops at 105 seconds, leaving 30 seconds for up to two 12-second

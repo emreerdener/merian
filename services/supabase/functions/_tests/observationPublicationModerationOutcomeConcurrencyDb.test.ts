@@ -24,6 +24,11 @@ async function observeBlock(observer: Client, waiter: number, blocker: number) {
 }
 for (
   const scenario of [
+    "source duplicate",
+    "source deletion first",
+    "source before deletion",
+    "source admission first",
+    "source before admission",
     "completion first",
     "finalization first",
     "duplicate outcome",
@@ -82,6 +87,7 @@ for (
         "publication_operation_enabled",
         "publication_execution_enabled",
         "publication_moderation_enabled",
+        "publication_source_settlement_enabled",
         "publication_copy_execution_enabled",
         "publication_copy_enabled",
         "publication_copy_reservation_enabled",
@@ -111,6 +117,9 @@ for (
             import.meta.url,
           ),
         );
+        if (scenario.startsWith("source ")) {
+          fixture = fixture.replaceAll("image/jpeg", "image/heic");
+        }
         if (scenario.startsWith("cohort ")) {
           fixture = fixture.replace(
             "'note','Synthetic public note'",
@@ -169,6 +178,83 @@ for (
             "SELECT public.claim_observation_publication_work($1,$2,$3) AS receipt",
             [owner, observation, operation],
           )).rows[0].receipt.work_token;
+        if (scenario.startsWith("source ")) {
+          const finish = (client: Client) =>
+            client.queryObject<
+              { receipt: { finalized: boolean; reason?: string } }
+            >(
+              "SELECT public.finalize_publication_photo_moderation($1,$2,$3,$4) AS receipt",
+              [owner, observation, operation, work],
+            );
+          const admit = (client: Client) =>
+            client.queryObject<{ receipt: unknown }>(
+              "SELECT public.admit_publication_moderation_work($1,$2,$3,$4,$5) AS receipt",
+              [owner, observation, operation, work, media],
+            );
+          const erase = (client: Client) =>
+            client.queryObject<{ receipt: unknown }>(
+              "SELECT public.apply_user_tombstone($1) AS receipt",
+              [owner],
+            );
+          const firstPID = (await first.queryObject<{ pid: number }>(
+            "SELECT pg_backend_pid() AS pid",
+          )).rows[0].pid;
+          const secondPID = (await second.queryObject<{ pid: number }>(
+            "SELECT pg_backend_pid() AS pid",
+          )).rows[0].pid;
+          await first.queryArray("BEGIN");
+          await second.queryArray("BEGIN");
+          if (scenario === "source deletion first") await erase(first);
+          else if (scenario === "source admission first") await admit(first);
+          else {assertEquals(
+              (await finish(first)).rows[0].receipt.reason,
+              "unsupported_source_type",
+            );}
+          const pending = settle(
+            scenario === "source before deletion"
+              ? erase(second)
+              : scenario === "source before admission"
+              ? admit(second)
+              : finish(second),
+          );
+          await observeBlock(observer, secondPID, firstPID);
+          await first.queryArray("COMMIT");
+          const result = await pending;
+          if (
+            scenario === "source deletion first" ||
+            scenario === "source before admission"
+          ) {
+            assert(!result.ok);
+            assert(
+              result.error.includes("analysis_history_not_found"),
+            );
+            await second.queryArray("ROLLBACK");
+          } else {
+            assert(result.ok);
+            await second.queryArray("COMMIT");
+            if (scenario === "source admission first") {
+              assertEquals(result.value.rows[0].receipt, { finalized: false });
+            }
+          }
+          assertEquals(
+            (await observer.queryObject<{ count: number }>(
+              "SELECT count(*)::int AS count FROM internal.observation_publication_moderation_outcomes WHERE operation_id=$1",
+              [operation],
+            )).rows[0].count,
+            scenario.includes("deletion") ||
+              scenario === "source admission first"
+              ? 0
+              : 1,
+          );
+          assertEquals(
+            (await observer.queryObject<{ count: number }>(
+              "SELECT count(*)::int AS count FROM internal.observation_photo_moderation_attempts WHERE operation_id=$1",
+              [operation],
+            )).rows[0].count,
+            scenario === "source admission first" ? 1 : 0,
+          );
+          return;
+        }
         const receipt = (await observer.queryObject<
           { receipt: { attempt_id: string; lease_token: string } }
         >(

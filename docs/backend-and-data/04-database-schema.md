@@ -7110,3 +7110,14 @@ source-ordered original cleanup IDs and finalization time. RLS and revoked
 direct grants preserve service-only RPC access. The independent settlement gate
 starts false. See the
 [copy outcome contract](05-api-contracts.md#prepared-durable-copy-needs-action-outcomes).
+
+## Prepared source-type remediation outcomes
+
+Migration `20261004172757_settle_unsupported_publication_sources.sql` adds the
+default-false `publication_source_settlement_enabled` gate and extends private
+moderation outcomes with `unsupported_source_type`. Only this needs-action
+reason permits an empty attempt array. Existing attempt-backed approval/failure
+constraints remain intact. The exact-work finalizer derives unsupported source
+types from immutable intent metadata only when no provider attempt exists, then
+atomically retires work; no copy work is seeded. Gate-independent replay, owner
+scope and deletion fences remain. This adds no container-rejection attestation.

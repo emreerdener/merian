@@ -496,5 +496,50 @@ SELECT extensions.is((SELECT count(*)::INT FROM internal.publication_photo_objec
 SELECT extensions.throws_ok('SELECT pg_temp.read_cohort()','P0002','analysis_history_not_found','deletion wins over cohort and publication recovery');
 SELECT extensions.is((SELECT count(*)::INT FROM internal.observation_publication_copy_outcomes),0,'deletion cascades private copy outcomes');
 SELECT extensions.throws_ok($$SELECT pg_temp.finish_copy('00000000-0000-4000-8000-00000000ee45')$$,'P0002','analysis_history_not_found','deletion wins over terminal outcome replay');
+
+-- Genuine immutable HEIC source fixtures, with no edits to saved evidence.
+UPDATE internal.observation_history_rollout SET media_enabled=TRUE,admission_enabled=TRUE,dispatch_enabled=TRUE,append_enabled=TRUE,protected_analysis_enabled=TRUE,reader_enabled=TRUE,media_reader_enabled=TRUE,state_reader_enabled=TRUE,publication_intent_enabled=TRUE,publication_operation_enabled=TRUE,publication_execution_enabled=TRUE,publication_moderation_enabled=TRUE;
+CREATE OR REPLACE FUNCTION pg_temp.protected_input(observation UUID,analysis UUID,media UUID) RETURNS JSONB LANGUAGE SQL AS $$
+ SELECT pg_temp.funded_input(observation,analysis) || jsonb_build_object('schema_version',2,'history_protocol',8,'expected_processor_permission','google_gemini','evidence_manifest',jsonb_build_object('schema_version',2,'items',jsonb_build_array(jsonb_build_object('kind','image','media_id',media,'content_type','image/heic','byte_count',3,'sha256',repeat('a',64)),jsonb_build_object('kind','image','media_id','00000000-0000-4000-8000-00000000ee32','content_type','image/heic','byte_count',3,'sha256',repeat('a',64)),jsonb_build_object('kind','description','text','Synthetic private observation'))));
+$$;
+CREATE OR REPLACE FUNCTION pg_temp.protected_ready(owner_id UUID,observation UUID,analysis UUID,media UUID) RETURNS UUID LANGUAGE PLPGSQL AS $$
+DECLARE receipt JSONB;
+BEGIN
+ receipt:=internal.reserve_observation_evidence(owner_id,observation,analysis,media,'image/heic',3,repeat('a',64));
+ PERFORM internal.complete_observation_evidence(owner_id,observation,analysis,media,(receipt->>'object_id')::UUID);
+ RETURN (receipt->>'object_id')::UUID;
+END;
+$$;
+
+SELECT pg_temp.seed_photo_moderation('00000000-0000-4000-8000-00000000ef01','00000000-0000-4000-8000-00000000ef11','00000000-0000-4000-8000-00000000ef21','00000000-0000-4000-8000-00000000ef31','00000000-0000-4000-8000-00000000ef41');
+SELECT public.admit_owned_observation_publication('00000000-0000-4000-8000-00000000ef01',pg_temp.publication_request('00000000-0000-4000-8000-00000000ef11','00000000-0000-4000-8000-00000000ef21','00000000-0000-4000-8000-00000000ef41','00000000-0000-4000-8000-00000000ef31'),repeat('c',64));
+CREATE TEMP TABLE source_work AS SELECT public.claim_observation_publication_work('00000000-0000-4000-8000-00000000ef01','00000000-0000-4000-8000-00000000ef11','00000000-0000-4000-8000-00000000ef41') AS receipt;
+CREATE FUNCTION pg_temp.finish_source(token UUID DEFAULT NULL) RETURNS JSONB LANGUAGE SQL AS $$
+ SELECT public.finalize_publication_photo_moderation('00000000-0000-4000-8000-00000000ef01','00000000-0000-4000-8000-00000000ef11','00000000-0000-4000-8000-00000000ef41',COALESCE(token,(SELECT (receipt->>'work_token')::UUID FROM source_work)));
+$$;
+SELECT extensions.is((SELECT publication_source_settlement_enabled FROM internal.observation_history_rollout),FALSE,'source settlement ships disabled');
+SELECT extensions.is(pg_temp.finish_source(),'{"finalized":false}'::JSONB,'existing gates cannot settle unsupported sources');
+UPDATE internal.observation_history_rollout SET publication_source_settlement_enabled=TRUE;
+SELECT extensions.throws_ok('SELECT pg_temp.finish_source(gen_random_uuid())','22023','analysis_history_operation_conflict','unsupported source requires original live work');
+SAVEPOINT existing_provider;
+SELECT public.admit_publication_moderation_work('00000000-0000-4000-8000-00000000ef01','00000000-0000-4000-8000-00000000ef11','00000000-0000-4000-8000-00000000ef41',(SELECT (receipt->>'work_token')::UUID FROM source_work),'00000000-0000-4000-8000-00000000ef31');
+SELECT extensions.is(pg_temp.finish_source(),'{"finalized":false}'::JSONB,'existing provider reservation keeps original recovery ownership');
+ROLLBACK TO existing_provider;
+GRANT SELECT ON source_work TO service_role;
+GRANT EXECUTE ON FUNCTION pg_temp.finish_source(UUID) TO service_role;
+SET LOCAL ROLE service_role;
+SELECT extensions.is(pg_temp.finish_source(),'{"finalized":true,"status":"needs_action","reason":"unsupported_source_type"}'::JSONB,'actual service settles immutable unsupported type before quota');
+RESET ROLE;
+SELECT extensions.is((SELECT attempt_ids FROM internal.observation_publication_moderation_outcomes WHERE operation_id='00000000-0000-4000-8000-00000000ef41'),'{}'::UUID[],'unsupported outcome records zero provider attempts');
+SELECT extensions.is((SELECT count(*)::INT FROM internal.observation_photo_moderation_attempts WHERE operation_id='00000000-0000-4000-8000-00000000ef41'),0,'source settlement admits no provider attempt');
+SELECT extensions.is((SELECT count(*)::INT FROM internal.observation_publication_work WHERE operation_id='00000000-0000-4000-8000-00000000ef41'),0,'source settlement removes reclaimable work');
+SELECT extensions.is((SELECT count(*)::INT FROM internal.observation_publication_copy_work WHERE operation_id='00000000-0000-4000-8000-00000000ef41'),0,'source remediation never seeds copying');
+UPDATE internal.observation_history_rollout SET publication_source_settlement_enabled=FALSE;
+SELECT extensions.is(pg_temp.finish_source(gen_random_uuid())->>'reason','unsupported_source_type','saved source outcome replays after token retirement and gate closure');
+SELECT extensions.is(public.read_owned_observation_publication_status('00000000-0000-4000-8000-00000000ef01','00000000-0000-4000-8000-00000000ef11','00000000-0000-4000-8000-00000000ef41')->>'status','needs_action','owner receives sanitized needs-action status');
+SELECT extensions.throws_ok($$SELECT public.finalize_publication_photo_moderation('00000000-0000-4000-8000-00000000ef02','00000000-0000-4000-8000-00000000ef11','00000000-0000-4000-8000-00000000ef41',NULL)$$,'P0002','analysis_history_not_found','saved source outcome stays owner scoped');
+INSERT INTO internal.scan_deletion_tombstones(scan_id,user_id) VALUES('00000000-0000-4000-8000-00000000ef11','00000000-0000-4000-8000-00000000ef01');
+SELECT extensions.throws_ok('SELECT pg_temp.finish_source()','P0002','analysis_history_not_found','deletion defeats saved unsupported-source replay');
+
 SELECT * FROM extensions.finish();
 ROLLBACK;

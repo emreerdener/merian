@@ -3412,3 +3412,13 @@ publication wins; private cleanup IDs still require registry claims. Owner
 status exposes only the existing needs-action state. Settlement has its own
 closed gate; no worker or activation is added. See the
 [copy outcome contract](../../docs/backend-and-data/05-api-contracts.md#prepared-durable-copy-needs-action-outcomes).
+
+## Prepared unsupported-source settlement
+
+The existing moderation worker can consume durable `unsupported_source_type`
+needs-action outcomes before external preflight or quota. SQL derives them from
+immutable source metadata under a separate default-false gate and only with zero
+existing provider attempts. Provider decisions, copy outcomes and source
+remediation remain distinct; verified container rejection is still pending. See
+the
+[API contract](../../docs/backend-and-data/05-api-contracts.md#prepared-unsupported-publication-source-settlement).
