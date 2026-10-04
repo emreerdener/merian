@@ -2658,3 +2658,28 @@ Existing exact consent admission retains its receipt and revision checks; closed
 generic history/status readers are unchanged. Native consent production and UI
 remain next, with all activation gates false. The current contract is
 [documented here](../backend-and-data/05-api-contracts.md#owner-publication-consent-preflight).
+
+### October 4 update: native consent wire boundary
+
+Prepared native preflight now has a strict, separately bounded 32 KiB decoder
+and expected-account transport, preserving the existing 4 KiB admission/status
+contracts. It returns all ordered candidate metadata without selecting a cohort,
+minting an operation or inferring ready media. Explicit foreground consent
+production and UI remain next, with every activation gate closed. See the
+[current API contract](../backend-and-data/05-api-contracts.md#native-consent-preflight-transport).
+
+### October 4 update: completion integration priority
+
+The remaining work is grouped into integrated milestones: append-only live and
+queued reanalysis; ordinary enrollment/history/restore wiring; analysis-bound
+review and explicit community photo consent; and final account-deletion,
+legacy-compatibility and runtime qualification. The current production
+reanalysis replacement path is the highest-priority integration gap. The
+prepared native consent service now persists explicit ordered photo consent
+before waking durable delivery, with historical retry and per-analysis revision
+fences. Ordinary UI and rollout remain closed.
+
+Focused checks accompany implementation. Full affected-surface validation runs
+at integrated milestones and on the final candidate; intermediate GitHub Actions
+runs do not block further implementation. This changes verification cadence, not
+the final acceptance or release-authorization requirements.

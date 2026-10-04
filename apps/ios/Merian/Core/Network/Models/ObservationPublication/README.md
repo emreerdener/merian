@@ -16,14 +16,27 @@ states. Private reasons, media, work tokens and post IDs fail closed. A
 historical `admitted` status is not current visibility or identification
 authority.
 
+`ObservationPublicationConsentRequest` and
+`ObservationPublicationConsentSnapshot` add a separate descriptive preflight for
+an explicit historical analysis. Its exact eight-field response has its own 32
+KiB cap; admission/status retain their 4 KiB decoder. Initial taxon must be
+present and null. Exact candidate objects preserve all 1–64 photo references in
+server order, with unique lowercase UUIDs, JPEG/PNG/HEIC types, positive
+integral byte counts, a 32 MiB aggregate cap and exact lowercase SHA-256. No
+object key, URL, operation or visibility field is accepted. These candidates do
+not prove ready media or select the final cohort.
+
 `MerianNetworkClient+ObservationPublication` reuses the existing pinned raw-JSON
 bridge, requires the expected owner at dispatch and disables classified-401
-session recovery so a future Auth-drained outbox cannot await itself. Neither
-route opts into automatic ambiguous-transport replay. Existing platform-route
-discovery retries remain unchanged. No legacy sharing fallback, operation-ID
-generation, outbox, UI or rollout activation is added. A future durable owner
-must save before I/O and recheck its account lease and current scan/job after
-every await before changing local state.
+session recovery so Auth-drained work cannot await itself. None of its three
+routes opts into automatic ambiguous-transport replay. Existing platform-route
+discovery retries remain unchanged. The separate durable delivery owner now
+recovers saved publication operations; the prepared foreground consent service
+validates explicit choices before persistence, while ordinary UI remains
+unconnected. This layer never mints operation IDs or calls legacy sharing.
+`ObservationPublicationConsentService` saves the exact chosen 1–6 media before
+delivery, fences account/session changes and rejects stale preflight state. No
+rollout activation.
 
 See the
-[API contract](../../../../../../../docs/backend-and-data/05-api-contracts.md#native-publication-wire-boundary).
+[API contract](../../../../../../../docs/backend-and-data/05-api-contracts.md#owner-publication-consent-preflight).

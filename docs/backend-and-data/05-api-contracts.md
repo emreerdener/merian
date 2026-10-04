@@ -14095,3 +14095,39 @@ analyses share opaque 404; changed/ineligible review or existing-publication
 conflicts receive 409. Closed gates, unavailable evidence, transport failures
 and malformed server projections return sanitized 503. The RPC transport has a
 12-second deadline without internal retries. All activation gates stay false.
+
+### Native consent preflight transport
+
+`ObservationPublicationConsentRequest` encodes only schema version and the exact
+observation/analysis IDs. `ObservationPublicationConsentSnapshot` correlates
+both IDs and validates the closed eight-field response with a separate 32 KiB
+cap. Existing request/status limits stay at 4 KiB. Initial taxon must be present
+and null; revisions remain bounded integers. Candidate objects preserve server
+order and enforce unique IDs, allowed MIME types, positive integral byte counts,
+32 MiB aggregate content and exactly 64 lowercase SHA-256 characters. Private
+keys/URLs, operation IDs, post IDs and extra fields fail closed.
+
+`prepareObservationPublicationConsent` uses the existing account-bound raw JSON
+bridge with an expected owner and classified-401 recovery disabled. It never
+creates consent, mints an operation UUID, chooses the first six candidates or
+falls back to legacy sharing. The prepared consent service below owns explicit
+final intent; ordinary UI and its foreground session guard remain the next
+integration boundary. The history rollout gate remains closed. Candidate
+metadata is descriptive and does not authorize ready-photo transport or
+publication.
+
+### Native explicit consent persistence
+
+`ObservationPublicationConsentService` binds preflight to the initiating owner
+and the historical result's own locally acknowledged observation/review
+revisions. It checks pending review/selection, enrollment, deletion and
+foreground session state. Final explicit acceptance validates 1–6 distinct
+candidate IDs in user order, fixes initial taxon and public note to null, and
+creates a retained immutable operation. Private notes are not used by this
+photo-only consent flow.
+
+New-intent validation runs inside `ObservationPublicationPersistence.stage`
+after exact-operation replay, before insertion/save. A same-ID terminal receipt
+remains recoverable despite subsequent authority changes. A failed save never
+wakes delivery; success wakes the existing durable scheduler without starting
+feature-owned network work. Ordinary UI wiring and activation remain separate.

@@ -384,3 +384,22 @@ account guards, disk reopening, terminal replay, direct/bulk deletion and scoped
 cleanup. `ObservationPublicationDeliveryTests` covers lost replies, exact 404
 classification, account changes, deletion during status, stale claims, save
 failure, single-flight cancellation and owner-scoped wake recovery.
+
+## Explicit publication consent
+
+`ObservationPublicationConsentService` prepares owner-bound descriptive photo
+candidates for an explicitly requested historical analysis. It checks the
+result's own retained state against the observation revision before and after
+preflight, preserving pending review, selection, enrollment and deletion fences.
+The target does not have to be selected. The caller supplies its foreground
+session guard; no idle session owns an Auth work lease.
+
+Final acceptance chooses 1–6 distinct candidates in user order and creates one
+immutable operation value. The caller retains that value across save retries.
+This initial flow explicitly shares photos without a public note; private scan
+notes are never copied. Preparation does not mint an operation or choose media.
+Stage validates new intent in the existing transaction, after exact
+saved-operation recovery, then saves before waking the durable scheduler.
+Historical terminal receipts remain recoverable after review/selection changes
+and do not wake work. The ordinary UI remains unconnected and all activation
+gates remain closed.

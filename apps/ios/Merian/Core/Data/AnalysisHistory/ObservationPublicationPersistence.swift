@@ -12,9 +12,10 @@ enum ObservationPublicationPersistence {
 
     @MainActor
     static func stage(_ request: ObservationPublicationRequest, ownerID: UUID, container: ModelContainer,
-                      isCurrent: () -> Bool) throws -> ObservationPublicationIntent {
+                      isCurrent: () -> Bool, validateNew: (ModelContext) throws -> Void = { _ in },
+                      save: (ModelContext) throws -> Void = { try $0.save() }) throws -> ObservationPublicationIntent {
         let candidate = try ObservationPublicationIntent(request: request, ownerID: ownerID)
-        return try transaction(candidate, container: container, isCurrent: isCurrent) { context in
+        return try transaction(candidate, container: container, isCurrent: isCurrent, save: save) { context in
             // Backend operation UUIDs are globally unique, even though local keys
             // also include observation identity for metadata-independent erasure.
             let suffix = ":" + request.operationID.uuidString.lowercased()
@@ -28,6 +29,9 @@ enum ObservationPublicationPersistence {
                       saved.requestSHA256 == candidate.requestSHA256 else { throw IntegrityError.conflict }
                 return saved
             }
+            // Exact replay remains recoverable after authority advances. Only
+            // newly accepted consent must still match the foreground preview.
+            try validateNew(context)
             guard let text = String(bytes: try candidate.storedData(), encoding: .utf8) else { throw IntegrityError.conflict }
             context.insert(OfflineJobRecord(id: jobID(request.operationID, observationID: request.observationID), kind: .observationPublicationSync,
                 subjectId: request.observationID.uuidString.lowercased(), priority: 65,

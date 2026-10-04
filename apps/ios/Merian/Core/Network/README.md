@@ -3837,12 +3837,16 @@ anonymous dictionary route has no native endpoint owner.
 ## Prepared observation publication transport
 
 `Endpoints/MerianNetworkClient+ObservationPublication.swift` owns exact
-immutable admission and operation-status reads using
-`performAuthenticatedJSONDataPost`. Both require the initiating owner and
-disable classified-401 session recovery, leaving durable retry to the future
-queue owner. They never generate a successor operation or call legacy sharing.
-Strict bounded models under `Models/ObservationPublication` preserve ordered
-consent, explicit nulls, Unicode-scalar note limits and all three
+immutable admission, operation-status and descriptive consent-preflight reads
+using `performAuthenticatedJSONDataPost`. All require the initiating owner and
+disable classified-401 session recovery. Durable operations now have a separate
+queue delivery owner and a prepared explicit consent service; ordinary UI
+remains unconnected. They never generate a successor operation or call legacy
+sharing. Strict bounded models under `Models/ObservationPublication` preserve
+ordered consent, explicit nulls, Unicode-scalar note limits and all three
 operation/observation/analysis IDs. Private extra fields and malformed receipts
 fail closed. Historical admission never implies current visibility or a post ID.
-The outbox and UI are not yet connected; no production activation changes.
+The consent snapshot uses a separate 32 KiB decoder for up to 64 ordered photo
+candidates; existing admission/status 4 KiB bounds stay unchanged. Fixed-null
+initial taxon and exact identity/revisions are enforced, and no ready-media or
+publication authority is inferred. Ordinary UI and activation remain separate.
