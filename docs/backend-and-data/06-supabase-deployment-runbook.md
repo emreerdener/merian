@@ -19,19 +19,30 @@ validation.
 
 ## Observation analysis history activation hold
 
+Function source/configuration is not excluded from the normal main-branch deploy
+workflow. In particular, a `services/supabase/config.toml` change selects the
+whole function fleet for deployment. Default-off runtime flags do not constitute
+a deployment hold. This draft candidate must not be merged or deployed without
+the separately authorized exact-SHA release decision and corresponding controls.
+No deployment or hosted activation is authorized by local validation alone.
+
 The prepared public-photo transport and staging ledger do not authorize public
 copying. Keep `publication_copy_enabled` false. The ledger's fixed ten-minute
 staging deadline also applies after readiness; no publisher may treat that state
-as durable public availability. An atomic publication binding must coordinate
-cleanup before this deadline. No scheduled erasure worker is installed. Keep
-publication held until durable allocation, deletion-safe cleanup and public
-publication invalidation are wired. Require a verified CDN cache bypass for
-`publication_media/v1/`, permanent erasure-marker lifecycle protection,
-dedicated credential ownership and authorized nonproduction edge tests after
-erasure. Origin no-store headers do not prove cached bytes were revoked.
-Metadata-bearing and HEIC inputs remain held; any sanitized derivative requires
-separate immutable source approval. Admission must preflight the supported
-container before provider quota admission. See the
+as durable public availability. The prepared atomic binding coordinates cleanup
+before this deadline; keep `publication_binding_enabled` false. The service-only
+erasure endpoint is now prepared behind default-false
+`publication_erasure_enabled`, with no schedule. Qualify cleanup first, then
+keep its independent gate enabled if admission is rolled back; existing claim
+acknowledgements remain usable even when it closes. Keep publication held until
+durable allocation, deletion-safe cleanup and public publication invalidation
+are wired. Require a verified CDN cache bypass for `publication_media/v1/`,
+permanent erasure-marker lifecycle protection, dedicated credential ownership
+and authorized nonproduction edge tests after erasure. Origin no-store headers
+do not prove cached bytes were revoked. Metadata-bearing and HEIC inputs remain
+held; any sanitized derivative requires separate immutable source approval.
+Admission must preflight the supported container before provider quota
+admission. See the
 [prepared storage boundary](05-api-contracts.md#prepared-public-photo-storage-boundary).
 
 The October 2 reversible-history work is a locally validated backend

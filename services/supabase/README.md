@@ -3278,3 +3278,15 @@ photo ownership and an immutable operation receipt together. Bound photos
 survive the staging deadline; actual removal queues permanent erasure, while
 reversible health quarantine keeps recovery possible. See the
 [atomic binding contract](../../docs/backend-and-data/05-api-contracts.md#prepared-atomic-public-photo-binding).
+
+## Prepared public-photo erasure worker
+
+`erase-publication-photos` performs one service-authenticated registry claim,
+permanent origin marker write/verification and fenced acknowledgement. It
+requires no surviving owner/history row and cannot erase valid bound
+publications. `publication_erasure_enabled` defaults false; no scheduler is
+included. The configured route participates in normal main-branch deployment,
+and runtime-off is not a deployment hold. The
+[worker README](functions/erase-publication-photos/README.md) and
+[canonical contract](../../docs/backend-and-data/05-api-contracts.md#prepared-public-photo-erasure-worker)
+define retry counts, credentials and cache-bypass prerequisites.

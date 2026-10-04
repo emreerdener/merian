@@ -7009,3 +7009,14 @@ admission commit atomically; post/copy deletion queues surviving erasure
 obligations. Unshare and moderation prevent automatic re-exposure after erasure;
 reversible health quarantine remains recoverable. See the
 [binding contract](05-api-contracts.md#prepared-atomic-public-photo-binding).
+
+### Prepared public-photo erasure RPCs
+
+`20261004113105_prepare_publication_photo_erasure_worker.sql` adds a targeted
+registry-only claim overload and service-only public claim/finish wrappers,
+recorded in the privileged-routine grant inventory. Default-false
+`publication_erasure_enabled` blocks new external claims pending qualification;
+acknowledgements remain available. Authenticated and anonymous roles cannot
+invoke them or read private tables. Cleanup survives account/history erasure and
+closed admission gates while excluding valid bound publications. See the
+[worker contract](05-api-contracts.md#prepared-public-photo-erasure-worker).

@@ -23,6 +23,14 @@ verification intent and recheck both revisions before completing. No deployment
 or activation is implied; see the
 [canonical contract](05-api-contracts.md#prepared-analysis-bound-confirmation).
 
+**2026-10-04 public-photo cleanup source addendum:** `erase-publication-photos`
+adds a service-only, one-object cleanup worker to the deployable inventory.
+`publication_erasure_enabled` defaults false, while existing claim
+acknowledgements remain usable. It is not deployed or scheduled by this draft
+candidate. A future main push includes configured source in the normal
+deployment plan; runtime-off is not a deployment exclusion. See the
+[worker contract](05-api-contracts.md#prepared-public-photo-erasure-worker).
+
 ## Scope
 
 This review inventories every configured deployable Supabase Edge Function
@@ -217,6 +225,7 @@ confirm-scan-species
 resolve-history-photo
 analyze-observation
 recover-observation-analyses
+erase-publication-photos
 review-scan-identification
 create-explore-comment
 delete-explore-comment

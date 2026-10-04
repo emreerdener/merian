@@ -2428,3 +2428,14 @@ Unshare/moderation/deletion revoke copies; ordinary health quarantine remains
 reversible to preserve the existing recovery contract. No rollout or live writer
 is enabled. Current behavior is defined in the
 [API contract](../backend-and-data/05-api-contracts.md#prepared-atomic-public-photo-binding).
+
+### October 4, 2026: public-photo erasure execution owner
+
+A prepared service-authenticated worker now connects due registry claims to
+verified permanent origin markers and fenced acknowledgement, independently of
+surviving account/history rows. Targeted claims support the future failed-copy
+owner without authorizing erasure of a valid publication. The separate external
+cleanup gate defaults false, with no cron schedule. Main-branch deployment
+planning still includes the configured route and requires separate
+authorization; cache-bypass qualification remains open. See the
+[worker contract](../backend-and-data/05-api-contracts.md#prepared-public-photo-erasure-worker).

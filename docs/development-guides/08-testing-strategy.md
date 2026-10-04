@@ -10503,3 +10503,13 @@ cascade safety. `observationPhotoCopyConcurrencyDb.test.ts` also coordinates
 separate sessions for duplicate bind, bind versus abandonment/deletion/review,
 and cleanup versus binding. These tests use synthetic evidence and simulated
 storage acknowledgements; they do not prove external copying or CDN erasure.
+
+### Public-photo erasure worker checks
+
+`publication_photo_erasure_worker.sql` exercises actual service/authenticated
+roles, targeted and global claims, live-publication protection, failed-write
+retry and token fencing without private owner rows. The endpoint's handler and
+repository tests cover one-item bounds, frozen identities, malformed/misdirected
+claims, failed markers and lost acknowledgements. Service-auth coverage includes
+the new route, and candidate CI explicitly runs both worker test files. These
+checks use synthetic storage and do not validate hosted cache policy.

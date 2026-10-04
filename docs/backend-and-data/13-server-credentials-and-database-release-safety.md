@@ -707,8 +707,20 @@ registry before any future external write. No API role can access either table
 or execute its allocation/cleanup routines. Registry rows survive parent
 erasure; claims contain only opaque object identity and cleanup state.
 Staging-ready copies retain their original ten-minute cleanup deadline. This
-does not activate storage I/O: a trusted scoped adapter and durable cleanup
-worker remain required. Atomic publication binding is privately prepared behind
-its own default-false gate; it supplies no endpoint or storage execution owner.
-See the
+does not activate public copying: a trusted scoped writer remains required. The
+gated cleanup worker is separately prepared below. Atomic publication binding is
+privately prepared behind its own default-false gate; it supplies no endpoint or
+storage execution owner. See the
 [staging lifecycle](05-api-contracts.md#prepared-public-photo-staging-lifecycle).
+
+The prepared `erase-publication-photos` endpoint uses the shared exact
+service-key authorizer and only the dedicated public-photo read/write
+credentials. Its RPC grants permit due registry claim/acknowledgement, not
+arbitrary object deletion or table access. Its independent
+`publication_erasure_enabled` gate defaults false; once qualified, keep it
+enabled when disabling admission. Finishing an existing claim remains available.
+The `config.toml` entry participates in the automatic main deployment plan;
+changing that config selects the whole function fleet. This runtime gate is not
+a deployment exclusion. Deployment, scheduling, monitoring and namespace cache
+bypass require separate release evidence and authorization; source validation is
+not a hosted erasure claim.

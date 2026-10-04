@@ -62,6 +62,7 @@ const EXPECTED_AUTHORIZATION_BOUNDARIES = [
   "auto-purge-nonbio/index.ts",
   "backfill-explore-audio-spectrograms/index.ts",
   "community-taxonomy-status/index.ts",
+  "erase-publication-photos/index.ts",
   "expire-subscription-passes/index.ts",
   "export-dwca/index.ts",
   "identify-multimodal/index.ts",

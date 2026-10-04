@@ -424,8 +424,9 @@ adapter, endpoint or expired-attempt recovery scheduler is connected. See the
 `publicPhotoContainer.ts` bounds and filters JPEG/PNG containers before
 `publicPhotoStorage.ts` writes exact source bytes conditionally. Erasure retains
 an empty permanent marker, preventing delayed conditional writes from restoring
-origin content. Tests use only synthetic images and in-memory storage. No SQL
-allocation/cleanup owner or live caller is connected, and origin markers do not
+origin content. Tests use only synthetic images and in-memory storage. SQL
+allocation/cleanup owners are prepared below; the prepared erasure worker uses
+`erase`, while the public-copy writer remains unconnected. Origin markers do not
 prove cache revocation. See the
 [storage contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-public-photo-storage-boundary).
 
@@ -434,8 +435,9 @@ prove cache revocation. See the
 Private SQL now reserves a permanent opaque-key cleanup obligation plus an
 immutable source/lease receipt before the future writer runs. Staging completion
 revalidates approval and authority; readiness cannot extend its ten-minute
-cleanup deadline. No repository adapter, cleanup worker or publication binding
-is connected to `publicPhotoStorage.ts`. See the
+cleanup deadline. Public copying remains unconnected; the separate prepared
+erasure worker uses `publicPhotoStorage.ts` only to retain verified markers. See
+the
 [staging contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-public-photo-staging-lifecycle).
 
 ## Prepared atomic photo publication
@@ -443,5 +445,11 @@ is connected to `publicPhotoStorage.ts`. See the
 The private SQL binder now admits a fresh community request and its entire
 ordered approved photo cohort atomically. Immutable receipts support replay;
 unshare/moderation/delete queue erasure, while health quarantine remains
-reversible. No live adapter or storage writer is connected. See the
+reversible. No authenticated publisher or public-copy writer is connected. See
+the
 [binding contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-atomic-public-photo-binding).
+
+`erase-publication-photos` now provides a prepared service-only registry/marker
+cleanup owner, including targeted claims for future failed-copy recovery. It
+uses no private account context and does not enable copying or publication. See
+its [README](../../erase-publication-photos/README.md).

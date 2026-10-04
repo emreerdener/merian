@@ -785,3 +785,21 @@ Deno.test("atomic photo cohort binding remains private and separates binding fro
   assert(!/GRANT\s+EXECUTE/i.test(sql));
   assert(!sql.includes("internal.register_observation_publication"));
 });
+
+Deno.test("photo erasure worker wrappers are service-only and registry-fenced", async () => {
+  const sql = await migration(
+    "20261004113105_prepare_publication_photo_erasure_worker",
+  );
+  assertStringIncludes(sql, "bound_at IS NULL OR revoked_at IS NOT NULL");
+  assertStringIncludes(sql, "p_object IS NULL OR object_id=p_object");
+  assertStringIncludes(
+    sql,
+    "publication_erasure_enabled BOOLEAN NOT NULL DEFAULT FALSE",
+  );
+  assertStringIncludes(sql, "FOR UPDATE SKIP LOCKED");
+  assertStringIncludes(sql, "internal.privileged_routine_grants");
+  assertStringIncludes(sql, "TO service_role");
+  assert(!sql.includes("TO authenticated"));
+  assert(!sql.includes("DELETE FROM"));
+  assert(!sql.includes("lock_owned_observation_evidence"));
+});

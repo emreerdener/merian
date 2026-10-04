@@ -13176,14 +13176,16 @@ quota pruning. Neither result nor historical receipt authorizes public copying.
 
 ## Prepared public-photo storage boundary
 
-`analysisHistory/publicPhotoStorage.ts` prepares transport only. It has no
-route, worker or production caller, and cannot authorize publication. A future
-SQL owner must reserve a never-reused opaque object UUID and durable erasure
-obligation before external I/O, then revalidate current source, moderation
-policy, authority and the complete ordered cohort before publication. Historical
-approval alone is insufficient. Copy receipts must eventually bind to the public
-publication version, so unsharing, moderation, privacy changes and publication
-deletion also invalidate media, independently of private selection.
+`analysisHistory/publicPhotoStorage.ts` supplies bounded transport, not
+publication authority. The prepared erasure worker uses its permanent-marker
+operation; the public-copy execution owner remains unconnected. Private SQL now
+reserves a never-reused opaque object UUID and durable cleanup obligation before
+I/O and revalidates current source, moderation policy, authority and the
+complete ordered cohort before atomic publication binding. Historical approval
+alone is insufficient. Bound ownership coordinates unshare, moderation and
+deletion revocation independently of private selection; reversible health
+quarantine does not erase the cohort. The contracts below define the staged,
+bound and revoked lifetimes.
 
 The writer uses `publication_media/v1/<object UUID>` in the public bucket,
 separate from legacy scan upload ownership. It requires exact private bytes,
@@ -13243,8 +13245,9 @@ lease, advances cleanup immediately and prevents later completion or allocation.
 Parent observation/account deletion cascades the private receipt and advances
 the detached registry through its deletion trigger. The existing moderation
 observation-tombstone fence supplies the cascade. Cleanup remains callable when
-rollout gates are closed, but every routine has revoked API execution. No live
-worker, repository adapter or authenticated publisher calls these routines.
+rollout gates are closed. Copy routines remain private; the prepared erasure
+worker below has narrowly scoped service-only claim/acknowledgement wrappers. No
+authenticated publisher or public-copy writer calls the copy routines.
 
 The private atomic binder below supplies bound-publication state. The future
 writer must still durably abandon and synchronously attempt marker erasure after
@@ -13293,6 +13296,46 @@ cannot claim the cohort across a successful binding transaction. Late copy
 abandonment rejects bound objects, protecting another worker's committed post.
 
 `publication_binding_enabled` defaults false. All routines/tables remain private
-with revoked API privileges. No repository adapter, authenticated endpoint,
-external storage owner or scheduler is activated by this migration. The prepared
-transaction does not establish CDN erasure or production readiness.
+with revoked API privileges. No authenticated publisher, public-copy writer or
+scheduler is activated by this migration. The later erasure worker is separately
+prepared below. The prepared transaction does not establish CDN erasure or
+production readiness.
+
+## Prepared public-photo erasure worker
+
+`erase-publication-photos` is a prepared service-authenticated POST endpoint. It
+derives no authority from a user JWT, request body, owner account or private
+history row. Public service-only RPCs claim one due registry obligation and
+acknowledge its exact two-minute token. A targeted claim supports immediate
+failed-copy cleanup after abandonment or deletion; an unknown, unexpired staged,
+already-erased or valid bound target cannot fall back to erasing another object.
+The HTTP worker itself accepts no target. Internal copy recovery must obtain the
+SQL claim before storage I/O, even when its original completion failed.
+
+A single invocation writes a permanent empty marker and verifies HEAD through
+the dedicated public-photo storage adapter. It then reports success or failure
+with the original object and claim identities, frozen before I/O. Failure
+releases the claim for retry without marking the object erased; crashes/lost
+replies leave durable claim-expiry recovery. A stale token cannot acknowledge
+another worker's claim. No key is deleted or reused, and no provider or scan
+credit is involved.
+
+The response contains only zero-or-one `claimed`, `marked` and `acknowledged`
+counts. `marked` confirms the origin marker; acknowledgement can also accept a
+failed-write report, so consumers must not equate it with successful erasure.
+Unknown errors receive a fixed 503 envelope without database/storage
+diagnostics. The endpoint uses the shared exact service-key authorization and
+bounded client transport. RPCs have twelve-second client and ten-second SQL
+deadlines. There is no unbounded discovery pass or internal storage retry loop.
+
+`publication_erasure_enabled` defaults false and rejects new external claims
+until cleanup credentials/cache behavior are qualified. Finishing existing
+claims is not gated. Once qualified, keep this separate cleanup gate enabled
+during a publication rollback; it does not depend on admission flags. No
+deployment, scheduler, public-copy execution owner or native operation is
+enabled here. Dedicated credentials, scheduled draining, monitoring and verified
+managed-cache bypass remain activation requirements; origin marker completion is
+not proof of CDN erasure. Adding the route to `config.toml` participates in the
+normal main-branch deployment plan (a config change selects the function fleet);
+the default-off runtime gate is not a deployment hold. Merge/deployment still
+require explicit release authorization.
