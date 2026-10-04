@@ -6995,5 +6995,17 @@ cannot extend that deadline. The separate registry has no parent foreign key and
 retains only an opaque object UUID, cleanup deadline/claim and erasure
 timestamp. Its keys cannot be deleted or reused. Parent deletion advances
 cleanup without removing the registry. Both tables enable RLS and revoke all API
-privileges. No publication binding or cleanup scheduler is installed. See the
+privileges. The atomic binding preparation below extends this ledger; no cleanup
+scheduler is installed. See the
 [staging lifecycle](05-api-contracts.md#prepared-public-photo-staging-lifecycle).
+
+### Prepared ordered public-photo binding
+
+`20261004110805_bind_approved_publication_photo_cohort.sql` adds a default-false
+binding gate, registry `bound_at`/`revoked_at`, private post/object ordinal
+links, and immutable operation receipts containing the ordered object IDs. The
+registry still has no parent foreign key. Binding and initial community
+admission commit atomically; post/copy deletion queues surviving erasure
+obligations. Unshare and moderation prevent automatic re-exposure after erasure;
+reversible health quarantine remains recoverable. See the
+[binding contract](05-api-contracts.md#prepared-atomic-public-photo-binding).

@@ -2419,3 +2419,12 @@ remain unbound and expire at their original deadline. No public availability,
 worker or endpoint is activated; atomic publication binding and immediate
 post-write failure cleanup remain next. See the
 [staging contract](../backend-and-data/05-api-contracts.md#prepared-public-photo-staging-lifecycle).
+
+### October 4, 2026: atomic approved-photo cohort binding
+
+A forward preparation now binds every approved ready photo to fresh community
+admission in one transaction, preserving ordering and immutable replay evidence.
+Unshare/moderation/deletion revoke copies; ordinary health quarantine remains
+reversible to preserve the existing recovery contract. No rollout or live writer
+is enabled. Current behavior is defined in the
+[API contract](../backend-and-data/05-api-contracts.md#prepared-atomic-public-photo-binding).

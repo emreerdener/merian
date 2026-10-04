@@ -33,6 +33,13 @@ for (
     "review before ready",
     "cleanup skip locked",
     "stale cleanup claim",
+    "duplicate binding",
+    "binding before abandon",
+    "abandon before binding",
+    "deletion before binding",
+    "binding before deletion",
+    "review before binding",
+    "cleanup before binding",
   ]
 ) {
   Deno.test({
@@ -69,6 +76,9 @@ for (
         "publication_moderation_enabled",
         "publication_copy_enabled",
         "rejection_api_enabled",
+        "publication_binding_enabled",
+        "community_admission_enabled",
+        "community_authority_enabled",
       ];
       let copyObject: string | undefined;
       let previousFunding: {
@@ -91,10 +101,20 @@ for (
             import.meta.url,
           ),
         );
-        await observer.queryArray(
+        const helpers =
           source.split("-- BEGIN PHOTO MODERATION HELPERS\n")[1].split(
             "-- END PHOTO MODERATION HELPERS",
-          )[0],
+          )[0];
+        // Each synthetic observer gets its own IP quota key. Reusing the shared
+        // fixture's constant across this expanded suite exhausts unrelated tests.
+        const admission =
+          "internal.admit_protected_observation_analysis(owner_id,pg_temp.protected_input(observation,analysis,media),repeat('a',64))";
+        assertEquals(helpers.split(admission).length, 2);
+        await observer.queryArray(
+          helpers.replace(
+            admission,
+            "internal.admit_protected_observation_analysis(owner_id,pg_temp.protected_input(observation,analysis,media),repeat(replace(observation::text,'-',''),2))",
+          ),
         );
         previous = (await observer.queryObject<Record<string, boolean>>(
           `SELECT ${
@@ -185,6 +205,12 @@ for (
               copy!.lease_token,
             ],
           );
+        const bind = (client: Client) =>
+          client.queryObject<{ receipt: unknown }>(
+            "SELECT internal.bind_approved_publication_photo_cohort($1,$2,$3) AS receipt",
+            [owner, observation, operation],
+          );
+        if (scenario.includes("binding")) await complete(observer);
         const firstPid = (await first.queryObject<{ pid: number }>(
           "SELECT pg_backend_pid() AS pid",
         )).rows[0].pid;
@@ -194,6 +220,84 @@ for (
         await first.queryArray("BEGIN");
         await second.queryArray("BEGIN");
         if (
+          scenario === "duplicate binding" ||
+          scenario === "binding before abandon" ||
+          scenario === "binding before deletion"
+        ) {
+          const original = (await bind(first)).rows[0].receipt;
+          const pending = settle<{ rows: unknown[] }>(
+            scenario === "duplicate binding"
+              ? bind(second)
+              : scenario === "binding before abandon"
+              ? abandon(second)
+              : second.queryArray("SELECT public.apply_user_tombstone($1)", [
+                owner,
+              ]),
+          );
+          await observeBlock(observer, secondPid, firstPid);
+          await first.queryArray("COMMIT");
+          const result = await pending;
+          if (scenario === "binding before abandon") {
+            assert(!result.ok);
+            assertEquals(result.error, "analysis_history_operation_conflict");
+            await second.queryArray("ROLLBACK");
+            assertEquals(
+              (await observer.queryObject<{ revoked: unknown }>(
+                "SELECT revoked_at AS revoked FROM internal.publication_photo_objects WHERE object_id=$1",
+                [copy!.object_id],
+              )).rows[0].revoked,
+              null,
+            );
+          } else {
+            assert(result.ok);
+            if (scenario === "duplicate binding") {
+              assertEquals(
+                (result.value.rows[0] as { receipt: unknown }).receipt,
+                original,
+              );
+            }
+            await second.queryArray("COMMIT");
+          }
+        } else if (
+          scenario === "abandon before binding" ||
+          scenario === "deletion before binding" ||
+          scenario === "cleanup before binding"
+        ) {
+          if (scenario === "deletion before binding") {
+            await first.queryArray("SELECT public.apply_user_tombstone($1)", [
+              owner,
+            ]);
+          } else if (scenario === "abandon before binding") {
+            await abandon(first);
+          } else {
+            await first.queryArray(
+              "UPDATE internal.publication_photo_objects SET available_at=clock_timestamp()-INTERVAL '1 second' WHERE object_id=$1",
+              [copy!.object_id],
+            );
+            await first.queryArray(
+              "SELECT internal.claim_publication_photo_erasure()",
+            );
+          }
+          const pending = settle(bind(second));
+          await observeBlock(observer, secondPid, firstPid);
+          await first.queryArray("COMMIT");
+          const result = await pending;
+          assert(!result.ok);
+          assertEquals(
+            result.error,
+            scenario === "deletion before binding"
+              ? "analysis_history_not_found"
+              : "analysis_history_operation_conflict",
+          );
+          await second.queryArray("ROLLBACK");
+          assertEquals(
+            (await observer.queryObject<{ count: number }>(
+              "SELECT count(*)::int AS count FROM public.explore_posts WHERE scan_id=$1",
+              [observation],
+            )).rows[0].count,
+            0,
+          );
+        } else if (
           scenario === "duplicate allocation" || scenario === "duplicate ready"
         ) {
           const call = scenario === "duplicate allocation" ? reserve : complete;
@@ -239,7 +343,10 @@ for (
               : "analysis_history_operation_conflict",
           );
           await second.queryArray("ROLLBACK");
-        } else if (scenario === "review before ready") {
+        } else if (
+          scenario === "review before ready" ||
+          scenario === "review before binding"
+        ) {
           await first.queryArray(
             "SELECT set_config('request.jwt.claims',$1,true)",
             [JSON.stringify({ role: "authenticated", sub: owner })],
@@ -257,20 +364,26 @@ for (
               undo_operation_id: null,
             })],
           );
-          const pending = settle(complete(second));
+          const pending = settle(
+            scenario === "review before binding"
+              ? bind(second)
+              : complete(second),
+          );
           await observeBlock(observer, secondPid, firstPid);
           await first.queryArray("COMMIT");
           const result = await pending;
           assert(!result.ok);
           assertEquals(result.error, "analysis_history_revision_conflict");
           await second.queryArray("ROLLBACK");
-          assertEquals(
-            (await observer.queryObject<{ ready: unknown }>(
-              "SELECT ready_at AS ready FROM internal.observation_photo_copies WHERE attempt_id=$1",
-              [prepared.attempt_id],
-            )).rows[0].ready,
-            null,
-          );
+          if (scenario === "review before ready") {
+            assertEquals(
+              (await observer.queryObject<{ ready: unknown }>(
+                "SELECT ready_at AS ready FROM internal.observation_photo_copies WHERE attempt_id=$1",
+                [prepared.attempt_id],
+              )).rows[0].ready,
+              null,
+            );
+          }
           await abandon(observer);
         } else if (scenario === "ready expiry") {
           await first.queryArray("ROLLBACK");

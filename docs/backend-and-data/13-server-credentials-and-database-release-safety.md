@@ -707,6 +707,8 @@ registry before any future external write. No API role can access either table
 or execute its allocation/cleanup routines. Registry rows survive parent
 erasure; claims contain only opaque object identity and cleanup state.
 Staging-ready copies retain their original ten-minute cleanup deadline. This
-does not activate storage I/O: a trusted scoped adapter, durable cleanup worker
-and atomic publication binding remain required. See the
+does not activate storage I/O: a trusted scoped adapter and durable cleanup
+worker remain required. Atomic publication binding is privately prepared behind
+its own default-false gate; it supplies no endpoint or storage execution owner.
+See the
 [staging lifecycle](05-api-contracts.md#prepared-public-photo-staging-lifecycle).

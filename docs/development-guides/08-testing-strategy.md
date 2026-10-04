@@ -10492,4 +10492,14 @@ checks, immutable deadlines, abandonment, cleanup retries and account erasure.
 allocation/completion serialization, deletion in both orders, abandonment racing
 completion, ready-copy expiry, SKIP LOCKED cleanup and stale claim fencing.
 These local tests do not prove real marker writes, CDN cache revocation, live
-cleanup scheduling or final publication binding; those remain activation gates.
+cleanup scheduling or live publisher integration; those remain activation gates.
+
+### Atomic approved-photo publication checks
+
+`publication_photo_binding.sql` covers partial-cohort rollback, requested photo
+ordering, immutable receipts, replay after authority advancement, expiry, bound
+lifetime, unshare/moderation removal, reversible health quarantine and account
+cascade safety. `observationPhotoCopyConcurrencyDb.test.ts` also coordinates
+separate sessions for duplicate bind, bind versus abandonment/deletion/review,
+and cleanup versus binding. These tests use synthetic evidence and simulated
+storage acknowledgements; they do not prove external copying or CDN erasure.

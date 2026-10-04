@@ -13232,11 +13232,11 @@ verification before calling completion; SQL cannot inspect storage bytes.
 Completion repeats current authorization and checks the exact object/lease,
 registry state and fixed ten-minute deadline. It marks staging ready once;
 `ready_at` does not extend availability or confer public publication authority.
-Both reserved and ready copies become eligible for cleanup at that original
-deadline. The cleanup claim locks only the permanent registry, uses SKIP LOCKED,
-and issues an expiring token. Stale tokens cannot acknowledge a newer claim.
-Success means externally verified permanent empty marker; failure retains the
-obligation for retry. Expiry alone does not execute storage I/O.
+Both reserved and ready unbound copies become eligible for cleanup at that
+original deadline. The cleanup claim locks only the permanent registry, uses
+SKIP LOCKED, and issues an expiring token. Stale tokens cannot acknowledge a
+newer claim. Success means externally verified permanent empty marker; failure
+retains the obligation for retry. Expiry alone does not execute storage I/O.
 
 Abandonment ignores rollout/review changes after verifying owner and original
 lease, advances cleanup immediately and prevents later completion or allocation.
@@ -13246,12 +13246,53 @@ observation-tombstone fence supplies the cascade. Cleanup remains callable when
 rollout gates are closed, but every routine has revoked API execution. No live
 worker, repository adapter or authenticated publisher calls these routines.
 
-This preparation intentionally has no bound-publication state. A later atomic
-publisher must bind the approved ordered cohort before its staging deadline and
-coordinate its cleanup schedule with publication privacy/moderation
-invalidation. It must also durably abandon and synchronously attempt marker
-erasure after post-write verification or authority failure, without erasing
-another worker's valid publication. Do not wire the storage helper until that
-owner is complete. No original-analysis safety result or historical approval can
-replace these checks. No provider or complimentary-credit charge occurs in this
-copy lifecycle.
+The private atomic binder below supplies bound-publication state. The future
+writer must still durably abandon and synchronously attempt marker erasure after
+post-write verification or authority failure, without erasing another worker's
+valid publication. Abandonment rejects already-bound objects. Do not wire the
+storage helper until that owner is complete. No original-analysis safety result
+or historical approval can replace these checks. No provider or
+complimentary-credit charge occurs in this copy lifecycle.
+
+## Prepared atomic public-photo binding
+
+`internal.bind_approved_publication_photo_cohort(owner, observation, operation)`
+accepts identities only. It resolves the immutable intent, revalidates current
+owner/deletion/revision/source/policy authority, and requires every ordered
+photo to have a stored approved moderation result and ready unexpired copy. It
+locks the complete registry cohort in object-ID order and rejects any expired,
+claimed, erased, revoked or already-bound object. URLs derive exclusively from
+`https://media.merian.app/publication_media/v1/<opaque-object-UUID>`; activation
+must verify that this configured public origin serves the reviewed bucket with
+namespace cache bypass.
+
+One transaction creates the fresh needs-ID post/request through the existing
+admission owner, binds all photos, and saves an immutable ordered-object
+receipt. There is no partial cohort, client URL, legacy scan-media update or
+resolved publication registration. Existing discussions require a separate
+explicit update contract. Replay requires the same owner/observation, saved
+admission and entire ordered binding. It returns historical admission without
+revalidating revisions advanced by admission, or changing a removed post.
+Missing bindings conflict; deletion fences run before replay.
+
+`bound_at` establishes a separate lifetime without extending staging deadlines.
+Cleanup claims skip bound objects until `revoked_at` is set. Unshare,
+moderation, post deletion and private-receipt deletion queue irreversible object
+erasure; registry obligations survive parent deletion. A removed bound post
+cannot clear both unshare/moderation flags to expose erased URLs: a new approved
+publication is required. Location privacy, private selection, identification
+withdrawal and reversible media-health quarantine do not erase this cohort.
+Quarantine recovery retains existing approved bytes; identification revocation
+retains the discussion with unresolved labels under the existing authority
+projection.
+
+Fresh binding locks owner/observation before registry and creates a new post;
+replay never locks the registry or rewrites an existing post. Removal triggers
+lock post then registry, never owner/history. The registry-only cleanup worker
+cannot claim the cohort across a successful binding transaction. Late copy
+abandonment rejects bound objects, protecting another worker's committed post.
+
+`publication_binding_enabled` defaults false. All routines/tables remain private
+with revoked API privileges. No repository adapter, authenticated endpoint,
+external storage owner or scheduler is activated by this migration. The prepared
+transaction does not establish CDN erasure or production readiness.

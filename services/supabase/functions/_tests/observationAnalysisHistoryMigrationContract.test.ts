@@ -761,3 +761,27 @@ Deno.test("public photo copy staging owns permanent keys before I/O without acti
       reserve.indexOf("INSERT INTO internal.observation_photo_copies"),
   );
 });
+
+Deno.test("atomic photo cohort binding remains private and separates binding from staging expiry", async () => {
+  const sql = await migration(
+    "20261004110805_bind_approved_publication_photo_cohort",
+  );
+  assertStringIncludes(
+    sql,
+    "publication_binding_enabled BOOLEAN NOT NULL DEFAULT FALSE",
+  );
+  assertStringIncludes(
+    sql,
+    "CREATE TABLE internal.observation_photo_publications",
+  );
+  assertStringIncludes(
+    sql,
+    "BEFORE DELETE ON internal.publication_photo_bindings",
+  );
+  assertStringIncludes(sql, "bound_at IS NULL OR revoked_at IS NOT NULL");
+  assertStringIncludes(sql, "internal.authorize_publication_photo_copy");
+  assertStringIncludes(sql, "internal.admit_observation_community_request");
+  assertStringIncludes(sql, "publication.object_ids IS DISTINCT FROM");
+  assert(!/GRANT\s+EXECUTE/i.test(sql));
+  assert(!sql.includes("internal.register_observation_publication"));
+});

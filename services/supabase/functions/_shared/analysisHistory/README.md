@@ -390,7 +390,7 @@ The private SQL lifecycle owns per-photo source/policy binding, provider-only
 quota, explicit predecessor retries, one-time dispatch permits and immutable
 terminal decisions. Ambiguous executions retain their charge; deletion refunds
 only reserved work. The classifier adapter is prepared below; durable execution
-and public-copy permission remain unimplemented. The quota operation is added to
+and public-copy ownership are prepared below. The quota operation is added to
 the shared type; affected Identify/Field Chat bundle identities are regenerated.
 See the
 [attempt contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-photo-moderation-attempt-lifecycle).
@@ -437,3 +437,11 @@ revalidates approval and authority; readiness cannot extend its ten-minute
 cleanup deadline. No repository adapter, cleanup worker or publication binding
 is connected to `publicPhotoStorage.ts`. See the
 [staging contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-public-photo-staging-lifecycle).
+
+## Prepared atomic photo publication
+
+The private SQL binder now admits a fresh community request and its entire
+ordered approved photo cohort atomically. Immutable receipts support replay;
+unshare/moderation/delete queue erasure, while health quarantine remains
+reversible. No live adapter or storage writer is connected. See the
+[binding contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-atomic-public-photo-binding).

@@ -3269,6 +3269,12 @@ durable ownership remain activation requirements. See the
 Private staging now reserves opaque keys and permanent cleanup obligations
 before external I/O. Approval/source revalidation and exact leases gate
 completion; abandonment, fixed expiry and parent deletion prevent reuse. Ready
-copies remain unbound. No API grants, publisher or erasure scheduler is enabled.
-See the
+copies remain unbound until the private atomic binder commits. No API grants,
+live publisher or erasure scheduler is enabled. See the
 [staging contract](../../docs/backend-and-data/05-api-contracts.md#prepared-public-photo-staging-lifecycle).
+
+The subsequent private ordered-cohort binder commits fresh community admission,
+photo ownership and an immutable operation receipt together. Bound photos
+survive the staging deadline; actual removal queues permanent erasure, while
+reversible health quarantine keeps recovery possible. See the
+[atomic binding contract](../../docs/backend-and-data/05-api-contracts.md#prepared-atomic-public-photo-binding).
