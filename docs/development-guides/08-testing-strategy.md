@@ -10452,3 +10452,16 @@ cover private object metadata/hash checks and erased-marker rejection. These
 tests do not prove durable proof persistence, SQL dispatch binding, output
 recovery, public copying or end-to-end publication. Those remain acceptance
 gates for the next execution owner and publisher slices.
+
+### Prepared durable photo execution verification
+
+`photoExecution_test.ts` verifies frozen owner/attempt scope across suspension,
+proof-before-dispatch ordering, exact final-write retry, no provider
+retry/refund after an uncertain dispatch, conservative expiry recovery, and the
+classifier policy digest pinned by SQL. The moderation SQL catalog rejects
+missing/altered proofs, bare completion, changed output replay, invalid
+classifier semantics and usage, and verifies immutable/cascaded private records.
+Separate-session moderation tests add duplicate completion, completion versus
+account deletion in both orders, and review-before-completion with no partial
+result. No live provider, API repository adapter or scheduled recovery worker is
+exercised; public-copy/endpoint/native acceptance remains separate.

@@ -679,3 +679,53 @@ Deno.test("private photo moderation keeps attempts source-bound and separate fro
       .test(sql),
   );
 });
+
+Deno.test("private publication execution binds immutable proof before dispatch and output before decision", async () => {
+  const sql = await migration(
+    "20261004091533_bind_publication_photo_execution",
+  );
+  for (
+    const fragment of [
+      "CREATE TABLE internal.observation_photo_execution_proofs",
+      "CREATE TABLE internal.observation_photo_execution_results",
+      "ON DELETE CASCADE",
+      "b68222cb5cd8b79a8c8553151239ae4026202f70c2fdb5ff9604f7b225a76be9",
+      "saved_proof IS DISTINCT FROM p_proof",
+      "saved_result IS DISTINCT FROM p_result",
+      "total_tokens<>input_tokens+output_tokens",
+      "confidence>=0.95",
+    ]
+  ) assertStringIncludes(sql, fragment);
+  assert(
+    !/GRANT EXECUTE|UPDATE internal\.observation_history_rollout/i.test(sql),
+  );
+  const dispatch = sql.slice(
+    sql.indexOf(
+      "CREATE OR REPLACE FUNCTION internal.dispatch_publication_photo_moderation",
+    ),
+    sql.indexOf(
+      "CREATE OR REPLACE FUNCTION internal.complete_publication_photo_moderation",
+    ),
+  );
+  assert(
+    dispatch.indexOf("internal.observation_photo_execution_proofs") <
+      dispatch.indexOf("public.finalize_ai_quota_reservation"),
+  );
+  const complete = sql.slice(
+    sql.indexOf(
+      "CREATE FUNCTION internal.complete_publication_photo_execution",
+    ),
+  );
+  assert(
+    complete.indexOf("internal.lock_owned_observation_evidence") <
+      complete.indexOf(
+        "INSERT INTO internal.observation_photo_execution_results",
+      ),
+  );
+  assert(
+    complete.indexOf(
+      "INSERT INTO internal.observation_photo_execution_results",
+    ) <
+      complete.indexOf("RETURN internal.complete_publication_photo_moderation"),
+  );
+});

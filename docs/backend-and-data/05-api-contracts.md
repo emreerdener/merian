@@ -13049,8 +13049,9 @@ API grant or production caller. `publication_moderation_enabled` and every
 `observation_photo_publication_moderation` quota policy default disabled. The
 prepared binding is Gemini / `gemini-2.5-flash` / `google_gemini`, with policy
 identifier `photo_publication_v1`; the prepared classifier below provides
-versioned prompt/response validation. Durable proof/dispatch/output integration
-remains required before activation. No existing scan result or audio attestation
+versioned prompt/response validation. The private execution binding below
+connects proof, dispatch and output; live repository and endpoint integration
+remain required before activation. No existing scan result or audio attestation
 authorizes a photo decision.
 
 `admit_publication_photo_moderation` revalidates the frozen parent intent and
@@ -13092,10 +13093,10 @@ every late replay.
 
 No provider call, public copy, endpoint or native operation is enabled by this
 lifecycle. The prepared adapter below provides bounded byte verification, strict
-classifier policy/response validation and provider-usage decoding; a durable
-execution owner must still bind its proof and save those outcomes. Public-copy
-reservations/cleanup and final admission still need fresh authority, policy and
-source checks over the complete approved ordered cohort.
+classifier policy/response validation and provider-usage decoding; the private
+execution owner below binds its proof and saves those outcomes atomically.
+Public-copy reservations/cleanup and final admission still need fresh authority,
+policy and source checks over the complete approved ordered cohort.
 
 ### Prepared source-bound photo classifier adapter
 
@@ -13127,11 +13128,48 @@ output, missing usage or any post-dispatch error returns only a generic unknown
 execution error without provider payloads or transport causes. Valid results
 contain bounded category codes and usage, never generated descriptions.
 
-This adapter is not yet called by an endpoint or execution owner. Its local
-one-shot closure is not durable authorization. The next execution owner must
-persist and verify this exact proof before consuming the private SQL dispatch
-permit, save bounded output/usage durably, and recover completion without
-reinvoking the provider. SQL currently binds only the policy identifier, not
-this proof. Public-copy approval, authenticated publication and native delivery
-remain disabled and unimplemented. No live provider call qualifies this policy;
-synthetic adapter tests prove contract behavior only.
+The prepared execution owner below now persists this exact proof before
+consuming the private SQL dispatch permit and atomically saves bounded
+output/usage. Its local one-shot closure alone is not authorization. No endpoint
+or live repository adapter is connected. Public-copy approval, authenticated
+publication and native delivery remain disabled and unimplemented. No live
+provider call qualifies this policy; synthetic adapter tests prove contract
+behavior only.
+
+### Prepared durable photo execution binding
+
+`prepare_publication_photo_execution` stores an immutable attempt proof before
+dispatch, validating the exact private source and pinned classifier policy
+digest. The request digest binds the adapter's concrete transport/body; SQL
+validates its shape but cannot recompute private image bytes or provider input.
+The trusted execution owner must save the proof from the same prepared adapter
+closure that it later invokes. Dispatch now refuses any reserved attempt without
+that proof. No API role can read or execute these private objects.
+
+`complete_publication_photo_execution` validates bounded classifier facts and
+usage, then stores them and completes the decision in one transaction. It uses
+the existing owner/deletion/attempt lock order. SQL independently enforces
+approval iff allow, confidence at least 0.95 and no adverse categories, with
+exact enums, unique category codes and consistent positive input/output token
+counts. Both proof and the entire result must match on replay. Bare decision
+completion requires the matching stored result, closing that bypass. Changed
+authority, expired dispatch, stale quota or deletion rolls back the result
+write. Proofs and results cascade with the attempt, including account deletion.
+
+`photoExecution.ts` is the prepared execution owner. It freezes verified
+owner/observation/attempt/original-lease scope before suspension and passes that
+explicit scope to every repository callback. It saves the adapter proof before
+requesting one dispatch permit, invokes that same frozen closure, and retries
+only the identical atomic completion write once after an error. Pre-dispatch
+preparation failures use authoritative retirement, which cannot refund a
+competing dispatch. A lost dispatch acknowledgement or uncertain provider result
+never invokes again, refunds, or admits a successor.
+
+Recovery of dispatched work calls the authoritative retirement boundary: before
+expiry it remains pending; after expiry it can become `unknown_execution`,
+retaining its charge. Expiry alone does not transition state. No scheduler,
+claiming recovery worker, authenticated endpoint or live repository adapter is
+installed; those integrations remain required. If a valid provider result never
+commits before expiry, it is intentionally treated as an uncertain execution. An
+already-committed terminal result remains replayable after expiry and generic
+quota pruning. Neither result nor historical receipt authorizes public copying.

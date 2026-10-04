@@ -671,3 +671,11 @@ credential-bearing cause. Its immutable request proof excludes credentials. No
 endpoint imports the adapter; durable proof/dispatch/output integration and
 model-policy qualification remain activation prerequisites. See the
 [classifier contract](05-api-contracts.md#prepared-source-bound-photo-classifier-adapter).
+
+The subsequent private execution binding persists the pinned policy/transport
+proof before provider dispatch and bounded output/usage with the terminal
+decision. API execution remains revoked, with existing rollout flags false. A
+future authenticated repository adapter must pass verified owner, observation,
+attempt and original lease to every operation and use the same frozen classifier
+closure throughout; it cannot accept a client-supplied approval or proof. A
+claiming expired-attempt worker is still required before activation.

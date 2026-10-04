@@ -2386,3 +2386,14 @@ dispatch binding and output recovery remain required before the deletion-safe
 public-copy and authenticated publisher slices. No live policy qualification or
 rollout is claimed. See the
 [classifier contract](../backend-and-data/05-api-contracts.md#prepared-source-bound-photo-classifier-adapter).
+
+### October 4, 2026: durable private-photo execution binding
+
+The prepared owner now records the exact adapter proof before dispatch and
+commits bounded classifier facts/usage with the decision. SQL independently
+validates approval semantics and exact replay; deletion and changed authority
+roll back incomplete output. The owner never retries a provider invocation.
+Dispatched-work recovery uses authoritative expiry retirement, but a claiming
+worker/scheduler and live repository adapter are still required. Public copying,
+authenticated publication and native delivery remain held. See the
+[execution contract](../backend-and-data/05-api-contracts.md#prepared-durable-photo-execution-binding).

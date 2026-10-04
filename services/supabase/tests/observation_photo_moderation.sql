@@ -95,6 +95,18 @@ BEGIN
  PERFORM internal.prepare_observation_publication_intent(owner_id,pg_temp.publication_request(observation,analysis,operation,media));
 END;
 $$;
+CREATE FUNCTION pg_temp.photo_execution_proof(receipt JSONB) RETURNS JSONB LANGUAGE SQL AS $$
+ SELECT jsonb_build_object('schema_version',1,'policy_version','photo_publication_v1',
+ 'policy_sha256','b68222cb5cd8b79a8c8553151239ae4026202f70c2fdb5ff9604f7b225a76be9','request_sha256',repeat('b',64),
+ 'provider','gemini','model','gemini-2.5-flash','processor_permission','google_gemini','source',receipt->'source');
+$$;
+CREATE FUNCTION pg_temp.photo_execution_result(decision TEXT DEFAULT 'approved') RETURNS JSONB LANGUAGE SQL AS $$
+ SELECT jsonb_build_object('decision',decision,'classification',CASE WHEN decision='approved' THEN 'allow' ELSE 'reject' END,'confidence',0.99,
+ 'categories','[]'::JSONB,'model','gemini-2.5-flash','usage',jsonb_build_object('input_tokens',100,'output_tokens',10,'total_tokens',110));
+$$;
+CREATE FUNCTION pg_temp.prepare_photo_execution(owner_id UUID,observation UUID,receipt JSONB) RETURNS JSONB LANGUAGE SQL AS $$
+ SELECT internal.prepare_publication_photo_execution(owner_id,observation,(receipt->>'attempt_id')::UUID,(receipt->>'lease_token')::UUID,pg_temp.photo_execution_proof(receipt));
+$$;
 -- END PHOTO MODERATION HELPERS
 SELECT extensions.ok(NOT (SELECT publication_moderation_enabled FROM internal.observation_history_rollout),'moderation gate defaults closed');
 SELECT extensions.ok((SELECT count(*)>=4 AND bool_and(NOT enabled) FROM internal.ai_quota_policies WHERE operation='observation_photo_publication_moderation'),'all plan policies including complimentary are held');
@@ -115,22 +127,38 @@ INSERT INTO moderation_receipts VALUES('first',pg_temp.moderation_admit());
 SELECT extensions.is(pg_temp.moderation_admit(),(SELECT receipt FROM moderation_receipts WHERE label='first'),'lost admission response recovers one attempt');
 SELECT extensions.ok((SELECT receipt->>'state'='reserved' AND receipt#>'{quota,complimentary_client_scan_id}'='null'::JSONB AND receipt#>'{quota,original_analysis_id}'='null'::JSONB FROM moderation_receipts WHERE label='first'),'moderation quota has no identification or complimentary link');
 SELECT extensions.is((SELECT count(*)::INT FROM internal.complimentary_scan_usage WHERE user_id='00000000-0000-4000-8000-00000000ff01'),1,'moderation creates no extra scan-credit consumption or hold');
-CREATE FUNCTION pg_temp.dispatch_fixture(label TEXT) RETURNS JSONB LANGUAGE SQL AS $$
- SELECT internal.dispatch_publication_photo_moderation('00000000-0000-4000-8000-00000000ff01','00000000-0000-4000-8000-00000000ff11',(receipt->>'attempt_id')::UUID,(receipt->>'lease_token')::UUID) FROM moderation_receipts r WHERE r.label=$1;
+CREATE FUNCTION pg_temp.dispatch_fixture(label TEXT) RETURNS JSONB LANGUAGE PLPGSQL AS $$
+DECLARE r JSONB;
+BEGIN
+ SELECT receipt INTO r FROM moderation_receipts WHERE moderation_receipts.label=$1;
+ IF EXISTS(SELECT 1 FROM internal.observation_photo_moderation_attempts WHERE id=(r->>'attempt_id')::UUID AND state='reserved') THEN
+  PERFORM pg_temp.prepare_photo_execution('00000000-0000-4000-8000-00000000ff01','00000000-0000-4000-8000-00000000ff11',r);
+ END IF;
+ RETURN internal.dispatch_publication_photo_moderation('00000000-0000-4000-8000-00000000ff01','00000000-0000-4000-8000-00000000ff11',(r->>'attempt_id')::UUID,(r->>'lease_token')::UUID);
+END;
 $$;
 CREATE FUNCTION pg_temp.complete_fixture(label TEXT,decision TEXT) RETURNS JSONB LANGUAGE SQL AS $$
- SELECT internal.complete_publication_photo_moderation('00000000-0000-4000-8000-00000000ff01','00000000-0000-4000-8000-00000000ff11',(receipt->>'attempt_id')::UUID,(receipt->>'lease_token')::UUID,decision) FROM moderation_receipts r WHERE r.label=$1;
+ SELECT internal.complete_publication_photo_execution('00000000-0000-4000-8000-00000000ff01','00000000-0000-4000-8000-00000000ff11',(receipt->>'attempt_id')::UUID,(receipt->>'lease_token')::UUID,pg_temp.photo_execution_proof(receipt),pg_temp.photo_execution_result(decision)) FROM moderation_receipts r WHERE r.label=$1;
 $$;
 CREATE FUNCTION pg_temp.retire_fixture(label TEXT) RETURNS JSONB LANGUAGE SQL AS $$
  SELECT internal.retire_publication_photo_moderation('00000000-0000-4000-8000-00000000ff01','00000000-0000-4000-8000-00000000ff11',(receipt->>'attempt_id')::UUID,(receipt->>'lease_token')::UUID) FROM moderation_receipts r WHERE r.label=$1;
 $$;
 SELECT extensions.throws_ok($$SELECT pg_temp.complete_fixture('first','approved')$$,'22023','analysis_history_operation_conflict','undispatched attempt cannot approve');
+SELECT extensions.throws_ok($$SELECT internal.dispatch_publication_photo_moderation('00000000-0000-4000-8000-00000000ff01','00000000-0000-4000-8000-00000000ff11',(receipt->>'attempt_id')::UUID,(receipt->>'lease_token')::UUID) FROM moderation_receipts WHERE label='first'$$,'22023','analysis_history_operation_conflict','dispatch cannot precede saved exact execution proof');
+SELECT extensions.throws_ok($$SELECT internal.prepare_publication_photo_execution('00000000-0000-4000-8000-00000000ff01','00000000-0000-4000-8000-00000000ff11',(receipt->>'attempt_id')::UUID,(receipt->>'lease_token')::UUID,pg_temp.photo_execution_proof(receipt)||jsonb_build_object('policy_sha256',repeat('c',64))) FROM moderation_receipts WHERE label='first'$$,'22023','invalid_analysis_history','unqualified policy digest cannot dispatch');
 SELECT extensions.is(pg_temp.dispatch_fixture('first')->>'dispatch_allowed','true','first dispatch commits provider quota');
+SELECT extensions.is((SELECT proof FROM internal.observation_photo_execution_proofs WHERE attempt_id=(SELECT (receipt->>'attempt_id')::UUID FROM moderation_receipts WHERE label='first')),(SELECT pg_temp.photo_execution_proof(receipt) FROM moderation_receipts WHERE label='first'),'dispatch retains the exact private source and request proof');
+SELECT extensions.throws_ok($$SELECT internal.complete_publication_photo_moderation('00000000-0000-4000-8000-00000000ff01','00000000-0000-4000-8000-00000000ff11',(receipt->>'attempt_id')::UUID,(receipt->>'lease_token')::UUID,'approved') FROM moderation_receipts WHERE label='first'$$,'22023','analysis_history_operation_conflict','bare decision completion cannot bypass bounded output recording');
+
 SELECT extensions.is(pg_temp.dispatch_fixture('first')->>'dispatch_allowed','false','lost dispatch response cannot execute provider twice');
 SELECT extensions.throws_ok($$SELECT pg_temp.retire_fixture('first')$$,'22023','analysis_history_operation_conflict','unexpired in-flight dispatch cannot be retried');
 INSERT INTO moderation_receipts VALUES('approved',pg_temp.complete_fixture('first','approved'));
 SELECT extensions.is(pg_temp.complete_fixture('first','approved'),(SELECT receipt FROM moderation_receipts WHERE label='approved'),'lost decision response replays exact approval');
 SELECT extensions.ok((SELECT receipt->>'state'='approved' AND receipt->'lease_token'='null'::JSONB AND receipt#>>'{source,media_id}'='00000000-0000-4000-8000-00000000ff31' AND receipt->>'policy_version'='photo_publication_v1' FROM moderation_receipts WHERE label='approved'),'approval pins source/policy and erases active token');
+SELECT extensions.is((SELECT count(*)::INT FROM internal.observation_photo_execution_results),1,'decision and usage commit atomically once');
+SELECT extensions.throws_ok($$SELECT internal.complete_publication_photo_execution('00000000-0000-4000-8000-00000000ff01','00000000-0000-4000-8000-00000000ff11',(receipt->>'attempt_id')::UUID,(receipt->>'lease_token')::UUID,pg_temp.photo_execution_proof(receipt),pg_temp.photo_execution_result()||'{"confidence":1}'::JSONB) FROM moderation_receipts WHERE label='first'$$,'22023','analysis_history_operation_conflict','same decision with changed classifier facts is not replay');
+SELECT extensions.throws_ok($$SELECT internal.complete_publication_photo_execution('00000000-0000-4000-8000-00000000ff01','00000000-0000-4000-8000-00000000ff11',(receipt->>'attempt_id')::UUID,(receipt->>'lease_token')::UUID,pg_temp.photo_execution_proof(receipt)||jsonb_build_object('request_sha256',repeat('c',64)),pg_temp.photo_execution_result()) FROM moderation_receipts WHERE label='first'$$,'22023','analysis_history_operation_conflict','terminal replay rejects a different execution proof');
+SELECT extensions.throws_ok($$UPDATE internal.observation_photo_execution_results SET result=result||'{"confidence":1}'::JSONB$$,'22023','analysis_history_evidence_immutable','classifier facts are immutable');
 DELETE FROM internal.ai_quota_reservations WHERE id=(SELECT (receipt#>>'{quota,reservation_id}')::UUID FROM moderation_receipts WHERE label='first');
 SELECT extensions.is(pg_temp.complete_fixture('first','approved'),(SELECT receipt FROM moderation_receipts WHERE label='approved'),'private terminal proof survives generic quota pruning');
 SELECT extensions.throws_ok($$SELECT pg_temp.complete_fixture('first','rejected')$$,'22023','analysis_history_operation_conflict','decision cannot change on retry');
@@ -183,5 +211,14 @@ SELECT extensions.is((SELECT state FROM internal.ai_quota_reservations WHERE id=
 SELECT extensions.is((SELECT state FROM internal.ai_quota_reservations WHERE id=(SELECT (receipt#>>'{quota,reservation_id}')::UUID FROM moderation_receipts WHERE label='expired-successor')),'committed','deletion never refunds an already-dispatched provider execution');
 SELECT extensions.throws_ok($$SELECT pg_temp.complete_fixture('first','approved')$$,'P0002','analysis_history_not_found','deletion wins durable decision replay');
 SELECT extensions.throws_ok('SELECT pg_temp.moderation_admit()','P0002','analysis_history_not_found','deletion wins moderation admission');
+SELECT extensions.is((SELECT count(*)::INT FROM internal.observation_photo_execution_proofs),0,'deletion erases private execution proofs');
+SELECT extensions.is((SELECT count(*)::INT FROM internal.observation_photo_execution_results),0,'deletion erases private output and usage');
+SELECT extensions.ok(NOT internal.valid_publication_photo_result(pg_temp.photo_execution_result()||'{"classification":"review"}'::JSONB),'review never authorizes approval');
+SELECT extensions.ok(NOT internal.valid_publication_photo_result(pg_temp.photo_execution_result()||'{"confidence":0.94}'::JSONB),'low confidence never authorizes approval');
+SELECT extensions.ok(NOT internal.valid_publication_photo_result(pg_temp.photo_execution_result()||'{"categories":["personal_data"]}'::JSONB),'allow with a category is invalid');
+SELECT extensions.ok(NOT internal.valid_publication_photo_result(pg_temp.photo_execution_result('rejected')||'{"categories":["personal_data","personal_data"]}'::JSONB),'duplicate categories are invalid');
+SELECT extensions.ok(NOT internal.valid_publication_photo_result(pg_temp.photo_execution_result()||'{"usage":{"input_tokens":100,"output_tokens":10,"total_tokens":111}}'::JSONB),'usage must sum exactly');
+SELECT extensions.ok(NOT internal.valid_publication_photo_result(pg_temp.photo_execution_result()||'{"notes":"private"}'::JSONB),'unbounded output fields are rejected');
+SELECT extensions.ok(NOT EXISTS(SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace CROSS JOIN UNNEST(ARRAY['anon','authenticated','service_role']) r WHERE n.nspname='internal' AND p.proname IN ('prepare_publication_photo_execution','complete_publication_photo_execution','valid_publication_photo_result','dispatch_publication_photo_moderation','complete_publication_photo_moderation') AND has_function_privilege(r,p.oid,'EXECUTE')),'execution owner has no API exposure');
 SELECT * FROM extensions.finish();
 ROLLBACK;

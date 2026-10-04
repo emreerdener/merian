@@ -25,6 +25,10 @@ async function observeBlock(observer: Client, waiter: number, blocker: number) {
 for (
   const scenario of [
     "duplicate admission",
+    "duplicate completion",
+    "completion before deletion",
+    "deletion before completion",
+    "review before completion",
     "duplicate dispatch",
     "dispatch before cancellation",
     "cancellation before dispatch",
@@ -130,6 +134,10 @@ for (
         if (
           [
             "review before dispatch",
+            "duplicate completion",
+            "completion before deletion",
+            "deletion before completion",
+            "review before completion",
             "duplicate dispatch",
             "dispatch before cancellation",
             "cancellation before dispatch",
@@ -141,11 +149,42 @@ for (
             lease_token: string;
           };
         }
+        let executionProof: unknown;
+        if (prepared) {
+          executionProof = (await observer.queryObject<{ proof: unknown }>(
+            "SELECT pg_temp.prepare_photo_execution($1,$2,$3::jsonb) AS proof",
+            [owner, observation, JSON.stringify(prepared)],
+          )).rows[0].proof;
+        }
         const dispatch = (client: Client) =>
           client.queryObject<{ receipt: { dispatch_allowed: boolean } }>(
             "SELECT internal.dispatch_publication_photo_moderation($1,$2,$3,$4) AS receipt",
             [owner, observation, prepared!.attempt_id, prepared!.lease_token],
           );
+        const complete = (client: Client) =>
+          client.queryObject<{ receipt: unknown }>(
+            "SELECT internal.complete_publication_photo_execution($1,$2,$3,$4,$5::jsonb,$6::jsonb) AS receipt",
+            [
+              owner,
+              observation,
+              prepared!.attempt_id,
+              prepared!.lease_token,
+              JSON.stringify(executionProof),
+              JSON.stringify({
+                decision: "approved",
+                classification: "allow",
+                confidence: 0.99,
+                categories: [],
+                model: "gemini-2.5-flash",
+                usage: {
+                  input_tokens: 100,
+                  output_tokens: 10,
+                  total_tokens: 110,
+                },
+              }),
+            ],
+          );
+        if (scenario.includes("completion")) await dispatch(observer);
         const firstPid = (await first.queryObject<{ pid: number }>(
           "SELECT pg_backend_pid() AS pid",
         )).rows[0].pid;
@@ -154,7 +193,52 @@ for (
         )).rows[0].pid;
         await first.queryArray("BEGIN");
         await second.queryArray("BEGIN");
-        if (scenario === "account deletion first") {
+        if (scenario === "duplicate completion") {
+          const original = (await complete(first)).rows[0].receipt;
+          const pending = settle(complete(second));
+          await observeBlock(observer, secondPid, firstPid);
+          await first.queryArray("COMMIT");
+          const outcome = await pending;
+          assert(outcome.ok);
+          assertEquals(outcome.value.rows[0].receipt, original);
+          await second.queryArray("COMMIT");
+          assertEquals(
+            (await observer.queryObject<{ count: number }>(
+              "SELECT count(*)::int AS count FROM internal.observation_photo_execution_results WHERE observation_id=$1",
+              [observation],
+            )).rows[0].count,
+            1,
+          );
+        } else if (scenario === "completion before deletion") {
+          await complete(first);
+          const pending = settle(
+            second.queryObject("SELECT public.apply_user_tombstone($1)", [
+              owner,
+            ]),
+          );
+          await observeBlock(observer, secondPid, firstPid);
+          await first.queryArray("COMMIT");
+          assert((await pending).ok);
+          await second.queryArray("COMMIT");
+          assertEquals(
+            (await observer.queryObject<{ count: number }>(
+              "SELECT count(*)::int AS count FROM internal.observation_photo_execution_results WHERE observation_id=$1",
+              [observation],
+            )).rows[0].count,
+            0,
+          );
+        } else if (scenario === "deletion before completion") {
+          await first.queryObject("SELECT public.apply_user_tombstone($1)", [
+            owner,
+          ]);
+          const pending = settle(complete(second));
+          await observeBlock(observer, secondPid, firstPid);
+          await first.queryArray("COMMIT");
+          const outcome = await pending;
+          assert(!outcome.ok);
+          assertEquals(outcome.error, "analysis_history_not_found");
+          await second.queryArray("ROLLBACK");
+        } else if (scenario === "account deletion first") {
           await first.queryArray("SELECT public.apply_user_tombstone($1)", [
             owner,
           ]);
@@ -165,7 +249,10 @@ for (
           assert(!outcome.ok);
           assert(outcome.error.includes("analysis_history_not_found"));
           await second.queryArray("ROLLBACK");
-        } else if (scenario === "review before dispatch") {
+        } else if (
+          scenario === "review before dispatch" ||
+          scenario === "review before completion"
+        ) {
           await first.queryArray(
             "SELECT set_config('request.jwt.claims',$1,true)",
             [JSON.stringify({ role: "authenticated", sub: owner })],
@@ -183,12 +270,23 @@ for (
               undo_operation_id: null,
             })],
           );
-          const pending = settle(dispatch(second));
+          const pending = settle(
+            scenario === "review before completion"
+              ? complete(second)
+              : dispatch(second),
+          );
           await observeBlock(observer, secondPid, firstPid);
           await first.queryArray("COMMIT");
           const outcome = await pending;
           assert(!outcome.ok);
           assert(outcome.error.includes("analysis_history_revision_conflict"));
+          assertEquals(
+            (await observer.queryObject<{ count: number }>(
+              "SELECT count(*)::int AS count FROM internal.observation_photo_execution_results WHERE observation_id=$1",
+              [observation],
+            )).rows[0].count,
+            0,
+          );
           await second.queryArray("ROLLBACK");
           assertEquals(
             (await observer.queryObject<{ count: number }>(
@@ -274,6 +372,8 @@ for (
           count,
           [
               "duplicate admission",
+              "duplicate completion",
+              "review before completion",
               "duplicate dispatch",
               "review before dispatch",
               "dispatch before cancellation",

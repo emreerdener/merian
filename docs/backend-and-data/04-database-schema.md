@@ -6970,3 +6970,17 @@ attempts and refunds only reserved provider quota; no complimentary credit is
 linked. Both the moderation gate and new per-plan quota policies default off.
 See the
 [attempt contract](05-api-contracts.md#prepared-photo-moderation-attempt-lifecycle).
+
+### Prepared photo execution proof and result storage
+
+`20261004091533_bind_publication_photo_execution.sql` adds private immutable
+`observation_photo_execution_proofs` and `observation_photo_execution_results`.
+Each has one indexed primary-key foreign reference per attempt; cascades remove
+proof and output under the existing deletion fence. Rows have RLS and no API
+grants, generation guards and rejected updates. JSON is limited to 2 KiB and
+contains exact source/policy/request identity or bounded classifier/usage facts.
+No raw provider response, credentials, photo bytes or generated prose is stored.
+Dispatch requires proof, while decision completion requires a matching stored
+result. The recorder commits result and decision atomically. Existing rollout
+flags remain false; see the
+[execution contract](05-api-contracts.md#prepared-durable-photo-execution-binding).

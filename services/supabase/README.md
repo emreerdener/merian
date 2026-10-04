@@ -3240,6 +3240,17 @@ required; see the
 The source-bound photo classifier adapter verifies private bytes and freezes the
 exact request before a one-shot bounded Gemini transport. Synthetic tests cover
 strict approval and unknown outcomes. There is no endpoint caller, live model
-qualification, or SQL proof binding yet. Gates remain false; the next execution
-owner must persist proof and recover decisions before public copying. See the
+qualification or live repository adapter yet. SQL proof binding and the prepared
+execution owner are described below. Gates remain false; public copying still
+requires its own ownership and cleanup. See the
 [classifier contract](../../docs/backend-and-data/05-api-contracts.md#prepared-source-bound-photo-classifier-adapter).
+
+## Prepared photo execution binding
+
+Immutable request proofs now precede private moderation dispatch. Canonical
+classifier facts and usage commit atomically with decisions, and exact retries
+cannot alter either proof or output. The prepared TypeScript owner uses one
+frozen invocation and retries only completion writes. Live authenticated
+repository wiring, recovery scheduling and public-copy ownership remain held;
+see the
+[execution contract](../../docs/backend-and-data/05-api-contracts.md#prepared-durable-photo-execution-binding).

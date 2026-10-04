@@ -403,6 +403,18 @@ response parser returns only decision/category/confidence and accounting facts.
 Transport or output uncertainty cannot approve, refund or retry.
 `photoClassifier_test.ts` uses synthetic bytes and injected transports; no
 provider request is made by tests. The adapter has no production caller. Durable
-proof persistence, dispatch binding and outcome recovery remain the next owner
-slice; see the
+proof persistence, dispatch binding and atomic output are prepared below; see
+the
 [classifier contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-source-bound-photo-classifier-adapter).
+
+## Prepared durable photo execution
+
+`photoExecution.ts` persists the same adapter proof before dispatch and invokes
+its frozen closure once. Only identical completion writes may retry. SQL now
+requires proof before dispatch and bounded result/usage before completing a
+decision, atomically and under deletion/authority locks.
+`photoExecution_test.ts` covers failure ordering and pins the actual policy
+digest to its migration. The SQL catalog and separate-session tests cover
+proof/result replay and completion versus review/deletion. No live repository
+adapter, endpoint or expired-attempt recovery scheduler is connected. See the
+[execution contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-durable-photo-execution-binding).
