@@ -655,3 +655,27 @@ Deno.test("publication intent pins private V2 sources before any external or pub
       .test(sql),
   );
 });
+
+Deno.test("private photo moderation keeps attempts source-bound and separate from scan credits", async () => {
+  const sql = await migration(
+    "20261004083008_prepare_publication_photo_moderation",
+  );
+  for (
+    const fragment of [
+      "publication_moderation_enabled BOOLEAN NOT NULL DEFAULT FALSE",
+      "CREATE TABLE internal.observation_photo_moderations",
+      "CREATE TABLE internal.observation_photo_moderation_attempts",
+      "UNIQUE NULLS NOT DISTINCT(operation_id,media_id,predecessor_id)",
+      "admitted.complimentary_client_scan_id IS NOT NULL",
+      "job.quota_request_id,p_ip_hash,NULL,FALSE,3,FALSE",
+      "attempt.dispatch_expires_at<=clock_timestamp()",
+      "'unknown_execution'",
+      "'dispatch_allowed',FALSE",
+      "state=p_decision,lease_token=NULL",
+    ]
+  ) assertStringIncludes(sql, fragment);
+  assert(
+    !/GRANT EXECUTE|INSERT INTO public\.|UPDATE internal\.observation_history_rollout/i
+      .test(sql),
+  );
+});

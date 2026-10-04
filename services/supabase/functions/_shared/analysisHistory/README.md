@@ -383,3 +383,13 @@ adapter, public-copy writer or media approval is enabled. Provider completion
 does not supply durable approval to publish private photos. See the
 [intent contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-protected-photo-publication-intent)
 for the remaining moderation, cleanup and publisher requirements.
+
+## Prepared photo moderation attempts
+
+The private SQL lifecycle owns per-photo source/policy binding, provider-only
+quota, explicit predecessor retries, one-time dispatch permits and immutable
+terminal decisions. Ambiguous executions retain their charge; deletion refunds
+only reserved work. There is no classifier adapter or public-copy permission
+yet. The quota operation is added to the shared type; affected Identify/Field
+Chat bundle identities are regenerated. See the
+[attempt contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-photo-moderation-attempt-lifecycle).

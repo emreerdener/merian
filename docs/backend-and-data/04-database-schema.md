@@ -6957,3 +6957,16 @@ are created by this preparation. The
 [intent contract](05-api-contracts.md#prepared-protected-photo-publication-intent)
 defines historical retry versus fresh source revalidation and the still-required
 moderation and public-copy lifecycle.
+
+### Prepared photo moderation storage
+
+`20261004083008_prepare_publication_photo_moderation.sql` adds private immutable
+photo jobs and lease-fenced attempt records. Jobs inherit the publication-intent
+cascade and freeze the exact source/provider/model/policy. Attempts have one
+unique successor per predecessor (including a single null first predecessor),
+reservation/attempt/token identities and guarded terminal decisions. API roles
+have no table or routine access. The deletion-fence trigger retires private
+attempts and refunds only reserved provider quota; no complimentary credit is
+linked. Both the moderation gate and new per-plan quota policies default off.
+See the
+[attempt contract](05-api-contracts.md#prepared-photo-moderation-attempt-lifecycle).

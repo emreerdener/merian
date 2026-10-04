@@ -13040,3 +13040,57 @@ public-copy reservations, deletion-safe cleanup and final revalidation remain
 required before an authenticated publisher can be exposed. Private verified-byte
 reads must precede moderation; public visibility must follow approval. Existing
 private evidence cleanup does not cover future public copies.
+
+### Prepared photo-moderation attempt lifecycle
+
+The next private SQL boundary records one source-bound photo moderation job per
+publication intent/media ID and explicit provider attempts beneath it. It has no
+API grant or production caller. `publication_moderation_enabled` and every
+`observation_photo_publication_moderation` quota policy default disabled. The
+prepared binding is Gemini / `gemini-2.5-flash` / `google_gemini`, with policy
+identifier `photo_publication_v1`; the actual classifier adapter and versioned
+prompt/response validation remain required before activation. No existing scan
+result or audio attestation authorizes a photo decision.
+
+`admit_publication_photo_moderation` revalidates the frozen parent intent and
+exact source tuple. A private stable quota request ID belongs to that photo job;
+each attempt records its quota attempt number, reservation, lease hash and
+active token. Original analysis IDs are not passed into generic quota admission:
+those IDs remain fenced for identification. Private job fields provide
+observation/analysis correlation instead. The new operation receives ordinary
+provider quota under each plan, including complimentary entitlement, and never
+creates or settles a complimentary scan-credit hold. Current named-processor
+consent is required for each new attempt and immediately before dispatch.
+
+The first admission uses a null predecessor. Recovery of that admission returns
+the same attempt. Only an explicit cancelled or `unknown_execution` predecessor
+can admit a successor; repeating the predecessor recovers that same successor.
+Approval and rejection are terminal. Dispatch atomically commits provider quota
+and grants one `dispatch_allowed` permit; retries never grant another. The
+trusted adapter must verify the private bytes and its exact policy/response
+binding before invoking the completion routine with `approved` or `rejected`.
+Completion rechecks source/revisions, quota attempt/token and the two-minute
+dispatch deadline. A late or superseded response cannot become approval.
+Terminal records erase the active token and preserve only its hash and bounded
+quota metadata, source and policy identities. These are private historical
+decisions, not current public-copy authorization.
+
+Retirement before dispatch refunds once. After dispatch, retirement requires
+expiry and records `unknown_execution`, retaining charged provider quota. A
+process crash therefore cannot silently redispatch or refund an uncertain call.
+The generic expired-reservation sweep may refund a still-reserved quota lease;
+dispatch then fails, retirement records cancellation idempotently, and a new
+explicit predecessor is required to retry. Generic quota pruning may remove an
+old reservation before its private history. Retirement then records the existing
+private state without refunding anything; a successor may acquire a new
+reservation whose attempt count restarts. Identity includes reservation ID,
+attempt count and token, never the counter alone. Deletion erases private
+jobs/attempts under the observation fence and refunds only still-reserved
+attempts. Already dispatched calls retain their provider charge. Deletion wins
+every late replay.
+
+No provider call, public copy, endpoint or native operation is enabled by this
+lifecycle. The next adapter must provide bounded byte verification, strict
+classifier policy/response validation and provider-usage handling. Public-copy
+reservations/cleanup and final admission still need fresh authority, policy and
+source checks over the complete approved ordered cohort.

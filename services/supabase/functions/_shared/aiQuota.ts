@@ -38,6 +38,7 @@ export type AIQuotaOperation =
   | "scan_lookalike_enrichment"
   | "scan_group_tag_enrichment"
   | "explore_audio_moderation"
+  | "observation_photo_publication_moderation"
   | "insight_chat_reply"
   | "insight_chat_prompt_suggestions"
   | "insight_chat_summary"

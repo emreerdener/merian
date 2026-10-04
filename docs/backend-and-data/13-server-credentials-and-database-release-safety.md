@@ -367,6 +367,15 @@ Separate content moderation and public-copy cleanup must be implemented before
 exposing the publisher; no rollout flag is enabled. See the
 [intent contract](05-api-contracts.md#prepared-protected-photo-publication-intent).
 
+Private photo-moderation jobs and attempts expose no API grants. Both their new
+gate and all plan policies are disabled. They use independent provider quota
+identities, preserving original-analysis dispatch fences and avoiding any
+complimentary-credit linkage. Terminal decisions retain lease hashes, while
+active tokens are removed. No live classifier or public-copy path is exposed.
+See the
+[attempt contract](05-api-contracts.md#prepared-photo-moderation-attempt-lifecycle)
+for crash recovery, deletion accounting and remaining activation requirements.
+
 ## Migration Execution Contract
 
 CI pins Supabase CLI `2.109.1`, which owns migration transaction and

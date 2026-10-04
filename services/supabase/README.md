@@ -3224,3 +3224,12 @@ defaults false and no API caller is granted. Content approval, public-copy
 cleanup, authenticated publishing and native operation recovery remain required.
 See the
 [intent contract](../../docs/backend-and-data/05-api-contracts.md#prepared-protected-photo-publication-intent).
+
+## Prepared photo moderation lifecycle
+
+Private source-bound photo jobs now own explicit provider attempts, one-time
+dispatch permits, terminal decision receipts and stale-ambiguity recovery. They
+consume provider quota only, never complimentary scan credits. All new gates,
+quota policies and API access remain closed. The classifier adapter, public-copy
+cleanup and publisher integration remain required; see the
+[attempt contract](../../docs/backend-and-data/05-api-contracts.md#prepared-photo-moderation-attempt-lifecycle).

@@ -10425,3 +10425,17 @@ before revalidation, and account deletion in both orders. These run in the
 existing full backend and disposable database gates. They do not validate
 moderation, public copying or native publishing, which remain unimplemented
 boundaries.
+
+## Photo moderation lifecycle verification
+
+`tests/observation_photo_moderation.sql` covers closed gates/policies, provider
+quota without scan credits, source-bound decisions, one-time dispatch, lost
+responses, immutable terminal outcomes, explicit retries, stale ambiguity,
+generic quota expiry, and deletion with reserved/dispatched attempts.
+`_tests/observationPhotoModerationConcurrencyDb.test.ts` exercises duplicate
+admission/dispatch, review before dispatch, account deletion, and cancellation
+versus dispatch in both orders with separate sessions. Synthetic SQL decisions
+validate persistence and accounting, not a live classifier: provider byte and
+response validation, public-copy cleanup and native publishing need their own
+checks before activation. The shared quota operation changes runtime bundle
+digests; regenerate and review both Identify and Field Chat identity files.

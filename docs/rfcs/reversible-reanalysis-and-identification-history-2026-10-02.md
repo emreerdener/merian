@@ -2364,3 +2364,14 @@ moderation attestations and deletion-safe public-copy ownership remain required.
 The
 [current intent contract](../backend-and-data/05-api-contracts.md#prepared-protected-photo-publication-intent)
 owns the implemented boundary and activation limits.
+
+### October 4, 2026: private photo moderation attempts
+
+The prepared lifecycle now gives each exact V2 photo an immutable policy-bound
+job and separate provider attempts. It records one-time dispatch permits,
+explicit retry predecessors and terminal decisions while preserving uncertain
+provider charges. No complimentary scan credit is consumed. Both the gate and
+new quota policies are disabled; no classifier, public-copy owner or endpoint is
+activated. The
+[current attempt contract](../backend-and-data/05-api-contracts.md#prepared-photo-moderation-attempt-lifecycle)
+defines the remaining byte/policy validation and publication boundaries.
