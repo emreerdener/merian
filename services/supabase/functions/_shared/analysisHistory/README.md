@@ -453,3 +453,16 @@ the
 cleanup owner, including targeted claims for future failed-copy recovery. It
 uses no private account context and does not enable copying or publication. See
 its [README](../../erase-publication-photos/README.md).
+
+## Prepared copy execution owner
+
+`photoCopyExecution.ts` freezes scope and exact source, validates the durable
+reservation, verifies private bytes, conditionally copies and retries only the
+identical completion. Failure attempts abandonment and targeted cleanup through
+`photoErasure.ts`, the shared owner also used by the erasure endpoint. Registry
+claims protect concurrent bound publications even after private deletion.
+`photoCopyExecution_test.ts` covers these interruption and mutation boundaries.
+No live copy repository or authenticated publisher is connected; `reconcile`
+requires durable operation-state recovery, never automatic successor allocation.
+See the
+[copy execution contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-public-photo-copy-execution).

@@ -2439,3 +2439,13 @@ cleanup gate defaults false, with no cron schedule. Main-branch deployment
 planning still includes the configured route and requires separate
 authorization; cache-bypass qualification remains open. See the
 [worker contract](../backend-and-data/05-api-contracts.md#prepared-public-photo-erasure-worker).
+
+### October 4, 2026: scoped public-photo copy execution
+
+The prepared one-source executor now validates durable reservation identity,
+verifies exact private bytes, writes conditionally and retries only the
+identical completion. Failure uses the shared targeted erasure owner even if
+deletion removed private receipts; SQL claims prevent erasing another worker's
+valid publication. Operation admission, live repository integration, cohort-wide
+failure recovery and native delivery remain held. See the
+[copy execution contract](../backend-and-data/05-api-contracts.md#prepared-public-photo-copy-execution).

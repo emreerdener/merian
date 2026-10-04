@@ -48,11 +48,13 @@ export class PrivateHistoryEvidenceStorage implements EvidenceStorage {
     method: string,
     headers: HeadersInit = {},
     body?: Uint8Array,
+    signal?: AbortSignal,
   ): Promise<Response> {
     const url = `${config.endpoint}/${config.bucketName}/${
       evidenceObjectKey(objectId)
     }`;
-    const init: RequestInit = { method, headers, body: body?.slice() };
+    signal?.throwIfAborted();
+    const init: RequestInit = { method, headers, body: body?.slice(), signal };
     if (this.transport) {
       return await this.transport(r2RequestWithDeadline(url, init), config);
     }
@@ -98,11 +100,15 @@ export class PrivateHistoryEvidenceStorage implements EvidenceStorage {
       EvidenceReceipt,
       "object_id" | "content_type" | "byte_count" | "sha256"
     >,
+    signal?: AbortSignal,
   ): Promise<Uint8Array> {
     const response = await this.request(
       this.readConfig(),
       receipt.object_id,
       "GET",
+      {},
+      undefined,
+      signal,
     );
     if (
       !response.ok ||
@@ -123,12 +129,14 @@ export class PrivateHistoryEvidenceStorage implements EvidenceStorage {
       throw new Error("history_evidence_verification_failed");
     }
     const bytes = new Uint8Array(read.buffer);
+    signal?.throwIfAborted();
     if (
       bytes.byteLength !== receipt.byte_count ||
       await evidenceDigest(bytes) !== receipt.sha256
     ) {
       throw new Error("history_evidence_verification_failed");
     }
+    signal?.throwIfAborted();
     return bytes;
   }
   async signedRead(receipt: EvidenceReceipt): Promise<string> {

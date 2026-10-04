@@ -20,6 +20,31 @@ const config = {
   bucketName: "synthetic-public",
   s3Client: {} as R2Config["s3Client"],
 };
+Deno.test("public photo copy shares lease abort with PUT and never starts HEAD after expiry", async () => {
+  const bytes = safePng(),
+    receipt = await target(bytes),
+    controller = new AbortController();
+  const calls: string[] = [];
+  const storage = new PublicHistoryPhotoStorage(
+    () => config,
+    () => config,
+    (request) => {
+      calls.push(request.method);
+      assertEquals(request.signal.aborted, false);
+      controller.abort();
+      assertEquals(request.signal.aborted, true);
+      return Promise.resolve(new Response(null, { status: 200 }));
+    },
+  );
+  await assertRejects(() =>
+    storage.writeOnce(receipt, bytes, controller.signal)
+  );
+  assertEquals(calls, ["PUT"]);
+  await assertRejects(() =>
+    storage.writeOnce(receipt, bytes, controller.signal)
+  );
+  assertEquals(calls, ["PUT"]);
+});
 async function target(
   bytes: Uint8Array,
   content_type = "image/png",

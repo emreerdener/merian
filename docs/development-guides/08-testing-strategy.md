@@ -10513,3 +10513,15 @@ repository tests cover one-item bounds, frozen identities, malformed/misdirected
 claims, failed markers and lost acknowledgements. Service-auth coverage includes
 the new route, and candidate CI explicitly runs both worker test files. These
 checks use synthetic storage and do not validate hosted cache policy.
+
+### Prepared public-photo copy execution checks
+
+`photoCopyExecution_test.ts` exercises durable reservation before I/O, ready
+replay, lost reservation/completion replies, exact source/lease/scope
+validation, account and receipt mutation across suspension, metadata/digest
+rejection, fixed-deadline expiry before/during I/O and completion, deletion
+before cleanup, concurrent valid publication protection and failed cleanup
+recovery. The erasure endpoint tests continue to exercise the extracted shared
+claim/marker owner. These injected tests do not prove a live repository,
+authenticated publisher, hosted storage or CDN policy; those remain separate
+activation gates.

@@ -47,8 +47,8 @@ export interface PublicationPhotoCopyTarget {
   source: PublicationPhotoSource;
 }
 type Transport = (request: Request, config: R2Config) => Promise<Response>;
-/** Prepared storage only. SQL reservation/approval/deletion ownership is required
- * before use. No route, worker or generic scan-media helper calls this class. */
+/** SQL reservation/approval/deletion ownership is required before copying.
+ * The prepared copy executor and gated erasure worker own its separate uses. */
 export class PublicHistoryPhotoStorage {
   constructor(
     private readonly writeConfig: () => R2Config = () =>
@@ -63,11 +63,13 @@ export class PublicHistoryPhotoStorage {
     method: string,
     headers: HeadersInit = {},
     body?: Uint8Array,
+    signal?: AbortSignal,
   ) {
     const url = `${config.endpoint}/${config.bucketName}/${
       publicationPhotoObjectKey(id)
     }`;
-    const init: RequestInit = { method, headers, body: body?.slice() };
+    signal?.throwIfAborted();
+    const init: RequestInit = { method, headers, body: body?.slice(), signal };
     try {
       return await (this.transport
         ? this.transport(r2RequestWithDeadline(url, init), config)
@@ -88,7 +90,9 @@ export class PublicHistoryPhotoStorage {
   async writeOnce(
     target: PublicationPhotoCopyTarget,
     input: Uint8Array,
+    signal?: AbortSignal,
   ): Promise<void> {
+    signal?.throwIfAborted();
     const objectId = historyUUID(target.object_id);
     const source = { ...target.source };
     historyUUID(source.media_id);
@@ -108,20 +112,36 @@ export class PublicHistoryPhotoStorage {
     if (await evidenceDigest(bytes) !== source.sha256) {
       throw new Error("invalid_publication_photo_copy");
     }
+    signal?.throwIfAborted();
     const { write, read } = this.configs();
-    const response = await this.request(write, objectId, "PUT", {
-      "If-None-Match": "*",
-      "Content-Type": source.content_type,
-      "Content-Length": String(source.byte_count),
-      "Cache-Control": CACHE_CONTROL,
-      "x-amz-meta-sha256": source.sha256,
-    }, bytes);
+    const response = await this.request(
+      write,
+      objectId,
+      "PUT",
+      {
+        "If-None-Match": "*",
+        "Content-Type": source.content_type,
+        "Content-Length": String(source.byte_count),
+        "Cache-Control": CACHE_CONTROL,
+        "x-amz-meta-sha256": source.sha256,
+      },
+      bytes,
+      signal,
+    );
     await response.body?.cancel();
     if (!response.ok && response.status !== 412) {
       throw new Error("publication_photo_storage_unavailable");
     }
-    const head = await this.request(read, objectId, "HEAD");
+    const head = await this.request(
+      read,
+      objectId,
+      "HEAD",
+      {},
+      undefined,
+      signal,
+    );
     await head.body?.cancel();
+    signal?.throwIfAborted();
     if (
       !head.ok || head.headers.get("Content-Type") !== source.content_type ||
       head.headers.get("Content-Length") !== String(source.byte_count) ||

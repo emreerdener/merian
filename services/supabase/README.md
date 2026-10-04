@@ -3259,9 +3259,10 @@ see the
 
 The dedicated history-photo transport prepares conditional exact-byte writes and
 permanent erasure markers in a new public namespace. A bounded JPEG/PNG filter
-rejects known out-of-band metadata. It has no production caller, SQL copy
-ledger, cleanup scheduler or publication transaction. Cache-bypass evidence and
-durable ownership remain activation requirements. See the
+rejects known out-of-band metadata. The transport itself supplies no SQL copy
+ledger, cleanup scheduler or publication transaction; the prepared owners below
+supply separate lifecycle boundaries. Cache-bypass evidence and durable
+ownership remain activation requirements. See the
 [storage contract](../../docs/backend-and-data/05-api-contracts.md#prepared-public-photo-storage-boundary).
 
 ## Prepared public-photo staging ledger
@@ -3290,3 +3291,11 @@ and runtime-off is not a deployment hold. The
 [worker README](functions/erase-publication-photos/README.md) and
 [canonical contract](../../docs/backend-and-data/05-api-contracts.md#prepared-public-photo-erasure-worker)
 define retry counts, credentials and cache-bypass prerequisites.
+
+The prepared `photoCopyExecution.ts` owner now connects reservation, verified
+private bytes, conditional writes and bounded completion recovery through
+explicitly scoped repository callbacks. Failed writes/completions attempt
+targeted registry cleanup even after deletion, without erasing a valid bound
+publication. Live repository and authenticated operation admission remain
+unconnected. See the
+[copy execution contract](../../docs/backend-and-data/05-api-contracts.md#prepared-public-photo-copy-execution).

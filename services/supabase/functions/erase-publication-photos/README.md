@@ -7,7 +7,9 @@ in the normal deployment workflow, so this runtime gate is not a deployment
 exclusion. POST accepts no operation parameters. The registry chooses at most
 one due unbound or revoked public-photo object. User JWTs and caller-nominated
 object keys cannot authorize this endpoint. Internal copy recovery can use the
-same handler with a targeted service-only claim after failed completion.
+same shared `analysisHistory/photoErasure.ts` owner with a targeted service-only
+claim after failed completion. `handler.ts` preserves the endpoint export; the
+prepared copy executor imports the shared owner directly.
 
 The worker writes a permanent empty marker and verifies its HEAD through
 `PublicHistoryPhotoStorage.erase`, then acknowledges the exact claim token. It

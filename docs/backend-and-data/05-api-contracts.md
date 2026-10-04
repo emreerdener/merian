@@ -13178,14 +13178,15 @@ quota pruning. Neither result nor historical receipt authorizes public copying.
 
 `analysisHistory/publicPhotoStorage.ts` supplies bounded transport, not
 publication authority. The prepared erasure worker uses its permanent-marker
-operation; the public-copy execution owner remains unconnected. Private SQL now
-reserves a never-reused opaque object UUID and durable cleanup obligation before
-I/O and revalidates current source, moderation policy, authority and the
-complete ordered cohort before atomic publication binding. Historical approval
-alone is insufficient. Bound ownership coordinates unshare, moderation and
-deletion revocation independently of private selection; reversible health
-quarantine does not erase the cohort. The contracts below define the staged,
-bound and revoked lifetimes.
+operation; the prepared copy execution owner below is not yet connected to an
+authenticated publisher or live copy repository. Private SQL now reserves a
+never-reused opaque object UUID and durable cleanup obligation before I/O and
+revalidates current source, moderation policy, authority and the complete
+ordered cohort before atomic publication binding. Historical approval alone is
+insufficient. Bound ownership coordinates unshare, moderation and deletion
+revocation independently of private selection; reversible health quarantine does
+not erase the cohort. The contracts below define the staged, bound and revoked
+lifetimes.
 
 The writer uses `publication_media/v1/<object UUID>` in the public bucket,
 separate from legacy scan upload ownership. It requires exact private bytes,
@@ -13196,7 +13197,7 @@ successful write or duplicate conflict requires matching HEAD facts, including
 metadata contains only the content digest, never private source identities.
 Erasure overwrites the same key with a permanent empty marker; it never deletes
 the key. This defeats both orderings of a delayed conditional upload racing
-origin erasure. The future durable owner must queue cleanup and attempt
+origin erasure. The durable operation owner must queue cleanup and attempt
 immediate erasure after uncertain writes or final admission denial, while
 fencing against another worker's valid committed publication. This helper
 supplies no such ledger, claim, cleanup scheduling or publication transaction.
@@ -13249,13 +13250,13 @@ rollout gates are closed. Copy routines remain private; the prepared erasure
 worker below has narrowly scoped service-only claim/acknowledgement wrappers. No
 authenticated publisher or public-copy writer calls the copy routines.
 
-The private atomic binder below supplies bound-publication state. The future
-writer must still durably abandon and synchronously attempt marker erasure after
-post-write verification or authority failure, without erasing another worker's
-valid publication. Abandonment rejects already-bound objects. Do not wire the
-storage helper until that owner is complete. No original-analysis safety result
-or historical approval can replace these checks. No provider or
-complimentary-credit charge occurs in this copy lifecycle.
+The private atomic binder below supplies bound-publication state. The prepared
+copy executor now abandons and attempts targeted erasure after failed writes or
+completion; operation-wide final binding failure must apply the same cleanup to
+every staged copy. Abandonment rejects already-bound objects. The authenticated
+operation owner and live repository remain required before activation. No
+original-analysis safety result or historical approval can replace these checks.
+No provider or complimentary-credit charge occurs in this copy lifecycle.
 
 ## Prepared atomic public-photo binding
 
@@ -13339,3 +13340,41 @@ not proof of CDN erasure. Adding the route to `config.toml` participates in the
 normal main-branch deployment plan (a config change selects the function fleet);
 the default-off runtime gate is not a deployment hold. Merge/deployment still
 require explicit release authorization.
+
+## Prepared public-photo copy execution
+
+`analysisHistory/photoCopyExecution.ts` executes one already-approved source. It
+freezes the verified owner, observation, attempt and exact five-field source
+before suspension. Reservation must freshly authorize that source in SQL and
+commit the permanent cleanup registry before any storage I/O. A strict returned
+receipt must match the full scope and source; malformed or lost reservation
+replies cause no write or cleanup using untrusted object identities.
+
+A ready staging receipt replays without another write. Otherwise the executor
+reads verified private bytes, checks digest/size and the JPEG/PNG metadata
+allowlist, then calls the conditional writer and requires its HEAD verification.
+A single abort deadline, capped at sixty seconds and the remaining fixed
+reservation lifetime, covers the source read, destination PUT/HEAD and both
+completion calls. Per-request storage and RPC limits remain shorter bounds.
+Expired work starts no new I/O; cleanup uses its own independent budget because
+abort cannot prove that a remote PUT was not already accepted. It retries only
+the identical completion at most once, preserving object, lease and fixed
+expiry. It does not publish a post, renew a reservation, admit another
+moderation attempt or spend provider/complimentary quota. Admission must still
+preflight all approved sources before reserving moderation quota.
+
+After a failed source read, write, verification or completion, it attempts
+abandonment and then a targeted registry-only cleanup claim even when
+abandonment fails because deletion already removed the private receipt. The
+shared `photoErasure.ts` owner writes a permanent marker only after SQL grants
+that claim. Valid bound publications cannot be claimed; errors alone never
+authorize erasure. Cleanup failure leaves the durable registry obligation.
+
+The internal result is `ready` or `reconcile`, with no private receipt returned.
+`ready` means staging only; final ordered-cohort binding must revalidate current
+authority and deletion. `reconcile` requires the operation owner to read durable
+publication/copy state before choosing a terminal result or explicit new intent:
+a lost completion may already have been bound by another worker. It is not an
+automatic retry or successor permit. Expired or abandoned copies never allocate
+another key through the same attempt. The live copy repository, authenticated
+operation admission and recovery owner remain unconnected; all gates stay off.
