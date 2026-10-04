@@ -13727,3 +13727,41 @@ complimentary credits. No Edge repository/worker or live binder is connected by
 this migration. The next execution slice must enforce whole-cohort cleanup after
 final denial and consume historical publication recovery before cleanup. Every
 activation gate stays false.
+
+## Prepared scoped publication copy repository
+
+`publicationCopyRepository.ts` freezes the accepted owner/observation/operation,
+copy-work token and exact ordered approved attempt/source tuples. It accepts one
+to six distinct JPEG/PNG sources, each at most 12 MiB and at most 32 MiB total.
+Recovery strictly decodes the entire reservation and historical publication;
+copy receipts must match the frozen order, source facts, identities and common
+expiry. Duplicate or private-source destination keys are rejected.
+
+`forPhoto` supplies frozen scope/source, reserve/complete callbacks and exact
+cleanup targets. `executePublicationCopyMember` in `publicationCopyExecution.ts`
+adapts these to the existing single-photo executor. Reserve refreshes current
+authorization for the whole cohort before each member's I/O; completion requires
+the exact lease obtained through reserve. Historical read alone cannot authorize
+completion. Completion checks the same object, lease and expiry in the response
+and requires readiness. The existing executor and repository reuse the same
+receipt/source validators.
+
+Every RPC has a 12-second cap combined with the operation deadline, and
+completion also honors the executor's shared signal. Abort regains control even
+if transport cancellation stalls. There is no automatic transport retry,
+successor allocation, provider call or billing action. Errors expose only fixed
+contract codes.
+
+Abandonment first recovers historical publication; an admitted operation skips
+cleanup. SQL repeats that check atomically. A cleanup response must identify all
+and only the recovered cohort's object IDs. The dedicated coordinator requests a
+targeted registry claim for each validated sibling; the generic single-photo
+executor can target only its own reserved object. If private deletion or a lost
+response prevents recovery, the adapter returns only its previously pinned
+original IDs as cleanup hints; it never uses an unvalidated response. A
+committed publication returns an empty target set. No object may be erased
+without its registry claim. The future worker must bound all cleanup
+dependencies with its overall deadline. This adapter does not approve bytes,
+read storage, write public objects or bind a post. Whole-cohort container
+preflight, bounded transport execution, final binding and durable phase outcomes
+remain unconnected; all activation gates stay false.

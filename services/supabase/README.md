@@ -3375,3 +3375,13 @@ and abandonment queues all unbound siblings without itself granting erasure.
 Private receipts cascade on deletion while registry cleanup survives. No live
 copy worker or binder is connected. See the
 [canonical reservation contract](../../docs/backend-and-data/05-api-contracts.md#prepared-atomic-publication-copy-reservation).
+
+## Prepared scoped copy repository
+
+`publicationCopyRepository.ts` now binds the SQL reservation, recovery,
+completion and abandonment boundary to the existing copy executor through the
+dedicated `publicationCopyExecution.ts` coordinator. It freezes the exact
+cohort, validates common expiry and private lease identities, propagates shared
+deadlines and checks historical publication before cleanup. No storage worker,
+binder or activation is added. See the
+[repository contract](../../docs/backend-and-data/05-api-contracts.md#prepared-scoped-publication-copy-repository).

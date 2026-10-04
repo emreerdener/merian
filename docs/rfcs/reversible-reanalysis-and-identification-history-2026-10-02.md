@@ -2529,3 +2529,13 @@ Scoped completion repeats current authority; historical publication recovery
 precedes cleanup and abandonment queues every unbound sibling. This path
 explicitly refuses nonnull public notes until separate note moderation exists.
 Storage execution and live binding remain unconnected; rollout stays disabled.
+
+## October 4, 2026: scoped copy repository
+
+The prepared TypeScript repository now supplies exact-operation reservation,
+completion and cohort cleanup targets to a dedicated copy coordinator, with
+frozen sources, strict receipts, shared deadlines and publication recovery
+before cleanup. The generic single-photo executor can target only its own
+object; the coordinator claims validated sibling targets. Recovery alone grants
+no execution authority. No storage worker or live binder is connected; rollout
+stays disabled.

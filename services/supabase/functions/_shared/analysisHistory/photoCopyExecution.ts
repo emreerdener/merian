@@ -34,7 +34,9 @@ export interface PhotoCopyDependencies {
   deadlineSignal?: (timeoutMs: number) => AbortSignal;
 }
 
-function sourceFacts(value: unknown): Readonly<PublicationPhotoSource> {
+export function validatePublicationCopySource(
+  value: unknown,
+): Readonly<PublicationPhotoSource> {
   const row = exactObject(value, [
     "media_id",
     "object_id",
@@ -60,7 +62,7 @@ function sourceFacts(value: unknown): Readonly<PublicationPhotoSource> {
   });
 }
 
-function copyReceipt(
+export function validatePublicationCopyReceipt(
   value: unknown,
   scope: PhotoCopyScope,
   source: Readonly<PublicationPhotoSource>,
@@ -75,7 +77,7 @@ function copyReceipt(
     "expires_at",
     "ready_at",
   ]);
-  const saved = sourceFacts(row.source);
+  const saved = validatePublicationCopySource(row.source);
   if (
     row.owner_id !== scope.owner_id ||
     row.observation_id !== scope.observation_id ||
@@ -124,11 +126,15 @@ export async function executePublicationPhotoCopy(
     observation_id: historyUUID(identity.observation_id),
     attempt_id: historyUUID(identity.attempt_id),
   });
-  const source = sourceFacts(approvedSource);
-  let receipt: ReturnType<typeof copyReceipt>;
+  const source = validatePublicationCopySource(approvedSource);
+  let receipt: ReturnType<typeof validatePublicationCopyReceipt>;
   try {
     // Durable cleanup obligation must exist before source or destination I/O.
-    receipt = copyReceipt(await deps.reserve(scope), scope, source);
+    receipt = validatePublicationCopyReceipt(
+      await deps.reserve(scope),
+      scope,
+      source,
+    );
   } catch {
     // A lost reservation response is recovered by the same attempt later. No
     // object from an unvalidated response may be written, abandoned or erased.
@@ -173,7 +179,7 @@ export async function executePublicationPhotoCopy(
     for (let n = 0; n < 2; n++) {
       try {
         checkDeadline();
-        const completed = copyReceipt(
+        const completed = validatePublicationCopyReceipt(
           await deps.complete(receipt.lease, signal),
           scope,
           source,

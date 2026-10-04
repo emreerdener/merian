@@ -10612,3 +10612,17 @@ those synthetic registry rows survive account cleanup and invalidate catalog
 fixtures that assert whole-table counts. Reset the disposable database before
 rerunning catalogs after concurrency tests; do not delete or weaken the durable
 registry to make those counts pass.
+
+## Scoped publication copy adapter checks
+
+`publicationCopyRepository_test.ts` tests scope/source freezing, bounds and
+ordered receipt validation, recovery versus execution authority, mismatched
+leases/expiry, historical publication before cleanup, exact cohort erasure IDs,
+noncooperative transport abort and caller completion deadlines. Integration
+coverage proves that one failed member targets every original sibling, including
+private deletion, and rejects foreign cleanup hints or a committed publication.
+A direct generic-executor regression verifies that an invalid adapter cannot
+expand its single-object cleanup by returning a foreign UUID. Both explicit
+candidate CI test lists include it. Existing `photoCopyExecution_test.ts`
+remains the transport/deletion/conditional-write regression suite; no live
+storage or provider calls are needed for these tests.

@@ -374,3 +374,23 @@ Deno.test("photo copy leaves durable cleanup recovery when target claim or marke
     });
   }
 });
+
+Deno.test("generic single photo cleanup ignores foreign IDs returned by an invalid adapter", async () => {
+  const f = await fixture();
+  const targets: (string | null)[] = [];
+  f.deps.readSource = () => Promise.reject(new Error("synthetic failure"));
+  f.deps.abandon = (() =>
+    Promise.resolve([
+      f.receipt.object_id,
+      id(99),
+    ])) as unknown as PhotoCopyDependencies["abandon"];
+  f.deps.erasure.claim = (target) => {
+    targets.push(target);
+    return Promise.resolve(null);
+  };
+  assertEquals(
+    await executePublicationPhotoCopy(f.scope, f.source, f.deps),
+    "reconcile",
+  );
+  assertEquals(targets, [f.receipt.object_id]);
+});
