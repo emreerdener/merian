@@ -2632,3 +2632,18 @@ This slice does not connect a network drain or UI. Exact account leases around
 awaits, status-first lost-response recovery, durable retry/permanent-failure
 classification and bounded polling remain the next execution slice. Activation
 and production scheduling remain disabled.
+
+### Native delivery checkpoint — October 4, 2026
+
+The prepared native publication outbox now has an account-bound delivery owner
+and scheduler integration. It durably claims the existing immutable operation,
+recovers status first, and only replays original consent on the precise
+owner-visible not-found response. Acknowledged operations cannot re-admit.
+Monotonic attempt identity fences late acknowledgements and retries even when
+the saved consent is unchanged. Interrupted work retains a fixed recovery
+deadline; failed saves also request a bounded process wake. Terminal receipts
+remain complete, while proven local delivery conflicts require attention without
+inventing a server terminal result. Connectivity cancellation and awaited Auth
+quiescence retain task/lease ownership. Ordinary UI enqueue and every activation
+gate remain disabled. Validation evidence belongs to the candidate checkpoint;
+this implementation note does not assert production qualification or deployment.

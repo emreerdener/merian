@@ -313,7 +313,13 @@ struct OfflineSyncFoundationArchitectureTests {
         "struct IdentificationReviewSyncService":
             "Services/IdentificationReviewSyncService.swift",
         "func syncPendingIdentificationReviews":
-            "Services/OfflineQueueManager+IdentificationReview.swift"
+            "Services/OfflineQueueManager+IdentificationReview.swift",
+        "struct ObservationPublicationDeliveryService":
+            "Services/ObservationPublicationDeliveryService.swift",
+        "final class ObservationPublicationDeliveryOwner":
+            "Services/ObservationPublicationDeliveryOwner.swift",
+        "func syncObservationPublications":
+            "Services/OfflineQueueManager+ObservationPublication.swift"
     ]
 
     private static let focusedOwnerDirectories: Set<String> = [
@@ -350,7 +356,10 @@ struct OfflineSyncFoundationArchitectureTests {
         "Policies/ScanConnectivityFailurePolicy.swift",
         "Services/OfflineQueueManager+Diagnostics.swift",
         "Services/IdentificationReviewSyncService.swift",
-        "Services/OfflineQueueManager+IdentificationReview.swift"
+        "Services/OfflineQueueManager+IdentificationReview.swift",
+        "Services/ObservationPublicationDeliveryService.swift",
+        "Services/ObservationPublicationDeliveryOwner.swift",
+        "Services/OfflineQueueManager+ObservationPublication.swift"
     ]
 
     private static let modelAndPolicyPaths: Set<String> = [
@@ -376,6 +385,9 @@ struct OfflineSyncFoundationArchitectureTests {
         "Services/LibraryDetailsSyncService.swift": ["import Foundation", "import SwiftData"],
         "Services/IdentificationReviewSyncService.swift": ["import Foundation", "import Supabase", "import SwiftData"],
         "Services/OfflineQueueManager+IdentificationReview.swift": ["import Foundation", "import SwiftData"],
+        "Services/ObservationPublicationDeliveryService.swift": ["import Foundation", "import SwiftData"],
+        "Services/ObservationPublicationDeliveryOwner.swift": ["import Foundation"],
+        "Services/OfflineQueueManager+ObservationPublication.swift": ["import Foundation", "import SwiftData"],
         "Coordinators/GenerationTaskRegistry.swift": ["import Foundation"],
         "Models/CollectionSyncSnapshot.swift": ["import Foundation"],
         "Models/ExtractedScanData.swift": [

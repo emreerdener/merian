@@ -5971,7 +5971,13 @@ admission is proven, then only owner/identities, a local canonical-consent
 SHA-256, bounded status and observation time. Both terminal receipts use
 complete jobs and persist until scan or account deletion and cannot be revived
 by same-ID staging. This raw kind changes no stored schema shape or frozen
-snapshot. Network execution and wake admission remain disconnected. See
+snapshot. Native delivery uses the existing monotonic `attemptCount`,
+`lastAttemptAt` and a 180-second `nextRunAt` claim deadline to reject stale
+completion/retry writes, including identical-consent successors. Local permanent
+delivery failures use `needsAttention`, preserving consent or polling metadata
+without fabricating a server outcome. The scheduler admits only valid envelopes
+owned by the current account. Ordinary UI enqueue and rollout remain disabled.
+See
 [publication persistence](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#prepared-publication-persistence).
 
 - `id`: String (unique stable job id such as `scan-ingestion:{scanId}`,

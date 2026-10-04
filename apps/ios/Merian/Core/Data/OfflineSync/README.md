@@ -674,8 +674,20 @@ remove their scan-qualified namespace atomically with erasure state. The
 account-transition inventory counts unfinished work, with the existing settings
 summary labeling it Identification sharing.
 
-Publication jobs remain excluded from wake discovery until a durable execution
-owner is connected. Unknown raw kinds and unrecognized `future` namespaces are
-also excluded without deleting them. Known `library-details:` retries retain
-their deadlines. This is a client capability boundary, not rollout activation;
-older binaries must remain excluded before admission becomes available.
+`ObservationPublicationDeliveryService` recovers status before exact admission
+replay under an expected-owner account lease, rechecking after every await.
+`ObservationPublicationDeliveryOwner` coalesces callers, retains cancellation
+ownership and is awaited at entry to the queue's Auth-quiescence method, before
+background transport retirement or any early failure. Connectivity loss cancels
+it. `OfflineQueueManager+ObservationPublication` connects the owner to the
+scheduler; there is no ordinary UI enqueue caller yet. Discovery validates
+owner-bound envelopes and suppresses wakes while that owner is running.
+Persisted claim deadlines recover interrupted work; save failures also request a
+bounded process-local wake. A fresh claim clears that fallback only after
+acquiring the account lease. Account changes suppress another owner's work and
+fallback wakes.
+
+Unknown raw kinds and unrecognized `future` namespaces are excluded without
+deleting them. Known `library-details:` retries retain their deadlines. This is
+a client capability boundary, not rollout activation; older binaries must remain
+excluded before admission becomes available.

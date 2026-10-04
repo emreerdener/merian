@@ -113,6 +113,7 @@ import SwiftData
     @ObservationIgnored var syncGeneration: UUID?
     var identificationReviewSyncGeneration: UUID?
     var identificationReviewSyncTask: Task<Void, Never>?
+    @ObservationIgnored let publicationDeliveryOwner = ObservationPublicationDeliveryOwner()
 
     /// Active collection sync task. Cancelled immediately on connectivity loss.
     /// Returns `true` when the attempt succeeded and `false` when the pending bit
@@ -520,6 +521,7 @@ import SwiftData
                     self.syncGeneration = nil
                     self.identificationReviewSyncGeneration = nil
                     self.identificationReviewSyncTask?.cancel()
+                    self.publicationDeliveryOwner.cancel()
                     self.collectionSyncTask?.cancel()
                     // Cancel any pending backoff retry — it must not fire while offline.
                     self.retryBackoffTask?.cancel()

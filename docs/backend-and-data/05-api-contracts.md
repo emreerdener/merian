@@ -14016,19 +14016,20 @@ caller input returns 400; known operation/revision conflicts return 409; other
 failures are sanitized 503. Every route response, including auth, preflight,
 method and body failures, uses `Cache-Control: private, no-store`. The RPC is
 bounded to twelve seconds, with no automatic retry and no mutation. Native
-durable delivery is a separate slice. The route is prepared but not released;
-all publication activation gates remain false.
+durable delivery now uses this reader for status-first recovery; ordinary UI
+admission remains separate. The route is prepared but not activated; all
+publication activation gates remain false.
 
 ## Native publication wire boundary
 
 Prepared native admission and status calls now use the existing pinned raw-JSON
 transport with a required expected account at dispatch. Classified-401 recovery
-is deferred to the future durable owner, preventing recursive Auth-drain waits.
-No new retry policy, legacy sharing fallback or operation-ID generator is added.
-The immutable native request validates the same revisions, lowercase UUIDs,
-explicit nulls, ordered 1–6 unique media IDs, 1,000-code-point note bound and
-3,800-byte encoded request cap as the HTTP boundary. Its strict restoration path
-rejects missing/extra fields and Boolean revisions before network dispatch.
+is deferred to the durable owner, preventing recursive Auth-drain waits. No new
+retry policy, legacy sharing fallback or operation-ID generator is added. The
+immutable native request validates the same revisions, lowercase UUIDs, explicit
+nulls, ordered 1–6 unique media IDs, 1,000-code-point note bound and 3,800-byte
+encoded request cap as the HTTP boundary. Its strict restoration path rejects
+missing/extra fields and Boolean revisions before network dispatch.
 
 Admission responses require exact fields, accepted status, valid timestamp and
 matching operation/observation/analysis IDs. Status responses require only the
@@ -14040,6 +14041,14 @@ missing-account dispatch prevention, and ambiguous admission without automatic
 replay. Prepared local persistence now saves exact consent, then strips raw
 consent after acknowledgement while retaining a versioned local fingerprint and
 minimal terminal status. The fingerprint is not a backend digest or authority.
-Network execution, post-await account/deletion fencing and UI delivery remain
-separate; all activation gates remain false. See
+Native delivery now holds an expected-owner lease, claims durable work before
+I/O and rechecks fresh account/deletion/claim state after suspension. It reads
+status before admission: only HTTP 404 plus `analysis_history_not_found` permits
+the exact original request while that request is retained. Once acknowledged,
+the operation polls status only. Monotonic local claim attempts reject stale
+completion and retry writes; interrupted claims recover after a fixed deadline.
+Permanent local conflicts require attention without synthesizing a server
+receipt. Network uncertainty retains the same operation under bounded backoff;
+Auth cancellation is awaited before replacing the session. Ordinary UI delivery
+remains separate; all activation gates remain false. See
 [the storage contract](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#prepared-publication-persistence).

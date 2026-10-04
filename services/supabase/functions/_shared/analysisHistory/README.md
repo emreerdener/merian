@@ -464,9 +464,10 @@ identical completion. Failure attempts abandonment and targeted cleanup through
 `photoErasure.ts`, the shared owner also used by the erasure endpoint. Registry
 claims protect concurrent bound publications even after private deletion.
 `photoCopyExecution_test.ts` covers these interruption and mutation boundaries.
-No live copy repository or authenticated publisher is connected; `reconcile`
-requires durable operation-state recovery, never automatic successor allocation.
-See the
+The scoped copy repository and service worker now connect this owner beneath
+authenticated durable intake; `reconcile` requires durable operation-state
+recovery, never automatic successor allocation. Activation remains disabled. See
+the
 [copy execution contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-public-photo-copy-execution).
 
 ## Prepared durable publication intake
@@ -475,8 +476,9 @@ See the
 consent before external work, returning an immutable acceptance receipt.
 `publicationOperation.ts` owns strict parsing; the default-off service RPC and
 private records preserve replay, original hash and deletion fences. Acceptance
-never authorizes copying or means publication completed. Live execution/status
-workers and native delivery remain required. See the
+never authorizes copying or means publication completed. Prepared
+moderation/copy workers, owner status and native durable delivery are connected
+behind closed activation gates; ordinary UI admission remains separate. See the
 [intake contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-authenticated-publication-operation-intake).
 
 ## Prepared publication worker ownership
@@ -485,9 +487,9 @@ Separate private work records now provide bounded discovery, scoped expiring
 claims and gate-independent release/status beneath immutable intake. Only a
 durable cohort receipt establishes historical admission; orchestration leases
 confer no provider or public-copy authority. The execution gate remains false,
-and the prepared moderation worker is connected; owner status and native
-delivery remain unconnected. Optional public notes still require their own
-moderation boundary. See the
+and prepared moderation/copy workers, owner status and native durable delivery
+are connected; ordinary UI admission remains separate. Optional public notes
+still require their own moderation boundary. See the
 [worker contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-publication-operation-worker-ownership).
 
 ## Scoped moderation recovery and preflight
@@ -623,5 +625,7 @@ retry failed cleanup itself.
 owner status for an exact saved operation. Auth-derived ownership, deletion
 fences, strict decoding, bounded reads and private no-store apply. Historical
 admission is not current visibility. No private reason, media or post ID is
-returned. Native delivery and activation remain separate. See the
+returned. Native durable delivery recovers this status before exact admission
+and remains status-only after acknowledgement. Ordinary UI admission and
+activation remain separate. See the
 [status contract](../../../../../docs/backend-and-data/05-api-contracts.md#owner-publication-operation-status).

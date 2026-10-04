@@ -10,6 +10,7 @@ final class OfflineJobScheduler {
     /// tests can exercise their ordering without starting live queue work.
     struct DrainOperations {
         var syncLibraryDetails: @MainActor (OfflineQueueManager) async -> Void = { _ in }
+        var syncPublications: @MainActor (OfflineQueueManager) async -> Void = { _ in }
         var syncIdentificationReviews: @MainActor (OfflineQueueManager) async -> Void = { _ in }
         let reconcileFunding: @MainActor (OfflineQueueManager) async -> Void
         let syncPendingScans: @MainActor (OfflineQueueManager) -> Void
@@ -24,6 +25,7 @@ final class OfflineJobScheduler {
                     await LibraryDetailsSyncService.drain(context: context, manager: .shared)
                 }
             },
+            syncPublications: { await $0.syncObservationPublications() },
             syncIdentificationReviews: { await $0.syncPendingIdentificationReviews() },
             reconcileFunding: { await $0.reconcileDeferredFundingReservations() },
             syncPendingScans: { $0.syncPendingScans() },
@@ -45,6 +47,9 @@ final class OfflineJobScheduler {
     private var scheduledWakeTask: Task<Void, Never>?
     private weak var libraryRetryManager: OfflineQueueManager?
     private var libraryRetryDate: Date?
+    private weak var publicationRetryManager: OfflineQueueManager?
+    private var publicationRetryDate: Date?
+    private var publicationRetryOwner: UUID?
 
     /// Actual in-process wake time. Kept internal so regression tests can prove
     /// a persisted future retry was restored instead of merely displayed.
@@ -76,6 +81,7 @@ final class OfflineJobScheduler {
         await drainOperations.reconcileFunding(manager)
         drainOperations.syncPendingScans(manager)
         await drainOperations.syncIdentificationReviews(manager)
+        await drainOperations.syncPublications(manager)
         drainOperations.replayInference(manager)
         await drainOperations.replayFieldTripProgress(manager)
         await drainOperations.syncPendingDeletions(manager)
@@ -105,6 +111,19 @@ final class OfflineJobScheduler {
         libraryRetryManager = nil
     }
 
+    func schedulePublicationRetry(using manager: OfflineQueueManager, now: Date = Date()) {
+        publicationRetryManager = manager
+        publicationRetryOwner = deletionAccountID()
+        publicationRetryDate = now.addingTimeInterval(Self.databaseReadRetryDelay)
+        scheduleNextPersistedWake(using: manager, now: now)
+    }
+
+    func publicationDrainDidStart(using manager: OfflineQueueManager) {
+        guard publicationRetryManager === manager, publicationRetryOwner == deletionAccountID() else { return }
+        publicationRetryDate = nil; publicationRetryManager = nil
+        publicationRetryOwner = nil
+    }
+
     /// Recreates the process-local timer from durable SwiftData dates.
     ///
     /// A retry timestamp is an eligibility boundary, not a timer. This bridge
@@ -120,7 +139,10 @@ final class OfflineJobScheduler {
             return
         }
         let libraryDeadline = libraryRetryManager === manager ? libraryRetryDate : nil
-        guard let sourceDate = [nextPersistedWakeDate(using: manager), libraryDeadline].compactMap({ $0 }).min() else {
+        let publicationDeadline = publicationRetryManager === manager && publicationRetryOwner != nil &&
+            publicationRetryOwner == deletionAccountID() &&
+            !manager.publicationDeliveryOwner.isRunning ? publicationRetryDate : nil
+        guard let sourceDate = [nextPersistedWakeDate(using: manager), libraryDeadline, publicationDeadline].compactMap({ $0 }).min() else {
             cancelScheduledWake(using: manager)
             return
         }
@@ -236,9 +258,17 @@ final class OfflineJobScheduler {
             return candidates.min()
         }
         let deletionOwner = deletionAccountID()
+        if let owner = deletionOwner, !manager.publicationDeliveryOwner.isRunning {
+            do {
+                let retryFloor = publicationRetryManager === manager && publicationRetryOwner == owner ? publicationRetryDate : nil
+                candidates.append(contentsOf: try ObservationPublicationPersistence.candidates(container: context.container, ownerID: owner).map { candidate in
+                    retryFloor.map { max($0, candidate.1) } ?? candidate.1
+                })
+            } catch { candidates.append(Date().addingTimeInterval(Self.databaseReadRetryDelay)) }
+        }
         candidates.append(contentsOf: jobs.compactMap { job -> Date? in
-            // Unknown kinds cannot be drained by this binary. Prepared publication
-            // work stays dormant until its account-bound execution owner is connected.
+            // Publication deadlines above require validated owner-bound envelopes.
+            // Unknown kinds cannot be drained by this binary.
             guard let kind = OfflineJobKind(rawValue: job.kindRaw), kind != .observationPublicationSync,
                   kind != .future || job.id.hasPrefix("library-details:") else { return nil }
             // Enrollment recovery is explicit, including damaged/unknown hold metadata.

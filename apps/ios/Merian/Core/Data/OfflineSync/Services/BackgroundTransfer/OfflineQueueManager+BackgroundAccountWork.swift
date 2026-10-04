@@ -102,12 +102,13 @@ extension OfflineQueueManager {
         accountWork.finish(lease)
     }
 
-    /// Closes every URLSession account-work lane before Auth can mutate.
-    /// Durable queue retreat commits before task cancellation; then this waits
-    /// for both transport disappearance and terminal callback lease release.
+    /// Awaits retained publication delivery before closing URLSession account-work lanes.
+    /// For URLSession work, durable retreat commits before transport cancellation;
+    /// then this waits for transport disappearance and terminal callback lease release.
     func quiesceBackgroundAccountWorkForAuthTransition(
         sourceUserID: UUID?
     ) async -> Bool {
+        await publicationDeliveryOwner.cancelAndAwait()
         syncTask?.cancel()
         retryBackoffTask?.cancel()
         let clock = ContinuousClock()

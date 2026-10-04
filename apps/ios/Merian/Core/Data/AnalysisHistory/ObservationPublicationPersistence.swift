@@ -1,7 +1,7 @@
 import Foundation
 import SwiftData
 
-/// Prepared durable admission/acknowledgement only; no scheduling, I/O or live UI caller.
+/// Durable consent and receipts. Network dispatch belongs to the delivery service.
 enum ObservationPublicationPersistence {
     static let prefix = "observation-publication:"
     enum IntegrityError: Error { case conflict, unavailable, accountChanged }
@@ -39,11 +39,13 @@ enum ObservationPublicationPersistence {
     /// Compare-and-save prevents a stale response replacing a newer or deleted job.
     @MainActor
     static func acknowledge(_ receipt: ObservationPublicationReceipt, expected: ObservationPublicationIntent,
-                            at date: Date, container: ModelContainer, isCurrent: () -> Bool) throws -> ObservationPublicationIntent {
-        try transaction(expected, container: container, isCurrent: isCurrent) { context in
+                            at date: Date, container: ModelContainer, isCurrent: () -> Bool,
+                            claim: Claim? = nil, save: (ModelContext) throws -> Void = { try $0.save() }) throws -> ObservationPublicationIntent {
+        try transaction(expected, container: container, isCurrent: isCurrent, save: save) { context in
             guard let job = try context.fetchOfflineJob(id: jobID(expected.identity.operationID, observationID: expected.identity.observationID)) else {
                 throw IntegrityError.unavailable
             }
+            if let claim { try validate(claim, job: job) } else if job.status == .running { throw IntegrityError.conflict }
             let saved = try restore(job)
             guard try saved.storedData() == expected.storedData() else { throw IntegrityError.conflict }
             let next = try saved.accepting(receipt, at: date)
@@ -52,6 +54,7 @@ enum ObservationPublicationPersistence {
             job.metadataJSON = text
             job.status = next.isTerminal ? .complete : .waiting
             job.nextRunAt = next.isTerminal ? nil : date.addingTimeInterval(30)
+            job.lastErrorCode = nil; job.lastErrorMessage = nil; job.lastHTTPStatus = nil
             job.updatedAt = date
             return next
         }
@@ -66,7 +69,7 @@ enum ObservationPublicationPersistence {
         if saved.isTerminal {
             guard job.statusRaw == OfflineJobStatus.complete.rawValue, job.nextRunAt == nil else { throw IntegrityError.conflict }
         } else {
-            guard [OfflineJobStatus.pending.rawValue, OfflineJobStatus.running.rawValue, OfflineJobStatus.waiting.rawValue]
+            guard [OfflineJobStatus.pending.rawValue, OfflineJobStatus.running.rawValue, OfflineJobStatus.waiting.rawValue, OfflineJobStatus.needsAttention.rawValue]
                 .contains(job.statusRaw) else { throw IntegrityError.conflict }
         }
         return saved
@@ -93,8 +96,11 @@ enum ObservationPublicationPersistence {
     }
 
     @MainActor
-    private static func transaction<T>(_ intent: ObservationPublicationIntent, container: ModelContainer,
-                                       isCurrent: () -> Bool, body: (ModelContext) throws -> T) throws -> T {
+    static func transaction<T>(
+        _ intent: ObservationPublicationIntent, container: ModelContainer,
+        isCurrent: () -> Bool, save: (ModelContext) throws -> Void = { try $0.save() },
+        body: (ModelContext) throws -> T
+    ) throws -> T {
         try ConfirmedSpeciesReviewPersistence.transaction {
             guard isCurrent() else { throw IntegrityError.accountChanged }
             let context = ModelContext(container); context.autosaveEnabled = false
@@ -111,7 +117,7 @@ enum ObservationPublicationPersistence {
                 let result = try body(context)
                 try Task.checkCancellation()
                 guard isCurrent() else { throw IntegrityError.accountChanged }
-                if context.hasChanges { try context.save() }
+                if context.hasChanges { try save(context) }
                 return result
             } catch { context.rollback(); throw error }
         }

@@ -357,18 +357,30 @@ ambiguous owner metadata keeps deletion retryable. Whole-account purge already
 erases all offline jobs. Late acknowledgements refetch parent and job and cannot
 recreate either.
 
-The new raw `observationPublicationSync` kind changes no SwiftData stored field
-or schema version. Its jobs are deliberately excluded from scheduler wakes until
-the execution owner is connected. Unknown raw kinds and unknown `future`
-namespaces also cannot create wake-only loops; known `library-details:` work
-keeps its existing deadlines. Older app binaries still require a capability gate
-before enqueue activation. No network drain, ordinary UI caller, provider work
-or rollout activation is added by persistence.
+The raw `observationPublicationSync` kind changes no SwiftData stored field or
+schema version. `ObservationPublicationClaims` increments the existing attempt
+counter without resetting it and saves a 180-second recovery deadline before
+I/O. Dispatch, acknowledgement and retry verify that exact attempt, start time
+and immutable envelope. Only new dispatch requires unexpired work; a late
+completion may settle an unchanged claim. A successor claim defeats old
+responses even when consent is identical. Generic job upsert/reset is forbidden.
+
+The account-bound delivery service checks status first. Only an owner-visible
+404 with `analysis_history_not_found` permits replay of the original saved
+request. Acknowledged receipts can only poll; they never reconstruct consent.
+Proven request/revision conflicts and missing acknowledged operations park local
+work for attention without inventing a server terminal status. Transient errors
+retain the exact operation with bounded backoff. Failed persistence requests a
+process-local recovery wake; the saved claim deadline survives restart.
+
+Unknown raw kinds and unknown `future` namespaces cannot create wake-only loops;
+known `library-details:` work keeps its existing deadlines. Older app binaries
+still require a capability gate before enqueue activation. No ordinary UI caller
+or rollout activation is added by delivery.
 
 `ObservationPublicationPersistenceTests` covers exact consent/fingerprint drift,
 Unicode and null distinctions, strict corruption rejection, stale response and
 account guards, disk reopening, terminal replay, direct/bulk deletion and scoped
-cleanup. Scheduler tests preserve known details work and exclude unsupported or
-prepared work. The next execution slice must acquire/recheck real account work
-leases around every await, recover status before exact lost-response replay,
-classify permanent admission failures, and supply bounded scheduling.
+cleanup. `ObservationPublicationDeliveryTests` covers lost replies, exact 404
+classification, account changes, deletion during status, stale claims, save
+failure, single-flight cancellation and owner-scoped wake recovery.
