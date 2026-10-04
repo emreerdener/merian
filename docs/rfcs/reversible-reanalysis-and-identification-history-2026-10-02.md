@@ -2201,5 +2201,19 @@ Auth store and ownership markers in the app's shared Keychain test shim. Debug
 test SDK clients now use per-client synchronized memory storage, and each UI
 scenario receives its own test-Keychain namespace that survives relaunching the
 same `XCUIApplication`. Normal app and Release Keychain behavior remains
-unchanged. The new storage regression passed; the complete native rerun and
-history UI smoke are pending for this corrected candidate.
+unchanged. The new storage regression passed. The final complete native run
+passed on the corrected candidate: 4,790 passed, zero failed and seven skipped
+out of 4,797 tests. Swift Testing completed 3,355 tests in 503 suites without
+issues. The history UI smoke exercised preview, Restore and Undo; its retained
+screenshot confirms both entries remain and the first is Current again. Evidence
+is retained at `.artifacts/local-ios/81a78db70f904f4bbc939c80bf7a019e.xcresult`.
+
+The accumulated source is pushed in draft PR #115 on
+`codex/accumulated-test-candidate`. At source revision `4a0d43d64`, CI's
+Supabase Candidate Validation, iOS Project Guardrails, Markdown, Agent and Admin
+quality workflows passed; compiled iOS and Startup Safety were still running
+when this local evidence was recorded. The full local iOS tooling gate,
+migration source guardrails, project validation and 26 documentation contracts
+passed again. CI evidence must be checked against the final PR head before
+release. History activation remains closed, and no deployment or TestFlight
+upload was performed.
