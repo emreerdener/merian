@@ -29,6 +29,9 @@ for (
     "duplicate outcome",
     "deletion first",
     "outcome before deletion",
+    "copy duplicate",
+    "copy deletion first",
+    "copy before deletion",
   ]
 ) {
   Deno.test({
@@ -65,6 +68,7 @@ for (
         "publication_operation_enabled",
         "publication_execution_enabled",
         "publication_moderation_enabled",
+        "publication_copy_execution_enabled",
       ];
       let previous: Record<string, boolean> | undefined;
       let funding: {
@@ -195,6 +199,13 @@ for (
         if (!["completion first", "finalization first"].includes(scenario)) {
           await complete(observer);
         }
+        const copy = scenario.startsWith("copy ");
+        const claimCopy = (client: Client) =>
+          client.queryObject<{ receipt: { claimed: boolean } }>(
+            "SELECT public.claim_publication_copy_work($1,$2,$3) AS receipt",
+            [owner, observation, operation],
+          );
+        if (copy) await finalize(observer);
         const firstPid = (await first.queryObject<{ pid: number }>(
           "SELECT pg_backend_pid() AS pid",
         )).rows[0].pid;
@@ -203,14 +214,21 @@ for (
         )).rows[0].pid;
         await first.queryArray("BEGIN");
         await second.queryArray("BEGIN");
-        if (scenario === "completion first") await complete(first);
+        if (scenario === "copy deletion first") await erase(first);
+        else if (copy) {
+          assertEquals((await claimCopy(first)).rows[0].receipt.claimed, true);
+        } else if (scenario === "completion first") await complete(first);
         else if (scenario === "deletion first") await erase(first);
         else {assertEquals(
             (await finalize(first)).rows[0].receipt.finalized,
             scenario !== "finalization first",
           );}
         const pending = settle(
-          scenario === "finalization first"
+          scenario === "copy before deletion"
+            ? erase(second)
+            : copy
+            ? claimCopy(second)
+            : scenario === "finalization first"
             ? complete(second)
             : scenario === "outcome before deletion"
             ? erase(second)
@@ -219,14 +237,23 @@ for (
         await observeBlock(observer, secondPid, firstPid);
         await first.queryArray("COMMIT");
         const outcome = await pending;
-        if (scenario === "deletion first") {
+        if (
+          scenario === "deletion first" || scenario === "copy deletion first"
+        ) {
           assert(!outcome.ok);
           assert(outcome.error.includes("analysis_history_not_found"));
           await second.queryArray("ROLLBACK");
         } else {
           assert(outcome.ok);
           await second.queryArray("COMMIT");
-          if (scenario !== "outcome before deletion") {
+          if (scenario === "copy duplicate") {
+            assertEquals(outcome.value.rows[0].receipt, { claimed: false });
+            assertEquals(
+              (await claimCopy(observer)).rows[0].receipt.claimed,
+              false,
+            );
+          }
+          if (!scenario.includes("deletion")) {
             assertEquals((await finalize(observer)).rows[0].receipt, {
               finalized: true,
               status: "photos_approved",

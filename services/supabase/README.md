@@ -3340,8 +3340,8 @@ now uses this path; gates stay false. See the
 Durable provider outcomes now remove completed or refused operations from
 moderation discovery. `photos_approved` is historical provider state only;
 `needs_action` never schedules a successor or refunds unknown dispatch.
-Copy/note execution, bounded worker integration and native delivery remain
-unconnected. All activation gates remain false.
+Copy/note execution and native delivery remain unconnected. All activation gates
+remain false.
 
 See the
 [outcome contract](../../docs/backend-and-data/05-api-contracts.md#prepared-durable-photo-moderation-outcomes).
@@ -3356,3 +3356,12 @@ exact-note moderation and native operations remain separate. Worker
 handler/repository and classifier deadline tests cover recovery-first ordering,
 preflight before quota, lost dispatch/completion, stalled response cancellation
 and scoped denial.
+
+## Prepared separate copy recovery stage
+
+Approved photo outcomes now seed private copy work with a distinct token and
+exact ordered causal-leaf cohort. The four service-only recovery RPCs add no
+storage, provider or binding authority. Gates remain false. Current-authority
+checks, common fixed staging deadlines, targeted cohort cleanup and note
+approval still belong to the pending execution integration. See the
+[canonical copy recovery contract](../../docs/backend-and-data/05-api-contracts.md#prepared-publication-copy-recovery-ownership).

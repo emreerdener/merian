@@ -10584,3 +10584,13 @@ exact-note moderation and native operations remain separate. Worker
 handler/repository and classifier deadline tests cover recovery-first ordering,
 preflight before quota, lost dispatch/completion, stalled response cancellation
 and scoped denial.
+
+## Publication copy recovery ownership checks
+
+`publication_moderation_outcomes.sql` covers approved-only stage seeding, actual
+service/client grants, ordered cohort recovery, swapped outcome denial,
+moderation/copy token separation, backoff, stale/expired tokens, binding
+retirement and deletion of live copy work. The moderation outcome concurrency
+suite also exercises simultaneous copy claims and account deletion in both
+orders. These checks do not qualify storage writes or note moderation; those
+remain separate activation requirements.

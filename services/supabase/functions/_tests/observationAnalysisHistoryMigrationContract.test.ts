@@ -886,3 +886,22 @@ Deno.test("photo moderation outcomes derive terminal evidence and retire exact w
   assert(!sql.includes("finalize_ai_quota_reservation"));
   assert(!sql.includes("reserve_ai_quota"));
 });
+
+Deno.test("copy recovery has a separate default-off lease and exact settled cohort", async () => {
+  const sql = await migration("20261004145323_prepare_publication_copy_work");
+  assertStringIncludes(
+    sql,
+    "publication_copy_execution_enabled BOOLEAN NOT NULL DEFAULT FALSE",
+  );
+  assertStringIncludes(
+    sql,
+    "REFERENCES internal.observation_publication_moderation_outcomes(operation_id) ON DELETE CASCADE",
+  );
+  assertStringIncludes(sql, "internal.latest_publication_photo_attempt");
+  assertStringIncludes(sql, "outcome.attempt_ids[ordinal]");
+  assertStringIncludes(sql, "work.work_token IS DISTINCT FROM p_work");
+  assertStringIncludes(sql, "internal.privileged_routine_grants");
+  assert(!sql.includes("TO authenticated"));
+  assert(!sql.includes("reserve_ai_quota"));
+  assert(!sql.includes("reserve_publication_photo_copy"));
+});

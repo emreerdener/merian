@@ -7069,3 +7069,14 @@ or copy/publication authority.
 
 See the
 [outcome contract](05-api-contracts.md#prepared-durable-photo-moderation-outcomes).
+
+### Prepared publication copy work
+
+`20261004145323_prepare_publication_copy_work.sql` adds private
+`observation_publication_copy_work`, keyed to immutable moderation outcomes with
+cascading deletion, due-work index and paired token/expiry. Only approved
+unbound outcomes seed/backfill it. Binding retires it. Four service-only RPCs
+enforce separate leases and exact ordered causal-leaf recovery; no direct table
+access or storage mutation is granted. `publication_copy_execution_enabled`
+defaults false. See the
+[copy recovery contract](05-api-contracts.md#prepared-publication-copy-recovery-ownership).

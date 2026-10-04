@@ -13578,16 +13578,16 @@ deletion wins over historical replay.
 
 `photos_approved` means historical provider approval only. It does not attest
 strict container preflight, approve notes, grant public-copy permission, or
-assert current authority/visibility. A future separate copy phase must re-read
-exact immutable bytes and repeat strict metadata/container validation, current
-source/review/consent checks and final ordered binding. The held private copy
-authorizer/binder still select approved attempts directly; the live integration
-must require `photos_approved` plus its exact ordered causal-leaf attempt IDs.
-Test denial for a mismatched leaf or a `needs_action` outcome before activation.
-Unsupported formats, transient storage failures, stale authority, exact-note
-moderation and recovery of expired active attempts remain execution-owner
-responsibilities; this slice does not silently classify them as permanent
-refusals. All gates remain false.
+assert current authority/visibility. Copy recovery ownership is prepared below;
+the future executor must re-read exact immutable bytes and repeat strict
+metadata/container validation, current source/review/consent checks and final
+ordered binding. The held private copy authorizer/binder still select approved
+attempts directly; the live integration must require `photos_approved` plus its
+exact ordered causal-leaf attempt IDs. Test denial for a mismatched leaf or a
+`needs_action` outcome before activation. Unsupported formats, transient storage
+failures, stale authority, exact-note moderation and recovery of expired active
+attempts remain execution-owner responsibilities; this slice does not silently
+classify them as permanent refusals. All gates remain false.
 
 ## Prepared photo moderation execution worker
 
@@ -13635,3 +13635,42 @@ binding must require the settled exact causal-leaf cohort and repeat byte,
 container, revision, consent and deletion checks. No complimentary scan credit
 is charged by moderation. No merge, deployment, scheduling, activation or
 TestFlight authorization is supplied by this prepared endpoint.
+
+## Prepared publication copy recovery ownership
+
+`20261004145323_prepare_publication_copy_work.sql` seeds a separate durable copy
+work row atomically when an accepted operation settles `photos_approved`.
+Existing approved unbound outcomes are backfilled; refused outcomes never seed
+this stage. Moderation work stays retired. A durable publication receipt removes
+copy work atomically, and observation/account deletion cascades it.
+
+The service-only RPCs `list_publication_copy_work`,
+`claim_publication_copy_work`, `read_publication_copy_work` and
+`release_publication_copy_work` expose only private orchestration. Discovery is
+bounded to ten hints. Claim requires the independent default-false
+`publication_copy_execution_enabled` gate and returns a 120-second token plus
+owner/observation/operation and a `cohort` array. Each array entry contains only
+`attempt_id` and its immutable `source`. The cohort must match the settled
+outcome's exact order, every current causal leaf, accepted owner and analysis,
+and original approved source facts. Workers cannot nominate substitute attempts.
+No note, quota receipt, provider token, address hash or public URL is returned.
+
+Duplicate claims disclose no token. Read and release require the exact live copy
+token; a moderation token is insufficient. They remain available after gate
+closure. Release enforces a 60-second backoff; expired or replaced tokens cannot
+release a newer claim. Claim, read and release take the existing owner/deletion
+fence before child locks. Discovery returns bounded untrusted hints without
+locks; claim rechecks them. Deletion invalidates both live recovery and
+historical claims.
+
+This is recovery ownership only. It deliberately does not require current
+publication authority, so later execution can recover and clean up an operation
+whose authority changed. It creates no storage object, renews no staging TTL,
+spends no provider quota or complimentary credit, and approves no public note.
+There is no Edge consumer or scheduler yet; client DTOs are unchanged. The
+separate copy executor must still recover any durable binding first, revalidate
+current authority and verified containers, atomically reserve the exact cohort
+under one fixed deadline, and obtain registry claims before cleanup. The held
+private per-photo copy/binder routines remain ungranted. Live binding must also
+require immutable exact-note approval or an explicitly restricted no-note path.
+All activation gates remain false.

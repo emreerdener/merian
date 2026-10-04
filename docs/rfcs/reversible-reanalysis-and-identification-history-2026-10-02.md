@@ -2511,3 +2511,12 @@ exact-note moderation and native operations remain separate. Worker
 handler/repository and classifier deadline tests cover recovery-first ordering,
 preflight before quota, lost dispatch/completion, stalled response cancellation
 and scoped denial.
+
+## October 4, 2026: separate copy recovery stage
+
+A prepared migration now creates durable copy work after settled photo approval,
+with exact ordered causal-leaf context and a separate service-only lease.
+Refused outcomes never enter the stage; binding or deletion retires it. This
+completes recovery ownership, not storage execution. Atomic cohort reservation,
+fixed shared expiry, copy/binding integration, targeted cleanup and public-note
+approval remain next. All activation gates stay false.
