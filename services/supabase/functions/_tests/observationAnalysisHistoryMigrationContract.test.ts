@@ -729,3 +729,35 @@ Deno.test("private publication execution binds immutable proof before dispatch a
       complete.indexOf("RETURN internal.complete_publication_photo_moderation"),
   );
 });
+
+Deno.test("public photo copy staging owns permanent keys before I/O without activating publication", async () => {
+  const sql = await migration(
+    "20261004100505_prepare_publication_photo_copy_ledger",
+  );
+  assertStringIncludes(
+    sql,
+    "publication_copy_enabled BOOLEAN NOT NULL DEFAULT FALSE",
+  );
+  assertStringIncludes(sql, "FOR UPDATE SKIP LOCKED");
+  assertStringIncludes(sql, "INTERVAL '10 minutes'");
+  assertStringIncludes(
+    sql,
+    "internal.revalidate_observation_publication_intent",
+  );
+  assertStringIncludes(sql, "internal.observation_photo_execution_results");
+  assertStringIncludes(
+    sql,
+    "BEFORE DELETE ON internal.observation_photo_copies",
+  );
+  assert(!/GRANT\s+EXECUTE/i.test(sql));
+  assert(!/CREATE(?: OR REPLACE)? FUNCTION public\./.test(sql));
+  assert(!sql.includes("explore_post_media"));
+  const reserve = sql.slice(
+    sql.indexOf("CREATE FUNCTION internal.reserve_publication_photo_copy"),
+    sql.indexOf("CREATE FUNCTION internal.complete_publication_photo_copy"),
+  );
+  assert(
+    reserve.indexOf("INSERT INTO internal.publication_photo_objects") <
+      reserve.indexOf("INSERT INTO internal.observation_photo_copies"),
+  );
+});

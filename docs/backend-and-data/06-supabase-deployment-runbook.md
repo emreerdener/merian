@@ -19,7 +19,11 @@ validation.
 
 ## Observation analysis history activation hold
 
-The prepared public-photo transport does not authorize public copying. Keep
+The prepared public-photo transport and staging ledger do not authorize public
+copying. Keep `publication_copy_enabled` false. The ledger's fixed ten-minute
+staging deadline also applies after readiness; no publisher may treat that state
+as durable public availability. An atomic publication binding must coordinate
+cleanup before this deadline. No scheduled erasure worker is installed. Keep
 publication held until durable allocation, deletion-safe cleanup and public
 publication invalidation are wired. Require a verified CDN cache bypass for
 `publication_media/v1/`, permanent erasure-marker lifecycle protection,

@@ -3263,3 +3263,12 @@ rejects known out-of-band metadata. It has no production caller, SQL copy
 ledger, cleanup scheduler or publication transaction. Cache-bypass evidence and
 durable ownership remain activation requirements. See the
 [storage contract](../../docs/backend-and-data/05-api-contracts.md#prepared-public-photo-storage-boundary).
+
+## Prepared public-photo staging ledger
+
+Private staging now reserves opaque keys and permanent cleanup obligations
+before external I/O. Approval/source revalidation and exact leases gate
+completion; abandonment, fixed expiry and parent deletion prevent reuse. Ready
+copies remain unbound. No API grants, publisher or erasure scheduler is enabled.
+See the
+[staging contract](../../docs/backend-and-data/05-api-contracts.md#prepared-public-photo-staging-lifecycle).

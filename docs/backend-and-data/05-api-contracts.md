@@ -13216,3 +13216,42 @@ Origin no-store headers and markers do not prove CDN revocation. Activation
 requires a verified cache bypass for this namespace, permanent-marker lifecycle
 protection and authorized nonproduction edge tests showing no stale body after
 erasure. No hosted storage policy, credential or cache setting changed here.
+
+## Prepared public-photo staging lifecycle
+
+The private SQL owner reserves one copy per moderation attempt only after fresh
+owner/deletion, intent/revision, exact-source and stored proof/result approval
+checks. It requires the current pinned policy and JPEG/PNG source. A permanent
+opaque object registry and leased private receipt commit before external I/O.
+Retries recover the same key and lease; abandoned or expired copies cannot
+allocate a successor through the same attempt. No client URL, storage key,
+classification or metadata-filter assertion is accepted. The trusted future
+writer must still preflight verified bytes and perform conditional PUT plus HEAD
+verification before calling completion; SQL cannot inspect storage bytes.
+
+Completion repeats current authorization and checks the exact object/lease,
+registry state and fixed ten-minute deadline. It marks staging ready once;
+`ready_at` does not extend availability or confer public publication authority.
+Both reserved and ready copies become eligible for cleanup at that original
+deadline. The cleanup claim locks only the permanent registry, uses SKIP LOCKED,
+and issues an expiring token. Stale tokens cannot acknowledge a newer claim.
+Success means externally verified permanent empty marker; failure retains the
+obligation for retry. Expiry alone does not execute storage I/O.
+
+Abandonment ignores rollout/review changes after verifying owner and original
+lease, advances cleanup immediately and prevents later completion or allocation.
+Parent observation/account deletion cascades the private receipt and advances
+the detached registry through its deletion trigger. The existing moderation
+observation-tombstone fence supplies the cascade. Cleanup remains callable when
+rollout gates are closed, but every routine has revoked API execution. No live
+worker, repository adapter or authenticated publisher calls these routines.
+
+This preparation intentionally has no bound-publication state. A later atomic
+publisher must bind the approved ordered cohort before its staging deadline and
+coordinate its cleanup schedule with publication privacy/moderation
+invalidation. It must also durably abandon and synchronously attempt marker
+erasure after post-write verification or authority failure, without erasing
+another worker's valid publication. Do not wire the storage helper until that
+owner is complete. No original-analysis safety result or historical approval can
+replace these checks. No provider or complimentary-credit charge occurs in this
+copy lifecycle.

@@ -428,3 +428,12 @@ origin content. Tests use only synthetic images and in-memory storage. No SQL
 allocation/cleanup owner or live caller is connected, and origin markers do not
 prove cache revocation. See the
 [storage contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-public-photo-storage-boundary).
+
+## Prepared public-photo staging ownership
+
+Private SQL now reserves a permanent opaque-key cleanup obligation plus an
+immutable source/lease receipt before the future writer runs. Staging completion
+revalidates approval and authority; readiness cannot extend its ten-minute
+cleanup deadline. No repository adapter, cleanup worker or publication binding
+is connected to `publicPhotoStorage.ts`. See the
+[staging contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-public-photo-staging-lifecycle).

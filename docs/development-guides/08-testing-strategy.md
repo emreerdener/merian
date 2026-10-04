@@ -10476,3 +10476,14 @@ validation, both upload/erasure orderings, permanent markers, pre-I/O content
 rejection, dedicated credential configuration and sanitized transport errors.
 All object storage is simulated. SQL allocation/cleanup, final publication, real
 R2 behavior and edge-cache revocation remain separate acceptance gates.
+
+### Prepared public-photo staging verification
+
+`publication_photo_copy_ledger.sql` covers default-off/API-denied boundaries,
+permanent registry ownership, approval-before-allocation, exact replay, lease
+checks, immutable deadlines, abandonment, cleanup retries and account erasure.
+`observationPhotoCopyConcurrencyDb.test.ts` uses independent sessions to test
+allocation/completion serialization, deletion in both orders, abandonment racing
+completion, ready-copy expiry, SKIP LOCKED cleanup and stale claim fencing.
+These local tests do not prove real marker writes, CDN cache revocation, live
+cleanup scheduling or final publication binding; those remain activation gates.

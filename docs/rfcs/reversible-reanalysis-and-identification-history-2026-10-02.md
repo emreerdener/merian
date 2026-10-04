@@ -2408,3 +2408,14 @@ its own immutable source and moderation. Durable copy allocation, cleanup,
 publication invalidation and cache-bypass evidence remain required. No
 activation is implied; see the
 [storage contract](../backend-and-data/05-api-contracts.md#prepared-public-photo-storage-boundary).
+
+### October 4, 2026: public-photo staging ledger
+
+Private SQL staging now reserves a permanent opaque cleanup registry entry
+before external I/O and one immutable source/lease receipt per approved attempt.
+Fresh authority checks protect allocation and completion; abandonment, fixed
+expiry and parent deletion preserve detached cleanup obligations. Ready copies
+remain unbound and expire at their original deadline. No public availability,
+worker or endpoint is activated; atomic publication binding and immediate
+post-write failure cleanup remain next. See the
+[staging contract](../backend-and-data/05-api-contracts.md#prepared-public-photo-staging-lifecycle).

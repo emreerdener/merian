@@ -701,3 +701,12 @@ write/erase races and edge GET behavior before enabling publication. Durable
 allocation, publication invalidation and cleanup ownership are still required;
 see the
 [storage boundary](05-api-contracts.md#prepared-public-photo-storage-boundary).
+
+The prepared staging ledger adds private copy leases and a permanent opaque-key
+registry before any future external write. No API role can access either table
+or execute its allocation/cleanup routines. Registry rows survive parent
+erasure; claims contain only opaque object identity and cleanup state.
+Staging-ready copies retain their original ten-minute cleanup deadline. This
+does not activate storage I/O: a trusted scoped adapter, durable cleanup worker
+and atomic publication binding remain required. See the
+[staging lifecycle](05-api-contracts.md#prepared-public-photo-staging-lifecycle).

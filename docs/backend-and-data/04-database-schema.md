@@ -6984,3 +6984,16 @@ Dispatch requires proof, while decision completion requires a matching stored
 result. The recorder commits result and decision atomically. Existing rollout
 flags remain false; see the
 [execution contract](05-api-contracts.md#prepared-durable-photo-execution-binding).
+
+### Prepared public-photo staging ledger
+
+`20261004100505_prepare_publication_photo_copy_ledger.sql` adds default-false
+`publication_copy_enabled`, private `observation_photo_copies` and permanent
+`publication_photo_objects`. One copy per approved attempt has immutable source,
+opaque object identity, lease and fixed ten-minute staging deadline. Ready state
+cannot extend that deadline. The separate registry has no parent foreign key and
+retains only an opaque object UUID, cleanup deadline/claim and erasure
+timestamp. Its keys cannot be deleted or reused. Parent deletion advances
+cleanup without removing the registry. Both tables enable RLS and revoke all API
+privileges. No publication binding or cleanup scheduler is installed. See the
+[staging lifecycle](05-api-contracts.md#prepared-public-photo-staging-lifecycle).
