@@ -10626,3 +10626,14 @@ expand its single-object cleanup by returning a foreign UUID. Both explicit
 candidate CI test lists include it. Existing `photoCopyExecution_test.ts`
 remains the transport/deletion/conditional-write regression suite; no live
 storage or provider calls are needed for these tests.
+
+## Reserved-cohort publication binding checks
+
+`publication_moderation_outcomes.sql` covers the separate closed binding gate,
+incomplete readiness, current revision and revoked-object denial, expired work,
+exact ordered success, work retirement, replay after gate/authority changes,
+missing reservation, and rollback of a mismatched writer's admission, bindings
+and registry state. Actual anonymous/authenticated callers are denied. The
+moderation-outcome concurrency suite adds duplicate binding and both orderings
+of binding versus deletion and abandonment. These tests use synthetic local
+fixtures and no external storage or provider calls.

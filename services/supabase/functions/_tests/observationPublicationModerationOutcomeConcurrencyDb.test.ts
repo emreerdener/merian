@@ -36,6 +36,11 @@ for (
     "cohort abandon before complete",
     "cohort deletion before complete",
     "cohort complete before deletion",
+    "cohort binding duplicate",
+    "cohort binding before deletion",
+    "cohort deletion before binding",
+    "cohort abandon before binding",
+    "cohort binding before abandon",
   ]
 ) {
   Deno.test({
@@ -75,6 +80,10 @@ for (
         "publication_copy_execution_enabled",
         "publication_copy_enabled",
         "publication_copy_reservation_enabled",
+        "publication_copy_binding_enabled",
+        "publication_binding_enabled",
+        "community_admission_enabled",
+        "community_authority_enabled",
       ];
       let previous: Record<string, boolean> | undefined;
       let funding: {
@@ -256,6 +265,74 @@ for (
               "SELECT public.abandon_publication_copy_cohort($1,$2,$3,$4) AS receipt",
               scope,
             );
+          if (scenario.includes("binding")) {
+            await completeCopy(observer);
+            const bind = (client: Client) =>
+              client.queryObject<{ receipt: unknown }>(
+                "SELECT public.bind_publication_copy_cohort($1,$2,$3,$4) AS receipt",
+                scope,
+              );
+            const firstPID = (await first.queryObject<{ pid: number }>(
+              "SELECT pg_backend_pid() AS pid",
+            )).rows[0].pid;
+            const secondPID = (await second.queryObject<{ pid: number }>(
+              "SELECT pg_backend_pid() AS pid",
+            )).rows[0].pid;
+            await first.queryArray("BEGIN");
+            await second.queryArray("BEGIN");
+            let original: unknown;
+            if (scenario === "cohort deletion before binding") {
+              await erase(first);
+            } else if (scenario === "cohort abandon before binding") {
+              await abandon(first);
+            } else original = (await bind(first)).rows[0].receipt;
+            const pending = settle(
+              scenario === "cohort binding before deletion"
+                ? erase(second)
+                : scenario === "cohort binding before abandon"
+                ? abandon(second)
+                : bind(second),
+            );
+            await observeBlock(observer, secondPID, firstPID);
+            await first.queryArray("COMMIT");
+            const outcome = await pending;
+            if (
+              scenario === "cohort deletion before binding" ||
+              scenario === "cohort abandon before binding"
+            ) {
+              assert(!outcome.ok);
+              assert(
+                outcome.error.includes(
+                  scenario.includes("deletion")
+                    ? "analysis_history_not_found"
+                    : "analysis_history_operation_conflict",
+                ),
+              );
+              await second.queryArray("ROLLBACK");
+            } else {
+              assert(outcome.ok);
+              await second.queryArray("COMMIT");
+              if (scenario === "cohort binding duplicate") {
+                assertEquals(outcome.value.rows[0].receipt, original);
+              }
+              if (scenario === "cohort binding before abandon") {
+                assertEquals(outcome.value.rows[0].receipt, {
+                  abandoned: false,
+                });
+              }
+            }
+            assertEquals(
+              (await observer.queryObject<{ count: number }>(
+                "SELECT count(*)::int AS count FROM internal.observation_photo_publications WHERE operation_id=$1",
+                [operation],
+              )).rows[0].count,
+              scenario.includes("deletion") ||
+                scenario === "cohort abandon before binding"
+                ? 0
+                : 1,
+            );
+            return;
+          }
           const firstPID = (await first.queryObject<{ pid: number }>(
             "SELECT pg_backend_pid() AS pid",
           )).rows[0].pid;

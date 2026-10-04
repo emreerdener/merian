@@ -7091,3 +7091,12 @@ rows and this receipt atomically. The independent default-false
 `publication_copy_reservation_enabled` gate protects new reserve/complete RPCs;
 historical read and targeted cleanup eligibility remain separate. See the
 [atomic reservation contract](05-api-contracts.md#prepared-atomic-publication-copy-reservation).
+
+### Prepared reserved-cohort binding facade
+
+`20261004155802_bind_reserved_publication_copy_cohort.sql` adds the
+default-false `publication_copy_binding_enabled` gate and a service-only
+allowlisted binding facade. It creates no new tables. The exact immutable
+reservation fences the existing transactional publication writer and its
+historical receipt replay. See the
+[binding contract](05-api-contracts.md#prepared-exact-reserved-cohort-binding).

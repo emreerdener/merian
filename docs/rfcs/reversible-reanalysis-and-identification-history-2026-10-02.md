@@ -2539,3 +2539,11 @@ before cleanup. The generic single-photo executor can target only its own
 object; the coordinator claims validated sibling targets. Recovery alone grants
 no execution authority. No storage worker or live binder is connected; rollout
 stays disabled.
+
+## October 4, 2026: exact reserved-cohort binding
+
+The prepared service binding facade now verifies the exact settled reservation
+against both the transactional publication receipt and actual ordered post
+bindings. Historical recovery precedes live work/gate checks and retains
+deletion fencing. The explicit no-note subset and a new default-false gate
+remain; the bounded storage worker and native delivery are still pending.

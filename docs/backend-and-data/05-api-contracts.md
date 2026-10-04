@@ -13765,3 +13765,32 @@ dependencies with its overall deadline. This adapter does not approve bytes,
 read storage, write public objects or bind a post. Whole-cohort container
 preflight, bounded transport execution, final binding and durable phase outcomes
 remain unconnected; all activation gates stay false.
+
+## Prepared exact reserved-cohort binding
+
+`bind_publication_copy_cohort(owner, observation, operation, work)` is a
+service-only facade; callers cannot submit public URLs, alternate attempts,
+object keys or notes. Its separate `publication_copy_binding_enabled` gate
+starts false and supplements all existing copy, binding and community admission
+gates. New binding requires live copy work, the exact settled ordered causal
+leaves, the immutable reservation, every member ready, the original unexpired
+staging deadline and current source, review and consent authority. Only the
+explicit no-note subset is supported.
+
+The existing atomic writer creates the community request and its public post.
+Before committing, the facade requires exact equality between the reservation's
+ordered object keys, the publication's ordered keys, actual post bindings and
+community/publication receipts. A discrepancy rolls back the entire admission,
+post, binding, registry and work-retirement transaction. The private writer
+remains ungranted; the service facade is allowlisted.
+
+A durable publication is recovered through the writer's existing owner and
+receipt validation before checking live work or current gates/authority. Replay
+also verifies the immutable reserved cohort, but does not require its deadline
+to remain current. Historical success does not assert current visibility or
+republish a hidden post. Observation deletion still wins over recovery. A failed
+binding creates no erasure authorization: execution must recover durable success
+before requesting targeted cleanup of unbound siblings.
+
+This slice supplies no public storage transport or Edge execution route, does
+not dispatch providers or charge credits, and leaves all activation gates false.

@@ -803,3 +803,12 @@ cohort, validates common expiry and private lease identities, propagates shared
 deadlines and checks historical publication before cleanup. No storage worker,
 binder or activation is added. See the
 [repository contract](05-api-contracts.md#prepared-scoped-publication-copy-repository).
+
+## Prepared reserved-cohort binding
+
+A new service facade fences publication to the exact approved ordered
+reservation and revalidates current authority. Historical receipt recovery
+precedes work/gate checks and still verifies the reservation. Mismatches roll
+back every publication write. The independent binding gate stays false; no Edge
+worker or activation is added. See the
+[binding contract](05-api-contracts.md#prepared-exact-reserved-cohort-binding).

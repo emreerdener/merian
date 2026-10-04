@@ -925,3 +925,24 @@ Deno.test("copy cohort reservation is atomic, immutable, no-note and service sco
   assert(!sql.includes("TO authenticated"));
   assert(!sql.includes("reserve_ai_quota"));
 });
+
+Deno.test("reserved copy binding fences exact ordered objects and recovers before current authority", async () => {
+  const sql = await migration(
+    "20261004155802_bind_reserved_publication_copy_cohort",
+  );
+  assertStringIncludes(
+    sql,
+    "publication_copy_binding_enabled BOOLEAN NOT NULL DEFAULT FALSE",
+  );
+  assert(
+    sql.indexOf("receipt:=internal.bind_approved_publication_photo_cohort") <
+      sql.indexOf("PERFORM internal.authorize_publication_copy_cohort"),
+  );
+  assertStringIncludes(sql, "internal.publication_copy_reservation");
+  assertStringIncludes(sql, "internal.assert_publication_copy_registry");
+  assertStringIncludes(sql, "published.object_ids IS DISTINCT FROM expected");
+  assertStringIncludes(sql, "ORDER BY order_index");
+  assertStringIncludes(sql, "internal.privileged_routine_grants");
+  assert(!sql.includes("TO authenticated"));
+  assert(!sql.includes("reserve_ai_quota"));
+});

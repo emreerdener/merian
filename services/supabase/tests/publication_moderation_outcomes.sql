@@ -328,6 +328,69 @@ CREATE TEMP TABLE note_copy_claim AS SELECT pg_temp.copy_claim('00000000-0000-40
 SELECT extensions.throws_ok($$SELECT public.reserve_publication_copy_cohort('00000000-0000-4000-8000-00000000ee01','00000000-0000-4000-8000-00000000ee11','00000000-0000-4000-8000-00000000ee45',(SELECT (receipt->>'work_token')::UUID FROM note_copy_claim))$$,'22023','analysis_history_operation_conflict','public note needs its own approval before copying');
 SELECT public.release_publication_copy_work('00000000-0000-4000-8000-00000000ee01','00000000-0000-4000-8000-00000000ee11','00000000-0000-4000-8000-00000000ee45',(SELECT (receipt->>'work_token')::UUID FROM note_copy_claim));
 UPDATE internal.observation_publication_copy_work SET recover_after=clock_timestamp()-INTERVAL '1 second' WHERE operation_id='00000000-0000-4000-8000-00000000ee45';
+-- Trials isolate publication side effects so later denial/erasure fixtures remain unchanged.
+CREATE FUNCTION pg_temp.bind_cohort() RETURNS JSONB LANGUAGE SQL AS $$
+ SELECT public.bind_publication_copy_cohort('00000000-0000-4000-8000-00000000ee01','00000000-0000-4000-8000-00000000ee11','00000000-0000-4000-8000-00000000ee41',(SELECT (receipt->>'work_token')::UUID FROM copy_reclaim));
+$$;
+SELECT extensions.ok(NOT (SELECT publication_copy_binding_enabled FROM internal.observation_history_rollout),'binding has a separate closed gate');
+SELECT extensions.throws_ok('SELECT pg_temp.bind_cohort()','55000','analysis_history_unavailable','old copy gates do not activate binding');
+UPDATE internal.observation_history_rollout SET publication_copy_binding_enabled=TRUE,publication_binding_enabled=TRUE,community_admission_enabled=TRUE,community_authority_enabled=TRUE;
+SELECT extensions.throws_ok('SELECT pg_temp.bind_cohort()','55000','analysis_history_evidence_unavailable','one ready member cannot publish an incomplete cohort');
+CREATE FUNCTION pg_temp.mismatch_bound_cohort() RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
+BEGIN NEW.object_ids:=ARRAY[NEW.object_ids[2],NEW.object_ids[1]]; RETURN NEW; END;
+$$;
+CREATE FUNCTION pg_temp.binding_trial(mode TEXT) RETURNS JSONB LANGUAGE PLPGSQL AS $$
+DECLARE result JSONB; receipt JSONB; replay JSONB;
+BEGIN
+ BEGIN
+  PERFORM pg_temp.complete_cohort_member(1);
+  IF mode='stale' THEN
+   UPDATE internal.observation_histories SET state_revision=state_revision+1 WHERE observation_id='00000000-0000-4000-8000-00000000ee11';
+  ELSIF mode='revoked' THEN
+   UPDATE internal.publication_photo_objects SET revoked_at=clock_timestamp();
+  ELSIF mode='mismatch' THEN
+   CREATE TRIGGER synthetic_wrong_binding BEFORE INSERT ON internal.observation_photo_publications FOR EACH ROW EXECUTE FUNCTION pg_temp.mismatch_bound_cohort();
+  ELSIF mode='expired_work' THEN
+   UPDATE internal.observation_publication_copy_work SET work_expires_at=clock_timestamp()-INTERVAL '1 second' WHERE work_token IS NOT NULL;
+  END IF;
+  receipt:=pg_temp.bind_cohort();
+  result:=jsonb_build_object('status',receipt->>'status',
+   'exact',(SELECT object_ids=(SELECT array_agg((value->>'object_id')::UUID ORDER BY ordinality) FROM jsonb_array_elements((SELECT c.receipt->'copies' FROM cohort_reservation c)) WITH ORDINALITY) FROM internal.observation_photo_publications WHERE operation_id='00000000-0000-4000-8000-00000000ee41'),
+   'retired',NOT EXISTS(SELECT 1 FROM internal.observation_publication_copy_work WHERE operation_id='00000000-0000-4000-8000-00000000ee41'));
+  UPDATE internal.observation_history_rollout SET publication_copy_binding_enabled=FALSE,publication_copy_reservation_enabled=FALSE,publication_binding_enabled=FALSE;
+  UPDATE internal.observation_histories SET state_revision=state_revision+1 WHERE observation_id='00000000-0000-4000-8000-00000000ee11';
+  IF mode='missing_receipt' THEN DELETE FROM internal.observation_publication_copy_cohorts WHERE operation_id='00000000-0000-4000-8000-00000000ee41'; END IF;
+  replay:=public.bind_publication_copy_cohort('00000000-0000-4000-8000-00000000ee01','00000000-0000-4000-8000-00000000ee11','00000000-0000-4000-8000-00000000ee41',NULL);
+  result:=result||jsonb_build_object('replayed',receipt=replay,'cleanup_denied',pg_temp.abandon_cohort()='{"abandoned":false}'::JSONB);
+  RAISE EXCEPTION 'rollback_synthetic_binding' USING ERRCODE='Z0001';
+ EXCEPTION WHEN SQLSTATE 'Z0001' THEN RETURN result;
+ END;
+END;
+$$;
+SELECT extensions.throws_ok($$SELECT pg_temp.binding_trial('stale')$$,'40001','analysis_history_revision_conflict','binding rejects a changed authority revision');
+SELECT extensions.throws_ok($$SELECT pg_temp.binding_trial('revoked')$$,'22023','analysis_history_operation_conflict','binding rejects a revoked staging object');
+SELECT extensions.throws_ok($$SELECT pg_temp.binding_trial('expired_work')$$,'22023','analysis_history_operation_conflict','new binding requires a live copy token');
+CREATE TEMP TABLE before_binding_trial AS SELECT state_revision FROM internal.observation_histories WHERE observation_id='00000000-0000-4000-8000-00000000ee11';
+SELECT extensions.throws_ok($$SELECT pg_temp.binding_trial('mismatch')$$,'22023','analysis_history_operation_conflict','post-write ordered mismatch aborts the complete transaction');
+SELECT extensions.is((SELECT count(*)::INT FROM internal.observation_community_admissions),0,'mismatched writer leaves no admission');
+SELECT extensions.is((SELECT count(*)::INT FROM internal.publication_photo_bindings),0,'mismatched writer leaves no bindings');
+SELECT extensions.is((SELECT count(*)::INT FROM internal.publication_photo_objects WHERE bound_at IS NOT NULL),0,'mismatched writer leaves no bound registry state');
+SELECT extensions.is((SELECT count(*)::INT FROM public.explore_posts WHERE scan_id='00000000-0000-4000-8000-00000000ee11'),0,'mismatched writer leaves no public post');
+SELECT extensions.is((SELECT count(*)::INT FROM public.explore_community_requests WHERE scan_id='00000000-0000-4000-8000-00000000ee11'),0,'mismatched writer leaves no community request');
+SELECT extensions.ok(EXISTS(SELECT 1 FROM internal.observation_publication_copy_work WHERE operation_id='00000000-0000-4000-8000-00000000ee41'),'mismatched writer preserves recovery work');
+SELECT extensions.is((SELECT state_revision FROM internal.observation_histories WHERE observation_id='00000000-0000-4000-8000-00000000ee11'),(SELECT state_revision FROM before_binding_trial),'mismatched writer preserves observation authority revision');
+SELECT extensions.throws_ok($$SELECT pg_temp.binding_trial('missing_receipt')$$,'22023','analysis_history_operation_conflict','historical publication cannot substitute for missing immutable reservation');
+SELECT extensions.is(pg_temp.binding_trial('success'),'{"status":"admitted","exact":true,"retired":true,"replayed":true,"cleanup_denied":true}'::JSONB,'exact ordered binding retires work and replays after authority and gate closure without cleanup');
+SELECT extensions.is((SELECT count(*)::INT FROM internal.observation_photo_publications),0,'synthetic trial rolls publication back completely');
+SELECT extensions.throws_ok($$SELECT public.bind_publication_copy_cohort('00000000-0000-4000-8000-00000000ee01','00000000-0000-4000-8000-00000000ee11','00000000-0000-4000-8000-00000000ee45',(SELECT (receipt->>'work_token')::UUID FROM note_copy_claim))$$,'22023','analysis_history_operation_conflict','unapproved note cannot bind');
+GRANT SELECT ON copy_reclaim TO anon;
+GRANT EXECUTE ON FUNCTION pg_temp.bind_cohort() TO authenticated,anon;
+SET LOCAL ROLE authenticated;
+SELECT extensions.throws_ok('SELECT pg_temp.bind_cohort()','42501','permission denied for function bind_publication_copy_cohort','actual authenticated caller cannot publish through service facade');
+RESET ROLE;
+SET LOCAL ROLE anon;
+SELECT extensions.throws_ok('SELECT pg_temp.bind_cohort()','42501','permission denied for function bind_publication_copy_cohort','actual anonymous caller cannot publish through service facade');
+RESET ROLE;
 UPDATE internal.observation_histories SET state_revision=state_revision+1 WHERE observation_id='00000000-0000-4000-8000-00000000ee11';
 SELECT extensions.throws_ok('SELECT pg_temp.reserve_cohort()','40001','analysis_history_revision_conflict','stale revision cannot reuse a reservation for I/O');
 SELECT extensions.throws_ok('SELECT pg_temp.complete_cohort_member(1)','40001','analysis_history_revision_conflict','authority changes block readiness after external writes');
