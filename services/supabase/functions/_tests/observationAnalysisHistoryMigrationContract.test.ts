@@ -621,3 +621,37 @@ Deno.test("community admission freezes evidence and replay without exposing an A
     ]
   ) assert(!publicColumns.includes(field));
 });
+
+Deno.test("publication intent pins private V2 sources before any external or public write", async () => {
+  const sql = await migration(
+    "20261004075747_prepare_protected_publication_intents",
+  );
+  for (
+    const fragment of [
+      "publication_intent_enabled BOOLEAN NOT NULL DEFAULT FALSE",
+      "CREATE TABLE internal.observation_publication_intents",
+      "ON DELETE CASCADE",
+      "internal.lock_owned_observation_evidence(p_owner,observation)",
+      "public.resolve_owned_observation_photo(p_owner,observation,analysis,(media#>>'{}')::UUID,8)",
+      "evidence.evidence_manifest->'schema_version' IS DISTINCT FROM '2'::JSONB",
+      "authority.review_revision<>(p_request->>'expected_review_revision')::INTEGER",
+      "IF sources IS DISTINCT FROM saved.sources",
+    ]
+  ) assertStringIncludes(sql, fragment);
+  const prepare = sql.slice(
+    sql.indexOf(
+      "CREATE FUNCTION internal.prepare_observation_publication_intent",
+    ),
+    sql.indexOf(
+      "CREATE FUNCTION internal.revalidate_observation_publication_intent",
+    ),
+  );
+  assert(
+    prepare.indexOf("internal.lock_owned_observation_evidence") <
+      prepare.indexOf("SELECT * INTO saved"),
+  );
+  assert(
+    !/GRANT EXECUTE|INSERT INTO public\.|UPDATE public\.|UPDATE internal\.observation_history_rollout/i
+      .test(sql),
+  );
+});

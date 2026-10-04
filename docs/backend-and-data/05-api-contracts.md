@@ -13001,3 +13001,42 @@ The authenticated moderated publisher, saved native operation, authority-worker
 dispatcher and explicit updates for existing discussions remain activation
 requirements. This preparation changes no client payload and opens no rollout
 gate.
+
+### Prepared protected-photo publication intent
+
+`internal.prepare_observation_publication_intent(owner, request)` persists a
+private operation before moderation or copying. It has no API execution grant
+and requires default-false `publication_intent_enabled` plus history/photo
+reader gates. The exact V1 request contains `observation_id`, `analysis_id`,
+`operation_id`, both expected revisions, active `taxonomy_version_id`, nullable
+`initial_taxon_id`, nullable `note`, and ordered unique `media_ids`, alongside
+`schema_version`. It permits one to six photos, a 1,000-character note and a 4
+KiB JSONB request. The first version is a fresh community-request preparation:
+it requires an unreviewed biological result without community authority and
+refuses any existing post or discussion. It never changes selection or
+authority.
+
+Only completed V2 image references are eligible. Every media ID resolves through
+`resolve_owned_observation_photo` against the named result's immutable manifest
+and owned ready receipt. The frozen private source tuple contains media ID,
+opaque object ID, content type, byte count and SHA-256; aggregate photos are
+bounded at 32 MiB. Caller URLs, mutable scan photos and imported V1/V3
+presentation evidence cannot substitute for that proof. The preparation envelope
+is `{schema_version: 1, request, sources}` and must never be returned to public
+readers or used as public media metadata. No client DTO changes in this slice.
+
+An exact retry returns historical preparation even if a gate or authority later
+changes, but ownership/deletion checks always run first. Changed request fields
+conflict. Historical preparation is not permission to execute. The separate
+`internal.revalidate_observation_publication_intent(owner, observation, operation)`
+rechecks current gates, revisions, taxonomy, absence of an existing publication,
+and ready source facts against the frozen tuple. Neither routine authorizes
+provider dispatch, public copying, final admission or billing settlement.
+
+Completed identification, provider response safety and settled funding contain
+no persisted approval to publish these photos. An immutable moderation receipt
+bound to each exact source tuple and policy version, funded dispatch rules,
+public-copy reservations, deletion-safe cleanup and final revalidation remain
+required before an authenticated publisher can be exposed. Private verified-byte
+reads must precede moderation; public visibility must follow approval. Existing
+private evidence cleanup does not cover future public copies.

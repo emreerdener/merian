@@ -2352,3 +2352,15 @@ fields in pending community detail. This remains an internal default-off
 boundary without an API grant or moderated/native caller. See the
 [current admission contract](../backend-and-data/05-api-contracts.md#prepared-atomic-community-request-admission)
 for the authoritative implementation and remaining integration.
+
+### October 4, 2026: protected publisher intent foundation
+
+A private default-off preparation now freezes the operation, requested revisions
+and exact V2 photo content/ownership facts before external work. Historical
+retry and current revalidation are explicitly separate. This records no
+moderation approval and creates no public media, provider reservation or post.
+Completed analysis safety/funding is insufficient publication proof; durable
+moderation attestations and deletion-safe public-copy ownership remain required.
+The
+[current intent contract](../backend-and-data/05-api-contracts.md#prepared-protected-photo-publication-intent)
+owns the implemented boundary and activation limits.

@@ -3214,3 +3214,13 @@ API writer, moderated endpoint or native caller is enabled. See the
 [canonical contract](../../docs/backend-and-data/05-api-contracts.md#prepared-atomic-community-request-admission)
 for the default-off gate, insertion proof, public-reader privacy and remaining
 publisher integration.
+
+## Prepared protected publication intent
+
+Private pre-I/O preparation now freezes a caller operation, named-result
+revisions and exact owned V2 photo receipt tuples. Historical retry and fresh
+revalidation are separate; neither permits media publication. The new gate
+defaults false and no API caller is granted. Content approval, public-copy
+cleanup, authenticated publishing and native operation recovery remain required.
+See the
+[intent contract](../../docs/backend-and-data/05-api-contracts.md#prepared-protected-photo-publication-intent).

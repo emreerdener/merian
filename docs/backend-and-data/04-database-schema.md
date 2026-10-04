@@ -6943,3 +6943,17 @@ freezes the existing public media cohort and initial request evidence before
 resolution. See the
 [admission contract](05-api-contracts.md#prepared-atomic-community-request-admission)
 for retry, privacy, admission and remaining integration boundaries.
+
+### Prepared protected publication intent storage
+
+`20261004075747_prepare_protected_publication_intents.sql` adds default-false
+`publication_intent_enabled` and private immutable
+`internal.observation_publication_intents`. The operation UUID is the primary
+key; an indexed composite result foreign key cascades private request/source
+facts with observation or account erasure. RLS and revoked API grants protect
+all reads/writes. A generation guard checks the observation deletion fence, and
+updates are rejected. No public tables, media objects or provider reservations
+are created by this preparation. The
+[intent contract](05-api-contracts.md#prepared-protected-photo-publication-intent)
+defines historical retry versus fresh source revalidation and the still-required
+moderation and public-copy lifecycle.

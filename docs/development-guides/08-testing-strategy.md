@@ -10411,3 +10411,17 @@ the existing complete backend and disposable catalog gates. They do not prove
 live moderation, protected-to-public media copying, an Edge route or native
 operation recovery; those remain explicit
 [activation requirements](../backend-and-data/05-api-contracts.md#prepared-atomic-community-request-admission).
+
+## Protected publication intent verification
+
+`tests/observation_publication_intents.sql` exercises the default-off private
+boundary using a completed funded V2 analysis and ready evidence. Cases cover
+exact retries, changed intent, source substitution, unsupported snapshots,
+receipt corruption/unreadiness, stale revisions, historical replay after gate
+closure or review, actual service-role denial, and deletion before replay.
+`_tests/observationPublicationIntentConcurrencyDb.test.ts` uses separate
+sessions for duplicate preparations, cross-owner operation collisions, review
+before revalidation, and account deletion in both orders. These run in the
+existing full backend and disposable database gates. They do not validate
+moderation, public copying or native publishing, which remain unimplemented
+boundaries.

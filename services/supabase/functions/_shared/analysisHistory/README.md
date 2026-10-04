@@ -373,3 +373,13 @@ API writer, moderated endpoint or native caller is enabled. See the
 [canonical contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-atomic-community-request-admission)
 for the default-off gate, insertion proof, public-reader privacy and remaining
 publisher integration.
+
+## Protected publication intent foundation
+
+The private SQL preparation records exact V2 ready-photo facts before external
+work. Its historical receipt is not a current authorization: a separate
+revalidation checks revisions, gates, ownership and content tuples. No Edge
+adapter, public-copy writer or media approval is enabled. Provider completion
+does not supply durable approval to publish private photos. See the
+[intent contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-protected-photo-publication-intent)
+for the remaining moderation, cleanup and publisher requirements.

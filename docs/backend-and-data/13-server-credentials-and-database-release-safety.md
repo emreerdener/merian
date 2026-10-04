@@ -359,6 +359,14 @@ cascade with history. Moderation and evidence ownership must be proven by the
 future publisher before invoking the private routine. See the
 [admission contract](05-api-contracts.md#prepared-atomic-community-request-admission).
 
+Protected publisher intents add no API execution or table grant. Their source
+object identities remain private and cascade with history. Exact retries recover
+frozen preparation only; current execution requires fresh source and revision
+checks. No persisted analysis record currently proves public-media approval.
+Separate content moderation and public-copy cleanup must be implemented before
+exposing the publisher; no rollout flag is enabled. See the
+[intent contract](05-api-contracts.md#prepared-protected-photo-publication-intent).
+
 ## Migration Execution Contract
 
 CI pins Supabase CLI `2.109.1`, which owns migration transaction and
