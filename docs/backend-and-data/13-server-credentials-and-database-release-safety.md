@@ -679,3 +679,25 @@ future authenticated repository adapter must pass verified owner, observation,
 attempt and original lease to every operation and use the same frozen classifier
 closure throughout; it cannot accept a client-supplied approval or proof. A
 claiming expired-attempt worker is still required before activation.
+
+## Prepared public history-photo credentials
+
+The unconnected public-photo transport declares
+`R2_PUBLICATION_WRITE_ACCESS_KEY_ID`, `R2_PUBLICATION_WRITE_SECRET_ACCESS_KEY`,
+`R2_PUBLICATION_READ_ACCESS_KEY_ID` and `R2_PUBLICATION_READ_SECRET_ACCESS_KEY`.
+It uses `R2_ACCOUNT_ID` and the public `R2_BUCKET_NAME`, which must differ from
+`R2_HISTORY_BUCKET_NAME`. There is no fallback to generic scan credentials. Both
+configurations must resolve to the same destination before writing. These are
+declarations, not provisioned secrets.
+
+The dedicated owner reserves the `publication_media/v1/` namespace; generic scan
+writers, cleanup and lifecycle tools must not operate there. This is a logical
+ownership rule, not a claim that bucket credentials enforce prefix isolation.
+Audit actual credential privileges before activation. Content writes are
+conditional, and erasure markers must never expire or be deleted. Cache bypass
+for the namespace is an activation requirement: origin no-store headers alone
+cannot defeat an overriding CDN cache rule. Verify authorized nonproduction
+write/erase races and edge GET behavior before enabling publication. Durable
+allocation, publication invalidation and cleanup ownership are still required;
+see the
+[storage boundary](05-api-contracts.md#prepared-public-photo-storage-boundary).

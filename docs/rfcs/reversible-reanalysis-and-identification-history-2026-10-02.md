@@ -2397,3 +2397,14 @@ Dispatched-work recovery uses authoritative expiry retirement, but a claiming
 worker/scheduler and live repository adapter are still required. Public copying,
 authenticated publication and native delivery remain held. See the
 [execution contract](../backend-and-data/05-api-contracts.md#prepared-durable-photo-execution-binding).
+
+### October 4, 2026: prepared public-photo transport and metadata boundary
+
+A dedicated unconnected transport now prepares exact-byte conditional public
+copies and permanent origin erasure markers. Bounded JPEG/PNG filtering rejects
+known out-of-band metadata; HEIC and unsupported containers remain held. A
+future publisher must preflight before quota admission, and any derivative needs
+its own immutable source and moderation. Durable copy allocation, cleanup,
+publication invalidation and cache-bypass evidence remain required. No
+activation is implied; see the
+[storage contract](../backend-and-data/05-api-contracts.md#prepared-public-photo-storage-boundary).

@@ -19,6 +19,17 @@ validation.
 
 ## Observation analysis history activation hold
 
+The prepared public-photo transport does not authorize public copying. Keep
+publication held until durable allocation, deletion-safe cleanup and public
+publication invalidation are wired. Require a verified CDN cache bypass for
+`publication_media/v1/`, permanent erasure-marker lifecycle protection,
+dedicated credential ownership and authorized nonproduction edge tests after
+erasure. Origin no-store headers do not prove cached bytes were revoked.
+Metadata-bearing and HEIC inputs remain held; any sanitized derivative requires
+separate immutable source approval. Admission must preflight the supported
+container before provider quota admission. See the
+[prepared storage boundary](05-api-contracts.md#prepared-public-photo-storage-boundary).
+
 The October 2 reversible-history work is a locally validated backend
 preparation, not an activated feature. The three forward migrations beginning
 `20261002213257`, `20261002215330`, and `20261002215809` prepare private

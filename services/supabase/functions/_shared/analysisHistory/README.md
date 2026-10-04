@@ -418,3 +418,13 @@ digest to its migration. The SQL catalog and separate-session tests cover
 proof/result replay and completion versus review/deletion. No live repository
 adapter, endpoint or expired-attempt recovery scheduler is connected. See the
 [execution contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-durable-photo-execution-binding).
+
+## Prepared public-photo storage
+
+`publicPhotoContainer.ts` bounds and filters JPEG/PNG containers before
+`publicPhotoStorage.ts` writes exact source bytes conditionally. Erasure retains
+an empty permanent marker, preventing delayed conditional writes from restoring
+origin content. Tests use only synthetic images and in-memory storage. No SQL
+allocation/cleanup owner or live caller is connected, and origin markers do not
+prove cache revocation. See the
+[storage contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-public-photo-storage-boundary).

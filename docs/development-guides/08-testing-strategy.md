@@ -10465,3 +10465,14 @@ Separate-session moderation tests add duplicate completion, completion versus
 account deletion in both orders, and review-before-completion with no partial
 result. No live provider, API repository adapter or scheduled recovery worker is
 exercised; public-copy/endpoint/native acceptance remains separate.
+
+### Prepared public-photo storage verification
+
+`publicPhotoContainer_test.ts` checks bounded JPEG/PNG structures, metadata and
+unknown-chunk rejection, CRCs, lengths, ordering, trailing bytes and held HEIC.
+Synthetic fixtures do not establish pixel-decoder safety or live model quality.
+`publicPhotoStorage_test.ts` checks exact conditional writes, duplicate HEAD
+validation, both upload/erasure orderings, permanent markers, pre-I/O content
+rejection, dedicated credential configuration and sanitized transport errors.
+All object storage is simulated. SQL allocation/cleanup, final publication, real
+R2 behavior and edge-cache revocation remain separate acceptance gates.

@@ -3254,3 +3254,12 @@ frozen invocation and retries only completion writes. Live authenticated
 repository wiring, recovery scheduling and public-copy ownership remain held;
 see the
 [execution contract](../../docs/backend-and-data/05-api-contracts.md#prepared-durable-photo-execution-binding).
+
+## Prepared public-photo transport
+
+The dedicated history-photo transport prepares conditional exact-byte writes and
+permanent erasure markers in a new public namespace. A bounded JPEG/PNG filter
+rejects known out-of-band metadata. It has no production caller, SQL copy
+ledger, cleanup scheduler or publication transaction. Cache-bypass evidence and
+durable ownership remain activation requirements. See the
+[storage contract](../../docs/backend-and-data/05-api-contracts.md#prepared-public-photo-storage-boundary).

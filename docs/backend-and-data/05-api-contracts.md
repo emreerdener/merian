@@ -13173,3 +13173,46 @@ installed; those integrations remain required. If a valid provider result never
 commits before expiry, it is intentionally treated as an uncertain execution. An
 already-committed terminal result remains replayable after expiry and generic
 quota pruning. Neither result nor historical receipt authorizes public copying.
+
+## Prepared public-photo storage boundary
+
+`analysisHistory/publicPhotoStorage.ts` prepares transport only. It has no
+route, worker or production caller, and cannot authorize publication. A future
+SQL owner must reserve a never-reused opaque object UUID and durable erasure
+obligation before external I/O, then revalidate current source, moderation
+policy, authority and the complete ordered cohort before publication. Historical
+approval alone is insufficient. Copy receipts must eventually bind to the public
+publication version, so unsharing, moderation, privacy changes and publication
+deletion also invalidate media, independently of private selection.
+
+The writer uses `publication_media/v1/<object UUID>` in the public bucket,
+separate from legacy scan upload ownership. It requires exact private bytes,
+size, MIME and SHA-256 and uses conditional PUT with `If-None-Match: *`. Both
+dedicated read and write configurations are captured and checked before I/O. A
+successful write or duplicate conflict requires matching HEAD facts, including
+`Cache-Control: no-store, max-age=0` and absence of an erasure marker. Public
+metadata contains only the content digest, never private source identities.
+Erasure overwrites the same key with a permanent empty marker; it never deletes
+the key. This defeats both orderings of a delayed conditional upload racing
+origin erasure. The future durable owner must queue cleanup and attempt
+immediate erasure after uncertain writes or final admission denial, while
+fencing against another worker's valid committed publication. This helper
+supplies no such ledger, claim, cleanup scheduling or publication transaction.
+
+`publicPhotoContainer.ts` rejects known out-of-band metadata containers through
+a bounded JPEG/PNG allowlist before writing. JPEG permits baseline/progressive
+coding markers and only the exact minimal JFIF 1.1 header; EXIF, XMP, ICC, IPTC,
+comments and other application segments are rejected. PNG permits bounded image,
+transparency and color-description chunks with valid CRCs; text, EXIF, ICC,
+unknown ancillary and animation chunks are rejected. Trailing bytes are
+rejected. This is structural filtering, not a pixel decoder or a claim that
+image content cannot encode private information. HEIC and metadata-bearing
+inputs are held. Future admission must perform this preflight on verified bytes
+before reserving provider quota. A sanitized derivative requires a separately
+immutable source and its own moderation; transcoding cannot inherit the original
+approval.
+
+Origin no-store headers and markers do not prove CDN revocation. Activation
+requires a verified cache bypass for this namespace, permanent-marker lifecycle
+protection and authorized nonproduction edge tests showing no stale body after
+erasure. No hosted storage policy, credential or cache setting changed here.
