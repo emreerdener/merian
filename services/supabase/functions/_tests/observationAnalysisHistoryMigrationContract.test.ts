@@ -487,3 +487,42 @@ Deno.test("analysis confirmation uses service proof, immutable admission and rev
       .test(sql),
   );
 });
+
+Deno.test("private community authority binds fresh requests and serializes current-source reconciliation without API activation", async () => {
+  const sql = await migration(
+    "20261004050937_prepare_analysis_community_authority",
+  );
+  for (
+    const fragment of [
+      "community_authority_enabled BOOLEAN NOT NULL DEFAULT FALSE",
+      "CREATE TABLE internal.observation_community_creation_fences",
+      "creation_transaction=pg_catalog.pg_current_xact_id()",
+      "CREATE TABLE internal.observation_community_bindings",
+      "CREATE TABLE internal.observation_community_reconciliation",
+      "CREATE INDEX observation_community_bindings_analysis_idx",
+      "authority.review_revision<>work.applied_review_revision",
+      "SET superseded=TRUE,applied_source_revision=source_revision",
+      "WHERE request_id=p_request FOR UPDATE NOWAIT",
+      "EXCEPTION WHEN lock_not_available THEN RETURN 'pending'",
+      "CREATE TRIGGER zz_delete_observation_community_authority AFTER DELETE",
+      "PERFORM internal.reconcile_observation_community_authority(p_owner,p_request)",
+    ]
+  ) assertStringIncludes(sql, fragment);
+  assert(
+    !/GRANT EXECUTE|UPDATE internal\.observation_history_rollout/i.test(sql),
+  );
+  const projector = sql.slice(
+    sql.indexOf(
+      "CREATE FUNCTION internal.reconcile_observation_community_authority",
+    ),
+  );
+  assert(
+    !projector.includes("community_authority_enabled"),
+    "Revocation must survive admission hold closure",
+  );
+  assert(
+    !/FROM public\.explore_community_requests[^;]*FOR UPDATE/i.test(projector),
+    "Worker must not take request lock after owner/history locks",
+  );
+  assert(!/UPDATE public\.scans|selected_analysis_id\s*=/i.test(projector));
+});

@@ -17,6 +17,12 @@ identification remains an activation requirement; the held owner Reject/Undo RPC
 does not enable this legacy route for enrolled history. See the
 [history review contract](../../../../docs/backend-and-data/05-api-contracts.md#prepared-analysis-bound-reject-and-undo).
 
+The subsequent
+[private community authority foundation](../../../../docs/backend-and-data/05-api-contracts.md#private-analysis-bound-community-authority-preparation)
+adds immutable request-to-analysis bindings and queued reconciliation, but no
+caller or publication admission. It does not lift this endpoint's enrollment
+fence or attach existing community requests to a private selection.
+
 ## AI Cost and Publication Boundary
 
 Community requests share the same fail-closed audio publication path as

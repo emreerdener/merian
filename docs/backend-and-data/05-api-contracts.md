@@ -12832,3 +12832,63 @@ only a selected child's confirmation updates the active projection. A receipt is
 an operation outcome, not current authority: consumers must reread current state
 before display or credit decisions. Native confirmation admission, community
 transitions, downstream reconciliation and activation remain separate work.
+
+### Private analysis-bound community authority preparation
+
+The community-authority foundation has **no public RPC, Edge endpoint, native
+caller or scheduled worker**. `internal.bind_observation_community_request` and
+`internal.reconcile_observation_community_authority` have no API-role execution
+grants, including service role. The new `community_authority_enabled` flag
+defaults false and controls new bindings. Existing bindings can still reconcile
+and revoke authority after this admission hold closes.
+
+The future atomic publisher must supply an explicit owner, observation,
+analysis, community request, and expected observation/review revisions.
+Registration locks owner → observation generation → live scan → history → named
+authority, verifies biological/unreviewed evidence, and requires a fresh
+`needs_id` request belonging to that owner/scan/post/taxonomy generation. A
+private AFTER INSERT fence proves that the request was inserted in the same
+transaction; reopening or updating a committed legacy request cannot manufacture
+that proof. Exact binding retries recover without changing authority; changed
+identities/revisions conflict. Registration atomically marks the named result as
+awaiting acceptance through initial reconciliation. Selection is unchanged.
+There is no automatic migration or binding of existing community requests.
+
+Request identity is immutable after binding: request, observation, analysis,
+owner, post, taxonomy version and request timestamp cannot be reassigned. Bound
+consensus updates bypass the legacy scan-review writer and only increment a
+private durable source revision. Status/taxon/withdrawal changes and request
+deletion enqueue work in the same transaction as the public request mutation.
+Unbound requests keep the existing history fence. Ordinary enrolled request
+creation remains blocked; a future publisher must add its approved public
+snapshot and atomic admission path before this preparation can be activated.
+
+The private reconciler takes the history lock order and attempts the queue row
+with `FOR UPDATE NOWAIT`. A busy consensus transaction yields `pending`; callers
+must end the transaction and retry later. This prevents a cycle with consensus
+notifications that can wait on the owner while holding request/queue locks. The
+worker never locks the request row. Its queue lock serializes the read of
+current committed request state: a request mutation cannot commit without
+advancing that same queue row. Delayed invocations recompute current state,
+never replay an old resolve/withdraw payload.
+
+A species resolution supplies separate community species authority; a genus
+resolution remains visible without species credit. Loss, withdrawal or deletion
+of the request produces awaiting-acceptance authority with no effective species
+or inherited confirmation. Only the bound child's seven-field authority changes;
+the existing authority trigger advances parent revision and reconciliation,
+updating active projection only when that child is selected. A newer owner
+review permanently supersedes the old community binding, so later consensus
+cannot undo explicit acceptance. Outcomes are internal `applied`, `current`,
+`pending` or `superseded` signals, not public operation receipts or
+current-state payloads.
+
+Binding and queue records survive request deletion long enough to revoke its
+authority, but cascade with the observation/analysis. Deletion and owner checks
+precede reconciliation and binding replay. The future dispatcher must retain and
+retry pending work, and public/credit consumers must enforce current source and
+authority revisions before counting or displaying verified identity. Publication
+snapshots, otherwise-visible post/discussion preservation on revocation,
+privacy/moderation invalidation, new-request admission receipts, worker
+scheduling and native integration remain activation requirements. No publication
+behavior is claimed by this private foundation.

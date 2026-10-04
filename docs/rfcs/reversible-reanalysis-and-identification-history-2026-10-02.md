@@ -2259,3 +2259,44 @@ migration source guardrails, project validation and 26 documentation contracts
 passed again. CI evidence must be checked against the final PR head before
 release. History activation remains closed, and no deployment or TestFlight
 upload was performed.
+
+### October 4, 2026 — analysis-bound review and private community preparation
+
+The held review implementation now includes durable confirmation admission and
+exact completed retry recovery, in addition to Reject/Undo. Confirmation targets
+one immutable result and rechecks both observation and child-review revisions
+after verification. The
+[current confirmation contract](../backend-and-data/05-api-contracts.md#prepared-analysis-bound-confirmation)
+owns its default-off gate and native integration requirements. All seven PR
+workflows, including compiled iOS and Startup Safety, passed for the preceding
+confirmation candidate `0f02d01ed3a2cd7d2ba3b91bbacf1c7a1c8c98f0`.
+
+The next database-only foundation binds a freshly inserted community request to
+an explicit result, preserves that immutable binding, and queues revisioned
+authority reconciliation. The worker reads current committed consensus, yields
+on lock contention, and cannot override a subsequent owner review. Request
+deletion retains revocation work; observation/account deletion erases the
+private binding and queue. There is no public RPC, endpoint, publisher or
+scheduler in this slice. The
+[current community contract](../backend-and-data/05-api-contracts.md#private-analysis-bound-community-authority-preparation)
+defines these boundaries. Legacy enrolled request creation remains fenced.
+
+Focused verification passed 26 SQL assertions and eight concurrency tests. The
+complete backend suite passed 2,450 tests with 343 steps. Clean disposable
+migration replay and all database catalogs passed 870 assertions across 87
+files. Database lint passed; advisors reported the existing 103 security and 79
+performance warnings, no errors, and no findings on the new community objects.
+All 108 function entry points type-checked. Migration, DTO, lint and formatting
+checks passed. The complete Supabase tooling gate passed 499 standard tests, 157
+evaluation tests, 20/21 isolated DTO tests and all 19 shell test files. Its
+provider/terminal cases used local synthetic executables, with no live inference
+calls. This backend slice changes no native source and does not replace the
+earlier native evidence or establish CI results for its eventual commit.
+
+The next integration must create an immutable approved public snapshot with
+atomic analysis-bound admission. Public reads must immediately remove verified
+identity and species eligibility when the published result loses authority,
+independently of private selection and worker delivery order. A durable retry
+owner, native review admission, remaining downstream consumers and final account
+deletion integration still precede activation. No deployment, activation or
+TestFlight upload was performed.

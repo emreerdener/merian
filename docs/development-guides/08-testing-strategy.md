@@ -10361,3 +10361,18 @@ Supabase gates; no separate workflow or rollout exception is introduced.
 Deployment's critical user-route denial smoke also includes the new endpoint.
 Its default-false gate and missing ordinary native caller remain governed by the
 [canonical contract](../backend-and-data/05-api-contracts.md#prepared-analysis-bound-confirmation).
+
+## Private community authority verification
+
+`tests/observation_community_authority.sql` covers private grants, fresh-request
+proof, exact binding/rebinding, genus/species authority, hold closure, explicit
+owner acceptance, request deletion and account erasure.
+`_tests/observationCommunityAuthorityConcurrencyDb.test.ts` uses separate local
+database sessions for duplicate workers, consensus/worker ordering, withdrawal,
+selection of another result, request deletion, account deletion and committed
+request refusal. NOWAIT contention must yield pending work without losing it.
+Static migration contracts preserve the no-API/no-scheduler boundary and ensure
+revocation does not depend on the new-binding gate. These checks enter the
+existing complete backend and disposable-database gates. The
+[community foundation contract](../backend-and-data/05-api-contracts.md#private-analysis-bound-community-authority-preparation)
+lists the public/native integrations still required before activation.

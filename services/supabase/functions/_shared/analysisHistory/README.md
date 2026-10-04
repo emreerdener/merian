@@ -340,3 +340,16 @@ false. Exact completed retries skip verification; explicit confirmation can
 clear only the named result's rejection. Native admission, community authority
 and ordinary activation remain held. See the
 [canonical contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-analysis-bound-confirmation).
+
+## Private community authority foundation
+
+The community binding/reconciliation migration prepares database-only ownership
+of a named result. No public or service RPC, endpoint, scheduler or native
+caller is exposed. A fresh-request transaction fence prevents automatic
+attachment of old scan-based requests. Bound consensus increments a durable
+queue revision; the private reconciler reads current source state, respects
+later owner review, and yields on lock contention. Request deletion retains
+revocation work, while observation deletion erases it. The new-binding gate
+defaults false. Public snapshot/admission and dispatcher integration remain
+required; see the
+[canonical contract](../../../../../docs/backend-and-data/05-api-contracts.md#private-analysis-bound-community-authority-preparation).

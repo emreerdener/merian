@@ -6872,3 +6872,33 @@ pointer or immutable result bytes are rewritten. The migration reloads the
 PostgREST schema cache and grants only the two explicit service wrappers. See
 [confirmation semantics](05-api-contracts.md#prepared-analysis-bound-confirmation)
 for exact payloads, replay, unsupported states and remaining activation holds.
+
+### Private community binding and reconciliation
+
+`20261004050937_prepare_analysis_community_authority.sql` adds the default-false
+community binding gate, private request-creation fences, immutable
+`observation_community_bindings`, and mutable
+`observation_community_reconciliation`. All enable RLS and revoke direct API
+access. Neither internal registration nor reconciliation has API execution
+grants. The request insertion fence records only request UUID and transaction
+identity; it is created only while the new-binding gate is open and cascades
+with the request. It cannot be recreated by UPDATE/reopen.
+
+A binding stores only explicit identities, taxonomy/request generation and the
+two admission revisions, with an indexed composite FK to the immutable child. It
+intentionally has no FK cascade from the public request: deleting that request
+must retain its queued authority revocation. The queue cascades from the
+binding, and deleting the observation/analysis erases both. Queue source and
+applied revisions are bounded, with the last applied child review revision and
+an irreversible superseded marker preventing old community work from overriding
+new owner authority.
+
+The bound-request guard protects all identity fields. Bound updates skip legacy
+scan-review mutation and enqueue a source revision; unbound requests retain the
+existing enrollment fence. The private worker uses the common history lock
+order, then NOWAIT on the queue, and reads current request state without locking
+it. Request deletion is an explicit revocation source. Gate closure blocks new
+bindings but does not suppress already-required revocations. The
+[canonical contract](05-api-contracts.md#private-analysis-bound-community-authority-preparation)
+owns transition semantics and the missing publisher, dispatcher, public-consumer
+and native activation work.

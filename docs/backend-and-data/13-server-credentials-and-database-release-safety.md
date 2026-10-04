@@ -331,6 +331,16 @@ endpoint; it does not enable the gate. The
 owns pending-operation recovery, verified proof, rate admission and remaining
 native/legacy/community activation limits.
 
+The private community binding/reconciliation foundation exposes no API routine
+or table grant. Its insertion fence proves a fresh request in the publisher's
+transaction; existing requests are never implicitly assigned to a selected
+analysis. A durable queue separates request-first consensus locks from
+owner-first history locks, and the worker yields rather than waiting on a busy
+queue. Request deletion retains revocation work; parent deletion erases it.
+Current authority/source checks, public snapshots and a scheduled retry owner
+remain prerequisites for activation. See the
+[community foundation contract](05-api-contracts.md#private-analysis-bound-community-authority-preparation).
+
 ## Migration Execution Contract
 
 CI pins Supabase CLI `2.109.1`, which owns migration transaction and

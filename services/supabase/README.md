@@ -3184,3 +3184,13 @@ or transfers authority between results. The
 [canonical API contract](../../docs/backend-and-data/05-api-contracts.md#prepared-analysis-bound-confirmation)
 owns held legacy/community behavior, retry semantics and remaining native and
 rollout work. This source preparation authorizes no deployment or activation.
+
+## Private community authority foundation
+
+The database-only community binding and reconciliation layer now preserves an
+explicit analysis subject and a durable source revision. No endpoint, public
+publisher, scheduler or API execution grant is enabled. Existing community
+requests are not migrated; new registration requires same-transaction insertion
+proof. See the
+[canonical contract](../../docs/backend-and-data/05-api-contracts.md#private-analysis-bound-community-authority-preparation)
+for lock contention, superseded review and request-deletion revocation behavior.
