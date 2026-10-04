@@ -10547,3 +10547,15 @@ sanitized status, historical binding and deletion fences.
 sessions for competing claims and both account-deletion orders. These checks do
 not qualify live provider dispatch, public copying, optional-note moderation,
 cache revocation or a scheduled worker; those remain separately held.
+
+### Scoped publication moderation recovery
+
+`publication_moderation_operations.sql` checks actual service/client roles,
+original IP quota scope, no complimentary-credit linkage, exact operation/lease
+membership, stale-work denial, late completion, immutable replay and charged
+unknown-execution retirement through the new facade. Repository tests verify
+frozen scope, strict ordered receipts, safe terminal recovery and no implicit
+transport retry. Whole-cohort preflight tests verify later-photo metadata
+rejection before admission, digest/container mismatch, MIME/size/alias
+rejection, cancellation, immutable bytes and one-shot provider closures. No live
+provider or storage call is performed by these tests.

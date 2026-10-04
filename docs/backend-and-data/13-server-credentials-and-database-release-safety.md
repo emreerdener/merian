@@ -742,3 +742,12 @@ lease; provider dispatch/copy/binding must retain their separate guards.
 `publication_execution_enabled` defaults false, no scheduler is created, and
 live public-note moderation remains an activation requirement. See the
 [worker ownership boundary](05-api-contracts.md#prepared-publication-operation-worker-ownership).
+
+The scoped publication moderation facade grants three service-only routines;
+private lifecycle routines and tables remain ungranted. Recovery tokens are
+worker-only. The adapter has bounded RPC calls without transport retry, and late
+completions still require the original provider identity and durable proof.
+Whole-cohort verified container preflight is prepared for the future execution
+owner before quota; SQL cannot independently inspect storage bytes. No worker
+route, scheduling or activation is supplied. See the
+[scoped repository boundary](05-api-contracts.md#prepared-scoped-publication-moderation-repository).

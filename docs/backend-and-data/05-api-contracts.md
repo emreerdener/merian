@@ -13479,3 +13479,64 @@ notes currently have length validation only: photo approval cannot approve text.
 Before live binding, require durable exact-note moderation (including an
 explicit no-note case) or restrict the activated subset to no notes. No gate is
 enabled by this migration.
+
+## Prepared scoped publication moderation repository
+
+`20261004132016_scope_publication_moderation_operations.sql` exposes three
+service-only RPCs under an accepted operation.
+`read_publication_moderation_work` requires the exact live
+owner/observation/operation/work token and returns each consented media ID in
+order with its latest private attempt, or null before admission. Recovery
+includes the original provider lease and dispatch deadline; never send it to a
+user or log it.
+
+`admit_publication_moderation_work` accepts only that work scope and one member
+media ID. It uses the original intake IP hash for provider quota, not a new
+worker address. Any existing attempt, including cancelled or unknown execution,
+is returned for recovery. No predecessor parameter or automatic successor is
+available. Fresh admission requires the execution gate, moderation gate and
+current intent/consent/quota checks. Recovery does not imply permission to
+invoke.
+
+`advance_publication_moderation_work` binds every action to the accepted
+operation, exact attempt and original provider token. Prepare/dispatch require a
+live work token and enabled execution gate; private routines retain their proof,
+source, consent and moderation gates. Reserved cancellation also requires live
+work so an expired worker cannot cancel a replacement worker's reservation.
+Completion of an already-dispatched request uses the original provider lease,
+proof and exact result even after orchestration expires or its gate closes;
+provider expiry, deletion and authority/source checks still apply. Dispatched
+retirement requires expiry and retains the charge. Terminal replay is immutable.
+The facade cannot grant public copying or approve a note.
+
+`publicationModerationRepository.ts` freezes the complete scope and source
+cohort, validates ordered/scoped receipts, drops unused quota details, supplies
+12-second RPC deadlines, sanitizes errors and never retries transport calls.
+`isActivePhotoWork` separates reserved/dispatched execution capabilities from
+terminal outcomes, which have no provider token and are consumed directly. Every
+execution callback checks the original owner, observation, attempt and provider
+token. Only the execution helper may repeat the identical final write.
+
+`photoCohortPreflight.ts` prepares the **entire** exact ordered source cohort
+before the future worker may call admission. It rejects duplicate media/object
+IDs, more than six photos, more than 32 MiB total, or unsupported MIME/size
+facts before I/O. Sequential private reads share a 60-second deadline and caller
+cancellation; copied bytes must match immutable digest/length and the bounded
+JPEG/PNG container policy. HEIC and metadata-bearing containers remain held. The
+successful handle retains at most 32 MiB of verified raw bytes. It permits
+preparing one selected photo per pass, releasing all unselected buffers before
+building one provider request; it never retains a full cohort of base64 request
+bodies. That classifier freezes the same bytes without a second storage read
+after quota, and its invocation remains one-shot. CPU-bound hash/container/JSON
+phases check cancellation at boundaries, without claiming preemptive
+interruption. No partial cohort is returned when a later photo fails. This
+preflight is not provider approval, ownership authorization or an image decoder;
+current database checks still govern every external step.
+
+No route or scheduler invokes this repository/preflight yet. The future worker
+must consume recovery first, complete full-cohort preflight before any new
+quota, and then pass its prepared closure into the existing execution owner.
+This is an activation requirement, not a database claim that it inspected object
+bytes. Optional-note moderation, copy integration and cohort failure cleanup,
+durable retirement scheduling, native delivery and cache-bypass qualification
+remain required. All activation gates stay false.

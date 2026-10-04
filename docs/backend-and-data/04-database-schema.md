@@ -7045,3 +7045,14 @@ bounded list/claim/release and sanitized owner-status RPCs preserve owner-first
 locking; no direct table grants, provider dispatch or storage access are added.
 See the
 [worker ownership contract](05-api-contracts.md#prepared-publication-operation-worker-ownership).
+
+### Scoped publication moderation repository
+
+`20261004132016_scope_publication_moderation_operations.sql` adds service-only
+ordered attempt recovery, initial admission and scoped
+prepare/dispatch/complete/ retire RPCs. It creates no new tables or enabled
+gates. Accepted-operation and exact-provider identities fence every action;
+fresh work requires the live orchestration token, while an already-dispatched
+completion retains its original provider lease. Admission uses the saved intake
+hash and never creates an automatic successor. See the
+[repository contract](05-api-contracts.md#prepared-scoped-publication-moderation-repository).

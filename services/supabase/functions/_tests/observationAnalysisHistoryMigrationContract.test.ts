@@ -851,3 +851,18 @@ Deno.test("publication worker leases remain distinct from provider dispatch and 
   assert(!sql.includes("reserve_ai_quota"));
   assert(!sql.includes("dispatch_publication_photo"));
 });
+
+Deno.test("moderation operation facade preserves original attempts and separate work/provider leases", async () => {
+  const sql = await migration(
+    "20261004132016_scope_publication_moderation_operations",
+  );
+  assertStringIncludes(sql, "internal.assert_publication_operation_work");
+  assertStringIncludes(sql, "SELECT o.ip_hash INTO ip");
+  assertStringIncludes(sql, "ORDER BY attempt_count DESC LIMIT 1");
+  assertStringIncludes(sql, "p_operation,p_media,NULL,ip");
+  assertStringIncludes(sql, "p_action='retire' AND attempt.state='reserved'");
+  assertStringIncludes(sql, "internal.complete_publication_photo_execution");
+  assertStringIncludes(sql, "internal.privileged_routine_grants");
+  assert(!sql.includes("TO authenticated"));
+  assert(!sql.includes("p_predecessor"));
+});

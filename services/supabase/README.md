@@ -3319,3 +3319,16 @@ confer no provider or public-copy authority. The execution gate remains false,
 and worker/status endpoints and native delivery remain unconnected. Optional
 public notes still require their own moderation boundary. See the
 [worker contract](../../docs/backend-and-data/05-api-contracts.md#prepared-publication-operation-worker-ownership).
+
+## Scoped moderation recovery and preflight
+
+`publicationModerationRepository.ts` now binds service calls to an accepted
+operation, live work for fresh execution, and original provider tokens for late
+completion. Ordered recovery never manufactures a successor. Terminal results
+are consumed directly using `isActivePhotoWork` to distinguish execution
+capabilities. `photoCohortPreflight.ts` prepares every verified
+metadata-filtered JPEG/PNG before any future quota admission. Only a complete
+cohort returns a handle; it retains bounded raw bytes and releases unselected
+buffers before preparing one classifier per pass. The worker route remains
+unconnected and gates stay false. See the
+[repository contract](../../docs/backend-and-data/05-api-contracts.md#prepared-scoped-publication-moderation-repository).

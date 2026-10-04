@@ -2474,3 +2474,17 @@ approval is insufficient. Remaining work includes scoped execution, preflight
 before quota, note moderation, cohort failure cleanup, expired-attempt
 retirement and native delivery. See the
 [worker contract](../backend-and-data/05-api-contracts.md#prepared-publication-operation-worker-ownership).
+
+### October 4, 2026: scoped moderation recovery and cohort preflight
+
+Accepted operations now have an explicit service repository for ordered attempt
+recovery, initial admission, proof, one-time dispatch, identical completion and
+retirement. Existing attempts never become automatic successors. Late provider
+completion retains its own lease after orchestration expires; terminal outcomes
+are consumed without an execution token. A full-cohort preflight owner verifies
+private bytes and the stricter JPEG/PNG metadata-container policy before a
+future worker may reserve quota. Classifier signature checks alone are
+insufficient. No execution route or scheduler is connected. Copy integration,
+note moderation, cohort cleanup, retirement scheduling and native delivery
+remain held. See the
+[repository contract](../backend-and-data/05-api-contracts.md#prepared-scoped-publication-moderation-repository).
