@@ -32,6 +32,9 @@ for (
     "copy duplicate",
     "copy deletion first",
     "copy before deletion",
+    "copy settlement duplicate",
+    "copy settlement deletion first",
+    "copy settlement before deletion",
     "cohort duplicate",
     "cohort abandon before complete",
     "cohort deletion before complete",
@@ -41,6 +44,8 @@ for (
     "cohort deletion before binding",
     "cohort abandon before binding",
     "cohort binding before abandon",
+    "cohort binding before settlement",
+    "cohort settlement before binding",
   ]
 ) {
   Deno.test({
@@ -81,6 +86,7 @@ for (
         "publication_copy_enabled",
         "publication_copy_reservation_enabled",
         "publication_copy_binding_enabled",
+        "publication_copy_settlement_enabled",
         "publication_binding_enabled",
         "community_admission_enabled",
         "community_authority_enabled",
@@ -228,6 +234,63 @@ for (
             [owner, observation, operation],
           );
         if (copy) await finalize(observer);
+        if (scenario.startsWith("copy settlement")) {
+          const claimed =
+            (await observer.queryObject<{ receipt: { work_token: string } }>(
+              "SELECT public.claim_publication_copy_work($1,$2,$3) AS receipt",
+              [owner, observation, operation],
+            )).rows[0].receipt;
+          const finishCopy = (client: Client) =>
+            client.queryObject<{ receipt: unknown }>(
+              "SELECT public.finalize_publication_copy_work($1,$2,$3,$4) AS receipt",
+              [owner, observation, operation, claimed.work_token],
+            );
+          const firstPID = (await first.queryObject<{ pid: number }>(
+            "SELECT pg_backend_pid() AS pid",
+          )).rows[0].pid;
+          const secondPID = (await second.queryObject<{ pid: number }>(
+            "SELECT pg_backend_pid() AS pid",
+          )).rows[0].pid;
+          await first.queryArray("BEGIN");
+          await second.queryArray("BEGIN");
+          let original: unknown;
+          if (scenario === "copy settlement deletion first") await erase(first);
+          else original = (await finishCopy(first)).rows[0].receipt;
+          const pending = settle(
+            scenario === "copy settlement before deletion"
+              ? erase(second)
+              : finishCopy(second),
+          );
+          await observeBlock(observer, secondPID, firstPID);
+          await first.queryArray("COMMIT");
+          const result = await pending;
+          if (scenario === "copy settlement deletion first") {
+            assert(!result.ok);
+            assert(result.error.includes("analysis_history_not_found"));
+            await second.queryArray("ROLLBACK");
+          } else {
+            assert(result.ok);
+            await second.queryArray("COMMIT");
+            if (scenario === "copy settlement duplicate") {
+              assertEquals(result.value.rows[0].receipt, original);
+            }
+          }
+          assertEquals(
+            (await observer.queryObject<{ count: number }>(
+              "SELECT count(*)::int AS count FROM internal.observation_publication_copy_outcomes WHERE operation_id=$1",
+              [operation],
+            )).rows[0].count,
+            scenario.includes("deletion") ? 0 : 1,
+          );
+          assertEquals(
+            (await observer.queryObject<{ count: number }>(
+              "SELECT count(*)::int AS count FROM internal.observation_publication_copy_work WHERE operation_id=$1",
+              [operation],
+            )).rows[0].count,
+            0,
+          );
+          return;
+        }
         if (scenario.startsWith("cohort ")) {
           const claim =
             (await observer.queryObject<{ receipt: { work_token: string } }>(
@@ -280,8 +343,17 @@ for (
             )).rows[0].pid;
             await first.queryArray("BEGIN");
             await second.queryArray("BEGIN");
+            const settleCopy = (client: Client) =>
+              client.queryObject<{ receipt: unknown }>(
+                "SELECT public.finalize_publication_copy_work($1,$2,$3,$4) AS receipt",
+                scope,
+              );
             let original: unknown;
-            if (scenario === "cohort deletion before binding") {
+            if (scenario === "cohort settlement before binding") {
+              assertEquals((await settleCopy(first)).rows[0].receipt, {
+                finalized: false,
+              });
+            } else if (scenario === "cohort deletion before binding") {
               await erase(first);
             } else if (scenario === "cohort abandon before binding") {
               await abandon(first);
@@ -289,6 +361,8 @@ for (
             const pending = settle(
               scenario === "cohort binding before deletion"
                 ? erase(second)
+                : scenario === "cohort binding before settlement"
+                ? settleCopy(second)
                 : scenario === "cohort binding before abandon"
                 ? abandon(second)
                 : bind(second),
@@ -314,6 +388,14 @@ for (
               await second.queryArray("COMMIT");
               if (scenario === "cohort binding duplicate") {
                 assertEquals(outcome.value.rows[0].receipt, original);
+              }
+              if (scenario === "cohort binding before settlement") {
+                assertEquals(outcome.value.rows[0].receipt, {
+                  finalized: true,
+                  status: "admitted",
+                  reason: null,
+                  object_ids: [],
+                });
               }
               if (scenario === "cohort binding before abandon") {
                 assertEquals(outcome.value.rows[0].receipt, {

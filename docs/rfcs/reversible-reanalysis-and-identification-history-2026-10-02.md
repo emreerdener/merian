@@ -2555,3 +2555,12 @@ copies and exact binding with shared work, completion and cleanup deadlines. It
 recovers durable publication before targeted erasure and treats uncertain
 transport results as reconciliation. The HTTP service owner, durable copy-phase
 needs-action outcomes and runtime qualification remain required before rollout.
+
+## October 4, 2026: durable copy needs-action outcomes
+
+The prepared copy stage now records immutable note-moderation and staging-expiry
+outcomes separately from provider approval, removing unfulfillable work while
+retaining targeted cleanup. Publication and deletion win over settlement replay.
+The existing owner status reports needs-action without private details. Upstream
+unsupported-source attestation and the service execution owner remain pending;
+all gates remain disabled.

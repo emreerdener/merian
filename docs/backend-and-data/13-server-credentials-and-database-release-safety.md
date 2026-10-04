@@ -821,3 +821,12 @@ sequential scoped copies, exact binding and targeted cleanup under one shared
 and does not infer terminal failure from transport uncertainty. HTTP worker
 admission, durable copy outcomes and activation remain pending. See the
 [controller contract](05-api-contracts.md#prepared-bounded-copy-operation-controller).
+
+## Prepared durable copy outcomes
+
+A separate private immutable outcome now records unapproved notes or original
+staging expiry, retires copy work and preserves provider approval. Historical
+publication wins; private cleanup IDs still require registry claims. Owner
+status exposes only the existing needs-action state. Settlement has its own
+closed gate; no worker or activation is added. See the
+[copy outcome contract](05-api-contracts.md#prepared-durable-copy-needs-action-outcomes).

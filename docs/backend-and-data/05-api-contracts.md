@@ -13836,3 +13836,46 @@ service owner must settle durable needs-action outcomes for unsupported notes,
 unsupported media, verified evidence failures and exhausted staging deadlines,
 without treating ambiguous network/storage results as terminal. Owner status,
 native delivery and runtime qualification also remain. All gates stay false.
+
+## Prepared durable copy needs-action outcomes
+
+`finalize_publication_copy_work(owner, observation, operation, work)` is a
+service-only, independently gated finalizer. Callers cannot choose a terminal
+reason or supply cleanup keys. Scope and deletion are checked first. A valid
+existing publication wins and returns admitted with no cleanup targets; this
+uses the private writer's historical owner, intent, admission and binding
+validation, including legacy publications without a cohort reservation. It
+confers no fresh reserved-cohort binding authority. A previously stored copy
+outcome replays before live work or gate checks because settlement removes work.
+
+New settlement requires a live exact copy token and the default-false
+`publication_copy_settlement_enabled` gate. SQL derives only these facts:
+
+- `note_requires_text_moderation`: the immutable intent has a nonnull note, with
+  no atomic reservation or legacy per-photo copy. Photo approval cannot approve
+  arbitrary public text.
+- `staging_expired`: the exact immutable reservation's original expiry has
+  passed. Every unbound registry object is locked in UUID order and made due for
+  erasure. Existing claim ownership is preserved, and deadlines are never
+  extended. The receipt retains the source-ordered original object IDs.
+
+The private immutable copy outcome and removal of copy work commit together.
+Provider moderation remains an unchanged historical fact. A new claim cannot
+reopen the operation. Settlement does not charge, release or refund quota, and
+it never dispatches providers or writes storage. Returned object IDs are only
+private cleanup hints; targeted registry claims still authorize erasure. The
+permanent registry survives private history deletion.
+
+Fresh ineligible work returns `{finalized:false}`. Historical success returns
+`{finalized:true,status:"admitted",reason:null,object_ids:[]}`; needs-action
+returns the same envelope with `status:"needs_action"`, the derived reason and
+original cleanup IDs. The existing owner-status wire shape remains unchanged:
+admitted takes precedence, then copy needs-action, then the moderation state.
+Reasons, storage keys and work tokens stay private. Deletion defeats all replay.
+
+Gate closure, a changed review/privacy/consent revision, expired worker token,
+and transport uncertainty are not terminal content facts. They remain
+recoverable under existing authority and cleanup rules. A note with a legacy
+copy also remains pending rather than being silently discarded. This slice does
+not yet settle upstream unsupported-source/container preflight failures or
+connect the copy HTTP service owner. All activation gates remain false.

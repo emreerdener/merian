@@ -946,3 +946,33 @@ Deno.test("reserved copy binding fences exact ordered objects and recovers befor
   assert(!sql.includes("TO authenticated"));
   assert(!sql.includes("reserve_ai_quota"));
 });
+
+Deno.test("copy settlement derives immutable needs-action without changing provider approval", async () => {
+  const sql = await migration(
+    "20261004165755_settle_publication_copy_needs_action",
+  );
+  assertStringIncludes(
+    sql,
+    "publication_copy_settlement_enabled BOOLEAN NOT NULL DEFAULT FALSE",
+  );
+  assertStringIncludes(
+    sql,
+    "REFERENCES internal.observation_publication_moderation_outcomes(operation_id) ON DELETE CASCADE",
+  );
+  assertStringIncludes(sql, "note_requires_text_moderation");
+  assertStringIncludes(
+    sql,
+    "reservation->>'expires_at')::TIMESTAMPTZ<=clock_timestamp()",
+  );
+  assertStringIncludes(
+    sql,
+    "DELETE FROM internal.observation_publication_copy_work",
+  );
+  assertStringIncludes(sql, "internal.privileged_routine_grants");
+  assert(
+    sql.indexOf("SELECT * INTO saved") <
+      sql.indexOf("PERFORM internal.assert_publication_copy_work"),
+  );
+  assert(!sql.includes("reserve_ai_quota"));
+  assert(!sql.includes("TO authenticated"));
+});

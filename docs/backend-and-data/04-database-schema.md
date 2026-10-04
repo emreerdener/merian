@@ -7100,3 +7100,13 @@ allowlisted binding facade. It creates no new tables. The exact immutable
 reservation fences the existing transactional publication writer and its
 historical receipt replay. See the
 [binding contract](05-api-contracts.md#prepared-exact-reserved-cohort-binding).
+
+### Prepared copy needs-action storage
+
+`20261004165755_settle_publication_copy_needs_action.sql` adds private immutable
+`observation_publication_copy_outcomes`, keyed to moderation outcomes with
+cascading deletion. It stores only owner/observation, bounded derived reason,
+source-ordered original cleanup IDs and finalization time. RLS and revoked
+direct grants preserve service-only RPC access. The independent settlement gate
+starts false. See the
+[copy outcome contract](05-api-contracts.md#prepared-durable-copy-needs-action-outcomes).

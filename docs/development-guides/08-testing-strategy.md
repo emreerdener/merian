@@ -10646,3 +10646,14 @@ invalid binding replies, denied binding with cohort cleanup, account/source
 mutation, and noncooperative read, write and registry transports. Both candidate
 CI test lists include it. Fixtures use synthetic bytes and mocked transports;
 these checks do not establish hosted CPU, memory or CDN cache behavior.
+
+## Durable copy outcome checks
+
+`publication_moderation_outcomes.sql` verifies default-off settlement, no
+outcome for valid staging or transient authority loss, immutable note/expiry
+reasons, original ordered cleanup IDs, erasure claim preservation, replay after
+work and gate retirement, no further claims, and sanitized owner status. Legacy
+noted copies remain pending; validated legacy publications are protected. Actual
+caller roles, immutability and deletion are covered. The concurrency suite adds
+duplicate settlement, deletion in both orders, and binding/settlement in both
+orders. Provider approval and quota stay unchanged.

@@ -326,6 +326,72 @@ SELECT extensions.is(pg_temp.read_cohort()#>>'{reservation,expires_at}',(SELECT 
 SELECT extensions.throws_ok($$SELECT public.complete_publication_copy_cohort_photo('00000000-0000-4000-8000-00000000ee01','00000000-0000-4000-8000-00000000ee11','00000000-0000-4000-8000-00000000ee41',(SELECT (receipt->>'work_token')::UUID FROM copy_reclaim),(SELECT (receipt#>>'{copies,1,attempt_id}')::UUID FROM cohort_reservation),(SELECT (receipt#>>'{copies,0,object_id}')::UUID FROM cohort_reservation),(SELECT (receipt#>>'{copies,0,lease_token}')::UUID FROM cohort_reservation))$$,'22023','analysis_history_operation_conflict','substituted member identity is denied');
 CREATE TEMP TABLE note_copy_claim AS SELECT pg_temp.copy_claim('00000000-0000-4000-8000-00000000ee45') AS receipt;
 SELECT extensions.throws_ok($$SELECT public.reserve_publication_copy_cohort('00000000-0000-4000-8000-00000000ee01','00000000-0000-4000-8000-00000000ee11','00000000-0000-4000-8000-00000000ee45',(SELECT (receipt->>'work_token')::UUID FROM note_copy_claim))$$,'22023','analysis_history_operation_conflict','public note needs its own approval before copying');
+CREATE FUNCTION pg_temp.finish_copy(op UUID DEFAULT '00000000-0000-4000-8000-00000000ee41', token UUID DEFAULT NULL) RETURNS JSONB LANGUAGE SQL AS $$
+ SELECT public.finalize_publication_copy_work('00000000-0000-4000-8000-00000000ee01','00000000-0000-4000-8000-00000000ee11',op,
+ COALESCE(token,CASE WHEN op='00000000-0000-4000-8000-00000000ee41' THEN (SELECT (receipt->>'work_token')::UUID FROM copy_reclaim) ELSE (SELECT (receipt->>'work_token')::UUID FROM note_copy_claim) END));
+$$;
+SELECT extensions.ok(NOT (SELECT publication_copy_settlement_enabled FROM internal.observation_history_rollout),'copy settlement gate defaults closed');
+SELECT extensions.throws_ok('SELECT pg_temp.finish_copy()','55000','analysis_history_unavailable','copy execution gates do not enable settlement');
+UPDATE internal.observation_history_rollout SET publication_copy_settlement_enabled=TRUE;
+SELECT extensions.is(pg_temp.finish_copy(),'{"finalized":false}'::JSONB,'valid unexpired copies have no terminal failure');
+CREATE FUNCTION pg_temp.copy_outcome_trial(kind TEXT) RETURNS JSONB LANGUAGE PLPGSQL AS $$
+DECLARE op UUID:='00000000-0000-4000-8000-00000000ee41'; result JSONB; saved JSONB; past TIMESTAMPTZ:=clock_timestamp()-INTERVAL '1 second';
+BEGIN
+ BEGIN
+  IF kind IN ('note','legacy_copy') THEN op:='00000000-0000-4000-8000-00000000ee45';
+  ELSE
+   ALTER TABLE internal.observation_photo_copies DISABLE TRIGGER guard_publication_photo_copy;
+   UPDATE internal.observation_photo_copies SET expires_at=past;
+   ALTER TABLE internal.observation_photo_copies ENABLE TRIGGER guard_publication_photo_copy;
+   ALTER TABLE internal.observation_publication_copy_cohorts DISABLE TRIGGER reject_publication_copy_cohort_update;
+   UPDATE internal.observation_publication_copy_cohorts SET expires_at=past,
+    copies=(SELECT jsonb_agg(value||jsonb_build_object('expires_at',past) ORDER BY ordinality) FROM jsonb_array_elements(copies) WITH ORDINALITY);
+   ALTER TABLE internal.observation_publication_copy_cohorts ENABLE TRIGGER reject_publication_copy_cohort_update;
+  END IF;
+  IF kind='legacy_copy' THEN
+   PERFORM internal.reserve_publication_photo_copy('00000000-0000-4000-8000-00000000ee01','00000000-0000-4000-8000-00000000ee11',(SELECT (first_attempt->>'attempt_id')::UUID FROM outcomes_work WHERE operation=op));
+   result:=pg_temp.finish_copy(op);
+   RAISE EXCEPTION 'synthetic_trial_rollback' USING ERRCODE='Z0001';
+  END IF;
+  IF kind='claimed_expiry' THEN
+   UPDATE internal.publication_photo_objects SET claim_token='00000000-0000-4000-8000-00000000ef01',claim_expires_at=clock_timestamp()+INTERVAL '1 minute';
+  END IF;
+  saved:=pg_temp.finish_copy(op);
+  IF kind='claimed_expiry' THEN
+   result:=jsonb_build_object('reason',saved->>'reason','claims_preserved',(SELECT bool_and(claim_token='00000000-0000-4000-8000-00000000ef01' AND claim_expires_at>clock_timestamp()) FROM internal.publication_photo_objects));
+   RAISE EXCEPTION 'synthetic_trial_rollback' USING ERRCODE='Z0001';
+  END IF;
+  result:=jsonb_build_object('status',saved->>'status','reason',saved->>'reason',
+   'retired',NOT EXISTS(SELECT 1 FROM internal.observation_publication_copy_work WHERE operation_id=op),
+   'approval_preserved',(SELECT state='photos_approved' FROM internal.observation_publication_moderation_outcomes WHERE operation_id=op),
+   'owner_status',public.read_owned_observation_publication_status('00000000-0000-4000-8000-00000000ee01','00000000-0000-4000-8000-00000000ee11',op)->>'status',
+   'private_shape',(public.read_owned_observation_publication_status('00000000-0000-4000-8000-00000000ee01','00000000-0000-4000-8000-00000000ee11',op)-ARRAY['schema_version','operation_id','observation_id','analysis_id','status'])='{}'::JSONB,
+   'object_count',jsonb_array_length(saved->'object_ids'),
+   'cleanup_ready',kind='note' OR (SELECT bool_and(revoked_at IS NOT NULL AND available_at<=clock_timestamp()) FROM internal.publication_photo_objects));
+  UPDATE internal.observation_history_rollout SET publication_copy_settlement_enabled=FALSE;
+  result:=result||jsonb_build_object('replay',saved=pg_temp.finish_copy(op,gen_random_uuid()),
+   'cannot_reclaim',pg_temp.copy_claim(op)='{"claimed":false}'::JSONB);
+  RAISE EXCEPTION 'synthetic_trial_rollback' USING ERRCODE='Z0001';
+ EXCEPTION WHEN SQLSTATE 'Z0001' THEN RETURN result;
+ END;
+END;
+$$;
+SELECT extensions.is(pg_temp.copy_outcome_trial('legacy_copy'),'{"finalized":false}'::JSONB,'note with a legacy copy remains recoverable');
+SELECT extensions.is(pg_temp.copy_outcome_trial('claimed_expiry'),'{"reason":"staging_expired","claims_preserved":true}'::JSONB,'expiry finalization preserves existing erasure claim ownership');
+SELECT extensions.is(pg_temp.copy_outcome_trial('note'),'{"status":"needs_action","reason":"note_requires_text_moderation","retired":true,"approval_preserved":true,"owner_status":"needs_action","private_shape":true,"object_count":0,"cleanup_ready":true,"replay":true,"cannot_reclaim":true}'::JSONB,'note outcome is separate immutable authority and prevents repeated claims');
+SELECT extensions.is(pg_temp.copy_outcome_trial('expiry'),'{"status":"needs_action","reason":"staging_expired","retired":true,"approval_preserved":true,"owner_status":"needs_action","private_shape":true,"object_count":2,"cleanup_ready":true,"replay":true,"cannot_reclaim":true}'::JSONB,'expired cohort retires work and queues all exact siblings');
+GRANT SELECT ON copy_reclaim,note_copy_claim TO service_role,authenticated,anon;
+GRANT EXECUTE ON FUNCTION pg_temp.finish_copy(UUID,UUID) TO service_role,authenticated,anon;
+SET LOCAL ROLE service_role;
+SELECT extensions.is(pg_temp.finish_copy(),'{"finalized":false}'::JSONB,'actual service can inspect settlement eligibility');
+SELECT extensions.throws_ok('SELECT * FROM internal.observation_publication_copy_outcomes','42501','permission denied for table observation_publication_copy_outcomes','outcomes have no direct service grant');
+RESET ROLE;
+SET LOCAL ROLE authenticated;
+SELECT extensions.throws_ok('SELECT pg_temp.finish_copy()','42501','permission denied for function finalize_publication_copy_work','authenticated cannot choose settlement owner');
+RESET ROLE;
+SET LOCAL ROLE anon;
+SELECT extensions.throws_ok('SELECT pg_temp.finish_copy()','42501','permission denied for function finalize_publication_copy_work','anonymous cannot settle copy work');
+RESET ROLE;
 SELECT public.release_publication_copy_work('00000000-0000-4000-8000-00000000ee01','00000000-0000-4000-8000-00000000ee11','00000000-0000-4000-8000-00000000ee45',(SELECT (receipt->>'work_token')::UUID FROM note_copy_claim));
 UPDATE internal.observation_publication_copy_work SET recover_after=clock_timestamp()-INTERVAL '1 second' WHERE operation_id='00000000-0000-4000-8000-00000000ee45';
 -- Trials isolate publication side effects so later denial/erasure fixtures remain unchanged.
@@ -354,6 +420,11 @@ BEGIN
    UPDATE internal.observation_publication_copy_work SET work_expires_at=clock_timestamp()-INTERVAL '1 second' WHERE work_token IS NOT NULL;
   END IF;
   receipt:=pg_temp.bind_cohort();
+  IF mode='legacy_publication' THEN
+   DELETE FROM internal.observation_publication_copy_cohorts WHERE operation_id='00000000-0000-4000-8000-00000000ee41';
+   result:=pg_temp.finish_copy();
+   RAISE EXCEPTION 'rollback_synthetic_binding' USING ERRCODE='Z0001';
+  END IF;
   result:=jsonb_build_object('status',receipt->>'status',
    'exact',(SELECT object_ids=(SELECT array_agg((value->>'object_id')::UUID ORDER BY ordinality) FROM jsonb_array_elements((SELECT c.receipt->'copies' FROM cohort_reservation c)) WITH ORDINALITY) FROM internal.observation_photo_publications WHERE operation_id='00000000-0000-4000-8000-00000000ee41'),
    'retired',NOT EXISTS(SELECT 1 FROM internal.observation_publication_copy_work WHERE operation_id='00000000-0000-4000-8000-00000000ee41'));
@@ -361,7 +432,7 @@ BEGIN
   UPDATE internal.observation_histories SET state_revision=state_revision+1 WHERE observation_id='00000000-0000-4000-8000-00000000ee11';
   IF mode='missing_receipt' THEN DELETE FROM internal.observation_publication_copy_cohorts WHERE operation_id='00000000-0000-4000-8000-00000000ee41'; END IF;
   replay:=public.bind_publication_copy_cohort('00000000-0000-4000-8000-00000000ee01','00000000-0000-4000-8000-00000000ee11','00000000-0000-4000-8000-00000000ee41',NULL);
-  result:=result||jsonb_build_object('replayed',receipt=replay,'cleanup_denied',pg_temp.abandon_cohort()='{"abandoned":false}'::JSONB);
+  result:=result||jsonb_build_object('publication_wins',pg_temp.finish_copy()='{"finalized":true,"status":"admitted","reason":null,"object_ids":[]}'::JSONB,'replayed',receipt=replay,'cleanup_denied',pg_temp.abandon_cohort()='{"abandoned":false}'::JSONB);
   RAISE EXCEPTION 'rollback_synthetic_binding' USING ERRCODE='Z0001';
  EXCEPTION WHEN SQLSTATE 'Z0001' THEN RETURN result;
  END;
@@ -380,7 +451,8 @@ SELECT extensions.is((SELECT count(*)::INT FROM public.explore_community_request
 SELECT extensions.ok(EXISTS(SELECT 1 FROM internal.observation_publication_copy_work WHERE operation_id='00000000-0000-4000-8000-00000000ee41'),'mismatched writer preserves recovery work');
 SELECT extensions.is((SELECT state_revision FROM internal.observation_histories WHERE observation_id='00000000-0000-4000-8000-00000000ee11'),(SELECT state_revision FROM before_binding_trial),'mismatched writer preserves observation authority revision');
 SELECT extensions.throws_ok($$SELECT pg_temp.binding_trial('missing_receipt')$$,'22023','analysis_history_operation_conflict','historical publication cannot substitute for missing immutable reservation');
-SELECT extensions.is(pg_temp.binding_trial('success'),'{"status":"admitted","exact":true,"retired":true,"replayed":true,"cleanup_denied":true}'::JSONB,'exact ordered binding retires work and replays after authority and gate closure without cleanup');
+SELECT extensions.is(pg_temp.binding_trial('legacy_publication'),'{"finalized":true,"status":"admitted","reason":null,"object_ids":[]}'::JSONB,'validated legacy publication wins without creating new copy authority');
+SELECT extensions.is(pg_temp.binding_trial('success'),'{"status":"admitted","exact":true,"retired":true,"replayed":true,"cleanup_denied":true,"publication_wins":true}'::JSONB,'exact ordered binding retires work and replays after authority and gate closure without cleanup');
 SELECT extensions.is((SELECT count(*)::INT FROM internal.observation_photo_publications),0,'synthetic trial rolls publication back completely');
 SELECT extensions.throws_ok($$SELECT public.bind_publication_copy_cohort('00000000-0000-4000-8000-00000000ee01','00000000-0000-4000-8000-00000000ee11','00000000-0000-4000-8000-00000000ee45',(SELECT (receipt->>'work_token')::UUID FROM note_copy_claim))$$,'22023','analysis_history_operation_conflict','unapproved note cannot bind');
 GRANT SELECT ON copy_reclaim TO anon;
@@ -392,6 +464,7 @@ SET LOCAL ROLE anon;
 SELECT extensions.throws_ok('SELECT pg_temp.bind_cohort()','42501','permission denied for function bind_publication_copy_cohort','actual anonymous caller cannot publish through service facade');
 RESET ROLE;
 UPDATE internal.observation_histories SET state_revision=state_revision+1 WHERE observation_id='00000000-0000-4000-8000-00000000ee11';
+SELECT extensions.is(pg_temp.finish_copy(),'{"finalized":false}'::JSONB,'authority loss alone cannot create a terminal outcome');
 SELECT extensions.throws_ok('SELECT pg_temp.reserve_cohort()','40001','analysis_history_revision_conflict','stale revision cannot reuse a reservation for I/O');
 SELECT extensions.throws_ok('SELECT pg_temp.complete_cohort_member(1)','40001','analysis_history_revision_conflict','authority changes block readiness after external writes');
 SELECT extensions.ok(pg_temp.read_cohort()->'reservation' IS NOT NULL,'authority loss still permits historical cleanup recovery');
@@ -409,6 +482,8 @@ SELECT extensions.is(pg_temp.read_cohort()->'publication','{"status":"admitted"}
 SELECT extensions.is(pg_temp.abandon_cohort(),'{"abandoned":false}'::JSONB,'historical publication wins over late abandonment');
 CREATE TEMP TABLE live_deleted_copy AS SELECT pg_temp.copy_claim('00000000-0000-4000-8000-00000000ee45') AS receipt;
 SELECT extensions.is((SELECT receipt->>'claimed' FROM live_deleted_copy),'true','unbound operation holds a live lease before deletion');
+SELECT extensions.is(pg_temp.finish_copy('00000000-0000-4000-8000-00000000ee45',(SELECT (receipt->>'work_token')::UUID FROM live_deleted_copy))->>'reason','note_requires_text_moderation','live note work settles before deletion');
+SELECT extensions.throws_ok($$UPDATE internal.observation_publication_copy_outcomes SET reason='staging_expired'$$,'22023','analysis_history_evidence_immutable','copy outcomes cannot be rewritten');
 INSERT INTO internal.scan_deletion_tombstones(scan_id,user_id) VALUES('00000000-0000-4000-8000-00000000ee11','00000000-0000-4000-8000-00000000ee01');
 SELECT extensions.is((SELECT count(*)::INT FROM internal.observation_publication_moderation_outcomes),0,'deletion removes outcomes');
 SELECT extensions.throws_ok($$SELECT pg_temp.settle('00000000-0000-4000-8000-00000000ee41')$$,'P0002','analysis_history_not_found','deletion wins over historical replay');
@@ -419,5 +494,7 @@ SELECT extensions.throws_ok($$SELECT public.release_publication_copy_work('00000
 SELECT extensions.is((SELECT count(*)::INT FROM internal.observation_publication_copy_cohorts),0,'deletion removes private cohort receipts');
 SELECT extensions.is((SELECT count(*)::INT FROM internal.publication_photo_objects),2,'registry obligations survive private history deletion');
 SELECT extensions.throws_ok('SELECT pg_temp.read_cohort()','P0002','analysis_history_not_found','deletion wins over cohort and publication recovery');
+SELECT extensions.is((SELECT count(*)::INT FROM internal.observation_publication_copy_outcomes),0,'deletion cascades private copy outcomes');
+SELECT extensions.throws_ok($$SELECT pg_temp.finish_copy('00000000-0000-4000-8000-00000000ee45')$$,'P0002','analysis_history_not_found','deletion wins over terminal outcome replay');
 SELECT * FROM extensions.finish();
 ROLLBACK;
