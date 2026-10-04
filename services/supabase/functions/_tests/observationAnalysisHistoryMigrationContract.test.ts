@@ -417,3 +417,37 @@ Deno.test("owner selection wraps only semantic conflicts, keeps recovery ahead o
   assert(!/GRANT EXECUTE ON FUNCTION internal\./i.test(sql));
   assert(!/UPDATE internal\.observation_history_rollout/i.test(sql));
 });
+
+Deno.test("analysis rejection is owner-bound, revisioned, receipt-fenced and held", async () => {
+  const sql = await migration(
+    "20261004033948_prepare_analysis_bound_rejection",
+  );
+  for (
+    const fragment of [
+      "rejection_api_enabled BOOLEAN NOT NULL DEFAULT FALSE",
+      "PRIMARY KEY(observation_id,operation_id)",
+      "p_reader IS DISTINCT FROM 9",
+      "prior_rejection.receipt->>'review_revision'<>expected_review::TEXT",
+      "prior_rejection.receipt->>'outcome'<>'applied'",
+      "authority.review_revision=expected_review",
+      "UPDATE internal.observation_analysis_authorities SET review_revision=expected_review+1",
+      "analysis_bound_review_required",
+      "LEAST(p_scan_id,p_source_scan_id)",
+      "GREATEST(p_scan_id,p_source_scan_id)",
+      "observation_id IN (OLD.scan_id,NEW.scan_id)",
+      "PERFORM public.require_legacy_scan_review(p_user_id,p_scan_id)",
+      "GRANT EXECUTE ON FUNCTION public.review_owned_observation_analysis(JSONB,INTEGER) TO authenticated",
+      "GRANT EXECUTE ON FUNCTION public.require_legacy_scan_review(UUID,UUID) TO service_role",
+    ]
+  ) assertStringIncludes(sql, fragment);
+  const owner = sql.indexOf("WHERE users.id=caller FOR UPDATE");
+  const fence = sql.indexOf("internal.scan_deletion_tombstones");
+  const replay = sql.indexOf("RETURN saved.receipt");
+  const gate = sql.indexOf("IF (SELECT rejection_api_enabled");
+  assert(owner > 0 && owner < fence && fence < replay && replay < gate);
+  assert(
+    !/UPDATE public\.scans|UPDATE internal\.observation_history_rollout/i.test(
+      sql,
+    ),
+  );
+});

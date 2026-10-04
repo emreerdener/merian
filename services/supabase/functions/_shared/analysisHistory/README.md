@@ -311,3 +311,19 @@ re-applies selection. The
 [native contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-native-selection-requests-and-undo-receipts)
 defines owner locks, conflict recovery, closed gates and remaining presentation
 work. No rollout gate was enabled.
+
+## Prepared analysis-bound rejection
+
+`review.ts` owns the protocol-9 Reject/Undo request and immutable outcome parser
+for `review_owned_observation_analysis`. Both revisions and the exact analysis
+are bound to an operation; Undo additionally names its accepted rejection.
+Receipts cannot substitute for a current-state read. The default-false
+`rejection_api_enabled` gate remains closed and native review admission is not
+wired. Confirmation and community authority require subsequent slices.
+
+`observation_analysis_review.sql` and
+`observationAnalysisReviewConcurrencyDb.test.ts` cover authority isolation,
+receipt recovery, selection races, deletion, and enrollment racing legacy
+review. Legacy Edge preflight is shared in `identify/legacyReview.ts`; database
+commit checks remain authoritative. See the
+[canonical contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-analysis-bound-reject-and-undo).

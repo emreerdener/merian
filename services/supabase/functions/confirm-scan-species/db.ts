@@ -1,3 +1,7 @@
+import {
+  requireLegacyReview,
+  throwIfAnalysisBoundReview,
+} from "../_shared/identify/legacyReview.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { publicHttpError } from "../_shared/http.ts";
 import {
@@ -20,6 +24,7 @@ export async function findReviewTarget(
   userID: string,
   scanID: string,
 ): Promise<OwnedReviewTarget> {
+  await requireLegacyReview(admin, userID, scanID, "species_review_not_found");
   const { data, error } = await admin.from("scans")
     .select(
       "primary_identification, identification_provenance, confirmed_species_identity_revision",
@@ -83,7 +88,9 @@ export async function applyReview(
     },
   );
   if (error) {
+    throwIfAnalysisBoundReview(error.message);
     switch (error.message) {
+      case "identification_review_not_found":
       case "species_review_not_found":
         throw publicHttpError(
           404,

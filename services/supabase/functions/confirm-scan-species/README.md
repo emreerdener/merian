@@ -91,3 +91,14 @@ legacy review compatibility, identity replacement/clear, stale and simultaneous
 mutations, missing-row recovery, account merge and privacy cleanup. Follow the
 [backend gates](../../README.md) and existing exact-SHA release procedure;
 source implementation and passing local tests do not constitute deployment.
+
+## Enrolled history compatibility
+
+The target lookup calls `require_legacy_scan_review` before quota or external
+taxonomy verification. Enrolled observations fail with HTTP 409
+`analysis_bound_review_required`. The commit RPC repeats this check under owner
+and generation locks, so enrollment during verification cannot apply a legacy
+review to a different analysis. Unenrolled observations retain this endpoint's
+existing review behavior. The separately held
+[analysis-bound Reject/Undo contract](../../../../docs/backend-and-data/05-api-contracts.md#prepared-analysis-bound-reject-and-undo)
+does not enable native history review or confirmation.

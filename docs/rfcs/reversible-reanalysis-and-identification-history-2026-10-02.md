@@ -11,6 +11,21 @@ tested, ordinary access and remaining integrations incomplete; no deployment\
 Scope: iOS, SwiftData, inference and funding, Supabase, media, identification
 review, Field Trips, Explore, Field Chat, and deletion
 
+Implementation addendum (3 October 2026): The next authority slice prepares
+analysis-bound Reject/Undo with immutable outcomes, dual revision checks, and
+legacy review fencing. Its independent gate remains disabled; confirmation,
+community authority, native review admission, and ordinary activation remain
+open work. Current semantics live in the
+[canonical API contract](../backend-and-data/05-api-contracts.md#prepared-analysis-bound-reject-and-undo).
+
+Local validation for this addendum: 2,424 backend tests (343 steps), 812 SQL
+assertions across 85 fixtures, clean disposable migration replay, nine explicit
+concurrency cases, database lint, the complete Supabase tooling gate, Edge type
+checks, DTO checks, and Markdown/TypeScript formatting passed. Security and
+performance advisors retained the existing 103/79 warnings with no errors. This
+slice changes no native source and does not supersede the separate native build
+evidence or establish production rollout readiness.
+
 ## Purpose and decision
 
 Represent one observation as one stable library scan with a permanent history of
@@ -2163,6 +2178,13 @@ for enrolled observations, then admit revisioned reviews against the named
 child's immutable evidence, with exact replay and deletion/account fencing.
 Ordinary enrollment and native review scheduling remain downstream of that
 contract. This is a design finding, not an implemented review endpoint.
+
+Follow-up (3 October 2026): The held Reject/Undo RPC and legacy review fencing
+now implement the first portion of this finding. The
+[prepared rejection contract](../backend-and-data/05-api-contracts.md#prepared-analysis-bound-reject-and-undo)
+owns current behavior. Analysis-bound confirmation, community authority and
+native review admission remain outstanding; the original candidate evidence
+above predates this slice.
 
 The accumulated work is prepared on a separate candidate branch. A push to
 `main` would invoke the production deployment workflow; a draft pull request is

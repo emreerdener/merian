@@ -1,3 +1,7 @@
+import {
+  requireLegacyReview,
+  throwIfAnalysisBoundReview,
+} from "../_shared/identify/legacyReview.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { publicHttpError } from "../_shared/http.ts";
 import { parseAIIdentificationReview } from "../_shared/identify/aiIdentificationReview.ts";
@@ -9,6 +13,7 @@ export async function findTarget(
   userID: string,
   scanID: string,
 ) {
+  await requireLegacyReview(admin, userID, scanID);
   const { data, error } = await admin.from("scans").select(
     "ai_identification_review, primary_identification, confirmed_species_identity_revision, species:species_dictionary!scans_species_id_fkey(scientific_name)",
   )
@@ -57,6 +62,7 @@ export async function applyReview(
     p_species_review_revision: request.expected_species_review_revision,
   });
   if (error) {
+    throwIfAnalysisBoundReview(error.message);
     if (
       [
         "identification_review_revision_conflict",

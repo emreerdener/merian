@@ -1,3 +1,7 @@
+import {
+  requireLegacyReview,
+  throwIfAnalysisBoundReview,
+} from "../_shared/identify/legacyReview.ts";
 import { SupabaseClient } from "@supabase/supabase-js";
 import { makeHttpError } from "../_shared/communityIdentification.ts";
 import { buildExplorePostMediaRows } from "../_shared/explorePostMedia.ts";
@@ -164,6 +168,7 @@ export async function requestCommunityIdentification(
   supabaseAdmin: SupabaseClient,
   moderationQuota: AudioModerationQuota,
 ): Promise<CommunityRequestRow> {
+  await requireLegacyReview(supabaseAdmin, userId, scanId);
   const scan = await fetchShareEligibleScan(
     scanId,
     userId,
@@ -209,6 +214,7 @@ export async function requestCommunityIdentification(
     supabaseAdmin,
   );
   const { data, error } = result;
+  if (error) throwIfAnalysisBoundReview(error.message);
 
   if (
     error ||

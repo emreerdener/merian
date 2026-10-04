@@ -6827,3 +6827,24 @@ Native rejection persistence uses a version-2 metadata envelope in the existing
 current-state admission. Existing version-1 pending and success envelopes remain
 valid. No SwiftData schema change or feature activation accompanies this
 migration.
+
+### Prepared analysis-bound rejection transactions
+
+`20261004033948_prepare_analysis_bound_rejection.sql` adds default-false
+`rejection_api_enabled`, authenticated `review_owned_observation_analysis`, and
+private `internal.observation_review_receipts`. The receipt primary key is
+`(observation_id, operation_id)`; its composite child FK binds the analysis to
+that observation and cascades on deletion. RLS is enabled, all API table grants
+are revoked, and generation/immutability triggers protect every stored outcome.
+The existing authority trigger advances the parent revision and reconciliation
+obligation for selected and inactive results alike.
+
+The same migration adds service-only `require_legacy_scan_review`, repeats its
+owner/generation enrollment check inside both legacy review commit routines, and
+guards scan-row authority plus legacy community request creation/reparenting.
+Account detachment and explicit deletion can still clear authority/history. No
+state is mirrored between the mutable legacy scan and a selected analysis. See
+the
+[request and transition contract](05-api-contracts.md#prepared-analysis-bound-reject-and-undo).
+Confirmation, community projection, native review admission and ordinary history
+activation remain incomplete. No rollout flag is enabled by this migration.

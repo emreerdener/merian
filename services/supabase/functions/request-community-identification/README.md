@@ -5,6 +5,18 @@ identification request. The scan must be owned, resolved, non-Human biological,
 non-tombstoned, and have publishable media plus a resolvable taxon in the active
 taxonomy version.
 
+## Enrolled history compatibility
+
+`require_legacy_scan_review` runs before scan/media restoration, taxonomy
+synchronization or audible-media moderation. Enrolled observations return HTTP
+409 `analysis_bound_review_required`. The atomic Community RPC repeats this
+owner/generation admission after pure request validation and before acquiring
+request/scan locks or replacing a publication. Enrollment during media
+preparation therefore still refuses at commit. Analysis-bound community
+identification remains an activation requirement; the held owner Reject/Undo RPC
+does not enable this legacy route for enrolled history. See the
+[history review contract](../../../../docs/backend-and-data/05-api-contracts.md#prepared-analysis-bound-reject-and-undo).
+
 ## AI Cost and Publication Boundary
 
 Community requests share the same fail-closed audio publication path as

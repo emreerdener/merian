@@ -3162,3 +3162,14 @@ gates close, subject to owner/deletion fences. Native acknowledgment still needs
 a current-state read. No ordinary Restore/Undo caller or reconciliation worker
 is enabled. See the
 [selection contract](../../docs/backend-and-data/05-api-contracts.md#prepared-native-selection-requests-and-undo-receipts).
+
+Prepared protocol-9 owner review now includes
+`review_owned_observation_analysis` for Reject/Undo, a private immutable outcome
+ledger, and a separate default-false `rejection_api_enabled` gate. Legacy review
+and community writers refuse enrolled observations rather than transferring
+scan-row authority to the selected result. `analysisHistory/review.ts` owns the
+wire contract and `identify/legacyReview.ts` owns Edge preflight; SQL commit
+checks remain authoritative. See the
+[analysis-bound review contract](../../docs/backend-and-data/05-api-contracts.md#prepared-analysis-bound-reject-and-undo).
+Native review admission, confirmation, community authority and ordinary history
+activation remain outstanding.

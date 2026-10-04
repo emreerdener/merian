@@ -305,6 +305,21 @@ Trigger helpers have an empty search path and no direct API-role execution
 grant. The existing after-insert helper copies provenance and primary in one
 owner-bound update; client recovery JSON remains outside that authority.
 
+### Held observation review authority
+
+Protocol-9 `review_owned_observation_analysis` is owner-authenticated and
+remains behind default-false rejection/read gates. Private review receipts have
+no API role table grants, bind one analysis and both revisions, and are erased
+with history. Owner and deletion checks precede exact-operation replay. Legacy
+review admission is service-only and is repeated at commit; enrolled scans
+cannot route authority through the old scan-row writers. Community creation
+acquires owner/generation admission before its existing request/scan locks;
+row-trigger backstops check both sides of reparenting without acquiring those
+higher-order locks. No blanket service-role table access or live activation is
+introduced. The
+[API contract](05-api-contracts.md#prepared-analysis-bound-reject-and-undo) owns
+transitions, remaining community/confirmation holds, and failure semantics.
+
 ## Migration Execution Contract
 
 CI pins Supabase CLI `2.109.1`, which owns migration transaction and

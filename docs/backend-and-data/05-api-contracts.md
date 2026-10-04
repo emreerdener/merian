@@ -12694,3 +12694,62 @@ Failed reads/saves leave the original request pending. A rejected operation
 cannot enable Undo; a fresh preview is required before a new choice. No
 complimentary credit, provider dispatch or public publication is triggered by
 this selection boundary.
+
+### Prepared analysis-bound Reject and Undo
+
+`public.review_owned_observation_analysis(p_request JSONB, p_reader INTEGER)` is
+an authenticated owner RPC with a separate, default-false
+`rejection_api_enabled` hold. Reader and state-reader gates must also be open;
+`p_reader` must equal 9. It has no ordinary native caller yet. The executable
+request and receipt contract lives in
+`functions/_shared/analysisHistory/review.ts`; Identify DTO generation, web and
+admin payloads are unchanged.
+
+The exact eight-field request contains `schema_version: 1`, `observation_id`,
+`analysis_id`, `operation_id`, `expected_observation_revision`,
+`expected_review_revision`, `action`, and `undo_operation_id`. IDs are lowercase
+UUIDs and revisions are integers from zero through 2,147,483,646. `action` is
+`reject` or `undo`; `undo_operation_id` is null for Reject and the acknowledged
+rejection operation UUID for Undo. Request bytes are bounded to 2 KiB.
+Confirmation, carry, and community actions are deliberately unsupported.
+
+The RPC locks owner, observation generation, owned live scan, history, and
+target authority in that order. Ownership and the deletion fence are checked
+before replay. The operation UUID is unique within the observation; changing any
+intent field on a retry returns `analysis_history_operation_conflict`. Exact
+retries return their immutable original outcome even after later changes or gate
+closure.
+
+An applied receipt repeats all eight request fields and adds `outcome: applied`,
+`observation_revision`, and `review_revision`, each revision exactly one greater
+than requested. A stale expectation returns the exact request plus
+`outcome: revision_conflict` and is durably recorded without any state change.
+Missing/foreign/deleted targets return `analysis_history_not_found`; malformed
+requests return `invalid_analysis_history`; closed gates or exhausted revisions
+return `analysis_history_unavailable`. Invalid transitions return
+`invalid_identification_review`. These errors are not terminal operation
+receipts. Receipts are bounded to 4 KiB and never replace a fresh protocol-9
+state read.
+
+Reject accepts a biological, unrejected result whose authority is neither a
+manual correction nor community-resolved. It clears that result's confirmation
+and sets its AI review to rejected. Undo requires both current revisions and the
+same result's accepted rejection receipt; it clears rejection to unreviewed and
+never reinstates confirmation. It cannot undo an imported rejection without a
+bound receipt. Neither action changes selection or immutable evidence. Every
+successful review advances the observation revision and enqueues reconciliation;
+only a selected result's review changes the active projection. Downstream credit
+and publication reconciliation remains held.
+
+Legacy `review-scan-identification` and `confirm-scan-species` target lookups
+now call service-only `require_legacy_scan_review` before quota admission or
+taxonomy verification. An enrolled observation returns HTTP 409
+`analysis_bound_review_required`; direct legacy commit RPCs repeat the check
+under the generation locks, including both ends of carry. This closes enrollment
+races without copying scan-row authority into a selected child. The community
+Edge request also runs this preflight before media restoration, taxonomy
+synchronization, or moderation. Legacy community request creation, authority
+updates, and both sides of reparenting are also fenced, as are scan-row
+authority mutations; analysis-bound community authority and its revocation
+behavior remain activation requirements. Privacy/deletion cleanup retains its
+existing path.
