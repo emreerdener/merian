@@ -40,7 +40,16 @@ final class KeychainManager {
     }
 
     static let shared = KeychainManager()
-    private static let testStorePrefix = "merian.keychain.test."
+    private static let testStorePrefix: String = {
+        #if DEBUG
+        if TestExecutionCoordinator.isRunningUITests,
+           let rawNamespace = ProcessInfo.processInfo.environment["UITestKeychainNamespace"],
+           let namespace = UUID(uuidString: rawNamespace) {
+            return "merian.keychain.test.ui.\(namespace.uuidString)."
+        }
+        #endif
+        return "merian.keychain.test."
+    }()
 
     private init() {
         migrateFromUserDefaults()

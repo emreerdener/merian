@@ -2189,3 +2189,17 @@ same failure reproduced in an isolated UI run at
 `.artifacts/local-ios/a903bd493c5b40bcbc64e97a8afa58a8.xcresult`. This evidence
 resolves the earlier 12 unit failures but does not establish a green history UI
 gate for this candidate.
+
+The first draft-PR checks caught whitespace-only drift in the V54–V56 frozen
+scan snapshots introduced during candidate cleanup. Their original bytes were
+restored and verified against the existing pinned SHA-256 values; the digest
+checks were not changed. `make validate-ios-migration-guardrails` now passes.
+Those frozen files intentionally retain their pinned whitespace.
+
+UI diagnosis also found two sources of cross-test state: the SDK's persistent
+Auth store and ownership markers in the app's shared Keychain test shim. Debug
+test SDK clients now use per-client synchronized memory storage, and each UI
+scenario receives its own test-Keychain namespace that survives relaunching the
+same `XCUIApplication`. Normal app and Release Keychain behavior remains
+unchanged. The new storage regression passed; the complete native rerun and
+history UI smoke are pending for this corrected candidate.

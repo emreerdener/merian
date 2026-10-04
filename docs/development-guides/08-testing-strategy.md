@@ -612,7 +612,10 @@ through `MerianSupabaseClientFactory`. A UI launch cannot adopt a session left
 in the simulator Keychain by an earlier run. Tests install synthetic sessions
 explicitly where needed; normal Debug launches and Release retain persistent
 Keychain storage. `HistoricalSyncCloudClientTests` verifies the storage round
-trip, removal and isolation between clients.
+trip, removal and isolation between clients. The UI launcher gives its Keychain
+test shim a distinct UUID namespace per scenario, retained when that same
+`XCUIApplication` relaunches. This prevents unit-test library ownership and
+recovery markers from blocking unrelated UI fixtures.
 
 The formerly unconditionally skipped Photos-based background UI test is replaced
 by `testBackgroundInterruptionPreservesQueuedAudioInsight`, which uses the

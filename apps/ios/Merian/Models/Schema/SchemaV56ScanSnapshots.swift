@@ -104,7 +104,7 @@ extension MerianSchemaV56 {
         /// Legacy confirmedSpeciesId/typed overrides never populate this authority.
         @Attribute public var confirmedSpeciesIdentityData: Data?
         @Attribute public var aiIdentificationReviewData: Data?
-
+        
         /// User-defined custom tags for personal categorization and search indexing.
         @Attribute public var customTags: [String] = []
 

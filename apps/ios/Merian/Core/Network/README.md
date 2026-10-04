@@ -87,7 +87,10 @@ Auth store. They cannot restore or overwrite a simulator's persistent SDK
 session. Explicitly installed synthetic sessions still use the normal Auth
 client behavior; normal Debug launches and Release keep `KeychainLocalStorage`.
 `HistoricalSyncCloudClientTests` verifies store isolation, round trips and
-removal.
+removal. The UI launcher also assigns a UUID namespace to the app's existing
+Keychain test shim. Each UI scenario starts without another test's ownership or
+recovery markers; relaunching its same `XCUIApplication` retains that scenario's
+markers. Normal Keychain storage is never cleared for a test.
 
 `MerianSupabaseClientFactory` enables `emitLocalSessionAsInitialSession`. The
 pinned Supabase Swift SDK therefore emits the cached session immediately,

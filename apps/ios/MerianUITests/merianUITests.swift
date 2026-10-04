@@ -12,6 +12,9 @@ enum UITestAppLauncher {
     static func makeConfiguredApp(extraArguments: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment["UITesting"] = "true"
+        // Separate UI scenarios from unit-test ownership/recovery markers,
+        // while retaining their own state when the same app is relaunched.
+        app.launchEnvironment["UITestKeychainNamespace"] = UUID().uuidString
         app.launchArguments += [
             "-skipOnboarding",
             "-seedCurrentRequiredConsent",
