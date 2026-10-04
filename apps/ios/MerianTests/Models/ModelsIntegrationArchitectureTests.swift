@@ -3,6 +3,51 @@ import Testing
 
 @Suite("Models Integration Architecture")
 struct ModelsIntegrationArchitectureTests {
+    @Test func historyStorageHasFencedAdmissionOwnersAndNoOrdinaryScheduling() throws {
+        let sources = try DatabaseActorTestSupport.swiftSources(below: "apps/ios/Merian")
+        for source in sources {
+            let code = codeLines(in: source.contents)
+            let admissionOwner = source.relativePath == "Core/Data/AnalysisHistory/ObservationHistorySyncService.swift"
+            let stateOwner = source.relativePath == "Core/Data/AnalysisHistory/ObservationHistoryStateSyncService.swift"
+            let enrollmentOwner = source.relativePath == "Core/Data/AnalysisHistory/ObservationHistoryEnrollmentService.swift"
+            let stateModel = source.relativePath == "Models/ActiveSchema/LocalAnalysisStateRecord.swift"
+            let cacheOwner = source.relativePath == "Core/Data/AnalysisHistory/ObservationHistoryStateCache.swift"
+            if !cacheOwner {
+                #expect(code.range(of: #"LocalAnalysisStateRecord\s*(?:\(|\.init\b)"#, options: .regularExpression) == nil,
+                        "Only fenced cache admission may create analysis state: \(source.relativePath)")
+            }
+            if !admissionOwner {
+                #expect(code.range(of: #"LocalAnalysisRecord\s*(?:\(|\.init\b)"#, options: .regularExpression) == nil, "Only enrolled account-bound admission may write history: \(source.relativePath)")
+            }
+            let historyAdapter = source.relativePath == "Features/Insights/History/Services/IdentificationHistoryDependencies.swift"
+            let listingOwner = source.relativePath == "Core/Data/AnalysisHistory/ObservationHistoryListingService.swift"
+            if !listingOwner {
+                #expect(code.range(of: #"ObservationHistorySyncService\s*\("#, options: .regularExpression) == nil,
+                    "Normal history scheduling remains behind the activation hold: \(source.relativePath)")
+            }
+            if !historyAdapter {
+                #expect(code.range(of: #"ObservationHistoryStateSyncService\s*\("#, options: .regularExpression) == nil,
+                    "Normal state scheduling remains behind the activation hold: \(source.relativePath)")
+            #expect(code.range(of: #"ObservationHistoryPreviewService\s*\("#, options: .regularExpression) == nil,
+                    "Normal preview presentation remains behind the activation hold: \(source.relativePath)")
+            }
+            #expect(code.range(of: #"ObservationHistoryEnrollmentService\s*\("#, options: .regularExpression) == nil,
+                    "Normal enrollment remains behind the activation hold: \(source.relativePath)")
+            if !historyAdapter {
+                #expect(code.range(of: #"ObservationHistorySelectionService\s*\("#, options: .regularExpression) == nil,
+                    "Normal Restore/Undo remains behind the activation hold: \(source.relativePath)")
+            }
+            for field in ["analysisRecords", "selectedAnalysisID", "analysisOwnerAccountID",
+                          "observationStateRevision", "analysisSelectionInitialized"] {
+                if admissionOwner && field == "analysisRecords" { continue }
+                if enrollmentOwner && ["selectedAnalysisID", "analysisOwnerAccountID", "observationStateRevision"].contains(field) { continue }
+                if (stateOwner || stateModel) && field == "observationStateRevision" { continue }
+                if stateOwner && field == "selectedAnalysisID" { continue }
+                #expect(code.range(of: "\\.\(field)\\s*=(?!=)", options: .regularExpression) == nil, "History selection/enrollment is still disabled: \(source.relativePath)")
+            }
+        }
+    }
+
     @Test func rootValuesRemainFocusedAndEffectFree() throws {
         let sources = try DatabaseActorTestSupport.swiftSources(
             below: "apps/ios/Merian/Models"
@@ -111,9 +156,23 @@ struct ModelsIntegrationArchitectureTests {
         )
         #expect(registry.contains("enum MerianMigrationPlan"))
         #expect(registry.contains("enum MerianSchemaV51"))
-        let currentSchema = try source(at: "apps/ios/Merian/Models/Schema/SchemaV53.swift")
-        #expect(currentSchema.contains("enum MerianSchemaV53"))
-        #expect(registry.contains("migrateV52toV53"))
+        let currentSchema = try source(at: "apps/ios/Merian/Models/Schema/SchemaV57.swift")
+        #expect(currentSchema.contains("enum MerianSchemaV57"))
+        #expect(registry.contains("migrateV56toV57"))
+    }
+
+    @Test func historyPresentationRemainsAnExplicitClosedConsumer() throws {
+        let sources = try DatabaseActorTestSupport.swiftSources(below: "apps/ios/Merian")
+        for entry in sources {
+            #expect(!codeLines(in: entry.contents).contains("IdentificationHistoryAccess.prepared"))
+        }
+        let shell = try source(at: "apps/ios/Merian/Features/Insights/Shell/Services/InsightShellDependencies.swift")
+        #expect(shell.contains("var historyAccess: IdentificationHistoryAccess? = nil"))
+        #expect(shell.contains("#if DEBUG\n        result.historyAccess = UITestSeedCoordinator.identificationHistoryAccess\n        #endif"))
+        let fixture = try source(at: "apps/ios/Merian/App/UITesting/UITestSeedCoordinator+IdentificationHistory.swift")
+        #expect(fixture.contains("#if DEBUG"))
+        #expect(fixture.contains("-seedIdentificationHistory"))
+        #expect(fixture.contains("guard isEnabled"))
     }
 
     private func source(at relativePath: String) throws -> String {
@@ -155,6 +214,8 @@ struct ModelsIntegrationArchitectureTests {
 
     private static let activeSchemaPaths = [
         "CapturedMediaEntry.swift",
+        "LocalAnalysisRecord.swift",
+        "LocalAnalysisStateRecord.swift",
         "LocalScanRecord.swift",
         "OfflineJobRecord.swift",
         "OfflineQueueEvent.swift",

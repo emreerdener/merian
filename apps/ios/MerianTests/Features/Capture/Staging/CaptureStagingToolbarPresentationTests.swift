@@ -24,9 +24,45 @@ struct CaptureStagingToolbarPresentationTests {
                     )
                     #expect(presentation.emptyMediaSlotCount == limit - mediaCount)
                     #expect(presentation.visibleNodes.count + presentation.emptyMediaSlotCount == limit)
+                    #expect(presentation.showsProMediaPlaceholder == (limit == 1))
                 }
             }
         }
+    }
+
+    @Test("Upgrade placeholder does not admit media and disappears when access changes")
+    func upgradePlaceholderPreservesCapacity() {
+        var capture = StagedCapture()
+        capture.audios = [StagedAudio(filePath: "bird.wav")]
+        capture.observationContexts = [StagedObservationContext(
+            context: ObservationContext(freeText: "Beside a pond")
+        )]
+        let free = CaptureStagingToolbarPresentation(
+            stagedCapture: capture, isRefining: false, stagedCaptureLimit: 1
+        )
+        #expect(free.showsProMediaPlaceholder)
+        #expect(free.photoSelectionCount == nil)
+        #expect(capture.availableSlots(limit: 1) == 0)
+
+        let unlocked = CaptureStagingToolbarPresentation(
+            stagedCapture: capture, isRefining: false, stagedCaptureLimit: 2
+        )
+        #expect(!unlocked.showsProMediaPlaceholder)
+        #expect(unlocked.photoSelectionCount == 1)
+        #expect(unlocked.visibleNodes.map(\.id) == free.visibleNodes.map(\.id))
+
+        capture.images = [stagedImage()]
+        for limit in [1, 2] {
+            let full = CaptureStagingToolbarPresentation(
+                stagedCapture: capture, isRefining: false, stagedCaptureLimit: limit
+            )
+            #expect(!full.showsProMediaPlaceholder)
+            #expect(full.emptyMediaSlotCount == 0)
+        }
+        let refining = CaptureStagingToolbarPresentation(
+            stagedCapture: StagedCapture(), isRefining: true, stagedCaptureLimit: 1
+        )
+        #expect(!refining.showsProMediaPlaceholder)
     }
 
     @Test("Media wraps at complete-node boundaries and retains chronological positions")

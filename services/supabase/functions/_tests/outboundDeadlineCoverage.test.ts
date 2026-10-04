@@ -4,6 +4,8 @@ const functionsRoot = new URL("../", import.meta.url);
 
 const EXPECTED_SIGNED_TRANSPORT_CALLS = new Map<string, number>([
   ["_shared/aws.ts", 6],
+  ["_shared/analysisHistory/evidenceStorage.ts", 1],
+  ["_shared/analysisHistory/publicPhotoStorage.ts", 1],
   ["_shared/identify/media.ts", 2],
   ["export-dwca/storage.ts", 6],
 ]);

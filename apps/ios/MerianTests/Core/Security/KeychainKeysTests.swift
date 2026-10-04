@@ -6,6 +6,8 @@ import Testing
 struct KeychainKeysTests {
     @Test func appOwnedKeyStringsRemainCompatible() {
         let compiledValues = [
+            "libraryAccountOwner": KeychainKeys.libraryAccountOwner,
+            "librarySignOutJournal": KeychainKeys.librarySignOutJournal,
             "hasAuthenticatedOAuth": KeychainKeys.hasAuthenticatedOAuth,
             "legacyGhostModeUserID": KeychainKeys.legacyGhostModeUserID,
             "pendingGhostProfileMerge": KeychainKeys.pendingGhostProfileMerge,
@@ -45,6 +47,8 @@ struct KeychainKeysTests {
     }
 
     private static let expectedValues = [
+        "libraryAccountOwner": "merian.libraryAccountOwner.v1",
+        "librarySignOutJournal": "merian.librarySignOutJournal.v1",
         "hasAuthenticatedOAuth": "Merian_HasAuthenticatedOAuth",
         "legacyGhostModeUserID": "Merian_GhostModeUserID_v1",
         "pendingGhostProfileMerge": "Merian_PendingGhostProfileMerge",

@@ -63,6 +63,11 @@ struct SpeciesPreferredNameCloudClient {
         try await upsertHandler(values)
     }
 
+    static func allowsLocalMutation(owner: UUID) -> Bool {
+        SupabaseManager.shared.currentUser?.id == owner
+            && SupabaseManager.shared.allowsLocalLibraryMutation
+    }
+
     static let live = SpeciesPreferredNameCloudClient(
         beginAccountWork: {
             try SupabaseManager.shared.beginUnownedAccountBoundWork()

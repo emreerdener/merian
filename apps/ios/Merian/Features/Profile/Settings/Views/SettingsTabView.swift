@@ -57,6 +57,12 @@ struct SettingsTabView: View {
                     showFeedbackSurvey: isPresenting(.feedback)
                 )
 
+                Section("Library") {
+                    NavigationLink("Review pending changes") {
+                        LibraryPendingChangesView(supabase: supabase)
+                    }
+                }
+
                 DangerZone(
                     supabase: supabase,
                     showDeleteConfirmation: isPresenting(.deleteAccount)

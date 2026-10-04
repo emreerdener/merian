@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "reviewedThrough": "2026-10-01",
+  "reviewedThrough": "2026-10-03",
   "studies": [
     {
       "id": "exploratory-foundation",
@@ -723,6 +723,30 @@
       "sources": [
         "docs/rfcs/identification-photo-feature-workflow-2026-10-01.md"
       ]
+    },
+    {
+      "id": "photo-reasoning-tradeoff",
+      "title": "Matched low/medium reasoning and Gemini development comparison",
+      "date": "2026-10-03",
+      "modality": "photo",
+      "kind": "development",
+      "state": "closed",
+      "configuration": "gpt-6-sol low, identical medium-effort request, and preserved gemini-2.5-pro; 20 cases / 60 fixed slots. Real inspection mode cannot dispatch.",
+      "datasets": [
+        "confidence-photo-v2",
+        "simulator-library-20261003"
+      ],
+      "attempts": 60,
+      "attemptUnit": "provider_attempts",
+      "accountedUsd": 2.335830008,
+      "accounting": "60 attempts, 60 claims/results, zero retries or technical failures; $2.335830008 conservatively accounted, $0 outstanding. $7.664169992 unused from the $10 cap; closed and not reusable.",
+      "outcome": "Supported low 10/20, medium 9/20, Gemini 10/20. Mean provider seconds 6.732 / 10.961 / 15.542. Medium passed speed but had zero gains, one unmapped regression and no demonstrated biological correction; failed advancement.",
+      "limitations": "Exposed, assistant-reviewed development mixture; only two clear library plants, both solved by all arms; four holds excluded and neither admitted plant confirmed as a reported regression. No independent human validation, production accuracy, equivalence or superiority claim.",
+      "decision": "Close without advancing medium or switching providers. Retain low; establish references for actual owner-reported failures and investigate evidence sufficiency before confidence calibration. No additional calls.",
+      "production": "No production configuration, scan-history or deployment change.",
+      "sources": [
+        "docs/rfcs/identification-reasoning-tradeoff-2026-10-02.md"
+      ]
     }
   ],
   "datasets": [
@@ -851,6 +875,17 @@
       "sources": [
         "docs/rfcs/identification-audio-uncertainty-comparison-plan-2026-09-24.md",
         "docs/rfcs/identification-experiment-plans/2026-09-24-audio-uncertainty/design.json"
+      ]
+    },
+    {
+      "id": "simulator-library-20261003",
+      "title": "Owner simulator library photo intake",
+      "lineage": "Read-only intake of recent single-photo scans: 12 pixel-distinct images grouped into six candidate subjects; two library species references admitted to the reasoning tradeoff, four holds excluded. Trailing-plant group overlaps the prior owner-supplied diagnostic cluster.",
+      "exposure": "Previously app-exposed development material. A new file hash or intake date establishes no freshness. Neither selected library photo is individually confirmed as an owner-reported failure.",
+      "referenceQuality": "Two source-grounded assistant species references with second assistant review and exact accepted GBIF taxonomy; no independent human validation or cultivar reference. Four unresolved reviewer holds are not abstention targets.",
+      "retention": "Private metadata-free stored-scan copies retained through 2026-10-22; no raw camera/input parity guarantee.",
+      "sources": [
+        "docs/rfcs/identification-reasoning-tradeoff-2026-10-02.md"
       ]
     }
   ],

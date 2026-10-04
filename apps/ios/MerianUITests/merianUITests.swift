@@ -12,6 +12,9 @@ enum UITestAppLauncher {
     static func makeConfiguredApp(extraArguments: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment["UITesting"] = "true"
+        // Separate UI scenarios from unit-test ownership/recovery markers,
+        // while retaining their own state when the same app is relaunched.
+        app.launchEnvironment["UITestKeychainNamespace"] = UUID().uuidString
         app.launchArguments += [
             "-skipOnboarding",
             "-seedCurrentRequiredConsent",
@@ -877,11 +880,47 @@ final class merianUITests: XCTestCase {
     }
 
     @MainActor
+    func testStagedProSlotOpensDefaultPaywallAndPreservesDraft() throws {
+        let app = UITestAppLauncher.launchConfiguredApp(extraArguments: [
+            "-seedAudioFinishFlow", "-autoSubmitScans", "NO",
+            "-captureModeOrder", "audio,visual,describe",
+            "-hasShownCaptureNoteTip", "YES", "-themeMode", "Dark"
+        ])
+        let finish = app.buttons["Finish recording"]
+        XCTAssertTrue(finish.waitForExistence(timeout: 8))
+        finish.tap()
+        let upgrade = app.buttons["StagedMediaProPlaceholder"]
+        let audio = app.buttons["StagedAudioBadge_0"]
+        XCTAssertTrue(upgrade.waitForExistence(timeout: 8))
+        XCTAssertTrue(upgrade.isHittable)
+        XCTAssertEqual(upgrade.label, "Add another media item with Pro")
+        XCTAssertEqual(upgrade.frame.width, 48, accuracy: 1)
+        XCTAssertEqual(upgrade.frame.height, 48, accuracy: 1)
+        XCTAssertTrue(audio.isHittable)
+        XCTAssertFalse(app.buttons["StagedMediaPlaceholder_0"].exists)
+        let screenshot = XCTAttachment(screenshot: app.screenshot())
+        screenshot.name = "Free staged tray with Pro upgrade slot"
+        screenshot.lifetime = .keepAlways
+        add(screenshot)
+
+        upgrade.tap()
+        let close = app.buttons["Close paywall"]
+        XCTAssertTrue(close.waitForExistence(timeout: 5))
+        XCTAssertFalse(app.navigationBars["Photos"].exists)
+        close.tap()
+        XCTAssertTrue(waitForDisappearance(close))
+        XCTAssertTrue(audio.isHittable)
+        XCTAssertTrue(upgrade.isHittable)
+        XCTAssertTrue(app.buttons["Add note"].isHittable)
+        XCTAssertTrue(app.buttons["Identify"].isHittable)
+    }
+
+    @MainActor
     func testNoteAtMediaCapacityWithLargerText() throws {
         let app = UITestAppLauncher.launchConfiguredApp(extraArguments: [
             "-seedStagedAudioReviewFlow", "-autoSubmitScans", "NO",
             "-captureModeOrder", "audio,visual,describe",
-            "-hasShownCaptureNoteTip", "YES",
+            "-hasShownCaptureNoteTip", "YES", "-themeMode", "Light",
             "-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"
         ])
         let note = app.buttons["Add note"]
@@ -896,6 +935,7 @@ final class merianUITests: XCTestCase {
         XCTAssertEqual(note.frame.midY, app.buttons["Identify"].frame.midY, accuracy: 1)
         let audio = app.buttons["StagedAudioBadge_0"]
         XCTAssertTrue(audio.isHittable)
+        XCTAssertTrue(app.buttons["StagedMediaProPlaceholder"].isHittable)
         XCTAssertFalse(app.buttons["CaptureShutter"].isHittable, "The Free media slot is already full")
         XCTAssertFalse(app.staticTexts["AudioIdlePrompt"].exists, "A full tray must hide the recording invitation")
         let modeToggle = app.segmentedControls["CaptureModeToggle"]
@@ -1600,6 +1640,11 @@ final class merianUITests: XCTestCase {
 
         let boostButton = app.buttons["Boost audio"]
         XCTAssertTrue(boostButton.waitForExistence(timeout: 8.0))
+        let audioControls = XCTAttachment(screenshot: app.screenshot())
+        audioControls.name = "Queued audio controls before completion"
+        audioControls.lifetime = .keepAlways
+        add(audioControls)
+        XCTAssertTrue(boostButton.isHittable, "Boost must be tappable while the scan is analyzing")
         boostButton.tap()
         let boostedButton = app.buttons["Turn off audio boost"]
         XCTAssertTrue(

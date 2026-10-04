@@ -209,7 +209,7 @@ final class OAuthSignInCoordinatorHarness {
                 },
                 completePendingGhostMerge: { _, _ in
                     self.events.append("complete-ghost-merge")
-                    return self.completedGhostMerge
+                    return self.completedGhostMerge ? .completed : .pending
                 }
             ),
             completion: OAuthSignInCompletionBoundary(

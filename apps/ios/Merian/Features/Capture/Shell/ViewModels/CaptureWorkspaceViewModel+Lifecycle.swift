@@ -61,6 +61,16 @@ extension CaptureWorkspaceViewModel {
         activeSheet = .paywall
     }
 
+    func presentStagedMediaUpgradePaywall() {
+        guard !isDraftMutationLocked,
+              baseRefinementContext == nil,
+              stagedCaptureLimit == 1,
+              stagedCapture.physicalItemCount < stagedCaptureCapacity,
+              activeSheet == nil else { return }
+        AppTelemetry.trackPaywallImpression()
+        activeSheet = .paywall
+    }
+
     // MARK: - Notification Suppression Context
 
     /// Updates the global notification suppression flag used by PushNotificationManager.

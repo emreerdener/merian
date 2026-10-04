@@ -1374,6 +1374,15 @@ for startup_requirement in \
     || fail "Startup Safety is missing its shared toolchain invariant: $startup_requirement"
 done
 for startup_scope_path in \
+  "apps/ios/Merian/Models/Schema/SchemaV54.swift" \
+  "apps/ios/Merian/Models/Schema/SchemaV54ScanSnapshots.swift" \
+  "apps/ios/Merian/Models/Schema/SchemaV54QueueSnapshots.swift" \
+  "apps/ios/Merian/Models/Schema/SchemaV55.swift" \
+  "apps/ios/Merian/Models/ActiveSchema/LocalAnalysisStateRecord.swift" \
+  "apps/ios/Merian/Models/Schema/SchemaV56ScanSnapshots.swift" \
+  "apps/ios/Merian/Models/Schema/SchemaV56QueueSnapshots.swift" \
+  "apps/ios/Merian/Models/Schema/SchemaV57.swift" \
+  "apps/ios/MerianTests/Models/LocalAnalysisStateRecordTests.swift" \
   "apps/ios/Merian/Core/UI/Components/AsyncLocalImageView.swift" \
   "apps/ios/Merian/Core/UI/Modifiers/ImageRecoveryReloadModifier.swift" \
   "apps/ios/Merian/Core/UI/Components/ScanThumbnail.swift" \

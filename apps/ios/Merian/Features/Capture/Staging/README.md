@@ -6,10 +6,19 @@ two for Pro, plus one optional note. Staging owns neither network, queue, nor
 file deletion work. Reanalysis keeps historical descriptions and its one current
 supplement separately from the two-physical-item budget.
 
-The tray shows every unused physical slot as an empty media node, including both
-slots in a Pro Describe-first draft. The separate note never replaces a media
-placeholder. All placeholders use the existing admitted photo-picker action and
-its remaining-capacity selection limit.
+The tray shows every usable empty physical slot as an add-media node, including
+both slots in a Pro Describe-first draft. Free drafts also show a locked second
+slot with a PRO badge while fewer than two physical items are staged. That
+upgrade placeholder opens the default paywall; it never increases capture or
+photo-picker admission capacity. Paid or available complimentary Pro access
+unlocks the slot through the existing capacity policy. The separate note never
+replaces a media placeholder. Usable placeholders retain the admitted
+photo-picker action and its remaining-capacity selection limit.
+
+The upgrade action respects draft mutation and picker-admission locks. Paywall
+dismissal preserves the draft; entitlement refresh replaces the locked node with
+the normal add-media action without automatically opening the picker. The tray's
+visibility, auto-submit behavior, and reanalysis capacity remain unchanged.
 
 ## Ownership
 

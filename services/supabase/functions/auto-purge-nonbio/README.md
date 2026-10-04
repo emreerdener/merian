@@ -11,11 +11,14 @@ old. It does not delete R2 objects or scan rows in its HTTP invocation.
 2. It calls `public.request_nonbiological_scan_retention_deletions(integer)` in
    bounded batches until the queue is drained, the 10,000-request cap is
    reached, or its 40-second runtime budget expires.
-3. The database routine discovers candidates oldest first, then acquires the
-   canonical per-scan generation locks in UUID order. It rechecks the age,
-   biological classification, `is_tombstoned = false`, non-null/non-reserved
-   owner, and absence of an existing generation tombstone under the scan row
-   lock.
+3. The database routine discovers candidates oldest first, excluding
+   observations enrolled in versioned identification history. It locks the
+   bounded batch's owners in UUID order before acquiring per-scan generation
+   locks in UUID order. It rechecks the age, biological classification,
+   `is_tombstoned = false`, non-null/non-reserved owner, history-enrollment
+   exclusion, and absence of an existing generation tombstone under the scan row
+   lock. A changed owner outside the locked batch is skipped. Retention is an
+   observation property, independent of selection.
 4. Each accepted generation receives a permanent private deletion tombstone. Any
    incomplete ingestion ledger is made terminal before the transaction commits.
 5. `reconcile-scan-deletions` independently leases the work, reloads the fenced

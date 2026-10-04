@@ -28,14 +28,28 @@ extension BackgroundDatabaseActor {
     /// Returns local-only file paths after the database commit succeeds so
     /// callers can purge disk artifacts without risking inconsistent state.
     func bulkDeleteNonBiologicalScans(
-        payloads: [ScanErasurePayload]
+        payloads: [ScanErasurePayload], requestingAccountID: UUID? = nil
     ) throws -> [String] {
-        try commitNonBiologicalScanDeletion(payloads: payloads)
+        try commitNonBiologicalScanDeletion(payloads: payloads, requestingAccountID: requestingAccountID,
+                                           origin: .explicitUserDeletion)
             .localMediaPaths
     }
 
     private func commitNonBiologicalScanDeletion(
-        payloads: [ScanErasurePayload]
+        payloads: [ScanErasurePayload], requestingAccountID: UUID?, origin: CloudDeletionIntent.Origin
+    ) throws -> NonBiologicalDeletionCommit {
+        try ConfirmedSpeciesReviewPersistence.transaction {
+            // Share the history-admission gate and refetch after acquisition.
+            let context = ModelContext(modelContainer)
+            context.autosaveEnabled = false
+            return try commitNonBiologicalScanDeletion(payloads: payloads,
+                requestingAccountID: requestingAccountID, origin: origin, context: context)
+        }
+    }
+
+    private func commitNonBiologicalScanDeletion(
+        payloads: [ScanErasurePayload], requestingAccountID: UUID?, origin: CloudDeletionIntent.Origin,
+        context: ModelContext
     ) throws -> NonBiologicalDeletionCommit {
         var committedErasureCount = 0
         var deletedRecordCount = 0
@@ -44,22 +58,29 @@ extension BackgroundDatabaseActor {
         do {
             for payload in payloads {
                 let scanId = payload.id
+                if origin == .nonBiologicalRetention,
+                   try ObservationHistoryEnrollmentIntent.protects(scanId, context: context) { continue }
                 var descriptor = FetchDescriptor<LocalScanRecord>(
                     predicate: #Predicate { $0.id == scanId }
                 )
                 descriptor.fetchLimit = 1
-                let record = try modelContext.fetch(descriptor).first
+                let record = try context.fetch(descriptor).first
 
                 // The UI snapshots eligible rows before crossing into this
                 // actor. Revalidate here so a concurrent reconciliation that
                 // promotes the row to biological cannot be erased by stale
                 // presentation state.
-                if let record, record.isBiological {
+                if let record, record.isBiological ||
+                    (origin == .nonBiologicalRetention && record.analysisOwnerAccountID != nil) {
                     continue
                 }
 
+                if origin == .explicitUserDeletion {
+                    try ObservationHistoryEnrollmentIntent.supersedeForExplicitDeletion(scanId, context: context)
+                }
+                try ObservationPublicationPersistence.removeForDeletion(scanId, context: context)
                 if let record {
-                    modelContext.delete(record)
+                    context.delete(record)
                     deletedRecordCount += 1
                 }
 
@@ -68,18 +89,19 @@ extension BackgroundDatabaseActor {
                         !$0.starts(with: "http")
                     }
                 )
-                try modelContext.ensurePendingCloudDeletionTask(scanId: scanId)
+                try context.ensurePendingCloudDeletionTask(scanId: scanId,
+                    requestingAccountID: requestingAccountID, origin: origin)
                 committedErasureCount += 1
             }
 
-            try modelContext.save()
+            try context.save()
             return NonBiologicalDeletionCommit(
                 committedErasureCount: committedErasureCount,
                 deletedRecordCount: deletedRecordCount,
                 localMediaPaths: localMediaPathsToDelete
             )
         } catch {
-            modelContext.rollback()
+            context.rollback()
             throw error
         }
     }
@@ -92,37 +114,44 @@ extension BackgroundDatabaseActor {
     /// independently. A later foreground may process another batch.
     func purgeExpiredNonBiologicalScans(
         cutoffDate: Date,
-        limit: Int = NonBiologicalRetentionPolicy.purgeBatchSize
+        limit: Int = NonBiologicalRetentionPolicy.purgeBatchSize,
+        requestingAccountID: UUID? = nil
     ) throws -> ExpiredNonBiologicalPurgeResult {
         var descriptor = FetchDescriptor<LocalScanRecord>(
             predicate: #Predicate {
                 $0.isBiological == false &&
+                    $0.analysisOwnerAccountID == nil &&
                     $0.timestamp < cutoffDate
             },
-            sortBy: [SortDescriptor(\.timestamp)]
+            sortBy: [SortDescriptor(\.timestamp), SortDescriptor(\.id)]
         )
         descriptor.fetchLimit = limit
 
-        let expiredRecords = try modelContext.fetch(descriptor)
-        guard !expiredRecords.isEmpty else {
-            return ExpiredNonBiologicalPurgeResult(
-                committedErasureCount: 0,
-                deletedRecordCount: 0,
-                localMediaPaths: []
-            )
+        guard limit > 0 else {
+            return .init(committedErasureCount: 0, deletedRecordCount: 0, localMediaPaths: [])
+        }
+        var payloads = [ScanErasurePayload]()
+        var offset = 0
+        while payloads.count < limit {
+            try Task.checkCancellation()
+            descriptor.fetchOffset = offset
+            // Release held rows after each bounded page instead of retaining the library.
+            let read = ModelContext(modelContainer)
+            let page = try read.fetch(descriptor)
+            for record in page where payloads.count < limit {
+                guard try !ObservationHistoryEnrollmentIntent.holds(record.id, context: read) else { continue }
+                let media = record.capturedMediaSnapshot
+                payloads.append(.init(id: record.id, mediaPaths: media.thumbnailImagePaths + media.audioPaths + media.videoPaths))
+            }
+            if page.count < limit { break }
+            offset += page.count
+        }
+        guard !payloads.isEmpty else {
+            return .init(committedErasureCount: 0, deletedRecordCount: 0, localMediaPaths: [])
         }
 
-        let payloads = expiredRecords.map { record in
-            let mediaSnapshot = record.capturedMediaSnapshot
-            return ScanErasurePayload(
-                id: record.id,
-                mediaPaths: mediaSnapshot.thumbnailImagePaths
-                    + mediaSnapshot.audioPaths
-                    + mediaSnapshot.videoPaths
-            )
-        }
-
-        let commit = try commitNonBiologicalScanDeletion(payloads: payloads)
+        let commit = try commitNonBiologicalScanDeletion(payloads: payloads,
+            requestingAccountID: requestingAccountID, origin: .nonBiologicalRetention)
         return ExpiredNonBiologicalPurgeResult(
             committedErasureCount: commit.committedErasureCount,
             deletedRecordCount: commit.deletedRecordCount,

@@ -38,6 +38,21 @@ remain unchanged. See the
 
 ## Structure
 
+The private
+[observation analysis history foundation](functions/_shared/analysisHistory/README.md)
+prepares immutable results, revisioned selection, reconciliation obligations and
+legacy deletion/retention protection. Enrollment and selection remain disabled;
+the separate owner reader is prepared behind `reader_enabled = false`, with no
+live producer or normal app sync call site. A private description-only append
+primitive and canonical builder are prepared behind `append_enabled = false`;
+they provide no provider/funding completion or protected media delivery. The
+[schema contract](../../docs/backend-and-data/04-database-schema.md#prepared-observation-analysis-history)
+owns current storage, the
+[RFC](../../docs/rfcs/reversible-reanalysis-and-identification-history-2026-10-02.md)
+owns the complete target design, and the
+[activation hold](../../docs/backend-and-data/06-supabase-deployment-runbook.md#observation-analysis-history-activation-hold)
+owns the remaining release prerequisites.
+
 The [Function directory guide](functions/README.md) groups endpoint entrypoints
 and shared owners by product area. The
 [organization audit](../../docs/rfcs/supabase-functions-organization.md) records
@@ -2231,6 +2246,17 @@ same effective-schema invariants.
 
 ### Ghost Account Upgrade Boundary
 
+The
+[guest library transition contract](../../docs/backend-and-data/21-guest-library-transitions.md)
+adds a source-retirement fence: nonterminal ingestion and resumable orphan
+intents return `pending_library_work`; prepared source-owned history/evidence
+returns `library_transfer_needs_attention`. Both preserve source ownership and
+merge proof. Private notes/Favorites follow stable scan ownership through the
+owner-only detail RPCs; same-operation replay never overwrites newer accepted
+values. Apply the migrations and compatible merge mapper before distributing a
+client that requires these RPCs, following the
+[extension rollout](../../docs/backend-and-data/06-supabase-deployment-runbook.md#guest-library-preservation-extension).
+
 Direct Apple/Google identity linking remains the primary anonymous upgrade path.
 Only the exact Auth error `identity_already_exists` may enter
 `functions/merge-ghost-profile/`. The anonymous source issues a hashed,
@@ -3081,3 +3107,351 @@ Detail reactor identities use `get-explore-post-reactors` and its guarded
 canonical/independent post readers and reused reference media without changing
 moderation statuses. The authenticated `species-dictionary-for-viewer` endpoint
 complements the preserved anonymous dictionary route.
+
+The prepared history owner now also contains private-bucket evidence storage,
+owner receipt resolution and an erasure worker seam. Its media gates remain
+closed; read adapter/endpoint source is prepared, with no deployed route or
+worker schedule, and result V1 append still accepts descriptions only. The
+separate gated V2 photo binder now joins ready receipts to funded completion;
+native protocol-9 history accepts V1/V2/V3 while private photo resolution
+remains V2-only on protocol 8. See the canonical
+[protected evidence lifecycle](../../docs/backend-and-data/05-api-contracts.md#prepared-protected-evidence-lifecycle).
+
+The prepared `analysisHistory/intent.ts` owner and funded-child migration now
+freeze description-only input, account one provider invocation and atomically
+append a result with shared complimentary settlement. Admission/dispatch gates
+remain closed; there is no live provider or recovery caller. See the
+[private lifecycle contract](../../docs/backend-and-data/05-api-contracts.md#prepared-funded-child-analysis-lifecycle).
+
+The prepared protocol-8 read slice adds mixed immutable V1/V2 owner pages,
+`resolve-history-photo` authenticated temporary photo delivery, and native
+`ObservationHistoryPhotoReference` / `ObservationHistoryPhotoLoader` validation.
+All gates remain closed and no UI is connected. The canonical contract is
+[protocol-8 owner reads](../../docs/backend-and-data/05-api-contracts.md#prepared-protocol-8-reads-and-private-photo-resolution).
+
+### Prepared analysis orchestration — 2026-10-03
+
+`analyze-observation` owns authenticated V1/V2 child-analysis submission;
+`recover-observation-analyses` completes received outcomes/drafts without
+another AI dispatch. Migration `20261003074429` introduces exclusive work
+claims, immutable canonical checkpoints and service-only lifecycle wrappers. All
+gates remain false and no route/schedule is deployed. Enrollment, normal native
+presentation, public/chat snapshots and explicit erasure delivery remain
+activation requirements. See the function READMEs and canonical API contract.
+
+The prepared history backend additionally includes protocol-9
+saved-identification enrollment, held by `saved_import_enabled` and existing
+rollout gates. It preserves current server corrections/reviews and explicitly
+marks unavailable original execution evidence. Native V56 now reads protocol 9
+and preserves unknown completion dates; native state admission is still held.
+See the
+[owner enrollment contract](../../docs/backend-and-data/05-api-contracts.md#prepared-saved-identification-enrollment-and-protocol-9)
+before extending or enabling this path.
+
+The separate `get_owned_observation_analysis_state` RPC and Deno/native state
+decoders now bind one selected or preview result to its current authority and
+observation revision. Its independent `state_reader_enabled` gate remains false.
+No local authority persistence or restore caller is connected. See the
+[state contract](../../docs/backend-and-data/05-api-contracts.md#prepared-owner-observation-state-read).
+
+Prepared protocol-9 selection now has an authenticated owner RPC,
+`select_owned_observation_analysis`, and native live adapter. The new
+`selection_api_enabled` gate remains false. Exact durable success and
+revision-conflict outcomes share one immutable ledger and replay after admission
+gates close, subject to owner/deletion fences. Native acknowledgment still needs
+a current-state read. No ordinary Restore/Undo caller or reconciliation worker
+is enabled. See the
+[selection contract](../../docs/backend-and-data/05-api-contracts.md#prepared-native-selection-requests-and-undo-receipts).
+
+Prepared protocol-9 owner review now includes
+`review_owned_observation_analysis` for Reject/Undo, a private immutable outcome
+ledger, and a separate default-false `rejection_api_enabled` gate. Legacy review
+and community writers refuse enrolled observations rather than transferring
+scan-row authority to the selected result. `analysisHistory/review.ts` owns the
+wire contract and `identify/legacyReview.ts` owns Edge preflight; SQL commit
+checks remain authoritative. See the
+[analysis-bound review contract](../../docs/backend-and-data/05-api-contracts.md#prepared-analysis-bound-reject-and-undo).
+Native review admission, community/publication integration and ordinary history
+activation remain outstanding. Confirmation is separately prepared below.
+
+## Prepared analysis-bound confirmation
+
+[`confirm-observation-analysis`](functions/confirm-observation-analysis/README.md)
+adds default-off confirmation of a named history result. Immutable admission
+precedes dictionary verification; completion rechecks observation and review
+revisions and stores a replayable outcome. Confirmation never selects a result
+or transfers authority between results. The
+[canonical API contract](../../docs/backend-and-data/05-api-contracts.md#prepared-analysis-bound-confirmation)
+owns held legacy/community behavior, retry semantics and remaining native and
+rollout work. This source preparation authorizes no deployment or activation.
+
+## Private community authority foundation
+
+The database-only community binding and reconciliation layer now preserves an
+explicit analysis subject and a durable source revision. No endpoint, public
+publisher, scheduler or API execution grant is enabled. Existing community
+requests are not migrated; new registration requires same-transaction insertion
+proof. See the
+[canonical contract](../../docs/backend-and-data/05-api-contracts.md#private-analysis-bound-community-authority-preparation)
+for lock contention, superseded review and request-deletion revocation behavior.
+
+## Prepared public publication snapshots
+
+Private, default-off publication registration and sanitized Explore projections
+now pin original labels/media to a named result and remove public species
+authority transactionally on revocation. No new sharing endpoint or API writer
+is exposed. Existing privacy/moderation guards remain authoritative; legacy
+media refresh cannot replace a bound cohort. See the
+[publication contract](../../docs/backend-and-data/05-api-contracts.md#prepared-analysis-publication-snapshots-and-public-reads)
+for consumer coverage, reference-cache retirement and remaining integration.
+
+## Prepared community request admission
+
+The private atomic admission owner now creates one fresh analysis-bound request,
+freezes approved public evidence, and records an immutable operation receipt.
+Exact retries recover without replacing a discussion or reapplying authority. No
+API writer, moderated endpoint or native caller is enabled. See the
+[canonical contract](../../docs/backend-and-data/05-api-contracts.md#prepared-atomic-community-request-admission)
+for the default-off gate, insertion proof, public-reader privacy and remaining
+publisher integration.
+
+## Prepared protected publication intent
+
+Private pre-I/O preparation now freezes a caller operation, named-result
+revisions and exact owned V2 photo receipt tuples. Historical retry and fresh
+revalidation are separate; neither permits media publication. The new gate
+defaults false and no API caller is granted. The prepared moderation and copy
+workers below consume this intent behind closed gates. Native operation recovery
+and authorized runtime qualification remain required. See the
+[intent contract](../../docs/backend-and-data/05-api-contracts.md#prepared-protected-photo-publication-intent).
+
+## Prepared photo moderation lifecycle
+
+Private source-bound photo jobs now own explicit provider attempts, one-time
+dispatch permits, terminal decision receipts and stale-ambiguity recovery. They
+consume provider quota only, never complimentary scan credits. All new gates,
+quota policies and API access remain closed. The classifier adapter is prepared
+below, with scoped execution, copy cleanup and binding connected through the
+prepared service owners. Activation remains held; see the
+[attempt contract](../../docs/backend-and-data/05-api-contracts.md#prepared-photo-moderation-attempt-lifecycle).
+
+## Prepared protected-photo classifier
+
+The source-bound photo classifier adapter verifies private bytes and freezes the
+exact request before a one-shot bounded Gemini transport. Synthetic tests cover
+strict approval and unknown outcomes. The prepared moderation worker and scoped
+repository now call this adapter behind closed gates. Live model qualification
+remains required. SQL proof binding and the prepared execution owner are
+described below. Gates remain false; public copying still requires its own
+ownership and cleanup. See the
+[classifier contract](../../docs/backend-and-data/05-api-contracts.md#prepared-source-bound-photo-classifier-adapter).
+
+## Prepared photo execution binding
+
+Immutable request proofs now precede private moderation dispatch. Canonical
+classifier facts and usage commit atomically with decisions, and exact retries
+cannot alter either proof or output. The prepared TypeScript owner uses one
+frozen invocation and retries only completion writes. The prepared service
+worker and scoped moderation repository now connect this owner. Recovery
+scheduling remains held; the prepared copy owner below supplies separate
+public-copy ownership. See the
+[execution contract](../../docs/backend-and-data/05-api-contracts.md#prepared-durable-photo-execution-binding).
+
+## Prepared public-photo transport
+
+The dedicated history-photo transport prepares conditional exact-byte writes and
+permanent erasure markers in a new public namespace. A bounded JPEG/PNG filter
+rejects known out-of-band metadata. The transport itself supplies no SQL copy
+ledger, cleanup scheduler or publication transaction; the prepared owners below
+supply separate lifecycle boundaries. Cache-bypass evidence and durable
+ownership remain activation requirements. See the
+[storage contract](../../docs/backend-and-data/05-api-contracts.md#prepared-public-photo-storage-boundary).
+
+## Prepared public-photo staging ledger
+
+Private staging now reserves opaque keys and permanent cleanup obligations
+before external I/O. Approval/source revalidation and exact leases gate
+completion; abandonment, fixed expiry and parent deletion prevent reuse. Ready
+copies remain unbound until the private atomic binder commits. No API grants,
+live publisher or erasure scheduler is enabled. See the
+[staging contract](../../docs/backend-and-data/05-api-contracts.md#prepared-public-photo-staging-lifecycle).
+
+The subsequent private ordered-cohort binder commits fresh community admission,
+photo ownership and an immutable operation receipt together. Bound photos
+survive the staging deadline; actual removal queues permanent erasure, while
+reversible health quarantine keeps recovery possible. See the
+[atomic binding contract](../../docs/backend-and-data/05-api-contracts.md#prepared-atomic-public-photo-binding).
+
+## Prepared public-photo erasure worker
+
+`erase-publication-photos` performs one service-authenticated registry claim,
+permanent origin marker write/verification and fenced acknowledgement. It
+requires no surviving owner/history row and cannot erase valid bound
+publications. `publication_erasure_enabled` defaults false; no scheduler is
+included. The configured route participates in normal main-branch deployment,
+and runtime-off is not a deployment hold. The
+[worker README](functions/erase-publication-photos/README.md) and
+[canonical contract](../../docs/backend-and-data/05-api-contracts.md#prepared-public-photo-erasure-worker)
+define retry counts, credentials and cache-bypass prerequisites.
+
+The prepared `photoCopyExecution.ts` owner now connects reservation, verified
+private bytes, conditional writes and bounded completion recovery through
+explicitly scoped repository callbacks. Failed writes/completions attempt
+targeted registry cleanup even after deletion, without erasing a valid bound
+publication. Live repository and authenticated operation admission remain
+unconnected. See the
+[copy execution contract](../../docs/backend-and-data/05-api-contracts.md#prepared-public-photo-copy-execution).
+
+## Prepared durable publication intake
+
+`request-observation-publication` now authenticates and persists exact ordered
+consent before external work, returning an immutable acceptance receipt.
+`publicationOperation.ts` owns strict parsing; the default-off service RPC and
+private records preserve replay, original hash and deletion fences. Acceptance
+never authorizes copying or means publication completed. Live execution/status
+workers and native delivery remain required. See the
+[intake contract](../../docs/backend-and-data/05-api-contracts.md#prepared-authenticated-publication-operation-intake).
+
+## Prepared publication worker ownership
+
+Separate private work records now provide bounded discovery, scoped expiring
+claims and gate-independent release/status beneath immutable intake. Only a
+durable cohort receipt establishes historical admission; orchestration leases
+confer no provider or public-copy authority. The execution gate remains false,
+and the prepared moderation worker is connected; owner status and native
+delivery remain unconnected. Optional public notes still require their own
+moderation boundary. See the
+[worker contract](../../docs/backend-and-data/05-api-contracts.md#prepared-publication-operation-worker-ownership).
+
+## Scoped moderation recovery and preflight
+
+`publicationModerationRepository.ts` now binds service calls to an accepted
+operation, live work for fresh execution, and original provider tokens for late
+completion. Ordered recovery never manufactures a successor. Terminal results
+are consumed directly using `isActivePhotoWork` to distinguish execution
+capabilities. `photoCohortPreflight.ts` prepares every verified
+metadata-filtered JPEG/PNG before any future quota admission. Only a complete
+cohort returns a handle; it retains bounded raw bytes and releases unselected
+buffers before preparing one classifier per pass. The prepared moderation worker
+now uses this path; gates stay false. See the
+[repository contract](../../docs/backend-and-data/05-api-contracts.md#prepared-scoped-publication-moderation-repository).
+
+## Prepared photo moderation settlement
+
+Durable provider outcomes now remove completed or refused operations from
+moderation discovery. `photos_approved` is historical provider state only;
+`needs_action` never schedules a successor or refunds unknown dispatch.
+Copy/note execution and native delivery remain unconnected. All activation gates
+remain false.
+
+See the
+[outcome contract](../../docs/backend-and-data/05-api-contracts.md#prepared-durable-photo-moderation-outcomes).
+
+## October 4: prepared bounded photo moderation worker
+
+`moderate-publication-photos` now connects service authentication, durable
+claims, recovery, finalization and one verified provider execution. Gates stay
+false and no scheduler is added. Shared request/provider deadlines preserve
+completion time and never turn uncertainty into a retry or refund. Copy/binding,
+exact-note moderation and native operations remain separate. Worker
+handler/repository and classifier deadline tests cover recovery-first ordering,
+preflight before quota, lost dispatch/completion, stalled response cancellation
+and scoped denial.
+
+## Prepared separate copy recovery stage
+
+Approved photo outcomes now seed private copy work with a distinct token and
+exact ordered causal-leaf cohort. The four service-only recovery RPCs add no
+storage, provider or binding authority. Gates remain false. The prepared copy
+owner below consumes current-authority checks and fixed staging deadlines,
+performs targeted cohort cleanup and settles nonnull notes as needs-action. See
+the
+[canonical copy recovery contract](../../docs/backend-and-data/05-api-contracts.md#prepared-publication-copy-recovery-ownership).
+
+## Prepared atomic copy cohort reservation
+
+A separate default-false reservation gate now protects atomic allocation of the
+exact approved no-note cohort under one immutable expiry. Scoped completion
+rechecks current authority; historical publication recovery precedes cleanup,
+and abandonment queues all unbound siblings without itself granting erasure.
+Private receipts cascade on deletion while registry cleanup survives. The
+prepared copy worker and scoped binder below consume this reservation behind
+closed gates. See the
+[canonical reservation contract](../../docs/backend-and-data/05-api-contracts.md#prepared-atomic-publication-copy-reservation).
+
+## Prepared scoped copy repository
+
+`publicationCopyRepository.ts` now binds the SQL reservation, recovery,
+completion and abandonment boundary to the existing copy executor through the
+dedicated `publicationCopyExecution.ts` coordinator. It freezes the exact
+cohort, validates common expiry and private lease identities, propagates shared
+deadlines and checks historical publication before cleanup. The prepared copy
+worker and scoped binder below consume this coordinator; activation remains
+held. See the
+[repository contract](../../docs/backend-and-data/05-api-contracts.md#prepared-scoped-publication-copy-repository).
+
+## Prepared reserved-cohort binding
+
+A new service facade fences publication to the exact approved ordered
+reservation and revalidates current authority. Historical receipt recovery
+precedes work/gate checks and still verifies the reservation. Mismatches roll
+back every publication write. The independent binding gate stays false; no Edge
+worker or activation is added. See the
+[binding contract](../../docs/backend-and-data/05-api-contracts.md#prepared-exact-reserved-cohort-binding).
+
+## Prepared bounded copy operation
+
+The prepared operation controller connects whole-cohort private verification,
+sequential scoped copies, exact binding and targeted cleanup under one shared
+110-second deadline, reserving time for recovery. It spends no provider quota
+and does not infer terminal failure from transport uncertainty. HTTP worker
+admission, durable copy outcomes and activation remain pending. See the
+[controller contract](../../docs/backend-and-data/05-api-contracts.md#prepared-bounded-copy-operation-controller).
+
+## Prepared durable copy outcomes
+
+A separate private immutable outcome now records unapproved notes or original
+staging expiry, retires copy work and preserves provider approval. Historical
+publication wins; private cleanup IDs still require registry claims. Owner
+status exposes only the existing needs-action state. Settlement has its own
+closed gate; no worker or activation is added. See the
+[copy outcome contract](../../docs/backend-and-data/05-api-contracts.md#prepared-durable-copy-needs-action-outcomes).
+
+## Prepared unsupported-source settlement
+
+The existing moderation worker can consume durable `unsupported_source_type`
+needs-action outcomes before external preflight or quota. SQL derives them from
+immutable source metadata under a separate default-false gate and only with zero
+existing provider attempts. Provider decisions, copy outcomes and source
+remediation remain distinct; verified container rejection uses the separate
+attestation boundary below. See the
+[API contract](../../docs/backend-and-data/05-api-contracts.md#prepared-unsupported-publication-source-settlement).
+
+## Prepared verified-container remediation
+
+A deliberate container-policy rejection after exact byte/digest verification can
+now retire a zero-attempt publication operation through a private immutable
+attestation. Generic parser, read, storage, digest and cancellation failures
+remain recoverable. The service-only finalizer and worker integration are behind
+an independent default-false gate; this is conservative publication remediation,
+not invalidation of private evidence. See the
+[API contract](../../docs/backend-and-data/05-api-contracts.md#prepared-verified-container-rejection-attestation).
+
+## Prepared publication copy service owner
+
+`copy-publication-photos` connects strict original claims and durable copy
+outcomes to full-cohort verification, exact binding and targeted erasure. It
+reserves cleanup/release time inside a 135-second request and skips new copying
+after slow setup. Gates stay false. Activation requires verified recurring
+independent erasure, backlog monitoring and CDN bypass because terminal expiry
+retires copy work before best-effort cleanup. See its
+[README](functions/copy-publication-photos/README.md).
+
+## Prepared owner publication status
+
+`get-observation-publication-status` now exposes only the existing five-field
+owner status for an exact saved operation. Auth-derived ownership, deletion
+fences, strict decoding, bounded reads and private no-store apply. Historical
+admission is not current visibility. No private reason, media or post ID is
+returned. Native delivery and activation remain separate. See the
+[status contract](../../docs/backend-and-data/05-api-contracts.md#owner-publication-operation-status).

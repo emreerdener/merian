@@ -179,7 +179,9 @@ With that projection:
 - broad zoom shows simple scan dots and numeric cluster bubbles;
 - zoom level 11.5 and closer uses circular scan thumbnails when an individual
   point is rendered;
-- tapping a non-coincident cluster zooms to its fitted extent; and
+- tapping a non-coincident cluster zooms to its fitted extent or a smaller span
+  relative to the current camera, so repeated taps continue past the fitted
+  minimum until points separate or the zoom-level-18 list fallback applies; and
 - coincident points that cannot be separated further remain available through
   the scan-list sheet.
 

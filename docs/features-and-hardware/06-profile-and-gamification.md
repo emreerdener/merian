@@ -648,3 +648,30 @@ and the
 - Offline scan timestamp preservation now directly protects gamification
   correctness: streaks, monthly heatmaps, and species chronology are computed
   from the original capture date rather than delayed sync time.
+
+## Library transition recovery
+
+Settings exposes **Review pending changes**. Sign-in and sign-out preserve
+pending source work and return users to retry/repair before changing identity.
+Completed sign-out starts a distinct guest with an empty private library. A
+committed interruption displays **Finishing sign out**; an unresolved merge
+displays **Signed in; finishing library transfer**. Authentication, restoration,
+mutation acknowledgment and media availability are separate statuses. See
+[guest library transitions](../backend-and-data/21-guest-library-transitions.md).
+
+Before commitment, **Cancel** cancels only the account-change request, and
+**Keep syncing** returns to ordinary synchronization; the user starts and
+confirms sign-out again afterward. Pending-change review provides scan retry,
+affected-item/library routes and synchronization retry. It does not add an
+implicit discard action. After commitment, **Retry** resumes sign-out recovery.
+`LibraryTransitionPresentationDependencies` owns the live route, queue retry,
+synchronization and restoration-snapshot adapters; the overlay and
+pending-change view retain presentation state.
+
+During pending transfer, **Retry transfer** resumes recovery and **Contact
+support** is available for needs-attention status. The covered library cannot be
+edited as either account until transfer finishes; destination editing requires a
+separate local projection and remains unimplemented. **Recover your library
+account** requires the original identity when a retained local library has no
+matching session. Restoration-complete copy explicitly leaves pending changes
+and per-item media availability separate; it is not “Library up to date.”

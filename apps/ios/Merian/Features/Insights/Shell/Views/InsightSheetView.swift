@@ -20,6 +20,7 @@ struct InsightSheetView: View {
     let dependencies: InsightShellDependencies
 
     // MARK: - State
+    @State var historyModel: IdentificationHistoryViewModel?
     @State var viewModel: InsightSheetViewModel
     @State var chatViewModel = InsightChatViewModel()
     @State var fieldTripExploreViewModel = ExploreFeedViewModel()
@@ -166,6 +167,7 @@ struct InsightSheetView: View {
         }
         .onChange(of: isPresented) { _, isNowPresented in
             guard isNowPresented else {
+                historyModel?.close(); historyModel = nil
                 viewModel.endPresentationSession()
                 activeShellPresentation = nil
                 pendingShellPresentation = nil
@@ -187,6 +189,11 @@ struct InsightSheetView: View {
             pendingShellPresentation = nil
         }
 
+        .onChange(of: viewModel.scanBoundActionGeneration) { _, _ in
+            historyModel?.close(); historyModel = nil
+            cancelOrDismissShellPresentation { if case .identificationHistory = $0 { true } else { false } }
+        }
+
         // Dialogs
         .alert("Delete scan?", isPresented: deleteConfirmationBinding) {
             Button(viewModel.queuedContext != nil ? "Cancel upload & delete" : "Delete scan permanently", role: .destructive) {
@@ -205,7 +212,7 @@ struct InsightSheetView: View {
                 }
                 if let queued = viewModel.queuedContext,
                    queued.id.caseInsensitiveCompare(targetScanId) == .orderedSame {
-                    Task { await offlineQueueManager.deleteQueuedScan(scanId: queued.id) }
+                    Task { await offlineQueueManager.deleteQueuedScan(scanId: queued.id, userInitiated: true) }
                     dismissInsightPresentation()
                 } else if viewModel.eradicateCurrentScan(
                     expectedScanId: targetScanId,

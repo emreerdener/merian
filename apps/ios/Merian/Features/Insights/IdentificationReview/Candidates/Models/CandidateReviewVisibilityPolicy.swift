@@ -1,6 +1,13 @@
 import Foundation
 
 enum CandidateReviewVisibilityPolicy {
+    static func showsIncorrectGuidance(
+        for species: SpeciesData?, canReanalyze: Bool, canAskCommunity: Bool
+    ) -> Bool {
+        species?.isBiological == true && species?.aiReview.state == .aiRejected
+            && (canReanalyze || canAskCommunity)
+    }
+
     static let minimumCompetitiveCandidateConfidence = 0.80
     static let competitiveCandidateMargin = 0.15
 

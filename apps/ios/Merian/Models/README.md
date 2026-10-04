@@ -108,3 +108,29 @@ authority; a pending selection cannot borrow the previous confirmation's
 identity. V52 snapshots remain frozen and hash-pinned. The complete migration
 and physical install-over requirements live in the schema and startup recovery
 guides; no protocol-5 producer is enabled by this native checkpoint.
+
+## V57 analysis history storage
+
+`LocalAnalysisRecord` is immutable, owner-private opaque result storage with
+version/object/byte-limit validation. Its parent relationship cascades deletion;
+future reads must use bounded child queries. V54 and V55 are independently
+frozen and hash-pinned. V56 makes completion optional only for imported V3
+snapshots; V1/V2 require finite completion dates. The lightweight V55→V56 stage
+preserves existing completion values and exact bytes, without creating history
+or inferring a missing date. The additive migration preserves current projection
+and review bytes, starts with no child results or inferred owner, and marks
+selection initialized so a later completion cannot replace a legacy correction.
+The
+[canonical schema contract](../../../../docs/backend-and-data/04-database-schema.md#native-analysis-history-storage-and-v55)
+defines this foundation and the prepared account-bound admission owner under
+`Core/Data/AnalysisHistory`. Live completion, enrollment and normal sync remain
+activation prerequisites. Neither restoring results nor history-based reanalysis
+is enabled.
+
+V57 adds `LocalAnalysisStateRecord` for bounded owner-private authority and
+immutable display bytes, separately cascade-owned by `LocalAnalysisRecord`.
+`SchemaV56ScanSnapshots.swift` and `SchemaV56QueueSnapshots.swift` freeze the
+outgoing nullable-completion graph. The additive V56→V57 stage creates no cache
+rows and preserves all selection, correction and observation fields. Admission
+and display mapping remain under `Core/Data/AnalysisHistory`, with no ordinary
+sync or Restore caller. Account purge includes both child entities.

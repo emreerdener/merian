@@ -601,6 +601,9 @@ verify_jwt = false
 [functions.resolve-species-dictionary]
 verify_jwt = false
 
+[functions.confirm-observation-analysis]
+verify_jwt = false
+
 [functions.confirm-scan-species]
 verify_jwt = false
 
@@ -741,4 +744,32 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.review-scan-identification]
+verify_jwt = false
+
+[functions.resolve-history-photo]
+verify_jwt = false
+
+[functions.analyze-observation]
+verify_jwt = false
+
+[functions.recover-observation-analyses]
+verify_jwt = false
+
+# Explicit service-role authorization; no user JWT or caller-nominated key.
+[functions.erase-publication-photos]
+verify_jwt = false
+
+[functions.request-observation-publication]
+verify_jwt = false
+
+# Service-only bounded photo moderation; activation remains separately gated.
+[functions.moderate-publication-photos]
+verify_jwt = false
+
+# Service-only bounded publication copying; activation remains independently gated.
+[functions.copy-publication-photos]
+verify_jwt = false
+
+# Owner-authenticated exact-operation status; withEdgeHandler validates the user.
+[functions.get-observation-publication-status]
 verify_jwt = false

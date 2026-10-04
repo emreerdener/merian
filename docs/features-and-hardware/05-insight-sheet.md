@@ -1243,6 +1243,11 @@ the swap. If a marker drag resumes playback, playhead observation restarts for
 the replacement player. Completion callbacks from replaced players are ignored
 so they cannot reset the active playhead.
 
+The direct spectrogram control is also available during foreground and queued
+analysis. The audio page uses a containing accessibility group with separately
+reachable playback, seeking and Boost controls; a full-page accessibility
+overlay must not mask those controls.
+
 Boost processing writes a Core Audio file inside an explicit close scope, then
 reopens and decodes every rendered frame before publishing the source to a
 player. Decode errors and callback-less playback stops invalidate the cached
@@ -1846,6 +1851,16 @@ waiting-to-sync explanation and does not enqueue another confirmation. The
 explicit-primary path awaits its serialized review task before checking the
 result. A finished drag alone is not shown as a successful identification.
 
+**Incorrect-identification guidance**: The main biological Insight places a
+white, shadowed **Find a better match** card immediately before its candidates
+section while the review state is `aiRejected`, including locally pending marks.
+It stacks the existing orange Reanalyze species and blue Ask the community
+actions, respecting host eligibility and scan-generation checks. The card stays
+available when candidates are absent, dismissed, or exhausted; Undo or accepted
+identification removes it. No card is shown when neither action is available.
+Dark mode uses the surrounding candidate-card treatment. The confidence sheet
+and its existing incorrect-state card are unchanged.
+
 **Nested sheet `Menu` incompatibility**: SwiftUI `Menu` uses
 `UIContextMenuInteraction` which fails to attach in nested sheet contexts — the
 tap falls through to the sheet's dismiss gesture. All contextual actions are
@@ -2344,6 +2359,14 @@ path used by close, back, and queued deletion. The view model owns no SwiftUI
 presentation action, and pending scan-bound work is invalidated before the sheet
 or embedded route closes.
 
+Local acceptance is not proof of cloud erasure. If the server refuses legacy
+deletion of an observation with retained history, the local sync queue keeps a
+durable held task; the Insight may already have closed and removed its local
+record. Normal builds have no history restoration or held-task resolution UI.
+The prepared history sheet below does not recover legacy deletion holds. See the
+[compatibility status](../backend-and-data/01-offline-sync-pipeline.md#reanalysis-history-compatibility-status--october-2-2026)
+for the remaining activation requirements.
+
 ---
 
 ## Share & Export
@@ -2398,6 +2421,17 @@ Messages destination.
 
 ## Identification rejection menu action
 
+The Undo actions in this section reverse review decisions. They do not restore a
+previous completed AI analysis. Reanalysis still follows the native replacement
+workflow in normal builds. A separately injected history sheet is prepared below
+but remains disabled for normal access. The agreed activation behavior is to
+append every completed analysis within one scan, preserve the existing
+selection, and restore only through an explicit revision-checked selection. See
+the
+[implementation status](../rfcs/reversible-reanalysis-and-identification-history-2026-10-02.md#implementation-progress)
+and
+[offline compatibility requirements](../backend-and-data/01-offline-sync-pipeline.md#reanalysis-history-compatibility-status--october-2-2026).
+
 **Mark as incorrect** is the last action in the scan menu’s Identification
 section and appears below Ask the community in the confidence sheet’s button
 stack. Both actions are red and show a confirmation alert with a destructive
@@ -2448,3 +2482,74 @@ explanation. Unreviewed scans retain the standard confidence subheading.
 
 In the confidence sheet, the incorrect-state card replaces the standalone gray
 Undo button. Menu and completed candidate-review Undo actions remain available.
+
+## Prepared identification history sheet
+
+**Status: local preparation only; normal access remains disabled.**
+`InsightShellDependencies.historyAccess` defaults to nil. Its live factory only
+provides a synthetic Debug UI-test fixture when both the UI-test runtime and
+`-seedIdentificationHistory` are present. The prepared service adapter is not
+connected to ordinary app access, enrollment, sync or reanalysis. Server gates
+remain closed.
+
+When explicitly injected, **Identification history** appears in the existing
+scan menu only for an enrolled, owned, live observation with at least two
+locally admitted results. A bounded two-child query determines availability; it
+does not load the cascade relationship. The menu opens a large native sheet in
+the existing `InsightShellPresentation` slot, bound to the scan and its
+presentation generation.
+
+- The list displays at most 20 entries in the server's ordinal order. Earlier
+  identifications replaces the window; Newest returns to its beginning. A
+  partial cache is never presented as complete history.
+- Tapping an entry only opens its preview. The preview shows its own result,
+  review, reasoning, alternatives and available evidence. Current selection has
+  an explicit marker. An imported result with unknown completion says the
+  original date is unavailable; import time is not relabeled as completion.
+  Older candidate JSON that cannot decode as current alternatives is omitted; it
+  does not prevent previewing or restoring an otherwise valid saved result.
+- **Use this identification** stages a durable conditional selection before
+  dispatch. The current scan remains unchanged until current server authority
+  and the operation outcome are admitted together. Choosing a result does not
+  confirm it, clear rejection, publish it or issue Field Trip credit.
+- A successful current receipt exposes **Undo identification change** for 15
+  seconds. Undo is another conditional selection, tied to that receipt and its
+  revision. A newer choice or authority revision invalidates it. Durable
+  conflicts refresh current state and require a fresh preview; they never
+  silently rebase the choice.
+- An ambiguous failure keeps the exact pending operation and shows Retry.
+  Dismissing the sheet clears private presentation values but preserves that
+  operation. Opening the sheet again can retry it. Ordinary scheduling remains
+  disabled.
+
+An acknowledged selection or authority revision invalidates the existing rows,
+preview and photo, including titles derived from community review. A delayed
+page or preview cannot reinstall an older revision. Restore/Undo refreshes the
+newest bounded page after acknowledgment; if that read fails, the acknowledged
+choice and eligible Undo remain valid while the user can refresh the entries.
+Back is disabled during a pending operation's active dispatch; Done remains the
+explicit dismissal/cancellation path.
+
+Opening or paging requires a server-ordered page. This slice does not provide a
+complete offline history index. An already-loaded entry may fall back to its
+validated cached preview during a transport outage, and an eligible selection
+can be staged pending reconnection. Missing or stale authority/display cannot be
+restored. The sheet retains one page, one detail and one downsampled private
+photo (maximum 1,280 pixels on its longest side). Photo requests use the
+existing account/deletion-fenced, hash-verified resolver, never persisted URLs.
+Late or superseded image results cannot replace the requested preview.
+
+The sheet retains only identity and the read-only Auth session generation, never
+a long-lived account-work lease. An idle/background sheet cannot block sign-out
+while Auth drains in-flight work. Individual Core operations retain their own
+leases. Account/presentation changes, library change events and foreground
+return invalidate or revalidate the presentation. Each operation rechecks
+persisted ownership and deletion before and after suspension. Undo uses one
+deadline task; the sheet does not poll SwiftData while idle. The parent Insight
+reloads only after its acknowledged selection or authority revision changes, not
+after harmless pagination or preview. History lives in
+`Features/Insights/History`; its Core persistence owner is
+`Core/Data/AnalysisHistory`. See the
+[local ownership map](../../apps/ios/Merian/Features/Insights/History/README.md)
+and
+[activation hold](../backend-and-data/06-supabase-deployment-runbook.md#observation-analysis-history-activation-hold).

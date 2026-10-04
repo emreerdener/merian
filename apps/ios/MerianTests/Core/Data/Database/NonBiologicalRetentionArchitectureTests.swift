@@ -41,9 +41,11 @@ struct NonBiologicalRetentionArchitectureTests {
         #expect(source.contains("extension BackgroundDatabaseActor"))
         #expect(
             source.contains(
-                "try modelContext.ensurePendingCloudDeletionTask("
+                "try context.ensurePendingCloudDeletionTask("
             )
         )
+        #expect(source.contains("ConfirmedSpeciesReviewPersistence.transaction"))
+        #expect(source.contains("ModelContext(modelContainer)"))
         #expect(source.contains("let mediaPaths: [String]"))
         #expect(!source.contains("let imagePaths: [String]"))
         #expect(source.contains("let committedErasureCount: Int"))

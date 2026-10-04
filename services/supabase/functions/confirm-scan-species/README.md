@@ -9,7 +9,9 @@ change confidence.
 `POST /confirm-scan-species` uses `withEdgeHandler` authentication and derives
 the owner from the verified session. `verify_jwt = false` does not make the
 route public. `index.ts` orchestrates; `db.ts` owns queries and the service-only
-atomic RPC; `contract.ts` owns strict request/receipt validation.
+atomic RPC; `contract.ts` owns strict request/receipt validation. Shared
+`identify/speciesVerification.ts` owns scientific-name validation and the
+existing dictionary lookup admission, also used by analysis-bound confirmation.
 
 ## Request and response
 
@@ -91,3 +93,16 @@ legacy review compatibility, identity replacement/clear, stale and simultaneous
 mutations, missing-row recovery, account merge and privacy cleanup. Follow the
 [backend gates](../../README.md) and existing exact-SHA release procedure;
 source implementation and passing local tests do not constitute deployment.
+
+## Enrolled history compatibility
+
+The target lookup calls `require_legacy_scan_review` before quota or external
+taxonomy verification. Enrolled observations fail with HTTP 409
+`analysis_bound_review_required`. The commit RPC repeats this check under owner
+and generation locks, so enrollment during verification cannot apply a legacy
+review to a different analysis. Unenrolled observations retain this endpoint's
+existing review behavior. The separately held
+[analysis-bound Reject/Undo contract](../../../../docs/backend-and-data/05-api-contracts.md#prepared-analysis-bound-reject-and-undo)
+does not enable native history review. The separately gated
+[analysis-bound confirmation endpoint](../confirm-observation-analysis/README.md)
+prepares exact-child confirmation without activating an ordinary native caller.

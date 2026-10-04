@@ -29,6 +29,7 @@ struct InsightsIntegrationArchitectureTests {
         for directory in [
             "Content",
             "FieldNotes",
+            "History",
             "IdentificationReview",
             "Media",
             "Shared",

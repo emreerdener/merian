@@ -23,6 +23,7 @@ struct SpeciesPreferredNameSyncDiagnostics: Equatable, Sendable {
 /// they are never adopted by whichever account signs in next.
 enum SpeciesPreferredNameStore {
     private static let accountScopedPrefixes = [
+        UserDefaultsKeys.speciesPreferredNameAcknowledgedValuesPrefix,
         UserDefaultsKeys.pendingSpeciesPreferredNameDeletesV2Prefix,
         UserDefaultsKeys.speciesPreferredNameSyncLastAttemptAtV2Prefix,
         UserDefaultsKeys.speciesPreferredNameSyncLastSuccessAtV2Prefix,
@@ -31,6 +32,14 @@ enum SpeciesPreferredNameStore {
         UserDefaultsKeys.speciesPreferredNameSyncLastPushedCountV2Prefix,
         UserDefaultsKeys.speciesPreferredNameSyncLastPulledCountV2Prefix
     ]
+
+    static func acknowledgedValues(ownerUserID: UUID, userDefaults: UserDefaults = .standard) -> [String: String] {
+        userDefaults.dictionary(forKey: accountKey(prefix: UserDefaultsKeys.speciesPreferredNameAcknowledgedValuesPrefix, ownerUserID: ownerUserID)) as? [String: String] ?? [:]
+    }
+
+    static func recordAcknowledgedValues(_ values: [String: String], ownerUserID: UUID, userDefaults: UserDefaults = .standard) {
+        userDefaults.set(values, forKey: accountKey(prefix: UserDefaultsKeys.speciesPreferredNameAcknowledgedValuesPrefix, ownerUserID: ownerUserID))
+    }
 
     private static let legacySingletonKeys = [
         UserDefaultsKeys.pendingSpeciesPreferredNameDeletes,

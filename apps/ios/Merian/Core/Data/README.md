@@ -88,10 +88,11 @@ instead of independently coordinating the two stores. See the
 [Core Field Notes README](FieldNotes/README.md).
 
 Accepted account deletion routes through `ScanRepository.purgeAllData`, which
+resets derived state and delegates to `ScanLibraryPurgeService`. That service
 explicitly deletes every model in `CurrentSchema` and then invokes the verified
 `Core/Preferences/AccountScopedPreferences` cleanup. A schema-inventory test
 fails when a newly active model is not added to that erasure boundary. Only
-after both durable steps succeed does the repository invoke the injected
+after both durable steps succeed does the service invoke the injected
 `AccountScopedRuntimeState` reset for observable settings, gamification, app
 badge, and RAM image-cache projections. This synchronous boundary deletes rows;
 it does not replace the SQLite store file or traverse unreferenced files in the
@@ -196,6 +197,23 @@ their shared queue context. A nil handle means the local deletion commit failed.
 The task is not proof of remote deletion: failed cloud work remains durably
 queued. See the
 [deletion contract](../../../../../docs/backend-and-data/01-offline-sync-pipeline.md#1-transactional-destruction-scanrepositoryeradicatescan).
+
+An exact `409 legacy_observation_delete_requires_upgrade` now places cloud work
+in a durable history hold: the pending task stays, the job records
+`needsAttention` and the stable code, and automatic retries stop. Re-enqueue and
+generic retry-budget repair cannot release it. Discovery reads at most two
+200-row keyset pages per pass and persists a continuation wake in the existing
+job table, so held tasks neither starve later work nor require an unbounded main
+actor sweep. The scheduler suppresses only that continuation's wake during an
+active deletion batch and rearms it when the drain releases its latch; other
+jobs keep their deadlines. `Policies/CloudDeletionIntent.swift` now stores new
+requesting-account/origin provenance in existing job metadata; legacy requests
+without it receive `cloud_deletion_intent_requires_review`. Re-enqueue cannot
+retag an existing task. `Services/CloudDeletion/CloudDeletionAccountWork.swift`
+leases discovery through acknowledgement; only matching-account requests run,
+and stale acknowledgements cannot remove tasks. No SwiftData model shape
+changes. Held-task reconciliation, native history hydration and explicit history
+deletion remain required before activation.
 
 Network status and deletion calls live in
 [`Core/Network/Endpoints/MerianNetworkClient+ScanLifecycle.swift`](../Network/Endpoints/MerianNetworkClient+ScanLifecycle.swift).
@@ -958,3 +976,37 @@ selection enforces the image/audio/video caps across the entire signing request,
 while retaining an oversized head row for normal validation and quarantine.
 `MediaStagingBudgetTests` and `MediaUploadSyncTests` cover these boundaries; the
 cross-language manifest and database trigger use the same total cap.
+
+V57 account purge includes `LocalAnalysisRecord` and `LocalAnalysisStateRecord`
+explicitly; ordinary parent deletion cascades through results to their state.
+[`AnalysisHistory/`](AnalysisHistory/README.md) owns the prepared account-bound
+reader, strict page decoder and shared immutable child admission helper. Its
+prepared state service can refresh review/revision for the unchanged selected
+result, preserving pending intent and atomically storing per-analysis authority.
+It prepares immutable V1/V2 display snapshots and eligible provenance-labelled,
+device-local V3 saved-display baselines. Explicit preview admits one result's
+own authority without mutating parent selection, review or pending intent.
+Changed server-selected state can be applied atomically only with retained
+previous evidence/display, matching settled authority and complete target
+display. Selection mutation and Undo remain incomplete. It cannot enroll
+observations and has no ordinary app call site. The
+[canonical V55 contract](../../../../../docs/backend-and-data/04-database-schema.md#native-analysis-history-storage-and-v55)
+requires account-bound, deletion-fenced admission and bounded reads before
+history enrollment can be enabled.
+
+`AnalysisHistory/ObservationHistoryEnrollmentService` prepares account-bound
+saved-identification enrollment through an import receipt plus current-state
+read. It commits matching result/display/review cache and ownership/selection
+without replacing the local identification. Its durable intent now protects
+interrupted enrollment, replacement deletion, expiry and hydration, with
+terminal identity-only fences after explicit erasure. It remains disconnected
+pending reconciliation and the existing activation gates; see the
+[local boundary](AnalysisHistory/README.md#prepared-native-enrollment).
+
+Prepared native selection requests and revision-bound Undo now live in
+`AnalysisHistory/ObservationHistorySelectionService`. The existing job store
+retains exact request identity until current-state and receipt admission commit
+together. Its protocol-9 live adapter is prepared behind closed server gates;
+normal callers remain disconnected. Definitive conflicts retire only after
+current-state admission commits with their immutable rejection. See the
+[selection boundary](AnalysisHistory/README.md#prepared-selection-and-undo).

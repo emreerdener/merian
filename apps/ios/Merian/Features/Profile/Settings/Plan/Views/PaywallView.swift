@@ -93,6 +93,7 @@ struct PaywallView: View {
                             .font(.system(size: 16, weight: .bold))
                             .foregroundColor(.primary)
                     }
+                    .accessibilityLabel("Close paywall")
                 }
             }
         }

@@ -137,7 +137,19 @@ queued-media byte inspection,
 `Core/Data/OfflineSync/Persistence/OfflineQueueManager+QueuedScanExtraction.swift`
 owns main-actor live-row-to-context projection, `Features/Insights` owns
 queued-to-active media presentation and focus-descriptor restoration, and
-`Core/Data/OfflineSync/Persistence` owns cloud-deletion task/job mutations.
+`Core/Data/OfflineSync/Persistence` owns idempotent cloud-deletion task/job
+enqueue.
+`Core/Data/OfflineSync/Services/CloudDeletion/OfflineQueueManager+CloudDeletionSync.swift`
+owns deletion claims, confirmed completion, durable legacy-history refusal
+holds, and bounded discovery with a persisted lexical keyset cursor.
+`Core/Data/OfflineSync/OfflineJobScheduler.swift` owns the continuation wake:
+discovery is deferred during the active deletion drain and rearmed when its
+single-flight latch is released. The
+[offline deletion contract](./backend-and-data/01-offline-sync-pipeline.md#2-cloud-deletion-tasking-pendingclouddeletiontask)
+owns state and recovery semantics; the
+[history verification matrix](./development-guides/08-testing-strategy.md#observation-analysis-history-preparation)
+maps them to native and backend tests.
+
 `Models/ActiveSchema` contains the V53 model declarations and deterministic
 model/value accessors, never a `ModelContext` fetch workflow. The Models-wide
 architecture suite freezes those boundaries and exempts only the ordered
@@ -160,19 +172,20 @@ single-purpose micro-files without changing their declarations or call sites.
 The active schema is:
 
 ```swift
-typealias CurrentSchema = MerianSchemaV53
+typealias CurrentSchema = MerianSchemaV57
 ```
 
-`MerianSchemaV53` is declared in
-`apps/ios/Merian/Models/Schema/SchemaV53.swift`. `SchemaVersions.swift` retains
+`MerianSchemaV57` is declared in
+`apps/ios/Merian/Models/Schema/SchemaV57.swift`. `SchemaVersions.swift` retains
 the frozen V51 owner and every migration plan. The two checksum-distinct V50
 graphs are frozen in `Models/Schema/SchemaV50Snapshots.swift` and
 `Models/Schema/SchemaV50ReleasedActiveSnapshots.swift`; checksum selection
 routes each to its own immutable V50→V51 source bridge. V51 is independently
 frozen in `SchemaV51Snapshots.swift`; V52 is frozen in
-`SchemaV52ScanSnapshots.swift` and `SchemaV52QueueSnapshots.swift`. All older
-lanes append lightweight V51→V52→V53; the immediate V52 source uses only
-V52→V53. `PrimaryIdentification` owns the immutable original label and rank.
+`SchemaV52ScanSnapshots.swift` and `SchemaV52QueueSnapshots.swift`. V53, V54,
+V55 and V56 each retain separate frozen scan/queue graphs. All older lanes
+append their forward stages through V57; the immediate V56 source uses only
+V56→V57. `PrimaryIdentification` owns the immutable original label and rank.
 `PrimaryIdentificationPersistence` validates snapshot/provenance pairing and
 conflicts before live, queued or history writes. V47 through V50 remain
 available for fixtures and source-specific startup recovery.
@@ -685,7 +698,7 @@ persistence. Capture Submission owns the transport projection. The retired
 | AI                       | `apps/ios/Merian/Core/AI/`                      | `InferenceEngine` stable entry points and source-compatible observable read-throughs; `Inference/Lifecycle` effect-acquisition-free cross-owner ordering for scan replacement, exact background/queued-result and queued-record recovery, result/queue/cancellation/historical transitions, application activity, and Auth quiescence without another task, managed record, or mutable registry; `Inference/Presentation` separates stored observable processing/copy/media/species/queue/loading/telemetry values and named transitions from non-observable prepared/active presentation identity, exact visual queue phrase/media context, and one-shot first-render timing; `Inference/Media` value-only live visual/nonvisual timeline normalization, provider projection, active/persisted carousel mapping, focus-region carry-through, poster fallback, compatible local-path resolution, and HTTPS video policy behind injected filesystem values; `Inference/Pipeline` effect-acquisition-free visual/nonvisual submission staging and task launch plus singleton-free admission, request/result execution, benchmark placement, durable finalization, failure dispatch, modality-specific follow-up order, and exact-owner cleanup behind an injected circuit/refund/logging adapter; `Inference/Completion` accepted-result normalization, shared discovery/replacement/circuit/telemetry effects, committed biological events, exact-finalization authorization, and permit-gated notifications/milestones; `Inference/Request` injected visual/nonvisual request mapping, staged-video upload, and provider dispatch; `Inference/Result` injected live parse/save input normalization, typed persisted/no-record/rejected outcomes, tier confidence presentation bands, and synchronous persisted-replacement/metadata safety before repository deletion; `Inference/Recovery` stateless failure classification and typed presentation plus synchronous exact-owner failure/queue-handoff coordination behind an injected live effect adapter, and lookalike-cache reset policy; `Inference/IdentificationReview` ordered action/persistence/transport/post-success coordination behind an injected live database/effect adapter, bounded throwing review snapshots, complete override/confirmation/reset/historical-refresh workflow sequencing, exact post-suspension presentation fencing, and pure full-value presentation/persistence mapping; `Inference/Hydration` replaceable live/historical/identification-review task ownership, a value-only historical SwiftData projection, dedicated synchronous historical-load orchestration, dedicated registered historical follow-up orchestration, the live-dependency-free species-presentation callback/publication/identity/write-routing bridge, Auth draining, bounded request histories, persisted enrichment TTL, temporary backoff, structured Wikipedia/enrichment/GBIF child work, enrichment mapping behind an injected fetch seam, a sole live endpoint adapter, and immutable hydration persistence snapshots with live database/encoding effects; `Inference/State` contains exact live task/attempt identity behind an injected durable-queue core and sole live adapter, plus bounded write/review sequencing and Auth fencing; `Inference/LocalAnalysis` contains ephemeral model/cadence lifetime plus split Vision, bounded-image, deterministic-trait, phrase, cadence, and default-enabled Foundation-cue generation, validation, and explicit stream cancellation with power/thermal observation; generated Edge DTOs; the stateless shared response-preparation service; the foreground parse/save actor; and on-device viewfinder intelligence.                  |
 | Analytics                | `apps/ios/Merian/Core/Analytics/`               | Optional, consent-gated PostHog facade and SDK lifecycle, advisory usage quota, and gamification notification manager. The current production-consent candidate remains release-blocked.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | Media                    | `apps/ios/Merian/Core/Media/`                   | Shared bounded local-media processing, including `ScanMediaPayloadPolicy`, `InferenceAudioPreparer`, adaptive audio boost, spectrogram raster/layout policy, normalized seeking, immutable `SendableCGImage` transport, exact-token `MediaPlaybackObservation`, a main-actor audio delegate, token-aware mounted playback-lease ownership, initializer-injected playback effects, and actor-owned media save/share preparation. The playback-session controller coalesces activation, rejects late acquisition after teardown, checks retained leases before reuse, and releases only its exact coordinator token. `MediaExportService` accepts Sendable local/approved-remote requests, processes batches sequentially, and is shared by Insight and Scans.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| Data/Database            | `apps/ios/Merian/Core/Data/Database/`           | `BackgroundDatabaseActor`, its focused collection-sync, queue-selection, upload-lifecycle, background-account-work, inference-lifecycle, inference-retry, retry-mirror, live-scan, offline-finalization, scan-record-support, species-metadata, and non-biological-retention persistence extensions, `FileIOActor`, `ScanRepository`, and the layered `HistoricalSync/{Models,Decoding,Services,Persistence}` boundary and its domain-owned pagination/checkpoint policy. The Historical Models layer owns request values and unchanged DTOs, Decoding owns row quarantine, Services owns the sole live Auth/PostgREST adapter, Persistence owns `HistoricalDatabaseActor`, and `ScanRepository` retains ordering, pagination, account fencing, and events. Inference lifecycle owns durable eligibility, claims/retreats, generation validation, telemetry, and orphan release; inference retry owns both retry commits; the finalization owners share record mapping and media serialization while keeping SwiftData, file adoption, and cross-domain orchestration separated. These owners use throwing scan/job reads and leave process, task, network, Auth, file, and UI effects in Offline Sync services. Queue selection owns full pending-set paging, funding-prioritized upload payloads, and state-bound atomic empty-media quarantine; Media Upload's `UploadSync` is its sole production consumer. The species-metadata extension owns local Wikipedia/reference, enrichment, lookalike recovery, and identification-review mutations with private helpers and no networking, Auth, file, or UI dependency. The non-biological-retention extension owns the erasure values, bounded expired-record selection, and atomic record/cloud-tombstone commit with the same dependency exclusions. `ScanRepository` also owns the ordered accepted-account-deletion cleanup: it resets sensitive derived map state, explicitly deletes every active-schema model, saves, requires verified account-derived Preferences cleanup, and invokes the injected process-state reset only after those durable steps succeed. The sequence is fail-closed but is not one cross-store transaction.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Data/Database            | `apps/ios/Merian/Core/Data/Database/`           | `BackgroundDatabaseActor`, its focused collection-sync, queue-selection, upload-lifecycle, background-account-work, inference-lifecycle, inference-retry, retry-mirror, live-scan, offline-finalization, scan-record-support, species-metadata, and non-biological-retention persistence extensions, `FileIOActor`, `ScanRepository`, and the layered `HistoricalSync/{Models,Decoding,Services,Persistence}` boundary and its domain-owned pagination/checkpoint policy. The Historical Models layer owns request values and unchanged DTOs, Decoding owns row quarantine, Services owns the sole live Auth/PostgREST adapter, Persistence owns `HistoricalDatabaseActor` and its synchronous `HistoricalCollectionReconciler`, and `ScanRepository` retains ordering, pagination, account fencing, and events. Inference lifecycle owns durable eligibility, claims/retreats, generation validation, telemetry, and orphan release; inference retry owns both retry commits; the finalization owners share record mapping and media serialization while keeping SwiftData, file adoption, and cross-domain orchestration separated. These owners use throwing scan/job reads and leave process, task, network, Auth, file, and UI effects in Offline Sync services. Queue selection owns full pending-set paging, funding-prioritized upload payloads, and state-bound atomic empty-media quarantine; Media Upload's `UploadSync` is its sole production consumer. The species-metadata extension owns local Wikipedia/reference, enrichment, lookalike recovery, and identification-review mutations with private helpers and no networking, Auth, file, or UI dependency. The non-biological-retention extension owns the erasure values, bounded expired-record selection, and atomic record/cloud-tombstone commit with the same dependency exclusions. `ScanRepository` composes ordered accepted-account-deletion cleanup through `ScanLibraryPurgeService`: it resets sensitive derived map state, explicitly deletes every active-schema model, saves, requires verified account-derived Preferences cleanup, and invokes the injected process-state reset only after those durable steps succeed. The sequence is fail-closed but is not one cross-store transaction.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | Data/Images              | `apps/ios/Merian/Core/Data/Images/`             | Layered image ownership documented by the local README: the stateless `ImageDownsampler` owns shared bounded ImageIO thumbnail decoding; `LocalImageLoader` owns cache/request orchestration and the isolated media session; `Concurrency` owns decode admission; `Policies` owns HTTPS/content admission and retry classification; `Recovery` owns immutable scan snapshots, canonical source identity, its lock-protected process-local mapping registry, source revisions and bounded change streams, exact filename, read-only rescue-store, and constrained timestamp evidence; and `Services` owns injected single-flight cloud repair plus post-startup, cancellation-aware two-pass SwiftData registration in bounded fresh contexts. The area also owns file-backed still-image preparation, the durable `ExternalImageImportStore` Photos inbox and EXIF extractor, archive rescue, media-aware add-only photo/video PhotoKit writes, RAM caching, and immutable reference-thumbnail backfill inputs plus actor-owned policy backed by shared Core Species Reference transport. Capture-only focus detection and physical-size estimation remain in Capture Shared and Submission respectively.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | Data/Field Notes         | `apps/ios/Merian/Core/Data/FieldNotes/`         | Shared `@MainActor` SwiftData-first reconciliation for private notes across active and queued scans plus the legacy defaults bridge. Throwing reads and writes fail closed; the bridge mirrors only successful durable state.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | Data/Species Preferences | `apps/ios/Merian/Core/Data/SpeciesPreferences/` | Account-scoped SwiftData CRUD and fail-closed device-global legacy removal for preferred species display names; normalized timestamp-conflict policy with a local-wins equality rule; a 200-character value limit and 1,000-species local/remote/pending-delete union bound; exact PostgREST row/upsert values; the sole narrow live Supabase adapter with immutable scientific-name keyset paging; a focused local-recovery owner for interrupted SwiftData/UserDefaults mutations; and main-actor single-flight, force-preserving trailing requests, last-outcome-aware account freshness/diagnostics, lease, post-suspension local refetch, and tombstone coordination. The V51 SwiftData model remains in `Models/ActiveSchema`, and the legacy/account-partitioned metadata store remains in Core Preferences.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
@@ -912,7 +925,7 @@ cross-domain architecture suite freezes that inventory, requires a README for
 every Core domain, checks bounded stateless Policies and their exact documented
 local-input exceptions, keeps shared UI components transport/persistence-free,
 rejects `try?` SwiftData fetches, protects sensitive diagnostics, and tracks the
-remaining production file above 600 lines: the 3,475-line
+remaining production file above 600 lines: the 3,482-line
 `SupabaseManager.swift`. Its purchase-identity binding state, keyed resolution
 task, foreground repair, legacy-profile query, and ordinary live-effect assembly
 have focused owners under `Core/Security/PurchaseIdentity/`; the facade supplies
@@ -1309,7 +1322,7 @@ Recovery, and Transport owners plus the client façade, and requires exactly six
 Transport files: three stateless policies, the request-scoped executor, the
 pinned session, and the authenticated dispatcher. It also freezes the sixty-one
 Auth foundation paths and caps Auth, Purchase Identity, `SupabaseManager.swift`,
-and their combined production surface at 7,756, 2,016, 3,475, and 13,247 lines,
+and their combined production surface at 7,763, 2,016, 3,482, and 13,261 lines,
 respectively. The guard includes the effect-free observable owner for
 transition, generation, transition-analytics, exact-session lease/drain, and
 local sign-out state plus the focused listener/current-state adapter,
@@ -1651,11 +1664,17 @@ no SwiftData, wire, queue-state, task-description, or endpoint contract. The
 Core Data-wide integration guard additionally rejects `try?` SwiftData fetches
 anywhere under `Core/Data`, bounds the 13-file database-actor surface and
 durable-authority consumers, and requires durable job claims before collection
-or cloud-deletion network work begins. Collection sync now separates its
-immutable desired-state model, injected account-lease service, persistence-only
-actor extension, and Core Network endpoint. The service fences before dispatch
-and after response; a fresh actor purges only rows still marked for deletion, so
-an in-flight local reactivation survives the stale acknowledgement.
+or cloud-deletion network work begins. `CloudDeletionIntent` stores versioned
+requesting-account/origin metadata; `CloudDeletionAccountWork` holds the Auth
+lease through matching-account dispatch and acknowledgement. Missing legacy
+provenance is held without being inferred on re-enqueue. The settled Auth
+lifecycle resumes deletion-only work when an account returns. See the
+[deletion contract](./backend-and-data/01-offline-sync-pipeline.md#2-cloud-deletion-tasking-pendingclouddeletiontask).
+Collection sync now separates its immutable desired-state model, injected
+account-lease service, persistence-only actor extension, and Core Network
+endpoint. The service fences before dispatch and after response; a fresh actor
+purges only rows still marked for deletion, so an in-flight local reactivation
+survives the stale acknowledgement.
 
 ## SwiftData Actors
 
@@ -2264,11 +2283,14 @@ Data lifecycle, identity, and exports:
   owner-post Explore metadata.
 - `delete-scan` — owner-authenticated fast path that durably fences a scan UUID
   before deleting canonical and derived R2 media, then removes the owner row
-  only after storage confirms deletion.
+  only after storage confirms deletion. `index.ts` validates the request;
+  `handler.ts` sequences RPC/media work and returns the enrolled-history legacy
+  refusal before any erasure; `db.ts` owns database access.
 - `auto-purge-nonbio` — service-only daily retention intake that
   generation-locks and revalidates expired non-biological rows, writes permanent
   scan-deletion fences, and delegates all R2 and row erasure to the independent
-  reaper.
+  reaper. Enrollment in prepared history excludes the parent at discovery and
+  locked recheck; the enrollment gate remains closed.
 - `reconcile-scan-deletions` — service-only deadline-draining reaper for
   interrupted scan erasure; leases private jobs, compare-before-releases
   failures, and emits aggregate oldest-pending/backlog/expired-lease health.
@@ -2365,6 +2387,75 @@ local Make target and production deploy before database replay. The inventory
 above is descriptive rather than a second source of truth:
 `function_dependency_tools_test.ts` requires exact name-for-name parity between
 `config.toml` and discoverable function graphs without hard-coding a fleet size.
+
+### Prepared analysis history owner
+
+[`functions/_shared/analysisHistory/`](../services/supabase/functions/_shared/analysisHistory/README.md)
+owns strict bounded contracts (`contract.ts`), pure revision/selection decisions
+(`transitions.ts`), and per-analysis authority/public eligibility decisions
+(`authority.ts`). `append.ts` owns the canonical description-only append
+builder; the private append transaction assigns ordinals and stores unreviewed
+child results behind its closed gate. `intent.ts` owns frozen description
+admission and draft construction; the October 3 funded-intent migration binds
+provider accounting and atomic completion to shared credit settlement. It has no
+live provider/recovery caller. `protectedManifest.ts` and the V2 binding
+migration prepare still-photo receipt binding, evidence pinning and
+terminal/unbound cleanup using the same funding owner. Protocol-7 readers still
+reject V2; the protocol-8 native boundary now accepts mixed snapshots without
+changing V1 bytes. `evidence.ts` and `evidenceStorage.ts` prepare private
+receipt orchestration, dedicated R2 transport, short-lived owner reads and a
+verified empty-marker erasure worker seam. The October 3 evidence migration owns
+receipts, erasure claims and their deletion fences. Media gates are closed. The
+read adapter/endpoint source is prepared; there is no deployed route or cleanup
+schedule. The October 2 forward migrations own private storage, legacy
+deletion/retention protection, and the private selection transaction/outbox. The
+October 3 owner wrapper prepares protocol-9 selection with exact durable
+success/conflict recovery behind closed gates; private routine grants remain
+revoked. No Identify, review, Field Trip, Explore or Field Chat consumer is
+connected. The
+[verification matrix](./development-guides/08-testing-strategy.md#observation-analysis-history-preparation)
+and
+[activation hold](./backend-and-data/06-supabase-deployment-runbook.md#observation-analysis-history-activation-hold)
+separate this owner from the unfinished end-to-end feature.
+
+Native `Models/ActiveSchema/LocalAnalysisRecord.swift` owns the dormant private
+result entity. `LocalScanRecord` owns its one-way cascade relationship and the
+initialized-selection marker that preserves legacy corrections. V54 snapshots
+through V56 snapshots are frozen; `SchemaV57.swift`, the ordered migration
+registry and Store Recovery own the current upgrade. V56 allows nil completion
+only for explicit V3 saved imports. The server enrollment RPC copies the
+surviving identification and review state. `ObservationHistoryEnrollmentService`
+now prepares strict receipt-plus-current-state admission, preserving the
+matching local display/review while atomically recording ownership and
+selection. `ObservationHistoryEnrollmentIntent` now owns durable pre-dispatch
+protection in the existing job store, receipt-bound acknowledgment and terminal
+identity-only deletion fences. Replacement deletion, expiry, hydration and the
+scheduler share this boundary. It has no ordinary caller. Account purge
+explicitly erases children. No normal app history reader or completion producer
+is connected. The prepared `Core/Data/AnalysisHistory` boundary owns the
+account-bound RPC adapter, strict protocol-9 page/snapshot decoder and
+synchronous all-or-nothing child admission. `ObservationHistoryStateSyncService`
+refreshes the unchanged selected result's review and revision atomically with
+its immutable snapshot, preserving pending intent. It can admit a changed
+server-selected ID only at a newer revision, with retained prior
+evidence/display and matching authority, complete target display and
+representable target review. It has no normal sync/UI call site. V57 adds the
+exact per-analysis authority cache and immutable V1/V2 display preparation under
+`AnalysisHistory`. `SavedIdentificationDisplayBaseline` owns eligible
+device-local V3 display capture with explicit provenance.
+`ObservationHistoryPreviewService` admits one requested result and its own
+authority at the acknowledged observation revision without changing parent
+selection or review. `ObservationHistorySelectionProjection` validates the
+retained outgoing result before server-selected state admission replaces display
+and own authority atomically. Selection mutations and ordinary callers remain
+pending. `ObservationHistoryPage+SavedIdentification` owns V3 validation;
+private photo resolution remains restricted to V2. Backend
+`analysisHistory/result.ts` and `page.ts` own the matching parsers;
+`get_owned_observation_analysis_page` remains behind its own default-false gate.
+See the
+[V55 contract](./backend-and-data/04-database-schema.md#native-analysis-history-storage-and-v55)
+and its
+[test matrix](./development-guides/08-testing-strategy.md#v55-native-history-storage-verification).
 
 ## Supabase Media Projections
 
@@ -2910,3 +3001,66 @@ checks task/configuration/evidence links and qualification metadata. Neither
 runs models or reads private evidence. The repository-discovered
 [`merian-identification-evaluation`](../skills/merian-identification-evaluation/SKILL.md)
 skill routes research tasks into these records and the existing evaluator.
+
+The prepared protocol-8 read slice adds mixed immutable V1/V2 owner pages,
+`resolve-history-photo` authenticated temporary photo delivery, and native
+`ObservationHistoryPhotoReference` / `ObservationHistoryPhotoLoader` validation.
+All gates remain closed and no UI is connected. The canonical contract is
+[protocol-8 owner reads](backend-and-data/05-api-contracts.md#prepared-protocol-8-reads-and-private-photo-resolution).
+
+### Prepared child-analysis workers
+
+`services/supabase/functions/analyze-observation` authenticates immutable child
+submission. `_shared/analysisHistory/{analysisInput,execution,production}.ts`
+own provider preparation, checkpointing and completion;
+`recover-observation-analyses` owns bounded service-only recovery from saved
+outcomes/drafts. Their false orchestration gate and SQL work claims are separate
+from native history reads, selection and legacy scan replacement. Neither
+endpoint is deployed or scheduled by this implementation.
+
+## Guest library transition owners
+
+The [canonical contract](./backend-and-data/21-guest-library-transitions.md)
+defines ownership, acknowledgment, recovery and privacy; the
+[test matrix](./development-guides/08-testing-strategy.md#guest-library-transition-validation)
+maps deterministic coverage and outstanding device acceptance.
+
+| Boundary                                                            | Source owner under `apps/ios/Merian/`                                                                             |
+| ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Identity admission and recovery composition                         | `Core/Network/SupabaseManager.swift`                                                                              |
+| Fresh fail-closed pending-work inventory                            | `Core/Data/OfflineSync/Persistence/LibraryMutationInventory.swift`                                                |
+| Immutable notes/tags/Favorites operations and detail acknowledgment | `Core/Data/OfflineSync/Services/LibraryDetailsSyncService.swift`; retry scheduling in `OfflineJobScheduler.swift` |
+| Device-only sign-out journal and local library owner marker         | `Core/Security/LibrarySignOutJournal.swift`                                                                       |
+| Committed sign-out recovery                                         | `Core/Network/Auth/Coordinators/LibrarySignOutRecoveryCoordinator.swift`                                          |
+| Authentication-independent transfer result and issue                | `Core/Network/Auth/Models/LibraryTransferResult.swift`, `LibraryTransitionIssue.swift`                            |
+| Account/generation restoration state                                | `Core/Data/Database/HistoricalSync/Models/LibraryRestorationState.swift`; orchestration in `ScanRepository.swift` |
+| Legacy-note precedence and promotion                                | `Core/Data/FieldNotes/FieldNotesRepository.swift`                                                                 |
+| Private-detail and reserved-collection reconciliation               | `Core/Data/Database/HistoricalSync/Persistence/HistoricalDatabaseActor.swift`                                     |
+| Recovery overlays and pending-change review                         | `Features/Profile/Settings/Components/LibraryTransitionPresentation.swift`                                        |
+
+Backend ownership remains with the reviewed merge function and the
+`20261003074542_protect_guest_library_transition_boundary.sql` and
+`20261003080444_persist_private_library_details.sql` migrations. Internal detail
+storage follows stable scan ownership; public tags, public content, purchases
+and retention keep their separate contracts.
+
+Prepared native Restore/Undo request ownership is
+`Core/Data/AnalysisHistory/ObservationHistorySelectionService`, with strict wire
+values in `ObservationHistorySelection` and durable request/latest receipt in
+`ObservationHistorySelectionIntent`. The existing selected-state owner remains
+the sole projection writer. Protocol-9 owner transport and durable conflict
+recovery are prepared; ordinary callers remain absent. The
+[local contract](../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#prepared-selection-and-undo)
+owns this boundary.
+
+Prepared history presentation is owned by `Features/Insights/History`:
+`IdentificationHistoryPresentation`, `IdentificationHistoryDependencies`,
+`IdentificationHistoryViewModel` and `IdentificationHistorySheet`. Core's
+`ObservationHistoryListingService` supplies bounded server-ordered windows and
+exact cached child reads. Shell's `+History` extensions own modal admission and
+acknowledged parent refresh; Toolbars consumes an optional action. Normal access
+remains nil. The
+[feature ownership map](../apps/ios/Merian/Features/Insights/History/README.md)
+and
+[product contract](features-and-hardware/05-insight-sheet.md#prepared-identification-history-sheet)
+own the details.

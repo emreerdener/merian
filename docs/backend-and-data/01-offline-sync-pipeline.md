@@ -700,12 +700,16 @@ The persisted date is an eligibility boundary, not an operating-system timer.
 process-local wake. It rebuilds that wake after every retry-date write, on
 connectivity restoration, on each foreground activation, and when a queued
 Insight opens. Attention-paused rows are excluded. A stale date wakes after a
-bounded one second, and an atomic upload/inference claim clears both the scan
-and job deadline before dispatch so a stale label or second claim cannot
-survive. Connectivity loss cancels only the ephemeral wake; the durable date
-recreates it after reconnect. If iOS suspends or terminates the process, exact
-wall-clock execution is not promised—the foreground/reconnect drain immediately
-re-evaluates all elapsed dates.
+bounded one second. The cloud-deletion discovery deadline is temporarily
+excluded while its drain holds the single-flight latch and rearmed on release,
+as described in
+[cloud deletion tasking](#2-cloud-deletion-tasking-pendingclouddeletiontask). An
+atomic upload/inference claim clears both the scan and job deadline before
+dispatch so a stale label or second claim cannot survive. Connectivity loss
+cancels only the ephemeral wake; the durable date recreates it after reconnect.
+If iOS suspends or terminates the process, exact wall-clock execution is not
+promised—the foreground/reconnect drain immediately re-evaluates all elapsed
+dates.
 
 When a collection job drains, `CollectionSyncService` holds one account-work
 lease across local projection, remote replacement, and acknowledgement commit.
@@ -1801,6 +1805,31 @@ the compare-before-clear checks to silence these logs.
 
 ## Deletions in Offline Environments
 
+### Reanalysis history compatibility status — October 2, 2026
+
+The replacement and deletion flows below remain the current native behavior. The
+[history foundation](./04-database-schema.md#prepared-observation-analysis-history)
+does not activate append reanalysis or restore already-deleted originals. V57
+storage, explicit owner reads, selection/Undo intent and an injected native
+history sheet are prepared. Ordinary enrollment/history scheduling and normal UI
+access remain disconnected; there is no automatically scheduled selection queue.
+See the
+[prepared interface](../features-and-hardware/05-insight-sheet.md#prepared-identification-history-sheet).
+
+The prepared server rejects legacy `/delete-scan` requests for enrolled history
+with `409 legacy_observation_delete_requires_upgrade` before creating a
+tombstone or reading media. The native queue now persists that exact refusal as
+`needsAttention` with the stable code and no retry date, retaining the pending
+task. Generic status recovery and duplicate enqueue cannot release this hold.
+Optimistic local removal may already have happened. New deletion requests now
+persist requesting-account and origin provenance; ambiguous older requests are
+held locally. Activation still requires history reconciliation of those tasks
+and an explicit versioned observation-deletion action. Never translate a queued
+legacy request into permission to delete child history. Native non-biological
+expiry now exempts held and enrolled observations at discovery and locked
+revalidation. This protection does not lift the
+[activation hold](./06-supabase-deployment-runbook.md#observation-analysis-history-activation-hold).
+
 Scan permanence and user privacy require that explicitly deleted datasets are
 permanently erased, even fully offline.
 
@@ -1827,8 +1856,9 @@ operations commit first, file deletion runs after**.
    asynchronously, skipping remote R2 URLs (those are cloud-owned). Runs only
    after the DB commit succeeds.
 4. `offlineQueue.syncPendingDeletions()` async — attempt the cloud deletion
-   immediately; retry from durable eligibility dates on the current or a later
-   connectivity cycle until the server explicitly confirms erasure.
+   immediately. Ordinary failures retry from durable eligibility dates until the
+   server explicitly confirms erasure; the exact history-upgrade refusal remains
+   held without automatic retry.
 
 The post-commit file cleanup and immediate cloud attempt are structured children
 of the optional task returned by `eradicateScan`. UI and inference callers may
@@ -1852,6 +1882,63 @@ app or permanently losing the deleting device cannot strand the privacy request.
 The GitHub-backed Scan Media Health Monitor separately alerts on oldest-pending
 age, backlog, and expired leases.
 
+A `409 legacy_observation_delete_requires_upgrade` is a durable refusal of
+legacy intent, not a completed deletion or retryable transport failure. It keeps
+`PendingCloudDeletionTask` and records the hold in existing `OfflineJobRecord`
+fields, without changing the SwiftData schema. No automatic reconciliation or
+hold-release action exists yet.
+
+`CloudDeletionIntent` stores version 1, exact scan ID, requesting account UUID,
+and origin in the deletion job's existing `metadataJSON`, atomically with the
+pending task and local removal. Explicit library/Insight and non-biological bulk
+deletion use `explicitUserDeletion`; both inference/review replacement paths use
+`reanalysisReplacement`; automatic non-biological expiry uses
+`nonBiologicalRetention`. This is requester provenance, not proof of scan
+ownership or authorization to delete observation history. The server still
+verifies ownership. The `/delete-scan` body remains `{scanId}`.
+
+An existing pending task never acquires or replaces provenance on re-enqueue.
+Missing jobs are rebuilt without inferred authority. Bounded discovery holds
+missing, malformed, unsupported-version, or scan-mismatched intent as
+`needsAttention`, code `cloud_deletion_intent_requires_review`, and no retry
+date. This is a lazy semantic migration using V54's existing fields; there is no
+SwiftData schema/model change. Older tasks cannot be attributed to the currently
+signed-in user. Explicit local removal without a stable session can still
+commit, but its unproven cloud request is held. Automatic expiry waits for a
+stable account lease before starting.
+
+`CloudDeletionAccountWork` retains an account-work lease through queue
+discovery, dispatch, and acknowledgement. Only matching-account intent is
+claimed; other accounts' tasks and deadlines are left intact. Each request binds
+the transport to that account. A classified 401 returns to the durable retry
+owner without starting session recovery while its outer lease is held. A stale
+lease or replaced model context prevents acknowledgement, preserving running
+tasks for idempotent replay. Foreign-account and unproven job deadlines do not
+wake the scheduler; normal authentication/foreground/reconnect drains reconsider
+matching work when its account returns. All-foreign sweeps finish without
+recurring wakes, just as all-held sweeps do.
+
+Discovery uses timestamp/scan-ID keyset pages: at most two 200-row pages and 200
+runnable tasks per drain. The scan-ID tie-breaker uses lexical ordering to match
+the cursor predicate; localized numeric sorting is not a valid keyset order. A
+dedicated `cloud-deletion-discovery` job persists a version-2, account-bound
+cursor in `metadataJSON` and a scheduler wake when the budget is exhausted, even
+if every inspected task is held. The cursor also records whether an earlier page
+offered runnable work. End-of-sweep clears the cursor and, when that marker was
+persisted, schedules one head sweep so an interruption before batch
+dispatch/acknowledgement cannot strand earlier tasks. All-held sweeps finish
+without recurring wakes; new earlier tasks join the next head sweep. This bounds
+task discovery without letting a held prefix starve later deletion requests. An
+account change, old unbound cursor, or invalid cursor restarts at the head:
+another account's sweep may have skipped this account's earlier requests. Cursor
+ownership only scopes discovery; each task still requires its own valid intent.
+
+While a deletion batch owns the process-local single-flight latch, the scheduler
+ignores only the discovery job's deadline. Its cursor and deadline remain
+durable for restart, and unrelated jobs retain their wakes. Every exit from the
+drain releases the latch and rearms persisted deadlines. This prevents a slow
+network batch from repeatedly waking all sync services once per second.
+
 ### 3. Upload Interception (`softDeleteQueuedScan` & `deleteQueuedScan`)
 
 If the scan being destroyed is actively queued for upload, invoking
@@ -1867,48 +1954,52 @@ rolls back on save failure before touching disk.
 
 ### 4. Network Polling Sync (`syncPendingDeletions`)
 
-On `NWPathMonitor` reconnect, `syncPendingDeletions()` drains the
-`PendingCloudDeletionTask` queue. The initial SwiftData fetch is bounded to
-**200 records** (`fetchLimit = 200`) to prevent a user returning from a long
-offline period from loading hundreds of tasks into the V8 heap at once; records
-beyond that limit are processed on the next reconnect cycle. Deletion requests
-are fanned out **concurrently in batches of 10** via `withTaskGroup`. Each batch
-fans out all its child tasks simultaneously, collecting results before the next
-batch begins. A single `modelContext.save()` runs once after all batches
-complete, removing all successfully confirmed tasks in one write. If that save
-fails, the context rolls back so the deletion tasks remain durable and can be
-retried, even though the remote deletes may already be idempotently complete.
-Capping at 10 concurrent Edge calls prevents connection-pool exhaustion; for a
-user with 10 offline deletions the wall time still drops from ~4 s (serial) to
-~600 ms (concurrent).
+On `NWPathMonitor` reconnect or a persisted scheduler wake,
+`syncPendingDeletions()` drains the `PendingCloudDeletionTask` queue. Discovery
+examines at most **two 200-record pages** and selects at most **200 runnable
+tasks**, using the durable continuation described in
+[cloud deletion tasking](#2-cloud-deletion-tasking-pendingclouddeletiontask).
+Remaining work can advance on that continuation without another reconnect.
+Deletion requests are fanned out **concurrently in batches of 10**, reduced to
+**3 in Low Power Mode**, via `withTaskGroup`. Each batch fans out all its child
+tasks simultaneously, collecting results before the next batch begins. A single
+`modelContext.save()` runs once after all batches complete, removing all
+successfully confirmed tasks in one write. If that save fails, the context rolls
+back so the deletion tasks remain durable and can be retried, even though the
+remote deletes may already be idempotently complete. Capping concurrency
+prevents connection-pool exhaustion; batch duration depends on the network and
+server responses.
 
 The task is removed only when `MerianNetworkClient.deleteScan` returns after
 `ScanLifecycleResponseDecoder.confirmDeletion` accepts a 2xx body with explicit
 Boolean `success: true`. `invalidResponse` is not not-found proof: it can
 represent a missing/non-HTTP response, an unresolved auth/session failure, or a
-malformed/contradictory 2xx body. That error and every transport, HTTP, or
-decoding failure retain the task for the next cycle until the server explicitly
-confirms success. Cloud erasure does not inherit the scan-analysis ten-attempt
-pause: its maintenance-scope exponential delay still caps at 15 minutes, but the
-privacy request never expires. A pending task is authoritative, so the next
-drain also repairs legacy `needsAttention` jobs and contradictory local
-`complete` or `cancelled` job states before retrying. The owner-bound endpoint
-rejects a different active account rather than confirming someone else's
-deletion; the task remains queued until its owner session can resume it.
-Server-declared already-absent scans use the same validated `success: true`
-envelope, so idempotency never requires guessing from a client error category.
-The result-processing loop builds a `[String: PendingCloudDeletionTask]`
-dictionary once before iterating results, making each lookup O(1) instead of the
-previous O(n) linear scan (was O(n²) overall for large batches). Before
-dispatch, the drain resolves every matching `OfflineJobRecord`, repairs
-contradictory legacy status, and commits all `.running` claims before sending a
-request. A job-read or claim-save failure sends nothing. After transport, each
-result must still resolve and update its durable job before the matching
-deletion task is removed; a read or save failure rolls back and retains the task
-for idempotent retry. A process-local single-flight latch serializes the whole
-drain across scheduler, repository, and UI wake sources. It resets in `defer`;
-after process termination, the persisted `.running` status remains runnable and
-the owner-fenced endpoint makes replay idempotent.
+malformed/contradictory 2xx body. Ordinary transport, HTTP and decoding failures
+retain the task for retry until the server explicitly confirms success. The
+exact `409 legacy_observation_delete_requires_upgrade` instead retains the task
+as a durable hold without automatic retry. Ordinary cloud erasure does not
+inherit the scan-analysis ten-attempt pause: its maintenance-scope exponential
+delay still caps at 15 minutes, but the privacy request never expires. A pending
+task is authoritative, so the next drain also repairs legacy `needsAttention`
+jobs and contradictory local `complete` or `cancelled` job states before
+retrying, after excluding every job carrying the history-hold code. The
+owner-bound endpoint rejects a different active account rather than confirming
+someone else's deletion; the task remains queued until its owner session can
+resume it. Server-declared already-absent scans use the same validated
+`success: true` envelope, so idempotency never requires guessing from a client
+error category. The result-processing loop builds a
+`[String: PendingCloudDeletionTask]` dictionary once before iterating results,
+making each lookup O(1) instead of the previous O(n) linear scan (was O(n²)
+overall for large batches). Before dispatch, the drain resolves every matching
+`OfflineJobRecord`, excludes held jobs, repairs contradictory legacy status, and
+commits all `.running` claims before sending a request. A job-read or claim-save
+failure sends nothing. After transport, each result must still resolve and
+update its durable job before the matching deletion task is removed; a read or
+save failure rolls back and retains the task for idempotent retry. A
+process-local single-flight latch serializes the whole drain across scheduler,
+repository, and UI wake sources. Its `defer` releases the latch and rearms
+persisted wakes; after process termination, the persisted `.running` status
+remains runnable and the owner-fenced endpoint makes replay idempotent.
 
 ## The Collections Pipeline
 
@@ -2290,3 +2381,29 @@ of waiting longer on a stalled connection. No inline transient replay is added;
 the durable queue retains retry and duplicate-inference ownership. The existing
 three-second initial `video_promotion_started` poll and later 15-second polls
 remain unchanged, with server `retry_after` taking precedence.
+
+## Library identity replacement
+
+The [guest library transition contract](./21-guest-library-transitions.md) owns
+the operation-specific inventory, final write fence and sign-out journal.
+`LibraryMutationInventory` includes failed/needs-attention jobs and
+unacknowledged local details. `LibraryDetailsSyncService` persists immutable
+owner-bound notes, tags and Favorites operations in `OfflineJobRecord` before
+saving edits. Species preference acknowledgment records exact accepted values
+rather than inferring completion from a sync timestamp. Neither upload
+acceptance nor durable pausing alone authorizes identity replacement.
+
+### Prepared history enrollment and local erasure protection
+
+Before the prepared enrollment RPC, native code persists an owner-bound intent
+in the existing `.future` job store. The namespace is never scheduled; errors
+and restart preserve its explicit-retry hold. Under the shared persistence lock,
+replacement deletion and automatic expiry protect held and acknowledged history.
+Explicit user deletion atomically retires a protected observation's intent to a
+metadata-free terminal identity fence alongside normal cloud deletion and local
+erasure. Cloud deletion receipt cleanup does not remove this fence; late history
+pages remain unable to recreate the scan. Full account purge removes it. This
+local fence does not authorize remote deletion of retained history or release
+backend rollout controls. The
+[native history owner](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#prepared-native-enrollment)
+defines the exact intent and tombstone lifecycle.

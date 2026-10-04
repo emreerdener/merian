@@ -65,6 +65,8 @@ struct ScanLifecycleNetworkArchitectureTests {
         let deletion = try method("deleteScan", in: endpoint)
         try expectOrder([
             "try await performAuthenticatedJSONDataPost(", #"payload: ["scanId": scanId]"#,
+            "expectedAuthUserID: expectedOwnerID",
+            "allowsUnauthorizedSessionRecovery: expectedOwnerID == nil",
             "try ScanLifecycleResponseDecoder.confirmDeletion(from: data)", "MerianLog.network.debug"
         ], in: deletion)
         let compatibility = try method("checkScanStatus", in: endpoint)

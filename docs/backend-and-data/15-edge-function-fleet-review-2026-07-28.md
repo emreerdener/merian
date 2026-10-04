@@ -11,6 +11,26 @@ PostgreSQL independently rejects insertion and retires queue/grants;
 maximum-shape/provider evidence is deferred to the later feature-enable gate,
 not silently waived.
 
+**2026-10-03 source addendum:** `resolve-history-photo` adds an authenticated,
+default-gated private photo reader to the current inventory. It has not been
+deployed or verified against hosted R2. This extends repository preparation, not
+the historical production evidence.
+
+**2026-10-04 confirmation source addendum:** `confirm-observation-analysis` adds
+an authenticated, default-off history review endpoint to the current inventory
+and critical user-route denial smoke. Its service RPCs preserve an immutable
+verification intent and recheck both revisions before completing. No deployment
+or activation is implied; see the
+[canonical contract](05-api-contracts.md#prepared-analysis-bound-confirmation).
+
+**2026-10-04 public-photo cleanup source addendum:** `erase-publication-photos`
+adds a service-only, one-object cleanup worker to the deployable inventory.
+`publication_erasure_enabled` defaults false, while existing claim
+acknowledgements remain usable. It is not deployed or scheduled by this draft
+candidate. A future main push includes configured source in the normal
+deployment plan; runtime-off is not a deployment exclusion. See the
+[worker contract](05-api-contracts.md#prepared-public-photo-erasure-worker).
+
 ## Scope
 
 This review inventories every configured deployable Supabase Edge Function
@@ -200,7 +220,12 @@ block-user
 check-public-username
 check-scan-status
 community-taxonomy-status
+confirm-observation-analysis
 confirm-scan-species
+resolve-history-photo
+analyze-observation
+recover-observation-analyses
+erase-publication-photos
 review-scan-identification
 create-explore-comment
 delete-explore-comment
@@ -263,6 +288,10 @@ report-explore-comment
 report-explore-post
 report-user
 request-community-identification
+request-observation-publication
+get-observation-publication-status
+moderate-publication-photos
+copy-publication-photos
 request-export-dwca
 resolve-purchase-principal
 restore-community-identification
@@ -360,3 +389,52 @@ rejection and recovery/clear behavior are covered by local tests. This inventory
 addition is source scope; current model profiles and native callers remain
 unchanged, and it is not hosted deployment or release evidence. See the
 [endpoint contract](../../services/supabase/functions/confirm-scan-species/README.md).
+
+## Source inventory update — 2026-10-03 analysis workers
+
+`analyze-observation` authenticates the owner with `withEdgeHandler` before
+funded immutable child-analysis admission. `recover-observation-analyses`
+requires service authentication and completes only saved provider
+outcomes/drafts. Both use a default-off orchestration gate; no deployment,
+schedule, paid inference, or private-bucket verification is implied. The bounded
+claim/retry/deletion contracts are documented in their function READMEs and the
+canonical API owner.
+
+## Source inventory update — 2026-10-04 publication intake
+
+`request-observation-publication` uses `withEdgeHandler` to derive the verified
+owner before a narrowly granted service-only intake RPC. It saves exact consent
+and returns a private immutable acceptance receipt, without provider or storage
+work. Its independent gate defaults false. This inventory addition is source
+scope only and supplies no deployment, worker scheduling or activation evidence.
+
+## Source inventory update — 2026-10-04 photo moderation worker
+
+`moderate-publication-photos` is a prepared service-authenticated, no-store POST
+worker. It claims one durable operation and recovers prior outcomes before any
+new provider work. SQL execution/moderation gates remain false. A shared
+135-second request deadline, earlier provider cutoff and exact completion
+recovery bound the pass. It supplies no deployment, scheduling, public-copy,
+publication or note-approval evidence. See its
+[README](../../services/supabase/functions/moderate-publication-photos/README.md).
+
+## Source inventory update — 2026-10-04 publication copy worker
+
+`copy-publication-photos` is a prepared service-authenticated, no-store POST
+worker. It strictly recovers one ordered approved cohort, settles durable note
+or expiry outcomes before copying, and preserves original deadlines and targeted
+registry erasure authority. Its 135-second request reserves cleanup and release
+time; slow setup cannot truncate the controller's budget. All gates remain off.
+Recurring independent erasure invocation, backlog monitoring and CDN bypass must
+be authorized and verified before activation because terminal expiry deletes
+copy work. Source inventory is not deployment or scheduling evidence. See the
+[README](../../services/supabase/functions/copy-publication-photos/README.md).
+
+`get-observation-publication-status` is an owner-authenticated, bounded POST
+reader through `withEdgeHandler`, not a service-auth worker. It calls a
+service-only RPC using the validated user identity and returns only five status
+fields for the exact operation. All responses are private no-store. No private
+moderation reason, source or post ID escapes; no state advances. Generated
+per-function deployment config and both candidate test lists cover the route.
+Publication gates remain false and release is not authorized. See its
+[README](../../services/supabase/functions/get-observation-publication-status/README.md).

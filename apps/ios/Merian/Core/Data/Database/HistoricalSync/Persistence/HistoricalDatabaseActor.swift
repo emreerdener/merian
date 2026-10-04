@@ -26,8 +26,15 @@ actor HistoricalDatabaseActor {
     ) throws -> Int {
         try ConfirmedSpeciesReviewPersistence.transaction {
             scanTransactionContext = ModelContext(modelContainer)
+            scanTransactionContext?.autosaveEnabled = false
             defer { scanTransactionContext = nil }
-            return try reconcileOwnedScanPage(responses: responses)
+            let eligible = try responses.filter {
+                let lower = $0.id.lowercased(), upper = $0.id.uppercased()
+                var pending = FetchDescriptor<PendingCloudDeletionTask>(predicate: #Predicate { $0.scanId == lower || $0.scanId == upper })
+                pending.fetchLimit = 1
+                return try activeContext.fetch(pending).isEmpty && !ObservationHistoryEnrollmentIntent.protects($0.id, context: activeContext)
+            }
+            return try reconcileOwnedScanPage(responses: eligible)
         }
     }
 
@@ -100,7 +107,7 @@ actor HistoricalDatabaseActor {
         remoteCollections: [CloudCollectionResponse]
     ) throws {
         do {
-            try syncCollections(remoteCollections: remoteCollections)
+            try HistoricalCollectionReconciler(context: activeContext).reconcile(remoteCollections: remoteCollections)
         } catch is CancellationError {
             activeContext.rollback()
             throw CancellationError()
@@ -252,8 +259,12 @@ actor HistoricalDatabaseActor {
                 if let newTier = res.inference_tier, existing.inferenceTier != newTier {
                     existing.inferenceTier = newTier; chunkDidUpdate = true
                 }
-                if let newTags = res.custom_tags, existing.customTags != newTags {
+                if res.library_details == nil, let newTags = res.custom_tags, existing.customTags != newTags {
                     existing.customTags = newTags; chunkDidUpdate = true
+                }
+                if res.library_details != nil {
+                    try restoreLibraryDetails(res, into: existing)
+                    chunkDidUpdate = true
                 }
                 if existing.candidatesData == nil, let cloudCandidates = res.candidates, !cloudCandidates.isEmpty {
                     existing.candidatesData = try? encoder.encode(cloudCandidates.map {
@@ -422,6 +433,7 @@ actor HistoricalDatabaseActor {
             record.replaceCapturedMedia(with: newItems)
 
             activeContext.insert(record)
+            try restoreLibraryDetails(scan, into: record)
             insertedCount += 1
 
             if (index + 1).isMultiple(of: checkpointInterval) {
@@ -437,107 +449,34 @@ actor HistoricalDatabaseActor {
         return insertedCount
     }
 
-    private func syncCollections(
-        remoteCollections: [CloudCollectionResponse]
-    ) throws {
-        try Task.checkCancellation()
-        // fetchLimit: 500 is a defensive ceiling — an unbounded full-table scan can fault orphaned
-        // or schema-migrated collection records into memory before sync begins.
-        var collectionsDescriptor = FetchDescriptor<ScanCollection>()
-        collectionsDescriptor.fetchLimit = 500
-        let existingCollections = try activeContext.fetch(
-            collectionsDescriptor
-        )
-        var existingLookup = Dictionary(existingCollections.map { ($0.id.lowercased(), $0) }, uniquingKeysWith: { first, _ in first })
-        
-        // Fetch only the local scan records referenced by the incoming collections.
-        let referencedScanIds = remoteCollections.compactMap { $0.collection_scans }.flatMap { $0 }.map { $0.scan_id }
-        let allScansDescriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { referencedScanIds.contains($0.id) })
-        let localScans: [LocalScanRecord] = referencedScanIds.isEmpty
-            ? []
-            : try activeContext.fetch(allScansDescriptor)
-        let localScansLookup = Dictionary(localScans.map { ($0.id.lowercased(), $0) }, uniquingKeysWith: { first, _ in first })
-
-        // Read membership from the `LocalScanRecord.collections` side in bounded batches to
-        // avoid faulting every `ScanCollection.scans` array or the entire scan library at once.
-        let relevantCollectionIDs = Set(remoteCollections.map { $0.id.lowercased() })
-        var collectionMembersByID = try fetchCollectionMembersByID(
-            relevantCollectionIDs: relevantCollectionIDs,
-            activeContext: activeContext
-        )
-
-        for remote in remoteCollections {
-            try Task.checkCancellation()
-            let col: ScanCollection
-            let remoteIdLower = remote.id.lowercased()
-            if let existing = existingLookup[remoteIdLower] {
-                col = existing
-                existingLookup.removeValue(forKey: remoteIdLower)
-                
-                // --- INBOUND SHIELD ---
-                // If a collection is marked as deleted locally, aggressively ignore any remote
-                // representations of it. This prevents an obsolete or delayed remote state
-                // from "resurrecting" the collection locally or wiping its tombstone status.
-                if existing.isPendingDeletion {
-                    continue
-                }
-            } else {
-                col = ScanCollection(name: remote.name)
-                col.id = remote.id
-                if let parsedDate = DateUtilities.iso8601FractionalFormatter.date(from: remote.created_at) ?? DateUtilities.iso8601Formatter.date(from: remote.created_at) {
-                    col.createdAt = parsedDate
-                }
-                activeContext.insert(col)
-            }
-
-            col.name = remote.name
-            
-            let remoteScanIds = Set(remote.collection_scans?.map { $0.scan_id } ?? [])
-            
-            // Remove local scans that are NOT in the remote list,
-            // EXCEPT for those that are still pending upload (offline captures).
-            // A reliable heuristic: if the image path is local (doesn't start with http/https), it hasn't synced yet.
-            let currentScans = collectionMembersByID[remoteIdLower] ?? []
-            for scan in currentScans where !remoteScanIds.contains(scan.id) {
-                let isSynced = scan.coverImagePath?.starts(with: "http") == true || scan.coverImagePath?.starts(with: "https") == true || scan.coverImagePath == nil
-                if isSynced {
-                    // Drive the removal from the inverse side via reassignment — in-place
-                    // mutation on optional SwiftData arrays can fail to notify the context.
-                    var updatedCollections = scan.collections ?? []
-                    let originalCount = updatedCollections.count
-                    updatedCollections.removeAll(where: { $0.id == col.id })
-                    if updatedCollections.count != originalCount {
-                        scan.collections = updatedCollections
-                    }
-                }
-            }
-            
-            if let scans = remote.collection_scans {
-                for scanMapping in scans {
-                    if let localScan = localScansLookup[scanMapping.scan_id.lowercased()] {
-                        // Drive the relationship from the inverse side to avoid the static type
-                        // mismatch between ScanCollection.scans ([V12.LocalScanRecord]) and
-                        // the current-schema LocalScanRecord (V13). SwiftData propagates the
-                        // inverse automatically.
-                        var updatedCollections = localScan.collections ?? []
-                        if !updatedCollections.contains(where: { $0.id == col.id }) {
-                            updatedCollections.append(col)
-                            localScan.collections = updatedCollections
-                            collectionMembersByID[remoteIdLower, default: []].append(localScan)
-                        }
-                    }
-                }
-            }
+    private func restoreLibraryDetails(_ response: HistoricalScanResponse, into record: LocalScanRecord) throws {
+        guard let details = response.library_details else { return }
+        let scanID = record.id
+        let jobs = try activeContext.fetch(FetchDescriptor<OfflineJobRecord>(predicate: #Predicate { $0.subjectId == scanID }))
+        guard !jobs.contains(where: {
+            $0.id.hasPrefix("library-details:") && $0.status != .complete && $0.status != .cancelled
+        }) else { return }
+        record.fieldNotes = details.field_notes
+        record.customTags = response.custom_tags ?? []
+        let favorites = try activeContext.fetch(FetchDescriptor<ScanCollection>(predicate: #Predicate { $0.name == "Favorites" }))
+        var collections = record.collections ?? []
+        collections.removeAll { $0.name == "Favorites" }
+        if details.is_favorite {
+            let favorite = favorites.first ?? ScanCollection(name: "Favorites")
+            if favorites.isEmpty { activeContext.insert(favorite) }
+            collections.append(favorite)
         }
-
-        try Task.checkCancellation()
-        for (_, obsolete) in existingLookup where obsolete.name != "Favorites" {
-            try Task.checkCancellation()
-            activeContext.delete(obsolete)
-        }
-
-        try Task.checkCancellation()
-        try saveHistoricalContext("syncCollections inbound reconciliation")
+        record.collections = collections
+        let mutation = LibraryDetailsSyncService.Mutation(
+            ownerID: details.owner_id, scanID: record.id, tags: record.customTags,
+            operationID: UUID(), fieldNotes: details.field_notes, isFavorite: details.is_favorite
+        )
+        let baseline = try activeContext.ensureOfflineJobRecord(
+            id: "library-details:baseline:\(record.id.lowercased())", kind: .future, subjectId: record.id
+        )
+        baseline.metadataJSON = String(bytes: try JSONEncoder().encode(mutation), encoding: .utf8)
+        baseline.status = .complete
+        baseline.updatedAt = Date()
     }
 
     private func saveHistoricalContext(_ logContext: String) throws {
@@ -560,40 +499,5 @@ actor HistoricalDatabaseActor {
             ?? DateUtilities.iso8601FractionalFormatter.date(from: timestamp)
     }
 
-    private func fetchCollectionMembersByID(
-        relevantCollectionIDs: Set<String>,
-        activeContext: ModelContext
-    ) throws -> [String: [LocalScanRecord]] {
-        guard !relevantCollectionIDs.isEmpty else { return [:] }
 
-        let batchSize = 200
-        var offset = 0
-        var collectionMembersByID: [String: [LocalScanRecord]] = [:]
-
-        while true {
-            try Task.checkCancellation()
-            var descriptor = FetchDescriptor<LocalScanRecord>(
-                sortBy: [SortDescriptor(\.timestamp)]
-            )
-            descriptor.fetchLimit = batchSize
-            descriptor.fetchOffset = offset
-            descriptor.relationshipKeyPathsForPrefetching = [\.collections]
-
-            let batch = try activeContext.fetch(descriptor)
-            guard !batch.isEmpty else { break }
-
-            for scan in batch {
-                for attachedCollection in scan.collections ?? [] {
-                    let attachedID = attachedCollection.id.lowercased()
-                    guard relevantCollectionIDs.contains(attachedID) else { continue }
-                    collectionMembersByID[attachedID, default: []].append(scan)
-                }
-            }
-
-            offset += batch.count
-            if batch.count < batchSize { break }
-        }
-
-        return collectionMembersByID
-    }
 }

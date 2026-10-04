@@ -38,6 +38,7 @@ export type AIQuotaOperation =
   | "scan_lookalike_enrichment"
   | "scan_group_tag_enrichment"
   | "explore_audio_moderation"
+  | "observation_photo_publication_moderation"
   | "insight_chat_reply"
   | "insight_chat_prompt_suggestions"
   | "insight_chat_summary"
@@ -226,7 +227,7 @@ export function resolveQuotaIpHashSecret(input: {
   }
 }
 
-async function quotaIpHash(req: Request): Promise<string> {
+export async function quotaIpHash(req: Request): Promise<string> {
   const serverKey = resolveServerApiKeyFromEnvironment();
   const secret = resolveQuotaIpHashSecret({
     dedicatedSecret: Deno.env.get("AI_QUOTA_IP_HASH_SECRET"),

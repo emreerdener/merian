@@ -17,6 +17,160 @@ identity. Local `supabase login` is useful for emergency maintenance, but
 production deploys should be repeatable from CI with explicit secrets and
 validation.
 
+## Observation analysis history activation hold
+
+Function source/configuration is not excluded from the normal main-branch deploy
+workflow. In particular, a `services/supabase/config.toml` change selects the
+whole function fleet for deployment. Default-off runtime flags do not constitute
+a deployment hold. This draft candidate must not be merged or deployed without
+the separately authorized exact-SHA release decision and corresponding controls.
+No deployment or hosted activation is authorized by local validation alone.
+
+The prepared public-photo transport and staging ledger do not authorize public
+copying. Keep `publication_copy_enabled` false. The ledger's fixed ten-minute
+staging deadline also applies after readiness; no publisher may treat that state
+as durable public availability. The prepared atomic binding coordinates cleanup
+before this deadline; keep `publication_binding_enabled` false. The service-only
+erasure endpoint is now prepared behind default-false
+`publication_erasure_enabled`, with no schedule. Qualify cleanup first, then
+keep its independent gate enabled if admission is rolled back; existing claim
+acknowledgements remain usable even when it closes. Keep publication held until
+durable allocation, deletion-safe cleanup and public publication invalidation
+are wired. Require a verified CDN cache bypass for `publication_media/v1/`,
+permanent erasure-marker lifecycle protection, dedicated credential ownership
+and authorized nonproduction edge tests after erasure. Origin no-store headers
+do not prove cached bytes were revoked. Metadata-bearing and HEIC inputs remain
+held; any sanitized derivative requires separate immutable source approval.
+Admission must preflight the supported container before provider quota
+admission. See the
+[prepared storage boundary](05-api-contracts.md#prepared-public-photo-storage-boundary).
+
+The authenticated publication intake is separately held by default-false
+`publication_operation_enabled`. Keep it false until the durable
+execution/status owner, source preflight, moderated copy/binding and terminal
+recovery are wired. HTTP 202 acceptance saves consent only; it does not schedule
+or complete public sharing. Preserve accepted receipts and original
+quota-address hashes through admission rollback, subject to owner/deletion
+fences. Source configuration remains part of normal future main deployment
+planning. See the
+[intake contract](05-api-contracts.md#prepared-authenticated-publication-operation-intake).
+
+The October 2 reversible-history work is a locally validated backend
+preparation, not an activated feature. The three forward migrations beginning
+`20261002213257`, `20261002215330`, and `20261002215809` prepare private
+storage, deletion/retention protection, and selection transactions. Keep
+`internal.observation_history_rollout.enrollment_enabled` and
+`selection_enabled` false. The additional `20261003034325` reader migration adds
+`reader_enabled`; keep it false as well. Its owner-only RPC and native
+protocol-9 adapter are prepared but have no normal app call site. The later
+`20261003152940` saved-baseline import adds protocol 9 and
+`saved_import_enabled`; keep that gate false until native and authority
+consumers are ready. Do not grant API access to the private tables or selection
+function to bypass this hold. The fifth preparation migration, `20261003043015`,
+adds the unexposed append primitive and default-false `append_enabled`; keep
+that gate false too. Its canonical builder accepts only description evidence. It
+neither settles funding nor constitutes protected media delivery. The immutable
+first-selection permission defaults false and is not a migration enrollment
+rule. A future new-observation admission owner must prove creation eligibility
+before setting it at history insertion.
+
+The sixth migration, `20261003051251`, prepares private evidence receipts and an
+erasure outbox with default-false `media_enabled` and `media_reader_enabled`.
+Keep both false. The protocol-8 read adapter and media endpoint source are
+prepared below; there is no deployed route or cleanup schedule. Description
+append still rejects media. Before activation, bind ready receipts to a
+versioned result manifest, connect owner delivery and admitted intent cleanup,
+and integrate explicit observation/account erasure completion. The separate
+bucket must pass the
+[credential and lifecycle audit](13-server-credentials-and-database-release-safety.md#prepared-history-evidence-credentials).
+Empty erasure markers must survive forever under the dedicated
+conditional-writer contract; this is not platform-enforced Object Lock. Require
+a real authorized nonproduction R2 race/HEAD/read-expiry test. No private bucket
+was provisioned or hosted policy verified in local validation.
+
+The seventh migration, `20261003054717`, prepares description-only funded child
+intents. Keep `admission_enabled` and `dispatch_enabled` false. Its private
+admission, one-time dispatch accounting, immutable draft, atomic completion and
+terminal release share the existing credit settlement owner. Gated authenticated
+provider orchestration, ready-media binding and bounded completion recovery are
+now prepared below; no route or schedule is deployed. Before activation require
+qualified ambiguous-execution handling, native delivery, analytics that
+distinguishes child analysis IDs from observation IDs, and all existing
+compatibility/deletion gates. The new guards on legacy ingestion, quota, usage
+reporting and scan insertion must ship with the private lifecycle; never roll
+them back independently while intents or retired child IDs exist.
+
+The eighth migration, `20261003063309`, binds ready private still photos to V2
+analysis intents and results, with `protected_analysis_enabled` default false.
+Keep it false along with all previous gates. Private V2 completion, pinning and
+terminal/unbound cleanup and gated authenticated provider materialization/result
+safety/completion recovery are now prepared. Native delivery and cleanup
+scheduling remain outstanding. Protocol 7 rejects whole V2 histories after
+authorization. Require coordinated protocol-8 native
+reader/decoder/persistence/media resolution and real storage evidence before V2
+production use; never enable V2 merely because the older reader gate is ready.
+Audio/video binding remains separate work, and no public Identify/media DTO
+changes here.
+
+The ninth migration, `20261003070545`, adds protocol-8 mixed owner reads and the
+service-only completed-photo resolver. `resolve-history-photo` authenticates and
+returns short-lived no-store tickets; native V2 admission and ephemeral photo
+loading are prepared. Keep both reader gates false. No bucket or route has been
+deployed. Require real private-bucket, signed-URL expiry, erasure and native
+presentation evidence before activation. Do not grant direct client receipt
+access or route these photos through public media caches.
+
+The tenth history migration, `20261003074429`, prepares authenticated analysis
+orchestration and bounded completion recovery. Keep `orchestration_enabled`
+false alongside all earlier gates. Source routes `analyze-observation` and
+`recover-observation-analyses` are not deployed or scheduled. Require actual
+private-bucket evidence, qualified handling of ambiguous provider execution,
+moderation-policy integration, verified enrollment and native callers before
+activation. Never substitute an expired work claim for proof of provider
+failure. See the
+[worker contract](05-api-contracts.md#prepared-child-analysis-orchestration-and-recovery).
+
+The
+[V55 native storage foundation](04-database-schema.md#native-analysis-history-storage-and-v55)
+adds private child storage and preserves existing projections during upgrade. It
+does not relax these gates. A separate prepared account-bound reader/admission
+service can append only to already-enrolled local observations and leaves
+selection/review state untouched. Verified enrollment/backfill, canonical
+completion producers, protected media and normal sync scheduling remain
+required.
+
+Any separately authorized backend rollout must validate the exact candidate SHA,
+apply the migrations with gates closed, and deploy the matching `delete-scan`
+handler before any future enrollment. This is preparation order, not permission
+to deploy or an activation procedure. No deployment or activation evidence is
+recorded for this slice. Older deletion requests must keep receiving
+`409 legacy_observation_delete_requires_upgrade` for enrolled observations
+before tombstone or media work; rollback must preserve that refusal and
+retention exclusion wherever history exists.
+
+Activation requires the complete
+[RFC acceptance matrix](../rfcs/reversible-reanalysis-and-identification-history-2026-10-02.md),
+including safe current-selection-preserving backfill; strict result/evidence
+producers; child ingestion/replay/media deletion fences; native history
+migration, account-scoped sync, retention exclusion and legacy-task quarantine;
+explicit versioned deletion; revision-ordered authority/credit reconciliation;
+protected history media; pinned public identification and immutable chat
+admission; and the account-deletion scientific allowlist materialized before
+private history clears. The current app may already delete its local original
+during replacement, so the server refusal alone does not satisfy compatibility.
+Native source now holds the exact server refusal durably, quarantines unknown
+legacy provenance, and pages past held tasks with a bounded continuation. New
+requests carry local account/origin metadata and dispatch under a matching
+account lease. These safeguards do not identify old task owners/origins, restore
+local history, reconcile held intent, or implement explicit history deletion.
+
+The
+[verification matrix](../development-guides/08-testing-strategy.md#observation-analysis-history-preparation)
+records the implemented checks and remaining concurrency/device scenarios.
+Candidate success does not establish historical recovery, hosted behavior, or
+feature readiness. Any future rollback must stop new work without dropping
+retained results, resetting selection revisions, or replaying old choices.
+
 ## OpenAI photo adapter deployment order
 
 Deploy the source-enabled `openai_photo_v1` adapter while the identification
@@ -4754,6 +4908,50 @@ pgTAP/catalog execution, live local-database concurrency tests, complete Edge
 suite, lint, and advisors all pass in the same job. Partial or
 connection-skipped evidence does not authorize production deployment.
 
+### Guest library preservation extension
+
+The [guest library transition contract](./21-guest-library-transitions.md)
+extends the secure merge baseline with migrations
+`20261003074542_protect_guest_library_transition_boundary.sql` and
+`20261003080444_persist_private_library_details.sql`, the merge error mapper and
+the native inventory/journal/detail-restoration client. For this extension,
+apply the migrations and deploy the compatible merge function **before shipping
+a client that requires the private-detail RPCs**. The original proof-capable
+client-first sequence below describes the initial secure merge rollout, not this
+later dependency. Preserve the existing expanded-mapper predeploy rule before
+pending database revisions.
+
+Acceptance requires disposable migration replay, all SQL catalogs, the live
+two-connection retirement schedule, full affected Edge/client contracts, and the
+[native transition matrix](../development-guides/08-testing-strategy.md#guest-library-transition-validation).
+Required selectors include `libraryTransitionMigrationContract.test.ts`,
+`ghostProfileMergeClientContract.test.ts`, `private_library_details.sql`,
+`ghost_profile_merge_security.sql`, `identity_merge_scan_recovery_security.sql`
+and `libraryIdentityRetirementConcurrencyDb.test.ts`. Verify rejection of
+nonterminal source work with `pending_library_work` (409), refusal of
+unsupported source history/evidence with `library_transfer_needs_attention`
+(409), retained expired/failed proofs, operation-idempotent private-detail
+updates, destination ownership and denied cross-account access. Upload
+acceptance alone cannot permit source retirement. The historical
+interrupted-ingestion repair fixture does not prove new work can continue across
+merge. Prepared analysis-history ownership remains blocked.
+
+Physical Apple/Google, two-device restoration, sign-out crash/relaunch,
+purchase-continuity and issued-media expiry evidence remain separate. Pending
+transfer still blocks destination editing; do not report that part of the plan
+as shipped. These repository checks and documentation do not authorize hosted
+mutation, anonymous-user cleanup, deployment or iOS distribution. Record the
+exact authorized target/operation and candidate evidence under the existing
+release controls.
+
+For a separately authorized rollout, verify private-detail RPC availability and
+owner/cross-account behavior before enabling its native release. If restoration
+or merge fails, retain journals, immutable operations and source proofs while
+repairing the dependency. Do not undo an applied migration, drop private-detail
+storage, or restore a merge path that accepts unfinished source work as a
+rollback shortcut. Use reviewed forward repair and the existing rollback
+controls; local synthetic checks alone cannot close a hosted incident.
+
 ### Compatibility order
 
 After the release hold is cleared:
@@ -8479,3 +8677,71 @@ to an external issuer.
   grouped-review, hidden-content projection, feedback/user audit, and AI-ledger
   smoke matrices in `11-internal-admin-operations.md`. Confirm the deployment
   contains no service-role/direct-database/model/analytics secret.
+
+### Saved-identification enrollment hold
+
+`20261003152940_prepare_saved_identification_enrollment.sql` prepares the
+protocol-9 owner enrollment RPC and adds `saved_import_enabled = false`. Keep it
+false along with enrollment/reader/selection/dispatch gates. New enrollment
+copies only the locked surviving saved identification and its exact authority;
+it does not recover lost original provider evidence or migrate public images
+into private storage. No backfill or app enrollment is enabled.
+
+Native V57 retains V3/null-completion storage and reader 9. Prepared native
+enrollment now validates the receipt and current state before atomic local
+acknowledgment and persists an owner-bound intent before remote dispatch. The
+prepared intent survives lost responses/restart and fences delayed replacement
+deletion, expiry and hydration; acknowledged history remains protected after
+intent removal. Explicit deletion retains a terminal identity fence against late
+history pages. These are local source safeguards, not rollout authorization.
+There is no ordinary caller or autonomous retry worker. Before activation,
+require verified reconciliation of divergent legacy state, current
+selection/authority hydration, review/community writer integration, and every
+existing history activation prerequisite. Older protocol 7/8 readers refuse
+histories containing V3; activation must account for those clients. Catalog and
+race tests establish local preparation only. The original scan selection and
+corrections must survive migration; published authority and credit
+reconciliation need their separate revision guards.
+
+### Observation state-reader hold
+
+`20261003162801` prepares `get_owned_observation_analysis_state` and the
+separate `state_reader_enabled` switch. Keep it false alongside
+`reader_enabled`. Local SQL/concurrency and shared native/Deno decoding
+establish the read boundary. Prepared native same-selection admission
+additionally protects pending review and atomic result/review/revision
+persistence. V57 adds the durable per-analysis authority cache and complete
+V1/V2 display preparation. Explicit native preview and eligible device-local V3
+saved-display capture are prepared, with provenance and revision fences; neither
+has an ordinary app caller. Imported display is unavailable without that local
+baseline. Changed server-selected state admission is prepared only when the
+previous identification remains recoverable and the target has complete display
+and representable authority. It does not send selection mutations or issue Undo
+receipts. Enrollment, legacy-authority reconciliation, authority writers, public
+selection activation and all earlier history activation controls must be
+implemented and verified before rollout. This read endpoint does not authorize
+restoring, enrolling, deleting or publishing an identification.
+
+Native selection/Undo request persistence and atomic receipt/current-state
+admission are prepared with a protocol-9 owner mutation adapter and durable
+conflict recovery. Migration `20261003221730` adds the authenticated
+`select_owned_observation_analysis` wrapper and default-false
+`selection_api_enabled`. Keep that switch, `selection_enabled`,
+`state_reader_enabled` and `reader_enabled` false. The private function still
+has no API-role execute grants. Exact previously recorded outcomes replay under
+owner/deletion locks even when admission gates close; native completion still
+requires an allowed current-state read. This is a recovery rule, not activation.
+Require public/credit consumers, review/community writer integration, ordinary
+sync/UI integration and the existing evidence before activation. Local tests and
+source preparation do not authorize deploying the migration or opening gates.
+See the
+[native boundary](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#prepared-selection-and-undo).
+
+The bounded native history sheet is now prepared as an injected consumer, with
+preview, explicit selection, retry and receipt-bound Undo. Normal
+`InsightShellDependencies.historyAccess` remains nil; its Debug fixture is not
+activation evidence. This slice changes no SQL, HTTP shape, server gate or
+provider dispatch. Ordinary enrollment/history scheduling, legacy divergence,
+review/community writers, public/credit authority, privacy/deletion integration
+and the complete activation matrix still gate rollout. See the
+[prepared UI contract](../features-and-hardware/05-insight-sheet.md#prepared-identification-history-sheet).

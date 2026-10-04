@@ -100,6 +100,34 @@ implementation skills for code and the release skill only for an explicitly
 authorized operation and target. Documentation organization alone starts no
 provider calls or releases.
 
+## Hand off between chats
+
+Use the current [research index](README.md) and linked source records when
+continuing work from a chat summary or goal prompt. An older handoff describes
+its original checkpoint; verify later decisions and dataset exposure before
+acting on it. Keep the handoff short and include:
+
+- The unresolved question, exact configuration and current evidence-supported
+  decision, with links to the relevant study and next work item.
+- The checkout and source state, including required uncommitted work or a frozen
+  source identity that a fresh checkout would otherwise omit.
+- The authorized operation, open or closed study state, attempt/spending caps,
+  settled costs and outstanding reservations. Identify necessary credential
+  setup without transferring secret values.
+- Dataset/reference versions and the private manifests and claim ledgers that
+  determine reuse eligibility. Do not carry forward an old count of untouched
+  observations without rechecking exposure.
+- Implementation and test status, research qualification, deployed target/SHA
+  and device verification as separate facts. Device evidence identifies the
+  installed version/build and exercised behavior; missing evidence stays
+  unknown. State the next concrete action and any actual blocker.
+
+When later work changes a recommendation, add a dated forward link to the
+earlier RFC and preserve its original results. Maintain decisions in the
+existing index and registers rather than creating another per-chat source of
+truth. Proposed follow-up limits remain proposals until the user's instruction
+authorizes that scope; a prior study's unused budget remains closed.
+
 ## Verification and record updates
 
 Edit `catalog.json` and affected `capabilities.json` assessments, preserving

@@ -799,6 +799,13 @@ under RevenueCat's **Transfer to new App User ID** behavior. Product copy calls
 this state signed out or anonymous and never exposes the internal legacy term
 “Ghost.”
 
+Library preservation adds a separate prerequisite to purchase handoff: source
+changes must pass the acknowledgment inventory before identity replacement. The
+[identity lifecycle](#93-anonymous-first-identity---implemented) describes local
+library clearing and restoration; the
+[guest library transition contract](../backend-and-data/21-guest-library-transitions.md)
+owns recovery and its remaining limitations.
+
 During prelaunch, an exact guarded cleanup may delete inactive provider shells
 created by the historical identity-rotation bug, but only when fresh exports and
 live RevenueCat checks prove no purchase/promotion, alias, active identity,
@@ -935,8 +942,25 @@ production rollout remains release-held for the independent database replay,
 staging, exact-SHA, and provider-operation gates. See the
 [RevenueCat customer identity incident](../incidents/2026-08-revenuecat-customer-identity-drift.md).
 
-Sign-out clears the local user scope without redefining backend retention or
-deletion policy. Account deletion is a separate, explicit operation.
+Sign-out requires source-owned library work to be acknowledged before a final
+write fence and durable commitment. Completion clears the private device library
+and starts a distinct guest without deleting the outgoing server account.
+Interrupted committed recovery keeps that library covered while SDK sign-out,
+local cleanup, replacement-session persistence and purchase continuity finish.
+Purchase handoff remains separately fenced; changing Auth identity alone does
+not prove entitlement completion.
+
+Guest libraries persist on their original device. Saving and restoring between
+devices requires the same linked account; guest-only device transfer and backup
+recovery are not promised. A successful existing-account login may still show
+**Signed in; finishing library transfer**. Its retained recovery proof blocks
+further identity replacement and library activity, including destination edits,
+until transfer completes. Before destination authentication, recovery may resume
+the same-provider OAuth flow only for the current anonymous source's unbound,
+non-attention handoffs. Different identity changes remain blocked. Account
+deletion and abandoned-guest retention remain separate policies. The
+[guest library transition contract](../backend-and-data/21-guest-library-transitions.md)
+owns the exact preservation, recovery and anonymous-creation limitations.
 
 # 10. Privacy, location, and data rights
 
@@ -1044,19 +1068,31 @@ The provider-specific implementation and production exit criteria are normative
 in the
 [Sign in with Apple account-deletion contract](../backend-and-data/20-sign-in-with-apple-account-deletion.md).
 
-Deleting an individual scan uses an owner-bound `/delete-scan` path that first
-persists a private, content-free generation tombstone, then removes owned media,
-then removes the database record. The tombstone prevents delayed inference,
-offline replay, or another device from resurrecting the deleted scan UUID. An
-independent five-minute server reaper resumes storage/database cleanup even if
-the deleting device disappears, while scheduled health monitoring alerts when
-oldest-pending age, backlog, or expired leases breach the privacy-erasure SLA.
-Successful completion removes the owner linkage from the permanent UUID fence.
-Because the scan owns its Explore post, explicit deletion also permanently
-removes that post, its likes, and its comments. Every deletion confirmation must
-say so before proceeding. Deletion user experience should clearly separate local
-removal, server completion, and the mandatory ownerless Scientific Data retained
-after account deletion.
+For scans outside prepared history, individual deletion uses an owner-bound
+`/delete-scan` path that first persists a private, content-free generation
+tombstone, then removes owned media, then removes the database record. The
+tombstone prevents delayed inference, offline replay, or another device from
+resurrecting the deleted scan UUID. An independent five-minute server reaper
+resumes storage/database cleanup even if the deleting device disappears, while
+scheduled health monitoring alerts when oldest-pending age, backlog, or expired
+leases breach the privacy-erasure SLA. Successful completion removes the owner
+linkage from the permanent UUID fence. Because the scan owns its Explore post,
+explicit deletion also permanently removes that post, its likes, and its
+comments. Every deletion confirmation must say so before proceeding. Deletion
+user experience should clearly separate local removal, server completion, and
+the mandatory ownerless Scientific Data retained after account deletion.
+
+The locally implemented history foundation refuses legacy deletion of an
+enrolled observation before tombstone or media work. Enrollment remains disabled
+until legacy-task ownership/reconciliation and explicit whole-observation
+deletion are ready. Native source now holds the server-refused legacy request
+without retrying; this does not restore an already removed local scan.
+Reanalysis still uses replacement in the app; a completed reanalysis cannot yet
+be restored through history. The agreed full-history design and remaining work
+are tracked in the
+[reversible reanalysis RFC](../rfcs/reversible-reanalysis-and-identification-history-2026-10-02.md#implementation-progress).
+This preparation is not a shipped user feature or recovery of overwritten
+results.
 
 ## 10.4 Consent, age, and analytics privacy boundary
 
@@ -1418,6 +1454,26 @@ Each release should exercise at minimum:
 13. Individual scan deletion and account deletion.
 14. Personal and public export generation.
 15. Thermal, background, constrained-network, and low-storage behavior.
+16. Apple and Google same-UUID guest linking and guest-to-existing-account
+    merge, including refusal while source work is pending and retry after it is
+    acknowledged. Restore scans, private notes/Favorites, tags, collections and
+    memberships, edits and deletion state across two devices without merging
+    distinct captures. Check media availability separately.
+17. Sign-out cancellation before commitment, failed/needs-attention inventory,
+    writes arriving during preflight, and process termination/relaunch at every
+    durable recovery boundary. Verify the distinct replacement guest has an
+    empty private library and the outgoing account retains its saved library.
+    Include active StoreKit purchase continuity, proof expiration and session
+    expiry/revocation with pending work.
+18. Cross-account private reads/writes and fresh private-media signing denial,
+    plus already-issued media access under its actual expiry contract. Preserve
+    intentionally public content. Pending transfer must keep local editing and
+    further account replacement blocked until recovery finishes.
+
+These guest-library journeys require physical/provider/hosted evidence in
+addition to local deterministic suites. The
+[transition validation matrix](../development-guides/08-testing-strategy.md#guest-library-transition-validation)
+owns test coverage and the remaining destination-editing limitation.
 
 Apple Watch capture should not enter the release-critical "complete" set until
 the phone receiver and end-to-end tests exist.

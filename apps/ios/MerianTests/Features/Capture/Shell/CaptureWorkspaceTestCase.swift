@@ -13,11 +13,14 @@ final class CaptureWorkspaceViewModelRefinementTests: OfflineQueueTestCase {
         uuidString: "00000000-0000-4000-8000-000000000778"
     )!
 
+    var previousAdmission: @MainActor (UUID?) -> Bool = OfflineQueueManager.liveCaptureLibraryAdmission
     var previousProState = false
     var previousSubscribedState = false
 
     override func setUp() {
         super.setUp()
+        previousAdmission = OfflineQueueManager.shared.captureLibraryAdmission
+        OfflineQueueManager.shared.captureLibraryAdmission = { _ in true }
         previousProState = RevenueCatManager.shared.isProActive
         previousSubscribedState = RevenueCatManager.shared.isSubscribed
         RevenueCatManager.shared.isSubscribed = true
@@ -25,6 +28,7 @@ final class CaptureWorkspaceViewModelRefinementTests: OfflineQueueTestCase {
     }
 
     override func tearDown() {
+        OfflineQueueManager.shared.captureLibraryAdmission = previousAdmission
         RevenueCatManager.shared.isSubscribed = previousSubscribedState
         RevenueCatManager.shared.isProActive = previousProState
         super.tearDown()

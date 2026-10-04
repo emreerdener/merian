@@ -77,7 +77,7 @@ struct LibraryView: View {
                                     onQueuedScanDelete: { snapshot in
                                         guard !searchManager.isDownloading else { return }
                                         Task {
-                                            await offlineQueueManager.deleteQueuedScan(scanId: snapshot.id)
+                                            await offlineQueueManager.deleteQueuedScan(scanId: snapshot.id, userInitiated: true)
                                             await MainActor.run {
                                                 toastMessage = .success("Scan cancelled & deleted")
                                             }

@@ -10198,6 +10198,207 @@ and
 
 ---
 
+## Prepared observation-history contracts
+
+The
+[history contract owner](../../services/supabase/functions/_shared/analysisHistory/README.md)
+defines bounded version-1 identity, selection, pagination and chat-context
+parsers. These are private preparation contracts, not deployed routes or
+generated native DTOs. Explicit history reader protocols 7, 8 and 9 do not
+change the current Identify reader capability. Native advertises protocol 9 for
+history reads only; V56 admits saved imports with unknown completion dates.
+Enrollment still requires state/authority hydration. A separate owner-only
+history read RPC is prepared behind a default-false reader gate; no history
+selection/deletion RPC is exposed and no chat endpoint persists this context
+yet. The
+[schema contract](./04-database-schema.md#prepared-observation-analysis-history)
+owns prepared storage and transaction behavior; connected API/DTO changes remain
+under the
+[activation hold](./06-supabase-deployment-runbook.md#observation-analysis-history-activation-hold).
+The legacy deletion refusal below remains mandatory.
+
+### Prepared owner analysis history reader
+
+`get_owned_observation_analysis_page(p_request jsonb, p_reader integer)` is
+callable only by `authenticated`. It derives the owner from `auth.uid()` and
+requires `p_reader` 7, 8 or 9 and
+`observation_history_rollout.reader_enabled = true`. Protocol 7 refuses an
+entire history containing V2 or V3; protocol 8 accepts mixed V1/V2 snapshots but
+rejects any history containing V3. Protocol 9 additionally reads imported saved
+identifications, with the unchanged version-1 page envelope. The gate defaults
+false; this is not permission to enable it. Ordinary Identify and scan-history
+requests still advertise capability 6.
+
+`p_request` has exactly `schema_version: 1`, a lowercase UUID `observation_id`,
+nullable positive `before_ordinal`, and `limit` from 1 to 20. There is no
+caller-supplied owner. The RPC takes the established owner → generation → scan →
+history locks and rejects missing, detached, foreign, unenrolled or deleted
+observations. Anonymous and service roles have no execution grant, and no API
+role gains direct table access.
+
+The response has exactly `schema_version`, `owner_id`, `observation_id`,
+`state_revision`, `items`, and `next_before_ordinal`. Items descend by immutable
+ordinal and contain `ordinal` plus a **JSON string** `snapshot`. A page is at
+most 4 MiB; a byte-limited prefix can contain fewer than the requested number of
+items. Resume only with the returned last accepted ordinal. Null means the
+current traversal is complete; later reanalyses are discovered by starting again
+at the head. A cursor is never persisted independently of its owner and
+observation by this implementation.
+
+Snapshot version 1 contains `schema_version`, `observation_id`, `analysis_id`,
+nullable `source_analysis_id`, SHA-256 `request_digest`, positive `ordinal`,
+integer UTC `completed_at_ms`, canonical Identify `result` data, and
+`evidence_manifest: {schema_version: 1, captured_media: [...]}`. Identify's
+`scan_id` binds to the observation; analysis identity is independent. Funding,
+review authority and active selection are absent. The media list uses the
+existing strict current wire contract, with at least one item and no legacy
+local-file references. Added evidence still requires protected-media promotion
+before activation; merely decoding a URL does not establish privacy or
+recoverability.
+
+The original server result object may also contain projection fields such as
+`species_id`, which the canonical Identify validator does not return. Readers
+preserve those fields in the original bytes. A future completion producer must
+validate the projection-ready object against canonical Identify data and the
+species dictionary; it must not persist the normalized parser return as the
+server `result_snapshot`.
+
+`internal.observation_analysis_snapshot` produces stable PostgreSQL JSONB text;
+the same function enforces the **complete** snapshot's 1 MiB limit on insertion.
+The client stores those exact UTF-8 bytes, including ordinal and evidence,
+without re-encoding them. Conflicting bytes for an existing analysis ID reject
+the whole page before insertion. A future serialization change must preserve
+these bytes or introduce a reviewed snapshot-version migration.
+
+Native `ObservationHistorySyncService` accepts one bounded page per call. It
+requires an existing acknowledged local owner, initialized selection, selected
+analysis UUID and server revision; current login never establishes enrollment.
+The account lease surrounds fetch and local commit. A fresh context, pending
+deletion check, complete duplicate preflight, parent attachment and save form
+one synchronous transaction. A stale lease rolls back even staged children.
+Existing selection, correction, rejection, confirmation and community payloads
+remain unchanged; the response state revision is not an authority update. There
+is no normal sync, completion or UI call site yet. Completion admission,
+enrollment, selection/authority hydration and scheduling remain separate
+implementation work under the activation hold.
+
+### Prepared private analysis append
+
+`internal.append_observation_analysis(p_user_id uuid, p_request jsonb)` is a
+private storage primitive behind default-false `append_enabled`. No API role,
+including `service_role`, can execute it directly. No endpoint calls it. Its
+caller must eventually be an authenticated, admitted completion orchestrator; a
+storage return is not a provider-completion or complimentary-credit receipt.
+
+`analysisHistory/append.ts` owns the canonical builder. The exact request keys
+are `schema_version: 1`, `observation_id`, `analysis_id`, nullable
+`source_analysis_id`, SHA-256 `request_digest`, `result_snapshot`, and
+`evidence_manifest`. These identities are distinct. Full Identify validation
+normalizes result data, excludes caller review/funding metadata, and adds only
+an independently resolved `species_id`. The database rechecks that link against
+its species dictionary and existing primary-identification/projection policy. It
+creates fresh unreviewed authority; confirmation of another result cannot
+transfer through append.
+
+Evidence is currently limited to 1–64 canonical descriptions with nonempty text
+of at most 8,192 characters each. Images, audio, video, local/staging
+references, public CDN URLs and signed delivery URLs all fail closed. Current
+scan promotion uses public delivery and is not a private history-media contract.
+This boundary cannot be enabled for media-backed analyses until protected object
+promotion, durable receipts, authorized reads and deletion cleanup are
+implemented.
+
+The transaction locks owner → observation generation → owned scan → history.
+Ownership, detachment and tombstone checks precede exact replay. A reused
+analysis ID must match observation, source, digest, canonical result and
+evidence; changed input conflicts. Replay returns the original complete snapshot
+text even if new appends are disabled, and changes neither selection nor
+authority. New results receive serialized ordinals and a server timestamp. The
+aggregate snapshot still has the reader's one-MiB bound.
+
+Initial selection requires an empty revision-zero history and immutable
+`initial_selection_permitted`, recorded at history creation and false by
+default. A future admission transaction must prove that this is a newly created
+observation; clients cannot supply this permission. Subsequent appends,
+including concurrent first results, preserve whichever result first initialized
+selection. Only initialization writes a projection/reconciliation obligation.
+Optional source identity must refer to a result in the same observation.
+
+The prepared child lifecycle below now binds description-only admission and
+provider accounting to atomic append/settlement. The raw appender rejects a
+funded intent unless that completion transaction owns its fence. Existing
+`complete_scan_ingestion_with_entitlement` remains tied to a public scan;
+passing a child ID to it is rejected. The separate V2 photo-binding path below
+now connects ready private receipts to funded completion. Enrollment and
+consumer activation remain prerequisites.
+
+### Prepared funded child-analysis lifecycle
+
+Migration `20261003054717_prepare_funded_observation_analysis.sql` adds private
+admission, dispatch, draft, completion and terminal-failure routines. All API
+roles, including `service_role`, lack execution and table access. Separate
+`admission_enabled` and `dispatch_enabled` gates default false. These are
+transaction primitives, not an HTTP endpoint or a running provider/recovery
+worker. `analysisHistory/intent.ts` owns the bounded canonical input/draft
+builders; existing Identify wire DTOs do not change.
+
+Admission freezes the append identity and description manifest, plus the actual
+submitting client's separate `entitlement_protocol: 3`,
+`identification_protocol: 6`, `history_protocol: 7`, and
+`expected_processor_permission` (`google_gemini` or `openai`). Recovery must
+reuse that stored input rather than synthesize capability or reread mutable
+notes. Observation and analysis IDs are distinct; an optional source belongs to
+that observation. Input and draft are bounded to 1 MiB; the completion receipt
+to 2 MiB; provider usage to an allowlisted 2 KiB object. Media-backed input
+still rejects in V1. Description admission and protected-media reservation
+remain mutually exclusive there; the separately gated V2 admission below binds
+ready photo receipts.
+
+The state flow is `admitted → dispatched → draft → complete`, with proven
+terminal failure from `admitted` or `dispatched`. Admission reserves using the
+analysis ID as the existing complimentary ledger identity and original analysis
+ID; it creates neither a public scan nor a legacy ingestion job. Exact admission
+retries reuse the intent. Only an expired pre-dispatch reservation may acquire a
+new lease/attempt under that same analysis. A changed input or stale lease
+conflicts. After dispatch, retry is recovery-only and never requests another
+provider execution. No automatic inference retry is prepared.
+
+Dispatch rechecks current processor consent, commits provider quota and records
+immutable provenance/attempt accounting once. Its `may_dispatch` is false on
+replay. Saving a canonical draft validates the original input, lease and
+provenance and records provider usage through the existing idempotent usage
+owner. Known refusal/invalid-result/proven-provider-failure records the matching
+outcome; a timeout does not prove failure. Existing late usage reconciliation
+may preserve an earlier unknown-outcome witness. Drafts are immutable on retry.
+
+Completion locks owner → observation generation → owned scan → history → intent,
+checks deletion before replay, then appends the result, settles the
+complimentary ledger and stores a receipt in one transaction. It returns exact
+saved receipt data after a lost response. The receipt contains the stable
+snapshot text, admitted plan, credit consumption and post-settlement
+entitlement; it is not yet a client DTO. Reanalysis never changes an existing
+selection. Only the separately proven first-selection rule above can initialize
+one. Each analysis has at most one credit consumption. Provider executions are
+accounted at dispatch; complimentary holds settle at durable completion or
+proven terminal failure under the
+[funding rules](18-complimentary-pro-scans.md#completion-and-terminal-settlement).
+
+Legacy ingestion, quota, provider-dispatch/reporting and scan-completion paths
+cannot bypass an admitted child's owner. Parent deletion and account detachment
+erase private inputs/drafts/receipts and release unfinished holds; only an
+unused pre-dispatch provider reservation is refunded. Consumed credits remain
+consumed. Each erased child leaves a completed ownerless marker in the existing
+scan deletion ledger, with no observation link or cleanup lease. Its generation
+ID cannot become a legacy scan/job or new quota admission. Owner and
+child-generation locks serialize admission/deletion against legacy writers. Raw
+result insertion and media reservation are fenced as well.
+
+Before activation, add authenticated orchestration, bounded recovery/delivery,
+normal native photo presentation, audio/video evidence binding, analytics
+identity discrimination (existing usage `scan_id` means the child analysis
+here), verified enrollment, explicit deletion delivery and native sync. This
+preparation runs no provider calls and authorizes no deployment.
+
 ## Deno `/delete-scan` Edge Node
 
 Deletes a single scan from both Supabase PostgreSQL and Cloudflare R2.
@@ -10228,7 +10429,17 @@ without explicit network confirmation. See the
    It verifies exact ownership under the per-scan generation lock and persists
    the private deletion tombstone before external work. Foreign ownership
    returns `403`; a genuinely absent or already-completed owner generation
-   returns idempotent `200`.
+   returns idempotent `200`. An observation enrolled in versioned identification
+   history instead returns `409` with code
+   `legacy_observation_delete_requires_upgrade`, before any tombstone or
+   external erasure. Legacy replacement-deletion intent cannot authorize
+   deleting its full history. Native source now stores this exact HTTP/code pair
+   as a durable held task without retrying or acknowledging erasure. Other
+   failures retain their existing retry behavior. Enrollment stays disabled
+   pending reconciliation of ambiguous legacy intent and explicit history
+   deletion; new native requests retain account/origin metadata locally, bind
+   transport to that account, and keep the same `{scanId}` wire body; the
+   rejection is not a success acknowledgement.
 3. Reads the fenced canonical scan, normalized media assets, and post-derived
    thumbnails. A database read error is a sanitized `5xx`, never not-found.
 4. Deletes only exact
@@ -12021,3 +12232,1814 @@ identifications. Older readers receive `client_update_required` for affected
 rows. Admission recognizes 4, 5, and 6 without raising provider binding minima.
 Ship this backend contract before the corresponding native reader. No release or
 deployment is implied by repository implementation.
+
+## Prepared protected evidence lifecycle
+
+Upload and erasure remain internal preparation. The protocol-8 photo read
+adapter below now has a narrow service-only wrapper and authenticated Edge
+source; there is still no scheduled erasure worker or deployed photo route.
+Existing V1 history snapshots remain unchanged, and
+`append_observation_analysis` continues accepting descriptions only. Enrollment,
+append, media issuance and media reads remain closed.
+
+`internal.reserve_observation_evidence(owner,observation,analysis,media,type,bytes,sha256)`
+returns an immutable database-generated object identity and five-minute
+deadline. The future caller must derive owner from a verified session and
+validate an admitted child-analysis intent; possession of these internal
+arguments is not authorization. Identical reservation replay preserves its
+key/deadline; changed payload conflicts. Current description-only result
+insertion and reservation share an analysis lock, so both cannot claim the same
+analysis identity.
+
+The shared storage owner owns a buffered copy, hashes it, performs a conditional
+PUT with `If-None-Match: *`, and HEAD-verifies exact length, content type and
+trusted writer hash metadata. Only afterward may
+`internal.complete_observation_evidence(owner,observation,analysis,media,object)`
+mark readiness, with the same current-owner and deletion fence as reserve. Lost
+PUT responses can recover through a matching existing object; a deletion marker
+never verifies as evidence. This is not provider completion, quota settlement,
+media moderation or client-declared upload proof.
+
+`internal.read_owned_observation_evidence` requires matching current owner,
+observation, analysis and media IDs and a ready receipt. The protocol-8 Edge
+adapter additionally requires a completed V2 reference and uses that receipt to
+sign a GET with a separate read credential and fixed 30-second lifetime. The URL
+is a bearer capability, is not persisted, and carries no-store cache controls. A
+previously issued capability remains usable until expiry or marker replacement;
+the database cannot revoke a signature already issued. All new reads fail after
+the deletion fence.
+
+Erasure is asynchronous and durable. Receipt removal—including scan tombstone,
+parent cascade and account detachment—queues an opaque object UUID independently
+of the parent. `claim_observation_evidence_erasure` leases one obligation for
+one minute; `finish_observation_evidence_erasure` rejects stale/expired tokens.
+The bounded worker seam overwrites the exact key with a zero-byte marker,
+HEAD-verifies it, and only then acknowledges success. Failure remains retryable.
+No DELETE is issued, because deleting the marker would allow delayed writes to
+restore content. The
+[storage owner README](../../services/supabase/functions/_shared/analysisHistory/README.md#prepared-protected-evidence-storage)
+details the boundaries and tests.
+
+The V2 photo contract below now prepares receipt binding, admitted intents and
+cancellation/expiry cleanup. Activation still requires normal native
+presentation, authenticated inference orchestration, explicit history deletion
+delivery, worker routing/scheduling, audio/video evidence contracts, account
+scientific allowlisting, and a private-bucket/credential audit with real R2 race
+evidence. No public-CDN URL, staging URL, signed URL or caller-nominated key can
+stand in for a durable protected-media receipt.
+
+## Prepared protected photo analyses
+
+`20261003063309_bind_protected_analysis_evidence.sql` connects private ready
+photo receipts to funded analysis completion behind a new default-false
+`protected_analysis_enabled` gate. `admit_protected_observation_analysis` and
+`append_protected_observation_analysis` have no API execution grants. V1
+admission/append remain description-only. All earlier gates stay closed. The
+protocol-8 reader and private-photo read endpoint are now prepared below. No
+provider materializer or recovery schedule is introduced.
+
+`protectedManifest.ts` owns the strict V2 contract. Input and draft identities
+use `schema_version: 2`; evidence is `{schema_version: 2, items: [...]}`.
+Ordered items are either `{kind: "description", text}` or
+`{kind: "image", media_id, content_type, byte_count, sha256}`. There must be at
+least one image, no repeated media UUID, at most 64 total items, descriptions of
+1–8,192 Unicode characters, and at most 32 MiB of referenced image bytes in
+aggregate. JPEG, PNG and HEIC are accepted; audio/video and all unknown fields
+reject. Object UUIDs/keys, staging references, public URLs and signed URLs never
+enter the manifest. A content reference is not proof of upload: the SQL owner
+joins it to the exact current owner/observation/analysis receipt and verifies
+readiness and every content field under locks.
+
+The future orchestrator first reserves and verifies private uploads, then admits
+all ready receipts atomically. Initial admission requires each receipt's
+five-minute deadline still to be live; it rejects extra unreferenced receipts
+for that analysis. Admission freezes the entire ordered manifest and actual
+client claims: entitlement 3, identification 6, history 8 and expected
+processor. The existing `multimodal_photo_v1` binding determines provider/model
+and consent; no provider policy, credit rule or inference fallback changes. The
+new source must use canonical Identify/taxonomy validation shared with V1.
+
+An admitted intent pins its ready evidence beyond the upload deadline, including
+ambiguous provider work and saved drafts. New receipts cannot be added after
+admission. Independent receipt deletion/expiry cannot remove evidence needed by
+an intent or retained result. Completion rechecks the same receipt set, appends
+through the funded draft fence, and settles the existing complimentary ledger in
+the same transaction. Exact completion retries return the same saved receipt.
+Existing selection and review authority remain unchanged.
+
+Terminal failure/cancellation queues unused photo erasure before its transaction
+returns. Deleting an intent also retires its unused receipts; parent deletion
+and account detachment supersede every pin and queue retained photos for
+erasure. `expire_unbound_observation_evidence` can retire ready or unready
+uploads after their deadline only when no intent or result owns them. It
+rechecks the exact object generation under owner/observation/analysis locks. No
+cleanup scheduler is activated. Failed cleanup remains in the existing durable
+opaque-key outbox.
+
+The snapshot serializer emits version 2 only for V2 evidence, preserving all V1
+serialization bytes. The protocol-7 page RPC rejects an entire history
+containing V2 with `analysis_history_reader_upgrade_required`, even when a
+cursor would skip those rows, and only after owner/deletion checks. No partial
+mixed page is returned. The Deno default parser remains strict V1; explicit
+reader 8 and the native decoder accept both versions with exact version-matched
+manifests. `LocalAnalysisRecord` admits version values 1 and 2 without changing
+its V55 stored shape. The coordinated protocol-8 implementation below must be
+validated before any V2 enrollment or production use. Public
+Identify/captured-media DTOs, Explore and Field Chat remain unchanged.
+
+This slice proves database binding and cleanup transactions with synthetic
+receipts; it does not prove live R2 policy, photo moderation, media budgets for
+a provider request, image decoding or end-to-end reanalysis. Those remain
+orchestration/activation requirements.
+
+## Prepared protocol-8 reads and private photo resolution
+
+`20261003070545_prepare_protocol8_history_reads.sql` extends the existing owner
+page RPC without changing request/page schema 1, limits, ordinal cursors or V1
+snapshot bytes. Protocol 8 admits mixed V1/V2 results; protocol 7 still refuses
+whole V2 histories after ownership/deletion checks. Unknown readers fail closed.
+Native admission stores the decoded snapshot version and compares it alongside
+all immutable bytes on replay. It leaves selection and review authority alone.
+
+`POST resolve-history-photo` authenticates through `withEdgeHandler`. Its exact
+body is `{observation_id, analysis_id, media_id, reader_protocol: 8}` with
+lowercase UUIDs and no supplied owner. `db.ts` calls the service-only
+`resolve_owned_observation_photo` RPC with the verified owner. The routine
+checks service authorization, current owner and deletion fencing, both
+`reader_enabled` and `media_reader_enabled`, completed V2 result membership,
+readiness and the exact MIME/byte-count/SHA-256 tuple. A ready but uncommitted
+upload is insufficient. Anonymous/authenticated roles cannot call this routine
+or read internal receipts directly.
+
+Success has exactly `schema_version: 1`, `owner_id`, `observation_id`,
+`analysis_id`, `media_id`, `content_type`, `byte_count`, `sha256`, `url` and
+integer `expires_at_ms`. The URL is a temporary 30-second signed GET. No
+separate receipt object UUID field, upload deadline or storage configuration is
+returned. The signed URL necessarily contains its opaque storage path and must
+remain transient. The adapter rechecks the database fence after signing and
+returns `Cache-Control: private, no-store`. Fixed safe errors are 400
+`invalid_analysis_history`, 404 `analysis_history_not_found`, or 503
+`analysis_history_unavailable`; raw database and storage diagnostics are never
+returned or logged. A deletion after the final check can still leave an issued
+capability usable until expiry or erasure-marker replacement; no new capability
+is authorized after the fence.
+
+Native `ObservationHistoryPhotoLoader` reopens the saved child under its
+enrolled owner, uses an account work lease, validates ticket
+identity/content/expiry and the HTTPS R2 account host, and fetches through an
+isolated ephemeral URLSession. It rejects redirects, cookies, disk caching,
+unexpected MIME/length and excess stream bytes, then verifies SHA-256 away from
+MainActor. Account, child and pending-deletion checks surround suspensions. Only
+transient verified `Data` is returned; neither URLs nor photo bytes enter
+SwiftData or public-media caches. Failures require a fresh caller invocation and
+a newly authorized ticket; there is no automatic stale-URL retry.
+Rendering/image decompression and visible-view invalidation remain the future
+presentation owner's responsibility.
+
+All read/enrollment/write gates remain false. This source is not deployed and
+has no normal UI/sync caller. Bucket provisioning, real R2 policy/expiry
+evidence, provider orchestration, explicit deletion/erasure delivery and the
+other activation requirements remain open. Public Identify/captured-media DTOs,
+Explore and Field Chat are unchanged.
+
+## Prepared child-analysis orchestration and recovery
+
+Migration `20261003074429_prepare_observation_analysis_recovery.sql` adds the
+false-by-default `orchestration_enabled` gate. `analyze-observation` validates
+the existing strict V1/V2 admission contract, derives owner from verified auth
+and IP HMAC from the trusted request boundary, and returns only
+`{schema_version:1, observation_id, analysis_id, state}`. Terminal states
+`complete`/`failed_terminal` return 200; admitted/dispatched/draft return 202.
+All responses are private/no-store. Transport failure requires the same analysis
+ID/input on retry. An immutable identity conflict from admission returns HTTP
+409 with `analysis_history_operation_conflict`; it does not invite endless retry
+of the conflicting input. Later worker-claim conflicts remain sanitized 503
+failures so retry can recover saved work. New analyses use fresh IDs. Completion
+never changes selection. V2 input is additionally limited to five photos and 5
+MiB combined before quota; storage's 32 MiB receipt allowance does not expand
+provider admission.
+
+The service-only `begin_owned_observation_analysis`,
+`advance_owned_observation_analysis`, `claim_observation_analysis_recovery`, and
+`list_observation_analysis_recovery` RPCs are inaccessible to
+anon/authenticated. They do not grant API access to internal tables/routines.
+New admission/dispatch requires the applicable admission, dispatch, append and
+protected-media gates. A 120-second work token fences materialization, taxonomy,
+draft, completion and release; it is independent of quota and invocation
+identities. An existing active claim returns only busy state to the
+orchestrator.
+
+The foreground worker prepares the qualified provider adapter and result policy
+before committing dispatch. Private photo GETs verify exact receipt bytes,
+content type, hash and absence of erasure markers, without public promotion or
+provider-visible URLs. Dispatch rechecks parent ownership/deletion, consent and
+ready evidence. SQL dispatch is the external-processing authorization point; its
+provider call follows immediately. A later deletion may not retract
+already-authorized external processing, but it prevents outcome persistence,
+completion, replay and delivery. No lock spans the provider network call.
+
+Received output is normalized and saved as a bounded immutable canonical
+checkpoint before taxonomy I/O. The checkpoint binds invocation provenance and
+allowlisted provider usage. Its exact retry is idempotent, including a late
+response after work-lease expiry when the original dispatch quota token still
+matches. The final draft's result must equal that checkpoint except for its
+verified dictionary `species_id`. Taxonomy creates only a missing
+scientific-name identity under the deletion fence; it does not overwrite curated
+facts, publish private result prose, or confer identification authority.
+
+A proven refusal/invalid result releases the complimentary hold under the shared
+terminal settlement rules. A still-live worker may cancel with its original
+claim after a dispatch-RPC failure only before entering provider `invoke()`.
+Quota accounting already committed at SQL dispatch remains committed. Expired
+claims, crashes, unknown executions and timeouts provide no terminal proof and
+retain their holds. There is no qualified provider retrieval/idempotency
+contract for these ambiguous outcomes; no automatic redispatch or age-based
+refund is allowed. This remains an explicit activation limitation.
+
+The service-authenticated `recover-observation-analyses` source discovers at
+most ten due saved outcomes/drafts, stops starting work after 40 seconds, and
+retries failed completion after 60 seconds. RPCs have bounded deadlines; a
+started item can finish after the admission deadline. Recovery never admits or
+invokes AI. It reads immutable saved context only. The default-off gate, absence
+of a cron schedule, and remaining enrollment/native/public/chat/erasure
+prerequisites mean this prepared source is not a production-enabled feature.
+
+## Private library detail RPCs
+
+[Guest library transitions](./21-guest-library-transitions.md#private-detail-api)
+defines `set_owned_scan_library_details` and `get_owned_scan_library_details`,
+including explicit nullable notes, owner verification, 100-ID read pages, stable
+operation receipts and tombstone refusal. Replay of an accepted operation UUID
+is a no-op, including after a newer operation; reusing that UUID with a
+different payload conflicts. Distinct operations follow server arrival order,
+not a cross-device revision or client-time last-edit-wins protocol.
+Notes/Favorites stay private in scan-linked internal tables; tags keep their
+existing public projection. Merge can return `pending_library_work` or
+`library_transfer_needs_attention` (409) without retiring the source identity.
+These additive RPCs must precede a client that requires their restoration
+response.
+
+### Prepared saved-identification enrollment and protocol 9
+
+Migration `20261003152940_prepare_saved_identification_enrollment.sql` adds
+`enroll_owned_observation_history(p_observation uuid, p_reader integer)`. Only
+`authenticated` can execute it; `auth.uid()` supplies ownership and `p_reader`
+must be 9. There is no client-supplied result, review, owner, import timestamp
+or analysis identity. Under owner → observation generation → owned live scan →
+history locks, new enrollment requires `reader_enabled`, `enrollment_enabled`
+and the new `saved_import_enabled`, all still false in source defaults.
+
+The server copies the surviving identification into one immutable child, copies
+all seven current review fields exactly into its separate authority, and selects
+that baseline at observation revision 1. `review_revision = 0` is the new
+history counter; copied confirmed-species and AI-review revisions retain their
+own values. `initial_selection_permitted` stays false. Enrollment changes no
+public scan fields, existing eligibility, funding or reconciliation credits.
+Existing primary/provenance semantics must pass the current projection policy;
+enrollment never invents missing provenance to make a primary answer valid.
+
+The acknowledgement has exactly `schema_version: 1`, `owner_id`,
+`observation_id`, and `baseline_analysis_id`. An exact retry returns the
+original baseline UUID after ownership/deletion checks, even when new import
+admission is closed. It does not restore a later-changed selection, revision or
+review. The reader gate remains required. This acknowledgement is not an
+authority snapshot; native enrollment must await separately acknowledged current
+selection/review state, with its account and deletion fences.
+
+Snapshot V3 uses the existing nine outer keys but has `schema_version: 3`,
+`ordinal: 1`, and explicit null `source_analysis_id`, `request_digest` and
+`completed_at_ms`. Its evidence manifest is exactly:
+
+```json
+{
+  "schema_version": 3,
+  "origin": "saved_identification",
+  "imported_at_ms": 1750000000000,
+  "availability": "unavailable"
+}
+```
+
+The timestamp records import, never original inference completion. The result
+has exactly `scan_id`, `primary_identification`, `identification_provenance`,
+`species_id`, `is_biological_subject`, `candidates`, `pet_identification`,
+`ai_confidence_score`, `ai_reasoning`, and `inference_tier`, copied from the
+locked row. Older candidate/pet JSON is retained as opaque bounded saved data;
+it must not be decoded or dispatched as a current Identify provider response.
+Review, private notes, location, account fields and public media URLs are not
+merged into this immutable identification. In particular, legacy public images
+are not converted into private evidence receipts. “Saved identification” is the
+appropriate presentation label; this import does not establish “Original.”
+
+V1/V2 retain their non-null execution metadata and exact serializer bytes. V3
+alone permits missing execution metadata; its exact manifest, ordinal and
+nullability are enforced together. Unknown versions fail closed. The aggregate
+one-MiB snapshot and four-MiB page caps still apply. Readers 7/8 refuse the
+entire history containing an import, including requests whose cursor would skip
+it. Protocol 9 is explicit to this owner history read; it does not alter
+Identify, funded-input or photo-resolution protocols. Imported IDs cannot enter
+legacy scan ingestion, quota or settlement; deletion retains an ownerless
+child-ID fence without retaining the private snapshot.
+
+`savedIdentification.ts` owns the executable imported-result and enrollment
+acknowledgement validation; `result.ts`/`page.ts` own version negotiation and
+byte-preserving delivery. Native V56 advertises reader 9 and validates/stores V3
+with nil completion; import time stays separate and private photo resolution
+remains V2-only. State hydration, owner and community review synchronization,
+public/chat projections, explicit deletion, and the other RFC activation gates
+remain required. No enrollment backfill or live app call site is enabled by this
+slice.
+
+### Prepared owner observation state read
+
+`20261003162801_prepare_owner_observation_state_read.sql` adds
+authenticated-only
+`get_owned_observation_analysis_state(p_request jsonb, p_reader integer)`. Both
+`reader_enabled` and the new `state_reader_enabled` must be true; all source
+rollout defaults remain false. Reader 9 is required. The exact request is
+`{schema_version:1, observation_id:<lowercase UUID>, analysis_id:null|<lowercase UUID>}`.
+An analysis cannot equal its observation. The owner is always derived from auth.
+
+A null target resolves the selected result under owner → observation advisory →
+owned live scan → history locks. An explicit target previews that child without
+selecting it. The response contains exactly `schema_version`, `owner_id`,
+`observation_id`, `state_revision`, `selection_initialized:true`,
+`selected_analysis_id`, and `analysis`. The latter contains exactly `snapshot`,
+`review_revision`, and `review_snapshot`. Snapshot is the same immutable
+V1/V2/V3 text as the result-page reader, bounded to one MiB; the entire response
+is bounded to four MiB. Review is the separate seven-field saved authority,
+bounded to 32 KiB. Neither active projection nor arbitrary scan columns are
+returned.
+
+`analysisHistory/state.ts` validates this contract, retaining legacy review
+fields without manufacturing a verified identity. Explicit identity and AI
+review envelopes use their existing validators; nested AI review is capped at
+eight KiB and its label limits use UTF-16 units on both clients. Native
+`ObservationHistoryState` and `ObservationHistoryAuthority` share
+`state-v1.json`, preserve result bytes, and keep mutable review separate. The
+cloud adapter and `ObservationHistoryStateSyncService` are prepared. Native
+admission can atomically cache the exact result, refresh review and advance the
+observation revision. A changed server-selected ID requires a strictly newer
+revision, retained prior evidence/display and matching acknowledged authority, a
+complete target display, and representable target review. Nested review
+revisions are compared within each analysis, never across selections. It
+rechecks account/deletion and pending review, rejects stale/equal-conflicting
+state, and applies display, own authority, selection and revision atomically.
+Missing V3 display and ambiguous legacy intent still defer. Normal sync and
+enrollment remain disconnected. Selection transport and a separately injected
+history sheet are prepared behind closed gates; normal UI access is nil. The
+listing consumer retains the existing page revision and ordered analysis IDs
+without changing protocol 9 or its wire shape. V57 additionally caches exact
+per-analysis authority and review/observation revisions, separately from
+immutable result bytes, in the same transaction. Complete V1/V2 results produce
+immutable allowlisted display bytes. An eligible already-selected V3 can capture
+a versioned, provenance-labelled device-local display baseline; this does not
+change server snapshot bytes or protocol 9. Explicit native preview requires
+exactly the acknowledged observation revision and selected ID, never mutates
+parent selection/review, and returns display origin separately. A missing V3
+baseline remains unavailable on that device. Existing selected-review
+representability and pending-intent guards still apply. The
+[native boundary](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md)
+owns the local admission rules.
+
+Missing/non-owned/deleted observations or children return
+`analysis_history_not_found`; closed gates or incomplete internal state return
+`analysis_history_unavailable`; malformed requests and unsupported reader values
+return `invalid_analysis_history`. Reads create no receipts, credit obligations,
+enrollment or selection changes. Review updates serialize against the state
+read, and changes on an inactive result still advance the observation revision.
+The client must recheck account/deletion, reject stale state and preserve
+pending local review intent at eventual admission. A preview response is never
+permission to replace selection; restore/Undo must use the explicit revisioned
+mutation.
+
+### Prepared native saved-identification enrollment admission
+
+The native `ObservationHistoryEnrollmentService` now implements the two-response
+admission contract above without an app caller. Its bounded exact-key
+`ObservationHistoryEnrollment` decoder shares `enrollment-v1.json` with Deno.
+The authenticated account lease must survive both the enrollment RPC and current
+state read. Only a still-selected V3 baseline whose surviving evidence and exact
+review match the unchanged local scan can establish local ownership/selection.
+The result, authority, saved-local display and enrollment fields commit
+together; existing display, review and private details are preserved. Divergence
+requires reconciliation, never silent server preference. Lost responses leave no
+local acknowledgment and permit idempotent server retry.
+
+Before dispatch, native admission now commits a bounded owner-bound enrollment
+intent in the existing job store. Lost responses and failed local admission
+retain the same receipt; successful admission removes it atomically. A fresh
+transaction fence blocks legacy replacement deletion for either pending or
+acknowledged history. Expiry and hydration honor that protection. Explicit user
+erasure retains an identity-only terminal local fence, so late history reads
+cannot recreate the observation after cloud deletion cleanup. No autonomous
+retry or ordinary enrollment caller is connected. The
+[native admission boundary](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#prepared-native-enrollment)
+owns the exact local eligibility, tombstone and rollback rules. No server
+payload, reader protocol or rollout gate changed.
+
+### Prepared native selection requests and Undo receipts
+
+Native `ObservationHistorySelectionRequest` matches the existing six-field
+private selection transaction: `schema_version`, `observation_id`,
+`analysis_id`, `operation_id`, `expected_observation_revision`,
+`expected_review_revision`. Native preparation requires a positive initialized
+revision below exhaustion, a distinct target with retained evidence/display, and
+current target authority. `ObservationHistorySelectionReceipt` checks the seven
+existing fields, including exact operation, observation, previous and selected
+IDs, the next observation revision, and the expected target review revision.
+`selection-v1.json` is shared by native tests and the Deno transition producer.
+The protocol-9 owner RPC below wraps the existing success shape and adds a
+separate strict revision-conflict outcome.
+
+The prepared native owner persists the request before dispatch and reuses it
+across ambiguous retries. It reads current state after receipt validation, then
+commits projection/authority and the completed receipt atomically. A newer state
+supersedes an older receipt; replay does not reinstall old selection. Undo is a
+new conditional request bound to the latest receipt's still-current revision and
+selection. Local selection remains pending until acknowledgment and awards no
+credit. The
+[native selection boundary](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#prepared-selection-and-undo)
+owns persistence, preview freshness, account/deletion checks and rollback.
+Protocol-9 mutation transport and definitive-conflict recovery are prepared;
+workers and UI remain disconnected and all gates remain closed.
+
+`select_owned_observation_analysis(p_request JSONB, p_reader INTEGER)` accepts
+exact reader 9 and the six-key request, bounded to 2,048 database JSON-text
+bytes. Only `authenticated` has execute permission. The server derives ownership
+from `auth.uid()`; no owner parameter is accepted. The private implementation
+remains ungranted to API roles. Outer owner-row, observation advisory and
+owned-live-scan locks protect deletion and every outcome. Under those locks an
+exact existing outcome replays before any rollout gate; changed input with the
+same operation returns `analysis_history_operation_conflict`. Fresh operations
+require `selection_api_enabled`, `reader_enabled`, `state_reader_enabled` and
+`selection_enabled`, all default false. Closing gates stops new choices while
+preserving outcome recovery; state-read gates still apply to the subsequent
+native read, so a closed reader keeps the native intent pending.
+
+Only the explicit `analysis_history_revision_conflict` from the private CAS is
+converted into a durable rejection. The wrapper's outer locks survive the nested
+transaction rollback; insertion into `observation_selection_receipts` commits
+before response. The exact seven fields are the original six request fields plus
+`outcome: "revision_conflict"`. This is proof that the operation cannot later
+apply, not current authority. It changes neither selection nor revision and
+emits no reconciliation obligation. Other failures, including infrastructure
+serialization failures, missing/foreign/deleted targets and closed gates, remain
+errors without a terminal proof. Deletion wins over both insertion and replay.
+
+Native success and rejection decoding reject extra, mismatched or wrongly typed
+fields. After either outcome, current selected state must pass the existing
+account, deletion, baseline, authority and revision checks. One save commits
+state plus either the success receipt or version-2 cancelled rejection intent.
+Failed reads/saves leave the original request pending. A rejected operation
+cannot enable Undo; a fresh preview is required before a new choice. No
+complimentary credit, provider dispatch or public publication is triggered by
+this selection boundary.
+
+### Prepared analysis-bound Reject and Undo
+
+`public.review_owned_observation_analysis(p_request JSONB, p_reader INTEGER)` is
+an authenticated owner RPC with a separate, default-false
+`rejection_api_enabled` hold. Reader and state-reader gates must also be open;
+`p_reader` must equal 9. It has no ordinary native caller yet. The executable
+request and receipt contract lives in
+`functions/_shared/analysisHistory/review.ts`; Identify DTO generation, web and
+admin payloads are unchanged.
+
+The exact eight-field request contains `schema_version: 1`, `observation_id`,
+`analysis_id`, `operation_id`, `expected_observation_revision`,
+`expected_review_revision`, `action`, and `undo_operation_id`. IDs are lowercase
+UUIDs and revisions are integers from zero through 2,147,483,646. `action` is
+`reject` or `undo`; `undo_operation_id` is null for Reject and the acknowledged
+rejection operation UUID for Undo. Request bytes are bounded to 2 KiB.
+Confirmation, carry, and community actions are deliberately unsupported.
+
+The RPC locks owner, observation generation, owned live scan, history, and
+target authority in that order. Ownership and the deletion fence are checked
+before replay. The operation UUID is unique within the observation; changing any
+intent field on a retry returns `analysis_history_operation_conflict`. Exact
+retries return their immutable original outcome even after later changes or gate
+closure.
+
+An applied receipt repeats all eight request fields and adds `outcome: applied`,
+`observation_revision`, and `review_revision`, each revision exactly one greater
+than requested. A stale expectation returns the exact request plus
+`outcome: revision_conflict` and is durably recorded without any state change.
+Missing/foreign/deleted targets return `analysis_history_not_found`; malformed
+requests return `invalid_analysis_history`; closed gates or exhausted revisions
+return `analysis_history_unavailable`. Invalid transitions return
+`invalid_identification_review`. These errors are not terminal operation
+receipts. Receipts are bounded to 4 KiB and never replace a fresh protocol-9
+state read.
+
+Reject accepts a biological, unrejected result whose authority is neither a
+manual correction nor community-resolved. It clears that result's confirmation
+and sets its AI review to rejected. Undo requires both current revisions and the
+same result's accepted rejection receipt; it clears rejection to unreviewed and
+never reinstates confirmation. It cannot undo an imported rejection without a
+bound receipt. Neither action changes selection or immutable evidence. Every
+successful review advances the observation revision and enqueues reconciliation;
+only a selected result's review changes the active projection. Downstream credit
+and publication reconciliation remains held.
+
+Legacy `review-scan-identification` and `confirm-scan-species` target lookups
+now call service-only `require_legacy_scan_review` before quota admission or
+taxonomy verification. An enrolled observation returns HTTP 409
+`analysis_bound_review_required`; direct legacy commit RPCs repeat the check
+under the generation locks, including both ends of carry. This closes enrollment
+races without copying scan-row authority into a selected child. The community
+Edge request also runs this preflight before media restoration, taxonomy
+synchronization, or moderation. Legacy community request creation, authority
+updates, and both sides of reparenting are also fenced, as are scan-row
+authority mutations; analysis-bound community authority and its revocation
+behavior remain activation requirements. Privacy/deletion cleanup retains its
+existing path.
+
+### Prepared analysis-bound confirmation
+
+`confirm-observation-analysis` prepares authenticated, private confirmation for
+protocol-9 history. Its `confirmation_api_enabled` gate defaults false; reader
+and state-reader gates must also be enabled. No ordinary native caller or
+rollout is enabled. `_shared/analysisHistory/confirmation.ts` owns the strict
+request, preparation envelope and terminal receipt parsers. Identify DTOs,
+web/admin payloads and native schemas are unchanged.
+
+POST accepts exactly eight fields: `schema_version: 1`, `observation_id`,
+`analysis_id`, `operation_id`, `expected_observation_revision`,
+`expected_review_revision`, `action`, and `scientific_name`. IDs are lowercase
+UUIDs, revisions are integers 0–2,147,483,646, and the stored request is bounded
+to 2 KiB. `confirm_primary` requires a null name and derives the verification
+query from that child's immutable species-level primary identification.
+`confirm_name` requires a trimmed, control-free name of 1–160 characters and
+explicitly accepts a verified species, including from a broader primary answer.
+The request cannot supply owner identity, species UUID, taxonomy proof or review
+authority. Both actions require biological evidence with an explicit stored
+primary; imported legacy results without one remain viewable/restorable but
+cannot use this confirmation endpoint. Community authority remains held.
+
+The service-only `prepare_observation_analysis_confirmation` RPC acquires owner
+→ observation generation → owned live scan → history → target authority locks.
+Ownership and deletion are checked before immutable receipt recovery. An
+unfinished operation saves its exact request and verification query in
+`internal.observation_confirmation_intents` before network execution. The
+operation UUID cannot be rebound to another result, action, query or revisions,
+including through Reject/Undo. Preparation returns either
+`{schema_version:1,status:verify,request,scientific_name}` or
+`{schema_version:1,status:complete,receipt}`; these internal envelopes are not
+the HTTP response.
+
+Only an unfinished, eligible intent proceeds to the existing dictionary lookup
+rate limiter and GBIF verifier. Each attempted lookup is rate-limited; retries
+of completed outcomes skip both admission and lookup. Verification uses the
+frozen query and accepts the verifier's canonical accepted species, which can
+differ from a synonym query. The separate service-only
+`complete_observation_analysis_confirmation` RPC requires a prior intent,
+rechecks ownership/deletion, gates and both revisions, and binds the verified
+query to that intent. No network call runs while database locks are held.
+Provider executions and complimentary scan credits are untouched: this is
+dictionary verification, not another AI analysis.
+
+HTTP 200 returns the exact eight request fields plus one terminal outcome:
+
+- `applied`, with `observation_revision` and `review_revision`, each exactly one
+  greater than requested;
+- `revision_conflict`, with no extra state fields, if either expectation became
+  stale before admission or completion;
+- `not_verified`, with no extra state fields, for a definitive negative lookup.
+
+All three outcomes share the immutable review ledger and replay before rollout
+gates, without reapplying state. A negative outcome cannot later become a
+confirmation under the same operation UUID. Interrupted/unavailable lookups
+leave their intent recoverable and consume no confirmation outcome. A changed
+intent returns HTTP 409 `analysis_history_operation_conflict`; malformed input
+returns 400 `invalid_analysis_history`; missing/foreign/deleted history returns
+404 `analysis_history_not_found`; missing primary returns 409
+`species_review_requires_primary`; unsupported authority returns 422
+`species_not_verified`; closed holds or persistence unavailability return 503
+`analysis_history_unavailable`. Lookup unavailability returns 503
+`species_resolution_unavailable`, and dictionary rate refusal returns 429
+`rate_limited`. Responses use `Cache-Control: private, no-store`; diagnostics
+and stored/private payloads are not exposed.
+
+An applied confirmation updates only the named child's seven-field authority.
+Primary confirmation sets `ai_confirmed`; named confirmation sets
+`user_overridden`, records the query as the override, and does not mark the AI
+answer confirmed. Both store the verified canonical species identity and
+explicitly clear that child's AI rejection/awaiting-acceptance state. Selecting
+a result alone never clears rejection. Community authority cannot be displaced
+through this endpoint. Selection and immutable evidence remain unchanged. The
+authority trigger advances the observation revision and adds reconciliation;
+only a selected child's confirmation updates the active projection. A receipt is
+an operation outcome, not current authority: consumers must reread current state
+before display or credit decisions. Native confirmation admission, community
+transitions, downstream reconciliation and activation remain separate work.
+
+### Private analysis-bound community authority preparation
+
+The community-authority foundation has **no public RPC, Edge endpoint, native
+caller or scheduled worker**. `internal.bind_observation_community_request` and
+`internal.reconcile_observation_community_authority` have no API-role execution
+grants, including service role. The new `community_authority_enabled` flag
+defaults false and controls new bindings. Existing bindings can still reconcile
+and revoke authority after this admission hold closes.
+
+The future atomic publisher must supply an explicit owner, observation,
+analysis, community request, and expected observation/review revisions.
+Registration locks owner → observation generation → live scan → history → named
+authority, verifies biological/unreviewed evidence, and requires a fresh
+`needs_id` request belonging to that owner/scan/post/taxonomy generation. A
+private AFTER INSERT fence proves that the request was inserted in the same
+transaction; reopening or updating a committed legacy request cannot manufacture
+that proof. Exact binding retries recover without changing authority; changed
+identities/revisions conflict. Registration atomically marks the named result as
+awaiting acceptance through initial reconciliation. Selection is unchanged.
+There is no automatic migration or binding of existing community requests.
+
+Request identity is immutable after binding: request, observation, analysis,
+owner, post, taxonomy version and request timestamp cannot be reassigned. Bound
+consensus updates bypass the legacy scan-review writer and only increment a
+private durable source revision. Status/taxon/withdrawal changes and request
+deletion enqueue work in the same transaction as the public request mutation.
+Unbound requests keep the existing history fence. Ordinary enrolled request
+creation remains blocked; a future publisher must add its approved public
+snapshot and atomic admission path before this preparation can be activated.
+
+The private reconciler takes the history lock order and attempts the queue row
+with `FOR UPDATE NOWAIT`. A busy consensus transaction yields `pending`; callers
+must end the transaction and retry later. This prevents a cycle with consensus
+notifications that can wait on the owner while holding request/queue locks. The
+worker never locks the request row. Its queue lock serializes the read of
+current committed request state: a request mutation cannot commit without
+advancing that same queue row. Delayed invocations recompute current state,
+never replay an old resolve/withdraw payload.
+
+A species resolution supplies separate community species authority; a genus
+resolution remains visible without species credit. Loss, withdrawal or deletion
+of the request produces awaiting-acceptance authority with no effective species
+or inherited confirmation. Only the bound child's seven-field authority changes;
+the existing authority trigger advances parent revision and reconciliation,
+updating active projection only when that child is selected. A newer owner
+review permanently supersedes the old community binding, so later consensus
+cannot undo explicit acceptance. Outcomes are internal `applied`, `current`,
+`pending` or `superseded` signals, not public operation receipts or
+current-state payloads.
+
+Binding and queue records survive request deletion long enough to revoke its
+authority, but cascade with the observation/analysis. Deletion and owner checks
+precede reconciliation and binding replay. The future dispatcher must retain and
+retry pending work, and public/credit consumers must enforce current source and
+authority revisions before counting or displaying verified identity. The
+subsequent
+[publication preparation](#prepared-analysis-publication-snapshots-and-public-reads)
+adds frozen public snapshots, immediate invalidation and otherwise-visible
+post/discussion preservation. The subsequent
+[private admission transaction](#prepared-atomic-community-request-admission)
+adds fresh-request receipts and frozen evidence. Its moderated caller, explicit
+shared updates, worker scheduling and native integration remain activation
+requirements. The community foundation alone enables none of them.
+
+### Prepared analysis publication snapshots and public reads
+
+`publication_snapshot_enabled` defaults false. Private
+`internal.register_observation_publication` has no API-role execution grant,
+including service role. It is a preparation for the future moderated atomic
+publisher, not a new sharing endpoint. Only a resolved, published request
+already explicitly bound to a named result can register. Registration checks
+owner/deletion fences, both current revisions and current reconciliation, locks
+its request/post/media without waiting, and requires an exact match between the
+caller-approved bounded manifest and persisted public media. Exact retries
+recover the immutable registration without restoring old authority. Initial
+registration creates version 1; explicit update/version advancement and its
+native caller remain outstanding. No legacy request is silently bound.
+
+The private publication records the named result, admission revisions, original
+public labels and approved media cohort. The separate
+`public.explore_analysis_public_projection` contains only a post ID, publication
+version, public names, species ID and the existing allowlisted identification
+object. It contains no analysis/owner/request ID, private evidence or review
+payload. Direct reads follow existing owner post RLS; public app/web reads use
+the existing service-mediated RPCs and their privacy/moderation/block guards. No
+new privileged public reader or private-history grant is introduced.
+
+Community source changes invalidate public names and species eligibility in the
+same transaction, before a worker runs. Named review changes also invalidate
+immediately. Reconciliation can republish only matching current source and
+review revisions, never a superseded owner decision. Private selection does not
+change the published result. Missing private history retains an unresolved
+public marker, preventing fallback to the legacy scan. Otherwise-visible posts
+and discussion remain, while privacy, moderation, media quarantine and deletion
+still hide them. Cards, detail, species filters/search, public web, community
+detail and both notification readers follow this projection. Community detail
+uses approved media, suppresses private suggestions and model metadata, and
+clears current/initial taxon labels when unresolved. Discussion timeline entries
+remain historical contributions.
+
+Approved media identity/order/content cannot be changed by legacy refresh or
+composer writes. Health metadata remains mutable; unsharing and parent deletion
+can erase media. Versioned replacement needs the future explicit publisher.
+Registration retires derived Merian reference entries attributed to that post,
+including matching dictionary fallback URLs, and marks provenance disqualified.
+A transaction advisory lock serializes this with reference refresh; registration
+uses try-lock and retries on contention. Refresh excludes bound posts. A shared
+URL may be reconsidered under another eligible post's attribution on a later
+refresh; no private evidence is deleted by this cache invalidation.
+
+Owner/history writers use NOWAIT for public projection rows and return
+`analysis_history_unavailable` on contention. Account tombstoning prelocks bound
+request and projection rows without waiting before detachment, avoiding cycles
+with request-first consensus. A failed operation rolls back completely and must
+retry. New admission gates never suppress revocation. The moderated publisher,
+explicit shared-identification update, durable worker, native integration and
+remaining activation checks are still required.
+
+### Prepared atomic community-request admission
+
+`internal.admit_observation_community_request` now prepares the fresh-request
+transaction behind default-false `community_admission_enabled` and the existing
+community-authority gate. It has no API-role execution grant, including service
+role, no Edge caller and no native caller. The future publisher must
+authenticate the owner, moderate and copy the named analysis's evidence to
+approved public media, and freeze that intent before invoking this private
+boundary. The routine accepts only a bounded public cohort, never private signed
+tickets. Its URL shape checks are not moderation or proof of evidence ownership.
+
+Admission locks owner, observation generation, live scan, history and the named
+authority. Both expected revisions must match; the named result must be
+biological and unreviewed, without existing community authority. The active
+taxonomy and optional non-Human initial taxon are checked explicitly. V1 hides
+location and accepts at most six approved media items and a 1,000-character
+public note. Existing posts or requests cause a conflict: this operation never
+reopens, replaces or silently binds an older discussion.
+
+A private same-transaction insertion fence authorizes only the exact freshly
+generated request/post/owner/observation tuple. The normal enrolled-scan guard
+continues to reject every unfenced insertion. Admission creates post, approved
+media, sanitized marker, fresh `needs_id` request, immutable analysis binding
+and retry receipt in one transaction; initial reconciliation advances authority
+without changing selection. The transient insertion fence is consumed before
+commit. A failure leaves none of those writes behind.
+
+The operation UUID identifies an immutable intent and receipt. Deletion and
+ownership checks precede replay. An exact retry returns the same original
+`admitted` receipt, even after admission closes or the request is deleted; it
+never recreates a request or reapplies authority. This is historical evidence of
+admission, not a current request-state response. Changed identities, revisions,
+note, taxonomy or media conflict. Observation/account erasure removes the
+private operation through the history cascade.
+
+`public.explore_analysis_community_posts` stores only the post ID. It survives
+private-history removal until post deletion and prevents fallback to mutable
+scan evidence. Community detail uses the frozen post cohort and suppresses AI
+suggestions, confidence qualification and inference metadata. The current feed
+and Edge media enrichment already read that same cohort. Media identity/order
+and initial request note/taxon cannot drift; health metadata remains mutable,
+and unsharing/deletion can erase media. Legacy refresh leaves it alone. A new
+request has no resolved Explore sidecar and stays out of Explore even if its
+request later disappears. Explicit resolved publication registration remains a
+separate transaction boundary.
+
+The authenticated moderated publisher, saved native operation, authority-worker
+dispatcher and explicit updates for existing discussions remain activation
+requirements. This preparation changes no client payload and opens no rollout
+gate.
+
+### Prepared protected-photo publication intent
+
+`internal.prepare_observation_publication_intent(owner, request)` persists a
+private operation before moderation or copying. It has no API execution grant
+and requires default-false `publication_intent_enabled` plus history/photo
+reader gates. The exact V1 request contains `observation_id`, `analysis_id`,
+`operation_id`, both expected revisions, active `taxonomy_version_id`, nullable
+`initial_taxon_id`, nullable `note`, and ordered unique `media_ids`, alongside
+`schema_version`. It permits one to six photos, a 1,000-character note and a 4
+KiB JSONB request. The first version is a fresh community-request preparation:
+it requires an unreviewed biological result without community authority and
+refuses any existing post or discussion. It never changes selection or
+authority.
+
+Only completed V2 image references are eligible. Every media ID resolves through
+`resolve_owned_observation_photo` against the named result's immutable manifest
+and owned ready receipt. The frozen private source tuple contains media ID,
+opaque object ID, content type, byte count and SHA-256; aggregate photos are
+bounded at 32 MiB. Caller URLs, mutable scan photos and imported V1/V3
+presentation evidence cannot substitute for that proof. The preparation envelope
+is `{schema_version: 1, request, sources}` and must never be returned to public
+readers or used as public media metadata. No client DTO changes in this slice.
+
+An exact retry returns historical preparation even if a gate or authority later
+changes, but ownership/deletion checks always run first. Changed request fields
+conflict. Historical preparation is not permission to execute. The separate
+`internal.revalidate_observation_publication_intent(owner, observation, operation)`
+rechecks current gates, revisions, taxonomy, absence of an existing publication,
+and ready source facts against the frozen tuple. Neither routine authorizes
+provider dispatch, public copying, final admission or billing settlement.
+
+Completed identification, provider response safety and settled funding contain
+no persisted approval to publish these photos. An immutable moderation receipt
+bound to each exact source tuple and policy version, funded dispatch rules,
+public-copy reservations, deletion-safe cleanup and final revalidation remain
+required before an authenticated publisher can be exposed. Private verified-byte
+reads must precede moderation; public visibility must follow approval. Existing
+private evidence cleanup does not cover future public copies.
+
+### Prepared photo-moderation attempt lifecycle
+
+The next private SQL boundary records one source-bound photo moderation job per
+publication intent/media ID and explicit provider attempts beneath it. It has no
+API grant or production caller. `publication_moderation_enabled` and every
+`observation_photo_publication_moderation` quota policy default disabled. The
+prepared binding is Gemini / `gemini-2.5-flash` / `google_gemini`, with policy
+identifier `photo_publication_v1`; the prepared classifier below provides
+versioned prompt/response validation. The private execution binding below
+connects proof, dispatch and output; live repository and endpoint integration
+remain required before activation. No existing scan result or audio attestation
+authorizes a photo decision.
+
+`admit_publication_photo_moderation` revalidates the frozen parent intent and
+exact source tuple. A private stable quota request ID belongs to that photo job;
+each attempt records its quota attempt number, reservation, lease hash and
+active token. Original analysis IDs are not passed into generic quota admission:
+those IDs remain fenced for identification. Private job fields provide
+observation/analysis correlation instead. The new operation receives ordinary
+provider quota under each plan, including complimentary entitlement, and never
+creates or settles a complimentary scan-credit hold. Current named-processor
+consent is required for each new attempt and immediately before dispatch.
+
+The first admission uses a null predecessor. Recovery of that admission returns
+the same attempt. Only an explicit cancelled or `unknown_execution` predecessor
+can admit a successor; repeating the predecessor recovers that same successor.
+Approval and rejection are terminal. Dispatch atomically commits provider quota
+and grants one `dispatch_allowed` permit; retries never grant another. The
+trusted adapter must verify the private bytes and its exact policy/response
+binding before invoking the completion routine with `approved` or `rejected`.
+Completion rechecks source/revisions, quota attempt/token and the two-minute
+dispatch deadline. A late or superseded response cannot become approval.
+Terminal records erase the active token and preserve only its hash and bounded
+quota metadata, source and policy identities. These are private historical
+decisions, not current public-copy authorization.
+
+Retirement before dispatch refunds once. After dispatch, retirement requires
+expiry and records `unknown_execution`, retaining charged provider quota. A
+process crash therefore cannot silently redispatch or refund an uncertain call.
+The generic expired-reservation sweep may refund a still-reserved quota lease;
+dispatch then fails, retirement records cancellation idempotently, and a new
+explicit predecessor is required to retry. Generic quota pruning may remove an
+old reservation before its private history. Retirement then records the existing
+private state without refunding anything; a successor may acquire a new
+reservation whose attempt count restarts. Identity includes reservation ID,
+attempt count and token, never the counter alone. Deletion erases private
+jobs/attempts under the observation fence and refunds only still-reserved
+attempts. Already dispatched calls retain their provider charge. Deletion wins
+every late replay.
+
+No provider call, public copy, endpoint or native operation is enabled by this
+lifecycle. The prepared adapter below provides bounded byte verification, strict
+classifier policy/response validation and provider-usage decoding; the private
+execution owner below binds its proof and saves those outcomes atomically.
+Public-copy reservations/cleanup and final admission still need fresh authority,
+policy and source checks over the complete approved ordered cohort.
+
+### Prepared source-bound photo classifier adapter
+
+`analysisHistory/photoClassifier.ts` now prepares a concrete Gemini request from
+an authorized private photo tuple. It reads with private storage credentials,
+checks exact size and SHA-256 plus a JPEG/PNG/HEIC container signature, and
+freezes the serialized inline request before invocation. A container signature
+is not a complete image decoder or safety approval. This prepared policy limits
+each source to 12 MiB and the serialized request to less than 20,000,000 bytes;
+larger photos fail before dispatch. It never resizes or silently substitutes
+content. Only photo bytes and fixed policy text enter the provider request;
+private IDs, object keys, notes and storage URLs are excluded.
+
+The immutable proof includes the source tuple, provider/model/processor, policy
+version and SHA-256, and a request digest binding POST, the exact endpoint/API
+version and body digest. The policy digest includes generation settings,
+transport bounds and response-contract version. Future policy, parser or
+transport changes must version that binding. The key is captured before dispatch
+and carried only in the provider header. The one-shot invocation closure sends
+one HTTP request with redirects disabled and a 90-second request/body deadline;
+429, 5xx, disconnects and malformed responses never retry.
+
+Response parsing is bounded to 32 KiB, strict UTF-8 and JSON. Approval requires
+the exact returned model, one STOP candidate with one plain JSON text part, no
+provider safety block, an exact decision/confidence/category object, allow with
+confidence at least 0.95 and no adverse categories, and bounded consistent
+input/output/total usage. Review or low confidence returns rejection. Unexpected
+output, missing usage or any post-dispatch error returns only a generic unknown
+execution error without provider payloads or transport causes. Valid results
+contain bounded category codes and usage, never generated descriptions.
+
+The prepared execution owner below now persists this exact proof before
+consuming the private SQL dispatch permit and atomically saves bounded
+output/usage. Its local one-shot closure alone is not authorization. The
+prepared `moderate-publication-photos` endpoint now connects the scoped
+repository and execution owner behind closed gates. Public-copy approval,
+authenticated publication and native delivery remain disabled and unimplemented.
+No live provider call qualifies this policy; synthetic adapter tests prove
+contract behavior only.
+
+### Prepared durable photo execution binding
+
+`prepare_publication_photo_execution` stores an immutable attempt proof before
+dispatch, validating the exact private source and pinned classifier policy
+digest. The request digest binds the adapter's concrete transport/body; SQL
+validates its shape but cannot recompute private image bytes or provider input.
+The trusted execution owner must save the proof from the same prepared adapter
+closure that it later invokes. Dispatch now refuses any reserved attempt without
+that proof. No API role can read or execute these private objects.
+
+`complete_publication_photo_execution` validates bounded classifier facts and
+usage, then stores them and completes the decision in one transaction. It uses
+the existing owner/deletion/attempt lock order. SQL independently enforces
+approval iff allow, confidence at least 0.95 and no adverse categories, with
+exact enums, unique category codes and consistent positive input/output token
+counts. Both proof and the entire result must match on replay. Bare decision
+completion requires the matching stored result, closing that bypass. Changed
+authority, expired dispatch, stale quota or deletion rolls back the result
+write. Proofs and results cascade with the attempt, including account deletion.
+
+`photoExecution.ts` is the prepared execution owner. It freezes verified
+owner/observation/attempt/original-lease scope before suspension and passes that
+explicit scope to every repository callback. It saves the adapter proof before
+requesting one dispatch permit, invokes that same frozen closure, and retries
+only the identical atomic completion write once after an error. Pre-dispatch
+preparation failures use authoritative retirement, which cannot refund a
+competing dispatch. A lost dispatch acknowledgement or uncertain provider result
+never invokes again, refunds, or admits a successor.
+
+Recovery of dispatched work calls the authoritative retirement boundary: before
+expiry it remains pending; after expiry it can become `unknown_execution`,
+retaining its charge. Expiry alone does not transition state. The prepared
+moderation worker and scoped repository below consume recovery; no deployment or
+scheduler is authorized. If a valid provider result never commits before expiry,
+it is intentionally treated as an uncertain execution. An already-committed
+terminal result remains replayable after expiry and generic quota pruning.
+Neither result nor historical receipt authorizes public copying.
+
+## Prepared public-photo storage boundary
+
+`analysisHistory/publicPhotoStorage.ts` supplies bounded transport, not
+publication authority. The prepared erasure worker uses its permanent-marker
+operation; the prepared copy worker below connects the scoped execution
+repository to durable authenticated publication operations behind closed gates.
+Private SQL now reserves a never-reused opaque object UUID and durable cleanup
+obligation before I/O and revalidates current source, moderation policy,
+authority and the complete ordered cohort before atomic publication binding.
+Historical approval alone is insufficient. Bound ownership coordinates unshare,
+moderation and deletion revocation independently of private selection;
+reversible health quarantine does not erase the cohort. The contracts below
+define the staged, bound and revoked lifetimes.
+
+The writer uses `publication_media/v1/<object UUID>` in the public bucket,
+separate from legacy scan upload ownership. It requires exact private bytes,
+size, MIME and SHA-256 and uses conditional PUT with `If-None-Match: *`. Both
+dedicated read and write configurations are captured and checked before I/O. A
+successful write or duplicate conflict requires matching HEAD facts, including
+`Cache-Control: no-store, max-age=0` and absence of an erasure marker. Public
+metadata contains only the content digest, never private source identities.
+Erasure overwrites the same key with a permanent empty marker; it never deletes
+the key. This defeats both orderings of a delayed conditional upload racing
+origin erasure. The durable operation owner must queue cleanup and attempt
+immediate erasure after uncertain writes or final admission denial, while
+fencing against another worker's valid committed publication. This helper
+supplies no such ledger, claim, cleanup scheduling or publication transaction.
+
+`publicPhotoContainer.ts` rejects known out-of-band metadata containers through
+a bounded JPEG/PNG allowlist before writing. JPEG permits baseline/progressive
+coding markers and only the exact minimal JFIF 1.1 header; EXIF, XMP, ICC, IPTC,
+comments and other application segments are rejected. PNG permits bounded image,
+transparency and color-description chunks with valid CRCs; text, EXIF, ICC,
+unknown ancillary and animation chunks are rejected. Trailing bytes are
+rejected. This is structural filtering, not a pixel decoder or a claim that
+image content cannot encode private information. HEIC and metadata-bearing
+inputs are held. Future admission must perform this preflight on verified bytes
+before reserving provider quota. A sanitized derivative requires a separately
+immutable source and its own moderation; transcoding cannot inherit the original
+approval.
+
+Origin no-store headers and markers do not prove CDN revocation. Activation
+requires a verified cache bypass for this namespace, permanent-marker lifecycle
+protection and authorized nonproduction edge tests showing no stale body after
+erasure. No hosted storage policy, credential or cache setting changed here.
+
+## Prepared public-photo staging lifecycle
+
+The private SQL owner reserves one copy per moderation attempt only after fresh
+owner/deletion, intent/revision, exact-source and stored proof/result approval
+checks. It requires the current pinned policy and JPEG/PNG source. A permanent
+opaque object registry and leased private receipt commit before external I/O.
+Retries recover the same key and lease; abandoned or expired copies cannot
+allocate a successor through the same attempt. No client URL, storage key,
+classification or metadata-filter assertion is accepted. The trusted future
+writer must still preflight verified bytes and perform conditional PUT plus HEAD
+verification before calling completion; SQL cannot inspect storage bytes.
+
+Completion repeats current authorization and checks the exact object/lease,
+registry state and fixed ten-minute deadline. It marks staging ready once;
+`ready_at` does not extend availability or confer public publication authority.
+Both reserved and ready unbound copies become eligible for cleanup at that
+original deadline. The cleanup claim locks only the permanent registry, uses
+SKIP LOCKED, and issues an expiring token. Stale tokens cannot acknowledge a
+newer claim. Success means externally verified permanent empty marker; failure
+retains the obligation for retry. Expiry alone does not execute storage I/O.
+
+Abandonment ignores rollout/review changes after verifying owner and original
+lease, advances cleanup immediately and prevents later completion or allocation.
+Parent observation/account deletion cascades the private receipt and advances
+the detached registry through its deletion trigger. The existing moderation
+observation-tombstone fence supplies the cascade. Cleanup remains callable when
+rollout gates are closed. Copy routines remain private; the prepared erasure
+worker below has narrowly scoped service-only claim/acknowledgement wrappers. No
+authenticated publisher or public-copy writer calls the copy routines.
+
+The private atomic binder below supplies bound-publication state. The prepared
+copy executor now abandons and attempts targeted erasure after failed writes or
+completion; operation-wide final binding failure must apply the same cleanup to
+every staged copy. Abandonment rejects already-bound objects. The authenticated
+operation owner and live repository remain required before activation. No
+original-analysis safety result or historical approval can replace these checks.
+No provider or complimentary-credit charge occurs in this copy lifecycle.
+
+## Prepared atomic public-photo binding
+
+`internal.bind_approved_publication_photo_cohort(owner, observation, operation)`
+accepts identities only. It resolves the immutable intent, revalidates current
+owner/deletion/revision/source/policy authority, and requires every ordered
+photo to have a stored approved moderation result and ready unexpired copy. It
+locks the complete registry cohort in object-ID order and rejects any expired,
+claimed, erased, revoked or already-bound object. URLs derive exclusively from
+`https://media.merian.app/publication_media/v1/<opaque-object-UUID>`; activation
+must verify that this configured public origin serves the reviewed bucket with
+namespace cache bypass.
+
+One transaction creates the fresh needs-ID post/request through the existing
+admission owner, binds all photos, and saves an immutable ordered-object
+receipt. There is no partial cohort, client URL, legacy scan-media update or
+resolved publication registration. Existing discussions require a separate
+explicit update contract. Replay requires the same owner/observation, saved
+admission and entire ordered binding. It returns historical admission without
+revalidating revisions advanced by admission, or changing a removed post.
+Missing bindings conflict; deletion fences run before replay.
+
+`bound_at` establishes a separate lifetime without extending staging deadlines.
+Cleanup claims skip bound objects until `revoked_at` is set. Unshare,
+moderation, post deletion and private-receipt deletion queue irreversible object
+erasure; registry obligations survive parent deletion. A removed bound post
+cannot clear both unshare/moderation flags to expose erased URLs: a new approved
+publication is required. Location privacy, private selection, identification
+withdrawal and reversible media-health quarantine do not erase this cohort.
+Quarantine recovery retains existing approved bytes; identification revocation
+retains the discussion with unresolved labels under the existing authority
+projection.
+
+Fresh binding locks owner/observation before registry and creates a new post;
+replay never locks the registry or rewrites an existing post. Removal triggers
+lock post then registry, never owner/history. The registry-only cleanup worker
+cannot claim the cohort across a successful binding transaction. Late copy
+abandonment rejects bound objects, protecting another worker's committed post.
+
+`publication_binding_enabled` defaults false. All routines/tables remain private
+with revoked API privileges. No authenticated publisher, public-copy writer or
+scheduler is activated by this migration. The later erasure worker is separately
+prepared below. The prepared transaction does not establish CDN erasure or
+production readiness.
+
+## Prepared public-photo erasure worker
+
+`erase-publication-photos` is a prepared service-authenticated POST endpoint. It
+derives no authority from a user JWT, request body, owner account or private
+history row. Public service-only RPCs claim one due registry obligation and
+acknowledge its exact two-minute token. A targeted claim supports immediate
+failed-copy cleanup after abandonment or deletion; an unknown, unexpired staged,
+already-erased or valid bound target cannot fall back to erasing another object.
+The HTTP worker itself accepts no target. Internal copy recovery must obtain the
+SQL claim before storage I/O, even when its original completion failed.
+
+A single invocation writes a permanent empty marker and verifies HEAD through
+the dedicated public-photo storage adapter. It then reports success or failure
+with the original object and claim identities, frozen before I/O. Failure
+releases the claim for retry without marking the object erased; crashes/lost
+replies leave durable claim-expiry recovery. A stale token cannot acknowledge
+another worker's claim. No key is deleted or reused, and no provider or scan
+credit is involved.
+
+The response contains only zero-or-one `claimed`, `marked` and `acknowledged`
+counts. `marked` confirms the origin marker; acknowledgement can also accept a
+failed-write report, so consumers must not equate it with successful erasure.
+Unknown errors receive a fixed 503 envelope without database/storage
+diagnostics. The endpoint uses the shared exact service-key authorization and
+bounded client transport. RPCs have twelve-second client and ten-second SQL
+deadlines. There is no unbounded discovery pass or internal storage retry loop.
+
+`publication_erasure_enabled` defaults false and rejects new external claims
+until cleanup credentials/cache behavior are qualified. Finishing existing
+claims is not gated. Once qualified, keep this separate cleanup gate enabled
+during a publication rollback; it does not depend on admission flags. No
+deployment, scheduler, public-copy execution owner or native operation is
+enabled here. Dedicated credentials, scheduled draining, monitoring and verified
+managed-cache bypass remain activation requirements; origin marker completion is
+not proof of CDN erasure. Adding the route to `config.toml` participates in the
+normal main-branch deployment plan (a config change selects the function fleet);
+the default-off runtime gate is not a deployment hold. Merge/deployment still
+require explicit release authorization.
+
+## Prepared public-photo copy execution
+
+`analysisHistory/photoCopyExecution.ts` executes one already-approved source. It
+freezes the verified owner, observation, attempt and exact five-field source
+before suspension. Reservation must freshly authorize that source in SQL and
+commit the permanent cleanup registry before any storage I/O. A strict returned
+receipt must match the full scope and source; malformed or lost reservation
+replies cause no write or cleanup using untrusted object identities.
+
+A ready staging receipt replays without another write. Otherwise the executor
+reads verified private bytes, checks digest/size and the JPEG/PNG metadata
+allowlist, then calls the conditional writer and requires its HEAD verification.
+A single abort deadline, capped at sixty seconds and the remaining fixed
+reservation lifetime, covers the source read, destination PUT/HEAD and both
+completion calls. Per-request storage and RPC limits remain shorter bounds.
+Expired work starts no new I/O; cleanup uses its own independent budget because
+abort cannot prove that a remote PUT was not already accepted. It retries only
+the identical completion at most once, preserving object, lease and fixed
+expiry. It does not publish a post, renew a reservation, admit another
+moderation attempt or spend provider/complimentary quota. Admission must still
+preflight all approved sources before reserving moderation quota.
+
+After a failed source read, write, verification or completion, it attempts
+abandonment and then a targeted registry-only cleanup claim even when
+abandonment fails because deletion already removed the private receipt. The
+shared `photoErasure.ts` owner writes a permanent marker only after SQL grants
+that claim. Valid bound publications cannot be claimed; errors alone never
+authorize erasure. Cleanup failure leaves the durable registry obligation.
+
+The internal result is `ready` or `reconcile`, with no private receipt returned.
+`ready` means staging only; final ordered-cohort binding must revalidate current
+authority and deletion. `reconcile` requires the operation owner to read durable
+publication/copy state before choosing a terminal result or explicit new intent:
+a lost completion may already have been bound by another worker. It is not an
+automatic retry or successor permit. Expired or abandoned copies never allocate
+another key through the same attempt. The live copy repository, authenticated
+operation admission and recovery owner remain unconnected; all gates stay off.
+
+## Prepared authenticated publication operation intake
+
+`request-observation-publication` is an owner-authenticated POST endpoint using
+`withEdgeHandler`. It accepts the exact protected-publication-intent request:
+`schema_version:1`, operation/observation/analysis UUIDs, both expected
+revisions, taxonomy version, nullable initial taxon, nullable note and one to
+six unique ordered `media_ids`. Consent covers that exact order only. No owner,
+public URL, source tuple, moderation decision or provider/copy identity is
+accepted. The body is limited to 4KiB and canonical request JSON to 3,800 UTF-8
+bytes; notes allow at most 1,000 Unicode code points within that byte limit.
+
+The service-only `admit_owned_observation_publication` RPC derives its owner
+argument exclusively from the verified Edge user. It locks ownership/deletion
+before reading any saved operation, validates the entire request through the
+private intent owner, and atomically persists immutable intent plus intake
+record. Previously prepared intents require fresh revision/taxonomy/source/gate
+revalidation before first intake. The original server HMAC IP hash is retained
+privately for later quota admission; changed networks never change a retry's
+saved hash. It is not a raw address and is never included in responses or logs.
+
+Success is always HTTP 202 with an immutable six-field receipt:
+`{schema_version:1, operation_id, observation_id, analysis_id,
+status:"accepted", admitted_at}`.
+Accepted means durable intake, not completed moderation, public availability or
+a scheduled worker. No provider quota, scan credit, storage write or post
+creation occurs here. A later execution/status owner must supply the terminal
+result; no native caller is connected yet.
+
+At most eight new operations per owner are accepted in a rolling 24-hour window.
+This is intake protection, separate from provider and complimentary-credit
+accounting. Exact matching replay returns the original receipt even after this
+bound or the rollout gate closes and even after authority changes; replay grants
+no permission to execute. Changed request fields conflict. Owner loss or
+deletion wins over replay. Observation tombstones immediately erase queued
+intake facts; parent result/account deletion cascades them as private history,
+outside the scientific-retention allowlist. Capacity checks and insertion
+serialize under the existing owner-first lock order.
+
+`publication_operation_enabled` defaults false. Public/client database roles
+cannot call the service RPC or read its table. Safe request errors return 400,
+missing/deleted observations 404, operation/revision conflicts 409, and other
+failures 503; responses are private/no-store. Invalid database receipts fail
+closed as server errors. Calls have a twelve-second client deadline and
+ten-second SQL limit, with no automatic mutation retry. The route participates
+in normal main deployment planning; runtime-off is not a deployment exclusion.
+Database worker claims and sanitized status are prepared below. The worker
+endpoint, source-container preflight before quota, moderated execution/copy,
+final cohort binding and cleanup, durable retirement and native delivery remain
+held.
+
+## Prepared publication operation worker ownership
+
+`20261004125428_prepare_publication_operation_worker.sql` adds private mutable
+work state beneath immutable accepted operations. Intake seeds it atomically;
+existing unbound operations are backfilled without changing their acceptance,
+selection or review. Durable cohort binding removes work in its transaction.
+Observation/account deletion cascades it immediately. All new RPCs are
+service-only, with no direct table grants or authenticated caller nomination. No
+worker endpoint or scheduler is connected by this slice.
+
+`list_observation_publication_work()` returns at most ten due scope hints
+(`owner_id`, `observation_id`, `operation_id`). It takes no child locks.
+`claim_observation_publication_work(owner, observation, operation)` locks the
+owner and observation before work, rechecks deletion and exact ownership, then
+issues a new 120-second token only when due and unclaimed or expired. A busy,
+backed-off or already-bound operation returns `{claimed:false}`. A successful
+claim returns private frozen request/sources and the **original** intake IP hash
+alongside the scope, token and expiry. Never serialize this context to a client
+or log it. The default-false `publication_execution_enabled` gate controls both
+list and claim independently of intake.
+
+`release_observation_publication_work(owner, observation, operation, token)`
+requires the exact live token, clears it and applies a 60-second recovery delay.
+Gate closure does not prevent release. Expired or replaced tokens cannot mutate
+a successor. A lost claim response waits for lease expiry; a repeated claim
+never returns another worker's token. Reclaiming orchestration does not renew a
+provider lease, authorize dispatch or copy, retry an uncertain execution, or
+settle any funding. Future execution wrappers must verify current work and
+freshly revalidate their separate source, revision, consent and attempt rules.
+Recovery must inspect durable outcomes before deciding on external work.
+
+`read_owned_observation_publication_status(owner, observation, operation)` is
+prepared for a future authenticated owner endpoint and returns exactly
+`{schema_version:1, operation_id, observation_id, analysis_id, status}`. Status
+is `admitted` only if the durable cohort receipt exists; otherwise a settled
+photo phase reports `photos_approved` or `needs_action`, then `processing` while
+an orchestration lease is live and `accepted` while awaiting recovery. Photo
+outcomes are historical provider decisions only (see below); lease expiry does
+not imply provider failure or permission to retry. `admitted` is historical and
+does not assert current public visibility, identification authority or species
+eligibility. Separate public projections enforce revocation. Reads work after
+intake/execution gate closure but fail after ownership loss or deletion. The
+original POST always returns its unchanged acceptance receipt.
+
+Activation also requires bounded verified container preflight **before**
+provider quota, scoped moderation/copy repositories, cohort-wide failure
+cleanup, expired-attempt recovery and native operation delivery. Optional public
+notes currently have length validation only: photo approval cannot approve text.
+Before live binding, require durable exact-note moderation (including an
+explicit no-note case) or restrict the activated subset to no notes. No gate is
+enabled by this migration.
+
+## Prepared scoped publication moderation repository
+
+`20261004132016_scope_publication_moderation_operations.sql` exposes three
+service-only RPCs under an accepted operation.
+`read_publication_moderation_work` requires the exact live
+owner/observation/operation/work token and returns each consented media ID in
+order with its latest private attempt, or null before admission. Recovery
+includes the original provider lease and dispatch deadline; never send it to a
+user or log it.
+
+`admit_publication_moderation_work` accepts only that work scope and one member
+media ID. It uses the original intake IP hash for provider quota, not a new
+worker address. Any existing attempt, including cancelled or unknown execution,
+is returned for recovery. No predecessor parameter or automatic successor is
+available. Fresh admission requires the execution gate, moderation gate and
+current intent/consent/quota checks. Recovery does not imply permission to
+invoke.
+
+`advance_publication_moderation_work` binds every action to the accepted
+operation, exact attempt and original provider token. Prepare/dispatch require a
+live work token and enabled execution gate; private routines retain their proof,
+source, consent and moderation gates. Reserved cancellation also requires live
+work so an expired worker cannot cancel a replacement worker's reservation.
+Completion of an already-dispatched request uses the original provider lease,
+proof and exact result even after orchestration expires or its gate closes;
+provider expiry, deletion and authority/source checks still apply. Dispatched
+retirement requires expiry and retains the charge. Terminal replay is immutable.
+The facade cannot grant public copying or approve a note.
+
+`publicationModerationRepository.ts` freezes the complete scope and source
+cohort, validates ordered/scoped receipts, drops unused quota details, supplies
+12-second RPC deadlines, sanitizes errors and never retries transport calls.
+`isActivePhotoWork` separates reserved/dispatched execution capabilities from
+terminal outcomes, which have no provider token and are consumed directly. Every
+execution callback checks the original owner, observation, attempt and provider
+token. Only the execution helper may repeat the identical final write.
+
+`photoCohortPreflight.ts` prepares the **entire** exact ordered source cohort
+before the future worker may call admission. It rejects duplicate media/object
+IDs, more than six photos, more than 32 MiB total, or unsupported MIME/size
+facts before I/O. Sequential private reads share a 60-second deadline and caller
+cancellation; copied bytes must match immutable digest/length and the bounded
+JPEG/PNG container policy. HEIC and metadata-bearing containers remain held. The
+successful handle retains at most 32 MiB of verified raw bytes. It permits
+preparing one selected photo per pass, releasing all unselected buffers before
+building one provider request; it never retains a full cohort of base64 request
+bodies. That classifier freezes the same bytes without a second storage read
+after quota, and its invocation remains one-shot. CPU-bound hash/container/JSON
+phases check cancellation at boundaries, without claiming preemptive
+interruption. No partial cohort is returned when a later photo fails. This
+preflight is not provider approval, ownership authorization or an image decoder;
+current database checks still govern every external step.
+
+`moderate-publication-photos` now consumes recovery first, completes full-cohort
+preflight before any new quota, and passes its prepared closure into the
+execution owner. No scheduler is connected. SQL does not itself inspect object
+bytes; the trusted worker supplies this boundary. Optional-note moderation, copy
+integration and cohort failure cleanup, durable retirement scheduling, native
+delivery and cache-bypass qualification remain required. All activation gates
+stay false.
+
+## Prepared durable photo moderation outcomes
+
+`20261004135533_settle_publication_photo_moderation.sql` adds private immutable
+`observation_publication_moderation_outcomes` beneath accepted operations.
+`finalize_publication_photo_moderation(owner, observation, operation, work)` is
+service-only. It takes no caller decision or attempt list. Owner/deletion and
+operation scope are checked before replay. Fresh settlement requires live work,
+serializes with completion/deletion, and rejects an already-bound operation.
+Existing outcomes replay after work expiry or gate closure.
+
+The finalizer returns `{finalized:false}` without a write while any attempt,
+including a predecessor, remains reserved or dispatched. It never cancels an
+attempt, settles quota, dispatches a provider, or creates a successor. Once no
+attempt is active, it records causal-leaf attempt IDs in the frozen source
+order: missing attempts are null. Latest approved/rejected decisions require
+their exact source-bound stored proof and validated result. Rejection, unknown
+execution, then cancellation take precedence and produce
+`{finalized:true,status:"needs_action",reason:<photo_rejected|unknown_execution|cancelled>}`.
+A failure can close a partly unattempted cohort; remaining photos need not incur
+provider spend. Old terminal predecessors do not override newer explicit
+results. Without failure, every source must have an approved decision or work
+stays pending. Success is
+`{finalized:true,status:"photos_approved",reason:null}`.
+
+Outcome insertion and moderation-work removal are atomic, preventing endless
+reclaim. Attempt insertion is fenced against settled operations, including
+private explicit-successor calls. Neither the original HTTP 202 receipt nor
+existing provider charges change. Owner status keeps its five-field shape and
+adds the two phase states; no attempt IDs, provider diagnostics, evidence or
+worker tokens are exposed. No endpoint or native decoder yet consumes this
+prepared status boundary. Observation/account erasure cascades the outcomes;
+deletion wins over historical replay.
+
+`photos_approved` means historical provider approval only. It does not attest
+strict container preflight, approve notes, grant public-copy permission, or
+assert current authority/visibility. Copy recovery ownership is prepared below;
+the future executor must re-read exact immutable bytes and repeat strict
+metadata/container validation, current source/review/consent checks and final
+ordered binding. The held private copy authorizer/binder still select approved
+attempts directly; the live integration must require `photos_approved` plus its
+exact ordered causal-leaf attempt IDs. Test denial for a mismatched leaf or a
+`needs_action` outcome before activation. Unsupported formats, transient storage
+failures, stale authority, exact-note moderation and recovery of expired active
+attempts remain execution-owner responsibilities; this slice does not silently
+classify them as permanent refusals. All gates remain false.
+
+## Prepared photo moderation execution worker
+
+`moderate-publication-photos` is a service-authenticated POST endpoint with no
+caller-selected operation or media. It returns only private/no-store
+`{claimed:0|1,settled:0|1}`. Counts describe orchestration, never public
+availability or a provider charge. The SQL execution/moderation gates and
+provider quota policy remain default-off; no scheduler is added.
+
+The worker takes at most ten discovery hints and claims only the first. It
+validates owner/observation/operation, ordered frozen source IDs and saved
+intake shape before dropping notes and IP context. Scoped SQL admission
+retrieves the original IP hash. Recovery and durable finalization precede
+preflight. Existing dispatched attempts can only recover/retire under their
+original provider lease; no permit is reconstructed and no successor is created.
+Refused cohorts cancel one remaining proven undispatched reservation per pass,
+then finalize when no active attempt remains.
+
+Fresh or reserved execution must verify the entire source cohort and prepare the
+selected classifier before admission/dispatch. Only one provider invocation is
+possible per pass. Unsupported formats, metadata-bearing containers and
+transient read failures currently release/back off with no new admission; an
+explicit permanent remediation policy remains required before activation.
+
+A shared 135-second request deadline bounds awaited RPC, preflight, fetch and
+body reads. The provider/new-work cutoff is 105 seconds. After preflight and
+preparation, admission requires at least 60 seconds before that cutoff; dispatch
+requires 27 (12 for the dispatch RPC plus at least 15 for invocation). Each RPC
+is also capped at 12 seconds. Provider invocation combines its policy's
+90-second maximum with the earlier worker signal. The remaining 30 seconds
+permit two exact completion writes; finalizer/release are best-effort within the
+remaining global budget and may require later durable recovery. No phase may
+extend the overall deadline. A timeout never proves rollback: unknown dispatch
+stays charged and lost mutation replies recover from SQL.
+
+These limits fit beneath the documented 150-second request idle timeout, which
+applies even where paid worker wall time is longer. They do not imply that every
+phase can consume its individual maximum in one successful request. CPU/memory
+qualification remains an activation gate. Platform limits were checked against
+[Supabase's official limits](https://supabase.com/docs/guides/functions/limits)
+on October 4, 2026.
+
+Historical photo approval does not approve notes or publication. Future copy and
+binding must require the settled exact causal-leaf cohort and repeat byte,
+container, revision, consent and deletion checks. No complimentary scan credit
+is charged by moderation. No merge, deployment, scheduling, activation or
+TestFlight authorization is supplied by this prepared endpoint.
+
+## Prepared publication copy recovery ownership
+
+`20261004145323_prepare_publication_copy_work.sql` seeds a separate durable copy
+work row atomically when an accepted operation settles `photos_approved`.
+Existing approved unbound outcomes are backfilled; refused outcomes never seed
+this stage. Moderation work stays retired. A durable publication receipt removes
+copy work atomically, and observation/account deletion cascades it.
+
+The service-only RPCs `list_publication_copy_work`,
+`claim_publication_copy_work`, `read_publication_copy_work` and
+`release_publication_copy_work` expose only private orchestration. Discovery is
+bounded to ten hints. Claim requires the independent default-false
+`publication_copy_execution_enabled` gate and returns a 120-second token plus
+owner/observation/operation and a `cohort` array. Each array entry contains only
+`attempt_id` and its immutable `source`. The cohort must match the settled
+outcome's exact order, every current causal leaf, accepted owner and analysis,
+and original approved source facts. Workers cannot nominate substitute attempts.
+No note, quota receipt, provider token, address hash or public URL is returned.
+
+Duplicate claims disclose no token. Read and release require the exact live copy
+token; a moderation token is insufficient. They remain available after gate
+closure. Release enforces a 60-second backoff; expired or replaced tokens cannot
+release a newer claim. Claim, read and release take the existing owner/deletion
+fence before child locks. Discovery returns bounded untrusted hints without
+locks; claim rechecks them. Deletion invalidates both live recovery and
+historical claims.
+
+This is recovery ownership only. It deliberately does not require current
+publication authority, so later execution can recover and clean up an operation
+whose authority changed. It creates no storage object, renews no staging TTL,
+spends no provider quota or complimentary credit, and approves no public note.
+There is no Edge consumer or scheduler yet; client DTOs are unchanged. The
+separate copy executor must still recover any durable binding first, revalidate
+current authority and verified containers, consume the prepared atomic cohort
+reservation below, propagate its fixed deadline, and obtain registry claims
+before cleanup. The held private per-photo copy/binder routines remain
+ungranted. Live binding must also require immutable exact-note approval or an
+explicitly restricted no-note path. All activation gates remain false.
+
+## Prepared atomic publication copy reservation
+
+`20261004152009_reserve_publication_copy_cohort.sql` adds a separate
+default-false `publication_copy_reservation_enabled` gate. Enabling recovery
+alone cannot activate these allocation/completion APIs.
+`reserve_publication_copy_cohort` requires a live copy-work token, the exact
+settled ordered causal-leaf cohort, current intent/source/review/consent
+authorization and the existing copy gates. This prepared path explicitly accepts
+only a null public note. Photo approval cannot authorize arbitrary public text;
+nonnull notes need separate immutable moderation before that restriction may
+change.
+
+Reservation creates every member's opaque object, copy lease and registry
+cleanup obligation in one transaction, along with a private immutable operation
+receipt. All members share one ten-minute deadline assigned at first
+reservation. A failure on any member rolls back all allocations. Exact retries
+return the original objects, leases and deadline; existing legacy partial
+allocations are rejected rather than adopted or renewed. Readiness never extends
+expiry.
+
+The service-only `complete_publication_copy_cohort_photo` verifies live work,
+exact member/object/lease, all registry states and the unchanged common
+deadline, then repeats current authority checks before marking that member
+ready. It does not attest storage bytes: the pending execution adapter must
+verify exact private bytes, strict container policy and the conditional public
+write/HEAD receipt, with one shared request signal reaching the completion RPC.
+
+`read_publication_copy_cohort` returns private
+`{reservation:{expires_at,copies}|null,publication:<historical receipt>|null}`.
+It checks owner/deletion and immutable cohort identities, but deliberately does
+not require live work, an open gate, unexpired staging or current publication
+authority. Binding retires work; its lost response must remain recoverable
+before any cleanup decision. A historical receipt does not assert current
+visibility.
+
+`abandon_publication_copy_cohort` checks for a committed publication first and
+returns `{abandoned:false}` when one exists. Otherwise it requires live exact
+copy work and queues every unbound member for erasure under stable registry lock
+ordering, even after authority/gate changes. Success returns
+`{abandoned:true,object_ids:[...]}`; this is eligibility, not permission to
+erase. The external cleanup owner still needs a targeted registry claim per
+object. Expired/stale workers cannot abandon a newer claim; fixed TTL cleanup
+remains. Deletion removes private receipts and makes surviving registry objects
+due; the independent erasure worker can claim them without private owner
+records.
+
+All four RPCs are service-only, allowlisted and ungranted to clients; private
+helpers/tables remain ungranted. They never create provider attempts or charge
+complimentary credits. No Edge repository/worker or live binder is connected by
+this migration. The next execution slice must enforce whole-cohort cleanup after
+final denial and consume historical publication recovery before cleanup. Every
+activation gate stays false.
+
+## Prepared scoped publication copy repository
+
+`publicationCopyRepository.ts` freezes the accepted owner/observation/operation,
+copy-work token and exact ordered approved attempt/source tuples. It accepts one
+to six distinct JPEG/PNG sources, each at most 12 MiB and at most 32 MiB total.
+Recovery strictly decodes the entire reservation and historical publication;
+copy receipts must match the frozen order, source facts, identities and common
+expiry. Duplicate or private-source destination keys are rejected.
+
+`forPhoto` supplies frozen scope/source, reserve/complete callbacks and exact
+cleanup targets. `executePublicationCopyMember` in `publicationCopyExecution.ts`
+adapts these to the existing single-photo executor. Reserve refreshes current
+authorization for the whole cohort before each member's I/O; completion requires
+the exact lease obtained through reserve. Historical read alone cannot authorize
+completion. Completion checks the same object, lease and expiry in the response
+and requires readiness. The existing executor and repository reuse the same
+receipt/source validators.
+
+Every RPC has a 12-second cap combined with the operation deadline, and
+completion also honors the executor's shared signal. Abort regains control even
+if transport cancellation stalls. There is no automatic transport retry,
+successor allocation, provider call or billing action. Errors expose only fixed
+contract codes.
+
+Abandonment first recovers historical publication; an admitted operation skips
+cleanup. SQL repeats that check atomically. A cleanup response must identify all
+and only the recovered cohort's object IDs. The dedicated coordinator requests a
+targeted registry claim for each validated sibling; the generic single-photo
+executor can target only its own reserved object. If private deletion or a lost
+response prevents recovery, the adapter returns only its previously pinned
+original IDs as cleanup hints; it never uses an unvalidated response. A
+committed publication returns an empty target set. No object may be erased
+without its registry claim. The future worker must bound all cleanup
+dependencies with its overall deadline. This adapter does not approve bytes,
+read storage, write public objects or bind a post. The operation controller
+below connects preflight, transport and binding; service-worker admission and
+durable phase outcomes remain unconnected. All activation gates stay false.
+
+## Prepared exact reserved-cohort binding
+
+`bind_publication_copy_cohort(owner, observation, operation, work)` is a
+service-only facade; callers cannot submit public URLs, alternate attempts,
+object keys or notes. Its separate `publication_copy_binding_enabled` gate
+starts false and supplements all existing copy, binding and community admission
+gates. New binding requires live copy work, the exact settled ordered causal
+leaves, the immutable reservation, every member ready, the original unexpired
+staging deadline and current source, review and consent authority. Only the
+explicit no-note subset is supported.
+
+The existing atomic writer creates the community request and its public post.
+Before committing, the facade requires exact equality between the reservation's
+ordered object keys, the publication's ordered keys, actual post bindings and
+community/publication receipts. A discrepancy rolls back the entire admission,
+post, binding, registry and work-retirement transaction. The private writer
+remains ungranted; the service facade is allowlisted.
+
+A durable publication is recovered through the writer's existing owner and
+receipt validation before checking live work or current gates/authority. Replay
+also verifies the immutable reserved cohort, but does not require its deadline
+to remain current. Historical success does not assert current visibility or
+republish a hidden post. Observation deletion still wins over recovery. A failed
+binding creates no erasure authorization: execution must recover durable success
+before requesting targeted cleanup of unbound siblings.
+
+This slice supplies no public storage transport or Edge execution route, does
+not dispatch providers or charge credits, and leaves all activation gates false.
+
+## Prepared bounded copy operation controller
+
+`executePublicationCopyOperation` consumes one already-claimed operation and its
+original work expiry. It constructs the scoped repository, recovers a historical
+publication first, and reserves the complete exact approved cohort before
+private or public storage I/O. The repository now exposes strict `bind` receipt
+decoding and operation-level cleanup hints restricted to its validated original
+keys.
+
+A single 110-second overall deadline includes recovery and cleanup. Fresh work
+ends at the earlier of 80 seconds or 30 seconds before the original work expiry;
+binding ends at the earlier of 92 seconds or that expiry. No phase or photo
+renews the claim or staging deadline. Every RPC is additionally capped at 12
+seconds. Cancellation reaches storage and registry transports; bounded waits
+regain control even when transport cancellation is not acknowledged. CPU-bound
+container and digest work checks cancellation at phase boundaries and still
+requires runtime CPU/memory qualification.
+
+The controller verifies every ordered private source's exact length, digest and
+strict JPEG/PNG container before any public write. At most 32 MiB of verified
+raw cohort bytes are retained, with bounded per-photo read/copy buffers; no
+provider bodies are created. This is a retained-input limit, not a process-heap
+limit: defensive transport copies of the current photo increase peak memory. It
+executes photos sequentially under the shared fresh-work signal, releases each
+retained buffer after use, and skips already ready writes while still verifying
+current private evidence and authority. Binding runs once only after every
+member reports readiness. A stalled or failed member stops further writes.
+
+A lost or invalid binding response triggers durable publication recovery before
+cleanup. If recovery cannot establish success, only the original reserved keys
+are offered for targeted registry claims. Bound objects remain protected by the
+registry, including when a late binding commits after the response is lost.
+Cleanup uses the remaining overall deadline and leaves unfinished work to the
+permanent registry. No transport failure is asserted to be durable terminal
+failure; the result is only `published` or `reconcile`.
+
+The prepared HTTP copy worker below connects this controller and settles durable
+needs-action outcomes before new copy execution. Unsupported source and verified
+container outcomes are handled by the moderation boundaries below; ambiguous
+network/storage results remain recoverable. No scheduler is connected.
+Owner-status delivery, native operations and runtime qualification remain. All
+gates stay false.
+
+## Prepared durable copy needs-action outcomes
+
+`finalize_publication_copy_work(owner, observation, operation, work)` is a
+service-only, independently gated finalizer. Callers cannot choose a terminal
+reason or supply cleanup keys. Scope and deletion are checked first. A valid
+existing publication wins and returns admitted with no cleanup targets; this
+uses the private writer's historical owner, intent, admission and binding
+validation, including legacy publications without a cohort reservation. It
+confers no fresh reserved-cohort binding authority. A previously stored copy
+outcome replays before live work or gate checks because settlement removes work.
+
+New settlement requires a live exact copy token and the default-false
+`publication_copy_settlement_enabled` gate. SQL derives only these facts:
+
+- `note_requires_text_moderation`: the immutable intent has a nonnull note, with
+  no atomic reservation or legacy per-photo copy. Photo approval cannot approve
+  arbitrary public text.
+- `staging_expired`: the exact immutable reservation's original expiry has
+  passed. Every unbound registry object is locked in UUID order and made due for
+  erasure. Existing claim ownership is preserved, and deadlines are never
+  extended. The receipt retains the source-ordered original object IDs.
+
+The private immutable copy outcome and removal of copy work commit together.
+Provider moderation remains an unchanged historical fact. A new claim cannot
+reopen the operation. Settlement does not charge, release or refund quota, and
+it never dispatches providers or writes storage. Returned object IDs are only
+private cleanup hints; targeted registry claims still authorize erasure. The
+permanent registry survives private history deletion.
+
+Fresh ineligible work returns `{finalized:false}`. Historical success returns
+`{finalized:true,status:"admitted",reason:null,object_ids:[]}`; needs-action
+returns the same envelope with `status:"needs_action"`, the derived reason and
+original cleanup IDs. The existing owner-status wire shape remains unchanged:
+admitted takes precedence, then copy needs-action, then the moderation state.
+Reasons, storage keys and work tokens stay private. Deletion defeats all replay.
+
+Gate closure, a changed review/privacy/consent revision, expired worker token,
+and transport uncertainty are not terminal content facts. They remain
+recoverable under existing authority and cleanup rules. A note with a legacy
+copy also remains pending rather than being silently discarded. The prepared
+copy HTTP owner below calls this finalizer before execution. Unsupported sources
+and verified container rejections are handled by the separate moderation
+boundaries below. All activation gates remain false.
+
+## Prepared unsupported publication source settlement
+
+With the independent default-false `publication_source_settlement_enabled` gate,
+`finalize_publication_photo_moderation` derives `unsupported_source_type` from
+immutable intent source metadata when any source is outside JPEG/PNG. HEIC is
+accepted as private evidence but is not supported by public-copy container
+validation. This result requires exact live moderation work, owner/deletion
+checks, an accepted operation, no publication and **no existing provider
+attempts of any state**. Existing provider attempts keep their original
+completion/retirement lifecycle. No provider or complimentary quota is changed.
+
+The immutable moderation outcome records `needs_action`, the private reason, and
+an empty attempt array; removing moderation work commits atomically with it. It
+never seeds copy work. Historical outcomes replay before token and gate checks;
+deletion wins. The service repository accepts the exact finalizer receipt, and
+the existing worker consumes it before preflight or new provider admission.
+Owner status remains the same five-field envelope and exposes only needs-action,
+not private source facts or reasons. Stored publication retains precedence in
+owner status; finalization cannot replace a publication.
+
+Attempt-backed outcomes retain their existing constraints: complete approval has
+one to six nonnull ordered attempt IDs, while terminal provider failures can
+retain null slots for unattempted siblings. Only the source-type reason allows
+zero attempt slots. This is metadata-derived remediation, not proof that a
+JPEG/PNG container is invalid. Container rejection still requires a verified
+source-bound attestation; read failures, digest uncertainty, network, storage,
+timeouts and authority changes never become this outcome. All gates remain
+false.
+
+## Prepared verified-container rejection attestation
+
+The service-only
+`finalize_publication_container_rejection(owner, observation,
+operation, work, attestation)`
+persists a conservative public-publication remediation decision. It does not
+declare private evidence invalid. The bounded attestation contains exactly
+`{schema_version:1,
+policy_version:"public_photo_container_v1",source:{media_id,object_id,
+content_type,byte_count,sha256}}`.
+SQL requires one exact original JPEG/PNG intent member; it cannot inspect image
+bytes itself. The private table has no direct API-role privileges and deletes
+with the accepted operation.
+
+The trusted preflight verifies exact length and SHA-256 before running the
+container validator. Only the validator's deliberate typed policy rejection,
+with the shared signal still live, can create this frozen evidence. Transport
+lookalikes, unexpected parser exceptions, read errors, digest mismatch and
+cancellation remain unavailable/recoverable. The worker catches only that typed
+result around preflight, retains a bounded completion window, and submits it
+through the operation-scoped repository without provider admission or dispatch.
+
+Owner/deletion and accepted scope precede replay. A valid committed publication
+returns `{finalized:true,status:"admitted",reason:null}` without an attestation.
+Exact saved attestation replay precedes live work and gates; changing the source
+or policy cannot rewrite it. New settlement requires exact live work, the
+independent default-false `publication_container_settlement_enabled` gate, no
+provider attempt of any state and no copy cohort. It atomically inserts the
+immutable attestation and zero-attempt `needs_action/public_container_rejected`
+outcome and removes moderation work. No copy work is seeded; provider and
+complimentary quota are unchanged. Existing attempts retain recovery ownership.
+
+The service receipt is exactly
+`{finalized:true,status:"needs_action",
+reason:"public_container_rejected"}`.
+Owner status keeps its existing five-field shape without sources, private
+reasons or work tokens. This decision applies to the immutable operation's
+approved evidence; remediation requires a separately consented operation, never
+silently transformed or replaced bytes. Policy changes must version the
+validator and its accepted attestation contract together. All activation gates
+stay false; native remediation delivery and runtime/CDN qualification remain
+pending.
+
+## Prepared service publication copy worker
+
+`POST /functions/v1/copy-publication-photos` uses explicit service
+authorization; it accepts no caller-controlled work parameters. Strict bounded
+database hints lead to one original copy claim, whose ordered
+`{attempt_id,source}` cohort, owner/operation scope, token and `work_expires_at`
+are frozen before execution. Claim receipts reject extra fields, aliases,
+unsupported media, expired leases, more than six photos or 32 MiB combined
+input. Database authority and byte checks remain necessary; claim decoding
+grants no permission to write.
+
+`finalize_publication_copy_work` runs first. Historical admitted state skips
+copying and cleanup. Note-required outcomes do no I/O; expired staging allows
+only targeted registry claims for the original SQL-returned objects. Pending
+eligible work enters the existing exact-cohort controller, with full preflight,
+original reserved keys and deadlines, scoped binding, durable publication
+recovery before cleanup, and permanent erasure authority. Unknown failures
+release/reconcile; no terminal state is inferred from transport or gate failure.
+
+The aggregate response is exactly `{claimed,published,needs_action}`; published
+includes recovered historical admission, not current visibility. All responses
+are no-store. Private sources, object keys, notes, reasons and work tokens never
+leave the service boundary.
+
+The total request deadline is 135 seconds. Work/cleanup ends at 123 seconds to
+reserve a 12-second release window. The 110-second controller starts only when
+at least 122 seconds remain; three worst-case setup RPCs cannot be added to its
+budget. Slow setup releases the original claim for later recovery. Each RPC also
+has a 12-second cap and marker PUT/HEAD honors parent cancellation. Original
+120-second claim expiry remains authoritative and is never recreated locally.
+
+**Activation remains blocked** until separately authorized recurring registry
+erasure invocation, due-backlog/oldest-age monitoring and CDN cache bypass are
+verified. Expiry settlement deletes copy work before best-effort immediate
+cleanup, so failed cleanup depends on the permanent registry and independent
+`erase-publication-photos` worker; no copy claim will recover it. All gates
+remain false. CPU/process-memory qualification and owner/native delivery remain
+pending. This prepared endpoint does not authorize scheduling or deployment.
+
+## Owner publication operation status
+
+Prepared `POST get-observation-publication-status` uses `withEdgeHandler` to
+validate the authenticated owner and calls the service-only
+`read_owned_observation_publication_status` routine with that identity. The
+request is exactly `{schema_version:1,observation_id,operation_id}`, bounded to
+1 KiB and lowercase UUIDs. Lookup uses the immutable operation ID from durable
+intake; no latest-scan lookup or legacy sharing fallback is allowed.
+
+The five-field response is exactly
+`{schema_version:1,operation_id,observation_id,analysis_id,status}`. The closed
+status set is `accepted`, `processing`, `photos_approved`, `needs_action`,
+`admitted`. `admitted` means historical admission and does not assert current
+public visibility or identification authority. No post ID, media, note, private
+reason, provider attempt, work token or cleanup key is exposed. Unknown fields,
+wrong identities or invalid status from SQL fail closed with 503.
+
+Owner and observation deletion checks remain authoritative. Foreign, missing and
+deleted records all return opaque `analysis_history_not_found` (404). Invalid
+caller input returns 400; known operation/revision conflicts return 409; other
+failures are sanitized 503. Every route response, including auth, preflight,
+method and body failures, uses `Cache-Control: private, no-store`. The RPC is
+bounded to twelve seconds, with no automatic retry and no mutation. Native
+durable delivery is a separate slice. The route is prepared but not released;
+all publication activation gates remain false.
+
+## Native publication wire boundary
+
+Prepared native admission and status calls now use the existing pinned raw-JSON
+transport with a required expected account at dispatch. Classified-401 recovery
+is deferred to the future durable owner, preventing recursive Auth-drain waits.
+No new retry policy, legacy sharing fallback or operation-ID generator is added.
+The immutable native request validates the same revisions, lowercase UUIDs,
+explicit nulls, ordered 1–6 unique media IDs, 1,000-code-point note bound and
+3,800-byte encoded request cap as the HTTP boundary. Its strict restoration path
+rejects missing/extra fields and Boolean revisions before network dispatch.
+
+Admission responses require exact fields, accepted status, valid timestamp and
+matching operation/observation/analysis IDs. Status responses require only the
+five documented fields and closed status enum, again matching all three IDs.
+Responses are bounded to 4 KiB before parsing. Native `admitted` is historical
+operation evidence, never current public eligibility or a post ID. Dedicated
+wire/transport tests exercise immutable consent, malformed/private fields,
+missing-account dispatch prevention, and ambiguous admission without automatic
+replay. Prepared local persistence now saves exact consent, then strips raw
+consent after acknowledgement while retaining a versioned local fingerprint and
+minimal terminal status. The fingerprint is not a backend digest or authority.
+Network execution, post-await account/deletion fencing and UI delivery remain
+separate; all activation gates remain false. See
+[the storage contract](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#prepared-publication-persistence).

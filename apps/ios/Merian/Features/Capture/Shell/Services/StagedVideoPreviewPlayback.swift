@@ -6,6 +6,7 @@ import Observation
 final class StagedVideoPreviewPlayback {
     struct Dependencies {
         var play: @MainActor (AVPlayer) -> Void = { $0.play() }
+        var pause: @MainActor (AVPlayer) -> Void = { $0.pause() }
         var makeBoostedItem: @MainActor (URL, URL) async throws -> AVPlayerItem = {
             try await StagedVideoPreviewComposition.makeItem(videoURL: $0, boostedAudioURL: $1)
         }
@@ -82,7 +83,7 @@ final class StagedVideoPreviewPlayback {
     func pauseForBackground() {
         lifecycle = UUID()
         cancelPreparation()
-        player.pause()
+        dependencies.pause(player)
         session.cancelPendingActivation()
     }
 
@@ -90,7 +91,7 @@ final class StagedVideoPreviewPlayback {
         isActive = false
         lifecycle = UUID()
         cancelPreparation()
-        player.pause()
+        dependencies.pause(player)
         player.replaceCurrentItem(with: nil)
         boostSource.release()
         session.deactivate()
@@ -126,7 +127,7 @@ final class StagedVideoPreviewPlayback {
             let shouldResume = player.rate != 0
             let prior = player.currentItem
             let priorBoostEnabled = isBoostEnabled
-            player.pause()
+            dependencies.pause(player)
             isSwitchingSource = true
             player.replaceCurrentItem(with: replacement)
             isBoostEnabled = enable

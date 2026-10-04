@@ -70,6 +70,11 @@ existing `PaywallViewModel` dependency. Overlapping view-model fetches are
 rejected, the loading state clears on completion, and retry waits for
 purchase-identity readiness. It does not initiate a purchase or restore.
 
+`LibraryTransitionPresentationDependencies` supplies pending-library routing,
+scan and synchronization retries, and an observable restoration snapshot. Both
+the app overlay and Settings route use this adapter; their views resolve no
+repository, queue, scheduler, or application-container singleton.
+
 `SettingsTabView` remains the route and sheet composition owner. Detailed
 screens keep UI-only selection and presentation state locally. Account deletion
 delegates live protocol and recovery effects to `SupabaseManager`, which injects

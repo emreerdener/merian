@@ -244,6 +244,16 @@ final class SpeciesPreferredNameCloudSyncCoordinator {
                 modelContext: modelContext,
                 legacyDefaults: legacyDefaults
             )
+            // Capture only values actually read from or accepted by the server.
+            // A local edit during the await must not inherit a later success timestamp.
+            var acknowledged: [String: String] = [:]
+            for row in remoteByScientificName.values where row.deleted_at == nil {
+                acknowledged[row.scientific_name] = row.preferred_common_name
+            }
+            for row in upserts {
+                acknowledged[row.scientific_name] = row.deleted_at == nil ? row.preferred_common_name : nil
+            }
+            SpeciesPreferredNameStore.recordAcknowledgedValues(acknowledged, ownerUserID: ownerUserID, userDefaults: legacyDefaults)
             SpeciesPreferredNameStore.recordSyncSuccess(
                 ownerUserID: ownerUserID,
                 at: now(),

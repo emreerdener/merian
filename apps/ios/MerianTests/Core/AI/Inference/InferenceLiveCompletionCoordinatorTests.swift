@@ -170,7 +170,8 @@ struct InferenceLiveCompletionCoordinatorTests {
         // Exercise coordinator ordering with the same durable carry used by replacement.
         harness.replacementOperation = { _ in
             do {
-                let service = IdentificationReviewSyncService(dependencies: .init(ownerID: { UUID(uuidString: "00000000-0000-4000-8000-000000000002") }))
+                let service = IdentificationReviewSyncService(dependencies: .init(allowsMutation: { true },
+                    ownerID: { UUID(uuidString: "00000000-0000-4000-8000-000000000002") }))
                 try service.carryRejection(from: source, to: replacement, context: context)
                 try context.save()
             } catch { Issue.record(error) }

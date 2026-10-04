@@ -6,6 +6,22 @@ import Testing
 @MainActor
 @Suite("Species Preferred Name Repository")
 struct SpeciesPreferredNameRepositoryTests {
+    @Test func deniedOwnerCannotWriteOrQueueDeletion() throws {
+        let context = try makeSpeciesPreferenceContext()
+        let (defaults, suiteName) = makeSpeciesPreferenceDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        #expect(!SpeciesPreferredNameRepository.setPreferredName(
+            "Bur Oak", for: "Quercus macrocarpa", ownerUserID: speciesPreferenceTestUserID,
+            modelContext: context, legacyDefaults: defaults, allowsMutation: { _ in false }
+        ))
+        #expect(!SpeciesPreferredNameRepository.clearPreferredName(
+            for: "Quercus macrocarpa", ownerUserID: speciesPreferenceTestUserID,
+            modelContext: context, legacyDefaults: defaults, allowsMutation: { _ in false }
+        ))
+        #expect(try context.fetchCount(FetchDescriptor<UserSpeciesPreference>()) == 0)
+        #expect(SpeciesPreferredNameStore.pendingDeleteDates(ownerUserID: speciesPreferenceTestUserID, userDefaults: defaults).isEmpty)
+    }
+
     @Test func persistsAndClearsOnlyTheRequestedAccount() throws {
         let context = try makeSpeciesPreferenceContext()
         let (defaults, suiteName) = makeSpeciesPreferenceDefaults()
@@ -17,14 +33,16 @@ struct SpeciesPreferredNameRepositoryTests {
             for: "Quercus macrocarpa",
             ownerUserID: speciesPreferenceTestUserID,
             modelContext: context,
-            legacyDefaults: defaults
+            legacyDefaults: defaults,
+            allowsMutation: { _ in true }
         ))
         #expect(SpeciesPreferredNameRepository.setPreferredName(
             "Mossycup Oak",
             for: "Quercus macrocarpa",
             ownerUserID: secondUserID,
             modelContext: context,
-            legacyDefaults: defaults
+            legacyDefaults: defaults,
+            allowsMutation: { _ in true }
         ))
 
         #expect(SpeciesPreferredNameRepository.preferredName(
@@ -42,7 +60,8 @@ struct SpeciesPreferredNameRepositoryTests {
             for: "Quercus macrocarpa",
             ownerUserID: speciesPreferenceTestUserID,
             modelContext: context,
-            legacyDefaults: defaults
+            legacyDefaults: defaults,
+            allowsMutation: { _ in true }
         ))
         #expect(try fetchSpeciesPreference(
             for: "Quercus macrocarpa",
@@ -146,25 +165,29 @@ struct SpeciesPreferredNameRepositoryTests {
             validName,
             for: "Quercus alba",
             ownerUserID: speciesPreferenceTestUserID,
-            modelContext: context
+            modelContext: context,
+            allowsMutation: { _ in true }
         ))
         #expect(!SpeciesPreferredNameRepository.setPreferredName(
             invalidName,
             for: "Quercus rubra",
             ownerUserID: speciesPreferenceTestUserID,
-            modelContext: context
+            modelContext: context,
+            allowsMutation: { _ in true }
         ))
         #expect(SpeciesPreferredNameRepository.setPreferredName(
             validCombiningName,
             for: "Quercus velutina",
             ownerUserID: speciesPreferenceTestUserID,
-            modelContext: context
+            modelContext: context,
+            allowsMutation: { _ in true }
         ))
         #expect(!SpeciesPreferredNameRepository.setPreferredName(
             invalidCombiningName,
             for: "Quercus stellata",
             ownerUserID: speciesPreferenceTestUserID,
-            modelContext: context
+            modelContext: context,
+            allowsMutation: { _ in true }
         ))
         #expect(try fetchSpeciesPreference(
             for: "Quercus rubra",

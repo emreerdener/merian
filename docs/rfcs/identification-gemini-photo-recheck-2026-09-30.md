@@ -7,6 +7,15 @@ approved this follow-up after the completed
 concern that OpenAI was less accurate than Gemini. No production routing,
 prompt, badge threshold, or iOS release changes follow automatically.
 
+Later decision, 1 October: the separately frozen
+[60-observation provider comparison](identification-photo-provider-decision-2026-10-01.md)
+did not establish Gemini superiority under its decision rule and retained
+released Sol-low. That later decision supersedes this small recheck's fallback
+recommendation for ongoing research; the measurements and historical
+recommendation below remain unchanged. Start subsequent work from the
+[research index](../research/identification/README.md) for the current decision
+and priority.
+
 ## Completed comparison
 
 All six predeclared Gemini attempts completed and normalized, with six durable

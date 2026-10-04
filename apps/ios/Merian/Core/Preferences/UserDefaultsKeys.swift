@@ -76,6 +76,7 @@ enum UserDefaultsKeys {
         "dismissedProfilePublicationRecoverySignature.v1."
     /// Prefix for per-species preferred common name. Append the scientific name to form the full key.
     /// e.g. `"speciesPreferredName_Gaillardia pulchella"` → user's chosen display name.
+    static let speciesPreferredNameAcknowledgedValuesPrefix = "speciesPreferredNameAcknowledgedValues_"
     static let speciesPreferredNamePrefix = "speciesPreferredName_"
     /// Dictionary of scientific name → delete timestamp for preferred-name clears waiting for cloud sync.
     static let pendingSpeciesPreferredNameDeletes = "pendingSpeciesPreferredNameDeletes"

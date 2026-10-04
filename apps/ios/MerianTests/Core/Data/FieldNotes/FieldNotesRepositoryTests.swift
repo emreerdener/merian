@@ -1,3 +1,4 @@
+import Foundation
 import SwiftData
 import Testing
 
@@ -6,6 +7,21 @@ import Testing
 @Suite("Field Notes Repository")
 @MainActor
 struct FieldNotesRepositoryTests {
+    private var dependencies: FieldNotesRepository.Dependencies {
+        .init(allowsMutation: { true }, ownerID: { UUID(uuidString: "20000000-0000-4000-8000-000000000001") }, didCommit: { _ in })
+    }
+    @Test func closedAdmissionPreservesNoteAndCreatesNoOperation() throws {
+        let context = try InsightSheetTestSupport.createIsolatedContext()
+        let record = LocalScanRecord(speciesId: "fixture", scientificName: "Fixture", commonName: "Fixture", fieldNotes: "Before")
+        context.insert(record)
+        try context.save()
+        var fenced = dependencies
+        fenced.allowsMutation = { false }
+        #expect(!FieldNotesRepository.setFieldNotes("After", for: record.id, modelContext: context, dependencies: fenced))
+        #expect(record.fieldNotes == "Before")
+        #expect(try context.fetchCount(FetchDescriptor<OfflineJobRecord>()) == 0)
+    }
+
     @Test func deletedActiveRecordFallsBackToLegacyBridge() async throws {
         let context = try InsightSheetTestSupport.createIsolatedContext()
         let record = LocalScanRecord(
@@ -30,7 +46,7 @@ struct FieldNotesRepositoryTests {
 
         let resolvedNotes = FieldNotesRepository.fieldNotes(
             for: recordID,
-            modelContext: context
+            modelContext: context, dependencies: dependencies
         )
 
         #expect(resolvedNotes == bridgedNote)
@@ -52,12 +68,46 @@ struct FieldNotesRepositoryTests {
 
         let resolvedNotes = FieldNotesRepository.fieldNotes(
             for: record.id,
-            modelContext: context
+            modelContext: context, dependencies: dependencies
         )
 
         #expect(resolvedNotes == legacyNotes)
         #expect(record.fieldNotes == legacyNotes)
         #expect(FieldNotesStore.fieldNotes(for: record.id) == legacyNotes)
+    }
+
+    @Test func restoredEmptyNoteDoesNotPromoteStaleLegacyValue() throws {
+        let context = try InsightSheetTestSupport.createIsolatedContext()
+        let record = LocalScanRecord(speciesId: "fixture", scientificName: "Fixture", commonName: "Fixture")
+        context.insert(record)
+        try LibraryDetailsSyncService.stage(record, ownerID: #require(dependencies.ownerID()), context: context)
+        let job = try #require(context.fetch(FetchDescriptor<OfflineJobRecord>()).first)
+        job.id = "library-details:baseline:\(record.id)"
+        job.status = .complete
+        try context.save()
+        FieldNotesStore.setFieldNotes("Stale private note", for: record.id)
+        defer { FieldNotesStore.setFieldNotes(nil, for: record.id) }
+        #expect(FieldNotesRepository.fieldNotes(for: record.id, modelContext: context, dependencies: dependencies) == nil)
+        #expect(record.fieldNotes == nil)
+        #expect(FieldNotesStore.fieldNotes(for: record.id) == nil)
+        #expect(try context.fetchCount(FetchDescriptor<OfflineJobRecord>()) == 1)
+    }
+
+    @Test(arguments: [OfflineJobStatus.pending, .complete])
+    func tagOnlyOperationDoesNotDiscardLegacyNote(status: OfflineJobStatus) throws {
+        let context = try InsightSheetTestSupport.createIsolatedContext()
+        let record = LocalScanRecord(speciesId: "fixture", scientificName: "Fixture", commonName: "Fixture")
+        record.customTags = ["tag"]
+        context.insert(record)
+        try LibraryDetailsSyncService.stage(record, ownerID: #require(dependencies.ownerID()), context: context)
+        let job = try #require(context.fetch(FetchDescriptor<OfflineJobRecord>()).first)
+        job.status = status
+        try context.save()
+        FieldNotesStore.setFieldNotes("Legacy note", for: record.id)
+        defer { FieldNotesStore.setFieldNotes(nil, for: record.id) }
+        #expect(FieldNotesRepository.fieldNotes(for: record.id, modelContext: context, dependencies: dependencies) == "Legacy note")
+        #expect(record.fieldNotes == "Legacy note")
+        #expect(try context.fetchCount(FetchDescriptor<OfflineJobRecord>()) == 2)
     }
 
     @Test func clearingUpdatesLocalRecordAndLegacyBridge() async throws {
@@ -77,7 +127,7 @@ struct FieldNotesRepositoryTests {
         FieldNotesRepository.setFieldNotes(
             "   ",
             for: record.id,
-            modelContext: context
+            modelContext: context, dependencies: dependencies
         )
 
         #expect(record.fieldNotes == nil)
@@ -101,7 +151,7 @@ struct FieldNotesRepositoryTests {
         let changed = FieldNotesRepository.setFieldNotes(
             "Already saved locally",
             for: record.id,
-            modelContext: context
+            modelContext: context, dependencies: dependencies
         )
 
         #expect(!changed)
@@ -121,7 +171,7 @@ struct FieldNotesRepositoryTests {
         let changed = FieldNotesRepository.setFieldNotes(
             "Bridge-only note",
             for: scanID,
-            modelContext: context
+            modelContext: context, dependencies: dependencies
         )
 
         #expect(changed)

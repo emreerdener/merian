@@ -419,3 +419,13 @@ Malformed authority, non-biological and Human subjects remain ineligible. A
 verified selected species is independent from original AI confidence; pending
 text or an optimistic confirmation flag cannot grant that association. Existing
 legacy observations preserve their prior eligibility.
+
+## Analysis-bound publication preparation
+
+The private
+[publication snapshot contract](../../../../docs/backend-and-data/05-api-contracts.md#prepared-analysis-publication-snapshots-and-public-reads)
+prepares immutable approved media and original labels plus sanitized public
+reads. It does not admit enrolled history through this legacy endpoint. The
+future moderated atomic publisher must register its exact approved media in the
+same transaction and expose explicit versioned updates. Legacy media replacement
+on a registered publication is refused; health checks and unsharing still work.

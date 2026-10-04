@@ -1154,6 +1154,7 @@ jobs:
             species-dictionary-for-viewer
             species-discovery-search
             resolve-species-dictionary
+            confirm-observation-analysis
             confirm-scan-species
             review-scan-identification
             request-community-identification

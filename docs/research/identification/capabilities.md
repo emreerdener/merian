@@ -1,7 +1,7 @@
 # Task-to-model capability matrix
 
 Generated from [capabilities.json](capabilities.json); edit that file, then run
-`make generate-identification-research`. Reviewed through 2026-10-01.
+`make generate-identification-research`. Reviewed through 2026-10-03.
 
 [Research index](README.md) · [Qualification rules](benchmark-contract.md) ·
 [Experiments](experiments.md)
@@ -25,16 +25,22 @@ qualification record.
 - Qualification: Frozen paired held-out comparison; practical effect and
   uncertainty, category guardrails, mapping and technical failures;
   task-specific latency/cost ceilings.
-- Next action: Retain released photo configuration. Advance only a candidate
-  that passes development, then audit unexposed eligibility and freeze a new
-  validation protocol.
+- Next action: Retain low after the completed reasoning screen: medium failed
+  quality advancement and Gemini tied low. Establish supported references for
+  actual reported regressions; four library holds remain unresolved. Investigate
+  visual-evidence sufficiency before confidence calibration. No new paid run or
+  production change authorized.
 
-| Configuration                                 | Decision          | Evidence                                                                                                                                                                                               | Cost and latency                                                                                                                 | Limits                                                                                                                                                       |
-| --------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [sol-confidence-photo](#sol-confidence-photo) | retained baseline | 45/60 supported outcomes in the frozen October validation mixture; retained after neither challenger qualified. [photo-provider-decision](experiments.md#photo-provider-decision) (validation, closed) | Mean provider time 6.874 s; conservative validation cost $2.244005514 for 60 attempts; not app latency or invoice cost.          | Assistant-reviewed diagnostic mixture; no general production accuracy, confidence or superiority guarantee.                                                  |
-| [gemini-photo-pro](#gemini-photo-pro)         | inconclusive      | 49/60 versus 45/60; paired gains/losses 4/0. Superiority criterion not met. [photo-provider-decision](experiments.md#photo-provider-decision) (validation, closed)                                     | Mean provider time 16.092 s; conservative validation cost $2.076105003 for 60 attempts; different accounting basis from invoice. | Paired difference +6.7 pp, simultaneous interval -6.9 to +19.1 pp; mapping-dependent gains, three for one species. No equivalence or automatic model switch. |
-| [sol-evidence-photo](#sol-evidence-photo)     | did not qualify   | 47/60 versus 45/60; paired gains/losses 5/3; failed frozen validation advancement. [photo-provider-decision](experiments.md#photo-provider-decision) (validation, closed)                              | Mean provider time 6.018 s; conservative validation cost $2.212358520 for 60 attempts.                                           | Paired difference +3.3 pp, simultaneous interval -14.8 to +20.8 pp; genus gains with species losses and no abstention gain.                                  |
-| [luna-evidence-photo](#luna-evidence-photo)   | did not qualify   | Mineral wording improved, but biological/specificity failures prevented promotion. [luna-evidence-candidate](experiments.md#luna-evidence-candidate) (development, closed)                             | No comparable current-config cost/latency estimate in this matrix; see original study.                                           | Exposed small development challenge set; not a universal judgment on Luna.                                                                                   |
+| Configuration                                               | Decision              | Evidence                                                                                                                                                                                                                                                                       | Cost and latency                                                                                                                                        | Limits                                                                                                                                                                                                                                                                                                                                                                  |
+| ----------------------------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [sol-confidence-photo](#sol-confidence-photo)               | retained baseline     | 45/60 supported outcomes in the frozen October validation mixture; retained after neither challenger qualified. [photo-provider-decision](experiments.md#photo-provider-decision) (validation, closed)                                                                         | Mean provider time 6.874 s; conservative validation cost $2.244005514 for 60 attempts; not app latency or invoice cost.                                 | Assistant-reviewed diagnostic mixture; no general production accuracy, confidence or superiority guarantee.                                                                                                                                                                                                                                                             |
+| [gemini-photo-pro](#gemini-photo-pro)                       | inconclusive          | 49/60 versus 45/60; paired gains/losses 4/0. Superiority criterion not met. [photo-provider-decision](experiments.md#photo-provider-decision) (validation, closed)                                                                                                             | Mean provider time 16.092 s; conservative validation cost $2.076105003 for 60 attempts; different accounting basis from invoice.                        | Paired difference +6.7 pp, simultaneous interval -6.9 to +19.1 pp; mapping-dependent gains, three for one species. No equivalence or automatic model switch.                                                                                                                                                                                                            |
+| [sol-evidence-photo](#sol-evidence-photo)                   | did not qualify       | 47/60 versus 45/60; paired gains/losses 5/3; failed frozen validation advancement. [photo-provider-decision](experiments.md#photo-provider-decision) (validation, closed)                                                                                                      | Mean provider time 6.018 s; conservative validation cost $2.212358520 for 60 attempts.                                                                  | Paired difference +3.3 pp, simultaneous interval -14.8 to +20.8 pp; genus gains with species losses and no abstention gain.                                                                                                                                                                                                                                             |
+| [luna-evidence-photo](#luna-evidence-photo)                 | did not qualify       | Mineral wording improved, but biological/specificity failures prevented promotion. [luna-evidence-candidate](experiments.md#luna-evidence-candidate) (development, closed)                                                                                                     | No comparable current-config cost/latency estimate in this matrix; see original study.                                                                  | Exposed small development challenge set; not a universal judgment on Luna.                                                                                                                                                                                                                                                                                              |
+| [sol-medium-confidence-photo](#sol-medium-confidence-photo) | insufficient evidence | 2/3 reference matches versus low 1/3, through one mapping improvement; both misidentified the butterfly. Medium did not resolve the unreferenced owner-photo inconsistency. [sol-reasoning](experiments.md#sol-reasoning) (development, closed)                                | Six calls per effort; medium mean 11.092 s versus low 6.805 s. Gemini timing from a separate study is not a matched speed comparison.                   | Only three reference cases plus three repeats of one unreferenced image; no additional demonstrated biological error corrected, no independent human validation, no qualification.                                                                                                                                                                                      |
+| [tradeoff-20261003-low](#tradeoff-20261003-low)             | retained baseline     | 10/20 supported, 2/2 library and 8/18 controls. Retained as the operational recommendation; no qualification conferred. [photo-reasoning-tradeoff](experiments.md#photo-reasoning-tradeoff) (development, closed)                                                              | Mean / median / p90 provider seconds 6.732 / 6.382 / 8.148; conservative cost $0.752785002 for 20 normalized calls. No app latency or invoice claim.    | Exposed development mixture, assistant references, two clear library plants and four excluded holds; no confirmed personal-regression cases. Medium versus either comparator -5 pp, descriptive simultaneous interval -30.8 to +22.4 pp. All arms 0/2 biological abstentions and seven unsupported-specificity cases. No fresh qualification or confidence calibration. |
+| [tradeoff-20261003-medium](#tradeoff-20261003-medium)       | did not qualify       | 9/20 supported, 2/2 library and 7/18 controls; zero gains and one unmapped loss versus low. Speed gate passed but quality advancement failed; no demonstrated biological correction. [photo-reasoning-tradeoff](experiments.md#photo-reasoning-tradeoff) (development, closed) | Mean / median / p90 provider seconds 10.961 / 10.925 / 13.545; conservative cost $0.868285005 for 20 normalized calls. No app latency or invoice claim. | Exposed development mixture, assistant references, two clear library plants and four excluded holds; no confirmed personal-regression cases. Medium versus either comparator -5 pp, descriptive simultaneous interval -30.8 to +22.4 pp. All arms 0/2 biological abstentions and seven unsupported-specificity cases. No fresh qualification or confidence calibration. |
+| [tradeoff-20261003-gemini](#tradeoff-20261003-gemini)       | inconclusive          | 10/20 supported, 2/2 library and 8/18 controls; one mapping-dependent gain and one loss versus low. No net supported improvement or superiority established. [photo-reasoning-tradeoff](experiments.md#photo-reasoning-tradeoff) (development, closed)                         | Mean / median / p90 provider seconds 15.542 / 15.440 / 17.492; conservative cost $0.714760001 for 20 normalized calls. No app latency or invoice claim. | Exposed development mixture, assistant references, two clear library plants and four excluded holds; no confirmed personal-regression cases. Medium versus either comparator -5 pp, descriptive simultaneous interval -30.8 to +22.4 pp. All arms 0/2 biological abstentions and seven unsupported-specificity cases. No fresh qualification or confidence calibration. |
 
 ## photo-evidence-sufficiency
 
@@ -350,3 +356,77 @@ prompt identity blocks future qualification until recovered or newly frozen.
   request identity must be recovered from the frozen record. Distinct from the
   later photo configuration.
 - Evidence: [matched-gemini-openai](experiments.md#matched-gemini-openai)
+
+### sol-medium-confidence-photo
+
+- Provider/model: openai / gpt-6-sol
+- profile: not_applicable
+- binding: openai_photo_sol_medium_reasoning_evaluation_v1
+- prompt: openai_identify_vision_confidence_v1
+- schema: unknown in this register; recover from the frozen study before
+  qualification
+- preprocessing: Same prepared photos as low in the September reasoning pilot;
+  high image detail. Supplied photo resized to 1024-pixel long edge; no
+  phone-pipeline claim.
+- context: Photo-only development inputs; no reference facts or label hints.
+- Settings/scope: Medium reasoning; 8192 output tokens; inline moderation;
+  90-second deadline. Native reasoning snapshot has no profile field. Exact
+  historical schema digest remains in the frozen private request evidence; not
+  reconstructed from current source.
+- Evidence: [sol-reasoning](experiments.md#sol-reasoning)
+
+### tradeoff-20261003-low
+
+- Provider/model: openai / gpt-6-sol
+- profile: not_applicable
+- binding: openai_photo_sol_low_reasoning_evaluation_v1
+- prompt: openai_identify_vision_confidence_v1
+- schema: merian_openai_identify_v1
+- preprocessing: Same frozen single-photo bytes: 18 exposed controls plus two
+  metadata-free library PNGs; one distinct subject per case. Prepared-image
+  comparison, not exact historical camera/provider payloads.
+- context: No description, location, month, owner guesses, reference labels or
+  prior answers. Seed 20261002 balances arm order; source and native
+  request/settings digests retained in the study manifest.
+- Settings/scope: Low reasoning, high image detail, 8192 output tokens, inline
+  moderation, 90-second deadline; native snapshot has no profile field. Low
+  request parity with the confidence baseline verified; medium differs only in
+  reasoning effort.
+- Evidence: [photo-reasoning-tradeoff](experiments.md#photo-reasoning-tradeoff)
+
+### tradeoff-20261003-medium
+
+- Provider/model: openai / gpt-6-sol
+- profile: not_applicable
+- binding: openai_photo_sol_medium_reasoning_evaluation_v1
+- prompt: openai_identify_vision_confidence_v1
+- schema: merian_openai_identify_v1
+- preprocessing: Same frozen single-photo bytes: 18 exposed controls plus two
+  metadata-free library PNGs; one distinct subject per case. Prepared-image
+  comparison, not exact historical camera/provider payloads.
+- context: No description, location, month, owner guesses, reference labels or
+  prior answers. Seed 20261002 balances arm order; source and native
+  request/settings digests retained in the study manifest.
+- Settings/scope: Medium reasoning, high image detail, 8192 output tokens,
+  inline moderation, 90-second deadline; native snapshot has no profile field.
+  Low request parity with the confidence baseline verified; medium differs only
+  in reasoning effort.
+- Evidence: [photo-reasoning-tradeoff](experiments.md#photo-reasoning-tradeoff)
+
+### tradeoff-20261003-gemini
+
+- Provider/model: google / gemini-2.5-pro
+- profile: gemini_pro
+- binding: not_applicable
+- prompt: identify_vision_v1
+- schema: merian_identify_v1
+- preprocessing: Same frozen single-photo bytes: 18 exposed controls plus two
+  metadata-free library PNGs; one distinct subject per case. Prepared-image
+  comparison, not exact historical camera/provider payloads.
+- context: No description, location, month, owner guesses, reference labels or
+  prior answers. Seed 20261002 balances arm order; source and native
+  request/settings digests retained in the study manifest.
+- Settings/scope: Temperature 0.1, seed 42, 8192 output, 5000 thinking tokens;
+  90-second deadline; preserved Gemini safety. Native assignment has profile and
+  no separate binding field.
+- Evidence: [photo-reasoning-tradeoff](experiments.md#photo-reasoning-tradeoff)

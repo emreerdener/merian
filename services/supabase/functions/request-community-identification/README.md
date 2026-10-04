@@ -5,6 +5,24 @@ identification request. The scan must be owned, resolved, non-Human biological,
 non-tombstoned, and have publishable media plus a resolvable taxon in the active
 taxonomy version.
 
+## Enrolled history compatibility
+
+`require_legacy_scan_review` runs before scan/media restoration, taxonomy
+synchronization or audible-media moderation. Enrolled observations return HTTP
+409 `analysis_bound_review_required`. The atomic Community RPC repeats this
+owner/generation admission after pure request validation and before acquiring
+request/scan locks or replacing a publication. Enrollment during media
+preparation therefore still refuses at commit. Analysis-bound community
+identification remains an activation requirement; the held owner Reject/Undo RPC
+does not enable this legacy route for enrolled history. See the
+[history review contract](../../../../docs/backend-and-data/05-api-contracts.md#prepared-analysis-bound-reject-and-undo).
+
+The subsequent
+[private community authority foundation](../../../../docs/backend-and-data/05-api-contracts.md#private-analysis-bound-community-authority-preparation)
+adds immutable request-to-analysis bindings and queued reconciliation, but no
+caller or publication admission. It does not lift this endpoint's enrollment
+fence or attach existing community requests to a private selection.
+
 ## AI Cost and Publication Boundary
 
 Community requests share the same fail-closed audio publication path as
@@ -124,3 +142,13 @@ request nor weaken identity equality.
 
 The route uses `withEdgeHandler`; the authenticated user ID is always the owner
 boundary. It never accepts a caller-supplied owner ID.
+
+## Prepared community request admission
+
+The private atomic admission owner now creates one fresh analysis-bound request,
+freezes approved public evidence, and records an immutable operation receipt.
+Exact retries recover without replacing a discussion or reapplying authority. No
+API writer, moderated endpoint or native caller is enabled. See the
+[canonical contract](../../../../docs/backend-and-data/05-api-contracts.md#prepared-atomic-community-request-admission)
+for the default-off gate, insertion proof, public-reader privacy and remaining
+publisher integration.

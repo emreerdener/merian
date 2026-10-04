@@ -1,3 +1,4 @@
+import { registerReasoningTradeoffTests } from "./identification_evaluation/testing/reasoningTradeoffTests.ts";
 import { registerPhotoFeatureRunTests } from "./identification_evaluation/testing/photoFeatureRunTests.ts";
 import { registerPhotoPrimaryScreenTests } from "./identification_evaluation/testing/photoPrimaryScreenTests.ts";
 import { registerPhotoDecisionTests } from "./identification_evaluation/testing/photoDecisionTests.ts";
@@ -76,6 +77,7 @@ import { registerConfidenceEvidenceTests } from "./identification_evaluation/tes
 
 const scratch = Deno.args[0];
 if (!scratch) throw new Error("evaluation_test_directory_required");
+registerReasoningTradeoffTests(scratch);
 registerPhotoFeatureRunTests(scratch);
 registerPhotoPrimaryScreenTests(scratch);
 registerPhotoDecisionTests(scratch);

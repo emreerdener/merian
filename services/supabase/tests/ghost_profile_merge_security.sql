@@ -992,6 +992,43 @@ SELECT set_config(
   )::TEXT,
   TRUE
 );
+-- An accepted source operation cannot survive identity retirement under the
+-- legacy replay protocol. Refuse atomically, retain its source, let processing
+-- finish there, then retry the same merge proof.
+DO $$
+BEGIN
+  BEGIN
+    PERFORM public.consume_ghost_profile_merge_handoff(
+      (SELECT handoff_id FROM merge_test_handoff), REPEAT('a', 64)
+    );
+    RAISE EXCEPTION 'live source work unexpectedly allowed merge';
+  EXCEPTION WHEN SQLSTATE '55000' THEN
+    IF SQLERRM <> 'ghost_merge_source_work_pending' THEN RAISE; END IF;
+  END;
+END;
+$$;
+RESET ROLE;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM public.scan_ingestion_jobs
+    WHERE user_id = '00000000-0000-0000-0000-000000000601'
+      AND status = 'processing'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM public.users WHERE id = '00000000-0000-0000-0000-000000000601'
+  ) THEN
+    RAISE EXCEPTION 'refused merge changed source ownership or processing';
+  END IF;
+END;
+$$;
+INSERT INTO internal.scan_library_details(scan_id,field_notes,is_favorite)
+VALUES ('00000000-0000-0000-0000-000000000611','Synthetic guest note',TRUE);
+-- The pre-existing fixture has no real provider result. Model a durable
+-- terminal processing outcome before permitting source retirement.
+UPDATE public.scan_ingestion_jobs SET status = 'failed_terminal'
+WHERE user_id = '00000000-0000-0000-0000-000000000601';
+SET LOCAL ROLE authenticated;
+
 SELECT *
 FROM public.consume_ghost_profile_merge_handoff(
   (SELECT handoff_id FROM merge_test_handoff),
@@ -1009,6 +1046,11 @@ BEGIN
     REPEAT('a', 64)
   ) AS receipt;
 
+  IF NOT EXISTS (
+    SELECT 1 FROM public.get_owned_scan_library_details(ARRAY['00000000-0000-0000-0000-000000000611'::UUID])
+    WHERE field_notes = 'Synthetic guest note' AND is_favorite
+      AND owner_id = '00000000-0000-0000-0000-000000000602'
+  ) THEN RAISE EXCEPTION 'merge failed to transfer private library details'; END IF;
   IF replay_was_idempotent IS DISTINCT FROM TRUE THEN
     RAISE EXCEPTION 'same-destination replay was not idempotent';
   END IF;
@@ -1016,6 +1058,35 @@ END;
 $$;
 
 RESET ROLE;
+-- Auth cleanup is intentionally later than profile retirement. A stale source
+-- credential must not create more work during that window.
+SET LOCAL ROLE service_role;
+SELECT set_config('request.jwt.claims', '{"role":"service_role"}', TRUE);
+DO $$
+BEGIN
+  BEGIN
+    PERFORM public.begin_scan_ingestion(gen_random_uuid()::TEXT,
+      '00000000-0000-0000-0000-000000000601', 'identify-multimodal', '{}'::JSONB);
+    RAISE EXCEPTION 'retired source admitted ingestion';
+  EXCEPTION WHEN SQLSTATE 'P0002' THEN
+    IF SQLERRM <> 'scan_ingestion_owner_unavailable' THEN RAISE; END IF;
+  END;
+  BEGIN
+    PERFORM public.claim_scan_ingestion_job(gen_random_uuid()::TEXT,
+      '00000000-0000-0000-0000-000000000601', 'identify-multimodal');
+    RAISE EXCEPTION 'retired source claimed ingestion';
+  EXCEPTION WHEN SQLSTATE 'P0002' THEN NULL;
+  END;
+  BEGIN
+    PERFORM public.record_scan_ingestion_intent(gen_random_uuid()::TEXT,
+      '00000000-0000-0000-0000-000000000601', 'identify-multimodal', '{}'::JSONB);
+    RAISE EXCEPTION 'retired source recorded intent';
+  EXCEPTION WHEN SQLSTATE 'P0002' THEN NULL;
+  END;
+END;
+$$;
+RESET ROLE;
+
 
 -- The merge displaced this old destination lease. A stale worker must not be
 -- able to apply provider state after completion reset the queue claim.

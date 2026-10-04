@@ -268,23 +268,38 @@ struct StagedPreviewAudioBoostTests {
             videoURL: fixture.videoURL, outputDirectory: fixture.outputDirectory
         ))
         var continuation: CheckedContinuation<Bool, Never>?
+        var playbackCommands: [String] = []
         let playback = StagedVideoPreviewPlayback(
             video: .init(filePath: fixture.videoURL.path, sampledImages: [], audioFilePath: audio.fileURL.path),
             session: makeSession(),
-            dependencies: .init(seek: { _, _ in
+            dependencies: .init(play: { player in
+                playbackCommands.append("play")
+                player.play()
+            }, pause: { player in
+                playbackCommands.append("pause")
+                player.pause()
+            }, seek: { _, _ in
                 await withCheckedContinuation { continuation = $0 }
             })
         )
         defer { playback.stop() }
         await playback.start()
+        let original = try #require(playback.player.currentItem)
         let preparation = try #require(playback.toggleBoost())
         try await waitUntil { continuation != nil }
+        let replacement = try #require(playback.player.currentItem)
+        #expect(replacement !== original)
+        #expect(playbackCommands == ["play", "pause"])
         playback.pauseForBackground()
+        #expect(playbackCommands == ["play", "pause", "pause"])
         continuation?.resume(returning: true)
         await preparation.value
         #expect(playback.isBoostEnabled)
         #expect(!playback.isPreparing)
-        #expect(playback.player.rate == 0)
+        #expect(playback.player.currentItem === replacement)
+        // Item readiness can publish a transient rate after an early play.
+        // The owner must pause and issue no resume after the stale seek returns.
+        #expect(playbackCommands == ["play", "pause", "pause"])
     }
 
     private func makeSession() -> AudioPlaybackSessionController {

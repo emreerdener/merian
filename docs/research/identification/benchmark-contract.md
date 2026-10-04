@@ -186,6 +186,16 @@ repeatedly tune against a once-held-out leaderboard.
 
 ## Current work order
 
+Update, 3 October: the
+[matched low/medium/Gemini development comparison](../../rfcs/identification-reasoning-tradeoff-2026-10-02.md)
+is complete and closed. Medium met the speed gate but failed quality advancement
+with zero gains and one mapping-dependent regression; low and Gemini tied on
+supported count. Retain low and obtain supported references for actual reported
+regressions while pursuing the visual-evidence sufficiency question. The two
+admitted library plants do not resolve the four ambiguous reference holds. No
+configuration gained qualification and no paid allowance remains open. Fresh
+validation, calibration and separate release requirements still apply.
+
 1. Maintain this matrix and preserve the current released-photo recommendation.
    No challenger has established the required advantage.
 2. Complete the separately frozen feature-observation development screen when

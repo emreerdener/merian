@@ -1,4 +1,9 @@
 import {
+  hasControl,
+  isScientificName,
+} from "../_shared/identify/speciesVerification.ts";
+export { isScientificName } from "../_shared/identify/speciesVerification.ts";
+import {
   parseSpeciesReview,
   type SpeciesReview,
 } from "../_shared/identify/speciesReview.ts";
@@ -33,16 +38,6 @@ function exact(value: Record<string, unknown>, keys: string[]): boolean {
 function revision(value: unknown, max = 2147483647): value is number {
   return typeof value === "number" && Number.isInteger(value) && value >= 0 &&
     value <= max;
-}
-function hasControl(value: string): boolean {
-  return Array.from(value).some((character) => {
-    const code = character.charCodeAt(0);
-    return code < 32 || code === 127;
-  });
-}
-export function isScientificName(value: unknown): value is string {
-  return typeof value === "string" && value.length > 0 && value.length <= 160 &&
-    value === value.trim() && !hasControl(value);
 }
 export function parseReviewRequest(value: unknown): ReviewRequest {
   const body = object(value);

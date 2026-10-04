@@ -88,6 +88,7 @@ struct OAuthSignInSession: Equatable, Sendable {
 struct OAuthSignInCompletion: Equatable, Sendable {
     let previousUserID: String?
     let session: OAuthSignInSession
+    var libraryTransfer: LibraryTransferResult = .completed
 }
 
 enum OAuthSessionReplacementDisposition: Equatable, Sendable {

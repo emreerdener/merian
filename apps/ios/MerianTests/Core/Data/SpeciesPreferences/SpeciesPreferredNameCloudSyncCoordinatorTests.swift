@@ -820,6 +820,8 @@ struct SpeciesNameCloudSyncTests {
                 modelContext: context
             )?.preferredCommonName == "New Bur Oak"
         )
+        #expect(SpeciesPreferredNameStore.acknowledgedValues(ownerUserID: lease.session.userID, userDefaults: defaults)[editedScientificName] == "Old Bur Oak")
+        #expect(!(try LibraryMutationInventory.read(from: context.container, sourceUserID: lease.session.userID, userDefaults: defaults)).isReady)
     }
 
     @Test func confirmedRemoteTombstoneClearsPendingDelete() async throws {

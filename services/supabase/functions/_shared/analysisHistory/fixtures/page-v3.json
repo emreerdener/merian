@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "owner_id": "00000000-0000-4000-8000-000000000003",
+  "observation_id": "00000000-0000-4000-8000-000000000001",
+  "state_revision": 10,
+  "items": [
+    {
+      "ordinal": 1,
+      "snapshot": "{\"analysis_id\":\"00000000-0000-4000-8000-000000000002\",\"completed_at_ms\":null,\"evidence_manifest\":{\"availability\":\"unavailable\",\"imported_at_ms\":1750000000000,\"origin\":\"saved_identification\",\"schema_version\":3},\"observation_id\":\"00000000-0000-4000-8000-000000000001\",\"ordinal\":1,\"request_digest\":null,\"result\":{\"ai_confidence_score\":0.75,\"ai_reasoning\":\"Synthetic saved identification.\",\"candidates\":{},\"identification_provenance\":null,\"inference_tier\":\"flash\",\"is_biological_subject\":true,\"pet_identification\":null,\"primary_identification\":null,\"scan_id\":\"00000000-0000-4000-8000-000000000001\",\"species_id\":null},\"schema_version\":3,\"source_analysis_id\":null}"
+    }
+  ],
+  "next_before_ordinal": null
+}

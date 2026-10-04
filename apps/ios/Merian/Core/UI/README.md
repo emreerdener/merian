@@ -139,6 +139,11 @@ treatment, applied directly to scroll views, lists, and forms across features.
 Feature owners remain responsible for media ordering, source and attribution
 policy, availability state, navigation, and their reuse-key projection.
 
+The audio page exposes its identifier on a containing accessibility group. Play,
+Boost and seeking remain child controls; a separate full-page accessibility
+overlay must not cover them. The queued-audio UI handoff smoke asserts Boost is
+tappable before preparing and retaining boosted audio through completion.
+
 `Models/MediaAttributionText` formats the shared fullscreen gallery and Field
 Chat credits as attributed text. Embedded URLs become tappable `Website` links;
 Creative Commons URLs use readable license titles, including version and

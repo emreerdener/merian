@@ -128,6 +128,8 @@ struct ExploreMapResponseCache {
         _ lhs: MKCoordinateRegion,
         _ rhs: MKCoordinateRegion
     ) -> Bool {
+        guard ExploreMapCameraPolicy.zoomBucket(for: lhs)
+            == ExploreMapCameraPolicy.zoomBucket(for: rhs) else { return false }
         let latitudeThreshold = max(
             max(lhs.span.latitudeDelta, rhs.span.latitudeDelta) * 0.12,
             0.01

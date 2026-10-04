@@ -72,7 +72,7 @@ Deno.test("identity merge fences unfinished scans before generic ownership repar
       "CREATE TEMP TABLE identity_merge_scan_recovery_result",
       "fixture_scan_id UUID :=",
       "jobs.scan_id = fixture_scan_id::TEXT",
-      "fixture_phase := 'atomic Ghost merge'",
+      "fixture_phase := 'historical interrupted-merge fixture'",
       "fixture_phase := 'live target-lease recovery'",
       "fixture_phase := 'merged-source recovery'",
       "fixture_phase := 'metered retry reservation'",

@@ -297,6 +297,13 @@
   ],
   "ui": [
     {
+      "selector": "merianUITests/merianUITests/testStagedProSlotOpensDefaultPaywallAndPreservesDraft",
+      "suite_names": [
+        "merianUITests"
+      ],
+      "owner": "apps/ios/MerianUITests/merianUITests.swift"
+    },
+    {
       "selector": "merianUITests/WhatsNewUITests/testLaunchDismissalRevealsMountedWorkspace",
       "suite_names": [
         "WhatsNewUITests"
@@ -357,6 +364,13 @@
         "merianUITests"
       ],
       "owner": "apps/ios/MerianUITests/merianUITests.swift"
+    },
+    {
+      "selector": "merianUITests/IdentificationHistoryUITests/testHistoryPreviewRestoreAndUndoKeepBothEntries",
+      "suite_names": [
+        "IdentificationHistoryUITests"
+      ],
+      "owner": "apps/ios/MerianUITests/IdentificationHistoryUITests.swift"
     }
   ],
   "performance": [

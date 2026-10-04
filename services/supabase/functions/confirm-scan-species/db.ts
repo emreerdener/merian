@@ -1,3 +1,8 @@
+export { admitReview } from "../_shared/identify/speciesVerification.ts";
+import {
+  requireLegacyReview,
+  throwIfAnalysisBoundReview,
+} from "../_shared/identify/legacyReview.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { publicHttpError } from "../_shared/http.ts";
 import {
@@ -20,6 +25,7 @@ export async function findReviewTarget(
   userID: string,
   scanID: string,
 ): Promise<OwnedReviewTarget> {
+  await requireLegacyReview(admin, userID, scanID, "species_review_not_found");
   const { data, error } = await admin.from("scans")
     .select(
       "primary_identification, identification_provenance, confirmed_species_identity_revision",
@@ -52,18 +58,6 @@ export async function findReviewTarget(
     revision: data.confirmed_species_identity_revision,
   };
 }
-export async function admitReview(
-  admin: SupabaseClient,
-  userID: string,
-): Promise<void> {
-  const { error } = await admin.rpc("admit_species_dictionary_resolution", {
-    viewer_id: userID,
-  });
-  if (error?.message === "species_resolution_rate_limited") {
-    throw publicHttpError(429, "Please try again later.", "rate_limited");
-  }
-  if (error) throw new Error("Species review admission failed.");
-}
 export async function applyReview(
   admin: SupabaseClient,
   userID: string,
@@ -83,7 +77,9 @@ export async function applyReview(
     },
   );
   if (error) {
+    throwIfAnalysisBoundReview(error.message);
     switch (error.message) {
+      case "identification_review_not_found":
       case "species_review_not_found":
         throw publicHttpError(
           404,

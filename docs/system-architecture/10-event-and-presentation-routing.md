@@ -752,3 +752,13 @@ that listing, including the previous-release upgrade check. TestFlight and
 development installs still require their normal installation channel. This UX
 cannot be added to binaries that users already have installed; those retain
 their existing error behavior until updated.
+
+The prepared
+`InsightShellPresentation.identificationHistory(scanId:generation:)` case uses
+the existing Insight Shell sheet slot. Shell rechecks bounded history
+availability and presentation identity before mounting. Dismissal or
+scan-generation replacement closes private state; library change events
+revalidate persistence. History observes account-session invalidation and
+foreground return, and owns one Undo deadline task. It adds no competing root
+sheet or navigation route. Normal access remains nil; the explicit Debug UI
+fixture is the only enabled path.

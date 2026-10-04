@@ -1238,9 +1238,13 @@ See the focused
   needs-attention rows are excluded; an atomic claim clears both scan and job
   deadlines. Automatic scan analysis observes
   `OfflineQueueRetryPolicy.maximumAutomaticRetryAttempts`; after that ceiling it
-  requires attention instead of rescheduling. Cloud-deletion maintenance does
-  not expire: it retains its outbox until explicit remote-erasure success, with
-  maintenance backoff capped at 15 minutes.
+  requires attention instead of rescheduling. Ordinary cloud-deletion retries do
+  not expire, with maintenance backoff capped at 15 minutes. The exact
+  history-upgrade refusal instead holds its outbox task without automatic retry.
+  The
+  [offline deletion contract](../backend-and-data/01-offline-sync-pipeline.md#2-cloud-deletion-tasking-pendingclouddeletiontask)
+  owns that exception, bounded discovery and continuation wake suppression
+  during an active batch.
 - **Mixed-Media Persistence**: Persists one canonical ordered media timeline
   across images, videos, audio clips, and descriptions. Images, video clips, and
   video poster thumbnails are written to `.documentsDirectory` via
@@ -1498,8 +1502,12 @@ See the focused
   blocked the main thread before the first frame rendered. The deferred fetch
   also uses `fetchCount` with `#Predicate { $0.name == "Favorites" }` +
   `fetchLimit = 1` — O(1) regardless of collection count.
-- **`syncHistoricalScansDown`**: Before fetching cloud collections, routes
-  pending collection uploads through
+- **`syncHistoricalScansDown`**: Durably stages legacy local details before
+  fetching any cloud snapshot; a failed preparation save stops restoration.
+  Targeted `syncHistoricalScanDown` applies the same rule to only its scan and
+  operations. `LibraryRestorationState` separates account/generation-scoped
+  restoration from authentication, pending edits and media availability. Before
+  fetching cloud collections, routes pending collection uploads through
   `OfflineQueueManager.drainCollectionSyncIfPossible()` so launch-time history
   restore shares the same collection single-flight latch as ordinary UI edits.
   This push-before-pull ordering prevents the reconciliation delete pass from
@@ -1754,9 +1762,14 @@ consults that Keychain entry.
 - `@MainActor` local/private field-note boundary living in
   `Core/Data/FieldNotes/FieldNotesRepository.swift`.
 - Resolves notes in durability order: `LocalScanRecord.fieldNotes`,
-  `OfflineQueuedScan.fieldNotes`, then the legacy `FieldNotesStore` bridge.
-  Successful SwiftData reads mirror the bridge; bridge-only reads are promoted
-  back into SwiftData.
+  `OfflineQueuedScan.fieldNotes`, then the legacy `FieldNotesStore` bridge. A
+  same-owner completed restored baseline proving nil notes suppresses a stale
+  bridge; an ordinary tag-only receipt does not prove legacy migration. Nonempty
+  durable notes mirror the bridge, while bridge-only promotion obeys mutation
+  admission. Completed-scan edits save an immutable owner-bound detail operation
+  with the local change. See the
+  [transition contract](../backend-and-data/21-guest-library-transitions.md) for
+  exact acknowledgment and remote-clear precedence.
 - SwiftData fetches throw through the repository boundary. A read failure is
   logged and fails closed instead of being treated as an absent row that permits
   a stale defaults fallback.
@@ -2421,6 +2434,16 @@ consults that Keychain entry.
   identity or repair ownership as a side effect.
 
 ### `SupabaseManager`
+
+Library ownership is separate from SDK authentication. The facade coordinates
+source-owned drains and final write admission, `LibraryMutationInventory`,
+`LibrarySignOutRecoveryCoordinator`, and typed `LibraryTransferResult`.
+`ScanRepository.libraryRestoration` owns account/generation-scoped restoration
+status. The
+[guest library transition contract](../backend-and-data/21-guest-library-transitions.md)
+owns recovery and the pending-transfer editing limitation; the
+[triage guide](./04-logging-and-debugging.md#guest-library-transition-triage)
+owns supported user recovery steps.
 
 - Wraps GoTrue bindings and exports a unified
   `getValidAuthHeaders() async throws -> [String: String]` method that

@@ -25,11 +25,21 @@ The [scan allowance contract](../backend-and-data/18-complimentary-pro-scans.md)
 owns Free eligibility, Pro-first funding, quotas, and
 exhausted-Pro/remaining-Free fallback. Placeholders never enter payloads.
 
-The tray renders one placeholder per unused physical slot. A Describe-first Pro
-draft shows two empty media nodes followed by its note; Free shows one empty
-media node followed by its note. Adding media replaces those placeholders
-without changing the separate text allowance or depending on the starting
-capture mode.
+The tray renders one add-media placeholder per usable empty physical slot. A
+Describe-first Pro draft shows two empty media nodes followed by its note; Free
+shows one usable empty media node, a locked second node with a **PRO** badge,
+then its note. A Free draft with one photo or recording retains the locked node.
+Two occupied physical slots leave no media placeholder. The note remains
+separate, regardless of the starting capture mode.
+
+Tapping the locked node opens the default paywall without requesting photo
+library access. Its 48 pt control is labelled **Add another media item with
+Pro**, with the hint **Opens upgrade options**, and respects draft mutation and
+pending picker-admission locks. Dismissal or purchase failure preserves media
+and notes. Paid or available complimentary Pro access unlocks the slot through
+the existing capacity policy; users tap again to add media. The upgrade node
+never grants additional admission capacity, changes reanalysis capacity, or
+reveals the tray outside its existing staged-review visibility rules.
 
 Staged review is the default on new and existing installations. Workspace's
 **Auto-submit scans** uses the new `autoSubmitScans` key, registered as `false`;
@@ -98,12 +108,12 @@ preview-only staged metadata. See the
 
 ## Tray and protected discard
 
-The media row displays physical captures and an add-media placeholder while
-capacity remains. One note node follows it: outlined message bubble when empty,
-filled message bubble when populated, with **Add note** / **Edit note**
-accessibility labels. Text-only scans use that same note node once. Reanalysis
-may also show historical text nodes. The once-per-install tooltip says “Add a
-note about what you noticed.”
+The media row displays physical captures, usable add-media placeholders, and the
+Free upgrade placeholder described above. One note node follows it: outlined
+message bubble when empty, filled message bubble when populated, with **Add
+note** / **Edit note** accessibility labels. Text-only scans use that same note
+node once. Reanalysis may also show historical text nodes. The once-per-install
+tooltip says “Add a note about what you noticed.”
 
 Physical capture controls remain available while capacity remains; the note
 remains reachable at full capacity. The top Scan / Record / Describe selector

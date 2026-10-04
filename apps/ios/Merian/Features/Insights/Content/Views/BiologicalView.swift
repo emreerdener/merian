@@ -186,6 +186,26 @@ struct BiologicalView: View {
             if isBiological {
                 let isUnknownSubject = inferenceEngine.speciesData?.scientificName == "Taxonomy Unavailable"
 
+                if CandidateReviewVisibilityPolicy.showsIncorrectGuidance(
+                    for: inferenceEngine.speciesData,
+                    canReanalyze: viewModel.canReanalyze,
+                    canAskCommunity: viewModel.canRequestCommunityIdentification
+                ) {
+                    IncorrectIdentificationGuidanceCard(
+                        onReanalyze: viewModel.canReanalyze ? refinementAction(
+                            scanId: biologicalScanId,
+                            generation: fieldNotesGeneration
+                        ) : nil,
+                        onAskCommunity: viewModel.canRequestCommunityIdentification ? {
+                            guard let scanId = biologicalScanId else { return }
+                            viewModel.presentCommunityIdentificationRequest(
+                                expectedScanId: scanId,
+                                expectedGeneration: fieldNotesGeneration
+                            )
+                        } : nil
+                    )
+                }
+
                 // MARK: - Identification Candidates
                 let candidates = CandidateReviewVisibilityPolicy.visibleCandidates(for: inferenceEngine.speciesData)
 

@@ -58,18 +58,19 @@ of that coverage.
    separate data-preserving rollout before `.automatic` can change.
 2. Choose the narrowest safe startup strategy:
    - no store artifacts or current-schema store → open without a migration plan
-   - known recent source store (V42, V43, V44, V45, V46, V47, V48, V49, V50, or
-     V51 or V52) → open with the matching source-isolated recent migration plan;
-     V50 additionally requires an allowlisted Core Data model checksum because
-     two distinct V50 graphs were released
+   - known recent source store (V42, V43, V44, V45, V46, V47, V48, V49, V50,
+     V51, V52, V53, V54, or V55) → open with the matching source-isolated recent
+     migration plan; V50 additionally requires an allowlisted Core Data model
+     checksum because two distinct V50 graphs were released
    - unknown older store → open with the full historical `MerianMigrationPlan`
 3. If SwiftData reports duplicate version checksums, retry through the
-   source-isolated ladder: current-store open, V52, V51, both checksum-distinct
-   V50 graphs, then V49, V48, V47, V46, V45, V44, V43, and V42. V52 uses only
-   lightweight V52→V53; V51 uses V51→V52→V53. Each V50 graph runs its
-   source-exact custom V50→V51 stage followed by V51→V52→V53. V49 prepends
-   lightweight V49→V50 without validating unrelated historical stages. The
-   V45/V46 retry plans keep those source representatives isolated from each
+   source-isolated ladder: current-store open, V55, V54, V53, V52, V51, both
+   checksum-distinct V50 graphs, then V49, V48, V47, V46, V45, V44, V43, and
+   V42. V55 uses only lightweight V55→V56; V54 and earlier plans append that
+   shared stage after their existing stages. Each V50 graph runs its
+   source-exact custom V50→V51 stage followed by V51→V52→V53→V54→V55→V56. V49
+   prepends lightweight V49→V50 without validating unrelated historical stages.
+   The V45/V46 retry plans keep those source representatives isolated from each
    other and use direct V49 targets because V46 was a shipped no-op schema; V47
    uses its own source-isolated V47→V49 plan with self-contained V47 model
    classes and scalar queued-scan snapshots. V48 has two isolated V48→V49 lanes:
@@ -77,9 +78,10 @@ of that coverage.
    source. V42 and V43 use short direct V49 plans to avoid validating older
    full-historical custom stages; V42 deliberately skips the older V42→V43
    bridge because real TestFlight V42 stores still fell back to safe mode there.
-   Every selected older repair lane then applies the shared V49→V50→V51→V52→V53
-   tail. The full historical plan is one linear chain ending
-   V42→V49→V50→V51→V52→V53; V43...V48 exist only in their source-isolated plans.
+   Every selected older repair lane then applies the shared
+   V49→V50→V51→V52→V53→V54→V55→V56 tail. The full historical plan is one linear
+   chain ending V42→V49→V50→V51→V52→V53→V54→V55→V56; V43...V48 exist only in
+   their source-isolated plans.
 4. If SwiftData/Core Data raises an Objective-C exception, the bridge converts
    it into an error so the Swift recovery path can continue.
 5. Inspect the full error chain for verified SQLite/Core Data corruption
@@ -90,7 +92,7 @@ of that coverage.
    - `default.store-wal`
 7. Retry the persistent `ModelContainer` exactly once after quarantine.
 8. If the error is not corruption but the selected startup strategy was a legacy
-   migration path (`recent-source-v42`...`recent-source-v51` or
+   migration path (`recent-source-v42`...`recent-source-v54` or
    `full-historical`), archive the same store artifacts under `store-rescue/`
    and open a fresh persistent current-schema store. This breaks repeated
    SwiftData migration failures out of the safe-mode loop while preserving the
@@ -213,7 +215,7 @@ processed candidate build:
 
 ## V50→V51 Account-Partition Acceptance
 
-V51 and V52 are frozen; `MerianSchemaV53` owns the active models. V50 was
+V51 through V55 are frozen; `MerianSchemaV56` owns the active models. V50 was
 shipped with two model checksums under the same `50.0.0` identifier:
 
 - `MerianSchemaV50` / `SchemaV50Snapshots.swift` freezes the original
@@ -237,15 +239,15 @@ because their account owner cannot be inferred safely. All other models retain
 their exact V50 persisted shape, including collection tombstones, relationships,
 and the goal-hint companion. Disk fixtures create both V50 graphs, verify
 checksum-based production selection, migrate representative rows, and reopen the
-V53 store after the additional lightweight V51→V52→V53 hops. Those fixtures are
-candidate-self consistency evidence, not a substitute for a genuine
+V56 store after the additional lightweight V51→V52→V53→V54→V55→V56 hops. Those
+fixtures are candidate-self consistency evidence, not a substitute for a genuine
 released-binary install over.
 
 For the exact processed candidate build, use a dedicated non-production device
 whose store was created by the released V50 binary. Record only sanitized
 device/build/source identity and schema metadata, then install the candidate
 over V50 without deleting app data. Successful evidence must show
-`currentSchema=V53`, `storedSchema=V50`,
+`currentSchema=V57`, `storedSchema=V50`,
 `strategy=recent-source-v50-released-active`, a successful
 `recent-v50-released-active` attempt, normal UI (no recovery notice or safe
 mode), and preservation of queued scans, media, retry state, goal hints,
@@ -254,7 +256,7 @@ verify a V50 device-global preferred-name row was not adopted by the signed-in
 account. After reconciliation, only that account's server-owned preferences may
 appear; a second non-production account must not inherit the first account's
 local row, pending tombstone, freshness timestamp, or diagnostics. Force-quit
-and relaunch must then select `current-store`, retain the V53 state, and
+and relaunch must then select `current-store`, retain the V56 state, and
 preserve the account partition. Verify a true collection tombstone still emits
 `is_deleted: true`, resists delayed inbound upserts, and is purged only after
 matching cloud acknowledgement. Preserve failed devices and artifacts for
@@ -407,30 +409,31 @@ exposing app data.
 
 `make validate-ios-migration-guardrails` checks the SwiftData migration source
 contract before Xcode compiles anything. It keeps the full runtime migration
-path linear through V42→V49→frozen V50→frozen V51→frozen V52→V53, keeps
-V43...V48 representatives out of that full path, verifies
-V42/V43/V44/V45/V46/V47 source-isolated plans target V49 directly, verifies the
-known-good and optional-queue V48 recovery plan source, guards the legacy
-migration-rescue escape hatch, requires isolated V49→V50→V51→V52→V53, both
-checksum-distinct V50→V51→V52→V53 plans, the V51→V52→V53 plan, and the exact
-V52→V53 immediate-predecessor plan plus current-store V53 routing. It pins
-frozen V49, both V50 graphs, V51 and V52 snapshots, and verifies both the
-account-scoped V51 preference identity and active
+path linear through V42→V49→frozen V50→frozen V51→frozen V52→frozen V53→frozen
+V54→frozen V55→frozen V56→V57, keeps V43...V48 representatives out of that full
+path, verifies V42/V43/V44/V45/V46/V47 source-isolated plans target V49
+directly, verifies the known-good and optional-queue V48 recovery plan source,
+guards the legacy migration-rescue escape hatch, requires isolated
+V49→V50→V51→V52→V53→V54→V55→V56→V57, both checksum-distinct
+V50→V51→V52→V53→V54→V55→V56→V57 plans, the V51→V52→V53→V54→V55→V56→V57 plan, and
+the exact V56→V57 immediate-predecessor plan plus current-store V57 routing. It
+pins frozen V49, both V50 graphs, V51 through V56 snapshots, and verifies both
+the account-scoped V51 preference identity and active
 `isPendingDeletion`/`isDeleted` mapping plus unchanged `is_deleted` projection.
 It also keeps the empty in-memory safe-mode factory on `CurrentSchema` and
 rejects any historical migration-plan argument there, guards the disk-backed
 migration tests from unlinking SQLite files, and locks checksum retry order to
-current store, V51, both V50 graphs, then V49 through V42, newest to oldest. Its
-adversarial fixtures also reject replacing the independent full-plan
-initialization test with a recent-source plan. The exhaustive recent-source enum
-must remain consecutive and end at the schema immediately before
-`CurrentSchema`; the container factory has no generic recent fallback, so adding
-a future source case also requires a dedicated runtime plan at compile time.
-Runtime tests separately assert that V48 required-value validation failures are
-rescue-eligible because current SwiftData may reject malformed historical V48
-rows before a repair migration can run. The V49 and V50 disk fixtures invoke the
-same production metadata decision used at launch, prove stored major `49`
-selects `.recentSource(.v49)` and stored major `50` selects
+current store, V56, V55, V54, V53, V52, V51, both V50 graphs, then V49 through
+V42, newest to oldest. Its adversarial fixtures also reject replacing the
+independent full-plan initialization test with a recent-source plan. The
+exhaustive recent-source enum must remain consecutive and end at the schema
+immediately before `CurrentSchema`; the container factory has no generic recent
+fallback, so adding a future source case also requires a dedicated runtime plan
+at compile time. Runtime tests separately assert that V48 required-value
+validation failures are rescue-eligible because current SwiftData may reject
+malformed historical V48 rows before a repair migration can run. The V49 and V50
+disk fixtures invoke the same production metadata decision used at launch, prove
+stored major `49` selects `.recentSource(.v49)` and stored major `50` selects
 `.recentSource(.v50)`, then open through the corresponding source-isolated
 migration path. Both V50 fixtures additionally prove their checksum variant is
 recognized and that unowned preferred-name rows are discarded without disturbing
@@ -556,13 +559,13 @@ rerunning the log loop.
 V52 adds only optional scan provenance bytes. Freeze V51 before any active-model
 edit and preserve its pinned snapshot digest. The candidate's disk fixture must
 select `.recentSource(.v51)` from actual store metadata, preserve all saved
-entities and relationships, leave legacy provenance nil, and reopen current V53
+entities and relationships, leave legacy provenance nil, and reopen current V57
 without a migration plan. The source guard also rejects missing/reordered
-V52/V53 tails and missing V51 source selection or dispatch.
+V52-through-V57 tails and missing V51 source selection or dispatch.
 
 Before distributing the exact candidate, perform a genuine released-V51 binary
 install-over and second launch on a dedicated test device. Retain app data;
-verify `currentSchema=V53`, `storedSchema=V51`, `recent-source-v51`, successful
+verify `currentSchema=V57`, `storedSchema=V51`, `recent-source-v51`, successful
 `recent-v51`, preserved scans/media/collections/queue/account preferences, and
 no rescue, quarantine or safe mode. Second launch must use `current-store` and
 retain saved provenance. Record only sanitized build and schema evidence. Local
@@ -581,12 +584,70 @@ V52 disk store, verifies `.recentSource(.v52)`, migrates through the production
 V52 plan, checks saved entities/relationships/provenance and nil new fields,
 then saves and reopens the new optional bytes. Reserved confirmation bytes do
 not grant species authority. The source guard pins both V52 snapshots and the
-V52→V53 terminal stage in every supported plan.
+V52→V53 stage and the forward tail through V57 in every applicable plan.
 
-Before distributing V53, install the exact candidate over a genuine released V52
-binary without deleting app data and verify a second launch. Capture only
-sanitized build/schema evidence: `currentSchema=V53`, `storedSchema=V52`,
+Before distributing the current candidate, install it over a genuine released
+V52 binary without deleting app data and verify a second launch. Capture only
+sanitized build/schema evidence: `currentSchema=V57`, `storedSchema=V52`,
 `recent-source-v52`, successful `recent-v52`, preserved observations, media,
 collections, preferences and queue state, with no rescue/quarantine/safe mode.
 The second launch must use `current-store`. Synthetic stores establish local
 migration behavior; they do not replace this physical release gate.
+
+## V54→V55 Analysis Storage Acceptance
+
+V54 is frozen in two hash-pinned files. V55 adds private child result storage
+without seeding synthetic history or changing the existing effective
+identification. Existing scans have initialized selection, an empty history, and
+nil selected-result, account and revision fields. See the
+[canonical storage contract](04-database-schema.md#native-analysis-history-storage-and-v55).
+The native migration fixture checks every outgoing scan scalar, review bytes,
+correction, mixed media, collections and pending work, then reopens without a
+migration plan. The factory selects `.recentSource(.v54)` from actual source
+metadata and retries that lane first after the current-store checksum attempt.
+
+Before distributing the exact candidate, install over a genuine released V54
+store and verify `currentSchema=V57`, `storedSchema=V54`, `recent-source-v54`, a
+successful `recent-v54` attempt, preserved corrections/review/media/queue state,
+and a second launch using `current-store`. Do not count rescue into an empty
+store as success. These local fixtures do not replace that physical-device gate.
+
+## V55→V56 Unknown Completion Acceptance
+
+V55's nine models are frozen in two hash-pinned snapshot files; they compiled
+before the active field changed. V56 makes only child `completedAt` optional so
+an imported saved identification can represent unknown execution time. V1/V2
+construction still requires completion; V3 requires nil. Migration does not
+substitute import time, create history, alter selection or broaden recovery.
+
+`MigrationPlanTests` creates a V55 disk store with immutable child bytes and
+existing selection/correction, migrates it through
+`MerianRecentV55MigrationPlan`, then inserts a V3 nil-date result and reopens
+with the plan-free current schema. Registry tests and source guardrails cover
+every older forward tail, V55 startup dispatch and newest-first checksum
+recovery. The complete migration and recovery suites remain required; a source
+fixture is not a physical upgrade result.
+
+Before distribution, use a genuine outgoing binary/store and verify
+`currentSchema=V57`, `storedSchema=V55`, `recent-source-v55`, unchanged dates,
+results and reviews, then a second-launch `current-store` open. Keep sanitized
+candidate evidence under the release controls; this preparation does not
+activate enrollment or restoration.
+
+## V56→V57 Analysis State Acceptance
+
+V56's nine model bodies were frozen and compiled before adding the active
+state-cache relationship. V57 adds one owner-private entity and an optional
+cascade from immutable result to its state. The lightweight stage preserves
+current selection/correction, result bytes and nullable completion; no cache or
+display rows are fabricated. `MerianRecentV56MigrationPlan` is the new immediate
+source route, with V56 first after current-store fallback in the checksum
+ladder. Full and older recent plans append the same final stage. Safe mode and
+quarantine eligibility are unchanged.
+
+The disk fixture verifies V56 metadata dispatch, preservation, an empty initial
+cache, state persistence/reopen and parent-to-result-to-state cascade.
+Guardrails pin both V56 snapshot hashes and require V57 in every supported
+forward tail. Before release, separately collect genuine released-binary
+install-over and second-launch evidence; source-created fixtures do not replace
+that gate.

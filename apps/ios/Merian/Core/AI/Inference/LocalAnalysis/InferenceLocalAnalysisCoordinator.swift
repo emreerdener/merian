@@ -274,36 +274,43 @@ final class InferenceLocalAnalysisCoordinator {
                     return
                 }
                 defer { stream.cancel() }
-                var buffer = FoundationVisualCueBuffer()
-                var acceptedCount = 0
+                try await withTaskCancellationHandler {
+                    var buffer = FoundationVisualCueBuffer()
+                    var acceptedCount = 0
 
-                for try await snapshot in stream.snapshots {
-                    guard !Task.isCancelled,
-                          let self,
-                          self.isSessionCurrent(session),
-                          eligibilityChecker.isEligibleForVisualCues() else {
-                        return
+                    for try await snapshot in stream.snapshots {
+                        guard !Task.isCancelled,
+                              let self,
+                              self.isSessionCurrent(session),
+                              eligibilityChecker.isEligibleForVisualCues() else {
+                            return
+                        }
+                        guard let bufferedCue = buffer.consume(snapshot),
+                              let cue = FoundationVisualCueValidator.validatedCue(
+                                  bufferedCue,
+                                  forbiddenIdentityTerms:
+                                      request.forbiddenIdentityTerms,
+                                  existingPhrases:
+                                      self.phraseCoordinator
+                                          .acceptedFoundationPhrases.union(
+                                              self.phraseCoordinator
+                                                  .acceptedLocalTraitPhrases
+                                          )
+                              ),
+                              self.phraseCoordinator.acceptFoundationCue(cue) else {
+                            continue
+                        }
+                        acceptedCount += 1
+                        if acceptedCount
+                            == FoundationVisualCueRequest.maximumCueCount {
+                            return
+                        }
                     }
-                    guard let bufferedCue = buffer.consume(snapshot),
-                          let cue = FoundationVisualCueValidator.validatedCue(
-                              bufferedCue,
-                              forbiddenIdentityTerms:
-                                  request.forbiddenIdentityTerms,
-                              existingPhrases:
-                                  self.phraseCoordinator
-                                      .acceptedFoundationPhrases.union(
-                                          self.phraseCoordinator
-                                              .acceptedLocalTraitPhrases
-                                      )
-                          ),
-                          self.phraseCoordinator.acceptFoundationCue(cue) else {
-                        continue
-                    }
-                    acceptedCount += 1
-                    if acceptedCount
-                        == FoundationVisualCueRequest.maximumCueCount {
-                        return
-                    }
+                } onCancel: {
+                    // Interrupt the producer even while consumption is suspended
+                    // before its next snapshot. The scope-exit fallback remains
+                    // necessary for normal completion and early consumer return.
+                    stream.cancel()
                 }
             } catch {
                 // Local cues are best-effort and intentionally have no

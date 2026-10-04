@@ -74,10 +74,14 @@ extension MerianNetworkClient {
         return response.status.rawValue
     }
 
-    func deleteScan(scanId: String) async throws {
+    func deleteScan(scanId: String, expectedOwnerID: UUID? = nil) async throws {
         let data = try await performAuthenticatedJSONDataPost(
             function: "delete-scan",
-            payload: ["scanId": scanId]
+            payload: ["scanId": scanId],
+            expectedAuthUserID: expectedOwnerID,
+            // An account-bound queue drain holds an outer lease. Session
+            // recovery must return to it, not wait on its own Auth quiescence.
+            allowsUnauthorizedSessionRecovery: expectedOwnerID == nil
         )
         try ScanLifecycleResponseDecoder.confirmDeletion(from: data)
         MerianLog.network.debug("Scan deleted: \(scanId, privacy: .private)")

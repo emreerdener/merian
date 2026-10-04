@@ -3,6 +3,16 @@ import XCTest
 
 @MainActor
 final class GhostProfileMergeCoordinatorTests: XCTestCase {
+    func testEmptyRecoveryQueueIsCompleteEvenWithoutRecoveryLease() async {
+        let harness = GhostProfileMergeCoordinatorHarness()
+        let result = await GhostProfileMergeCoordinator().completeTransfer(
+            expectedTargetUserID: harness.target.userID, ownedBy: nil,
+            dependencies: harness.makeDependencies()
+        )
+        XCTAssertEqual(result, .completed)
+        XCTAssertEqual(harness.completeCount, 0)
+    }
+
     func testPreparationPersistsReturnedProofBeforeHonoringCancellation() async {
         let harness = GhostProfileMergeCoordinatorHarness()
         let coordinator = GhostProfileMergeCoordinator()
@@ -171,7 +181,7 @@ final class GhostProfileMergeCoordinatorTests: XCTestCase {
         XCTAssertFalse(harness.analyticsIsSuppressed)
     }
 
-    func testDifferentTargetCancelsStaleTaskBeforeProofRemoval() async {
+    func testDifferentTargetCannotReplayPinnedTransfer() async {
         let harness = GhostProfileMergeCoordinatorHarness()
         let coordinator = GhostProfileMergeCoordinator()
         let gate = GhostProfileMergeCoordinatorTestGate()
@@ -199,12 +209,12 @@ final class GhostProfileMergeCoordinatorTests: XCTestCase {
         await gate.release()
         let staleResult = await stale.value
 
-        XCTAssertTrue(currentResult)
+        XCTAssertFalse(currentResult)
         XCTAssertFalse(staleResult)
-        XCTAssertEqual(harness.completeCount, 2)
-        XCTAssertEqual(harness.clearCount, 1)
-        XCTAssertTrue(harness.queue.isEmpty)
-        XCTAssertFalse(harness.analyticsIsSuppressed)
+        XCTAssertEqual(harness.completeCount, 1)
+        XCTAssertEqual(harness.clearCount, 0)
+        XCTAssertEqual(harness.queue.first?.destinationUserID, harness.target.userID)
+        XCTAssertTrue(harness.analyticsIsSuppressed)
     }
 
     func testTransitionOwnerReplacesOwnerlessTaskForSameTarget() async {
@@ -275,13 +285,14 @@ final class GhostProfileMergeCoordinatorTests: XCTestCase {
             )
 
         XCTAssertFalse(completed)
-        XCTAssertEqual(harness.queue, [pending])
+        XCTAssertEqual(harness.queue.map(\.handoffId), [pending.handoffId])
+        XCTAssertEqual(harness.queue.first?.destinationUserID, harness.target.userID)
         XCTAssertEqual(harness.clearCount, 0)
         XCTAssertTrue(harness.analyticsIsSuppressed)
         XCTAssertTrue(harness.events.contains("diagnose-retryPending"))
     }
 
-    func testTerminalFailureSynchronizesTargetBeforeClearingProof() async {
+    func testTerminalFailureRetainsProofAndRequiresAttention() async {
         let harness = GhostProfileMergeCoordinatorHarness()
         harness.currentIdentity = harness.target
         let pending = harness.makeHandoff()
@@ -295,19 +306,13 @@ final class GhostProfileMergeCoordinatorTests: XCTestCase {
                 dependencies: harness.makeDependencies()
             )
 
-        XCTAssertTrue(completed)
-        XCTAssertTrue(harness.queue.isEmpty)
-        XCTAssertEqual(harness.targetEvidenceSyncCount, 1)
-        XCTAssertEqual(harness.clearCount, 1)
-        XCTAssertFalse(harness.analyticsIsSuppressed)
-        assertOrder(
-            [
-                "complete-\(pending.handoffId)",
-                "synchronize-target-evidence",
-                "clear-\(pending.handoffId)"
-            ],
-            in: harness.events
-        )
+        XCTAssertFalse(completed)
+        XCTAssertEqual(harness.queue.first?.handoffId, pending.handoffId)
+        XCTAssertEqual(harness.queue.first?.requiresAttention, true)
+        XCTAssertEqual(harness.queue.first?.destinationUserID, harness.target.userID)
+        XCTAssertEqual(harness.targetEvidenceSyncCount, 0)
+        XCTAssertEqual(harness.clearCount, 0)
+        XCTAssertTrue(harness.analyticsIsSuppressed)
     }
 
     func testCanceledTerminalResponseCannotSynchronizeOrClearProof() async {
@@ -334,7 +339,8 @@ final class GhostProfileMergeCoordinatorTests: XCTestCase {
         let completed = await attempt.value
 
         XCTAssertFalse(completed)
-        XCTAssertEqual(harness.queue, [pending])
+        XCTAssertEqual(harness.queue.map(\.handoffId), [pending.handoffId])
+        XCTAssertEqual(harness.queue.first?.destinationUserID, harness.target.userID)
         XCTAssertEqual(harness.targetEvidenceSyncCount, 0)
         XCTAssertEqual(harness.clearCount, 0)
         XCTAssertTrue(harness.analyticsIsSuppressed)
@@ -361,7 +367,7 @@ final class GhostProfileMergeCoordinatorTests: XCTestCase {
 
         XCTAssertFalse(completed)
         XCTAssertEqual(harness.completeCount, 2)
-        XCTAssertEqual(harness.queue, [retryable])
+        XCTAssertEqual(harness.queue.map(\.handoffId), [retryable.handoffId])
         XCTAssertEqual(harness.clearCount, 1)
         XCTAssertTrue(harness.analyticsIsSuppressed)
     }

@@ -355,13 +355,24 @@ BEGIN
     WHERE counters.scope_type IN ('user_daily', 'user_rate')
       AND counters.scope_key = source_user_id::TEXT;
 
-    -- Exercise the actual patched merge function. It must fence the scan before
-    -- generic FK ownership changes and profile deletion.
-    fixture_phase := 'atomic Ghost merge';
-    PERFORM internal.perform_ghost_profile_merge(
-        source_user_id,
-        target_user_id
-    );
+    -- New transitions refuse this in-flight work. Retain the remainder of this
+    -- fixture as recovery coverage for interrupted merges from older clients.
+    fixture_phase := 'new merge refuses unfinished source work';
+    BEGIN
+        PERFORM internal.perform_ghost_profile_merge(source_user_id, target_user_id);
+        RAISE EXCEPTION 'new merge accepted unfinished source work';
+    EXCEPTION WHEN SQLSTATE '55000' THEN
+        IF SQLERRM <> 'ghost_merge_source_work_pending' THEN RAISE; END IF;
+    END;
+    fixture_phase := 'historical interrupted-merge fixture';
+    PERFORM internal.prepare_scan_ingestions_for_identity_merge(source_user_id, target_user_id);
+    -- Seed the historical receipt shape only after satisfying the current
+    -- transition boundary. No production caller can bypass that boundary.
+    UPDATE public.scan_ingestion_jobs SET status='failed_terminal'
+      WHERE user_id=source_user_id AND scan_id=fixture_scan_id::TEXT;
+    PERFORM internal.perform_ghost_profile_merge(source_user_id, target_user_id);
+    UPDATE public.scan_ingestion_jobs SET status='failed_retryable'
+      WHERE user_id=target_user_id AND scan_id=fixture_scan_id::TEXT;
 
     fixture_phase := 'merged scan-dependency assertions';
     IF EXISTS (

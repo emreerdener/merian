@@ -354,6 +354,7 @@ struct DiskBackedInferenceAcceptanceTests {
     }
 
     private func enableUnlimitedFreeScansForTest() {
+        OfflineQueueManager.shared.captureLibraryAdmission = { _ in true }
         let deviceId = DeviceIdentityManager.shared.deviceId
         UserDefaults.standard.removeObject(
             forKey: "Merian_LastScanDate_\(deviceId)"
@@ -372,6 +373,7 @@ struct DiskBackedInferenceAcceptanceTests {
     }
 
     private func restoreFreeScanLimitForTest() {
+        OfflineQueueManager.shared.captureLibraryAdmission = OfflineQueueManager.liveCaptureLibraryAdmission
         let deviceId = DeviceIdentityManager.shared.deviceId
         UserDefaults.standard.removeObject(
             forKey: "Merian_LastScanDate_\(deviceId)"

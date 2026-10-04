@@ -39,6 +39,7 @@ extension HistoricalScanResponse {
         case inference_tier
         case identification_provenance
         case primary_identification
+        case library_details
         case custom_tags
         case candidates
         case pet_identification
@@ -86,6 +87,7 @@ extension HistoricalScanResponse {
         inference_tier = try values.decodeIfPresent(String.self, forKey: .inference_tier)
         identification_provenance = try values.decodeIfPresent(IdentificationProvenanceDTO.self, forKey: .identification_provenance)
         primary_identification = try values.decodeIfPresent(PrimaryIdentificationDTO.self, forKey: .primary_identification)
+        library_details = try values.decodeIfPresent(HistoricalLibraryDetails.self, forKey: .library_details)
         custom_tags = try values.decodeIfPresent([String].self, forKey: .custom_tags)
         candidates = try values.decodeIfPresent([CloudIdentificationCandidate].self, forKey: .candidates)
         pet_identification = try values.decodeIfPresent(PetIdentification.self, forKey: .pet_identification)

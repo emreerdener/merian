@@ -53,6 +53,9 @@ struct NonBiologicalDependencies {
                     )
             },
             deleteRecords: { snapshots, modelContainer in
+                let account = CloudDeletionAccountWork.live
+                let lease = try? account.begin()
+                defer { if let lease { account.finish(lease) } }
                 let actor = BackgroundDatabaseActor(
                     modelContainer: modelContainer
                 )
@@ -63,7 +66,7 @@ struct NonBiologicalDependencies {
                     )
                 }
                 return try await actor.bulkDeleteNonBiologicalScans(
-                    payloads: payloads
+                    payloads: payloads, requestingAccountID: lease?.session.userID
                 )
             },
             deleteFiles: { paths in

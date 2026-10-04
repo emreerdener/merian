@@ -86,5 +86,8 @@ struct DangerZone: View {
             isAnonymousSession: { supabase.isGuestUser },
             onSuccess: showSignOutConfirmation
         )
+        if supabase.libraryTransitionIssue != nil || supabase.librarySignOutRecoveryPending {
+            viewModel.showError = false
+        }
     }
 }

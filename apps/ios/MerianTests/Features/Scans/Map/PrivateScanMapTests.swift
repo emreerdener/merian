@@ -524,6 +524,42 @@ struct PrivateScanMapTests {
         #expect(model.annotations.isEmpty)
     }
 
+    @Test("Repeated cluster taps continue past the fitted minimum and reveal individual scans")
+    func repeatedClusterZoomReprojectsPoints() async throws {
+        let model = PrivateScanMapViewModel()
+        let points = [
+            makePoint(id: "near-a", latitude: 12, longitude: 45.0001),
+            makePoint(id: "near-b", latitude: 12, longitude: 45.0005)
+        ]
+        let cluster = PrivateScanMapCluster(
+            id: "nearby", latitude: 12, longitude: 45.0003, points: points
+        )
+        model.update(snapshot: PrivateScanMapSnapshot(points: points))
+        model.updateViewportSize(CGSize(width: 390, height: 844))
+        model.updateVisibleRegion(MKCoordinateRegion(
+            center: cluster.coordinate,
+            span: MKCoordinateSpan(latitudeDelta: 0.2, longitudeDelta: 0.2)
+        ))
+        await model.waitForViewportProjection()
+
+        for _ in 0..<4 {
+            let oldSpan = try #require(model.visibleRegion?.span.longitudeDelta)
+            model.focus(on: cluster)
+            await model.waitForViewportProjection()
+            let region = try #require(model.cameraPosition.region)
+            #expect(region.span.longitudeDelta < oldSpan)
+            // Also exercise the settled camera callback used after pinching or tapping.
+            model.updateVisibleRegion(region)
+            await model.waitForViewportProjection()
+        }
+        #expect(model.visiblePoints.count == 2)
+        #expect(model.annotations.count == 2)
+        #expect(model.annotations.allSatisfy {
+            if case .point = $0 { return true }
+            return false
+        })
+    }
+
     @Test("Coincident clusters stay available for list recovery at maximum zoom")
     func coincidentClusterRecovery() async throws {
         let model = PrivateScanMapViewModel()

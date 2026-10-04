@@ -384,6 +384,7 @@ struct CaptureWorkspaceView: View {
                             isSubmissionReady: viewModel.canSubmitDraft,
                             isMutationLocked: viewModel.isDraftMutationLocked,
                             onNoteTap: editSharedNote,
+                            onUpgradeTap: viewModel.presentStagedMediaUpgradePaywall,
                             selectedPhotoItems: $viewModel.selectedPhotoItems,
                             onRequestPhotoPickerPresentation: { selectionCount in
                                 await viewModel.requestPhotoPickerEntryAdmission(

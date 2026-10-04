@@ -1,9 +1,11 @@
 # Scientific Observation Retention
 
 This document is the normative product and engineering contract for scientific
-observations after Naturebook account deletion. It describes the current
-database behavior installed by
-`20260731154139_retain_scientific_coordinates_after_account_deletion.sql`.
+observations after Naturebook account deletion. The scientific-coordinate policy
+was installed by
+`20260731154139_retain_scientific_coordinates_after_account_deletion.sql`;
+subsequent review guards and the prepared October 2 history changes also affect
+the current account-detachment boundary described below.
 
 ## Product invariant
 
@@ -24,17 +26,39 @@ individual scan deletion.
 
 ## Account-tombstone data boundary
 
-The tombstone routine uses an explicit clearing list. Every unlisted scan column
-is retained unchanged. New scan columns therefore default to scientific
-retention until their privacy and scientific classification is reviewed and the
-routine, tests, policies, and this document are deliberately updated.
+The legacy tombstone routine uses an explicit clearing list. Unlisted scan
+columns are left unchanged by that routine, but row triggers can additionally
+clear or reset fields. In particular, owner-bound review authority does not
+survive detachment. Every new column needs an explicit privacy/scientific
+classification and review of the routine, triggers, tests, policies and this
+document; absence from the clearing list is not approval to retain private data.
 
-| Action | Data |
-| --- | --- |
-| Detach | `user_id` becomes `NULL`; `is_tombstoned` becomes `TRUE` |
-| Clear from the scan | image, video, and audio URL arrays; `captured_media`; semantic location; public location label; device locale and time zone; user observation context; custom tags; free-form human-intervention notes |
-| Retain unchanged | scan identifier; exact and privacy-projected coordinates; coordinate uncertainty; elevation; observation time; taxonomy and taxonomy version; identification, confidence, confirmation, and review state; environmental and biological measurements; scientific quality and provenance facts |
-| Delete with the account | public profile and attribution, authentication identity after verified cleanup, Explore/community content, avatars, exports, stored media objects, personal library/collection state, and other account-owned rows governed by their existing foreign keys and cleanup routines |
+The prepared observation-history schema does not change this legacy retention
+classification. Its private children are removed on account detachment. History
+enrollment remains disabled until the RFC's explicit scientific-field allowlist
+and acknowledged-state materializer replace this clearing-list approach for
+enrolled observations. Copying private result JSON into retained scientific data
+is not permitted by that future contract.
+
+| Action                               | Data                                                                                                                                                                                                                                                                            |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Detach                               | `user_id` becomes `NULL`; `is_tombstoned` becomes `TRUE`                                                                                                                                                                                                                        |
+| Clear from the scan                  | image, video, and audio URL arrays; `captured_media`; semantic location; public location label; device locale and time zone; user observation context; custom tags; free-form human-intervention notes                                                                          |
+| Retain unchanged                     | scan identifier; exact and privacy-projected coordinates; coordinate uncertainty; elevation; observation time; taxonomy and taxonomy version; original AI identification and confidence; environmental and biological measurements; scientific quality and provenance facts     |
+| Clear or reset through review guards | `ai_identification_review`, `confirmed_species_identity`, `confirmed_species_id`, and `user_identification_override` become null; `user_confirmed_identification` becomes false and `user_review_state` becomes `unreviewed`; the verified identity revision remains            |
+| Delete with the account              | public profile and attribution, authentication identity after verified cleanup, Explore/community content, avatars, exports, stored media objects, personal library/collection state, and other account-owned rows governed by their existing foreign keys and cleanup routines |
+
+**Documentation correction — October 2, 2026:** Earlier text described all
+confirmation and review state as retained unchanged. That does not match
+`internal.guard_scan_verified_species_review()` from the September 29 migration
+or `internal.guard_scan_ai_identification_review()` from the October 1
+migration. Those existing guards perform the resets above; the history
+preparation did not introduce them. Preserving permitted acknowledged
+identification facts for the future history model therefore requires an explicit
+allowlisted scientific projection before detachment and child cleanup. The
+current implementation does not fulfill that future materialization contract,
+and enrollment must remain closed. See the
+[RFC implementation status](../rfcs/reversible-reanalysis-and-identification-history-2026-10-02.md#implementation-progress).
 
 Exact coordinates, time, and species can remain personal or sensitive
 information even after direct account linkage is removed. Internal and public
@@ -44,9 +68,9 @@ de-identified.
 
 Historical note: older tombstone routines cleared exact coordinates and
 elevation. The current migration prevents that clearing for account deletions
-processed after deployment, but it cannot reconstruct coordinates already
-erased by a previous routine. A `NULL` coordinate on an older tombstone is not
-evidence that the current routine violated this contract.
+processed after deployment, but it cannot reconstruct coordinates already erased
+by a previous routine. A `NULL` coordinate on an older tombstone is not evidence
+that the current routine violated this contract.
 
 ## Durable deletion sequence
 
@@ -56,10 +80,12 @@ Account deletion remains a durable, claim-fenced workflow:
    records or resumes a private deletion job.
 2. `complete_account_deletion_cleanup` creates the idempotent storage-cleanup
    outbox row before calling `apply_user_tombstone`.
-3. `apply_user_tombstone` detaches scans, clears the account-owned fields above,
-   and deletes `public.users` in the same database transaction.
-4. The transaction verifies that no profile or scan still references the
-   deleted account UUID.
+3. `apply_user_tombstone` locks the owner before touching scans, using the same
+   user-first order as deletion, funding, and prepared history operations. It
+   detaches scans, clears the account-owned fields above, and deletes
+   `public.users` in the same database transaction.
+4. The transaction verifies that no profile or scan still references the deleted
+   account UUID.
 5. The storage worker cursor-sweeps all canonical R2 prefixes and completes a
    delayed empty verification pass.
 6. Only verified `auth_pending` work can delete the Supabase Auth identity.
@@ -149,9 +175,49 @@ weather, and confidence; cleared account fields and media; tombstone exclusion
 from anonymous reads; service-only ACLs; collision-fence behavior; rejected
 stale coordinate writes; and idempotent delayed individual-deletion completion.
 
+`tests/verified_scan_species_review.sql` and
+`tests/identification_rejection.sql` cover owner/tombstone review clearing and
+matching job backups. The prepared history fixture additionally verifies
+private-child removal on account detachment; it does not prove scientific
+allowlist materialization. See the
+[history verification matrix](../development-guides/08-testing-strategy.md#observation-analysis-history-preparation).
+
 After production deployment, use the catalog query and staging-only deletion
 smoke in
 [`06-supabase-deployment-runbook.md`](./06-supabase-deployment-runbook.md#durable-account-deletion-release-gate).
+
+## Prepared history evidence erasure
+
+Private history evidence is not scientific retention data. The prepared receipt
+table cascades with history on account detachment; its BEFORE DELETE trigger
+materializes an independent erasure obligation first. Scan tombstone insertion
+likewise queues both in-flight and ready media. The surviving outbox retains
+only an opaque random object UUID and cleanup state, without user linkage or
+content. Its future worker replaces content with a verified empty marker so
+delayed conditional uploads cannot restore it. Markers and completed opaque
+erasure receipts are retained for that purpose; they are not retained scientific
+facts. No worker is scheduled and no bucket has been provisioned in this
+preparation. Account scientific-field allowlist materialization remains an
+activation prerequisite and must occur under the account deletion fence before
+private history is removed. See the
+[protected evidence lifecycle](05-api-contracts.md#prepared-protected-evidence-lifecycle).
+
+## Prepared child-analysis deletion
+
+Private admitted input, drafts, provider-usage snapshots and completion receipts
+cascade with observation history on account detachment. A scan deletion fence
+also removes those intents. The deletion trigger releases a still-held
+complimentary credit and refunds only a never-dispatched quota reservation;
+consumed result credits are not restored. It records each child ID as a
+completed ownerless generation marker in `internal.scan_deletion_tombstones`. No
+account, observation association, private content or pending cleanup claim
+survives in that marker. This prevents legacy UUID reuse after the private
+intent disappears. These markers are deletion control data, not scientific
+facts. V2 photo receipts are pinned while an intent/result remains live, but
+parent/account deletion supersedes that pin. Terminal failure queues unused
+photo erasure; generation-bound unbound expiry also handles abandoned ready
+uploads. No cleanup scheduler is activated. The scientific
+allowlist/materialization activation prerequisite remains unchanged.
 
 ## Related documents
 

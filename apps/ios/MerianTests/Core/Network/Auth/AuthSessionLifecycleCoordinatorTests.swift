@@ -153,6 +153,8 @@ final class AuthSessionLifecycleCoordinatorTests: XCTestCase {
                 "complete-purchase-handoff",
                 "validate-current-session",
                 "begin-entitlement",
+                "validate-current-session",
+                "resume-cloud-deletions",
                 "validate-current-session"
             ]
         )
@@ -211,6 +213,8 @@ final class AuthSessionLifecycleCoordinatorTests: XCTestCase {
                 "validate-current-session",
                 "begin-entitlement",
                 "validate-current-session",
+                "resume-cloud-deletions",
+                "validate-current-session",
                 "schedule-historical-sync"
             ]
         )
@@ -257,6 +261,7 @@ final class AuthSessionLifecycleCoordinatorTests: XCTestCase {
         )
         XCTAssertFalse(harness.events.contains("begin-entitlement"))
         XCTAssertFalse(harness.events.contains("schedule-historical-sync"))
+        XCTAssertFalse(harness.events.contains("resume-cloud-deletions"))
         XCTAssertFalse(harness.diagnostics.contains(.processed))
     }
 
@@ -279,6 +284,7 @@ final class AuthSessionLifecycleCoordinatorTests: XCTestCase {
             ]
         )
         XCTAssertFalse(harness.events.contains("schedule-historical-sync"))
+        XCTAssertFalse(harness.events.contains("resume-cloud-deletions"))
         XCTAssertFalse(harness.diagnostics.contains(.processed))
     }
 

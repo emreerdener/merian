@@ -20,6 +20,7 @@ final class ScanRepository {
     private let offlineQueue = OfflineQueueManager.shared
     private let historicalCloudClient: HistoricalSyncCloudClient
     var appUpdateCoordinator: AppUpdateCoordinator?
+    let libraryRestoration = LibraryRestorationState()
     private let mediaRecoveryRegistrationService =
         ScanMediaRecoveryRegistrationService()
     private var mediaRecoveryRegistrationTask: Task<Void, Never>?
@@ -156,10 +157,22 @@ final class ScanRepository {
             historicalCloudClient.finishAccountWork(accountWorkLease)
         }
         let userId = accountWorkLease.session.userID.uuidString
+        let restorationGeneration = libraryRestoration.begin(accountID: accountWorkLease.session.userID)
+        var restoredAllPages = false
+        var quarantinedRows = false
+        defer {
+            libraryRestoration.finish(generation: restorationGeneration, complete: restoredAllPages && !quarantinedRows)
+        }
         guard appUpdateCoordinator?.requiresUpdate(.history, accountID: accountWorkLease.session.userID) != true else { return }
         var didChangeExploreShareState = false
 
         do {
+            // A failed migration save must stop hydration; a nil cloud baseline
+            // cannot acknowledge or replace source-local legacy details.
+            try LibraryDetailsSyncService.stageLegacyDetails(context: modelContext, ownerID: accountWorkLease.session.userID)
+            await LibraryDetailsSyncService.drain(context: modelContext, manager: .shared)
+            guard historicalCloudClient.isAccountWorkCurrent(accountWorkLease) else { return }
+
             let container = modelContext.container
             let dbActor = HistoricalDatabaseActor(modelContainer: container)
 
@@ -206,6 +219,7 @@ final class ScanRepository {
                     return
                 }
                 if decodedPage.rejectedRowCount > 0 {
+                    quarantinedRows = true
                     MerianLog.data.error(
                         "syncHistoricalScansDown: quarantined malformed cloud rows count=\(decodedPage.rejectedRowCount, privacy: .public) firstPath=\((decodedPage.firstRejectedCodingPath ?? "unknown"), privacy: .public)"
                     )
@@ -280,6 +294,8 @@ final class ScanRepository {
             if totalNewRecords > 0 {
                 MerianLog.data.debug("✅ Merian Sync: Restored \(totalNewRecords, privacy: .public) new historical records.")
             }
+            guard historicalCloudClient.isAccountWorkCurrent(accountWorkLease) else { return }
+            restoredAllPages = true
             appUpdateCoordinator?.historySucceeded(accountID: accountWorkLease.session.userID)
             Task { @MainActor in
                 AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged)
@@ -330,6 +346,9 @@ final class ScanRepository {
 
         let rawResponse: Data
         do {
+            try LibraryDetailsSyncService.stageLegacyDetails(
+                context: modelContext, ownerID: accountWorkLease.session.userID, scanID: scanId
+            )
             rawResponse = try await historicalCloudClient.fetchScan(
                 HistoricalScanRecordRequest(
                     userID: userId,
@@ -448,6 +467,8 @@ final class ScanRepository {
         modelContainer: ModelContainer,
         referenceDate: Date = Date()
     ) async {
+        guard let lease = try? historicalCloudClient.beginAccountWork() else { return }
+        defer { historicalCloudClient.finishAccountWork(lease) }
         guard let cutoffDate = Calendar.current.date(
             byAdding: .day,
             value: -NonBiologicalRetentionPolicy.retentionDays,
@@ -457,7 +478,8 @@ final class ScanRepository {
         let actor = BackgroundDatabaseActor(modelContainer: modelContainer)
 
         do {
-            let result = try await actor.purgeExpiredNonBiologicalScans(cutoffDate: cutoffDate)
+            let result = try await actor.purgeExpiredNonBiologicalScans(
+                cutoffDate: cutoffDate, requestingAccountID: lease.session.userID)
             // Missing rows can still commit file/tombstone work.
             guard result.committedErasureCount > 0 else { return }
 
@@ -477,70 +499,78 @@ final class ScanRepository {
 
     // MARK: - Deletion
 
-    /// Fully deletes a scan: queues a cloud deletion task, removes the `LocalScanRecord` from
-    /// SwiftData, tombstones any in-flight upload, then asynchronously purges local image files.
-    ///
-    /// Database operations are committed first so that a file-deletion failure (non-fatal, cleanable)
-    /// can never leave the database in an inconsistent state. The cloud deletion
-    /// (`delete-scan` Edge function) is attempted immediately and retried on subsequent
-    /// connectivity cycles via `PendingCloudDeletionTask`.
-    /// The optional handle completes this deletion's file cleanup and cloud
-    /// attempt. Callers need not await it for local deletion to be durable.
+    /// Commits local removal and account/origin-bound intent before file cleanup.
+    /// Ordinary cloud failures retry; ambiguous intent and history refusals stay held.
+    /// The optional handle completes cleanup and an attempt, never proof of erasure.
     @discardableResult
-    func eradicateScan(record: LocalScanRecord, modelContext: ModelContext) -> Task<Void, Never>? {
-        ExploreShareStateStore.setSharedPostId(nil, for: record.id)
+    func eradicateScan(record: LocalScanRecord, modelContext: ModelContext,
+                       origin: CloudDeletionIntent.Origin = .explicitUserDeletion,
+                       allowsMutation: @MainActor () -> Bool = HistoricalSyncCloudClient.allowsLocalMutation) -> Task<Void, Never>? {
+        guard allowsMutation() else { return nil }
+        return ConfirmedSpeciesReviewPersistence.transaction {
+            do {
+                if origin != .explicitUserDeletion,
+                   try ObservationHistoryEnrollmentIntent.protects(record.id, context: ModelContext(modelContext.container)) { return nil }
+            } catch { return nil }
+            ExploreShareStateStore.setSharedPostId(nil, for: record.id)
 
-        // Collect image paths before deleting the record.
-        var imagesToErase: [String] = []
-        if let jsonStr = record.capturedMediaJSON,
-           let jsonData = jsonStr.data(using: .utf8),
-           let items = try? JSONDecoder().decode([SerializedMediaItem].self, from: jsonData) {
-            imagesToErase.append(contentsOf: items.compactMap {
-                guard case .image(let reference) = $0 else { return nil }
-                return reference.serializedPath
-            })
-        }
-
-        // 1. Cancel/tombstone any in-flight upload for this now-deleted scan.
-        offlineQueue.softDeleteQueuedScan(
-            scanId: record.id,
-            reason: "Scan was deleted locally.",
-            errorCode: "local_scan_deleted",
-            needsAttention: false
-        )
-
-        // 2. Queue cloud deletion task + remove SwiftData record atomically.
-        do {
-            try modelContext.ensurePendingCloudDeletionTask(scanId: record.id)
-            modelContext.delete(record)
-            try modelContext.save()
-        } catch {
-            modelContext.rollback()
-            MerianLog.data.error("🚨 eradicateScan: modelContext save failed — aborting file deletion to preserve consistency: \(error, privacy: .private)")
-            // Do not proceed to file deletion; the record still exists and the queue task
-            // was not persisted, so state remains consistent.
-            return nil
-        }
-
-        // 3. File cleanup and the immediate cloud attempt share a completion
-        // handle without delaying the already-committed local deletion.
-        let localPaths = imagesToErase.filter { !$0.starts(with: "http") }
-        let cleanupTask = Task { [offlineQueue] in
-            await withTaskGroup(of: Void.self) { group in
-                if !localPaths.isEmpty {
-                    group.addTask {
-                        await FileIOActor.shared.deleteImages(at: localPaths)
-                    }
-                }
-                group.addTask {
-                    await offlineQueue.syncPendingDeletions()
-                }
-                await group.waitForAll()
+            // Collect image paths before deleting the record.
+            var imagesToErase: [String] = []
+            if let jsonStr = record.capturedMediaJSON,
+               let jsonData = jsonStr.data(using: .utf8),
+               let items = try? JSONDecoder().decode([SerializedMediaItem].self, from: jsonData) {
+                imagesToErase.append(contentsOf: items.compactMap {
+                    guard case .image(let reference) = $0 else { return nil }
+                    return reference.serializedPath
+                })
             }
-        }
 
-        AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged)
-        return cleanupTask
+            // 1. Cancel/tombstone any in-flight upload for this now-deleted scan.
+            offlineQueue.softDeleteQueuedScan(
+                scanId: record.id,
+                reason: "Scan was deleted locally.",
+                errorCode: "local_scan_deleted",
+                needsAttention: false
+            )
+
+            // 2. Queue cloud deletion task + remove SwiftData record atomically.
+            do {
+                if origin == .explicitUserDeletion {
+                    try ObservationHistoryEnrollmentIntent.supersedeForExplicitDeletion(record.id, context: modelContext)
+                }
+                try modelContext.ensurePendingCloudDeletionTask(scanId: record.id,
+                    requestingAccountID: CloudDeletionAccountWork.captureRequestAccount(using: historicalCloudClient), origin: origin)
+                try ObservationPublicationPersistence.removeForDeletion(record.id, context: modelContext)
+                modelContext.delete(record)
+                try modelContext.save()
+            } catch {
+                modelContext.rollback()
+                MerianLog.data.error("🚨 eradicateScan: modelContext save failed — aborting file deletion to preserve consistency: \(error, privacy: .private)")
+                // Do not proceed to file deletion; the record still exists and the queue task
+                // was not persisted, so state remains consistent.
+                return nil
+            }
+
+            // 3. File cleanup and the immediate cloud attempt share a completion
+            // handle without delaying the already-committed local deletion.
+            let localPaths = imagesToErase.filter { !$0.starts(with: "http") }
+            let cleanupTask = Task { [offlineQueue] in
+                await withTaskGroup(of: Void.self) { group in
+                    if !localPaths.isEmpty {
+                        group.addTask {
+                            await FileIOActor.shared.deleteImages(at: localPaths)
+                        }
+                    }
+                    group.addTask {
+                        await offlineQueue.syncPendingDeletions()
+                    }
+                    await group.waitForAll()
+                }
+            }
+
+            AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged)
+            return cleanupTask
+        }
     }
 
     /// Deletes every active SwiftData row plus verified account preferences and
@@ -557,39 +587,10 @@ final class ScanRepository {
         }
     ) -> Bool {
         resetDerivedState()
-        do {
-            try modelContext.delete(model: CapturedMediaEntry.self)
-            try modelContext.delete(model: LocalScanRecord.self)
-            try modelContext.delete(model: ScanCollection.self)
-            try modelContext.delete(model: OfflineQueuedScan.self)
-            try modelContext.delete(model: ActiveOfflineQueuedScanGoalHint.self)
-            try modelContext.delete(model: PendingCloudDeletionTask.self)
-            try modelContext.delete(model: UserSpeciesPreference.self)
-            try modelContext.delete(model: OfflineJobRecord.self)
-            try modelContext.delete(model: OfflineQueueEvent.self)
-            try modelContext.save()
-        } catch {
-            modelContext.rollback()
-            AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged)
-            MerianLog.data.error("🚨 Failed to erase local ModelContainer: \(error.localizedDescription, privacy: .private)")
-            return false
-        }
-
-        guard AccountScopedPreferences.purgeAndVerify(
-            userDefaults: userDefaults
-        ) else {
-            AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged)
-            MerianLog.data.error(
-                "Failed to verify account-scoped preference cleanup."
-            )
-            return false
-        }
-
-        resetRuntimeState()
-        AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged)
-        MerianLog.data.debug(
-            "✅ Successfully purged all SwiftData records and account-scoped preferences."
+        libraryRestoration.reset()
+        return ScanLibraryPurgeService.purge(
+            modelContext: modelContext, userDefaults: userDefaults,
+            resetRuntimeState: resetRuntimeState
         )
-        return true
     }
 }

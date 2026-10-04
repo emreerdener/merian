@@ -67,6 +67,7 @@ struct UserDefaultsKeysTests {
             "dismissedUnavailableMediaOverviewSignature.v1.",
         "dismissedProfilePublicationRecoverySignaturePrefix":
             "dismissedProfilePublicationRecoverySignature.v1.",
+        "speciesPreferredNameAcknowledgedValuesPrefix": "speciesPreferredNameAcknowledgedValues_",
         "speciesPreferredNamePrefix": "speciesPreferredName_",
         "pendingSpeciesPreferredNameDeletes":
             "pendingSpeciesPreferredNameDeletes",

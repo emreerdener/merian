@@ -23,9 +23,12 @@ struct IdentificationReviewSyncService {
                 AppDIContainer.shared.appEventPublisher.send(.explorePostNeedsRefresh(postId: postID))
             }
         }
-        var retireSource: (LocalScanRecord, ModelContext) -> Void = { ScanRepository.shared.eradicateScan(record: $0, modelContext: $1) }
+        var retireSource: (LocalScanRecord, ModelContext) -> Void = {
+            ScanRepository.shared.eradicateScan(record: $0, modelContext: $1, origin: .reanalysisReplacement)
+        }
 
         var fetchLatest: (String) async throws -> AIIdentificationReviewSnapshot = { try await .fetch(scanID: $0) }
+        var allowsMutation: () -> Bool = { SupabaseManager.shared.allowsLocalLibraryMutation }
         var ownerID: () -> UUID? = { SupabaseManager.shared.currentUser?.id }
         var submit: (AIIdentificationReviewRequest) async throws -> AIIdentificationReviewReceipt = {
             try await MerianNetworkClient.shared.reviewScanIdentification($0)
@@ -35,7 +38,7 @@ struct IdentificationReviewSyncService {
 
     func enqueue(scanID: String, action: AIIdentificationReviewRequest.Action, scientificName: String? = nil,
                  context: ModelContext) throws -> LocalAIIdentificationReview {
-        guard let ownerID = dependencies.ownerID() else { throw ConfirmedSpeciesReview.IntegrityError.invalidRequest }
+        guard dependencies.allowsMutation(), let ownerID = dependencies.ownerID() else { throw ConfirmedSpeciesReview.IntegrityError.invalidRequest }
         // Use a fresh context so a review cannot commit unrelated presentation edits.
         let write = ModelContext(context.container)
         write.autosaveEnabled = false
@@ -68,6 +71,7 @@ struct IdentificationReviewSyncService {
     }
 
     func carryRejection(from source: LocalScanRecord, to replacement: LocalScanRecord, context: ModelContext) throws {
+        guard dependencies.allowsMutation() else { throw ConfirmedSpeciesReview.IntegrityError.invalidRequest }
         let state = source.localAIIdentificationReview
         guard state.isUnresolved, state.pending == nil, !state.needsAttention,
               let authority = state.authority, let ownerID = dependencies.ownerID() else {

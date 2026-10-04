@@ -20,6 +20,18 @@ enum FieldNotesStore {
         }
     }
 
+    static func unrepresentedValueCount(
+        scanNotes: [String: String], authoritativeScanIDs: Set<String> = [], userDefaults: UserDefaults = .standard
+    ) -> Int {
+        userDefaults.dictionaryRepresentation().keys.filter { key in
+            guard key.hasPrefix(UserDefaultsKeys.fieldNotesPrefix) else { return false }
+            let scanID = String(key.dropFirst(UserDefaultsKeys.fieldNotesPrefix.count))
+            guard !authoritativeScanIDs.contains(scanID) else { return false }
+            guard let note = fieldNotes(for: scanID, userDefaults: userDefaults) else { return true }
+            return scanNotes[scanID] != note
+        }.count
+    }
+
     static func clearAll(userDefaults: UserDefaults = .standard) {
         for key in userDefaults.dictionaryRepresentation().keys
         where key.hasPrefix(UserDefaultsKeys.fieldNotesPrefix) {

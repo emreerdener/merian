@@ -13,7 +13,9 @@ library. The layers are intentionally narrow:
   PostgREST owner for historical scans and collections. Its injected closures
   keep request forwarding deterministic in tests.
 - `Persistence/HistoricalDatabaseActor.swift` owns only actor-isolated SwiftData
-  reconciliation, checkpoint saves, rollback, and cancellation.
+  scan reconciliation, checkpoint saves, rollback, and cancellation. Its
+  synchronous `HistoricalCollectionReconciler` helper owns collection membership
+  and reserved-name restoration within the actor-provided context.
 - `HistoricalSyncPolicy.swift` owns the scan/collection page sizes and
   persistence checkpoint interval used by the repository and actor.
 
@@ -54,8 +56,9 @@ and
   quarantine, and domain projection coverage.
 - `HistoricalScanIngestionTests` owns actor-backed insertion accounting,
   timestamp rejection, and historical audio rehydration.
-- `HistoricalScanReconciliationTests` owns update, media-repair, cancellation,
-  and collection reconciliation behavior.
+- `HistoricalScanReconciliationTests` owns update and media-repair behavior.
+- `HistoricalLibraryRestorationTests` owns private details, cancellation, and
+  collection reconciliation behavior.
 - `HistoricalSyncCloudClientTests` owns injected account-lease and request-value
   forwarding through the service seam, plus real SDK request-header coverage
   through an isolated URLSession transport.
@@ -128,3 +131,41 @@ There is no network suspension while the gate is held. Account leases, page
 bounds, checkpoint saves and cancellation remain with their existing owners. The
 reader header is 6 for owner-review-aware results, matching inference preflight
 and dispatch.
+
+## Private library restoration
+
+`Models/LibraryRestorationState.swift` tracks account, restoration generation,
+and `notStarted`, `restoring`, `needsAttention`, or `complete`. Only successful
+scan and collection pagination with no quarantined rows can complete the full
+restore. A stale generation cannot complete a newer restore. Completion does not
+certify pending local edits or per-item media availability.
+
+Before either paged or targeted fetching, `ScanRepository` durably stages legacy
+local details through `LibraryDetailsSyncService`; failed preparation stops the
+fetch. Targeted preparation reads only the requested scan and its operations.
+The live client combines owner history with the bounded private-detail RPC.
+Pending immutable detail intent wins over remote notes, tags and Favorites;
+accepted remote state supplies a completed baseline for later inventory checks.
+
+`HistoricalDatabaseActor` preserves the IDs and memberships of legacy remote
+collections colliding with reserved Favorites under a restored name. Independent
+private-detail evidence is required before moving a membership into the private
+Favorites folder; a cancelled newer operation cannot expose an older favorite
+value as current proof. The next ordinary collection sync propagates the adapted
+name. See the
+[canonical transition contract](../../../../../../../docs/backend-and-data/21-guest-library-transitions.md)
+for exact duplicate, privacy and collision semantics.
+
+`HistoricalLibraryRestorationTests` exercises both restoration entrypoints,
+private details, stale remote snapshots, and reserved-name collisions.
+`LibraryMutationInventoryTests` covers partial/stale restoration status. The
+[transition validation matrix](../../../../../../../docs/development-guides/08-testing-strategy.md#guest-library-transition-validation)
+separates this deterministic coverage from physical-device acceptance.
+
+Before scan-page validation, media recovery or mutation, the actor skips pending
+cloud deletions and observations protected by a history enrollment intent,
+acknowledged history or terminal local deletion fence. This applies to full and
+targeted scan hydration through `reconcileScanPage`. A late response cannot
+recreate a history observation after its explicit erasure and cloud receipt
+cleanup. Collection reconciliation remains separately owned. See the
+[history admission boundary](../../AnalysisHistory/README.md#prepared-native-enrollment).

@@ -8,6 +8,7 @@ struct ActiveScanToolbar: View {
     let isSubmissionReady: Bool
     let isMutationLocked: Bool
     let onNoteTap: () -> Void
+    let onUpgradeTap: () -> Void
     @Binding var selectedPhotoItems: [PhotosPickerItem]
     let onRequestPhotoPickerPresentation: @MainActor (Int) async -> Bool
 
@@ -35,6 +36,7 @@ struct ActiveScanToolbar: View {
         isSubmissionReady: Bool = true,
         isMutationLocked: Bool = false,
         onNoteTap: @escaping () -> Void = {},
+        onUpgradeTap: @escaping () -> Void,
         selectedPhotoItems: Binding<[PhotosPickerItem]>,
         onRequestPhotoPickerPresentation: @escaping @MainActor (Int) async -> Bool,
         onThumbnailTap: @escaping (Int) -> Void,
@@ -51,6 +53,7 @@ struct ActiveScanToolbar: View {
         self.isSubmissionReady = isSubmissionReady
         self.isMutationLocked = isMutationLocked
         self.onNoteTap = onNoteTap
+        self.onUpgradeTap = onUpgradeTap
         self._selectedPhotoItems = selectedPhotoItems
         self.onRequestPhotoPickerPresentation =
             onRequestPhotoPickerPresentation
@@ -201,6 +204,7 @@ struct ActiveScanToolbar: View {
                 isCheckingPhotoImportAdmission,
             onRequestPhotoPickerPresentation:
                 requestPhotoPickerPresentation,
+            onUpgradeTap: onUpgradeTap,
             onThumbnailTap: onThumbnailTap,
             onDescriptionTap: onDescriptionTap,
             onAudioTap: onAudioTap,

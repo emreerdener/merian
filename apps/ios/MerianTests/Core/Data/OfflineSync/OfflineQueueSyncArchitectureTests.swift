@@ -214,7 +214,7 @@ struct OfflineQueueSyncArchitectureTests {
             range: runningClaim.upperBound ..< cloudDeletion.endIndex
         ))
         let deletionDispatch = try #require(cloudDeletion.range(
-            of: "let allResults = await dispatchDeleteBatches(scanIds: scanIds)",
+            of: "let allResults = await dispatchDeleteBatches(scanIds: scanIds, accountID: lease.session.userID, deleteScan: deleteScan)",
             range: claimSave.upperBound ..< cloudDeletion.endIndex
         ))
         let successfulJobMutation = try #require(cloudDeletion.range(
@@ -359,6 +359,7 @@ struct OfflineQueueSyncArchitectureTests {
     ]
 
     private static let declarationOwners: [String: String] = [
+        "struct CloudDeletionAccountWork": "Services/CloudDeletion/CloudDeletionAccountWork.swift",
         "struct CollectionSyncService":
             "Services/Collections/CollectionSyncService.swift",
         "func syncPendingDeletions":
@@ -438,6 +439,7 @@ struct OfflineQueueSyncArchitectureTests {
     ]
 
     private static let expectedImportsByPath: [String: Set<String>] = [
+        "Services/CloudDeletion/CloudDeletionAccountWork.swift": ["import Foundation"],
         "Services/CloudDeletion/OfflineQueueManager+CloudDeletionSync.swift": [
             "import Foundation",
             "import SwiftData"

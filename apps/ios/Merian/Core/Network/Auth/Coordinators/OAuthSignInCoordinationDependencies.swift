@@ -54,7 +54,7 @@ struct OAuthSignInMergeBoundary {
     let completePendingGhostMerge: @MainActor (
         String,
         AuthTransitionToken
-    ) async -> Bool
+    ) async -> LibraryTransferResult
 }
 
 struct OAuthSignInCompletionBoundary {

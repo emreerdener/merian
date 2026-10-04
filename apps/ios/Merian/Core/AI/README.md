@@ -407,7 +407,12 @@ This README maps that contract to native source and test ownership.
   failures, and failed metadata saves preserve the original. Save failure
   restores only the helper's staged fields, not unrelated user edits. A cleanup
   failure can leave two scans; it cannot justify deleting the only usable
-  original. Review state intentionally belongs to the new analysis.
+  original. Review state intentionally belongs to the new analysis. This remains
+  the current native replacement workflow. The
+  [reversible-history backend preparation](../../../../../docs/rfcs/reversible-reanalysis-and-identification-history-2026-10-02.md#implementation-progress)
+  has not replaced it with append-only results or added restoration UI. History
+  activation requires removing replacement deletion from every completion path
+  and integrating the native migration, sync, retention and deletion gates.
 - `Inference/Recovery/InferenceLiveFailurePolicy.swift` owns stateless
   interruption and failure classification, modality-specific retirement reasons,
   and telemetry/circuit/feedback decisions. It reuses Core Network's
@@ -635,7 +640,9 @@ and OS versions return no stream. It emits each completed cue object once,
 preserving its array index while later objects are incomplete. The returned
 `FoundationVisualCueStream` owns an explicit cancellation callback; the
 coordinator cancels it on every scope exit, including early return after
-eligibility loss. Stream termination also cancels the detached utility worker.
+eligibility loss. A task cancellation handler also invokes the producer callback
+immediately while the consumer is suspended awaiting a snapshot. Stream
+termination also cancels the detached utility worker.
 `FoundationVisualCueProviding` remains the integration seam. Its coordinator
 starts work only after both Identify's request-body completion callback and
 local Vision completion, and accepts at most six indexed cues with a constrained
