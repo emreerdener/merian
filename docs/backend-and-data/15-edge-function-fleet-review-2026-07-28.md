@@ -289,6 +289,7 @@ report-explore-post
 report-user
 request-community-identification
 request-observation-publication
+moderate-publication-photos
 request-export-dwca
 resolve-purchase-principal
 restore-community-identification
@@ -404,3 +405,13 @@ owner before a narrowly granted service-only intake RPC. It saves exact consent
 and returns a private immutable acceptance receipt, without provider or storage
 work. Its independent gate defaults false. This inventory addition is source
 scope only and supplies no deployment, worker scheduling or activation evidence.
+
+## Source inventory update — 2026-10-04 photo moderation worker
+
+`moderate-publication-photos` is a prepared service-authenticated, no-store POST
+worker. It claims one durable operation and recovers prior outcomes before any
+new provider work. SQL execution/moderation gates remain false. A shared
+135-second request deadline, earlier provider cutoff and exact completion
+recovery bound the pass. It supplies no deployment, scheduling, public-copy,
+publication or note-approval evidence. See its
+[README](../../services/supabase/functions/moderate-publication-photos/README.md).

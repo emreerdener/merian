@@ -25,6 +25,7 @@ export async function preparePublicationPhotoCohort(
     apiKey?: () => string | undefined;
     fetcher?: typeof fetch;
     signal?: AbortSignal;
+    providerSignal?: AbortSignal;
   } = {},
 ) {
   if (!Array.isArray(inputs) || inputs.length < 1 || inputs.length > 6) {
@@ -102,6 +103,7 @@ export async function preparePublicationPhotoCohort(
         readSource: () => Promise.resolve(bytes),
         apiKey: dependencies.apiKey,
         fetcher: dependencies.fetcher,
+        signal: dependencies.providerSignal ?? dependencies.signal,
       });
       // CPU-bound digest/container/serialization phases check cancellation at
       // their boundaries; this is not preemptive execution interruption.

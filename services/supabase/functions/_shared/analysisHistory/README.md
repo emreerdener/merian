@@ -402,9 +402,9 @@ policy/transport/request proof before a single invocation. Its bounded strict
 response parser returns only decision/category/confidence and accounting facts.
 Transport or output uncertainty cannot approve, refund or retry.
 `photoClassifier_test.ts` uses synthetic bytes and injected transports; no
-provider request is made by tests. The adapter has no production caller. Durable
-proof persistence, dispatch binding and atomic output are prepared below; see
-the
+provider request is made by tests. The prepared moderation worker now calls the
+adapter behind closed gates. Durable proof persistence, dispatch binding and
+atomic output are prepared below; see the
 [classifier contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-source-bound-photo-classifier-adapter).
 
 ## Prepared durable photo execution
@@ -415,8 +415,9 @@ requires proof before dispatch and bounded result/usage before completing a
 decision, atomically and under deletion/authority locks.
 `photoExecution_test.ts` covers failure ordering and pins the actual policy
 digest to its migration. The SQL catalog and separate-session tests cover
-proof/result replay and completion versus review/deletion. No live repository
-adapter, endpoint or expired-attempt recovery scheduler is connected. See the
+proof/result replay and completion versus review/deletion. The scoped repository
+and prepared moderation endpoint are now connected behind closed gates; no
+recovery scheduler is connected. See the
 [execution contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-durable-photo-execution-binding).
 
 ## Prepared public-photo storage
@@ -483,8 +484,9 @@ Separate private work records now provide bounded discovery, scoped expiring
 claims and gate-independent release/status beneath immutable intake. Only a
 durable cohort receipt establishes historical admission; orchestration leases
 confer no provider or public-copy authority. The execution gate remains false,
-and worker/status endpoints and native delivery remain unconnected. Optional
-public notes still require their own moderation boundary. See the
+and the prepared moderation worker is connected; owner status and native
+delivery remain unconnected. Optional public notes still require their own
+moderation boundary. See the
 [worker contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-publication-operation-worker-ownership).
 
 ## Scoped moderation recovery and preflight
@@ -496,8 +498,8 @@ are consumed directly using `isActivePhotoWork` to distinguish execution
 capabilities. `photoCohortPreflight.ts` prepares every verified
 metadata-filtered JPEG/PNG before any future quota admission. Only a complete
 cohort returns a handle; it retains bounded raw bytes and releases unselected
-buffers before preparing one classifier per pass. The worker route remains
-unconnected and gates stay false. See the
+buffers before preparing one classifier per pass. The prepared moderation worker
+now uses this path; gates stay false. See the
 [repository contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-scoped-publication-moderation-repository).
 
 ## Prepared photo moderation settlement
@@ -510,3 +512,14 @@ public admission. A separate copy phase remains required.
 
 See the
 [outcome contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-durable-photo-moderation-outcomes).
+
+## October 4: prepared bounded photo moderation worker
+
+`moderate-publication-photos` now connects service authentication, durable
+claims, recovery, finalization and one verified provider execution. Gates stay
+false and no scheduler is added. Shared request/provider deadlines preserve
+completion time and never turn uncertainty into a retry or refund. Copy/binding,
+exact-note moderation and native operations remain separate. Worker
+handler/repository and classifier deadline tests cover recovery-first ordering,
+preflight before quota, lost dispatch/completion, stalled response cancellation
+and scoped denial.

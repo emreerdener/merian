@@ -66,6 +66,7 @@ const EXPECTED_AUTHORIZATION_BOUNDARIES = [
   "expire-subscription-passes/index.ts",
   "export-dwca/index.ts",
   "identify-multimodal/index.ts",
+  "moderate-publication-photos/index.ts",
   "process-community-consensus-jobs/index.ts",
   "reconcile-account-deletions/handler.ts",
   "reconcile-dwca-archive-cleanup/index.ts",

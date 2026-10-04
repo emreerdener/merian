@@ -3239,10 +3239,11 @@ required; see the
 
 The source-bound photo classifier adapter verifies private bytes and freezes the
 exact request before a one-shot bounded Gemini transport. Synthetic tests cover
-strict approval and unknown outcomes. There is no endpoint caller, live model
-qualification or live repository adapter yet. SQL proof binding and the prepared
-execution owner are described below. Gates remain false; public copying still
-requires its own ownership and cleanup. See the
+strict approval and unknown outcomes. The prepared moderation worker and scoped
+repository now call this adapter behind closed gates. Live model qualification
+remains required. SQL proof binding and the prepared execution owner are
+described below. Gates remain false; public copying still requires its own
+ownership and cleanup. See the
 [classifier contract](../../docs/backend-and-data/05-api-contracts.md#prepared-source-bound-photo-classifier-adapter).
 
 ## Prepared photo execution binding
@@ -3250,9 +3251,9 @@ requires its own ownership and cleanup. See the
 Immutable request proofs now precede private moderation dispatch. Canonical
 classifier facts and usage commit atomically with decisions, and exact retries
 cannot alter either proof or output. The prepared TypeScript owner uses one
-frozen invocation and retries only completion writes. Live authenticated
-repository wiring, recovery scheduling and public-copy ownership remain held;
-see the
+frozen invocation and retries only completion writes. The prepared service
+worker and scoped moderation repository now connect this owner. Recovery
+scheduling and public-copy ownership remain held; see the
 [execution contract](../../docs/backend-and-data/05-api-contracts.md#prepared-durable-photo-execution-binding).
 
 ## Prepared public-photo transport
@@ -3316,8 +3317,9 @@ Separate private work records now provide bounded discovery, scoped expiring
 claims and gate-independent release/status beneath immutable intake. Only a
 durable cohort receipt establishes historical admission; orchestration leases
 confer no provider or public-copy authority. The execution gate remains false,
-and worker/status endpoints and native delivery remain unconnected. Optional
-public notes still require their own moderation boundary. See the
+and the prepared moderation worker is connected; owner status and native
+delivery remain unconnected. Optional public notes still require their own
+moderation boundary. See the
 [worker contract](../../docs/backend-and-data/05-api-contracts.md#prepared-publication-operation-worker-ownership).
 
 ## Scoped moderation recovery and preflight
@@ -3329,8 +3331,8 @@ are consumed directly using `isActivePhotoWork` to distinguish execution
 capabilities. `photoCohortPreflight.ts` prepares every verified
 metadata-filtered JPEG/PNG before any future quota admission. Only a complete
 cohort returns a handle; it retains bounded raw bytes and releases unselected
-buffers before preparing one classifier per pass. The worker route remains
-unconnected and gates stay false. See the
+buffers before preparing one classifier per pass. The prepared moderation worker
+now uses this path; gates stay false. See the
 [repository contract](../../docs/backend-and-data/05-api-contracts.md#prepared-scoped-publication-moderation-repository).
 
 ## Prepared photo moderation settlement
@@ -3343,3 +3345,14 @@ unconnected. All activation gates remain false.
 
 See the
 [outcome contract](../../docs/backend-and-data/05-api-contracts.md#prepared-durable-photo-moderation-outcomes).
+
+## October 4: prepared bounded photo moderation worker
+
+`moderate-publication-photos` now connects service authentication, durable
+claims, recovery, finalization and one verified provider execution. Gates stay
+false and no scheduler is added. Shared request/provider deadlines preserve
+completion time and never turn uncertainty into a retry or refund. Copy/binding,
+exact-note moderation and native operations remain separate. Worker
+handler/repository and classifier deadline tests cover recovery-first ordering,
+preflight before quota, lost dispatch/completion, stalled response cancellation
+and scoped denial.

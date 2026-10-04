@@ -1,3 +1,4 @@
+import { publicationAbortable } from "./publicationDeadline.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   exactObject,
@@ -113,6 +114,11 @@ export function publicationModerationRepository(
   client: SupabaseClient,
   identity: PublicationWorkScope,
   inputs: readonly PublicationPhotoSource[],
+  deadlines: {
+    signal?: AbortSignal;
+    freshSignal?: AbortSignal;
+    canDispatch?: () => boolean;
+  } = {},
 ) {
   const scope = Object.freeze({
     p_owner: historyUUID(identity.owner_id),
@@ -149,10 +155,18 @@ export function publicationModerationRepository(
   async function rpc(
     name: string,
     extra: Record<string, unknown> = {},
+    fresh = false,
   ): Promise<unknown> {
     try {
-      const { data, error } = await client.rpc(name, { ...scope, ...extra })
-        .abortSignal(AbortSignal.timeout(12_000));
+      const caller = fresh
+        ? deadlines.freshSignal ?? deadlines.signal
+        : deadlines.signal;
+      const timeout = AbortSignal.timeout(12_000);
+      const signal = caller ? AbortSignal.any([caller, timeout]) : timeout;
+      const { data, error } = await publicationAbortable(
+        signal,
+        () => client.rpc(name, { ...scope, ...extra }).abortSignal(signal),
+      );
       if (error) throw error;
       return data;
     } catch {
@@ -185,11 +199,35 @@ export function publicationModerationRepository(
         throw new HistoryError("analysis_history_unavailable");
       }
     },
+    async finalize(): Promise<boolean> {
+      const data = await rpc("finalize_publication_photo_moderation");
+      const row = exactObject(
+        data,
+        typeof data === "object" && data !== null && "finalized" in data &&
+          data.finalized === false
+          ? ["finalized"]
+          : ["finalized", "status", "reason"],
+      );
+      if (row.finalized === false) return false;
+      if (
+        row.finalized !== true ||
+        !((row.status === "photos_approved" && row.reason === null) ||
+          (row.status === "needs_action" &&
+            ["photo_rejected", "unknown_execution", "cancelled"].includes(
+              row.reason as string,
+            )))
+      ) invalidHistory();
+      return true;
+    },
     async admit(media: string): Promise<RecoveredPhotoWork> {
       const source = byMedia.get(historyUUID(media));
       if (!source) return invalidHistory();
       return parse(
-        await rpc("admit_publication_moderation_work", { p_media: media }),
+        await rpc(
+          "admit_publication_moderation_work",
+          { p_media: media },
+          true,
+        ),
         source,
       );
     },
@@ -220,7 +258,7 @@ export function publicationModerationRepository(
           p_token: token,
           p_action: action,
           p_payload: payload,
-        });
+        }, action === "prepare" || action === "dispatch");
       }
       function terminal(value: unknown): PhotoModerationState {
         const r = parse(value, source!);
@@ -238,6 +276,9 @@ export function publicationModerationRepository(
           ) throw new HistoryError("analysis_history_unavailable");
         },
         dispatch: async (s) => {
+          if (deadlines.canDispatch && !deadlines.canDispatch()) {
+            throw new HistoryError("analysis_history_unavailable");
+          }
           const data = await advance(s, "dispatch", {});
           try {
             const row = exactObject(data, ["dispatch_allowed", "receipt"]);

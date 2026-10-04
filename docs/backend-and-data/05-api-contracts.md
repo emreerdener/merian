@@ -13130,11 +13130,12 @@ contain bounded category codes and usage, never generated descriptions.
 
 The prepared execution owner below now persists this exact proof before
 consuming the private SQL dispatch permit and atomically saves bounded
-output/usage. Its local one-shot closure alone is not authorization. No endpoint
-or live repository adapter is connected. Public-copy approval, authenticated
-publication and native delivery remain disabled and unimplemented. No live
-provider call qualifies this policy; synthetic adapter tests prove contract
-behavior only.
+output/usage. Its local one-shot closure alone is not authorization. The
+prepared `moderate-publication-photos` endpoint now connects the scoped
+repository and execution owner behind closed gates. Public-copy approval,
+authenticated publication and native delivery remain disabled and unimplemented.
+No live provider call qualifies this policy; synthetic adapter tests prove
+contract behavior only.
 
 ### Prepared durable photo execution binding
 
@@ -13534,13 +13535,13 @@ interruption. No partial cohort is returned when a later photo fails. This
 preflight is not provider approval, ownership authorization or an image decoder;
 current database checks still govern every external step.
 
-No route or scheduler invokes this repository/preflight yet. The future worker
-must consume recovery first, complete full-cohort preflight before any new
-quota, and then pass its prepared closure into the existing execution owner.
-This is an activation requirement, not a database claim that it inspected object
-bytes. Optional-note moderation, copy integration and cohort failure cleanup,
-durable retirement scheduling, native delivery and cache-bypass qualification
-remain required. All activation gates stay false.
+`moderate-publication-photos` now consumes recovery first, completes full-cohort
+preflight before any new quota, and passes its prepared closure into the
+execution owner. No scheduler is connected. SQL does not itself inspect object
+bytes; the trusted worker supplies this boundary. Optional-note moderation, copy
+integration and cohort failure cleanup, durable retirement scheduling, native
+delivery and cache-bypass qualification remain required. All activation gates
+stay false.
 
 ## Prepared durable photo moderation outcomes
 
@@ -13587,3 +13588,50 @@ Unsupported formats, transient storage failures, stale authority, exact-note
 moderation and recovery of expired active attempts remain execution-owner
 responsibilities; this slice does not silently classify them as permanent
 refusals. All gates remain false.
+
+## Prepared photo moderation execution worker
+
+`moderate-publication-photos` is a service-authenticated POST endpoint with no
+caller-selected operation or media. It returns only private/no-store
+`{claimed:0|1,settled:0|1}`. Counts describe orchestration, never public
+availability or a provider charge. The SQL execution/moderation gates and
+provider quota policy remain default-off; no scheduler is added.
+
+The worker takes at most ten discovery hints and claims only the first. It
+validates owner/observation/operation, ordered frozen source IDs and saved
+intake shape before dropping notes and IP context. Scoped SQL admission
+retrieves the original IP hash. Recovery and durable finalization precede
+preflight. Existing dispatched attempts can only recover/retire under their
+original provider lease; no permit is reconstructed and no successor is created.
+Refused cohorts cancel one remaining proven undispatched reservation per pass,
+then finalize when no active attempt remains.
+
+Fresh or reserved execution must verify the entire source cohort and prepare the
+selected classifier before admission/dispatch. Only one provider invocation is
+possible per pass. Unsupported formats, metadata-bearing containers and
+transient read failures currently release/back off with no new admission; an
+explicit permanent remediation policy remains required before activation.
+
+A shared 135-second request deadline bounds awaited RPC, preflight, fetch and
+body reads. The provider/new-work cutoff is 105 seconds. After preflight and
+preparation, admission requires at least 60 seconds before that cutoff; dispatch
+requires 27 (12 for the dispatch RPC plus at least 15 for invocation). Each RPC
+is also capped at 12 seconds. Provider invocation combines its policy's
+90-second maximum with the earlier worker signal. The remaining 30 seconds
+permit two exact completion writes; finalizer/release are best-effort within the
+remaining global budget and may require later durable recovery. No phase may
+extend the overall deadline. A timeout never proves rollback: unknown dispatch
+stays charged and lost mutation replies recover from SQL.
+
+These limits fit beneath the documented 150-second request idle timeout, which
+applies even where paid worker wall time is longer. They do not imply that every
+phase can consume its individual maximum in one successful request. CPU/memory
+qualification remains an activation gate. Platform limits were checked against
+[Supabase's official limits](https://supabase.com/docs/guides/functions/limits)
+on October 4, 2026.
+
+Historical photo approval does not approve notes or publication. Future copy and
+binding must require the settled exact causal-leaf cohort and repeat byte,
+container, revision, consent and deletion checks. No complimentary scan credit
+is charged by moderation. No merge, deployment, scheduling, activation or
+TestFlight authorization is supplied by this prepared endpoint.

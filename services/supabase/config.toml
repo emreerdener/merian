@@ -761,3 +761,7 @@ verify_jwt = false
 
 [functions.request-observation-publication]
 verify_jwt = false
+
+# Service-only bounded photo moderation; activation remains separately gated.
+[functions.moderate-publication-photos]
+verify_jwt = false

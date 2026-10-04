@@ -226,3 +226,69 @@ Deno.test("terminal recovery is consumed without constructing a provider-token e
     assertEquals(work.state, state);
   }
 });
+
+Deno.test("moderation repository distinguishes provider cutoff from result settlement deadline", async () => {
+  const caller = new AbortController(), fresh = new AbortController();
+  const calls: string[] = [];
+  const repo = publicationModerationRepository(
+    client((name, args) => {
+      calls.push(args.p_action as string ?? name);
+      return receipt("approved");
+    }),
+    identity(),
+    [source()],
+    {
+      signal: caller.signal,
+      freshSignal: fresh.signal,
+      canDispatch: () => false,
+    },
+  );
+  const active =
+    receipt() as unknown as import("./publicationModerationRepository.ts").ActiveRecoveredPhotoWork;
+  const execution = repo.execution(active);
+  const scope = {
+    owner_id: id(1),
+    observation_id: id(2),
+    attempt_id: id(7),
+    lease_token: id(8),
+  };
+  fresh.abort();
+  await assertRejects(() => repo.admit(id(5)));
+  await assertRejects(() => execution.dispatch(scope));
+  const proof = {} as import("./photoClassifier.ts").PhotoClassifierProof,
+    result = {} as import("./photoClassifier.ts").PhotoClassifierResult;
+  assertEquals(await execution.complete(scope, proof, result), "approved");
+  assertEquals(calls, ["complete"]);
+  caller.abort();
+  await assertRejects(() => execution.complete(scope, proof, result));
+  assertEquals(calls, ["complete"]);
+});
+Deno.test("moderation repository strictly validates finalizer phase receipts", async () => {
+  for (
+    const value of [{ finalized: false }, {
+      finalized: true,
+      status: "photos_approved",
+      reason: null,
+    }, { finalized: true, status: "needs_action", reason: "unknown_execution" }]
+  ) {
+    const repo = publicationModerationRepository(
+      client(() => value),
+      identity(),
+      [source()],
+    );
+    assertEquals(await repo.finalize(), value.finalized);
+  }
+  for (
+    const value of [{ finalized: true, status: "admitted", reason: null }, {
+      finalized: true,
+      status: "needs_action",
+      reason: "private text",
+    }, { finalized: false, reason: null }]
+  ) {
+    await assertRejects(() =>
+      publicationModerationRepository(client(() => value), identity(), [
+        source(),
+      ]).finalize()
+    );
+  }
+});

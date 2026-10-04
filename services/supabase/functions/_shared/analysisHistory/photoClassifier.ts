@@ -1,3 +1,4 @@
+import { publicationAbortable } from "./publicationDeadline.ts";
 import { encodeBase64 } from "../encoding.ts";
 import { fetchWithDeadline, readResponseJsonWithinLimit } from "../outbound.ts";
 import { evidenceDigest, evidenceObjectKey } from "./evidence.ts";
@@ -217,12 +218,14 @@ export async function preparePublicationPhotoClassifier(
     ) => Promise<Uint8Array>;
     apiKey?: () => string | undefined;
     fetcher?: typeof fetch;
+    signal?: AbortSignal;
   } = {},
 ): Promise<
   { proof: PhotoClassifierProof; invoke: () => Promise<PhotoClassifierResult> }
 > {
   // The repository caller supplies an authorized immutable job source, never a
   // client URL or arbitrary receipt. Storage verification alone is not ownership.
+  dependencies.signal?.throwIfAborted();
   const source = Object.freeze({ ...input });
   if (
     Object.keys(source).sort().join(",") !==
@@ -292,6 +295,7 @@ export async function preparePublicationPhotoClassifier(
     processor_permission: "google_gemini",
     source,
   });
+  dependencies.signal?.throwIfAborted();
   let invoked = false;
   return {
     proof,
@@ -300,35 +304,57 @@ export async function preparePublicationPhotoClassifier(
       invoked = true;
       // One HTTP request, including on 429/5xx/disconnect. A shared signal also
       // bounds response streaming; the durable SQL dispatch expires in 120 seconds.
-      const signal = AbortSignal.timeout(policy.transport.timeoutMs);
+      const timeout = AbortSignal.timeout(policy.transport.timeoutMs);
+      const signal = dependencies.signal
+        ? AbortSignal.any([timeout, dependencies.signal])
+        : timeout;
       try {
-        const response = await fetchWithDeadline(
-          policy.transport.endpoint,
-          {
-            method: policy.transport.method,
-            redirect: policy.transport.redirect,
-            signal,
-            headers: {
-              "Content-Type": "application/json",
-              "x-goog-api-key": apiKey,
-            },
-            body,
-          },
-          { fetcher, timeoutMs: policy.transport.timeoutMs },
+        const response = await publicationAbortable(
+          signal,
+          () =>
+            fetchWithDeadline(
+              policy.transport.endpoint,
+              {
+                method: policy.transport.method,
+                redirect: policy.transport.redirect,
+                signal,
+                headers: {
+                  "Content-Type": "application/json",
+                  "x-goog-api-key": apiKey,
+                },
+                body,
+              },
+              { fetcher, timeoutMs: policy.transport.timeoutMs },
+            ).then((response) => {
+              if (signal.aborted) {
+                void response.body?.cancel().catch(() => {});
+                signal.throwIfAborted();
+              }
+              return response;
+            }),
         );
         if (
           !response.ok ||
           response.headers.get("content-type")?.split(";")[0].trim()
               .toLowerCase() !== "application/json"
         ) {
-          await response.body?.cancel();
+          void response.body?.cancel().catch(() => {});
           invalid();
         }
         return decode(
-          await readResponseJsonWithinLimit(
-            response,
-            policy.responseContract.maximumBytes,
-          ),
+          await publicationAbortable(signal, () =>
+            readResponseJsonWithinLimit(
+              response.body
+                ? new Response(
+                  response.body.pipeThrough(
+                    new TransformStream<Uint8Array, Uint8Array>(),
+                    { signal },
+                  ),
+                  { headers: response.headers, status: response.status },
+                )
+                : response,
+              policy.responseContract.maximumBytes,
+            )),
         );
       } catch {
         // No raw provider body, URL, key, photo, prompt or transport cause escapes.

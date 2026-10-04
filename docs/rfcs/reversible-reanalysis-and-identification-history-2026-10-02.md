@@ -2500,3 +2500,14 @@ pending.
 
 See the
 [outcome contract](../backend-and-data/05-api-contracts.md#prepared-durable-photo-moderation-outcomes).
+
+## October 4: prepared bounded photo moderation worker
+
+`moderate-publication-photos` now connects service authentication, durable
+claims, recovery, finalization and one verified provider execution. Gates stay
+false and no scheduler is added. Shared request/provider deadlines preserve
+completion time and never turn uncertainty into a retry or refund. Copy/binding,
+exact-note moderation and native operations remain separate. Worker
+handler/repository and classifier deadline tests cover recovery-first ordering,
+preflight before quota, lost dispatch/completion, stalled response cancellation
+and scoped denial.

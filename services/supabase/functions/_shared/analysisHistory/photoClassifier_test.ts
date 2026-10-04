@@ -348,3 +348,86 @@ Deno.test("photo classifier parallel invocation consumes the local permit once",
   assertEquals(results.map((r) => r.status), ["fulfilled", "rejected"]);
   assertEquals(calls, 1);
 });
+
+Deno.test("photo classifier caller deadline cancels late response headers without a second call", async () => {
+  const f = await fixture();
+  const controller = new AbortController();
+  let cancelled = false, calls = 0;
+  const prepared = await preparePublicationPhotoClassifier(f.source, {
+    ...f.deps,
+    signal: controller.signal,
+    fetcher: () => {
+      calls++;
+      const body = new ReadableStream<Uint8Array>({
+        start: () => queueMicrotask(() => controller.abort()),
+        cancel: () => {
+          cancelled = true;
+        },
+      });
+      return Promise.resolve(
+        new Response(body, { headers: { "content-type": "application/json" } }),
+      );
+    },
+  });
+  await assertRejects(
+    () => prepared.invoke(),
+    Error,
+    "photo_classifier_execution_unknown",
+  );
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assertEquals(calls, 1);
+  assert(cancelled);
+  await assertRejects(
+    () => prepared.invoke(),
+    Error,
+    "photo_classifier_already_invoked",
+  );
+});
+Deno.test("photo classifier expired caller cannot start a provider request", async () => {
+  const f = await fixture();
+  const controller = new AbortController();
+  let calls = 0;
+  const prepared = await preparePublicationPhotoClassifier(f.source, {
+    ...f.deps,
+    signal: controller.signal,
+    fetcher: () => {
+      calls++;
+      return Promise.resolve(response(output()));
+    },
+  });
+  controller.abort();
+  await assertRejects(() => prepared.invoke());
+  assertEquals(calls, 0);
+});
+
+Deno.test("photo classifier worker deadline cancels an already streaming stalled body", async () => {
+  const f = await fixture();
+  const controller = new AbortController();
+  let cancelled = false;
+  const prepared = await preparePublicationPhotoClassifier(f.source, {
+    ...f.deps,
+    signal: controller.signal,
+    fetcher: () =>
+      Promise.resolve(
+        new Response(
+          new ReadableStream<Uint8Array>({
+            start(c) {
+              c.enqueue(new TextEncoder().encode('{"modelVersion":'));
+              setTimeout(() => controller.abort(), 0);
+            },
+            cancel() {
+              cancelled = true;
+            },
+          }),
+          { headers: { "content-type": "application/json" } },
+        ),
+      ),
+  });
+  await assertRejects(
+    () => prepared.invoke(),
+    Error,
+    "photo_classifier_execution_unknown",
+  );
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert(cancelled);
+});
