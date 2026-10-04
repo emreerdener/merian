@@ -1243,6 +1243,11 @@ the swap. If a marker drag resumes playback, playhead observation restarts for
 the replacement player. Completion callbacks from replaced players are ignored
 so they cannot reset the active playhead.
 
+The direct spectrogram control is also available during foreground and queued
+analysis. The audio page uses a containing accessibility group with separately
+reachable playback, seeking and Boost controls; a full-page accessibility
+overlay must not mask those controls.
+
 Boost processing writes a Core Audio file inside an explicit close scope, then
 reopens and decodes every rendered frame before publishing the source to a
 player. Decode errors and callback-less playback stops invalidate the cached

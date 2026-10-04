@@ -1640,6 +1640,11 @@ final class merianUITests: XCTestCase {
 
         let boostButton = app.buttons["Boost audio"]
         XCTAssertTrue(boostButton.waitForExistence(timeout: 8.0))
+        let audioControls = XCTAttachment(screenshot: app.screenshot())
+        audioControls.name = "Queued audio controls before completion"
+        audioControls.lifetime = .keepAlways
+        add(audioControls)
+        XCTAssertTrue(boostButton.isHittable, "Boost must be tappable while the scan is analyzing")
         boostButton.tap()
         let boostedButton = app.buttons["Turn off audio boost"]
         XCTAssertTrue(

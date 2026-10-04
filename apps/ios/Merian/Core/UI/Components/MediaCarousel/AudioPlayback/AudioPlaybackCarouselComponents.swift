@@ -87,13 +87,11 @@ struct AudioPlaybackCarouselContent: View {
                 }
             }
         }
-        .overlay {
-            Color.clear
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Audio playback page")
-                .accessibilityIdentifier(pageAccessibilityIdentifier)
-                .allowsHitTesting(false)
-        }
+        // A separate full-page accessibility overlay masks hosted controls
+        // from accessibility hit testing, even with pointer hits disabled.
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Audio playback page")
+        .accessibilityIdentifier(pageAccessibilityIdentifier)
     }
 }
 

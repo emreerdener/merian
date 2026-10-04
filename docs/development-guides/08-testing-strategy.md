@@ -8104,6 +8104,11 @@ native-control correction is committed at
 `build-for-testing` compiled and linked the app, unit bundle, and UI bundle for
 arm64 and x86_64, but a hosted XCUI result is still required.
 
+The queued-audio smoke also retains a screenshot before Boost, asserts the real
+control is tappable, then requires prepared boosted playback before completion
+and a working return to original audio afterward. The page uses a containing
+accessibility group so its identity cannot mask child controls.
+
 After installing the intended Debug build on a disposable booted simulator, run
 each mode as a separate cold launch. Launch arguments override the stored order
 for that process without changing the simulator's persistent preference:

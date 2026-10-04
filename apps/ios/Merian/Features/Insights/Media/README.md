@@ -195,10 +195,11 @@ only after the source has produced both a valid `AVAudioPlayer` and decoded
 spectrogram columns. The seeded queued-audio UI regression writes a real PCM WAV
 to Documents, waits for that control before completion, and requires the same
 readable control after the completed record replaces the queued presentation. It
-also enables boost while analyzing, waits for the prepared boosted control, and
-verifies that completion retains the selection and can return to original audio.
-The outer page identifier alone is not media-readiness evidence because it is
-also present while decoding and in the unavailable state.
+also asserts Boost is tappable while analyzing, enables it, waits for the
+prepared boosted control, and verifies that completion retains the selection and
+can return to original audio. The outer page identifier alone is not
+media-readiness evidence because it is also present while decoding and in the
+unavailable state.
 
 The shared audio page delegates process-wide session ownership to Core Media's
 `AudioPlaybackSessionController`. Mounting the page performs no process-wide
