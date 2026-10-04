@@ -7030,6 +7030,18 @@ owner/time and observation indexes, and default-false
 original quota-address HMAC and bounded public acceptance receipt, with fresh
 authorization on first intake and exact recovery afterward. No direct table
 grants exist. An observation tombstone deletes queued intake immediately;
-parent/account erasure cascades it. No worker or execution claim is introduced.
-See the
+parent/account erasure cascades it. Intake does not execute external work. See
+the
 [intake contract](05-api-contracts.md#prepared-authenticated-publication-operation-intake).
+
+### Prepared publication operation worker state
+
+`20261004125428_prepare_publication_operation_worker.sql` adds private
+`observation_publication_work`, keyed to immutable intake with cascading
+deletion, a due-work index and paired orchestration token/expiry. Intake seeds
+one row; binding a durable cohort removes it atomically. Existing unbound intake
+is backfilled. `publication_execution_enabled` defaults false. Service-only
+bounded list/claim/release and sanitized owner-status RPCs preserve owner-first
+locking; no direct table grants, provider dispatch or storage access are added.
+See the
+[worker ownership contract](05-api-contracts.md#prepared-publication-operation-worker-ownership).

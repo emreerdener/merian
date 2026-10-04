@@ -733,3 +733,12 @@ private and deletion-bound. No storage/provider credential is used at intake.
 The independent operation gate stays false and the configured route follows
 normal future main deployment planning. See the
 [intake boundary](05-api-contracts.md#prepared-authenticated-publication-operation-intake).
+
+The prepared publication work RPCs expose only bounded discovery, scoped
+orchestration leases and sanitized owner status to the service role. Claim
+responses contain private approved evidence and the saved IP hash and must never
+reach client responses or logs. Fresh execution is not authorized by a work
+lease; provider dispatch/copy/binding must retain their separate guards.
+`publication_execution_enabled` defaults false, no scheduler is created, and
+live public-note moderation remains an activation requirement. See the
+[worker ownership boundary](05-api-contracts.md#prepared-publication-operation-worker-ownership).

@@ -826,3 +826,28 @@ Deno.test("publication operation intake is durable, private, bounded and default
   assert(!sql.includes("TO authenticated"));
   assert(!sql.includes("reserve_ai_quota"));
 });
+
+Deno.test("publication worker leases remain distinct from provider dispatch and default off", async () => {
+  const sql = await migration(
+    "20261004125428_prepare_publication_operation_worker",
+  );
+  assertStringIncludes(
+    sql,
+    "publication_execution_enabled BOOLEAN NOT NULL DEFAULT FALSE",
+  );
+  assertStringIncludes(
+    sql,
+    "AFTER INSERT ON internal.observation_publication_operations",
+  );
+  assertStringIncludes(
+    sql,
+    "AFTER INSERT ON internal.observation_photo_publications",
+  );
+  assertStringIncludes(sql, "ON DELETE CASCADE");
+  assertStringIncludes(sql, "LIMIT 10");
+  assertStringIncludes(sql, "work.work_token IS DISTINCT FROM p_work");
+  assertStringIncludes(sql, "internal.privileged_routine_grants");
+  assert(!sql.includes("TO authenticated"));
+  assert(!sql.includes("reserve_ai_quota"));
+  assert(!sql.includes("dispatch_publication_photo"));
+});

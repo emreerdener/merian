@@ -13424,6 +13424,58 @@ failures 503; responses are private/no-store. Invalid database receipts fail
 closed as server errors. Calls have a twelve-second client deadline and
 ten-second SQL limit, with no automatic mutation retry. The route participates
 in normal main deployment planning; runtime-off is not a deployment exclusion.
-Worker claims, source-container preflight before quota, moderated
-execution/copy, final cohort binding and cleanup, durable retirement and native
-delivery remain held.
+Database worker claims and sanitized status are prepared below. The worker
+endpoint, source-container preflight before quota, moderated execution/copy,
+final cohort binding and cleanup, durable retirement and native delivery remain
+held.
+
+## Prepared publication operation worker ownership
+
+`20261004125428_prepare_publication_operation_worker.sql` adds private mutable
+work state beneath immutable accepted operations. Intake seeds it atomically;
+existing unbound operations are backfilled without changing their acceptance,
+selection or review. Durable cohort binding removes work in its transaction.
+Observation/account deletion cascades it immediately. All new RPCs are
+service-only, with no direct table grants or authenticated caller nomination. No
+worker endpoint or scheduler is connected by this slice.
+
+`list_observation_publication_work()` returns at most ten due scope hints
+(`owner_id`, `observation_id`, `operation_id`). It takes no child locks.
+`claim_observation_publication_work(owner, observation, operation)` locks the
+owner and observation before work, rechecks deletion and exact ownership, then
+issues a new 120-second token only when due and unclaimed or expired. A busy,
+backed-off or already-bound operation returns `{claimed:false}`. A successful
+claim returns private frozen request/sources and the **original** intake IP hash
+alongside the scope, token and expiry. Never serialize this context to a client
+or log it. The default-false `publication_execution_enabled` gate controls both
+list and claim independently of intake.
+
+`release_observation_publication_work(owner, observation, operation, token)`
+requires the exact live token, clears it and applies a 60-second recovery delay.
+Gate closure does not prevent release. Expired or replaced tokens cannot mutate
+a successor. A lost claim response waits for lease expiry; a repeated claim
+never returns another worker's token. Reclaiming orchestration does not renew a
+provider lease, authorize dispatch or copy, retry an uncertain execution, or
+settle any funding. Future execution wrappers must verify current work and
+freshly revalidate their separate source, revision, consent and attempt rules.
+Recovery must inspect durable outcomes before deciding on external work.
+
+`read_owned_observation_publication_status(owner, observation, operation)` is
+prepared for a future authenticated owner endpoint and returns exactly
+`{schema_version:1, operation_id, observation_id, analysis_id, status}`. Status
+is `admitted` only if the durable cohort receipt exists, otherwise `processing`
+while an orchestration lease is live and `accepted` while awaiting recovery.
+These are orchestration observations, not provider outcomes; lease expiry does
+not imply provider failure or permission to retry. `admitted` is historical and
+does not assert current public visibility, identification authority or species
+eligibility. Separate public projections enforce revocation. Reads work after
+intake/execution gate closure but fail after ownership loss or deletion. The
+original POST always returns its unchanged acceptance receipt.
+
+Activation also requires bounded verified container preflight **before**
+provider quota, scoped moderation/copy repositories, cohort-wide failure
+cleanup, expired-attempt recovery and native operation delivery. Optional public
+notes currently have length validation only: photo approval cannot approve text.
+Before live binding, require durable exact-note moderation (including an
+explicit no-note case) or restrict the activated subset to no notes. No gate is
+enabled by this migration.

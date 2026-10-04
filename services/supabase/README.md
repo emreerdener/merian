@@ -3309,3 +3309,13 @@ private records preserve replay, original hash and deletion fences. Acceptance
 never authorizes copying or means publication completed. Live execution/status
 workers and native delivery remain required. See the
 [intake contract](../../docs/backend-and-data/05-api-contracts.md#prepared-authenticated-publication-operation-intake).
+
+## Prepared publication worker ownership
+
+Separate private work records now provide bounded discovery, scoped expiring
+claims and gate-independent release/status beneath immutable intake. Only a
+durable cohort receipt establishes historical admission; orchestration leases
+confer no provider or public-copy authority. The execution gate remains false,
+and worker/status endpoints and native delivery remain unconnected. Optional
+public notes still require their own moderation boundary. See the
+[worker contract](../../docs/backend-and-data/05-api-contracts.md#prepared-publication-operation-worker-ownership).

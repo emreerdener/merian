@@ -25,6 +25,10 @@ async function observeBlock(observer: Client, waiter: number, blocker: number) {
 for (
   const scenario of [
     "duplicate admission",
+    "duplicate work claim",
+    "binding before work claim",
+    "deletion before work claim",
+    "work claim before deletion",
     "owner capacity across observations",
     "account deletion first",
     "admission before deletion",
@@ -63,6 +67,7 @@ for (
         "protected_analysis_enabled",
         "publication_intent_enabled",
         "publication_operation_enabled",
+        "publication_execution_enabled",
         "rejection_api_enabled",
       ];
       let previousFunding: {
@@ -128,6 +133,14 @@ for (
             "SELECT public.admit_owned_observation_publication($1,$2::jsonb,repeat('a',64)) AS receipt",
             [owner, JSON.stringify(request)],
           );
+        const claim = (client: Client) =>
+          client.queryObject<
+            { receipt: { claimed: boolean; work_token?: string } }
+          >(
+            "SELECT public.claim_observation_publication_work($1,$2,$3) AS receipt",
+            [owner, observation, operation],
+          );
+        if (scenario.includes("work claim")) await admit(observer);
         let otherRequest: unknown;
         if (scenario === "owner capacity across observations") {
           const otherObservation = crypto.randomUUID(),
@@ -161,7 +174,78 @@ for (
         )).rows[0].pid;
         await first.queryArray("BEGIN");
         await second.queryArray("BEGIN");
-        if (scenario === "owner capacity across observations") {
+        if (scenario === "binding before work claim") {
+          // Model the final binder transaction; ordered source/approval checks
+          // are independently covered by the photo binding integration suite.
+          await first.queryArray(
+            "SELECT internal.lock_owned_observation_evidence($1,$2)",
+            [owner, observation],
+          );
+          await first.queryArray(
+            'INSERT INTO internal.observation_photo_publications(operation_id,object_ids,receipt) VALUES($1,ARRAY[$2::uuid],\'{"status":"admitted"}\')',
+            [operation, crypto.randomUUID()],
+          );
+          const pending = settle(claim(second));
+          await observeBlock(observer, secondPid, firstPid);
+          await first.queryArray("COMMIT");
+          const outcome = await pending;
+          assert(outcome.ok);
+          assertEquals(outcome.value.rows[0].receipt, { claimed: false });
+          await second.queryArray("COMMIT");
+        } else if (scenario === "duplicate work claim") {
+          const original = (await claim(first)).rows[0].receipt;
+          assert(original.claimed);
+          const pending = settle(claim(second));
+          await observeBlock(observer, secondPid, firstPid);
+          await first.queryArray("COMMIT");
+          const outcome = await pending;
+          assert(outcome.ok);
+          assertEquals(outcome.value.rows[0].receipt, { claimed: false });
+          await second.queryArray("COMMIT");
+          assertEquals(
+            (await observer.queryObject<{ work_token: string }>(
+              "SELECT work_token FROM internal.observation_publication_work WHERE operation_id=$1",
+              [operation],
+            )).rows[0].work_token,
+            original.work_token,
+          );
+        } else if (scenario === "deletion before work claim") {
+          await first.queryArray("SELECT public.apply_user_tombstone($1)", [
+            owner,
+          ]);
+          const pending = settle(claim(second));
+          await observeBlock(observer, secondPid, firstPid);
+          await first.queryArray("COMMIT");
+          const outcome = await pending;
+          assert(!outcome.ok);
+          assert(outcome.error.includes("analysis_history_not_found"));
+          await second.queryArray("ROLLBACK");
+        } else if (scenario === "work claim before deletion") {
+          const original = (await claim(first)).rows[0].receipt;
+          assert(original.claimed);
+          const pending = settle(
+            second.queryArray("SELECT public.apply_user_tombstone($1)", [
+              owner,
+            ]),
+          );
+          await observeBlock(observer, secondPid, firstPid);
+          await first.queryArray("COMMIT");
+          assert((await pending).ok);
+          await second.queryArray("COMMIT");
+          assertEquals(
+            (await observer.queryObject<{ count: number }>(
+              "SELECT count(*)::int AS count FROM internal.observation_publication_work WHERE operation_id=$1",
+              [operation],
+            )).rows[0].count,
+            0,
+          );
+          const late = await settle(first.queryArray(
+            "SELECT public.release_observation_publication_work($1,$2,$3,$4)",
+            [owner, observation, operation, original.work_token],
+          ));
+          assert(!late.ok);
+          assert(late.error.includes("analysis_history_not_found"));
+        } else if (scenario === "owner capacity across observations") {
           const original = (await admit(first)).rows[0].receipt;
           const pending = settle(
             second.queryObject(
@@ -254,9 +338,11 @@ for (
         )).rows[0].count;
         assertEquals(
           count,
-          scenario === "owner capacity across observations"
-            ? 8
-            : scenario === "duplicate admission"
+          scenario === "owner capacity across observations" ? 8 : [
+              "duplicate admission",
+              "duplicate work claim",
+              "binding before work claim",
+            ].includes(scenario)
             ? 1
             : 0,
         );

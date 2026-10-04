@@ -2460,3 +2460,17 @@ Execution claims/status, preflight, moderation/copy repositories, cohort failure
 cleanup, expired-attempt recovery and native delivery remain separate held
 slices. See the
 [intake contract](../backend-and-data/05-api-contracts.md#prepared-authenticated-publication-operation-intake).
+
+### October 4, 2026: durable publication orchestration ownership
+
+Separate private work records now preserve immutable intake while supplying
+bounded discovery, exact expiring tokens and release backoff. Owner status
+distinguishes awaiting recovery, active orchestration and historical cohort
+admission without claiming public visibility or provider success. Deletion and
+binding retire work transactionally; the independent execution gate stays false.
+No worker endpoint or native consumer is connected. Review also confirmed that
+optional notes need their own moderation boundary before live publication; photo
+approval is insufficient. Remaining work includes scoped execution, preflight
+before quota, note moderation, cohort failure cleanup, expired-attempt
+retirement and native delivery. See the
+[worker contract](../backend-and-data/05-api-contracts.md#prepared-publication-operation-worker-ownership).

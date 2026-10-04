@@ -10537,3 +10537,13 @@ owner-wide intake slot raced by two observations with independent sessions.
 Endpoint/parser/repository tests cover exact ordered consent, owner scope,
 payload limits, response privacy, frozen requests and no implicit retry. These
 tests prove intake only; no scheduled publisher or native delivery exists.
+
+### Publication operation worker ownership
+
+`publication_operation_worker.sql` covers actual-role denial, gate defaults,
+atomic intake seeding, exact lease/release, expiry and successor protection,
+sanitized status, historical binding and deletion fences.
+`observationPublicationOperationConcurrencyDb.test.ts` also runs independent
+sessions for competing claims and both account-deletion orders. These checks do
+not qualify live provider dispatch, public copying, optional-note moderation,
+cache revocation or a scheduled worker; those remain separately held.
