@@ -1,3 +1,4 @@
+export { admitReview } from "../_shared/identify/speciesVerification.ts";
 import {
   requireLegacyReview,
   throwIfAnalysisBoundReview,
@@ -56,18 +57,6 @@ export async function findReviewTarget(
     primary: parsePrimaryIdentification(data.primary_identification),
     revision: data.confirmed_species_identity_revision,
   };
-}
-export async function admitReview(
-  admin: SupabaseClient,
-  userID: string,
-): Promise<void> {
-  const { error } = await admin.rpc("admit_species_dictionary_resolution", {
-    viewer_id: userID,
-  });
-  if (error?.message === "species_resolution_rate_limited") {
-    throw publicHttpError(429, "Please try again later.", "rate_limited");
-  }
-  if (error) throw new Error("Species review admission failed.");
 }
 export async function applyReview(
   admin: SupabaseClient,

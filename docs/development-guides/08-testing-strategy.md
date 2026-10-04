@@ -10344,3 +10344,20 @@ remaining activation matrix are not established by this fixture.
 The Release binary audit in `.github/workflows/ios-build-and-test.yml` must
 exclude `-seedIdentificationHistory`, alongside every existing Debug fixture
 marker. `make test-ios-ci-tooling` verifies that the denylist remains exact.
+
+## Prepared observation confirmation verification
+
+`confirm-observation-analysis/handler_test.ts` verifies immutable admission
+before lookup, owner/proof binding, completed recovery before rate admission,
+definitive negative outcomes, cancellation and sanitized errors. The actual-role
+`tests/observation_analysis_confirmation.sql` covers private intent grants,
+operation rebinding (including Reject/Undo), stale authority, canonical synonym
+proof, inactive-child isolation, unsupported legacy/non-biological evidence and
+deleted replay. Separate sessions in
+`_tests/observationAnalysisConfirmationConcurrencyDb.test.ts` exercise duplicate
+and competing completion, selection in both orders, rejection, deletion/account
+erasure and unfinished intent rebinding. These enter the existing complete
+Supabase gates; no separate workflow or rollout exception is introduced.
+Deployment's critical user-route denial smoke also includes the new endpoint.
+Its default-false gate and missing ordinary native caller remain governed by the
+[canonical contract](../backend-and-data/05-api-contracts.md#prepared-analysis-bound-confirmation).

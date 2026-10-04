@@ -319,7 +319,8 @@ for `review_owned_observation_analysis`. Both revisions and the exact analysis
 are bound to an operation; Undo additionally names its accepted rejection.
 Receipts cannot substitute for a current-state read. The default-false
 `rejection_api_enabled` gate remains closed and native review admission is not
-wired. Confirmation and community authority require subsequent slices.
+wired. Confirmation is separately prepared below; community authority still
+requires a subsequent slice.
 
 `observation_analysis_review.sql` and
 `observationAnalysisReviewConcurrencyDb.test.ts` cover authority isolation,
@@ -327,3 +328,15 @@ receipt recovery, selection races, deletion, and enrollment racing legacy
 review. Legacy Edge preflight is shared in `identify/legacyReview.ts`; database
 commit checks remain authoritative. See the
 [canonical contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-analysis-bound-reject-and-undo).
+
+## Prepared analysis-bound confirmation
+
+`confirmation.ts` owns strict protocol-9 confirmation requests, internal
+prepare/complete envelopes and immutable outcomes. The
+[`confirm-observation-analysis`](../../confirm-observation-analysis/README.md)
+endpoint freezes query and intent before dictionary verification, then commits
+only against both current revisions. Its independent confirmation gate defaults
+false. Exact completed retries skip verification; explicit confirmation can
+clear only the named result's rejection. Native admission, community authority
+and ordinary activation remain held. See the
+[canonical contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-analysis-bound-confirmation).

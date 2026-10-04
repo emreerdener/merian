@@ -11,6 +11,26 @@ tested, ordinary access and remaining integrations incomplete; no deployment\
 Scope: iOS, SwiftData, inference and funding, Supabase, media, identification
 review, Field Trips, Explore, Field Chat, and deletion
 
+Confirmation addendum (4 October 2026): Analysis-bound confirmation now has a
+separate default-off endpoint, immutable intent/query admission before
+dictionary verification, and completion guarded by both current revisions.
+Completed, stale and definitively unverified outcomes replay without another
+lookup. Explicit confirmation clears only the named child's rejection and never
+changes selection. Community authority, imported legacy evidence without an
+explicit primary, native review admission, reconciliation and ordinary
+activation remain held. The
+[canonical confirmation contract](../backend-and-data/05-api-contracts.md#prepared-analysis-bound-confirmation)
+owns current semantics; the earlier validation records below remain historical.
+
+Local confirmation validation: 2,441 backend tests (343 steps), 844 SQL
+assertions across 86 fixtures, clean disposable migration replay, nine dedicated
+confirmation concurrency scenarios, 108 Edge entrypoint type checks, database
+lint, the complete Supabase tooling gate, DTO/migration checks and formatting
+passed. Advisors retain 103 security and 79 performance warnings with no errors
+or new confirmation findings. Independent read-only review found no remaining
+substantive confirmation-boundary issue. No native source is changed by this
+slice, and no hosted rollout or TestFlight evidence is claimed.
+
 Implementation addendum (3 October 2026): The next authority slice prepares
 analysis-bound Reject/Undo with immutable outcomes, dual revision checks, and
 legacy review fencing. Its independent gate remains disabled; confirmation,

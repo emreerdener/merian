@@ -30,6 +30,7 @@ that layout.
 
 - [auto-purge-nonbio](./auto-purge-nonbio/README.md)
 - [check-scan-status](./check-scan-status/README.md)
+- [confirm-observation-analysis](./confirm-observation-analysis/README.md)
 - [confirm-scan-species](./confirm-scan-species/README.md)
 - [delete-scan](./delete-scan/README.md)
 - [generate-upload-urls](./generate-upload-urls/README.md)

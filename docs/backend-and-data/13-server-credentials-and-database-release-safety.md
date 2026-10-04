@@ -318,7 +318,18 @@ row-trigger backstops check both sides of reparenting without acquiring those
 higher-order locks. No blanket service-role table access or live activation is
 introduced. The
 [API contract](05-api-contracts.md#prepared-analysis-bound-reject-and-undo) owns
-transitions, remaining community/confirmation holds, and failure semantics.
+transitions, remaining community holds, and failure semantics.
+
+The separate default-false confirmation gate protects
+`confirm-observation-analysis`. Its two service-only RPCs freeze private intent
+before GBIF verification and recheck both revisions at completion. API roles
+cannot access intent tables or the shared internal transaction directly.
+Completed outcomes recover before gate checks but always after ownership and
+deletion checks. The deployment critical-route denial smoke includes this
+endpoint; it does not enable the gate. The
+[confirmation contract](05-api-contracts.md#prepared-analysis-bound-confirmation)
+owns pending-operation recovery, verified proof, rate admission and remaining
+native/legacy/community activation limits.
 
 ## Migration Execution Contract
 

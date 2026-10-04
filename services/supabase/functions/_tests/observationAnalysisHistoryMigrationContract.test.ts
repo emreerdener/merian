@@ -451,3 +451,39 @@ Deno.test("analysis rejection is owner-bound, revisioned, receipt-fenced and hel
     ),
   );
 });
+
+Deno.test("analysis confirmation uses service proof, immutable admission and revisioned completion behind a closed gate", async () => {
+  const sql = await migration(
+    "20261004043041_prepare_analysis_bound_confirmation",
+  );
+  for (
+    const fragment of [
+      "confirmation_api_enabled BOOLEAN NOT NULL DEFAULT FALSE",
+      "PERFORM internal.require_service_role()",
+      "CREATE TABLE internal.observation_confirmation_intents",
+      "CREATE INDEX observation_confirmation_intents_analysis_idx",
+      "CREATE TRIGGER guard_observation_review_intent BEFORE INSERT",
+      "p_verified_name IS DISTINCT FROM intent.scientific_name",
+      "history.state_revision=expected_revision AND authority.review_revision=expected_review",
+      "UPDATE internal.observation_analysis_authorities SET review_revision=expected_review+1",
+      "GRANT EXECUTE ON FUNCTION public.prepare_observation_analysis_confirmation(UUID,JSONB,INTEGER) TO service_role",
+      "GRANT EXECUTE ON FUNCTION public.complete_observation_analysis_confirmation(UUID,JSONB,INTEGER,TEXT,JSONB) TO service_role",
+      "NOTIFY pgrst, 'reload schema'",
+    ]
+  ) assertStringIncludes(sql, fragment);
+  const owner = sql.indexOf("WHERE users.id=p_user_id FOR UPDATE");
+  const fence = sql.indexOf("internal.scan_deletion_tombstones");
+  const replay = sql.indexOf("'receipt',saved.receipt");
+  const gate = sql.indexOf("IF (SELECT confirmation_api_enabled");
+  const verification = sql.indexOf(
+    "public.resolve_verified_dictionary_species(p_taxon)",
+  );
+  assert(
+    owner > 0 && owner < fence && fence < replay && replay < gate &&
+      gate < verification,
+  );
+  assert(
+    !/GRANT EXECUTE ON FUNCTION internal\.|UPDATE public\.scans|UPDATE internal\.observation_history_rollout/i
+      .test(sql),
+  );
+});

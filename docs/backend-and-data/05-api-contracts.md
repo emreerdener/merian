@@ -12753,3 +12753,82 @@ updates, and both sides of reparenting are also fenced, as are scan-row
 authority mutations; analysis-bound community authority and its revocation
 behavior remain activation requirements. Privacy/deletion cleanup retains its
 existing path.
+
+### Prepared analysis-bound confirmation
+
+`confirm-observation-analysis` prepares authenticated, private confirmation for
+protocol-9 history. Its `confirmation_api_enabled` gate defaults false; reader
+and state-reader gates must also be enabled. No ordinary native caller or
+rollout is enabled. `_shared/analysisHistory/confirmation.ts` owns the strict
+request, preparation envelope and terminal receipt parsers. Identify DTOs,
+web/admin payloads and native schemas are unchanged.
+
+POST accepts exactly eight fields: `schema_version: 1`, `observation_id`,
+`analysis_id`, `operation_id`, `expected_observation_revision`,
+`expected_review_revision`, `action`, and `scientific_name`. IDs are lowercase
+UUIDs, revisions are integers 0–2,147,483,646, and the stored request is bounded
+to 2 KiB. `confirm_primary` requires a null name and derives the verification
+query from that child's immutable species-level primary identification.
+`confirm_name` requires a trimmed, control-free name of 1–160 characters and
+explicitly accepts a verified species, including from a broader primary answer.
+The request cannot supply owner identity, species UUID, taxonomy proof or review
+authority. Both actions require biological evidence with an explicit stored
+primary; imported legacy results without one remain viewable/restorable but
+cannot use this confirmation endpoint. Community authority remains held.
+
+The service-only `prepare_observation_analysis_confirmation` RPC acquires owner
+→ observation generation → owned live scan → history → target authority locks.
+Ownership and deletion are checked before immutable receipt recovery. An
+unfinished operation saves its exact request and verification query in
+`internal.observation_confirmation_intents` before network execution. The
+operation UUID cannot be rebound to another result, action, query or revisions,
+including through Reject/Undo. Preparation returns either
+`{schema_version:1,status:verify,request,scientific_name}` or
+`{schema_version:1,status:complete,receipt}`; these internal envelopes are not
+the HTTP response.
+
+Only an unfinished, eligible intent proceeds to the existing dictionary lookup
+rate limiter and GBIF verifier. Each attempted lookup is rate-limited; retries
+of completed outcomes skip both admission and lookup. Verification uses the
+frozen query and accepts the verifier's canonical accepted species, which can
+differ from a synonym query. The separate service-only
+`complete_observation_analysis_confirmation` RPC requires a prior intent,
+rechecks ownership/deletion, gates and both revisions, and binds the verified
+query to that intent. No network call runs while database locks are held.
+Provider executions and complimentary scan credits are untouched: this is
+dictionary verification, not another AI analysis.
+
+HTTP 200 returns the exact eight request fields plus one terminal outcome:
+
+- `applied`, with `observation_revision` and `review_revision`, each exactly one
+  greater than requested;
+- `revision_conflict`, with no extra state fields, if either expectation became
+  stale before admission or completion;
+- `not_verified`, with no extra state fields, for a definitive negative lookup.
+
+All three outcomes share the immutable review ledger and replay before rollout
+gates, without reapplying state. A negative outcome cannot later become a
+confirmation under the same operation UUID. Interrupted/unavailable lookups
+leave their intent recoverable and consume no confirmation outcome. A changed
+intent returns HTTP 409 `analysis_history_operation_conflict`; malformed input
+returns 400 `invalid_analysis_history`; missing/foreign/deleted history returns
+404 `analysis_history_not_found`; missing primary returns 409
+`species_review_requires_primary`; unsupported authority returns 422
+`species_not_verified`; closed holds or persistence unavailability return 503
+`analysis_history_unavailable`. Lookup unavailability returns 503
+`species_resolution_unavailable`, and dictionary rate refusal returns 429
+`rate_limited`. Responses use `Cache-Control: private, no-store`; diagnostics
+and stored/private payloads are not exposed.
+
+An applied confirmation updates only the named child's seven-field authority.
+Primary confirmation sets `ai_confirmed`; named confirmation sets
+`user_overridden`, records the query as the override, and does not mark the AI
+answer confirmed. Both store the verified canonical species identity and
+explicitly clear that child's AI rejection/awaiting-acceptance state. Selecting
+a result alone never clears rejection. Community authority cannot be displaced
+through this endpoint. Selection and immutable evidence remain unchanged. The
+authority trigger advances the observation revision and adds reconciliation;
+only a selected child's confirmation updates the active projection. A receipt is
+an operation outcome, not current authority: consumers must reread current state
+before display or credit decisions. Native confirmation admission, community
+transitions, downstream reconciliation and activation remain separate work.

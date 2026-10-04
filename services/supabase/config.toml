@@ -601,6 +601,9 @@ verify_jwt = false
 [functions.resolve-species-dictionary]
 verify_jwt = false
 
+[functions.confirm-observation-analysis]
+verify_jwt = false
+
 [functions.confirm-scan-species]
 verify_jwt = false
 

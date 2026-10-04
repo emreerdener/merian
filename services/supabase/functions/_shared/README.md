@@ -619,3 +619,10 @@ The prepared protocol-8 read slice adds mixed immutable V1/V2 owner pages,
 `ObservationHistoryPhotoReference` / `ObservationHistoryPhotoLoader` validation.
 All gates remain closed and no UI is connected. The canonical contract is
 [protocol-8 owner reads](../../../../docs/backend-and-data/05-api-contracts.md#prepared-protocol-8-reads-and-private-photo-resolution).
+
+`identify/speciesVerification.ts` shares the existing bounded scientific-name
+validator and dictionary-rate admission between legacy species review and
+analysis-bound confirmation. It does not authorize authority writes or spend
+scan allowances. `analysisHistory/confirmation.ts` owns exact operation and
+receipt validation for the
+[prepared confirmation endpoint](../confirm-observation-analysis/README.md).

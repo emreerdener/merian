@@ -6846,5 +6846,29 @@ Account detachment and explicit deletion can still clear authority/history. No
 state is mirrored between the mutable legacy scan and a selected analysis. See
 the
 [request and transition contract](05-api-contracts.md#prepared-analysis-bound-reject-and-undo).
-Confirmation, community projection, native review admission and ordinary history
-activation remain incomplete. No rollout flag is enabled by this migration.
+Community projection, native review admission and ordinary history activation
+remain incomplete. Confirmation is separately prepared below. No rollout flag is
+enabled by this migration.
+
+### Prepared analysis-bound confirmation transactions
+
+`20261004043041_prepare_analysis_bound_confirmation.sql` adds default-false
+`confirmation_api_enabled` and private
+`internal.observation_confirmation_intents`. Its immutable exact request and
+verification query are keyed by `(observation_id, operation_id)` and attached
+through an indexed composite FK to the child analysis. RLS, revoked API-role
+table grants, generation checks and update rejection protect pending intents;
+observation/child erasure cascades them. The shared review-receipt insert guard
+prevents Reject/Undo from claiming a pending confirmation's operation UUID.
+
+Service-only prepare/complete wrappers delegate to one ungranted internal
+transaction owner. Both phases lock owner, generation, scan, history and target
+authority in the established order; completion requires a saved intent and
+rechecks both revisions after external verification. Only completion with
+verified taxonomy writes the child's authority; negative/stale outcomes write
+only immutable receipts. The existing authority trigger owns parent revision,
+selected projection and reconciliation. No legacy scan review fields, selected
+pointer or immutable result bytes are rewritten. The migration reloads the
+PostgREST schema cache and grants only the two explicit service wrappers. See
+[confirmation semantics](05-api-contracts.md#prepared-analysis-bound-confirmation)
+for exact payloads, replay, unsupported states and remaining activation holds.

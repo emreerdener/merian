@@ -16,6 +16,13 @@ default-gated private photo reader to the current inventory. It has not been
 deployed or verified against hosted R2. This extends repository preparation, not
 the historical production evidence.
 
+**2026-10-04 confirmation source addendum:** `confirm-observation-analysis` adds
+an authenticated, default-off history review endpoint to the current inventory
+and critical user-route denial smoke. Its service RPCs preserve an immutable
+verification intent and recheck both revisions before completing. No deployment
+or activation is implied; see the
+[canonical contract](05-api-contracts.md#prepared-analysis-bound-confirmation).
+
 ## Scope
 
 This review inventories every configured deployable Supabase Edge Function
@@ -205,6 +212,7 @@ block-user
 check-public-username
 check-scan-status
 community-taxonomy-status
+confirm-observation-analysis
 confirm-scan-species
 resolve-history-photo
 analyze-observation

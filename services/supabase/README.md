@@ -3173,3 +3173,14 @@ checks remain authoritative. See the
 [analysis-bound review contract](../../docs/backend-and-data/05-api-contracts.md#prepared-analysis-bound-reject-and-undo).
 Native review admission, confirmation, community authority and ordinary history
 activation remain outstanding.
+
+## Prepared analysis-bound confirmation
+
+[`confirm-observation-analysis`](functions/confirm-observation-analysis/README.md)
+adds default-off confirmation of a named history result. Immutable admission
+precedes dictionary verification; completion rechecks observation and review
+revisions and stores a replayable outcome. Confirmation never selects a result
+or transfers authority between results. The
+[canonical API contract](../../docs/backend-and-data/05-api-contracts.md#prepared-analysis-bound-confirmation)
+owns held legacy/community behavior, retry semantics and remaining native and
+rollout work. This source preparation authorizes no deployment or activation.
