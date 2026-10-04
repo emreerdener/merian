@@ -640,7 +640,9 @@ and OS versions return no stream. It emits each completed cue object once,
 preserving its array index while later objects are incomplete. The returned
 `FoundationVisualCueStream` owns an explicit cancellation callback; the
 coordinator cancels it on every scope exit, including early return after
-eligibility loss. Stream termination also cancels the detached utility worker.
+eligibility loss. A task cancellation handler also invokes the producer callback
+immediately while the consumer is suspended awaiting a snapshot. Stream
+termination also cancels the detached utility worker.
 `FoundationVisualCueProviding` remains the integration seam. Its coordinator
 starts work only after both Identify's request-body completion callback and
 local Vision completion, and accepts at most six indexed cues with a constrained

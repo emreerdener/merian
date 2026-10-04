@@ -835,6 +835,12 @@ target and required critical UI suite. The existing
 smoke uses deterministic seeded phrases; it validates presentation, not real
 Foundation inference.
 
+The silent-stream thermal and power regressions require cancellation without a
+provider snapshot or explicit fixture finish. Cancellation invokes the producer
+callback directly through a task cancellation handler, while normal and early
+consumer exits retain their scope-exit fallback. Do not replace this regression
+with a yielded snapshot or relax it by finishing the fixture first.
+
 Physical-device acceptance requires an Apple Intelligence-capable iOS 27 device
 with stable Xcode 27 and **On-device visual observations** enabled in Debug
 Settings → Feature Flags. Record the exact source revision, device, OS/compiler
