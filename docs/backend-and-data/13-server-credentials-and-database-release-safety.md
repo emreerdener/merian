@@ -662,3 +662,12 @@ never operate on this bucket. No lifecycle rule may remove erasure markers.
 Inventory these controls and verify conditional-upload/marker races, HEAD
 metadata and read expiry against an explicitly authorized nonproduction bucket
 before opening any history gate. Local fixtures do not attest hosted policy.
+
+The prepared photo classifier adapter captures `GEMINI_PAID_API_KEY` before
+dispatch and sends it only in the fixed Gemini endpoint header. It reads exact
+private bytes using the existing separate history read credential, never a
+public/signed source URL. Errors expose no upstream payload or
+credential-bearing cause. Its immutable request proof excludes credentials. No
+endpoint imports the adapter; durable proof/dispatch/output integration and
+model-policy qualification remain activation prerequisites. See the
+[classifier contract](05-api-contracts.md#prepared-source-bound-photo-classifier-adapter).

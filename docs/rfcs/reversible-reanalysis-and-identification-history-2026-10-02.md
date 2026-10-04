@@ -2375,3 +2375,14 @@ new quota policies are disabled; no classifier, public-copy owner or endpoint is
 activated. The
 [current attempt contract](../backend-and-data/05-api-contracts.md#prepared-photo-moderation-attempt-lifecycle)
 defines the remaining byte/policy validation and publication boundaries.
+
+### October 4, 2026: prepared private-photo classifier adapter
+
+The concrete classifier now prepares an immutable, source-verified inline
+request and strict bounded decision/usage output. Its single HTTP invocation
+cannot retry implicitly or expose provider errors. Tests use synthetic bytes and
+injected transports. It has no production caller: durable proof persistence, SQL
+dispatch binding and output recovery remain required before the deletion-safe
+public-copy and authenticated publisher slices. No live policy qualification or
+rollout is claimed. See the
+[classifier contract](../backend-and-data/05-api-contracts.md#prepared-source-bound-photo-classifier-adapter).

@@ -10439,3 +10439,16 @@ validate persistence and accounting, not a live classifier: provider byte and
 response validation, public-copy cleanup and native publishing need their own
 checks before activation. The shared quota operation changes runtime bundle
 digests; regenerate and review both Identify and Field Chat identity files.
+
+### Prepared protected-photo classifier verification
+
+`analysisHistory/photoClassifier_test.ts` verifies source size/digest/container
+signatures, primitive UUIDs, immutable bytes/proofs, deterministic policy and
+transport-bound request digests, privacy of inline requests, approval
+thresholds, strict response/usage parsing, response byte limits, malformed
+UTF-8, HTTP errors, parallel invocation and refusal to retry. All transports are
+synthetic; no live provider classification is performed. Existing evidence tests
+cover private object metadata/hash checks and erased-marker rejection. These
+tests do not prove durable proof persistence, SQL dispatch binding, output
+recovery, public copying or end-to-end publication. Those remain acceptance
+gates for the next execution owner and publisher slices.

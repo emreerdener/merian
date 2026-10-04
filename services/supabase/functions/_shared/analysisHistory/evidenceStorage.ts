@@ -93,7 +93,12 @@ export class PrivateHistoryEvidenceStorage implements EvidenceStorage {
     }
   }
   /** Trusted worker read. No storage URL is passed to an inference provider. */
-  async readVerified(receipt: EvidenceReceipt): Promise<Uint8Array> {
+  async readVerified(
+    receipt: Pick<
+      EvidenceReceipt,
+      "object_id" | "content_type" | "byte_count" | "sha256"
+    >,
+  ): Promise<Uint8Array> {
     const response = await this.request(
       this.readConfig(),
       receipt.object_id,

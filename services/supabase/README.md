@@ -3230,6 +3230,16 @@ See the
 Private source-bound photo jobs now own explicit provider attempts, one-time
 dispatch permits, terminal decision receipts and stale-ambiguity recovery. They
 consume provider quota only, never complimentary scan credits. All new gates,
-quota policies and API access remain closed. The classifier adapter, public-copy
-cleanup and publisher integration remain required; see the
+quota policies and API access remain closed. The classifier adapter is prepared
+below; durable execution, public-copy cleanup and publisher integration remain
+required; see the
 [attempt contract](../../docs/backend-and-data/05-api-contracts.md#prepared-photo-moderation-attempt-lifecycle).
+
+## Prepared protected-photo classifier
+
+The source-bound photo classifier adapter verifies private bytes and freezes the
+exact request before a one-shot bounded Gemini transport. Synthetic tests cover
+strict approval and unknown outcomes. There is no endpoint caller, live model
+qualification, or SQL proof binding yet. Gates remain false; the next execution
+owner must persist proof and recover decisions before public copying. See the
+[classifier contract](../../docs/backend-and-data/05-api-contracts.md#prepared-source-bound-photo-classifier-adapter).

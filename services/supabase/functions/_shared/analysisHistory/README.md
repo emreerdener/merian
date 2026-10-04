@@ -389,7 +389,20 @@ for the remaining moderation, cleanup and publisher requirements.
 The private SQL lifecycle owns per-photo source/policy binding, provider-only
 quota, explicit predecessor retries, one-time dispatch permits and immutable
 terminal decisions. Ambiguous executions retain their charge; deletion refunds
-only reserved work. There is no classifier adapter or public-copy permission
-yet. The quota operation is added to the shared type; affected Identify/Field
-Chat bundle identities are regenerated. See the
+only reserved work. The classifier adapter is prepared below; durable execution
+and public-copy permission remain unimplemented. The quota operation is added to
+the shared type; affected Identify/Field Chat bundle identities are regenerated.
+See the
 [attempt contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-photo-moderation-attempt-lifecycle).
+
+## Prepared photo classifier adapter
+
+`photoClassifier.ts` freezes a source-verified inline Gemini request and a
+policy/transport/request proof before a single invocation. Its bounded strict
+response parser returns only decision/category/confidence and accounting facts.
+Transport or output uncertainty cannot approve, refund or retry.
+`photoClassifier_test.ts` uses synthetic bytes and injected transports; no
+provider request is made by tests. The adapter has no production caller. Durable
+proof persistence, dispatch binding and outcome recovery remain the next owner
+slice; see the
+[classifier contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-source-bound-photo-classifier-adapter).

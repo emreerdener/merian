@@ -13048,9 +13048,10 @@ publication intent/media ID and explicit provider attempts beneath it. It has no
 API grant or production caller. `publication_moderation_enabled` and every
 `observation_photo_publication_moderation` quota policy default disabled. The
 prepared binding is Gemini / `gemini-2.5-flash` / `google_gemini`, with policy
-identifier `photo_publication_v1`; the actual classifier adapter and versioned
-prompt/response validation remain required before activation. No existing scan
-result or audio attestation authorizes a photo decision.
+identifier `photo_publication_v1`; the prepared classifier below provides
+versioned prompt/response validation. Durable proof/dispatch/output integration
+remains required before activation. No existing scan result or audio attestation
+authorizes a photo decision.
 
 `admit_publication_photo_moderation` revalidates the frozen parent intent and
 exact source tuple. A private stable quota request ID belongs to that photo job;
@@ -13090,7 +13091,47 @@ attempts. Already dispatched calls retain their provider charge. Deletion wins
 every late replay.
 
 No provider call, public copy, endpoint or native operation is enabled by this
-lifecycle. The next adapter must provide bounded byte verification, strict
-classifier policy/response validation and provider-usage handling. Public-copy
+lifecycle. The prepared adapter below provides bounded byte verification, strict
+classifier policy/response validation and provider-usage decoding; a durable
+execution owner must still bind its proof and save those outcomes. Public-copy
 reservations/cleanup and final admission still need fresh authority, policy and
 source checks over the complete approved ordered cohort.
+
+### Prepared source-bound photo classifier adapter
+
+`analysisHistory/photoClassifier.ts` now prepares a concrete Gemini request from
+an authorized private photo tuple. It reads with private storage credentials,
+checks exact size and SHA-256 plus a JPEG/PNG/HEIC container signature, and
+freezes the serialized inline request before invocation. A container signature
+is not a complete image decoder or safety approval. This prepared policy limits
+each source to 12 MiB and the serialized request to less than 20,000,000 bytes;
+larger photos fail before dispatch. It never resizes or silently substitutes
+content. Only photo bytes and fixed policy text enter the provider request;
+private IDs, object keys, notes and storage URLs are excluded.
+
+The immutable proof includes the source tuple, provider/model/processor, policy
+version and SHA-256, and a request digest binding POST, the exact endpoint/API
+version and body digest. The policy digest includes generation settings,
+transport bounds and response-contract version. Future policy, parser or
+transport changes must version that binding. The key is captured before dispatch
+and carried only in the provider header. The one-shot invocation closure sends
+one HTTP request with redirects disabled and a 90-second request/body deadline;
+429, 5xx, disconnects and malformed responses never retry.
+
+Response parsing is bounded to 32 KiB, strict UTF-8 and JSON. Approval requires
+the exact returned model, one STOP candidate with one plain JSON text part, no
+provider safety block, an exact decision/confidence/category object, allow with
+confidence at least 0.95 and no adverse categories, and bounded consistent
+input/output/total usage. Review or low confidence returns rejection. Unexpected
+output, missing usage or any post-dispatch error returns only a generic unknown
+execution error without provider payloads or transport causes. Valid results
+contain bounded category codes and usage, never generated descriptions.
+
+This adapter is not yet called by an endpoint or execution owner. Its local
+one-shot closure is not durable authorization. The next execution owner must
+persist and verify this exact proof before consuming the private SQL dispatch
+permit, save bounded output/usage durably, and recover completion without
+reinvoking the provider. SQL currently binds only the policy identifier, not
+this proof. Public-copy approval, authenticated publication and native delivery
+remain disabled and unimplemented. No live provider call qualifies this policy;
+synthetic adapter tests prove contract behavior only.
