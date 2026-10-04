@@ -10559,3 +10559,17 @@ transport retry. Whole-cohort preflight tests verify later-photo metadata
 rejection before admission, digest/container mismatch, MIME/size/alias
 rejection, cancellation, immutable bytes and one-shot provider closures. No live
 provider or storage call is performed by these tests.
+
+## Photo moderation outcome verification
+
+`publication_moderation_outcomes.sql` covers actual service/client denial,
+ordered multi-photo settlement, partial approval, missing proof/result,
+reserved/dispatched holds, deterministic terminal outcomes, unchanged unknown
+charges, replay after gate closure, private-successor fencing,
+quota-pruning/causal-successor recovery and deletion.
+`observationPublicationModerationOutcomeConcurrencyDb.test.ts` runs separate
+sessions for completion/finalization in both orders, duplicate settlement, and
+account deletion in both orders. The ordinary full backend gate discovers it.
+
+See the
+[outcome contract](../backend-and-data/05-api-contracts.md#prepared-durable-photo-moderation-outcomes).

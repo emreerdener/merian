@@ -1,0 +1,279 @@
+import { assert, assertEquals } from "@std/assert";
+import { Client } from "https://deno.land/x/postgres@v0.19.3/mod.ts";
+
+const databaseUrl = Deno.env.get("SUPABASE_DB_TEST_URL");
+const settle = <T>(promise: Promise<T>) =>
+  promise.then(
+    (value) => ({ ok: true as const, value }),
+    (error: unknown) => ({
+      ok: false as const,
+      error: error instanceof Error ? error.message : "unknown",
+    }),
+  );
+async function observeBlock(observer: Client, waiter: number, blocker: number) {
+  for (let n = 0; n < 100; n++) {
+    if (
+      (await observer.queryObject<{ blocked: boolean }>(
+        "SELECT $1::int=ANY(pg_blocking_pids($2::int)) AS blocked",
+        [blocker, waiter],
+      )).rows[0].blocked
+    ) return;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  throw new Error("Expected moderation settlement serialization not observed");
+}
+for (
+  const scenario of [
+    "completion first",
+    "finalization first",
+    "duplicate outcome",
+    "deletion first",
+    "outcome before deletion",
+  ]
+) {
+  Deno.test({
+    name: `Publication moderation outcome DB concurrency - ${scenario}`,
+    ignore: !databaseUrl,
+    async fn() {
+      assert(databaseUrl);
+      assert(
+        ["localhost", "127.0.0.1", "[::1]"].includes(
+          new URL(databaseUrl).hostname,
+        ),
+      );
+      const [observer, first, second] = [
+        new Client(databaseUrl),
+        new Client(databaseUrl),
+        new Client(databaseUrl),
+      ];
+      const owner = crypto.randomUUID(),
+        observation = crypto.randomUUID(),
+        analysis = crypto.randomUUID(),
+        media = crypto.randomUUID(),
+        operation = crypto.randomUUID();
+      const flags = [
+        "reader_enabled",
+        "state_reader_enabled",
+        "enrollment_enabled",
+        "media_enabled",
+        "media_reader_enabled",
+        "admission_enabled",
+        "dispatch_enabled",
+        "append_enabled",
+        "protected_analysis_enabled",
+        "publication_intent_enabled",
+        "publication_operation_enabled",
+        "publication_execution_enabled",
+        "publication_moderation_enabled",
+      ];
+      let previous: Record<string, boolean> | undefined;
+      let funding: {
+        entitlement_mode: string;
+        required_client_protocol: number;
+      } | undefined;
+      let policies: { effective_plan: string; enabled: boolean }[] = [];
+      try {
+        for (const client of [observer, first, second]) {
+          await client.connect();
+          await client.queryArray("SET statement_timeout='5s'");
+          await client.queryArray(
+            `SELECT set_config('request.jwt.claims','{"role":"service_role"}',false)`,
+          );
+        }
+        const fixture = await Deno.readTextFile(
+          new URL(
+            "../../tests/publication_moderation_operations.sql",
+            import.meta.url,
+          ),
+        );
+        await observer.queryArray(
+          fixture.split("-- BEGIN PHOTO MODERATION HELPERS\n")[1].split(
+            "-- END PHOTO MODERATION HELPERS",
+          )[0].replace(
+            "internal.admit_protected_observation_analysis(owner_id,pg_temp.protected_input(observation,analysis,media),repeat('a',64))",
+            "internal.admit_protected_observation_analysis(owner_id,pg_temp.protected_input(observation,analysis,media),repeat(replace(observation::text,'-',''),2))",
+          ),
+        );
+        previous = (await observer.queryObject<Record<string, boolean>>(
+          `SELECT ${
+            flags.join(",")
+          } FROM internal.observation_history_rollout WHERE singleton`,
+        )).rows[0];
+        funding = (await observer.queryObject<
+          { entitlement_mode: string; required_client_protocol: number }
+        >("SELECT entitlement_mode,required_client_protocol FROM internal.entitlement_rollout_config WHERE config_key='current'"))
+          .rows[0];
+        policies = (await observer.queryObject<
+          { effective_plan: string; enabled: boolean }
+        >("SELECT effective_plan,enabled FROM internal.ai_quota_policies WHERE operation='observation_photo_publication_moderation'"))
+          .rows;
+        await observer.queryArray(
+          `UPDATE internal.observation_history_rollout SET ${
+            flags.map((f) => `${f}=TRUE`).join(",")
+          }`,
+        );
+        await observer.queryArray(
+          "UPDATE internal.entitlement_rollout_config SET entitlement_mode='complimentary',required_client_protocol=3 WHERE config_key='current'",
+        );
+        await observer.queryArray(
+          "UPDATE internal.ai_quota_policies SET enabled=TRUE WHERE operation='observation_photo_publication_moderation'",
+        );
+        await observer.queryArray(
+          "SELECT pg_temp.seed_photo_moderation($1,$2,$3,$4,$5)",
+          [owner, observation, analysis, media, operation],
+        );
+        await observer.queryArray(
+          "SELECT public.admit_owned_observation_publication($1,pg_temp.publication_request($2,$3,$4,$5),$6)",
+          [
+            owner,
+            observation,
+            analysis,
+            operation,
+            media,
+            observation.replaceAll("-", "").repeat(2),
+          ],
+        );
+        const work =
+          (await observer.queryObject<{ receipt: { work_token: string } }>(
+            "SELECT public.claim_observation_publication_work($1,$2,$3) AS receipt",
+            [owner, observation, operation],
+          )).rows[0].receipt.work_token;
+        const receipt = (await observer.queryObject<
+          { receipt: { attempt_id: string; lease_token: string } }
+        >(
+          "SELECT public.admit_publication_moderation_work($1,$2,$3,$4,$5) AS receipt",
+          [owner, observation, operation, work, media],
+        )).rows[0].receipt;
+        const proof = (await observer.queryObject<{ proof: unknown }>(
+          "SELECT pg_temp.photo_execution_proof($1::jsonb) AS proof",
+          [JSON.stringify(receipt)],
+        )).rows[0].proof;
+        // The full receipt's source is required by the SQL proof helper above.
+        const result = (await observer.queryObject<{ result: unknown }>(
+          "SELECT pg_temp.photo_execution_result() AS result",
+        )).rows[0].result;
+        const advance = (
+          client: Client,
+          action: string,
+          payload: unknown = {},
+        ) =>
+          client.queryObject<{ receipt: unknown }>(
+            "SELECT public.advance_publication_moderation_work($1,$2,$3,$4,$5,$6,$7,$8::jsonb) AS receipt",
+            [
+              owner,
+              observation,
+              operation,
+              work,
+              receipt.attempt_id,
+              receipt.lease_token,
+              action,
+              JSON.stringify(payload),
+            ],
+          );
+        await advance(observer, "prepare", { proof });
+        await advance(observer, "dispatch");
+        const finalize = (client: Client) =>
+          client.queryObject<
+            {
+              receipt: {
+                finalized: boolean;
+                status?: string;
+                reason?: string | null;
+              };
+            }
+          >(
+            "SELECT public.finalize_publication_photo_moderation($1,$2,$3,$4) AS receipt",
+            [owner, observation, operation, work],
+          );
+        const complete = (client: Client) =>
+          advance(client, "complete", { proof, result });
+        const erase = (client: Client) =>
+          client.queryObject<{ receipt: unknown }>(
+            "SELECT public.apply_user_tombstone($1) AS receipt",
+            [owner],
+          );
+        if (!["completion first", "finalization first"].includes(scenario)) {
+          await complete(observer);
+        }
+        const firstPid = (await first.queryObject<{ pid: number }>(
+          "SELECT pg_backend_pid() AS pid",
+        )).rows[0].pid;
+        const secondPid = (await second.queryObject<{ pid: number }>(
+          "SELECT pg_backend_pid() AS pid",
+        )).rows[0].pid;
+        await first.queryArray("BEGIN");
+        await second.queryArray("BEGIN");
+        if (scenario === "completion first") await complete(first);
+        else if (scenario === "deletion first") await erase(first);
+        else {assertEquals(
+            (await finalize(first)).rows[0].receipt.finalized,
+            scenario !== "finalization first",
+          );}
+        const pending = settle(
+          scenario === "finalization first"
+            ? complete(second)
+            : scenario === "outcome before deletion"
+            ? erase(second)
+            : finalize(second),
+        );
+        await observeBlock(observer, secondPid, firstPid);
+        await first.queryArray("COMMIT");
+        const outcome = await pending;
+        if (scenario === "deletion first") {
+          assert(!outcome.ok);
+          assert(outcome.error.includes("analysis_history_not_found"));
+          await second.queryArray("ROLLBACK");
+        } else {
+          assert(outcome.ok);
+          await second.queryArray("COMMIT");
+          if (scenario !== "outcome before deletion") {
+            assertEquals((await finalize(observer)).rows[0].receipt, {
+              finalized: true,
+              status: "photos_approved",
+              reason: null,
+            });
+          }
+        }
+        assertEquals(
+          (await observer.queryObject<{ count: number }>(
+            "SELECT count(*)::int AS count FROM internal.observation_publication_moderation_outcomes WHERE operation_id=$1",
+            [operation],
+          )).rows[0].count,
+          scenario.includes("deletion") ? 0 : 1,
+        );
+      } finally {
+        for (const client of [first, second]) {
+          await client.queryArray("ROLLBACK").catch(() => {});
+        }
+        if (funding) {
+          await observer.queryArray(
+            "UPDATE internal.entitlement_rollout_config SET entitlement_mode=$1,required_client_protocol=$2 WHERE config_key='current'",
+            [funding.entitlement_mode, funding.required_client_protocol],
+          );
+        }
+        if (previous) {
+          await observer.queryArray(
+            `UPDATE internal.observation_history_rollout SET ${
+              flags.map((f, i) => `${f}=$${i + 1}`).join(",")
+            }`,
+            flags.map((f) => previous![f]),
+          );
+        }
+        for (const policy of policies) {
+          await observer.queryArray(
+            "UPDATE internal.ai_quota_policies SET enabled=$1 WHERE operation='observation_photo_publication_moderation' AND effective_plan=$2",
+            [policy.enabled, policy.effective_plan],
+          );
+        }
+        await observer.queryArray("SELECT public.apply_user_tombstone($1)", [
+          owner,
+        ]).catch(() => {});
+        await observer.queryArray("DELETE FROM auth.users WHERE id=$1", [owner])
+          .catch(() => {});
+        for (const client of [observer, first, second]) {
+          await client.end().catch(() => {});
+        }
+      }
+    },
+  });
+}

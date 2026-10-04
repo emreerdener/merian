@@ -7056,3 +7056,16 @@ fresh work requires the live orchestration token, while an already-dispatched
 completion retains its original provider lease. Admission uses the saved intake
 hash and never creates an automatic successor. See the
 [repository contract](05-api-contracts.md#prepared-scoped-publication-moderation-repository).
+
+## Prepared photo moderation outcome storage
+
+The private immutable `observation_publication_moderation_outcomes` table keys
+historical provider outcomes to an accepted operation with cascading deletion.
+It stores owner/observation, phase state, bounded safe reason, source-ordered
+attempt IDs (null for unattempted members of a failed cohort), and finalization
+time. Service finalization derives evidence and removes moderation work in one
+transaction; settled operations reject new attempts. It grants no table access
+or copy/publication authority.
+
+See the
+[outcome contract](05-api-contracts.md#prepared-durable-photo-moderation-outcomes).

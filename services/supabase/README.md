@@ -3332,3 +3332,14 @@ cohort returns a handle; it retains bounded raw bytes and releases unselected
 buffers before preparing one classifier per pass. The worker route remains
 unconnected and gates stay false. See the
 [repository contract](../../docs/backend-and-data/05-api-contracts.md#prepared-scoped-publication-moderation-repository).
+
+## Prepared photo moderation settlement
+
+Durable provider outcomes now remove completed or refused operations from
+moderation discovery. `photos_approved` is historical provider state only;
+`needs_action` never schedules a successor or refunds unknown dispatch.
+Copy/note execution, bounded worker integration and native delivery remain
+unconnected. All activation gates remain false.
+
+See the
+[outcome contract](../../docs/backend-and-data/05-api-contracts.md#prepared-durable-photo-moderation-outcomes).

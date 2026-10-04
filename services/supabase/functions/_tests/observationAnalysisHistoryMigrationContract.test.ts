@@ -866,3 +866,23 @@ Deno.test("moderation operation facade preserves original attempts and separate 
   assert(!sql.includes("TO authenticated"));
   assert(!sql.includes("p_predecessor"));
 });
+
+Deno.test("photo moderation outcomes derive terminal evidence and retire exact work without funding changes", async () => {
+  const sql = await migration(
+    "20261004135533_settle_publication_photo_moderation",
+  );
+  assertStringIncludes(sql, "internal.assert_publication_operation_work");
+  assertStringIncludes(sql, "ON DELETE CASCADE");
+  assertStringIncludes(sql, "child.predecessor_id=a.id");
+  assertStringIncludes(sql, "internal.latest_publication_photo_attempt");
+  assertStringIncludes(sql, "internal.valid_publication_photo_result(result)");
+  assertStringIncludes(
+    sql,
+    "DELETE FROM internal.observation_publication_work",
+  );
+  assertStringIncludes(sql, "internal.privileged_routine_grants");
+  assertStringIncludes(sql, "guard_settled_publication_attempt");
+  assert(!sql.includes("TO authenticated"));
+  assert(!sql.includes("finalize_ai_quota_reservation"));
+  assert(!sql.includes("reserve_ai_quota"));
+});

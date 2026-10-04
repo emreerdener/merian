@@ -499,3 +499,14 @@ cohort returns a handle; it retains bounded raw bytes and releases unselected
 buffers before preparing one classifier per pass. The worker route remains
 unconnected and gates stay false. See the
 [repository contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-scoped-publication-moderation-repository).
+
+## Prepared photo moderation settlement
+
+The service finalizer derives immutable outcomes from source-ordered durable
+attempts and removes moderation work atomically. Active attempts retain late
+completion ownership; rejected, unknown or cancelled work cannot automatically
+restart. `photos_approved` does not approve notes or containers and is not
+public admission. A separate copy phase remains required.
+
+See the
+[outcome contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-durable-photo-moderation-outcomes).

@@ -2488,3 +2488,15 @@ insufficient. No execution route or scheduler is connected. Copy integration,
 note moderation, cohort cleanup, retirement scheduling and native delivery
 remain held. See the
 [repository contract](../backend-and-data/05-api-contracts.md#prepared-scoped-publication-moderation-repository).
+
+## October 4 addendum: durable photo moderation outcomes
+
+The prepared SQL phase now persists historical `photos_approved` or bounded
+`needs_action` outcomes, retires moderation work atomically and fences later
+attempts. Partial refusal avoids unnecessary remaining provider spend; active
+attempts must settle first. Selection, provider funding, public visibility and
+notes remain separate. Worker/copy/native integration and activation are still
+pending.
+
+See the
+[outcome contract](../backend-and-data/05-api-contracts.md#prepared-durable-photo-moderation-outcomes).

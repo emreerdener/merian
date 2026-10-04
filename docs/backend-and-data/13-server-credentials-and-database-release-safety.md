@@ -751,3 +751,15 @@ Whole-cohort verified container preflight is prepared for the future execution
 owner before quota; SQL cannot independently inspect storage bytes. No worker
 route, scheduling or activation is supplied. See the
 [scoped repository boundary](05-api-contracts.md#prepared-scoped-publication-moderation-repository).
+
+## Prepared photo outcome settlement boundary
+
+Photo outcome settlement is service-only and checks ownership/deletion before
+historical replay. Fresh settlement requires live orchestration and no active
+provider attempts; it does not change quota. A private insert fence prevents
+successors after settlement. Provider approval is not container, note, revision
+or public-copy permission. Future copy execution must independently revalidate
+those boundaries; no deployment or activation is implied.
+
+See the
+[outcome contract](05-api-contracts.md#prepared-durable-photo-moderation-outcomes).

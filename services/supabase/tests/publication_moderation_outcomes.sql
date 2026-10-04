@@ -1,0 +1,223 @@
+\set ON_ERROR_STOP on
+BEGIN;
+CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
+SELECT extensions.no_plan();
+-- BEGIN PHOTO MODERATION HELPERS
+CREATE FUNCTION pg_temp.history_append_request(observation UUID, analysis UUID, source UUID DEFAULT NULL)
+RETURNS JSONB LANGUAGE SQL AS $$
+    SELECT JSONB_BUILD_OBJECT('schema_version',1,'observation_id',observation,'analysis_id',analysis,
+        'source_analysis_id',source,'request_digest',REPEAT('a',64),
+        'result_snapshot',JSONB_BUILD_OBJECT('scan_id',observation,'species_id',NULL,
+            'scientific_name',NULL,'common_name','Unidentified plant','is_biological_subject',TRUE,
+            'is_live_capture',TRUE,'confidence_score',0.8,'blur_score',0.2,'colors','[]'::JSONB,
+            'estimated_size_cm',NULL,'inference_tier','flash','pet_identification',NULL,'candidates',NULL,
+            'image_quality',NULL,'ai_reasoning','Synthetic fixture.','extracted_visual_traits','[]'::JSONB),
+        'evidence_manifest','{"schema_version":1,"captured_media":[{"description":{"_0":{"freeText":"Synthetic observation."}}}]}'::JSONB);
+$$;
+CREATE FUNCTION pg_temp.seed_history_append(owner_id UUID, observation UUID, permit_initial BOOLEAN DEFAULT TRUE)
+RETURNS VOID LANGUAGE PLPGSQL AS $$
+BEGIN
+    INSERT INTO auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
+    VALUES(owner_id,'authenticated','authenticated',owner_id::TEXT || '@example.invalid','{}','{}',NOW(),NOW());
+    INSERT INTO public.scan_ingestion_jobs(scan_id,user_id,status,stage,terminal_reason_code)
+    VALUES(observation::TEXT,owner_id,'failed_terminal','server_replay_limit_reached','replay_exhausted');
+    INSERT INTO public.scans(id,user_id,image_storage_urls,ai_confidence_score,is_biological_subject,inference_tier,geoprivacy,is_live_capture)
+    VALUES(observation,owner_id,'{}',0.8,FALSE,'flash','private',TRUE);
+    UPDATE internal.observation_history_rollout SET enrollment_enabled=TRUE;
+    INSERT INTO internal.observation_histories(observation_id,initial_selection_permitted) VALUES(observation,permit_initial);
+    UPDATE internal.observation_history_rollout SET enrollment_enabled=FALSE;
+END;
+$$;
+CREATE FUNCTION pg_temp.seed_funded_history(owner_id UUID,observation UUID) RETURNS VOID LANGUAGE PLPGSQL AS $$
+BEGIN
+    PERFORM pg_temp.seed_history_append(owner_id,observation);
+    INSERT INTO public.user_adult_eligibility_receipts(id,user_id,policy_version,confirmed_at,confirmation_method,confirmation_text,platform,app_version,app_build)
+    VALUES(gen_random_uuid(),owner_id,'2026-08-03',NOW(),'self_attestation','Synthetic adult attestation','ios','1.0.3','275');
+    INSERT INTO public.user_terms_acceptance_receipts(id,user_id,terms_version,accepted_at,acceptance_text,platform,app_version,app_build)
+    VALUES(gen_random_uuid(),owner_id,'2026-08-03',NOW(),'Synthetic terms acceptance','ios','1.0.3','275');
+    INSERT INTO public.user_ai_consent_events(id,user_id,provider,disclosure_version,event_kind,occurred_at,disclosure_text,action_text,platform,app_version,app_build)
+    VALUES(gen_random_uuid(),owner_id,'google_gemini','2026-08-03.1','granted',NOW(),'Synthetic disclosure','Synthetic agreement','ios','1.0.3','275');
+END;
+$$;
+CREATE FUNCTION pg_temp.funded_input(observation UUID,analysis UUID,source UUID DEFAULT NULL) RETURNS JSONB LANGUAGE SQL AS $$
+    SELECT (pg_temp.history_append_request(observation,analysis,source)-'result_snapshot') || '{"entitlement_protocol":3,"identification_protocol":6,"history_protocol":7,"expected_processor_permission":"google_gemini"}'::JSONB;
+$$;
+CREATE FUNCTION pg_temp.funded_provenance(analysis UUID) RETURNS JSONB LANGUAGE SQL AS $$
+    SELECT jsonb_build_object('version',1,'provider',q->>'provider','binding',q->>'binding','model',q->>'model','variant','multimodal','operation','scan_identification','policy_version',(q->>'policy_version')::BIGINT,
+        'prompt','identify_vision_v1','schema','merian_identify_v1','confidence','unqualified','diagnostic_trigger',NULL,'prompt_diagnostic_trigger',NULL,'safety',NULL,'timeout_ms',90000,
+        'generation','{"temperature":0.1,"seed":null,"top_k":null,"max_output_tokens":8192,"thinking_budget":1024}'::JSONB)
+    FROM (SELECT quota AS q FROM internal.observation_analysis_intents WHERE analysis_id=analysis) s;
+$$;
+CREATE FUNCTION pg_temp.funded_dispatch(owner_id UUID,observation UUID,analysis UUID) RETURNS JSONB LANGUAGE SQL AS $$
+    SELECT internal.dispatch_observation_analysis(owner_id,observation,analysis,(quota->>'lease_token')::UUID,pg_temp.funded_provenance(analysis)) FROM internal.observation_analysis_intents WHERE analysis_id=analysis;
+$$;
+CREATE FUNCTION pg_temp.funded_draft(owner_id UUID,observation UUID,analysis UUID) RETURNS VOID LANGUAGE SQL AS $$
+    SELECT internal.record_observation_analysis_draft(owner_id,observation,analysis,(quota->>'lease_token')::UUID,
+        pg_temp.history_append_request(observation,analysis,(input_snapshot->>'source_analysis_id')::UUID) || jsonb_build_object('result_snapshot',pg_temp.history_append_request(observation,analysis)->'result_snapshot' || jsonb_build_object('identification_provenance',pg_temp.funded_provenance(analysis))),'{"input_tokens":100,"candidate_tokens":30,"thinking_tokens":10,"total_tokens":140}')
+    FROM internal.observation_analysis_intents WHERE analysis_id=analysis;
+$$;
+CREATE FUNCTION pg_temp.protected_input(observation UUID,analysis UUID,media UUID) RETURNS JSONB LANGUAGE SQL AS $$
+ SELECT pg_temp.funded_input(observation,analysis) || jsonb_build_object('schema_version',2,'history_protocol',8,'expected_processor_permission','google_gemini','evidence_manifest',jsonb_build_object('schema_version',2,'items',jsonb_build_array(jsonb_build_object('kind','image','media_id',media,'content_type','image/jpeg','byte_count',3,'sha256',repeat('a',64)),jsonb_build_object('kind','image','media_id','00000000-0000-4000-8000-00000000ee32','content_type','image/jpeg','byte_count',3,'sha256',repeat('a',64)),jsonb_build_object('kind','description','text','Synthetic private observation'))));
+$$;
+CREATE FUNCTION pg_temp.protected_ready(owner_id UUID,observation UUID,analysis UUID,media UUID) RETURNS UUID LANGUAGE PLPGSQL AS $$
+DECLARE receipt JSONB;
+BEGIN
+ receipt:=internal.reserve_observation_evidence(owner_id,observation,analysis,media,'image/jpeg',3,repeat('a',64));
+ PERFORM internal.complete_observation_evidence(owner_id,observation,analysis,media,(receipt->>'object_id')::UUID);
+ RETURN (receipt->>'object_id')::UUID;
+END;
+$$;
+CREATE FUNCTION pg_temp.protected_draft(owner_id UUID,observation UUID,analysis UUID) RETURNS VOID LANGUAGE SQL AS $$
+ SELECT internal.record_observation_analysis_draft(owner_id,observation,analysis,(quota->>'lease_token')::UUID,
+ (input_snapshot-ARRAY['entitlement_protocol','identification_protocol','history_protocol','expected_processor_permission']) || jsonb_build_object('result_snapshot',pg_temp.history_append_request(observation,analysis)->'result_snapshot' || jsonb_build_object('identification_provenance',pg_temp.funded_provenance(analysis))),'{"input_tokens":100,"candidate_tokens":30,"thinking_tokens":10,"total_tokens":140}')
+ FROM internal.observation_analysis_intents WHERE analysis_id=analysis;
+$$;
+
+CREATE FUNCTION pg_temp.seed_publication_intent(owner_id UUID,observation UUID,analysis UUID,media UUID) RETURNS VOID LANGUAGE PLPGSQL AS $$
+BEGIN
+ PERFORM pg_temp.seed_funded_history(owner_id,observation);
+ PERFORM pg_temp.protected_ready(owner_id,observation,analysis,media);
+ PERFORM pg_temp.protected_ready(owner_id,observation,analysis,'00000000-0000-4000-8000-00000000ee32');
+ PERFORM internal.admit_protected_observation_analysis(owner_id,pg_temp.protected_input(observation,analysis,media),repeat('a',64));
+ PERFORM pg_temp.funded_dispatch(owner_id,observation,analysis);
+ PERFORM pg_temp.protected_draft(owner_id,observation,analysis);
+ PERFORM internal.complete_observation_analysis(owner_id,observation,analysis);
+END;
+$$;
+CREATE FUNCTION pg_temp.publication_request(observation UUID,analysis UUID,operation UUID,media UUID) RETURNS JSONB LANGUAGE SQL AS $$
+ SELECT jsonb_build_object('schema_version',1,'observation_id',observation,'analysis_id',analysis,'operation_id',operation,
+ 'expected_observation_revision',1,'expected_review_revision',0,'taxonomy_version_id',public.active_taxonomy_version_id(),
+ 'initial_taxon_id',NULL,'note','Synthetic public note','media_ids',jsonb_build_array(media,'00000000-0000-4000-8000-00000000ee32'));
+$$;
+
+CREATE FUNCTION pg_temp.seed_photo_moderation(owner_id UUID,observation UUID,analysis UUID,media UUID,operation UUID) RETURNS VOID LANGUAGE PLPGSQL AS $$
+BEGIN
+ PERFORM pg_temp.seed_publication_intent(owner_id,observation,analysis,media);
+ PERFORM internal.prepare_observation_publication_intent(owner_id,pg_temp.publication_request(observation,analysis,operation,media));
+END;
+$$;
+CREATE FUNCTION pg_temp.photo_execution_proof(receipt JSONB) RETURNS JSONB LANGUAGE SQL AS $$
+ SELECT jsonb_build_object('schema_version',1,'policy_version','photo_publication_v1',
+ 'policy_sha256','b68222cb5cd8b79a8c8553151239ae4026202f70c2fdb5ff9604f7b225a76be9','request_sha256',repeat('b',64),
+ 'provider','gemini','model','gemini-2.5-flash','processor_permission','google_gemini','source',receipt->'source');
+$$;
+CREATE FUNCTION pg_temp.photo_execution_result(decision TEXT DEFAULT 'approved') RETURNS JSONB LANGUAGE SQL AS $$
+ SELECT jsonb_build_object('decision',decision,'classification',CASE WHEN decision='approved' THEN 'allow' ELSE 'reject' END,'confidence',0.99,
+ 'categories','[]'::JSONB,'model','gemini-2.5-flash','usage',jsonb_build_object('input_tokens',100,'output_tokens',10,'total_tokens',110));
+$$;
+CREATE FUNCTION pg_temp.prepare_photo_execution(owner_id UUID,observation UUID,receipt JSONB) RETURNS JSONB LANGUAGE SQL AS $$
+ SELECT internal.prepare_publication_photo_execution(owner_id,observation,(receipt->>'attempt_id')::UUID,(receipt->>'lease_token')::UUID,pg_temp.photo_execution_proof(receipt));
+$$;
+-- END PHOTO MODERATION HELPERS
+UPDATE internal.entitlement_rollout_config SET entitlement_mode='complimentary',required_client_protocol=3 WHERE config_key='current';
+UPDATE internal.observation_history_rollout SET media_enabled=TRUE,admission_enabled=TRUE,dispatch_enabled=TRUE,append_enabled=TRUE,protected_analysis_enabled=TRUE,reader_enabled=TRUE,media_reader_enabled=TRUE,state_reader_enabled=TRUE,rejection_api_enabled=TRUE,publication_intent_enabled=TRUE,publication_operation_enabled=TRUE,publication_execution_enabled=TRUE,publication_moderation_enabled=TRUE;
+UPDATE internal.ai_quota_policies SET enabled=TRUE WHERE operation='observation_photo_publication_moderation';
+SELECT pg_temp.seed_photo_moderation('00000000-0000-4000-8000-00000000ee01','00000000-0000-4000-8000-00000000ee11','00000000-0000-4000-8000-00000000ee21','00000000-0000-4000-8000-00000000ee31','00000000-0000-4000-8000-00000000ee41');
+CREATE TEMP TABLE outcomes_work(operation UUID PRIMARY KEY,token UUID,attempt JSONB);
+CREATE FUNCTION pg_temp.new_work(op UUID) RETURNS VOID LANGUAGE PLPGSQL AS $$
+DECLARE work JSONB;
+BEGIN
+ PERFORM public.admit_owned_observation_publication('00000000-0000-4000-8000-00000000ee01',pg_temp.publication_request('00000000-0000-4000-8000-00000000ee11','00000000-0000-4000-8000-00000000ee21',op,'00000000-0000-4000-8000-00000000ee31'),repeat('b',64));
+ work:=public.claim_observation_publication_work('00000000-0000-4000-8000-00000000ee01','00000000-0000-4000-8000-00000000ee11',op);
+ INSERT INTO outcomes_work VALUES(op,(work->>'work_token')::UUID,NULL);
+END;
+$$;
+CREATE FUNCTION pg_temp.settle(op UUID) RETURNS JSONB LANGUAGE SQL AS $$
+ SELECT public.finalize_publication_photo_moderation('00000000-0000-4000-8000-00000000ee01','00000000-0000-4000-8000-00000000ee11',op,token) FROM outcomes_work WHERE operation=op;
+$$;
+CREATE FUNCTION pg_temp.advance(op UUID,action TEXT,result TEXT DEFAULT 'approved') RETURNS JSONB LANGUAGE SQL AS $$
+ SELECT public.advance_publication_moderation_work('00000000-0000-4000-8000-00000000ee01','00000000-0000-4000-8000-00000000ee11',op,token,(attempt->>'attempt_id')::UUID,(attempt->>'lease_token')::UUID,action,
+ CASE WHEN action='prepare' THEN jsonb_build_object('proof',pg_temp.photo_execution_proof(attempt))
+ WHEN action='complete' THEN jsonb_build_object('proof',pg_temp.photo_execution_proof(attempt),'result',pg_temp.photo_execution_result(result)) ELSE '{}'::JSONB END)
+ FROM outcomes_work WHERE operation=op;
+$$;
+CREATE FUNCTION pg_temp.status(op UUID) RETURNS TEXT LANGUAGE SQL AS $$
+ SELECT public.read_owned_observation_publication_status('00000000-0000-4000-8000-00000000ee01','00000000-0000-4000-8000-00000000ee11',op)->>'status';
+$$;
+SELECT pg_temp.new_work('00000000-0000-4000-8000-00000000ee41');
+SELECT pg_temp.new_work('00000000-0000-4000-8000-00000000ee42');
+SELECT pg_temp.new_work('00000000-0000-4000-8000-00000000ee43');
+SELECT pg_temp.new_work('00000000-0000-4000-8000-00000000ee44');
+SELECT pg_temp.new_work('00000000-0000-4000-8000-00000000ee45');
+SELECT extensions.is(pg_temp.settle('00000000-0000-4000-8000-00000000ee41'),'{"finalized":false}'::JSONB,'unattempted cohort remains pending');
+SELECT extensions.throws_ok($$SELECT public.finalize_publication_photo_moderation('00000000-0000-4000-8000-00000000ee01','00000000-0000-4000-8000-00000000ee11','00000000-0000-4000-8000-00000000ee41',gen_random_uuid())$$,'22023','analysis_history_operation_conflict','stale token cannot settle fresh work');
+SELECT extensions.throws_ok($$SELECT public.finalize_publication_photo_moderation('00000000-0000-4000-8000-00000000ee02','00000000-0000-4000-8000-00000000ee11','00000000-0000-4000-8000-00000000ee41',NULL)$$,'P0002','analysis_history_not_found','cross owner cannot settle');
+UPDATE outcomes_work SET attempt=public.admit_publication_moderation_work('00000000-0000-4000-8000-00000000ee01','00000000-0000-4000-8000-00000000ee11',operation,token,'00000000-0000-4000-8000-00000000ee31') WHERE operation<>'00000000-0000-4000-8000-00000000ee45';
+SELECT extensions.is(pg_temp.settle('00000000-0000-4000-8000-00000000ee41'),'{"finalized":false}'::JSONB,'reserved attempt blocks settlement without refund');
+SELECT pg_temp.advance(operation,'prepare') FROM outcomes_work WHERE operation IN ('00000000-0000-4000-8000-00000000ee41','00000000-0000-4000-8000-00000000ee42','00000000-0000-4000-8000-00000000ee43');
+SELECT pg_temp.advance(operation,'dispatch') FROM outcomes_work WHERE operation IN ('00000000-0000-4000-8000-00000000ee41','00000000-0000-4000-8000-00000000ee42','00000000-0000-4000-8000-00000000ee43');
+SELECT extensions.is(pg_temp.settle('00000000-0000-4000-8000-00000000ee41'),'{"finalized":false}'::JSONB,'dispatched attempt retains completion ownership');
+SELECT pg_temp.advance('00000000-0000-4000-8000-00000000ee41','complete');
+SELECT pg_temp.advance('00000000-0000-4000-8000-00000000ee42','complete','rejected');
+SELECT pg_temp.advance('00000000-0000-4000-8000-00000000ee44','retire');
+ALTER TABLE internal.observation_photo_moderation_attempts DISABLE TRIGGER guard_publication_moderation_attempt_update;
+UPDATE internal.observation_photo_moderation_attempts SET dispatch_expires_at=clock_timestamp()-INTERVAL '1 second' WHERE operation_id='00000000-0000-4000-8000-00000000ee43';
+ALTER TABLE internal.observation_photo_moderation_attempts ENABLE TRIGGER guard_publication_moderation_attempt_update;
+SELECT pg_temp.advance('00000000-0000-4000-8000-00000000ee43','retire');
+SELECT extensions.is(pg_temp.settle('00000000-0000-4000-8000-00000000ee41'),'{"finalized":false}'::JSONB,'one approved photo cannot approve an unattempted cohort');
+SAVEPOINT missing_proof;
+DELETE FROM internal.observation_photo_execution_proofs WHERE attempt_id=(SELECT (attempt->>'attempt_id')::UUID FROM outcomes_work WHERE operation='00000000-0000-4000-8000-00000000ee41');
+SELECT extensions.throws_ok($$SELECT pg_temp.settle('00000000-0000-4000-8000-00000000ee41')$$,'22023','analysis_history_operation_conflict','approval without its durable proof/result cannot settle');
+ROLLBACK TO missing_proof;
+ALTER TABLE outcomes_work ADD COLUMN first_attempt JSONB;
+UPDATE outcomes_work SET first_attempt=attempt;
+UPDATE outcomes_work SET attempt=public.admit_publication_moderation_work('00000000-0000-4000-8000-00000000ee01','00000000-0000-4000-8000-00000000ee11',operation,token,'00000000-0000-4000-8000-00000000ee32') WHERE operation='00000000-0000-4000-8000-00000000ee41';
+SELECT extensions.is(pg_temp.settle('00000000-0000-4000-8000-00000000ee41'),'{"finalized":false}'::JSONB,'second reserved photo blocks completion');
+SELECT pg_temp.advance('00000000-0000-4000-8000-00000000ee41','prepare');
+SELECT pg_temp.advance('00000000-0000-4000-8000-00000000ee41','dispatch');
+SELECT pg_temp.advance('00000000-0000-4000-8000-00000000ee41','complete');
+-- Gate closure cannot strand durable terminal provider decisions.
+UPDATE internal.observation_history_rollout SET publication_execution_enabled=FALSE,publication_moderation_enabled=FALSE;
+GRANT SELECT ON outcomes_work TO service_role;
+GRANT EXECUTE ON FUNCTION pg_temp.settle(UUID),pg_temp.status(UUID) TO service_role;
+SELECT set_config('request.jwt.claims','{"role":"service_role"}',true);
+SET LOCAL ROLE service_role;
+SELECT extensions.is(pg_temp.settle('00000000-0000-4000-8000-00000000ee41'),'{"finalized":true,"status":"photos_approved","reason":null}'::JSONB,'actual service settles exact complete approval after gate closure');
+SELECT extensions.is(pg_temp.settle('00000000-0000-4000-8000-00000000ee42'),'{"finalized":true,"status":"needs_action","reason":"photo_rejected"}'::JSONB,'rejection needs action');
+SELECT extensions.is(pg_temp.settle('00000000-0000-4000-8000-00000000ee43')->>'reason','unknown_execution','unknown stays terminal and charged');
+SELECT extensions.is(pg_temp.settle('00000000-0000-4000-8000-00000000ee44')->>'reason','cancelled','proven cancellation does not automatically retry');
+SELECT extensions.is(pg_temp.status('00000000-0000-4000-8000-00000000ee41'),'photos_approved','status distinguishes provider approval from publication');
+SELECT extensions.is(pg_temp.status('00000000-0000-4000-8000-00000000ee42'),'needs_action','status reports durable failure');
+SELECT extensions.throws_ok('SELECT * FROM internal.observation_publication_moderation_outcomes','42501','permission denied for table observation_publication_moderation_outcomes','service cannot directly read private attempts');
+RESET ROLE;
+SELECT extensions.is((SELECT count(*)::INT FROM internal.observation_publication_work WHERE operation_id IN (SELECT operation FROM outcomes_work)),1,'only unattempted work remains discoverable');
+SELECT extensions.is((SELECT attempt_ids FROM internal.observation_publication_moderation_outcomes WHERE operation_id='00000000-0000-4000-8000-00000000ee41'),ARRAY[(SELECT (first_attempt->>'attempt_id')::UUID FROM outcomes_work WHERE operation='00000000-0000-4000-8000-00000000ee41'),(SELECT (attempt->>'attempt_id')::UUID FROM outcomes_work WHERE operation='00000000-0000-4000-8000-00000000ee41')],'outcome pins original ordered attempt');
+SELECT extensions.is((SELECT state FROM internal.ai_quota_reservations WHERE id=(SELECT (attempt#>>'{quota,reservation_id}')::UUID FROM outcomes_work WHERE operation='00000000-0000-4000-8000-00000000ee43')),'failed','settlement does not refund unknown dispatch');
+SELECT extensions.is(public.finalize_publication_photo_moderation('00000000-0000-4000-8000-00000000ee01','00000000-0000-4000-8000-00000000ee11','00000000-0000-4000-8000-00000000ee41',NULL),'{"finalized":true,"status":"photos_approved","reason":null}'::JSONB,'lost response recovers without live work');
+SELECT extensions.throws_ok($$UPDATE internal.observation_publication_moderation_outcomes SET reason='cancelled',state='needs_action' WHERE operation_id='00000000-0000-4000-8000-00000000ee41'$$,'22023','analysis_history_evidence_immutable','outcome immutable');
+SET LOCAL ROLE authenticated;
+SELECT extensions.throws_ok($$SELECT public.finalize_publication_photo_moderation(NULL,NULL,NULL,NULL)$$,'42501','permission denied for function finalize_publication_photo_moderation','actual client cannot nominate settlement');
+RESET ROLE;
+SET LOCAL ROLE anon;
+SELECT extensions.throws_ok($$SELECT public.finalize_publication_photo_moderation(NULL,NULL,NULL,NULL)$$,'42501','permission denied for function finalize_publication_photo_moderation','actual anonymous caller denied');
+RESET ROLE;
+UPDATE internal.observation_history_rollout SET publication_execution_enabled=TRUE,publication_moderation_enabled=TRUE;
+SELECT extensions.is(public.claim_observation_publication_work('00000000-0000-4000-8000-00000000ee01','00000000-0000-4000-8000-00000000ee11','00000000-0000-4000-8000-00000000ee41'),'{"claimed":false}'::JSONB,'settled approval cannot be reclaimed for moderation');
+SELECT extensions.throws_ok($$SELECT internal.admit_publication_photo_moderation('00000000-0000-4000-8000-00000000ee01','00000000-0000-4000-8000-00000000ee11','00000000-0000-4000-8000-00000000ee44','00000000-0000-4000-8000-00000000ee31',(SELECT (attempt->>'attempt_id')::UUID FROM outcomes_work WHERE operation='00000000-0000-4000-8000-00000000ee44'),repeat('b',64))$$,'22023','analysis_history_operation_conflict','even private explicit successor cannot reopen settled cancellation');
+-- Explicit predecessor chains survive quota reservation pruning. Billing
+-- counters are not causal order, including a lower new count after pruning.
+UPDATE outcomes_work SET attempt=public.admit_publication_moderation_work('00000000-0000-4000-8000-00000000ee01','00000000-0000-4000-8000-00000000ee11',operation,token,'00000000-0000-4000-8000-00000000ee31') WHERE operation='00000000-0000-4000-8000-00000000ee45';
+SELECT pg_temp.advance('00000000-0000-4000-8000-00000000ee45','retire');
+UPDATE outcomes_work SET attempt=internal.admit_publication_photo_moderation('00000000-0000-4000-8000-00000000ee01','00000000-0000-4000-8000-00000000ee11',operation,'00000000-0000-4000-8000-00000000ee31',(attempt->>'attempt_id')::UUID,repeat('b',64)) WHERE operation='00000000-0000-4000-8000-00000000ee45';
+SELECT extensions.is((SELECT (attempt#>>'{quota,attempt_count}')::INT FROM outcomes_work WHERE operation='00000000-0000-4000-8000-00000000ee45'),2,'predecessor uses second quota attempt');
+SELECT pg_temp.advance('00000000-0000-4000-8000-00000000ee45','retire');
+DELETE FROM internal.ai_quota_reservations WHERE id=(SELECT (attempt#>>'{quota,reservation_id}')::UUID FROM outcomes_work WHERE operation='00000000-0000-4000-8000-00000000ee45');
+UPDATE outcomes_work SET attempt=internal.admit_publication_photo_moderation('00000000-0000-4000-8000-00000000ee01','00000000-0000-4000-8000-00000000ee11',operation,'00000000-0000-4000-8000-00000000ee31',(attempt->>'attempt_id')::UUID,repeat('b',64)) WHERE operation='00000000-0000-4000-8000-00000000ee45';
+SELECT extensions.is((SELECT (attempt#>>'{quota,attempt_count}')::INT FROM outcomes_work WHERE operation='00000000-0000-4000-8000-00000000ee45'),1,'new reservation restarts quota counter');
+SELECT extensions.is(public.read_publication_moderation_work('00000000-0000-4000-8000-00000000ee01','00000000-0000-4000-8000-00000000ee11',operation,token)#>>'{0,attempt,attempt_id}',attempt->>'attempt_id','recovery selects causal successor instead of higher billing counter') FROM outcomes_work WHERE operation='00000000-0000-4000-8000-00000000ee45';
+SELECT extensions.is(public.admit_publication_moderation_work('00000000-0000-4000-8000-00000000ee01','00000000-0000-4000-8000-00000000ee11',operation,token,'00000000-0000-4000-8000-00000000ee31')->>'attempt_id',attempt->>'attempt_id','admission recovers same causal leaf') FROM outcomes_work WHERE operation='00000000-0000-4000-8000-00000000ee45';
+SELECT pg_temp.advance('00000000-0000-4000-8000-00000000ee45','prepare');
+SELECT pg_temp.advance('00000000-0000-4000-8000-00000000ee45','dispatch');
+SELECT pg_temp.advance('00000000-0000-4000-8000-00000000ee45','complete');
+SELECT extensions.is(pg_temp.settle('00000000-0000-4000-8000-00000000ee45'),'{"finalized":false}'::JSONB,'older cancelled predecessors cannot poison successful successor');
+UPDATE outcomes_work SET first_attempt=attempt WHERE operation='00000000-0000-4000-8000-00000000ee45';
+UPDATE outcomes_work SET attempt=public.admit_publication_moderation_work('00000000-0000-4000-8000-00000000ee01','00000000-0000-4000-8000-00000000ee11',operation,token,'00000000-0000-4000-8000-00000000ee32') WHERE operation='00000000-0000-4000-8000-00000000ee45';
+SELECT pg_temp.advance('00000000-0000-4000-8000-00000000ee45','prepare');
+SELECT pg_temp.advance('00000000-0000-4000-8000-00000000ee45','dispatch');
+SELECT pg_temp.advance('00000000-0000-4000-8000-00000000ee45','complete');
+SELECT extensions.is(pg_temp.settle('00000000-0000-4000-8000-00000000ee45')->>'status','photos_approved','causal successor plus complete cohort settles approved');
+INSERT INTO internal.scan_deletion_tombstones(scan_id,user_id) VALUES('00000000-0000-4000-8000-00000000ee11','00000000-0000-4000-8000-00000000ee01');
+SELECT extensions.is((SELECT count(*)::INT FROM internal.observation_publication_moderation_outcomes),0,'deletion removes outcomes');
+SELECT extensions.throws_ok($$SELECT pg_temp.settle('00000000-0000-4000-8000-00000000ee41')$$,'P0002','analysis_history_not_found','deletion wins over historical replay');
+SELECT * FROM extensions.finish();
+ROLLBACK;

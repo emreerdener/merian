@@ -13463,9 +13463,10 @@ Recovery must inspect durable outcomes before deciding on external work.
 `read_owned_observation_publication_status(owner, observation, operation)` is
 prepared for a future authenticated owner endpoint and returns exactly
 `{schema_version:1, operation_id, observation_id, analysis_id, status}`. Status
-is `admitted` only if the durable cohort receipt exists, otherwise `processing`
-while an orchestration lease is live and `accepted` while awaiting recovery.
-These are orchestration observations, not provider outcomes; lease expiry does
+is `admitted` only if the durable cohort receipt exists; otherwise a settled
+photo phase reports `photos_approved` or `needs_action`, then `processing` while
+an orchestration lease is live and `accepted` while awaiting recovery. Photo
+outcomes are historical provider decisions only (see below); lease expiry does
 not imply provider failure or permission to retry. `admitted` is historical and
 does not assert current public visibility, identification authority or species
 eligibility. Separate public projections enforce revocation. Reads work after
@@ -13540,3 +13541,49 @@ This is an activation requirement, not a database claim that it inspected object
 bytes. Optional-note moderation, copy integration and cohort failure cleanup,
 durable retirement scheduling, native delivery and cache-bypass qualification
 remain required. All activation gates stay false.
+
+## Prepared durable photo moderation outcomes
+
+`20261004135533_settle_publication_photo_moderation.sql` adds private immutable
+`observation_publication_moderation_outcomes` beneath accepted operations.
+`finalize_publication_photo_moderation(owner, observation, operation, work)` is
+service-only. It takes no caller decision or attempt list. Owner/deletion and
+operation scope are checked before replay. Fresh settlement requires live work,
+serializes with completion/deletion, and rejects an already-bound operation.
+Existing outcomes replay after work expiry or gate closure.
+
+The finalizer returns `{finalized:false}` without a write while any attempt,
+including a predecessor, remains reserved or dispatched. It never cancels an
+attempt, settles quota, dispatches a provider, or creates a successor. Once no
+attempt is active, it records causal-leaf attempt IDs in the frozen source
+order: missing attempts are null. Latest approved/rejected decisions require
+their exact source-bound stored proof and validated result. Rejection, unknown
+execution, then cancellation take precedence and produce
+`{finalized:true,status:"needs_action",reason:<photo_rejected|unknown_execution|cancelled>}`.
+A failure can close a partly unattempted cohort; remaining photos need not incur
+provider spend. Old terminal predecessors do not override newer explicit
+results. Without failure, every source must have an approved decision or work
+stays pending. Success is
+`{finalized:true,status:"photos_approved",reason:null}`.
+
+Outcome insertion and moderation-work removal are atomic, preventing endless
+reclaim. Attempt insertion is fenced against settled operations, including
+private explicit-successor calls. Neither the original HTTP 202 receipt nor
+existing provider charges change. Owner status keeps its five-field shape and
+adds the two phase states; no attempt IDs, provider diagnostics, evidence or
+worker tokens are exposed. No endpoint or native decoder yet consumes this
+prepared status boundary. Observation/account erasure cascades the outcomes;
+deletion wins over historical replay.
+
+`photos_approved` means historical provider approval only. It does not attest
+strict container preflight, approve notes, grant public-copy permission, or
+assert current authority/visibility. A future separate copy phase must re-read
+exact immutable bytes and repeat strict metadata/container validation, current
+source/review/consent checks and final ordered binding. The held private copy
+authorizer/binder still select approved attempts directly; the live integration
+must require `photos_approved` plus its exact ordered causal-leaf attempt IDs.
+Test denial for a mismatched leaf or a `needs_action` outcome before activation.
+Unsupported formats, transient storage failures, stale authority, exact-note
+moderation and recovery of expired active attempts remain execution-owner
+responsibilities; this slice does not silently classify them as permanent
+refusals. All gates remain false.
