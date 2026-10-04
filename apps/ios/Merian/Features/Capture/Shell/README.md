@@ -44,9 +44,12 @@ preview services do not mutate staged media, provider inputs, or toolbar layout.
 
 `StagedPreviewAudioBoostTests` awaits the retained source-switch task when
 testing dismissal and background cancellation. Dismissal checks app-owned play
-commands, item removal, and derivative cleanup; a detached AVPlayer's
-instantaneous rate does not establish whether a stale source-switch task
-requested playback.
+commands, item removal, and derivative cleanup. Background cancellation checks
+the ordered play/pause commands and retained replacement-item identity after a
+late seek completion. All owner pauses use the existing dependency boundary,
+whose live implementation still calls `AVPlayer.pause()`. A player's transient
+rate during item readiness or after detachment does not establish whether a
+stale source-switch task requested playback.
 
 ## Launch announcement
 
