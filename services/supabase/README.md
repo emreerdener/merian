@@ -58,6 +58,12 @@ and shared owners by product area. The
 [organization audit](../../docs/rfcs/supabase-functions-organization.md) records
 the current dependency map and proposed follow-up slices.
 
+The prepared
+[Gemini photo return](../../docs/rfcs/identification-gemini-photo-return-2026-10-03.md)
+restores the existing Gemini tier policy for new still photos only. It is not
+deployed; the source migration preserves saved OpenAI results and every other
+modality.
+
 The identification provider boundary is documented in
 [`functions/_shared/ai/`](functions/_shared/ai/README.md). The beta catalog
 assigns still photos to `openai_photo_v1` / `gpt-6-sol` and retains Gemini for

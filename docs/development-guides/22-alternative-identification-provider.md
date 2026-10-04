@@ -49,6 +49,13 @@ owns `evaluate_openai_reasoning.ts` and the hidden-key `run_openai_reasoning.sh`
 launcher. It does not change production assignment, historical profiles, or
 confidence thresholds.
 
+The owner subsequently approved preparing a
+[Gemini photo return](../rfcs/identification-gemini-photo-return-2026-10-03.md)
+on 3 October based on repeated beta feedback. This product decision does not
+change historical scores or qualify Gemini as superior. The candidate restores
+the existing Pro/Flash tier policy for new photos and awaits separately
+authorized deployment.
+
 The first alternative is `gpt-6-sol` through OpenAI's Responses API. The shared
 adapter supports controlled local and hosted evaluation. The separate production
 `openai_photo_v1` binding adds pinned inline moderation and V2 result metadata;

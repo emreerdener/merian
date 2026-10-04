@@ -730,3 +730,6 @@ are not additional paid studies and are not summed with the entries above.
 - [Task benchmark qualification and model assignment](../../../docs/research/identification/benchmark-contract.md)
   — Current prospective qualification contract for the generated capability
   matrix; no new experiment, paid authorization or routing change.
+- [Prepared Gemini photo return based on beta feedback](../../../docs/rfcs/identification-gemini-photo-return-2026-10-03.md)
+  — Product routing decision and prepared migration; not a new paid study or
+  benchmark qualification.

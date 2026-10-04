@@ -243,6 +243,19 @@ updates only scans that have exact coordinates and a missing semantic location.
 Existing database triggers sanitize the scan label and reproject every linked
 Explore post while preserving its saved post-level location-sharing choice.
 
+## Prepared Gemini photo return
+
+The
+[3 October candidate](../rfcs/identification-gemini-photo-return-2026-10-03.md)
+restores only still-photo catalog assignments to the existing Gemini tier
+policy. It does not rewrite attempts or stored results. Require explicit
+operation/production-target authorization, exact-SHA candidate validation and
+the protected Production workflow. Verify the expected source tuple before
+application; verify new Gemini admission and old OpenAI replay afterward.
+Exclude unrelated uncommitted scan-history migrations. Recovery is a separately
+reviewed forward assignment change; preserve both readers and all historical
+evidence.
+
 ## Production Path
 
 > **Active release evidence gate (2026-07-28):** DwC-A is hidden in Release iOS

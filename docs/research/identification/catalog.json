@@ -1039,6 +1039,11 @@
       "path": "docs/research/identification/benchmark-contract.md",
       "title": "Task benchmark qualification and model assignment",
       "role": "Current prospective qualification contract for the generated capability matrix; no new experiment, paid authorization or routing change."
+    },
+    {
+      "path": "docs/rfcs/identification-gemini-photo-return-2026-10-03.md",
+      "title": "Prepared Gemini photo return based on beta feedback",
+      "role": "Product routing decision and prepared migration; not a new paid study or benchmark qualification."
     }
   ]
 }

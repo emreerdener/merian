@@ -1,7 +1,7 @@
 \set ON_ERROR_STOP on
 BEGIN;
 -- This fixture verifies the supported Gemini/legacy routing configuration.
--- Activation defaults are asserted independently by openai_photo_routing.sql.
+-- Activation defaults are asserted independently by gemini_photo_return.sql.
 UPDATE internal.identification_provider_bindings
 SET provider = 'gemini', binding = 'gemini_baseline_v1',
     processor_permission = 'google_gemini', provider_model = NULL,
