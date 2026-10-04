@@ -2595,3 +2595,12 @@ skips copying. The endpoint is not scheduled, deployed or activated. Verified
 recurring independent erasure and backlog/CDN monitoring are hard activation
 requirements because terminal expiry removes copy work. CPU/memory
 qualification, owner status and native durable operations remain incomplete.
+
+### Owner operation-status delivery checkpoint (October 4)
+
+The prepared authenticated status route now reads one saved operation and emits
+only the existing five-field owner projection, with strict decoding and private
+no-store on every branch. Missing, foreign and deleted operations remain opaque.
+Historical admission does not assert current publication eligibility or provide
+a post link. No native consumer or activation is added; native delivery must
+persist exact operation identity before I/O and remain account/deletion fenced.

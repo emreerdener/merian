@@ -13992,3 +13992,29 @@ cleanup, so failed cleanup depends on the permanent registry and independent
 `erase-publication-photos` worker; no copy claim will recover it. All gates
 remain false. CPU/process-memory qualification and owner/native delivery remain
 pending. This prepared endpoint does not authorize scheduling or deployment.
+
+## Owner publication operation status
+
+Prepared `POST get-observation-publication-status` uses `withEdgeHandler` to
+validate the authenticated owner and calls the service-only
+`read_owned_observation_publication_status` routine with that identity. The
+request is exactly `{schema_version:1,observation_id,operation_id}`, bounded to
+1 KiB and lowercase UUIDs. Lookup uses the immutable operation ID from durable
+intake; no latest-scan lookup or legacy sharing fallback is allowed.
+
+The five-field response is exactly
+`{schema_version:1,operation_id,observation_id,analysis_id,status}`. The closed
+status set is `accepted`, `processing`, `photos_approved`, `needs_action`,
+`admitted`. `admitted` means historical admission and does not assert current
+public visibility or identification authority. No post ID, media, note, private
+reason, provider attempt, work token or cleanup key is exposed. Unknown fields,
+wrong identities or invalid status from SQL fail closed with 503.
+
+Owner and observation deletion checks remain authoritative. Foreign, missing and
+deleted records all return opaque `analysis_history_not_found` (404). Invalid
+caller input returns 400; known operation/revision conflicts return 409; other
+failures are sanitized 503. Every route response, including auth, preflight,
+method and body failures, uses `Cache-Control: private, no-store`. The RPC is
+bounded to twelve seconds, with no automatic retry and no mutation. Native
+durable delivery is a separate slice. The route is prepared but not released;
+all publication activation gates remain false.

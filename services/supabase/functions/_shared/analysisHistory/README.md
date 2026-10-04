@@ -616,3 +616,12 @@ signal for PUT and HEAD. Historical publication avoids cleanup and optional
 notes cannot reach the no-note binder. Activation requires recurring independent
 erasure and backlog/CDN evidence; terminal expiry removes copy work and cannot
 retry failed cleanup itself.
+
+## Prepared owner publication status
+
+`get-observation-publication-status` now exposes only the existing five-field
+owner status for an exact saved operation. Auth-derived ownership, deletion
+fences, strict decoding, bounded reads and private no-store apply. Historical
+admission is not current visibility. No private reason, media or post ID is
+returned. Native delivery and activation remain separate. See the
+[status contract](../../../../../docs/backend-and-data/05-api-contracts.md#owner-publication-operation-status).

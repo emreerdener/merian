@@ -769,3 +769,7 @@ verify_jwt = false
 # Service-only bounded publication copying; activation remains independently gated.
 [functions.copy-publication-photos]
 verify_jwt = false
+
+# Owner-authenticated exact-operation status; withEdgeHandler validates the user.
+[functions.get-observation-publication-status]
+verify_jwt = false

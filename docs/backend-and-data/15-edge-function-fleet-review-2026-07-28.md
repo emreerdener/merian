@@ -289,6 +289,7 @@ report-explore-post
 report-user
 request-community-identification
 request-observation-publication
+get-observation-publication-status
 moderate-publication-photos
 copy-publication-photos
 request-export-dwca
@@ -428,3 +429,12 @@ Recurring independent erasure invocation, backlog monitoring and CDN bypass must
 be authorized and verified before activation because terminal expiry deletes
 copy work. Source inventory is not deployment or scheduling evidence. See the
 [README](../../services/supabase/functions/copy-publication-photos/README.md).
+
+`get-observation-publication-status` is an owner-authenticated, bounded POST
+reader through `withEdgeHandler`, not a service-auth worker. It calls a
+service-only RPC using the validated user identity and returns only five status
+fields for the exact operation. All responses are private no-store. No private
+moderation reason, source or post ID escapes; no state advances. Generated
+per-function deployment config and both candidate test lists cover the route.
+Publication gates remain false and release is not authorized. See its
+[README](../../services/supabase/functions/get-observation-publication-status/README.md).

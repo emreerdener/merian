@@ -3446,3 +3446,12 @@ after slow setup. Gates stay false. Activation requires verified recurring
 independent erasure, backlog monitoring and CDN bypass because terminal expiry
 retires copy work before best-effort cleanup. See its
 [README](functions/copy-publication-photos/README.md).
+
+## Prepared owner publication status
+
+`get-observation-publication-status` now exposes only the existing five-field
+owner status for an exact saved operation. Auth-derived ownership, deletion
+fences, strict decoding, bounded reads and private no-store apply. Historical
+admission is not current visibility. No private reason, media or post ID is
+returned. Native delivery and activation remain separate. See the
+[status contract](../../docs/backend-and-data/05-api-contracts.md#owner-publication-operation-status).
