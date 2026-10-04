@@ -1,3 +1,4 @@
+import { PublicationPhotoCohortContainerRejection } from "./photoCohortPreflight.ts";
 import { publicationAbortable } from "./publicationDeadline.ts";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -218,9 +219,38 @@ export function publicationModerationRepository(
               "unknown_execution",
               "cancelled",
               "unsupported_source_type",
+              "public_container_rejected",
             ].includes(
               row.reason as string,
             )))
+      ) invalidHistory();
+      return true;
+    },
+    async rejectContainer(
+      rejection: PublicationPhotoCohortContainerRejection,
+    ): Promise<boolean> {
+      if (!(rejection instanceof PublicationPhotoCohortContainerRejection)) {
+        invalidHistory();
+      }
+      const original = byMedia.get(rejection.attestation.source.media_id);
+      if (
+        !original ||
+        Object.keys(original).some((key) =>
+          original[key as keyof PublicationPhotoSource] !==
+            rejection.attestation.source[key as keyof PublicationPhotoSource]
+        )
+      ) invalidHistory();
+      const row = exactObject(
+        await rpc("finalize_publication_container_rejection", {
+          p_attestation: rejection.attestation,
+        }),
+        ["finalized", "status", "reason"],
+      );
+      if (
+        row.finalized !== true ||
+        !((row.status === "needs_action" &&
+          row.reason === "public_container_rejected") ||
+          (row.status === "admitted" && row.reason === null))
       ) invalidHistory();
       return true;
     },

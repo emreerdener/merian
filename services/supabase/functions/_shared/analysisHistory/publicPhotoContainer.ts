@@ -2,8 +2,16 @@
 // rewrites bytes: the public object must be the exact artifact that was approved.
 const MAX_BYTES = 12 * 1024 * 1024;
 const MAX_PIXELS = 40_000_000;
+export const PUBLIC_PHOTO_CONTAINER_POLICY = "public_photo_container_v1";
+/** Deliberate policy rejection only; unexpected validator failures are not proof. */
+export class PublicPhotoContainerRejected extends Error {
+  constructor() {
+    super("publication_photo_not_sanitized");
+    this.name = "PublicPhotoContainerRejected";
+  }
+}
 function reject(): never {
-  throw new Error("publication_photo_not_sanitized");
+  throw new PublicPhotoContainerRejected();
 }
 function dimensions(width: number, height: number) {
   if (

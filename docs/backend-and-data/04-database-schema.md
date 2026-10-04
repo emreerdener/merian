@@ -7121,3 +7121,13 @@ constraints remain intact. The exact-work finalizer derives unsupported source
 types from immutable intent metadata only when no provider attempt exists, then
 atomically retires work; no copy work is seeded. Gate-independent replay, owner
 scope and deletion fences remain. This adds no container-rejection attestation.
+
+## Prepared container attestation evidence
+
+Migration `20261004175732_settle_verified_publication_container_rejections.sql`
+adds private immutable `observation_publication_container_attestations`, bound
+to accepted operation and deletion cascade, and the default-false
+`publication_container_settlement_enabled` gate. Only exact original JPEG/PNG
+source tuples and fixed policy can enter the service finalizer. Zero-attempt
+`public_container_rejected` outcomes commit with attestation and work
+retirement; existing provider outcomes and copy authority are unchanged.

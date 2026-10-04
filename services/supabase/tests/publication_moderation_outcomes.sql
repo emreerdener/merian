@@ -142,6 +142,56 @@ SELECT pg_temp.new_work('00000000-0000-4000-8000-00000000ee45');
 SELECT extensions.is(pg_temp.settle('00000000-0000-4000-8000-00000000ee41'),'{"finalized":false}'::JSONB,'unattempted cohort remains pending');
 SELECT extensions.throws_ok($$SELECT public.finalize_publication_photo_moderation('00000000-0000-4000-8000-00000000ee01','00000000-0000-4000-8000-00000000ee11','00000000-0000-4000-8000-00000000ee41',gen_random_uuid())$$,'22023','analysis_history_operation_conflict','stale token cannot settle fresh work');
 SELECT extensions.throws_ok($$SELECT public.finalize_publication_photo_moderation('00000000-0000-4000-8000-00000000ee02','00000000-0000-4000-8000-00000000ee11','00000000-0000-4000-8000-00000000ee41',NULL)$$,'P0002','analysis_history_not_found','cross owner cannot settle');
+
+CREATE FUNCTION pg_temp.container_attestation(op UUID DEFAULT '00000000-0000-4000-8000-00000000ee45') RETURNS JSONB LANGUAGE SQL AS $$
+ SELECT jsonb_build_object('schema_version',1,'policy_version','public_photo_container_v1','source',sources->0) FROM internal.observation_publication_intents WHERE operation_id=op;
+$$;
+CREATE FUNCTION pg_temp.finish_container(op UUID DEFAULT '00000000-0000-4000-8000-00000000ee45',att JSONB DEFAULT NULL,work UUID DEFAULT NULL) RETURNS JSONB LANGUAGE SQL AS $$
+ SELECT public.finalize_publication_container_rejection('00000000-0000-4000-8000-00000000ee01','00000000-0000-4000-8000-00000000ee11',op,COALESCE(work,token),COALESCE(att,pg_temp.container_attestation(op))) FROM outcomes_work WHERE operation=op;
+$$;
+SELECT extensions.is((SELECT publication_container_settlement_enabled FROM internal.observation_history_rollout),FALSE,'container attestation ships disabled');
+SELECT extensions.throws_ok('SELECT pg_temp.finish_container()','55000','analysis_history_unavailable','source settlement cannot enable container settlement');
+SAVEPOINT container_trial;
+UPDATE internal.observation_history_rollout SET publication_container_settlement_enabled=TRUE;
+SELECT extensions.throws_ok($$SELECT pg_temp.finish_container(work=>gen_random_uuid())$$,'22023','analysis_history_operation_conflict','container settlement requires exact live work');
+SELECT extensions.throws_ok($$SELECT pg_temp.finish_container(att=>jsonb_set(pg_temp.container_attestation(),'{source,sha256}',to_jsonb(repeat('b',64))))$$,'22023','invalid_analysis_history','container proof cannot replace original digest');
+SELECT extensions.throws_ok($$SELECT pg_temp.finish_container(att=>pg_temp.container_attestation() || '{"diagnostic":"private"}'::jsonb)$$,'22023','invalid_analysis_history','container proof rejects diagnostics and extra fields');
+SELECT extensions.throws_ok($$SELECT pg_temp.finish_container(att=>jsonb_set(pg_temp.container_attestation(),'{policy_version}','"unreviewed"'))$$,'22023','invalid_analysis_history','container proof pins reviewed policy');
+SELECT extensions.throws_ok($$SELECT public.finalize_publication_container_rejection('00000000-0000-4000-8000-00000000ee02','00000000-0000-4000-8000-00000000ee11','00000000-0000-4000-8000-00000000ee45',NULL,pg_temp.container_attestation())$$,'P0002','analysis_history_not_found','container proof remains owner scoped');
+SAVEPOINT container_attempt;
+SELECT public.admit_publication_moderation_work('00000000-0000-4000-8000-00000000ee01','00000000-0000-4000-8000-00000000ee11','00000000-0000-4000-8000-00000000ee45',(SELECT token FROM outcomes_work WHERE operation='00000000-0000-4000-8000-00000000ee45'),'00000000-0000-4000-8000-00000000ee31');
+SELECT extensions.throws_ok('SELECT pg_temp.finish_container()','22023','analysis_history_operation_conflict','existing provider attempt retains recovery ownership');
+ROLLBACK TO container_attempt;
+GRANT SELECT ON outcomes_work TO service_role;
+GRANT EXECUTE ON FUNCTION pg_temp.finish_container(UUID,JSONB,UUID),pg_temp.container_attestation(UUID) TO service_role;
+CREATE TEMP TABLE frozen_container AS SELECT pg_temp.container_attestation() AS att;
+GRANT SELECT ON frozen_container TO service_role;
+-- The helper reads private intent only as fixture owner; actual service submits
+-- the frozen attestation through the granted facade, never a table read.
+SET LOCAL ROLE service_role;
+SELECT extensions.is(public.finalize_publication_container_rejection('00000000-0000-4000-8000-00000000ee01','00000000-0000-4000-8000-00000000ee11','00000000-0000-4000-8000-00000000ee45',(SELECT token FROM outcomes_work WHERE operation='00000000-0000-4000-8000-00000000ee45'),(SELECT att FROM frozen_container)),'{"finalized":true,"status":"needs_action","reason":"public_container_rejected"}'::JSONB,'actual service persists exact container attestation');
+SELECT extensions.throws_ok('SELECT * FROM internal.observation_publication_container_attestations','42501','permission denied for table observation_publication_container_attestations','service cannot directly read private attestation');
+RESET ROLE;
+SELECT extensions.is((SELECT attestation FROM internal.observation_publication_container_attestations WHERE operation_id='00000000-0000-4000-8000-00000000ee45'),pg_temp.container_attestation(),'stored attestation equals exact original source and policy');
+SELECT extensions.is((SELECT attempt_ids FROM internal.observation_publication_moderation_outcomes WHERE operation_id='00000000-0000-4000-8000-00000000ee45'),'{}'::UUID[],'container outcome contains no provider attempt');
+SELECT extensions.is((SELECT count(*)::INT FROM internal.observation_publication_work WHERE operation_id='00000000-0000-4000-8000-00000000ee45'),0,'container settlement retires work atomically');
+SELECT extensions.is((SELECT count(*)::INT FROM internal.observation_publication_copy_work WHERE operation_id='00000000-0000-4000-8000-00000000ee45'),0,'container rejection cannot seed copy work');
+UPDATE internal.observation_history_rollout SET publication_container_settlement_enabled=FALSE;
+SELECT extensions.is(pg_temp.finish_container(work=>gen_random_uuid())->>'reason','public_container_rejected','lost response replays before live token and closed gate');
+SELECT extensions.throws_ok($$SELECT pg_temp.finish_container(att=>jsonb_set(pg_temp.container_attestation(),'{source}',(SELECT sources->1 FROM internal.observation_publication_intents WHERE operation_id='00000000-0000-4000-8000-00000000ee45')))$$,'22023','analysis_history_operation_conflict','replay cannot replace rejected source with another original sibling');
+SELECT extensions.is(pg_temp.status('00000000-0000-4000-8000-00000000ee45'),'needs_action','owner status contains only bounded needs action');
+SELECT extensions.throws_ok($$UPDATE internal.observation_publication_container_attestations SET attestation='{}'$$,'22023','analysis_history_evidence_immutable','attestation cannot be rewritten');
+SET LOCAL ROLE authenticated;
+SELECT extensions.throws_ok('SELECT public.finalize_publication_container_rejection(NULL,NULL,NULL,NULL,NULL)','42501','permission denied for function finalize_publication_container_rejection','authenticated cannot submit attestations');
+RESET ROLE;
+SET LOCAL ROLE anon;
+SELECT extensions.throws_ok('SELECT public.finalize_publication_container_rejection(NULL,NULL,NULL,NULL,NULL)','42501','permission denied for function finalize_publication_container_rejection','anonymous cannot submit attestations');
+RESET ROLE;
+INSERT INTO internal.scan_deletion_tombstones(scan_id,user_id) VALUES('00000000-0000-4000-8000-00000000ee11','00000000-0000-4000-8000-00000000ee01');
+SELECT extensions.is((SELECT count(*)::INT FROM internal.observation_publication_container_attestations),0,'deletion cascades private attestations');
+SELECT extensions.throws_ok('SELECT pg_temp.finish_container()','P0002','analysis_history_not_found','deletion precedes attestation replay');
+ROLLBACK TO container_trial;
+
 UPDATE outcomes_work SET attempt=public.admit_publication_moderation_work('00000000-0000-4000-8000-00000000ee01','00000000-0000-4000-8000-00000000ee11',operation,token,'00000000-0000-4000-8000-00000000ee31') WHERE operation<>'00000000-0000-4000-8000-00000000ee45';
 SELECT extensions.is(pg_temp.settle('00000000-0000-4000-8000-00000000ee41'),'{"finalized":false}'::JSONB,'reserved attempt blocks settlement without refund');
 SELECT pg_temp.advance(operation,'prepare') FROM outcomes_work WHERE operation IN ('00000000-0000-4000-8000-00000000ee41','00000000-0000-4000-8000-00000000ee42','00000000-0000-4000-8000-00000000ee43');
@@ -420,6 +470,10 @@ BEGIN
    UPDATE internal.observation_publication_copy_work SET work_expires_at=clock_timestamp()-INTERVAL '1 second' WHERE work_token IS NOT NULL;
   END IF;
   receipt:=pg_temp.bind_cohort();
+  IF mode='container_publication' THEN
+   result:=pg_temp.finish_container('00000000-0000-4000-8000-00000000ee41');
+   RAISE EXCEPTION 'rollback_synthetic_binding' USING ERRCODE='Z0001';
+  END IF;
   IF mode='legacy_publication' THEN
    DELETE FROM internal.observation_publication_copy_cohorts WHERE operation_id='00000000-0000-4000-8000-00000000ee41';
    result:=pg_temp.finish_copy();
@@ -451,6 +505,7 @@ SELECT extensions.is((SELECT count(*)::INT FROM public.explore_community_request
 SELECT extensions.ok(EXISTS(SELECT 1 FROM internal.observation_publication_copy_work WHERE operation_id='00000000-0000-4000-8000-00000000ee41'),'mismatched writer preserves recovery work');
 SELECT extensions.is((SELECT state_revision FROM internal.observation_histories WHERE observation_id='00000000-0000-4000-8000-00000000ee11'),(SELECT state_revision FROM before_binding_trial),'mismatched writer preserves observation authority revision');
 SELECT extensions.throws_ok($$SELECT pg_temp.binding_trial('missing_receipt')$$,'22023','analysis_history_operation_conflict','historical publication cannot substitute for missing immutable reservation');
+SELECT extensions.is(pg_temp.binding_trial('container_publication'),'{"finalized":true,"status":"admitted","reason":null}'::JSONB,'valid committed publication wins over container rejection without an attestation');
 SELECT extensions.is(pg_temp.binding_trial('legacy_publication'),'{"finalized":true,"status":"admitted","reason":null,"object_ids":[]}'::JSONB,'validated legacy publication wins without creating new copy authority');
 SELECT extensions.is(pg_temp.binding_trial('success'),'{"status":"admitted","exact":true,"retired":true,"replayed":true,"cleanup_denied":true,"publication_wins":true}'::JSONB,'exact ordered binding retires work and replays after authority and gate closure without cleanup');
 SELECT extensions.is((SELECT count(*)::INT FROM internal.observation_photo_publications),0,'synthetic trial rolls publication back completely');

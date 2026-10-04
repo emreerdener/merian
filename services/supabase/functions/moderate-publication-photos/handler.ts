@@ -1,5 +1,8 @@
 import type { PublicationPhotoSource } from "../_shared/analysisHistory/photoClassifier.ts";
-import { preparePublicationPhotoCohort } from "../_shared/analysisHistory/photoCohortPreflight.ts";
+import {
+  preparePublicationPhotoCohort,
+  PublicationPhotoCohortContainerRejection,
+} from "../_shared/analysisHistory/photoCohortPreflight.ts";
 import { executePublicationPhotoModeration } from "../_shared/analysisHistory/photoExecution.ts";
 import { publicationAbortable } from "../_shared/analysisHistory/publicationDeadline.ts";
 import {
@@ -95,14 +98,31 @@ export async function moderatePublicationPhotos(
           ? recovered.indexOf(reserved)
           : recovered.findIndex((r) => r === null);
         if (index >= 0 && remaining() >= 60_000) {
-          const cohort = await publicationAbortable(
-            freshSignal,
-            () =>
-              (deps.preflight ?? preparePublicationPhotoCohort)(work.sources, {
-                signal: freshSignal,
-                providerSignal: freshSignal,
-              }),
-          );
+          let cohort: Awaited<ReturnType<typeof preparePublicationPhotoCohort>>;
+          try {
+            cohort = await publicationAbortable(
+              freshSignal,
+              () =>
+                (deps.preflight ?? preparePublicationPhotoCohort)(
+                  work.sources,
+                  {
+                    signal: freshSignal,
+                    providerSignal: freshSignal,
+                  },
+                ),
+            );
+          } catch (error) {
+            // Only verified policy evidence can request durable remediation.
+            // Keep at least one bounded RPC window inside the overall budget.
+            if (
+              error instanceof PublicationPhotoCohortContainerRejection &&
+              !freshSignal.aborted && 135_000 - (now() - started) >= 12_000
+            ) {
+              if (await repo.rejectContainer(error)) counts.settled = 1;
+              return counts;
+            }
+            throw error;
+          }
           const prepared = await publicationAbortable(
             freshSignal,
             () => cohort.prepare(work.sources[index].media_id),

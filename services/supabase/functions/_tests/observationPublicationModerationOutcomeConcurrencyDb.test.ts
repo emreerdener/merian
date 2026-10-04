@@ -24,6 +24,11 @@ async function observeBlock(observer: Client, waiter: number, blocker: number) {
 }
 for (
   const scenario of [
+    "container duplicate",
+    "container deletion first",
+    "container before deletion",
+    "container admission first",
+    "container before admission",
     "source duplicate",
     "source deletion first",
     "source before deletion",
@@ -88,6 +93,7 @@ for (
         "publication_execution_enabled",
         "publication_moderation_enabled",
         "publication_source_settlement_enabled",
+        "publication_container_settlement_enabled",
         "publication_copy_execution_enabled",
         "publication_copy_enabled",
         "publication_copy_reservation_enabled",
@@ -178,13 +184,33 @@ for (
             "SELECT public.claim_observation_publication_work($1,$2,$3) AS receipt",
             [owner, observation, operation],
           )).rows[0].receipt.work_token;
-        if (scenario.startsWith("source ")) {
+        if (
+          scenario.startsWith("source ") || scenario.startsWith("container ")
+        ) {
+          const container = scenario.startsWith("container ");
+          const mode = scenario.replace("container ", "source ");
+          const attestation = container
+            ? (await observer.queryObject<{ att: unknown }>(
+              "SELECT jsonb_build_object('schema_version',1,'policy_version','public_photo_container_v1','source',sources->0) AS att FROM internal.observation_publication_intents WHERE operation_id=$1",
+              [operation],
+            )).rows[0].att
+            : null;
           const finish = (client: Client) =>
             client.queryObject<
               { receipt: { finalized: boolean; reason?: string } }
             >(
-              "SELECT public.finalize_publication_photo_moderation($1,$2,$3,$4) AS receipt",
-              [owner, observation, operation, work],
+              container
+                ? "SELECT public.finalize_publication_container_rejection($1,$2,$3,$4,$5::jsonb) AS receipt"
+                : "SELECT public.finalize_publication_photo_moderation($1,$2,$3,$4) AS receipt",
+              container
+                ? [
+                  owner,
+                  observation,
+                  operation,
+                  work,
+                  JSON.stringify(attestation),
+                ]
+                : [owner, observation, operation, work],
             );
           const admit = (client: Client) =>
             client.queryObject<{ receipt: unknown }>(
@@ -204,16 +230,18 @@ for (
           )).rows[0].pid;
           await first.queryArray("BEGIN");
           await second.queryArray("BEGIN");
-          if (scenario === "source deletion first") await erase(first);
-          else if (scenario === "source admission first") await admit(first);
+          if (mode === "source deletion first") await erase(first);
+          else if (mode === "source admission first") await admit(first);
           else {assertEquals(
               (await finish(first)).rows[0].receipt.reason,
-              "unsupported_source_type",
+              container
+                ? "public_container_rejected"
+                : "unsupported_source_type",
             );}
           const pending = settle(
-            scenario === "source before deletion"
+            mode === "source before deletion"
               ? erase(second)
-              : scenario === "source before admission"
+              : mode === "source before admission"
               ? admit(second)
               : finish(second),
           );
@@ -221,18 +249,23 @@ for (
           await first.queryArray("COMMIT");
           const result = await pending;
           if (
-            scenario === "source deletion first" ||
-            scenario === "source before admission"
+            mode === "source deletion first" ||
+            mode === "source before admission" ||
+            (container && mode === "source admission first")
           ) {
             assert(!result.ok);
             assert(
-              result.error.includes("analysis_history_not_found"),
+              result.error.includes(
+                container && mode === "source admission first"
+                  ? "analysis_history_operation_conflict"
+                  : "analysis_history_not_found",
+              ),
             );
             await second.queryArray("ROLLBACK");
           } else {
             assert(result.ok);
             await second.queryArray("COMMIT");
-            if (scenario === "source admission first") {
+            if (mode === "source admission first") {
               assertEquals(result.value.rows[0].receipt, { finalized: false });
             }
           }
@@ -241,8 +274,8 @@ for (
               "SELECT count(*)::int AS count FROM internal.observation_publication_moderation_outcomes WHERE operation_id=$1",
               [operation],
             )).rows[0].count,
-            scenario.includes("deletion") ||
-              scenario === "source admission first"
+            mode.includes("deletion") ||
+              mode === "source admission first"
               ? 0
               : 1,
           );
@@ -251,7 +284,7 @@ for (
               "SELECT count(*)::int AS count FROM internal.observation_photo_moderation_attempts WHERE operation_id=$1",
               [operation],
             )).rows[0].count,
-            scenario === "source admission first" ? 1 : 0,
+            mode === "source admission first" ? 1 : 0,
           );
           return;
         }

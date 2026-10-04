@@ -13909,3 +13909,46 @@ JPEG/PNG container is invalid. Container rejection still requires a verified
 source-bound attestation; read failures, digest uncertainty, network, storage,
 timeouts and authority changes never become this outcome. All gates remain
 false.
+
+## Prepared verified-container rejection attestation
+
+The service-only
+`finalize_publication_container_rejection(owner, observation,
+operation, work, attestation)`
+persists a conservative public-publication remediation decision. It does not
+declare private evidence invalid. The bounded attestation contains exactly
+`{schema_version:1,
+policy_version:"public_photo_container_v1",source:{media_id,object_id,
+content_type,byte_count,sha256}}`.
+SQL requires one exact original JPEG/PNG intent member; it cannot inspect image
+bytes itself. The private table has no direct API-role privileges and deletes
+with the accepted operation.
+
+The trusted preflight verifies exact length and SHA-256 before running the
+container validator. Only the validator's deliberate typed policy rejection,
+with the shared signal still live, can create this frozen evidence. Transport
+lookalikes, unexpected parser exceptions, read errors, digest mismatch and
+cancellation remain unavailable/recoverable. The worker catches only that typed
+result around preflight, retains a bounded completion window, and submits it
+through the operation-scoped repository without provider admission or dispatch.
+
+Owner/deletion and accepted scope precede replay. A valid committed publication
+returns `{finalized:true,status:"admitted",reason:null}` without an attestation.
+Exact saved attestation replay precedes live work and gates; changing the source
+or policy cannot rewrite it. New settlement requires exact live work, the
+independent default-false `publication_container_settlement_enabled` gate, no
+provider attempt of any state and no copy cohort. It atomically inserts the
+immutable attestation and zero-attempt `needs_action/public_container_rejected`
+outcome and removes moderation work. No copy work is seeded; provider and
+complimentary quota are unchanged. Existing attempts retain recovery ownership.
+
+The service receipt is exactly
+`{finalized:true,status:"needs_action",
+reason:"public_container_rejected"}`.
+Owner status keeps its existing five-field shape without sources, private
+reasons or work tokens. This decision applies to the immutable operation's
+approved evidence; remediation requires a separately consented operation, never
+silently transformed or replaced bytes. Policy changes must version the
+validator and its accepted attestation contract together. All activation gates
+stay false; native remediation delivery and runtime/CDN qualification remain
+pending.

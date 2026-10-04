@@ -1001,3 +1001,26 @@ Deno.test("unsupported publication source settlement is gated and cannot replace
   assert(!sql.includes("reserve_ai_quota"));
   assert(!sql.includes("TO authenticated"));
 });
+
+Deno.test("verified container settlement stores exact immutable service attestation before retiring zero-attempt work", async () => {
+  const sql = await migration(
+    "20261004175732_settle_verified_publication_container_rejections",
+  );
+  assertStringIncludes(
+    sql,
+    "publication_container_settlement_enabled BOOLEAN NOT NULL DEFAULT FALSE",
+  );
+  assertStringIncludes(
+    sql,
+    "REVOKE ALL ON internal.observation_publication_container_attestations FROM PUBLIC,anon,authenticated,service_role",
+  );
+  assertStringIncludes(sql, "saved.attestation IS DISTINCT FROM p_attestation");
+  assertStringIncludes(sql, "s=p_attestation->'source'");
+  assertStringIncludes(sql, "WHERE operation_id=p_operation)");
+  assert(
+    sql.indexOf("SELECT * INTO outcome") <
+      sql.indexOf("PERFORM internal.assert_publication_operation_work"),
+  );
+  assertStringIncludes(sql, "internal.privileged_routine_grants");
+  assert(!sql.includes("reserve_ai_quota"));
+});

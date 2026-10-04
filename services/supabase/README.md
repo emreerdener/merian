@@ -3419,6 +3419,16 @@ The existing moderation worker can consume durable `unsupported_source_type`
 needs-action outcomes before external preflight or quota. SQL derives them from
 immutable source metadata under a separate default-false gate and only with zero
 existing provider attempts. Provider decisions, copy outcomes and source
-remediation remain distinct; verified container rejection is still pending. See
-the
+remediation remain distinct; verified container rejection uses the separate
+attestation boundary below. See the
 [API contract](../../docs/backend-and-data/05-api-contracts.md#prepared-unsupported-publication-source-settlement).
+
+## Prepared verified-container remediation
+
+A deliberate container-policy rejection after exact byte/digest verification can
+now retire a zero-attempt publication operation through a private immutable
+attestation. Generic parser, read, storage, digest and cancellation failures
+remain recoverable. The service-only finalizer and worker integration are behind
+an independent default-false gate; this is conservative publication remediation,
+not invalidation of private evidence. See the
+[API contract](../../docs/backend-and-data/05-api-contracts.md#prepared-verified-container-rejection-attestation).

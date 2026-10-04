@@ -10,7 +10,26 @@ import {
   preparePublicationPhotoClassifier,
   type PublicationPhotoSource,
 } from "./photoClassifier.ts";
-import { validatePublicPhotoContainer } from "./publicPhotoContainer.ts";
+import {
+  PUBLIC_PHOTO_CONTAINER_POLICY,
+  PublicPhotoContainerRejected,
+  validatePublicPhotoContainer,
+} from "./publicPhotoContainer.ts";
+
+/** Service-private evidence, created only after exact source bytes were verified. */
+export class PublicationPhotoCohortContainerRejection extends Error {
+  readonly attestation;
+  constructor(source: Readonly<PublicationPhotoSource>) {
+    super("publication_photo_container_rejected");
+    this.name = "PublicationPhotoCohortContainerRejection";
+    this.attestation = Object.freeze({
+      schema_version: 1 as const,
+      policy_version: PUBLIC_PHOTO_CONTAINER_POLICY,
+      source: Object.freeze({ ...source }),
+    });
+    Object.freeze(this);
+  }
+}
 
 /** A successful return means every ordered source passed preflight. It conveys
  * no moderation approval: invocation still requires durable proof and dispatch.
@@ -63,6 +82,7 @@ export async function preparePublicationPhotoCohort(
     : timeout;
   const storage = new PrivateHistoryEvidenceStorage();
   const verified = new Map<string, Uint8Array>();
+  let verifiedRejection: PublicationPhotoCohortContainerRejection | undefined;
   try {
     for (const source of sources) {
       signal.throwIfAborted();
@@ -75,12 +95,28 @@ export async function preparePublicationPhotoCohort(
       ) {
         invalidHistory();
       }
-      validatePublicPhotoContainer(bytes, source.content_type);
+      signal.throwIfAborted();
+      try {
+        validatePublicPhotoContainer(bytes, source.content_type);
+      } catch (error) {
+        signal.throwIfAborted();
+        if (!(error instanceof PublicPhotoContainerRejected)) {
+          throw error;
+        }
+        verifiedRejection = new PublicationPhotoCohortContainerRejection(
+          source,
+        );
+        throw verifiedRejection;
+      }
       signal.throwIfAborted();
       verified.set(source.media_id, bytes);
     }
-  } catch {
+  } catch (error) {
     verified.clear();
+    // A transport cannot forge a terminal result by throwing a lookalike error.
+    if (verifiedRejection && error === verifiedRejection && !signal.aborted) {
+      throw verifiedRejection;
+    }
     throw new HistoryError("analysis_history_evidence_unavailable");
   }
   let selected = false;

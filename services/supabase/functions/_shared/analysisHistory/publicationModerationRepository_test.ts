@@ -1,3 +1,4 @@
+import { PublicationPhotoCohortContainerRejection } from "./photoCohortPreflight.ts";
 import { assert, assertEquals, assertRejects, assertThrows } from "@std/assert";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
@@ -300,4 +301,60 @@ Deno.test("moderation repository strictly validates finalizer phase receipts", a
       ]).finalize()
     );
   }
+});
+
+Deno.test("container rejection repository freezes exact scope and refuses substitute evidence or receipts", async () => {
+  const rejected = new PublicationPhotoCohortContainerRejection(source());
+  let calls = 0;
+  const repo = publicationModerationRepository(
+    client((name, args) => {
+      calls++;
+      assertEquals(name, "finalize_publication_container_rejection");
+      assertEquals(args, {
+        p_owner: id(1),
+        p_observation: id(2),
+        p_operation: id(3),
+        p_work: id(4),
+        p_attestation: rejected.attestation,
+      });
+      return {
+        finalized: true,
+        status: "needs_action",
+        reason: "public_container_rejected",
+      };
+    }),
+    identity(),
+    [source()],
+  );
+  assertEquals(await repo.rejectContainer(rejected), true);
+  await assertRejects(() =>
+    repo.rejectContainer(
+      new PublicationPhotoCohortContainerRejection({
+        ...source(),
+        sha256: "b".repeat(64),
+      }),
+    )
+  );
+  assertEquals(calls, 1);
+  for (
+    const value of [{ finalized: false }, {
+      finalized: true,
+      status: "needs_action",
+      reason: "unsupported_source_type",
+    }, { finalized: true, status: "admitted", reason: null, source: source() }]
+  ) {
+    await assertRejects(() =>
+      publicationModerationRepository(client(() => value), identity(), [
+        source(),
+      ]).rejectContainer(rejected)
+    );
+  }
+  assertEquals(
+    await publicationModerationRepository(
+      client(() => ({ finalized: true, status: "admitted", reason: null })),
+      identity(),
+      [source()],
+    ).rejectContainer(rejected),
+    true,
+  );
 });

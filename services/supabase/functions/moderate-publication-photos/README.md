@@ -16,8 +16,8 @@ cohort and prepares one photo before quota and one provider invocation. No
 successor is automatically created. Unsupported source types can settle before
 any provider attempt through the independent default-false source-settlement
 gate. Unavailable sources and unattested container failures still back off
-without new quota; verified container remediation remains an activation
-condition.
+without new quota; verified container remediation uses the separate closed gate
+described below.
 
 A shared 135-second request deadline bounds all awaited I/O. New work/provider
 execution stops at 105 seconds, leaving 30 seconds for up to two 12-second
@@ -37,3 +37,15 @@ review again and separately moderate immutable notes. CPU/memory qualification,
 expired-work operational recovery, exact-source remediation and CDN cache bypass
 remain required before activation. See the
 [worker API contract](../../../../docs/backend-and-data/05-api-contracts.md#prepared-photo-moderation-execution-worker).
+
+## Verified container remediation
+
+Only a typed container-policy rejection after exact byte length and digest
+verification can submit an immutable source/policy attestation. The worker keeps
+one bounded finalizer window within its overall deadline and never admits a
+provider on this branch. SQL requires original live work, no provider attempts,
+exact intent source and the independent default-false container-settlement gate;
+identical replay and committed publication precede live-work checks. Unexpected
+parser, storage, digest and cancellation errors remain recoverable. This is a
+conservative publication decision, not invalidation of private evidence. Native
+remediation delivery and runtime qualification remain activation conditions.

@@ -1,10 +1,14 @@
 import { assert, assertEquals, assertRejects } from "@std/assert";
-import { preparePublicationPhotoCohort } from "./photoCohortPreflight.ts";
+import {
+  preparePublicationPhotoCohort,
+  PublicationPhotoCohortContainerRejection,
+} from "./photoCohortPreflight.ts";
 import { evidenceDigest } from "./evidence.ts";
 import {
   joined,
   jpegSegment,
   safeJpeg,
+  safePng,
 } from "./testing/publicPhotoFixtures.ts";
 const id = (n: number) =>
   `00000000-0000-4000-8000-${n.toString().padStart(12, "0")}`;
@@ -150,4 +154,88 @@ Deno.test("cohort preflight aborts a suspended source read through its shared si
   } finally {
     clearTimeout(timer);
   }
+});
+
+Deno.test("container attestation contains only immutable exact verified source and policy", async () => {
+  const bytes = joined(
+    safeJpeg().slice(0, 2),
+    jpegSegment(0xe1, [1, 2, 3]),
+    safeJpeg().slice(2),
+  );
+  const input = await source(1, bytes);
+  const error = await assertRejects(
+    () =>
+      preparePublicationPhotoCohort([input], {
+        readSource: () => Promise.resolve(bytes),
+      }),
+    PublicationPhotoCohortContainerRejection,
+  );
+  assertEquals(error.attestation, {
+    schema_version: 1,
+    policy_version: "public_photo_container_v1",
+    source: input,
+  });
+  input.sha256 = "f".repeat(64);
+  assert(error.attestation.source.sha256 !== input.sha256);
+  assert(
+    Object.isFrozen(error) && Object.isFrozen(error.attestation) &&
+      Object.isFrozen(error.attestation.source),
+  );
+});
+Deno.test("read errors cannot spoof verified container evidence and digest mismatch stays unavailable", async () => {
+  const input = await source(1);
+  for (
+    const failure of [
+      new Error("publication_photo_not_sanitized"),
+      new PublicationPhotoCohortContainerRejection(input),
+    ]
+  ) {
+    const error = await assertRejects(
+      () =>
+        preparePublicationPhotoCohort([input], {
+          readSource: () => Promise.reject(failure),
+        }),
+      Error,
+      "analysis_history_evidence_unavailable",
+    );
+    assert(!(error instanceof PublicationPhotoCohortContainerRejection));
+  }
+  const error = await assertRejects(
+    () =>
+      preparePublicationPhotoCohort([input], {
+        readSource: () => Promise.resolve(new Uint8Array(input.byte_count)),
+      }),
+    Error,
+    "analysis_history_evidence_unavailable",
+  );
+  assert(!(error instanceof PublicationPhotoCohortContainerRejection));
+});
+
+Deno.test("verified PNG policy rejection is distinct from an unexpected parser failure", async () => {
+  const bad = safePng();
+  bad[bad.length - 1] ^= 1;
+  const input = { ...await source(1, bad), content_type: "image/png" };
+  await assertRejects(
+    () =>
+      preparePublicationPhotoCohort([input], {
+        readSource: () => Promise.resolve(bad),
+      }),
+    PublicationPhotoCohortContainerRejection,
+  );
+  class UnexpectedParserBytes extends Uint8Array {
+    override subarray(): never {
+      throw new Error("unexpected parser fault");
+    }
+  }
+  const unusual = new UnexpectedParserBytes(safePng());
+  const ordinary = { ...await source(1, unusual), content_type: "image/png" };
+  const error = await assertRejects(
+    () =>
+      preparePublicationPhotoCohort([ordinary], {
+        readSource: () => Promise.resolve(unusual),
+      }),
+    Error,
+    "analysis_history_evidence_unavailable",
+  );
+  assert(!(error instanceof PublicationPhotoCohortContainerRejection));
 });

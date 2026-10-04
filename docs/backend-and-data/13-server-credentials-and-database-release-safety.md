@@ -840,3 +840,13 @@ deployment. Existing attempts retain their recovery lifecycle; no quota is
 admitted or refunded. Stored outcomes replay after gate closure and deletion
 wins. Verified container rejection, runtime qualification and native delivery
 remain separate activation requirements.
+
+## Verified-container settlement boundary
+
+`finalize_publication_container_rejection` is service-only and independently
+gated off. SQL verifies the original immutable source and policy, but relies on
+the trusted byte-verifying preflight for the actual container-policy decision.
+No public/client attestation authority or direct table access is granted. No
+attempts, quota, copies or activation are created. Publication and deletion
+precedence, identical replay, and immutable evidence are mandatory. Validator
+policy changes must version the accepted attestation contract together.

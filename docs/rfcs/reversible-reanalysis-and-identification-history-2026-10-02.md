@@ -2575,3 +2575,13 @@ quota. Existing provider attempts retain their original recovery rules. Verified
 container attestation, bounded copy service integration, owner/native delivery
 and runtime/CDN qualification remain incomplete. This checkpoint authorizes no
 activation or deployment.
+
+## Implementation checkpoint: verified container remediation
+
+A prepared service path now stores exact source-bound container-policy rejection
+evidence and retires zero-attempt publication work atomically. It distinguishes
+conservative public-publication rejection from private evidence validity, and
+preserves generic read/parser/network/digest/cancellation recovery. Original
+attempts and committed publications cannot be replaced. All gates remain off.
+Bounded copy service ownership, owner/native remediation delivery and
+CPU/memory/CDN qualification remain incomplete.

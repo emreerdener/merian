@@ -1,3 +1,4 @@
+import { PublicationPhotoCohortContainerRejection } from "../_shared/analysisHistory/photoCohortPreflight.ts";
 import { assert, assertEquals } from "@std/assert";
 import type {
   PhotoClassifierProof,
@@ -86,6 +87,10 @@ function fixture(initial: RecoveredPhotoWork | null = null) {
               current.state,
             ),
         );
+      },
+      rejectContainer: () => {
+        calls.push("rejectContainer");
+        return Promise.resolve(true);
       },
       admit: () => {
         calls.push("admit");
@@ -292,4 +297,35 @@ Deno.test("publication worker reserves dispatch latency before allowing a paid p
   await moderatePublicationPhotos(f.deps);
   assert(!f.calls.includes("invoke"));
   assert(!f.calls.includes("complete"));
+});
+
+Deno.test("worker settles only typed verified container rejection without provider admission", async () => {
+  const f = fixture();
+  f.deps.preflight = () =>
+    Promise.reject(new PublicationPhotoCohortContainerRejection(source));
+  assertEquals(await moderatePublicationPhotos(f.deps), {
+    claimed: 1,
+    settled: 1,
+  });
+  assertEquals(f.calls, [
+    "list",
+    "claim",
+    "read",
+    "finalize",
+    "rejectContainer",
+    "release",
+  ]);
+});
+Deno.test("worker does not settle a container rejection after completion budget is exhausted", async () => {
+  const f = fixture();
+  f.deps.preflight = () => {
+    f.clock(124_000);
+    return Promise.reject(new PublicationPhotoCohortContainerRejection(source));
+  };
+  assertEquals(await moderatePublicationPhotos(f.deps), {
+    claimed: 1,
+    settled: 0,
+  });
+  assert(!f.calls.includes("rejectContainer"));
+  assert(!f.calls.includes("admit"));
 });

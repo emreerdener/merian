@@ -586,6 +586,18 @@ closed gate; no worker or activation is added. See the
 `unsupported_source_type` needs-action receipt. SQL can derive it from immutable
 non-JPEG/PNG source metadata only before any provider attempt, under its
 independent default-false gate. The worker consumes it before preflight. This
-does not classify byte/container failures: those still need a verified
-source-bound attestation. No provider or complimentary quota changes, implicit
-retries, or copy-work creation occur.
+does not classify byte/container failures: those use the separate verified
+source-bound attestation below. No provider or complimentary quota changes,
+implicit retries, or copy-work creation occur.
+
+## Verified-container rejection ownership
+
+`PublicPhotoContainerRejected` marks only deliberate policy rejection.
+`preparePublicationPhotoCohort` creates a frozen
+`PublicationPhotoCohortContainerRejection` only after verified exact bytes and
+live-signal checks; an error thrown by a transport cannot spoof that path.
+`publicationModerationRepository.rejectContainer` checks the frozen original
+source and uses the bounded service finalizer. Immutable source/policy
+attestation and zero-attempt needs-action settlement never authorize provider
+retries or copy work. Unknown errors remain recoverable. Policy changes require
+a new attestation version; no raw bytes or diagnostics are persisted.
