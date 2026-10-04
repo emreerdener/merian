@@ -10396,3 +10396,18 @@ private/public column separation and NOWAIT guards. These enter the existing
 complete backend and disposable-database gates. See the
 [publication contract](../backend-and-data/05-api-contracts.md#prepared-analysis-publication-snapshots-and-public-reads)
 for the integration boundaries these tests do not activate.
+
+## Community admission verification
+
+`tests/observation_community_admission.sql` covers the closed gate and private
+grants, lost-response replay, changed intent, private-detail suppression, frozen
+media and request evidence, direct insertion denial, stale revisions, existing
+post refusal, request removal and account erasure.
+`_tests/observationCommunityAdmissionConcurrencyDb.test.ts` uses independent
+local database sessions for duplicate admissions, review before admission and
+account deletion in both orders. The static migration contract checks the
+private writer, transaction fence and sanitized public marker. These run through
+the existing complete backend and disposable catalog gates. They do not prove
+live moderation, protected-to-public media copying, an Edge route or native
+operation recovery; those remain explicit
+[activation requirements](../backend-and-data/05-api-contracts.md#prepared-atomic-community-request-admission).

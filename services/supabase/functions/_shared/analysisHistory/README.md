@@ -363,3 +363,13 @@ writer has no API grant and its gate defaults false; there is no moderated
 publisher or native sharing caller yet. See the
 [publication contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-analysis-publication-snapshots-and-public-reads)
 for read coverage, reference retirement and remaining activation work.
+
+## Prepared community request admission
+
+The private atomic admission owner now creates one fresh analysis-bound request,
+freezes approved public evidence, and records an immutable operation receipt.
+Exact retries recover without replacing a discussion or reapplying authority. No
+API writer, moderated endpoint or native caller is enabled. See the
+[canonical contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-atomic-community-request-admission)
+for the default-off gate, insertion proof, public-reader privacy and remaining
+publisher integration.

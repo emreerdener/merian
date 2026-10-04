@@ -2342,3 +2342,13 @@ playable source before the assertion. That failure remains under investigation;
 neither these backend checks nor earlier native evidence establish a green
 candidate. This slice changes no native source and performs no deployment,
 activation or TestFlight upload.
+
+### October 4, 2026: private community admission transaction
+
+The next preparation adds atomic fresh-request admission with immutable retry
+intent, a consumed same-transaction insertion fence, and frozen approved public
+evidence. It refuses reuse of existing discussions and suppresses private scan
+fields in pending community detail. This remains an internal default-off
+boundary without an API grant or moderated/native caller. See the
+[current admission contract](../backend-and-data/05-api-contracts.md#prepared-atomic-community-request-admission)
+for the authoritative implementation and remaining integration.

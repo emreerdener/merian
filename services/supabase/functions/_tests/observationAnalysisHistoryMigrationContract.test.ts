@@ -573,3 +573,51 @@ Deno.test("publication snapshots preserve a private writer and immediate public 
       .test(sql),
   );
 });
+
+Deno.test("community admission freezes evidence and replay without exposing an API writer", async () => {
+  const sql = await migration(
+    "20261004072651_prepare_analysis_community_admission",
+  );
+  for (
+    const fragment of [
+      "community_admission_enabled BOOLEAN NOT NULL DEFAULT FALSE",
+      "CREATE TABLE internal.observation_community_admissions",
+      "CREATE TABLE internal.observation_community_admission_fences",
+      "f.creation_transaction=pg_catalog.pg_current_xact_id()",
+      "CREATE TABLE public.explore_analysis_community_posts",
+      "RETURN saved.receipt",
+      "PERFORM internal.bind_observation_community_request",
+      "guard_observation_community_request_evidence",
+      "admitted.post_id IS NULL OR published.post_id IS NOT NULL",
+      "published.post_id IS NULL AND admitted.post_id IS NULL THEN",
+    ]
+  ) assertStringIncludes(sql, fragment);
+  const body = sql.slice(
+    sql.indexOf("CREATE FUNCTION internal.admit_observation_community_request"),
+  );
+  assert(
+    body.indexOf("internal.scan_deletion_tombstones") <
+      body.indexOf("RETURN saved.receipt"),
+  );
+  assert(
+    body.indexOf("RETURN saved.receipt") <
+      body.indexOf("IF (SELECT community_admission_enabled"),
+  );
+  assert(
+    !/GRANT EXECUTE|UPDATE internal\.observation_history_rollout/i.test(sql),
+  );
+  const publicColumns = sql.slice(
+    sql.indexOf("CREATE TABLE public.explore_analysis_community_posts"),
+    sql.indexOf("ALTER TABLE public.explore_analysis_community_posts"),
+  );
+  for (
+    const field of [
+      "analysis_id",
+      "owner_id",
+      "request_id",
+      "intent",
+      "receipt",
+      "media_manifest",
+    ]
+  ) assert(!publicColumns.includes(field));
+});

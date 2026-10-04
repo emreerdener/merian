@@ -6924,3 +6924,22 @@ health checks remain mutable. Registration retires attributed reference cache
 rows and compatibility URLs under a try-lock shared with reference refresh. The
 [publication contract](05-api-contracts.md#prepared-analysis-publication-snapshots-and-public-reads)
 owns admission, consumer coverage and the remaining publisher/activation work.
+
+### Prepared community admission storage
+
+`20261004072651_prepare_analysis_community_admission.sql` adds private immutable
+`observation_community_admissions` and transaction-only
+`observation_community_admission_fences`, plus default-false
+`community_admission_enabled`. The receipt table has unique operation/request/
+post identities and an indexed result foreign key that cascades with history. It
+has no request/post cascade: deleting a discussion must not permit a retry to
+recreate it. Private tables have RLS and no API grants. The consumed insertion
+fence allows only its exact same-transaction request tuple.
+
+The RLS-protected public `explore_analysis_community_posts` marker contains only
+a post ID and cascades with the post. Direct API reads have no policies; trusted
+service-mediated readers use it to prevent legacy private evidence fallback. It
+freezes the existing public media cohort and initial request evidence before
+resolution. See the
+[admission contract](05-api-contracts.md#prepared-atomic-community-request-admission)
+for retry, privacy, admission and remaining integration boundaries.

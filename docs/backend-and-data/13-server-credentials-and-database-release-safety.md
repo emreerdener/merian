@@ -351,6 +351,14 @@ reverse lock waits. See the
 [publication contract](05-api-contracts.md#prepared-analysis-publication-snapshots-and-public-reads)
 for the separate moderated-publisher and activation requirements.
 
+Private community admission adds no API execution grant or production caller.
+Its consumed same-transaction fence authorizes only one exact new request; it is
+not a session setting or bypass available to service clients. The public marker
+holds only a post ID, while intent and operation receipts remain private and
+cascade with history. Moderation and evidence ownership must be proven by the
+future publisher before invoking the private routine. See the
+[admission contract](05-api-contracts.md#prepared-atomic-community-request-admission).
+
 ## Migration Execution Contract
 
 CI pins Supabase CLI `2.109.1`, which owns migration transaction and

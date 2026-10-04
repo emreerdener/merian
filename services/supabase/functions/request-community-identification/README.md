@@ -142,3 +142,13 @@ request nor weaken identity equality.
 
 The route uses `withEdgeHandler`; the authenticated user ID is always the owner
 boundary. It never accepts a caller-supplied owner ID.
+
+## Prepared community request admission
+
+The private atomic admission owner now creates one fresh analysis-bound request,
+freezes approved public evidence, and records an immutable operation receipt.
+Exact retries recover without replacing a discussion or reapplying authority. No
+API writer, moderated endpoint or native caller is enabled. See the
+[canonical contract](../../../../docs/backend-and-data/05-api-contracts.md#prepared-atomic-community-request-admission)
+for the default-off gate, insertion proof, public-reader privacy and remaining
+publisher integration.

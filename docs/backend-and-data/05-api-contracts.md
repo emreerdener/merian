@@ -12891,9 +12891,11 @@ authority revisions before counting or displaying verified identity. The
 subsequent
 [publication preparation](#prepared-analysis-publication-snapshots-and-public-reads)
 adds frozen public snapshots, immediate invalidation and otherwise-visible
-post/discussion preservation. Moderated publication admission, explicit shared
-updates, new-request receipts, worker scheduling and native integration remain
-activation requirements. The community foundation alone enables none of them.
+post/discussion preservation. The subsequent
+[private admission transaction](#prepared-atomic-community-request-admission)
+adds fresh-request receipts and frozen evidence. Its moderated caller, explicit
+shared updates, worker scheduling and native integration remain activation
+requirements. The community foundation alone enables none of them.
 
 ### Prepared analysis publication snapshots and public reads
 
@@ -12948,3 +12950,54 @@ with request-first consensus. A failed operation rolls back completely and must
 retry. New admission gates never suppress revocation. The moderated publisher,
 explicit shared-identification update, durable worker, native integration and
 remaining activation checks are still required.
+
+### Prepared atomic community-request admission
+
+`internal.admit_observation_community_request` now prepares the fresh-request
+transaction behind default-false `community_admission_enabled` and the existing
+community-authority gate. It has no API-role execution grant, including service
+role, no Edge caller and no native caller. The future publisher must
+authenticate the owner, moderate and copy the named analysis's evidence to
+approved public media, and freeze that intent before invoking this private
+boundary. The routine accepts only a bounded public cohort, never private signed
+tickets. Its URL shape checks are not moderation or proof of evidence ownership.
+
+Admission locks owner, observation generation, live scan, history and the named
+authority. Both expected revisions must match; the named result must be
+biological and unreviewed, without existing community authority. The active
+taxonomy and optional non-Human initial taxon are checked explicitly. V1 hides
+location and accepts at most six approved media items and a 1,000-character
+public note. Existing posts or requests cause a conflict: this operation never
+reopens, replaces or silently binds an older discussion.
+
+A private same-transaction insertion fence authorizes only the exact freshly
+generated request/post/owner/observation tuple. The normal enrolled-scan guard
+continues to reject every unfenced insertion. Admission creates post, approved
+media, sanitized marker, fresh `needs_id` request, immutable analysis binding
+and retry receipt in one transaction; initial reconciliation advances authority
+without changing selection. The transient insertion fence is consumed before
+commit. A failure leaves none of those writes behind.
+
+The operation UUID identifies an immutable intent and receipt. Deletion and
+ownership checks precede replay. An exact retry returns the same original
+`admitted` receipt, even after admission closes or the request is deleted; it
+never recreates a request or reapplies authority. This is historical evidence of
+admission, not a current request-state response. Changed identities, revisions,
+note, taxonomy or media conflict. Observation/account erasure removes the
+private operation through the history cascade.
+
+`public.explore_analysis_community_posts` stores only the post ID. It survives
+private-history removal until post deletion and prevents fallback to mutable
+scan evidence. Community detail uses the frozen post cohort and suppresses AI
+suggestions, confidence qualification and inference metadata. The current feed
+and Edge media enrichment already read that same cohort. Media identity/order
+and initial request note/taxon cannot drift; health metadata remains mutable,
+and unsharing/deletion can erase media. Legacy refresh leaves it alone. A new
+request has no resolved Explore sidecar and stays out of Explore even if its
+request later disappears. Explicit resolved publication registration remains a
+separate transaction boundary.
+
+The authenticated moderated publisher, saved native operation, authority-worker
+dispatcher and explicit updates for existing discussions remain activation
+requirements. This preparation changes no client payload and opens no rollout
+gate.
