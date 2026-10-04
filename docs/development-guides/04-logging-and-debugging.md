@@ -568,6 +568,51 @@ iOS without one of these events is a release/version-skew signal.
 
 ---
 
+## Legacy history deletion holds
+
+The exact HTTP `409` and stable code
+`legacy_observation_delete_requires_upgrade` mean the server refused a legacy
+deletion request for an observation with retained history. The refusal occurs
+before a deletion tombstone or media work. It is not an erasure confirmation or
+an accepted deletion waiting for the server reaper.
+
+Native `PendingCloudDeletionTask` remains present. Its `OfflineJobRecord`
+records `needsAttention`, the stable code, `lastHTTPStatus = 409`, a nil
+`nextRunAt`, and the message “Saved identification history needs review before
+this deletion can continue.” The queue records a `needsAttention` event rather
+than incrementing the retry count or recording completion. Re-enqueue and
+generic status recovery cannot clear this hold. Other HTTP/transport/decoding
+failures retain ordinary retry behavior.
+
+The local code `cloud_deletion_intent_requires_review` instead means the request
+has no valid persisted requesting-account/origin binding. It also retains the
+task, records `needsAttention`, and has no retry date; it does not imply an HTTP
+request was sent. A task belonging to another account is left unchanged until
+that account returns, with its deadline excluded from current-account wakes.
+Never repair either case by copying the current login into old metadata.
+
+Support should distinguish local removal, a held legacy request, and confirmed
+cloud erasure. An older app may already have removed its local original. The
+hold does not recover it, and no held-task resolution or restoration UI exists
+yet. Keep history enrollment disabled under the
+[activation hold](../backend-and-data/06-supabase-deployment-runbook.md#observation-analysis-history-activation-hold).
+Do not clear job codes, delete pending tasks, or manufacture a whole-observation
+deletion request to make the queue appear complete.
+
+The separate `cloud-deletion-discovery` job is scheduling metadata. It can be
+waiting with a cursor while earlier tasks are held. An active deletion drain
+temporarily suppresses only that discovery wake and rearms it on exit; an
+all-held sweep eventually finishes without recurring wakes. Neither state proves
+remote erasure. Use the
+[offline deletion contract](../backend-and-data/01-offline-sync-pipeline.md#2-cloud-deletion-tasking-pendingclouddeletiontask)
+and
+[focused regressions](./08-testing-strategy.md#observation-analysis-history-preparation)
+to diagnose restart, pagination or repeated-wake behavior. Keep scan IDs, cursor
+payloads, owner IDs and response bodies out of shared logs and support
+artifacts; use the existing redacted diagnostic export.
+
+---
+
 ## CircuitBreakerManager Logging
 
 `CircuitBreakerManager` logs its state transitions via `MerianLog.general`:
@@ -606,3 +651,41 @@ investigating lifecycle races. Do not reintroduce `[RepliesDebug]`,
 `[UIRepliesDebug]`, or identifier-bearing `print()` calls. Hosted iOS CI obtains
 failed names and assertion text from the structured `.xcresult`; raw unified
 logs are only a fallback for build failures.
+
+## Guest library transition triage
+
+Use the
+[guest library transition contract](../backend-and-data/21-guest-library-transitions.md)
+as the authority for recovery. Authentication, library transfer, restoration,
+mutation acknowledgment and media availability are separate results. An empty
+runnable queue or successful OAuth callback does not prove the library is safe
+to remove.
+
+| Visible state                                        | Interpretation and supported next step                                                                                                                                                                                                                                               |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Library changes need attention                       | Preflight has retained the current library. Use Review pending changes to reach the affected item, retry scans or synchronization, or use existing repair actions. Cancel cancels the account-change request only; Keep syncing requires a fresh sign-in/sign-out attempt afterward. |
+| Signed in; finishing library transfer                | Authentication succeeded but transfer has not completed. Retry transfer. If it needs attention, use Contact support; expired proofs stay retained. Further identity replacement and destination editing remain blocked.                                                              |
+| Finishing sign out                                   | Commitment already occurred. Retry resumes the journal through local clearing, replacement-guest persistence and purchase completion. Do not start a new transition or remove recovery evidence.                                                                                     |
+| Recover your library account                         | The local library belongs to another or missing session. Restore the same account; a guest requires its original session. Bootstrap cannot assign nonempty local work to a new guest.                                                                                                |
+| Restoration needs attention                          | Retry synchronization. Failed pages, quarantined rows or missing private-detail results prevent completion; opening one scan does not prove full restoration.                                                                                                                        |
+| Restoration completed, but an item has missing media | Investigate that item's existing media-recovery path. Restoration completion does not certify media availability or acknowledge pending edits.                                                                                                                                       |
+
+Before destination authentication, a still-anonymous source may resume the
+same-provider OAuth continuation only when every retained handoff matches that
+source/provider, has no destination and has no needs-attention flag. This is
+recovery of the recorded flow, not permission to switch providers or accounts.
+The signed-in transfer overlay above applies after destination authentication.
+
+Record the app/build, visible state, operation kind, bounded error code and
+whether the failure occurred before or after commitment. Follow the strict Auth
+logging rules above: do not export Keychain journals, merge proofs, operation
+payloads, account identifiers, notes, tokens or media URLs. Inspect the owning
+queue and restoration tests using synthetic data before treating a missing log
+line as evidence of successful synchronization.
+
+Detail acknowledgment-save and ambiguous-response failures retain the immutable
+operation for retry. The scheduler has a five-second in-process fallback; it is
+not a durable timer or evidence that work was acknowledged. A failed preparation
+save prevents historical fetching so an empty cloud baseline cannot overwrite
+legacy notes. Never clear app data, defaults, queues or Keychain to bypass these
+barriers during recovery.

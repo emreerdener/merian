@@ -157,22 +157,23 @@ credits are not restored retroactively.
 
 ## Completion and terminal settlement
 
-`public.complete_scan_ingestion_with_entitlement(...)` is the only service
-completion entry point after cutover. It locks the user first, enters the
-completion fence, invokes the existing canonical media/scan finalizer, settles
-the ledger, derives the post-settlement entitlement, attaches optional response
-metadata, and stores the enriched success envelope. Trigger fences prevent a
-lower-level job update or old completion RPC from bypassing this orchestrator.
+`public.complete_scan_ingestion_with_entitlement(...)` remains the service
+completion entry point for legacy scan ingestion after cutover. It locks the
+user first, enters the completion fence, invokes the existing canonical
+media/scan finalizer, settles the ledger, derives the post-settlement
+entitlement, attaches optional response metadata, and stores the enriched
+success envelope. Trigger fences prevent a lower-level job update or old
+completion RPC from bypassing this orchestrator.
 
 A hold is consumed only after the owner scan and every required image, audio, or
 playback-video artifact are durable and the ingestion generation is complete.
 `already_complete` is idempotent. If paid status became active before this
 point, the hold is released with `paid_before_completion` instead.
 
-`public.fail_scan_ingestion_terminal(...)` is the only service terminalization
-entry point after cutover. It locks the user before ingestion rows, marks the
-generation terminal, releases a still-held credit, returns the current
-entitlement, and never refunds provider counters.
+`public.fail_scan_ingestion_terminal(...)` remains the service terminalization
+entry point for legacy scan ingestion after cutover. It locks the user before
+ingestion rows, marks the generation terminal, releases a still-held credit,
+returns the current entitlement, and never refunds provider counters.
 
 | Outcome                                                                                | Complimentary settlement                                    |
 | -------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
@@ -187,6 +188,20 @@ Terminal settlement errors must propagate. Callers may log context, but they
 must not swallow an error and then write `failed_terminal` directly. Replay
 exhaustion, media reconciliation, deletion, and compatibility setup failures all
 route through the user-first terminal orchestrator.
+
+The prepared, unexposed history lifecycle uses
+`internal.settle_complimentary_analysis` as the same ledger transition owner now
+called by both legacy service orchestrators. Private child completion atomically
+appends a durable V1 description result or V2 photo-bound result and stores its
+settlement receipt; legacy scan RPCs reject child IDs. One child analysis ID
+owns at most one credit consumption, independently of reservation leases and
+provider invocations. Dispatch never consumes the user's complimentary credit.
+Deletion releases an unfinished hold and refunds only an unused pre-dispatch
+provider reservation; consumed results and dispatched provider costs remain
+charged. Ambiguous work stays held until recovered or explicitly deleted. No
+history admission or provider worker is active. See the
+[prepared lifecycle](05-api-contracts.md#prepared-funded-child-analysis-lifecycle)
+and its closed release gates.
 
 ## Provider quota is independent
 

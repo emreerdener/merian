@@ -48,6 +48,20 @@ struct ScanRepositoryPurgeTests {
                 message: "Pending account work"
             )
         )
+        _ = try ObservationHistoryEnrollmentIntent.stage(observationID: UUID(), ownerID: speciesPreferenceTestUserID, context: context)
+        context.insert(OfflineJobRecord(id: ObservationHistoryEnrollmentIntent.jobID(UUID().uuidString), kind: .future, status: .cancelled))
+        let scan = LocalScanRecord(id: "purge-history", speciesId: "fixture", scientificName: "Fixture", commonName: "Fixture")
+        context.insert(scan)
+        context.insert(try LocalAnalysisRecord(
+            analysisID: UUID(), observationID: scan.id,
+            ownerAccountID: speciesPreferenceTestUserID, completedAt: Date(),
+            resultSnapshotData: Data("{\"private_evidence\":\"synthetic\"}".utf8)
+        ))
+        // Deliberately orphaned state proves account purge is exhaustive even
+        // when no parent cascade can reach a partially admitted historical row.
+        context.insert(try LocalAnalysisStateRecord(analysisID: UUID(), observationID: UUID().uuidString,
+            ownerAccountID: speciesPreferenceTestUserID, observationStateRevision: 1,
+            reviewRevision: 0, reviewSnapshotData: Data("{}".utf8)))
         try context.save()
 
         let suiteName = "merian.tests.account-purge.\(UUID().uuidString)"
@@ -91,6 +105,9 @@ struct ScanRepositoryPurgeTests {
         )
 
         #expect(didPurge)
+        #expect(try context.fetchCount(FetchDescriptor<LocalAnalysisStateRecord>()) == 0)
+        #expect(try context.fetchCount(FetchDescriptor<LocalAnalysisRecord>()) == 0)
+        #expect(try context.fetchCount(FetchDescriptor<LocalScanRecord>()) == 0)
         #expect(resetCount == 1)
         #expect(runtimeResetCount == 1)
         #expect(
@@ -130,6 +147,8 @@ struct ScanRepositoryPurgeTests {
     @Test func purgeInventoryTracksEveryCurrentSchemaEntity() {
         let purgedModelTypes: [any PersistentModel.Type] = [
             LocalScanRecord.self,
+            LocalAnalysisRecord.self,
+            LocalAnalysisStateRecord.self,
             OfflineQueuedScan.self,
             CapturedMediaEntry.self,
             ScanCollection.self,
@@ -149,6 +168,8 @@ struct ScanRepositoryPurgeTests {
         let purgedModelNames = [
             "CapturedMediaEntry",
             "LocalScanRecord",
+            "LocalAnalysisRecord",
+            "LocalAnalysisStateRecord",
             "ScanCollection",
             "OfflineQueuedScan",
             "ActiveOfflineQueuedScanGoalHint",
@@ -162,7 +183,7 @@ struct ScanRepositoryPurgeTests {
             source = try String(
                 contentsOf: repositoryRoot()
                     .appendingPathComponent(
-                        "apps/ios/Merian/Core/Data/Database/ScanRepository.swift"
+                        "apps/ios/Merian/Core/Data/Database/ScanLibraryPurgeService.swift"
                     ),
                 encoding: .utf8
             )

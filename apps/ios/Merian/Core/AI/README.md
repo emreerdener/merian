@@ -407,7 +407,12 @@ This README maps that contract to native source and test ownership.
   failures, and failed metadata saves preserve the original. Save failure
   restores only the helper's staged fields, not unrelated user edits. A cleanup
   failure can leave two scans; it cannot justify deleting the only usable
-  original. Review state intentionally belongs to the new analysis.
+  original. Review state intentionally belongs to the new analysis. This remains
+  the current native replacement workflow. The
+  [reversible-history backend preparation](../../../../../docs/rfcs/reversible-reanalysis-and-identification-history-2026-10-02.md#implementation-progress)
+  has not replaced it with append-only results or added restoration UI. History
+  activation requires removing replacement deletion from every completion path
+  and integrating the native migration, sync, retention and deletion gates.
 - `Inference/Recovery/InferenceLiveFailurePolicy.swift` owns stateless
   interruption and failure classification, modality-specific retirement reasons,
   and telemetry/circuit/feedback decisions. It reuses Core Network's

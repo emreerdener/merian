@@ -45,3 +45,9 @@ media/UI suites own extracted primitive behavior, and
 tests. `InsightsIntegrationArchitectureTests` enforces the top-level inventory,
 cross-feature owner locations, live-service boundaries, export fencing, and the
 600-line production-file ceiling.
+
+`History` owns the prepared bounded list, read-only preview and explicit
+selection/Undo sheet. Normal access remains nil; Shell provides scan-bound modal
+admission and Core owns persistence. See [History ownership](History/README.md)
+and the
+[prepared product contract](../../../../../docs/features-and-hardware/05-insight-sheet.md#prepared-identification-history-sheet).

@@ -181,6 +181,24 @@ export function mapDatabaseError(
   const internalMessage = error?.message ?? "RPC returned no data.";
   const normalized = internalMessage.toLowerCase();
 
+  if (normalized.includes("ghost_merge_source_work_pending")) {
+    return new GhostMergeDatabaseError(
+      "pending_library_work",
+      409,
+      "Library processing must finish before account transfer. Retry the transfer when processing completes.",
+      internalMessage,
+    );
+  }
+
+  if (normalized.includes("ghost_merge_source_history_requires_attention")) {
+    return new GhostMergeDatabaseError(
+      "library_transfer_needs_attention",
+      409,
+      "Some library records need attention before account transfer can finish.",
+      internalMessage,
+    );
+  }
+
   if (normalized.includes("ghost_merge_handoff_expired")) {
     return new GhostMergeDatabaseError(
       "handoff_expired",

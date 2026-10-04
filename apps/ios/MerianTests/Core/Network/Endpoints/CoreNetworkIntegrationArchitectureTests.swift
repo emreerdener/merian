@@ -80,10 +80,12 @@ struct CoreNetworkIntegrationArchitectureTests {
             in: purchaseIdentityFiles
         )
         let facadeLineCount = lineCount(aggregate)
-        // Reviewed startup fix: keyed foreground/listener coalescing and
-        // replacement fencing add 22 Auth lines and 14 facade lines.
+        // Reviewed library transitions add durable recovery, account isolation,
+        // mutation admission and transfer-status composition. Private transition
+        // state stays in the existing facade; extracted owners retain the 600-line
+        // ceiling above. This is a feature budget, not a new oversized exemption.
         #expect(
-            authProductionLineCount <= 7_756,
+            authProductionLineCount <= 7_886,
             "Auth production grew beyond its reviewed budget"
         )
         #expect(
@@ -91,13 +93,13 @@ struct CoreNetworkIntegrationArchitectureTests {
             "Purchase Identity production grew beyond its reviewed budget"
         )
         #expect(
-            facadeLineCount <= 3_475,
+            facadeLineCount <= 3_792,
             "SupabaseManager grew beyond its reviewed budget"
         )
         #expect(
             authProductionLineCount
                 + purchaseIdentityProductionLineCount
-                + facadeLineCount <= 13_247,
+                + facadeLineCount <= 13_694,
             "The Auth facade extraction surfaces grew in aggregate"
         )
         let models = try networkSource(
@@ -2036,7 +2038,7 @@ struct CoreNetworkIntegrationArchitectureTests {
         )
         #expect(
             aggregate.contains(
-                "ghostProfileMergeCoordinator.completePendingHandoffs("
+                "ghostProfileMergeCoordinator.completeTransfer("
             )
         )
         for retiredManagerHelper in [
@@ -3237,11 +3239,11 @@ struct CoreNetworkIntegrationArchitectureTests {
             "testPreparationRejectsProviderTransitionMismatchBeforeRemoteWork",
             "testPreparationRejectsChangedSessionBeforePersistingProof",
             "testSameTargetAndOwnerShareOneCompletionTask",
-            "testDifferentTargetCancelsStaleTaskBeforeProofRemoval",
+            "testDifferentTargetCannotReplayPinnedTransfer",
             "testTransitionOwnerReplacesOwnerlessTaskForSameTarget",
             "testUnreadableQueueFailsClosedBeforeSessionOrRemoteWork",
             "testTransientFailureRetainsProofAndSuppression",
-            "testTerminalFailureSynchronizesTargetBeforeClearingProof",
+            "testTerminalFailureRetainsProofAndRequiresAttention",
             "testCanceledTerminalResponseCannotSynchronizeOrClearProof",
             "testRetryableHandoffDoesNotBlockLaterHandoffCompletion",
             "testEmptyQueueReopensAnalyticsWithoutSessionOrRemoteWork",
@@ -3793,7 +3795,7 @@ struct CoreNetworkIntegrationArchitectureTests {
         #expect(
             lifecycleCoordinator.components(
                 separatedBy: "isCurrentPublishedSession("
-            ).count == 3
+            ).count == 4
         )
         #expect(
             lifecycleAssembly.components(
@@ -4505,6 +4507,9 @@ struct CoreNetworkIntegrationArchitectureTests {
     ]
 
     private static let authFoundationPaths: Set<String> = [
+        "Models/LibraryTransferResult.swift",
+        "Models/LibraryTransitionIssue.swift",
+        "Coordinators/LibrarySignOutRecoveryCoordinator.swift",
         "Coordinators/AccountDeletionCoordinationDependencies.swift",
         "Coordinators/AccountDeletionCoordinator.swift",
         "Coordinators/AccountDeletionRecoveryCoordinator.swift",

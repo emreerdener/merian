@@ -6,6 +6,113 @@ import XCTest
 
 @MainActor
 final class ExploreMapViewModelTests: XCTestCase {
+    func testZoomAcrossBoundaryReplacesCachedClusterWithoutManualSearch() async {
+        let post = makeMapPost(id: "zoomed-post", latitude: 1)
+        let cluster = ExploreMapCluster(id: "wide", latitude: 1, longitude: 1, postCount: 50)
+        var requests: [ExploreMapPointsRequest] = []
+        let model = ExploreMapViewModel(dependencies: .init(
+            loadPoints: { request in
+                requests.append(request)
+                return request.zoomLevel < 11
+                    ? ExploreMapPointsResponse(mode: .clusters, visibleCount: 50, clusters: [cluster])
+                    : ExploreMapPointsResponse(mode: .posts, visibleCount: 1, posts: [post])
+            },
+            now: { Date(timeIntervalSince1970: 1_800_000_000) },
+            debounceCameraSearch: { XCTFail("Cluster zoom must search when the camera settles") }
+        ))
+        let wide = MKCoordinateRegion(
+            center: cluster.coordinate,
+            span: MKCoordinateSpan(latitudeDelta: 0.18, longitudeDelta: 0.18)
+        )
+        model.visibleRegion = wide
+        await model.searchCurrentArea()
+        XCTAssertEqual(model.visibleClusters.count, 1)
+
+        // Less than the old movement/cache tolerances, but crosses the posts boundary.
+        var close = wide
+        close.span = MKCoordinateSpan(latitudeDelta: 0.17, longitudeDelta: 0.17)
+        model.markCameraChanged(region: close, positionedByUser: true)
+        await model.debounceSearchTask?.value
+
+        XCTAssertEqual(requests.count, 2)
+        XCTAssertEqual(model.mode, .posts)
+        XCTAssertTrue(model.visibleClusters.isEmpty)
+        XCTAssertEqual(model.visiblePosts.map(\.id), [post.id])
+        XCTAssertFalse(model.needsSearchInArea)
+    }
+
+    func testClusterTapLoadsSettledViewportImmediatelyAndContinuesPastOldZoomFloor() async throws {
+        let cluster = ExploreMapCluster(id: "cluster", latitude: 1, longitude: 1, postCount: 50)
+        var requests: [ExploreMapPointsRequest] = []
+        let model = ExploreMapViewModel(dependencies: .init(
+            loadPoints: { request in
+                requests.append(request)
+                return ExploreMapPointsResponse(mode: .clusters, visibleCount: 50, clusters: [cluster])
+            },
+            now: { Date() },
+            debounceCameraSearch: { XCTFail("Cluster taps must search immediately on settle") }
+        ))
+        model.visibleRegion = MKCoordinateRegion(
+            center: cluster.coordinate,
+            span: MKCoordinateSpan(latitudeDelta: 0.02, longitudeDelta: 0.02)
+        )
+        model.selectedSpeciesCategories = [.birds]
+        for _ in 0..<2 {
+            let previousSpan = try XCTUnwrap(model.visibleRegion?.span.longitudeDelta)
+            model.zoomIntoCluster(cluster)
+            var settled = try XCTUnwrap(model.cameraPosition.region)
+            XCTAssertLessThan(settled.span.longitudeDelta, previousSpan)
+            settled.span.latitudeDelta *= 1.2
+            model.markCameraChanged(region: settled)
+            await model.debounceSearchTask?.value
+            XCTAssertEqual(requests.last?.region.span.latitudeDelta, settled.span.latitudeDelta)
+        }
+        XCTAssertEqual(requests.count, 2)
+        XCTAssertTrue(requests.allSatisfy { $0.speciesCategories == [.birds] })
+    }
+
+    func testClusterTapSupersedesInFlightBroadViewportResponse() async throws {
+        let cluster = ExploreMapCluster(id: "old-cluster", latitude: 1, longitude: 1, postCount: 50)
+        let post = makeMapPost(id: "close-post", latitude: 1)
+        var releaseBroad: CheckedContinuation<ExploreMapPointsResponse, Never>?
+        var requestCount = 0
+        let model = ExploreMapViewModel(dependencies: .init(
+            loadPoints: { _ in
+                requestCount += 1
+                if requestCount == 1 {
+                    return await withCheckedContinuation { releaseBroad = $0 }
+                }
+                return ExploreMapPointsResponse(mode: .posts, visibleCount: 1, posts: [post])
+            },
+            now: { Date() },
+            debounceCameraSearch: { XCTFail("Cluster taps must not wait behind a broad request") }
+        ))
+        let broad = MKCoordinateRegion(
+            center: cluster.coordinate,
+            span: MKCoordinateSpan(latitudeDelta: 0.2, longitudeDelta: 0.2)
+        )
+        model.visibleRegion = broad
+        let oldLoad = Task { await model.fetchMapPoints(for: broad) }
+        while releaseBroad == nil { await Task.yield() }
+        model.zoomIntoCluster(cluster)
+        let settled = try XCTUnwrap(model.cameraPosition.region)
+        model.markCameraChanged(region: settled)
+        // A repeated MapKit end callback must not cancel the new request.
+        model.markCameraChanged(region: settled)
+        await model.debounceSearchTask?.value
+        XCTAssertEqual(requestCount, 2)
+        XCTAssertEqual(model.visiblePosts.map(\.id), [post.id])
+
+        releaseBroad?.resume(returning: ExploreMapPointsResponse(
+            mode: .clusters, visibleCount: 50, clusters: [cluster]
+        ))
+        await oldLoad.value
+        XCTAssertTrue(model.visibleClusters.isEmpty)
+        XCTAssertEqual(model.visiblePosts.map(\.id), [post.id])
+        XCTAssertEqual(model.lastCommittedRegion?.span.longitudeDelta, settled.span.longitudeDelta)
+        XCTAssertFalse(model.isLoading)
+    }
+
     func testPlaceRegionFramesWholeDestinationAndSearchesFinalViewport() async throws {
         var loadedRegion: MKCoordinateRegion?
         let model = ExploreMapViewModel(dependencies: .init(

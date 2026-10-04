@@ -45,7 +45,7 @@ effects.
   definitive intake rejection, matched expired recovery, and unknown v2 recovery
   proof.
 - `Policies/GhostProfileMergePolicy.swift` owns stable queue replacement and the
-  exact terminal server codes that permit durable handoff retirement.
+  exact terminal server codes that require retained handoff attention.
 - `Coordinators/AuthTransitionCoordinators.swift` owns the value-state machines
   for exclusive transition admission and exact-session work leases, plus the
   main-actor Boolean single-flight used by sign-out. An already-cancelled caller
@@ -265,10 +265,10 @@ effects.
   and diagnostic boundaries. It acquires no live dependency.
 - `Coordinators/GhostProfileMergeCoordinator.swift` owns preparation durability,
   exact source/provider-transition/target admission, target-and-transition-keyed
-  completion task lifetime, queue-wide retry, terminal cleanup, and suppression
-  projection. A server-returned capability becomes durable before cancellation
-  is honored; cancellation and key supersession are rechecked before later
-  evidence sync or proof removal.
+  completion task lifetime, queue-wide retry, terminal proof retention, and
+  suppression projection. A server-returned capability becomes durable before
+  cancellation is honored; cancellation and key supersession are rechecked
+  before later evidence sync or proof removal.
 - `Coordinators/PublicAuthorIdentityRefreshCoordinationDependencies.swift`
   defines the provider-neutral session, account-work, Ghost completion, remote
   refresh, event, and diagnostics boundaries. It acquires no live dependency.
@@ -834,3 +834,54 @@ See the canonical
 [Core manager guide](../../../../../../docs/development-guides/09-core-managers.md#supabasemanager),
 [purchase-principal contract](../../../../../../docs/rfcs/purchase-principal-auth-separation.md),
 and [Core Network guide](../README.md).
+
+### Account return and pending cloud deletion
+
+After entitlement/session reconciliation and the current-session check,
+`AuthSessionLifecycleCoordinator` invokes the injected `resumeCloudDeletions`
+effect and validates the session again afterward. The facade checks the SDK user
+and auth generation, then resumes only cloud deletion. It does not start capture
+or inference work. This restores matching-account retries whose deadlines were
+ignored while a different account was active, without requiring a foreground or
+network change. The deletion drain owns its own account lease and scheduler
+rearm; see the
+[offline deletion contract](../../../../../../docs/backend-and-data/01-offline-sync-pipeline.md#2-cloud-deletion-tasking-pendingclouddeletiontask).
+
+## Guest library transitions
+
+[Guest library transitions](../../../../../../docs/backend-and-data/21-guest-library-transitions.md)
+defines the source-owned inventory and sign-out recovery states.
+`LibrarySignOutRecoveryCoordinator` resumes the device-only library journal
+after SDK acknowledgment, local purge, exact replacement guest creation and
+purchase completion. `LibraryTransferResult` separates authentication from
+transfer; a pending or expired proof cannot authorize an unrelated identity
+replacement. The library-owner marker protects the unpartitioned cache across
+session loss; local mutation admission covers capture completion, notes, tags,
+collections, species names, review creation and explicit queued deletion.
+
+After destination authentication, unresolved transfer covers the shared local
+library and blocks ordinary writes and further identity replacement. Verified
+destination recovery work remains admitted; destination-account editing requires
+a separate local projection and remains unimplemented. Before destination
+authentication, `allowsIdentityReplacement` permits a same-provider OAuth
+continuation only while the SDK session is still the anonymous source and every
+retained handoff matches that source/provider, has no destination and has no
+needs-attention flag. The canonical contract owns this narrow recovery
+exception. A committed sign-out retries its recorded journal rather than
+starting another transition. Before commitment, Cancel preserves pending work,
+and Keep syncing releases the transition fence; the user starts and confirms
+sign-out again after resolving work.
+
+Recovery reuses a persisted replacement guest, but a server-created guest whose
+response never reached SDK or journal storage cannot be rediscovered by this
+protocol. Do not promise zero extra server anonymous users. The
+[troubleshooting guide](../../../../../../docs/development-guides/04-logging-and-debugging.md#guest-library-transition-triage)
+describes safe recovery without deleting local journals or merge evidence.
+
+Private presentation may read `SupabaseManager.authSessionGeneration` as a
+value-only invalidation baseline. The generation remains owned and mutated only
+by `AuthRuntimeState`. Presentation must not keep an account-work lease while
+idle: Auth drains operation-scoped leases before replacing a session. The
+prepared Identification History adapter checks the saved generation and exact
+published/SDK identity, while its Core reads and writes own their request
+leases.

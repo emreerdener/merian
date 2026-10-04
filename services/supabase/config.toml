@@ -742,3 +742,12 @@ verify_jwt = false
 
 [functions.review-scan-identification]
 verify_jwt = false
+
+[functions.resolve-history-photo]
+verify_jwt = false
+
+[functions.analyze-observation]
+verify_jwt = false
+
+[functions.recover-observation-analyses]
+verify_jwt = false

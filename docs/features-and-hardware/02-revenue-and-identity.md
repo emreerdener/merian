@@ -3,6 +3,31 @@
 Naturebook implements an onboarding funnel by combining Supabase Anonymous
 Authentication with RevenueCat SDK bindings for entitlement checking.
 
+The
+[guest library transition contract](../backend-and-data/21-guest-library-transitions.md)
+owns library preservation alongside this purchase contract. A guest retains its
+library on the current device; cross-device restoration requires the same linked
+account. Both sign-in and sign-out drain source-owned work, close new writes,
+and require a fresh acknowledgment inventory before replacing identity. Purchase
+preparation alone does not permit library cleanup.
+
+A committed sign-out uses a separate device-only library journal through SDK
+sign-out, verified local purge, replacement-guest persistence and purchase
+completion. A recorded destination is reused. If server-side anonymous creation
+succeeds but its response is lost before local persistence, a later retry may
+create an additional server user. This limitation does not authorize automatic
+cleanup or a retention-policy change.
+
+Successful OAuth can leave a pending library transfer. The library remains
+covered and ordinary mutations and further identity replacement remain blocked
+until recovery completes; destination editing is not yet implemented for that
+state. Before destination authentication, the still-anonymous source can resume
+only the same-provider OAuth continuation when every retained proof is bound to
+that source/provider, has no destination and has no needs-attention flag.
+Guest-only device transfer and backup-based guest recovery are not promised.
+Private-library clearing and purchase continuity are separate contracts; neither
+changes intentionally public content or issued-media expiry.
+
 ## Contents
 
 - [Anonymous IDFV Strategy (`DeviceIdentityManager`)](#the-anonymous-idfv-strategy-deviceidentitymanager)
@@ -416,47 +441,49 @@ To maximize user conversion, Merian requires zero upfront onboarding friction:
     random rotation ID and device-only proof, then prepares a server-owned
     reservation while the exact linked source JWT and binding generation are
     still live. Only after that response is durably recorded does iOS close the
-    local linked session and create one anonymous session. Postgres accepts the
-    claim only when that destination is different, anonymous, and no older than
-    the reservation; the atomic receipt advances the same purchase principal's
-    binding. A live reservation blocks ordinary resolution, every other binding
-    writer, paid readiness, provider mutations, account deletion, and Ghost
-    merge. The reservation snapshots the latest two-phase resolver intent, so a
-    completion begun before preparation stays stale after every terminal
-    outcome. An unrelated permanent session remains fail-closed and cannot link
-    RevenueCat. The restored exact source may cancel, including a write-ahead
-    request whose prepare response was lost. After claim, iOS relinks RevenueCat
-    to the unchanged server-owned ID, requires
-    `EntitlementManager.beginSession(...)` to return `true`, verifies the exact
-    anonymous manager-published user, nonexpired SDK session, Auth generation,
-    cancellation state, and transition context, and clears the journal last. A
-    retry without a transition owner becomes stale as soon as a new Auth
-    transition opens, even before its first SDK event. A provider or entitlement
-    failure after the atomic claim retains both the journal and paid-operation
-    fence for exact same-destination retry. The journal pins the exact local
-    capability fingerprint and forbids replacement capability creation, so
-    partial Keychain loss fails before server or provider identity mutation. It
-    does not call `syncPurchases()` or a provider customer-transfer API. The
-    Profile offers **Continue with Apple** and **Continue with Google**; those
-    transitions resolve the same principal. Foreground activation retries this
-    exact binding after transient resolver, account-cleanup, Keychain, or
-    provider failure, so recovery does not depend on another Auth callback and
-    never rotates the capability or provider ID. `PurchasePrincipalResolver`
-    composes focused Purchase Identity models, policies, secure stores, and the
-    typed remote service without directly importing Supabase or Security.
-    `PurchaseIdentityHandoffStore` owns both journals' explicit camel-case local
-    JSON fields, fail-closed validation before writes and after reads, exact key
-    and accessibility, byte read-back, and verified removal. Its shared 20–40
-    UTF-8-byte timestamp policy accepts the fractional PostgreSQL server shape
-    and the installed whole-second shape for both stable and compatibility
-    evidence. The secure-state store likewise rejects any activation fingerprint
-    that is not the exact 64-character lowercase SHA-256 shape before writing.
-    `PurchaseIdentitySignOutWorkflow` owns the
-    preparation/sign-out/replacement/completion order and cancellation fence
-    between each phase; `PurchaseIdentitySignOutCoordinator` owns stable/legacy
-    and pending-recovery routing, anonymous retry, recovery-only reset
-    admission, and fail-closed journal verification; its recovery retry drains
-    account-bound work before loading the anonymous SDK session;
+    local linked session and establish a replacement anonymous session. The
+    library journal and its recovery requirements below also apply; an
+    unrecorded server creation cannot guarantee zero extra anonymous users.
+    Postgres accepts the claim only when that destination is different,
+    anonymous, and no older than the reservation; the atomic receipt advances
+    the same purchase principal's binding. A live reservation blocks ordinary
+    resolution, every other binding writer, paid readiness, provider mutations,
+    account deletion, and Ghost merge. The reservation snapshots the latest
+    two-phase resolver intent, so a completion begun before preparation stays
+    stale after every terminal outcome. An unrelated permanent session remains
+    fail-closed and cannot link RevenueCat. The restored exact source may
+    cancel, including a write-ahead request whose prepare response was lost.
+    After claim, iOS relinks RevenueCat to the unchanged server-owned ID,
+    requires `EntitlementManager.beginSession(...)` to return `true`, verifies
+    the exact anonymous manager-published user, nonexpired SDK session, Auth
+    generation, cancellation state, and transition context, and clears the
+    journal last. A retry without a transition owner becomes stale as soon as a
+    new Auth transition opens, even before its first SDK event. A provider or
+    entitlement failure after the atomic claim retains both the journal and
+    paid-operation fence for exact same-destination retry. The journal pins the
+    exact local capability fingerprint and forbids replacement capability
+    creation, so partial Keychain loss fails before server or provider identity
+    mutation. It does not call `syncPurchases()` or a provider customer-transfer
+    API. The Profile offers **Continue with Apple** and **Continue with
+    Google**; those transitions resolve the same principal. Foreground
+    activation retries this exact binding after transient resolver,
+    account-cleanup, Keychain, or provider failure, so recovery does not depend
+    on another Auth callback and never rotates the capability or provider ID.
+    `PurchasePrincipalResolver` composes focused Purchase Identity models,
+    policies, secure stores, and the typed remote service without directly
+    importing Supabase or Security. `PurchaseIdentityHandoffStore` owns both
+    journals' explicit camel-case local JSON fields, fail-closed validation
+    before writes and after reads, exact key and accessibility, byte read-back,
+    and verified removal. Its shared 20–40 UTF-8-byte timestamp policy accepts
+    the fractional PostgreSQL server shape and the installed whole-second shape
+    for both stable and compatibility evidence. The secure-state store likewise
+    rejects any activation fingerprint that is not the exact 64-character
+    lowercase SHA-256 shape before writing. `PurchaseIdentitySignOutWorkflow`
+    owns the preparation/sign-out/replacement/completion order and cancellation
+    fence between each phase; `PurchaseIdentitySignOutCoordinator` owns
+    stable/legacy and pending-recovery routing, anonymous retry, recovery-only
+    reset admission, and fail-closed journal verification; its recovery retry
+    drains account-bound work before loading the anonymous SDK session;
     `PurchaseIdentitySourceHandoffCoordinator` owns fail-closed journal
     projection, exact-source preparation/abandonment, and restoration, while the
     focused `PurchaseIdentityHandoffAuthJournal` and Core Security's

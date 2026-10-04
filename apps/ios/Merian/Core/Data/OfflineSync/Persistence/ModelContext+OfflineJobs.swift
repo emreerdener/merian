@@ -59,7 +59,9 @@ extension ModelContext {
     @discardableResult
     func ensurePendingCloudDeletionTask(
         scanId: String,
-        timestamp: Date = Date()
+        timestamp: Date = Date(),
+        requestingAccountID: UUID? = nil,
+        origin: CloudDeletionIntent.Origin? = nil
     ) throws -> PendingCloudDeletionTask {
         var descriptor = FetchDescriptor<PendingCloudDeletionTask>(
             predicate: #Predicate { $0.scanId == scanId }
@@ -67,12 +69,12 @@ extension ModelContext {
         descriptor.fetchLimit = 1
 
         if let existing = try fetch(descriptor).first {
-            _ = try ensureOfflineJobRecord(
-                id: "cloud-deletion:\(scanId)",
-                kind: .cloudDeletion,
-                subjectId: scanId,
-                priority: 60
-            )
+            // An old or held task never inherits provenance from a later
+            // enqueue. Even a missing job is restored as unproven legacy work.
+            if try fetchOfflineJob(id: "cloud-deletion:\(scanId)") == nil {
+                _ = try ensureOfflineJobRecord(id: "cloud-deletion:\(scanId)",
+                    kind: .cloudDeletion, subjectId: scanId, priority: 60)
+            }
             return existing
         }
 
@@ -81,11 +83,16 @@ extension ModelContext {
             timestamp: timestamp
         )
         insert(task)
-        let job = try ensureOfflineJobRecord(
+        let existingJob = try fetchOfflineJob(id: "cloud-deletion:\(scanId)")
+        let intent = requestingAccountID.flatMap { account in
+            origin.map { CloudDeletionIntent(scanID: scanId, requestingAccountID: account, origin: $0) }
+        }
+        let job = try existingJob ?? ensureOfflineJobRecord(
             id: "cloud-deletion:\(scanId)",
             kind: .cloudDeletion,
             subjectId: scanId,
-            priority: 60
+            priority: 60,
+            metadataJSON: try intent?.storedJSON()
         )
         insert(OfflineQueueEvent(
             jobId: job.id,

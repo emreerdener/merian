@@ -6,6 +6,18 @@ TestFlight, App Store, support, and QA.
 
 ## Unreleased
 
+### Library preservation during account changes
+
+- Sign-in and sign-out check pending library changes and offer review and retry
+  before changing accounts. Interrupted sign-out resumes recovery; completed
+  sign-out starts an empty signed-out library while retaining the linked
+  account's saved library.
+- Account restoration preserves private notes and Favorites alongside scans,
+  tags and collections. Legacy notes survive restoration, and failed detail
+  saves retry without losing pending changes.
+- Authentication, library transfer and restoration have separate recovery
+  messages. Editing remains unavailable while a library transfer is unresolved.
+
 ### Identification confidence
 
 - OpenAI photo identification now estimates confidence without a prescribed
@@ -15,10 +27,11 @@ TestFlight, App Store, support, and QA.
 
 ### What’s New
 
-- A short update sheet introduces 2.2× faster AI identifications, location
-  search in Scans and Explore maps, descriptions available to everyone to help
-  improve accuracy, marking AI identifications as incorrect, emoji reactions on
-  Explore posts, and louder previews for quiet recordings.
+- A short update sheet introduces location search in Scans and Explore maps,
+  descriptions available to everyone to help improve accuracy, marking AI
+  identifications as incorrect, identification history to revisit earlier
+  results after reanalysis, emoji reactions on Explore posts, and louder
+  previews for quiet recordings.
 - Existing users see each set of highlights once after updating. Reopen it from
   Settings → Resources → What’s new.
 

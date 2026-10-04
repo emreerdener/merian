@@ -88,7 +88,7 @@ extension GhostProfileMergeRemoteService {
               ) else {
             return false
         }
-        return GhostProfileMergePolicy.shouldDiscardPendingHandoff(
+        return payload.code == "library_transfer_needs_attention" || GhostProfileMergePolicy.shouldDiscardPendingHandoff(
             serverCode: payload.code
         )
     }

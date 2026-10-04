@@ -178,3 +178,14 @@ AI-review intent remains pending. Failed confirmation can be retried; an already
 queued confirmation explains that it is waiting to sync without enqueueing a
 duplicate. Explicit-primary confirmation awaits the existing serialized review
 operation before evaluating the result.
+
+## Incorrect-identification next steps
+
+The main biological Insight shows a white, shadowed **Find a better match** card
+above the candidates when the local review state is `aiRejected`, including a
+pending rejection. It uses the surrounding candidate-card dark-mode styling and
+stacks existing **Reanalyze species** and **Ask the community** actions. Actions
+follow the host's eligibility and scan/generation guards; the card is hidden if
+neither action is available. It is independent of candidate availability,
+dismissal, or exhaustion and disappears after Undo or accepted identification.
+The confidence sheet and its Undo card are unchanged.

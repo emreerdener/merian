@@ -17,6 +17,94 @@ struct OfflineJobSchedulerTests {
         }
     }
 
+    @Test func detailsAcknowledgmentSaveFailureRetriesAutomatically() async throws {
+        let manager = OfflineQueueManager.shared
+        let originalOnline = manager.isOnline
+        let originalContext = manager.modelContext
+        let schema = Schema(CurrentSchema.models)
+        let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)])
+        let context = ModelContext(container)
+        let owner = UUID()
+        let record = LocalScanRecord(speciesId: "fixture", scientificName: "Fixture", commonName: "Fixture", fieldNotes: "Note")
+        context.insert(record)
+        try LibraryDetailsSyncService.stage(record, ownerID: owner, context: context)
+        try context.save()
+        manager.modelContext = context
+        manager.isOnline = true
+        defer {
+            manager.isOnline = originalOnline
+            manager.modelContext = originalContext
+        }
+        try #require(!manager.isCurrentNetworkConstrained)
+        var scheduler: OfflineJobScheduler?
+        var sent: [UUID] = []
+        var saves = 0
+        let finished = AsyncStream<Void>.makeStream()
+        defer {
+            scheduler?.cancelScheduledWake(using: manager)
+            scheduler = nil
+            finished.continuation.finish()
+        }
+        scheduler = OfflineJobScheduler(drainOperations: .init(
+            syncLibraryDetails: { received in
+                scheduler?.libraryDetailsDrainDidStart(using: received)
+                await LibraryDetailsSyncService.drainPending(
+                    context: context, ownerID: owner, isCurrent: { true },
+                    requestRetry: { scheduler?.scheduleLibraryDetailsRetry(using: received) },
+                    send: { sent.append($0.operationID) },
+                    save: { context in
+                        saves += 1
+                        if saves == 1 { throw CocoaError(.fileWriteUnknown) }
+                        try context.save()
+                    }
+                )
+                if saves == 2 { finished.continuation.yield(()) }
+            },
+            reconcileFunding: { _ in }, syncPendingScans: { _ in }, replayInference: { _ in },
+            replayFieldTripProgress: { _ in }, syncPendingDeletions: { _ in }, syncCollections: { _ in }
+        ))
+        await scheduler?.drainRunnableJobs(using: manager)
+        #expect(saves == 1)
+        #expect(scheduler?.scheduledWakeDate != nil)
+        var iterator = finished.stream.makeAsyncIterator()
+        _ = await iterator.next()
+        #expect(sent.count == 2)
+        #expect(sent.first == sent.last)
+        #expect(try context.fetch(FetchDescriptor<OfflineJobRecord>()).first?.status == .complete)
+    }
+
+    @Test func detailsRetryPreservesEarlierQueueDeadlineAndSurvivesFencedDrain() async throws {
+        let manager = OfflineQueueManager.shared
+        let originalOnline = manager.isOnline
+        let originalContext = manager.modelContext
+        let (context, _) = try makeRetryContext()
+        manager.modelContext = context
+        manager.isOnline = true
+        defer {
+            manager.isOnline = originalOnline
+            manager.modelContext = originalContext
+        }
+        let scheduler = OfflineJobScheduler(drainOperations: .init(
+            reconcileFunding: { _ in }, syncPendingScans: { _ in }, replayInference: { _ in },
+            replayFieldTripProgress: { _ in }, syncPendingDeletions: { _ in }, syncCollections: { _ in }
+        ))
+        defer { scheduler.cancelScheduledWake(using: manager) }
+        let earlier = Date().addingTimeInterval(2)
+        let job = OfflineJobRecord(id: "earlier-fixture", kind: .future, nextRunAt: earlier)
+        context.insert(job)
+        try context.save()
+        scheduler.scheduleLibraryDetailsRetry(using: manager)
+        #expect(scheduler.scheduledWakeDate == earlier)
+        context.delete(job)
+        try context.save()
+        // The injected details operation represents an admission-fenced pass;
+        // it deliberately never calls libraryDetailsDrainDidStart.
+        await scheduler.drainRunnableJobs(using: manager)
+        let retained = try #require(scheduler.scheduledWakeDate)
+        #expect(retained > earlier)
+        #expect(retained < Date().addingTimeInterval(6))
+    }
+
     @Test(arguments: [Step.funding, .progress, .deletions])
     func eligibleDrainArmsWakeAndAwaitsEffectsInOrder(suspendedStep: Step) async throws {
         let manager = OfflineQueueManager.shared

@@ -281,12 +281,15 @@ struct CoreDataIntegrationArchitectureTests {
         ))
         #expect(!historicalPersistence.contains("_ = saveHistoricalContext"))
         #expect(!historicalPersistence.contains("if Task.isCancelled { break }"))
-        #expect(historicalPersistence.contains(
+        let collections = try source(
+            "Database/HistoricalSync/Persistence/HistoricalCollectionReconciler.swift"
+        )
+        #expect(historicalPersistence.contains("try HistoricalCollectionReconciler(context: activeContext).reconcile("))
+        #expect(collections.contains(
             "try Task.checkCancellation()\n        for (_, obsolete) in existingLookup"
         ))
-        #expect(historicalPersistence.contains(
-            "try Task.checkCancellation()\n        try saveHistoricalContext(\"syncCollections inbound reconciliation\")"
-        ))
+        #expect(collections.contains("try Task.checkCancellation()\n        try activeContext.save()"))
+        #expect(!collections.contains("if Task.isCancelled { break }"))
     }
 
     @Test func rescuedMediaRegistrationIsPostStartupBoundedAndThrowing() throws {
@@ -418,6 +421,8 @@ struct CoreDataIntegrationArchitectureTests {
         "Models/HistoricalSyncModels.swift": [
             "import Foundation"
         ],
+        "Models/LibraryRestorationState.swift": ["import Foundation", "import Observation"],
+        "Persistence/HistoricalCollectionReconciler.swift": ["import Foundation", "import SwiftData"],
         "Persistence/HistoricalDatabaseActor.swift": [
             "import Foundation",
             "import os",
@@ -434,6 +439,7 @@ struct CoreDataIntegrationArchitectureTests {
         "HistoricalScanDecodingTests.swift",
         "HistoricalScanIngestionTests.swift",
         "HistoricalScanReconciliationTests.swift",
+        "HistoricalLibraryRestorationTests.swift",
         "HistoricalSyncPolicyTests.swift",
         "HistoricalSyncCloudClientTests.swift",
         "HistoricalSyncUpdateRequiredTests.swift"

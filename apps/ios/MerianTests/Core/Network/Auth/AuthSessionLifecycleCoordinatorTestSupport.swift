@@ -24,6 +24,7 @@ final class AuthSessionLifecycleCoordinatorHarness {
     var purchaseHandoffFenceValues: [Bool] = []
     var telemetryResults: [Bool] = [false]
     var suspendTelemetry: (@MainActor () async -> Void)?
+    var resumeCloudDeletions: (@MainActor () async -> Void)?
     var clearHandoffOnCompletion = false
     var clearHandoffOnAbandonment = false
     var advanceGenerationAfterTelemetry = false
@@ -190,6 +191,10 @@ final class AuthSessionLifecycleCoordinatorHarness {
                     if self.openTransitionAfterSignOut {
                         self.hasActiveTransition = true
                     }
+                },
+                resumeCloudDeletions: { _, _ in
+                    self.events.append("resume-cloud-deletions")
+                    await self.resumeCloudDeletions?()
                 },
                 scheduleHistoricalSync: { _, _ in
                     self.events.append("schedule-historical-sync")

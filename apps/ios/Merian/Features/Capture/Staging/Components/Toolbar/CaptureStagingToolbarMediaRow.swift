@@ -4,6 +4,7 @@ struct CaptureStagingToolbarMediaRow: View {
     let presentation: CaptureStagingToolbarPresentation
     let isCheckingPhotoImportAdmission: Bool
     let onRequestPhotoPickerPresentation: (Int) -> Void
+    let onUpgradeTap: () -> Void
     let onThumbnailTap: (Int) -> Void
     let onDescriptionTap: (Int) -> Void
     let onAudioTap: (Int) -> Void
@@ -41,6 +42,26 @@ struct CaptureStagingToolbarMediaRow: View {
                         : "Add photo"
                 )
 
+            }
+
+            if presentation.showsProMediaPlaceholder {
+                Button(action: onUpgradeTap) {
+                    Image(systemName: "plus")
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundStyle(.primary.opacity(0.5))
+                        .frame(width: 48, height: 48)
+                        .modifier(CaptureStagingNodeSurface(isEmpty: true))
+                        .overlay(alignment: .bottom) {
+                            MerianProBadge()
+                        }
+                        .contentShape(Rectangle())
+                        .accessibilityHidden(true)
+                }
+                .buttonStyle(.plain)
+                .disabled(isCheckingPhotoImportAdmission)
+                .accessibilityIdentifier("StagedMediaProPlaceholder")
+                .accessibilityLabel("Add another media item with Pro")
+                .accessibilityHint("Opens upgrade options")
             }
         }
     }

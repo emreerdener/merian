@@ -114,6 +114,9 @@ The page:
   scans;
 - filters locally by species group and media type;
 - renders deterministic 56-point projected screen-space clusters;
+- recomputes annotations after camera changes and lets repeated non-coincident
+  cluster taps zoom beyond the fitted extent's minimum span, with the scan list
+  available for coincident points or clusters at maximum interactive zoom;
 - uses simple dots at broad zoom and circular thumbnails from zoom level 11.5;
 - reports the true filtered viewport count independently of clustering;
 - presents owner-only previews whose complete card opens Insight, plus a

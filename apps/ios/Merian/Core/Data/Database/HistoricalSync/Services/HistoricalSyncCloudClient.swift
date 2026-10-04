@@ -77,9 +77,16 @@ struct HistoricalSyncCloudClient {
         try await fetchCollectionPageHandler(request)
     }
 
+    static func allowsLocalMutation() -> Bool {
+        SupabaseManager.shared.allowsLocalLibraryMutation
+    }
+
     static let live = HistoricalSyncCloudClient(
         beginAccountWork: {
-            try SupabaseManager.shared.beginUnownedAccountBoundWork()
+            guard SupabaseManager.shared.ensureLibraryAccountOwnership() else {
+                throw LibraryDetailsSyncService.LibraryTransferPersistenceError.pending
+            }
+            return try SupabaseManager.shared.beginUnownedAccountBoundWork()
         },
         finishAccountWork: { lease in
             SupabaseManager.shared.finishAccountBoundWork(lease)
@@ -143,10 +150,20 @@ struct HistoricalSyncCloudClient {
             guard let reviews = try JSONSerialization.jsonObject(with: response) as? [[String: Any]] else {
                 throw HistoricalScanPageContractError.invalidTopLevel
             }
+            let detailResponse = try await SupabaseManager.shared.client.rpc(
+                "get_owned_scan_library_details", params: Lookup(p_scan_ids: ids)
+            ).execute().data
+            guard let details = try JSONSerialization.jsonObject(with: detailResponse) as? [[String: Any]] else {
+                throw HistoricalScanPageContractError.invalidTopLevel
+            }
             for index in start..<end {
                 guard let id = rows[index]["id"] as? String,
                       let review = reviews.first(where: { ($0["scan_id"] as? String)?.lowercased() == id.lowercased() }),
                       let authority = review["review"] else { throw HistoricalScanPageContractError.invalidTopLevel }
+                guard let detail = details.first(where: { ($0["scan_id"] as? String)?.lowercased() == id.lowercased() }) else {
+                    throw HistoricalScanPageContractError.invalidTopLevel
+                }
+                rows[index]["library_details"] = detail
                 rows[index]["ai_identification_review"] = authority
                 guard let fields = review["review_fields"] as? [String: Any] else { throw HistoricalScanPageContractError.invalidTopLevel }
                 rows[index].merge(fields) { _, current in current }

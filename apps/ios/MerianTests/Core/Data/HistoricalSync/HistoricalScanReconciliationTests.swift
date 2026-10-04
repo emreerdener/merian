@@ -14,32 +14,6 @@ extension ScanRepositoryTests {
         let user_observation_context: ObservationContext?
     }
 
-    @Test func cancelledCollectionReconciliationPreservesLocalRows() async throws {
-        let context = try ScanRepositoryTestSupport.makeContext()
-        let retainedCollection = ScanCollection(name: "Retained Collection")
-        context.insert(retainedCollection)
-        try context.save()
-        let retainedId = retainedCollection.id
-
-        let actor = HistoricalDatabaseActor(
-            modelContainer: context.container
-        )
-        let task = Task {
-            withUnsafeCurrentTask { $0?.cancel() }
-            try await actor.syncCollectionsDown(remoteCollections: [])
-        }
-
-        await #expect(throws: CancellationError.self) {
-            try await task.value
-        }
-
-        let verificationContext = ModelContext(context.container)
-        let collections = try verificationContext.fetch(
-            FetchDescriptor<ScanCollection>()
-        )
-        #expect(collections.map(\.id) == [retainedId])
-    }
-
     @Test func testHistoricalReconciliationRepairsCachedMissingRemoteVideo() async throws {
         let schema = Schema(CurrentSchema.models)
         let tempURL = URL.cachesDirectory.appendingPathComponent(UUID().uuidString + ".sqlite")

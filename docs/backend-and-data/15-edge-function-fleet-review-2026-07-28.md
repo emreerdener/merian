@@ -11,6 +11,11 @@ PostgreSQL independently rejects insertion and retires queue/grants;
 maximum-shape/provider evidence is deferred to the later feature-enable gate,
 not silently waived.
 
+**2026-10-03 source addendum:** `resolve-history-photo` adds an authenticated,
+default-gated private photo reader to the current inventory. It has not been
+deployed or verified against hosted R2. This extends repository preparation, not
+the historical production evidence.
+
 ## Scope
 
 This review inventories every configured deployable Supabase Edge Function
@@ -201,6 +206,9 @@ check-public-username
 check-scan-status
 community-taxonomy-status
 confirm-scan-species
+resolve-history-photo
+analyze-observation
+recover-observation-analyses
 review-scan-identification
 create-explore-comment
 delete-explore-comment
@@ -360,3 +368,13 @@ rejection and recovery/clear behavior are covered by local tests. This inventory
 addition is source scope; current model profiles and native callers remain
 unchanged, and it is not hosted deployment or release evidence. See the
 [endpoint contract](../../services/supabase/functions/confirm-scan-species/README.md).
+
+## Source inventory update — 2026-10-03 analysis workers
+
+`analyze-observation` authenticates the owner with `withEdgeHandler` before
+funded immutable child-analysis admission. `recover-observation-analyses`
+requires service authentication and completes only saved provider
+outcomes/drafts. Both use a default-off orchestration gate; no deployment,
+schedule, paid inference, or private-bucket verification is implied. The bounded
+claim/retry/deletion contracts are documented in their function READMEs and the
+canonical API owner.

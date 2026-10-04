@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "reviewedThrough": "2026-10-01",
+  "reviewedThrough": "2026-10-03",
   "tasks": [
     {
       "id": "photo-identification",
@@ -9,7 +9,7 @@
       "primaryMetric": "Evidence-supported outcome per scheduled observation; separate named precision, yield and supported rank.",
       "coverage": "Species, genus/family, unresolved biology, nonbiology, lookalikes and cultivated subjects; subject/near-duplicate clusters kept together.",
       "qualificationRequirements": "Frozen paired held-out comparison; practical effect and uncertainty, category guardrails, mapping and technical failures; task-specific latency/cost ceilings.",
-      "nextAction": "Retain released photo configuration. Advance only a candidate that passes development, then audit unexposed eligibility and freeze a new validation protocol."
+      "nextAction": "Retain low after the completed reasoning screen: medium failed quality advancement and Gemini tied low. Establish supported references for actual reported regressions; four library holds remain unresolved. Investigate visual-evidence sufficiency before confidence calibration. No new paid run or production change authorized."
     },
     {
       "id": "photo-evidence-sufficiency",
@@ -235,6 +235,66 @@
       "studyIds": [
         "matched-gemini-openai"
       ]
+    },
+    {
+      "id": "sol-medium-confidence-photo",
+      "provider": "openai",
+      "model": "gpt-6-sol",
+      "profile": "not_applicable",
+      "binding": "openai_photo_sol_medium_reasoning_evaluation_v1",
+      "prompt": "openai_identify_vision_confidence_v1",
+      "schema": null,
+      "preprocessing": "Same prepared photos as low in the September reasoning pilot; high image detail. Supplied photo resized to 1024-pixel long edge; no phone-pipeline claim.",
+      "context": "Photo-only development inputs; no reference facts or label hints.",
+      "settings": "Medium reasoning; 8192 output tokens; inline moderation; 90-second deadline. Native reasoning snapshot has no profile field. Exact historical schema digest remains in the frozen private request evidence; not reconstructed from current source.",
+      "studyIds": [
+        "sol-reasoning"
+      ]
+    },
+    {
+      "id": "tradeoff-20261003-low",
+      "provider": "openai",
+      "model": "gpt-6-sol",
+      "profile": "not_applicable",
+      "binding": "openai_photo_sol_low_reasoning_evaluation_v1",
+      "prompt": "openai_identify_vision_confidence_v1",
+      "schema": "merian_openai_identify_v1",
+      "preprocessing": "Same frozen single-photo bytes: 18 exposed controls plus two metadata-free library PNGs; one distinct subject per case. Prepared-image comparison, not exact historical camera/provider payloads.",
+      "context": "No description, location, month, owner guesses, reference labels or prior answers. Seed 20261002 balances arm order; source and native request/settings digests retained in the study manifest.",
+      "settings": "Low reasoning, high image detail, 8192 output tokens, inline moderation, 90-second deadline; native snapshot has no profile field. Low request parity with the confidence baseline verified; medium differs only in reasoning effort.",
+      "studyIds": [
+        "photo-reasoning-tradeoff"
+      ]
+    },
+    {
+      "id": "tradeoff-20261003-medium",
+      "provider": "openai",
+      "model": "gpt-6-sol",
+      "profile": "not_applicable",
+      "binding": "openai_photo_sol_medium_reasoning_evaluation_v1",
+      "prompt": "openai_identify_vision_confidence_v1",
+      "schema": "merian_openai_identify_v1",
+      "preprocessing": "Same frozen single-photo bytes: 18 exposed controls plus two metadata-free library PNGs; one distinct subject per case. Prepared-image comparison, not exact historical camera/provider payloads.",
+      "context": "No description, location, month, owner guesses, reference labels or prior answers. Seed 20261002 balances arm order; source and native request/settings digests retained in the study manifest.",
+      "settings": "Medium reasoning, high image detail, 8192 output tokens, inline moderation, 90-second deadline; native snapshot has no profile field. Low request parity with the confidence baseline verified; medium differs only in reasoning effort.",
+      "studyIds": [
+        "photo-reasoning-tradeoff"
+      ]
+    },
+    {
+      "id": "tradeoff-20261003-gemini",
+      "provider": "google",
+      "model": "gemini-2.5-pro",
+      "profile": "gemini_pro",
+      "binding": "not_applicable",
+      "prompt": "identify_vision_v1",
+      "schema": "merian_identify_v1",
+      "preprocessing": "Same frozen single-photo bytes: 18 exposed controls plus two metadata-free library PNGs; one distinct subject per case. Prepared-image comparison, not exact historical camera/provider payloads.",
+      "context": "No description, location, month, owner guesses, reference labels or prior answers. Seed 20261002 balances arm order; source and native request/settings digests retained in the study manifest.",
+      "settings": "Temperature 0.1, seed 42, 8192 output, 5000 thinking tokens; 90-second deadline; preserved Gemini safety. Native assignment has profile and no separate binding field.",
+      "studyIds": [
+        "photo-reasoning-tradeoff"
+      ]
     }
   ],
   "assessments": [
@@ -406,6 +466,54 @@
       "findings": "Both providers overclaimed species on the genus-supported description. Gemini normalized the nonbiological description as biological with an unmapped identity.",
       "operations": "Description median provider time 17.17 s over only two inputs; no separately reported description-only cost.",
       "limitations": "Two reused provisional description cases; no independent reference review, representative latency or general superiority claim.",
+      "qualification": null
+    },
+    {
+      "taskId": "photo-identification",
+      "configurationId": "sol-medium-confidence-photo",
+      "status": "insufficient_evidence",
+      "studyIds": [
+        "sol-reasoning"
+      ],
+      "findings": "2/3 reference matches versus low 1/3, through one mapping improvement; both misidentified the butterfly. Medium did not resolve the unreferenced owner-photo inconsistency.",
+      "operations": "Six calls per effort; medium mean 11.092 s versus low 6.805 s. Gemini timing from a separate study is not a matched speed comparison.",
+      "limitations": "Only three reference cases plus three repeats of one unreferenced image; no additional demonstrated biological error corrected, no independent human validation, no qualification.",
+      "qualification": null
+    },
+    {
+      "taskId": "photo-identification",
+      "configurationId": "tradeoff-20261003-low",
+      "status": "retained_baseline",
+      "studyIds": [
+        "photo-reasoning-tradeoff"
+      ],
+      "findings": "10/20 supported, 2/2 library and 8/18 controls. Retained as the operational recommendation; no qualification conferred.",
+      "operations": "Mean / median / p90 provider seconds 6.732 / 6.382 / 8.148; conservative cost $0.752785002 for 20 normalized calls. No app latency or invoice claim.",
+      "limitations": "Exposed development mixture, assistant references, two clear library plants and four excluded holds; no confirmed personal-regression cases. Medium versus either comparator -5 pp, descriptive simultaneous interval -30.8 to +22.4 pp. All arms 0/2 biological abstentions and seven unsupported-specificity cases. No fresh qualification or confidence calibration.",
+      "qualification": null
+    },
+    {
+      "taskId": "photo-identification",
+      "configurationId": "tradeoff-20261003-medium",
+      "status": "did_not_qualify",
+      "studyIds": [
+        "photo-reasoning-tradeoff"
+      ],
+      "findings": "9/20 supported, 2/2 library and 7/18 controls; zero gains and one unmapped loss versus low. Speed gate passed but quality advancement failed; no demonstrated biological correction.",
+      "operations": "Mean / median / p90 provider seconds 10.961 / 10.925 / 13.545; conservative cost $0.868285005 for 20 normalized calls. No app latency or invoice claim.",
+      "limitations": "Exposed development mixture, assistant references, two clear library plants and four excluded holds; no confirmed personal-regression cases. Medium versus either comparator -5 pp, descriptive simultaneous interval -30.8 to +22.4 pp. All arms 0/2 biological abstentions and seven unsupported-specificity cases. No fresh qualification or confidence calibration.",
+      "qualification": null
+    },
+    {
+      "taskId": "photo-identification",
+      "configurationId": "tradeoff-20261003-gemini",
+      "status": "inconclusive",
+      "studyIds": [
+        "photo-reasoning-tradeoff"
+      ],
+      "findings": "10/20 supported, 2/2 library and 8/18 controls; one mapping-dependent gain and one loss versus low. No net supported improvement or superiority established.",
+      "operations": "Mean / median / p90 provider seconds 15.542 / 15.440 / 17.492; conservative cost $0.714760001 for 20 normalized calls. No app latency or invoice claim.",
+      "limitations": "Exposed development mixture, assistant references, two clear library plants and four excluded holds; no confirmed personal-regression cases. Medium versus either comparator -5 pp, descriptive simultaneous interval -30.8 to +22.4 pp. All arms 0/2 biological abstentions and seven unsupported-specificity cases. No fresh qualification or confidence calibration.",
       "qualification": null
     }
   ]

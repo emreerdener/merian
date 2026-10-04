@@ -1,7 +1,7 @@
 # Identification experiment register
 
 Generated from [catalog.json](catalog.json); edit that source, then run
-`make generate-identification-research`. Reviewed through 2026-10-01.
+`make generate-identification-research`. Reviewed through 2026-10-03.
 
 [Research index](README.md) · [Dataset families](datasets.md) ·
 [Procedure](procedure.md)
@@ -607,6 +607,34 @@ engineering; closed.
 - Production: No production configuration or deployment change.
 - Sources:
   [identification-photo-feature-workflow-2026-10-01.md](../../../docs/rfcs/identification-photo-feature-workflow-2026-10-01.md)
+
+## photo-reasoning-tradeoff
+
+**Matched low/medium reasoning and Gemini development comparison** — 2026-10-03;
+photo; development; closed.
+
+- Configuration: gpt-6-sol low, identical medium-effort request, and preserved
+  gemini-2.5-pro; 20 cases / 60 fixed slots. Real inspection mode cannot
+  dispatch.
+- Data: [confidence-photo-v2](datasets.md#confidence-photo-v2),
+  [simulator-library-20261003](datasets.md#simulator-library-20261003)
+- Attempts: 60 (provider_attempts). Accounted USD: 2.335830008. 60 attempts, 60
+  claims/results, zero retries or technical failures; $2.335830008
+  conservatively accounted, $0 outstanding. $7.664169992 unused from the $10
+  cap; closed and not reusable.
+- Outcome: Supported low 10/20, medium 9/20, Gemini 10/20. Mean provider seconds
+  6.732 / 10.961 / 15.542. Medium passed speed but had zero gains, one unmapped
+  regression and no demonstrated biological correction; failed advancement.
+- Limits: Exposed, assistant-reviewed development mixture; only two clear
+  library plants, both solved by all arms; four holds excluded and neither
+  admitted plant confirmed as a reported regression. No independent human
+  validation, production accuracy, equivalence or superiority claim.
+- Decision: Close without advancing medium or switching providers. Retain low;
+  establish references for actual owner-reported failures and investigate
+  evidence sufficiency before confidence calibration. No additional calls.
+- Production: No production configuration, scan-history or deployment change.
+- Sources:
+  [identification-reasoning-tradeoff-2026-10-02.md](../../../docs/rfcs/identification-reasoning-tradeoff-2026-10-02.md)
 
 ## Supporting records
 

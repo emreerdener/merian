@@ -1,7 +1,7 @@
 # Identification dataset and exposure register
 
 Generated from [catalog.json](catalog.json); edit that source, then regenerate.
-Reviewed through 2026-10-01. [Research index](README.md).
+Reviewed through 2026-10-03. [Research index](README.md).
 
 This is a family-level lineage map. It never certifies an individual observation
 as unexposed. Private asset/cluster manifests and all attempted-claim ledgers
@@ -95,7 +95,8 @@ control that determination. Retention expiration does not erase exposure.
   [photo-answerability-audit](experiments.md#photo-answerability-audit),
   [photo-reference-adjudication](experiments.md#photo-reference-adjudication),
   [photo-feature-offline-preparation](experiments.md#photo-feature-offline-preparation),
-  [photo-feature-workflow](experiments.md#photo-feature-workflow)
+  [photo-feature-workflow](experiments.md#photo-feature-workflow),
+  [photo-reasoning-tradeoff](experiments.md#photo-reasoning-tradeoff)
 - Sources:
   [identification-openai-confidence-assessment-2026-09-30.md](../../../docs/rfcs/identification-openai-confidence-assessment-2026-09-30.md),
   [identification-openai-confidence-results-2026-09-30.md](../../../docs/rfcs/identification-openai-confidence-results-2026-09-30.md),
@@ -209,3 +210,24 @@ control that determination. Retention expiration does not erase exposure.
 - Sources:
   [identification-audio-uncertainty-comparison-plan-2026-09-24.md](../../../docs/rfcs/identification-audio-uncertainty-comparison-plan-2026-09-24.md),
   [design.json](../../../docs/rfcs/identification-experiment-plans/2026-09-24-audio-uncertainty/design.json)
+
+## simulator-library-20261003
+
+**Owner simulator library photo intake**
+
+- Lineage: Read-only intake of recent single-photo scans: 12 pixel-distinct
+  images grouped into six candidate subjects; two library species references
+  admitted to the reasoning tradeoff, four holds excluded. Trailing-plant group
+  overlaps the prior owner-supplied diagnostic cluster.
+- Exposure: Previously app-exposed development material. A new file hash or
+  intake date establishes no freshness. Neither selected library photo is
+  individually confirmed as an owner-reported failure.
+- References: Two source-grounded assistant species references with second
+  assistant review and exact accepted GBIF taxonomy; no independent human
+  validation or cultivar reference. Four unresolved reviewer holds are not
+  abstention targets.
+- Retention/access: Private metadata-free stored-scan copies retained through
+  2026-10-22; no raw camera/input parity guarantee.
+- Studies: [photo-reasoning-tradeoff](experiments.md#photo-reasoning-tradeoff)
+- Sources:
+  [identification-reasoning-tradeoff-2026-10-02.md](../../../docs/rfcs/identification-reasoning-tradeoff-2026-10-02.md)

@@ -9,6 +9,8 @@ struct PendingGhostProfileMerge: Codable, Equatable, Sendable {
     let handoffId: String
     let handoffSecret: String
     let expiresAt: String
+    var requiresAttention: Bool?
+    var destinationUserID: UUID?
 
     private enum CodingKeys: String, CodingKey {
         case ghostUserId
@@ -17,6 +19,8 @@ struct PendingGhostProfileMerge: Codable, Equatable, Sendable {
         case handoffId
         case handoffSecret
         case expiresAt
+        case requiresAttention
+        case destinationUserID
     }
 }
 

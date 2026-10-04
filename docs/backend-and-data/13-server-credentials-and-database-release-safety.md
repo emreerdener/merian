@@ -561,3 +561,33 @@ results, deployment IDs, and monitor links. “Repository corrected” and
 - [May 2026 Data API exposure change](https://supabase.com/changelog/45329-breaking-change-tables-not-exposed-to-data-and-graphql-api-automatically)
 - [PostgreSQL privileges](https://www.postgresql.org/docs/17/ddl-priv.html)
 - [PostgreSQL `CREATE INDEX`](https://www.postgresql.org/docs/17/sql-createindex.html)
+
+## Prepared history evidence credentials
+
+The unconnected `analysisHistory/evidenceStorage.ts` owner reads
+`R2_HISTORY_BUCKET_NAME`, `R2_HISTORY_WRITE_ACCESS_KEY_ID`,
+`R2_HISTORY_WRITE_SECRET_ACCESS_KEY`, `R2_HISTORY_READ_ACCESS_KEY_ID`, and
+`R2_HISTORY_READ_SECRET_ACCESS_KEY`, alongside the existing `R2_ACCOUNT_ID`.
+Missing values fail closed; there is no fallback to public-scan credentials. The
+history bucket must differ from `R2_BUCKET_NAME`. Read and write credentials
+must be separate least-privilege identities scoped to this bucket. These names
+are contract declarations, not provisioned secrets or deployment authorization.
+
+The bucket must expose neither an r2.dev endpoint nor a custom domain. A private
+prefix inside the public scan bucket is insufficient: Cloudflare documents that
+[public bucket endpoints expose bucket contents](https://developers.cloudflare.com/r2/buckets/public-buckets/).
+Owner reads use
+[short-lived S3 presigned URLs](https://developers.cloudflare.com/r2/api/s3/presigned-urls/),
+never the public CDN. Signed URLs and object keys are sensitive capabilities and
+must not be logged or persisted in result snapshots.
+
+Content writes always use `If-None-Match: *`, supported by the
+[R2 S3 API](https://developers.cloudflare.com/r2/api/s3/api/). Erasure writes an
+empty marker with the same opaque key. This protects against delayed conditional
+uploads, not an administrator or another holder of PUT credentials making an
+unconditional replacement. Credentials must be exclusive to the dedicated owner;
+generic scan upload, delete, export, public promotion and lifecycle tooling must
+never operate on this bucket. No lifecycle rule may remove erasure markers.
+Inventory these controls and verify conditional-upload/marker races, HEAD
+metadata and read expiry against an explicitly authorized nonproduction bucket
+before opening any history gate. Local fixtures do not attest hosted policy.

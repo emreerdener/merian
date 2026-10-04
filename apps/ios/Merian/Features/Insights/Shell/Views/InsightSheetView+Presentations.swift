@@ -18,6 +18,8 @@ extension InsightSheetView {
         _ presentation: InsightShellPresentation
     ) -> some View {
         switch presentation {
+        case .identificationHistory:
+            if let historyModel { IdentificationHistorySheet(model: historyModel) }
         case .paywall:
             PaywallView()
         case .fieldTripAuthor(let route):
@@ -318,6 +320,8 @@ extension InsightSheetView {
             resumePendingInsightChatDismissalAction()
         case .explore:
             handleExploreSheetDismissed()
+        case .identificationHistory:
+            historyModel?.close(); historyModel = nil
         case .paywall, .fieldTripAuthor, .exploreOnboarding:
             break
         }
@@ -337,6 +341,8 @@ extension InsightSheetView {
     @MainActor
     func isShellPresentationValid(_ presentation: InsightShellPresentation) -> Bool {
         switch presentation {
+        case .identificationHistory(let scanId, let generation):
+            historyModel != nil && viewModel.isPresentingLocalRecord(scanId: scanId, generation: generation)
         case .paywall:
             viewModel.state.showPaywall
         case .fieldTripAuthor:
@@ -380,6 +386,9 @@ extension InsightSheetView {
         releasePayload: Bool
     ) {
         switch presentation {
+        case .identificationHistory:
+            historyModel?.close()
+            if releasePayload { historyModel = nil }
         case .paywall:
             viewModel.state.showPaywall = false
         case .fieldTripAuthor:

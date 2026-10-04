@@ -56,3 +56,11 @@ existing deletion path. Completed Insights continue using the ordinary actions
 menu in this same trailing slot. The delete button and actions menu both set a
 circular button-border shape instead of inheriting a rounded-rectangle platter
 from the placeholder container.
+
+## Prepared history action
+
+`TopToolbar` renders **Identification history** only when Shell supplies its
+optional action after bounded multiple-result admission. Toolbars does not query
+history or restore a result. The action is absent in normal builds; the prepared
+sheet and its explicit preview/selection behavior belong to
+[History](../History/README.md).

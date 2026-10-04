@@ -132,6 +132,24 @@ final class OAuthSignInCoordinatorTests: XCTestCase {
         )
     }
 
+    func testAuthenticationSuccessReportsPendingLibraryTransfer() async throws {
+        let source = OAuthSignInCoordinatorHarness.session(isAnonymous: true)
+        let target = OAuthSignInCoordinatorHarness.session(isAnonymous: false)
+        let harness = OAuthSignInCoordinatorHarness(source: source, replacement: target)
+        harness.linkError = OAuthSignInCoordinatorTestError.identityConflict
+        harness.shouldUseGhostMergeFallback = true
+        harness.completedGhostMerge = false
+        let result = try await coordinator(harness).complete(
+            credentials: credentials(idToken: try identityToken()),
+            profileMetadata: OAuthProfileMetadata(),
+            registerProviderCredential: nil,
+            ownedBy: harness.transition,
+            didMutateSession: {}
+        )
+        XCTAssertEqual(result.session, target)
+        XCTAssertEqual(result.libraryTransfer, .pending)
+    }
+
     func testRequiredProviderCredentialPrecedesMetadataAndPurchaseBinding()
         async throws {
         let source = OAuthSignInCoordinatorHarness.session(

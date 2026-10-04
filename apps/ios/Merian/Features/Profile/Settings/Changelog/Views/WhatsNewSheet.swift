@@ -22,12 +22,6 @@ struct WhatsNewSheet: View {
 
                     VStack(alignment: .leading, spacing: 32) {
                         highlight(
-                            symbol: "sparkles",
-                            title: "Faster AI identifications",
-                            detail: "2x faster analysis, means less time waiting for results."
-                        )
-
-                        highlight(
                             symbol: "magnifyingglass",
                             title: "Find places on the map",
                             detail: "Search for a location and jump straight to it in your Scans and Explore maps."
@@ -43,6 +37,12 @@ struct WhatsNewSheet: View {
                             symbol: "xmark.circle",
                             title: "Mark as incorrect",
                             detail: "Flag an AI identification when it doesn’t match what you found."
+                        )
+
+                        highlight(
+                            symbol: "clock.arrow.circlepath",
+                            title: "Identification history",
+                            detail: "Review past identifications and switch back to an earlier result after reanalysis."
                         )
 
                         highlight(

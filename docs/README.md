@@ -31,7 +31,7 @@ boundaries, and the [codebase map](./codebase-map.md) inventories source owners.
 | Database and Edge Functions             | [`services/supabase`](../services/supabase/README.md)                                                     |
 
 The app and widget target iOS 17.2; the companion targets watchOS 10.0. The
-active SwiftData schema is `MerianSchemaV53`. The
+active SwiftData schema is `MerianSchemaV57`. The
 [schema contract](./backend-and-data/04-database-schema.md) and
 [startup recovery guide](./backend-and-data/08-startup-store-recovery.md) own
 migration and install-over requirements.
@@ -82,6 +82,11 @@ production submission or public release.
   header classification, RLS/grants, migration ownership, and replay safety.
 - [Scientific-observation retention](./backend-and-data/17-scientific-observation-retention.md):
   the exact ownerless-retention, erasure, and public-projection boundaries.
+- [Guest library transitions](./backend-and-data/21-guest-library-transitions.md):
+  source-owned synchronization, sign-out recovery, private-detail restoration,
+  transfer status and isolation. Destination editing during unresolved transfer
+  remains blocked; device and hosted acceptance are tracked in the
+  [validation matrix](./development-guides/08-testing-strategy.md#guest-library-transition-validation).
 - [Apple account deletion](./backend-and-data/20-sign-in-with-apple-account-deletion.md):
   provider revocation precedes Auth deletion; credential-revocation signals are
   fenced after lookup and again after account-work quiescence. Production
@@ -96,6 +101,29 @@ production submission or public release.
   responsibility boundaries, parity checks, and cleanup stop conditions. The
   [completed cleanup RFC](./rfcs/codebase-cleanup.md) preserves implementation
   history.
+
+## Planned work
+
+- [Reversible reanalysis and identification history](./rfcs/reversible-reanalysis-and-identification-history-2026-10-02.md)
+  defines the agreed stable-observation model, full analysis history, revisioned
+  restoration, funding and deletion boundaries, and staged acceptance gates. A
+  private backend foundation, native legacy-deletion refusal holds, and the
+  [V57 authority/display storage](./backend-and-data/04-database-schema.md#v57-per-analysis-authority-and-display-storage),
+  protocol-9 native admission, private photo resolution, saved-baseline import,
+  explicit previews, device-local saved-display capture, prepared native
+  enrollment admission with durable interruption/deletion protection, durable
+  native selection/Undo requests, owner selection transport with durable
+  conflict recovery, and funded child-analysis recovery are prepared locally. A
+  bounded native history list with preview, explicit selection and receipt-bound
+  Undo is also prepared behind injected access. Reader, append, enrollment and
+  selection gates remain disabled. Normal app access still uses replacement
+  reanalysis; the
+  [history sheet](./features-and-hardware/05-insight-sheet.md#prepared-identification-history-sheet)
+  is available only through the explicit Debug UI-test fixture. See the
+  [current schema](./backend-and-data/04-database-schema.md#prepared-observation-analysis-history),
+  [verification scope](./development-guides/08-testing-strategy.md#observation-analysis-history-preparation),
+  and
+  [activation hold](./backend-and-data/06-supabase-deployment-runbook.md#observation-analysis-history-activation-hold).
 
 ## Directory Structure
 

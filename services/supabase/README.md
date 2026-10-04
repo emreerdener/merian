@@ -38,6 +38,21 @@ remain unchanged. See the
 
 ## Structure
 
+The private
+[observation analysis history foundation](functions/_shared/analysisHistory/README.md)
+prepares immutable results, revisioned selection, reconciliation obligations and
+legacy deletion/retention protection. Enrollment and selection remain disabled;
+the separate owner reader is prepared behind `reader_enabled = false`, with no
+live producer or normal app sync call site. A private description-only append
+primitive and canonical builder are prepared behind `append_enabled = false`;
+they provide no provider/funding completion or protected media delivery. The
+[schema contract](../../docs/backend-and-data/04-database-schema.md#prepared-observation-analysis-history)
+owns current storage, the
+[RFC](../../docs/rfcs/reversible-reanalysis-and-identification-history-2026-10-02.md)
+owns the complete target design, and the
+[activation hold](../../docs/backend-and-data/06-supabase-deployment-runbook.md#observation-analysis-history-activation-hold)
+owns the remaining release prerequisites.
+
 The [Function directory guide](functions/README.md) groups endpoint entrypoints
 and shared owners by product area. The
 [organization audit](../../docs/rfcs/supabase-functions-organization.md) records
@@ -2225,6 +2240,17 @@ same effective-schema invariants.
 
 ### Ghost Account Upgrade Boundary
 
+The
+[guest library transition contract](../../docs/backend-and-data/21-guest-library-transitions.md)
+adds a source-retirement fence: nonterminal ingestion and resumable orphan
+intents return `pending_library_work`; prepared source-owned history/evidence
+returns `library_transfer_needs_attention`. Both preserve source ownership and
+merge proof. Private notes/Favorites follow stable scan ownership through the
+owner-only detail RPCs; same-operation replay never overwrites newer accepted
+values. Apply the migrations and compatible merge mapper before distributing a
+client that requires these RPCs, following the
+[extension rollout](../../docs/backend-and-data/06-supabase-deployment-runbook.md#guest-library-preservation-extension).
+
 Direct Apple/Google identity linking remains the primary anonymous upgrade path.
 Only the exact Auth error `identity_already_exists` may enter
 `functions/merge-ghost-profile/`. The anonymous source issues a hashed,
@@ -3075,3 +3101,58 @@ Detail reactor identities use `get-explore-post-reactors` and its guarded
 canonical/independent post readers and reused reference media without changing
 moderation statuses. The authenticated `species-dictionary-for-viewer` endpoint
 complements the preserved anonymous dictionary route.
+
+The prepared history owner now also contains private-bucket evidence storage,
+owner receipt resolution and an erasure worker seam. Its media gates remain
+closed; read adapter/endpoint source is prepared, with no deployed route or
+worker schedule, and result V1 append still accepts descriptions only. The
+separate gated V2 photo binder now joins ready receipts to funded completion;
+native protocol-9 history accepts V1/V2/V3 while private photo resolution
+remains V2-only on protocol 8. See the canonical
+[protected evidence lifecycle](../../docs/backend-and-data/05-api-contracts.md#prepared-protected-evidence-lifecycle).
+
+The prepared `analysisHistory/intent.ts` owner and funded-child migration now
+freeze description-only input, account one provider invocation and atomically
+append a result with shared complimentary settlement. Admission/dispatch gates
+remain closed; there is no live provider or recovery caller. See the
+[private lifecycle contract](../../docs/backend-and-data/05-api-contracts.md#prepared-funded-child-analysis-lifecycle).
+
+The prepared protocol-8 read slice adds mixed immutable V1/V2 owner pages,
+`resolve-history-photo` authenticated temporary photo delivery, and native
+`ObservationHistoryPhotoReference` / `ObservationHistoryPhotoLoader` validation.
+All gates remain closed and no UI is connected. The canonical contract is
+[protocol-8 owner reads](../../docs/backend-and-data/05-api-contracts.md#prepared-protocol-8-reads-and-private-photo-resolution).
+
+### Prepared analysis orchestration — 2026-10-03
+
+`analyze-observation` owns authenticated V1/V2 child-analysis submission;
+`recover-observation-analyses` completes received outcomes/drafts without
+another AI dispatch. Migration `20261003074429` introduces exclusive work
+claims, immutable canonical checkpoints and service-only lifecycle wrappers. All
+gates remain false and no route/schedule is deployed. Enrollment, normal native
+presentation, public/chat snapshots and explicit erasure delivery remain
+activation requirements. See the function READMEs and canonical API contract.
+
+The prepared history backend additionally includes protocol-9
+saved-identification enrollment, held by `saved_import_enabled` and existing
+rollout gates. It preserves current server corrections/reviews and explicitly
+marks unavailable original execution evidence. Native V56 now reads protocol 9
+and preserves unknown completion dates; native state admission is still held.
+See the
+[owner enrollment contract](../../docs/backend-and-data/05-api-contracts.md#prepared-saved-identification-enrollment-and-protocol-9)
+before extending or enabling this path.
+
+The separate `get_owned_observation_analysis_state` RPC and Deno/native state
+decoders now bind one selected or preview result to its current authority and
+observation revision. Its independent `state_reader_enabled` gate remains false.
+No local authority persistence or restore caller is connected. See the
+[state contract](../../docs/backend-and-data/05-api-contracts.md#prepared-owner-observation-state-read).
+
+Prepared protocol-9 selection now has an authenticated owner RPC,
+`select_owned_observation_analysis`, and native live adapter. The new
+`selection_api_enabled` gate remains false. Exact durable success and
+revision-conflict outcomes share one immutable ledger and replay after admission
+gates close, subject to owner/deletion fences. Native acknowledgment still needs
+a current-state read. No ordinary Restore/Undo caller or reconciliation worker
+is enabled. See the
+[selection contract](../../docs/backend-and-data/05-api-contracts.md#prepared-native-selection-requests-and-undo-receipts).

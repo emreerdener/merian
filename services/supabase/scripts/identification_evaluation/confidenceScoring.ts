@@ -35,8 +35,12 @@ export function parseConfidenceObservation(
   );
   return { prediction, mapping };
 }
+export type ScoringCase = Pick<
+  ConfidenceCase,
+  "input" | "reference" | "category" | "taxaGroup"
+>;
 export function confidenceRows(
-  cases: readonly ConfidenceCase[],
+  cases: readonly ScoringCase[],
   values: readonly ConfidenceObservation[],
 ) {
   const ids = new Set(cases.map((c) => c.input.caseId));

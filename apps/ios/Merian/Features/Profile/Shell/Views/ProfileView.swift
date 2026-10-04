@@ -125,7 +125,7 @@ struct ProfileView: View {
                     Task {
                         if await viewModel.signOut() {
                             showSignOutConfirmation()
-                        } else {
+                        } else if supabase.libraryTransitionIssue == nil && !supabase.librarySignOutRecoveryPending {
                             signOutErrorMessage = SignOutPresentationPolicy
                                 .incompleteMessage(
                                     isAnonymousSession: viewModel.isGuestUser

@@ -25,6 +25,7 @@ struct CollectionMutationService {
         relatedRecordID: String? = nil,
         in modelContext: ModelContext
     ) -> ScanCollection? {
+        guard dependencies.allowsMutation() else { return nil }
         guard let name = validatedName(
             input,
             allowUntitledFallback: true,
@@ -66,6 +67,7 @@ struct CollectionMutationService {
         to input: String,
         in modelContext: ModelContext
     ) -> Bool {
+        guard dependencies.allowsMutation() else { return false }
         guard canMutateSystemCollection(
             collection,
             operation: "rename"
@@ -97,6 +99,7 @@ struct CollectionMutationService {
         _ collection: ScanCollection,
         in modelContext: ModelContext
     ) -> Bool {
+        guard dependencies.allowsMutation() else { return false }
         guard canMutateSystemCollection(
             collection,
             operation: "delete"
@@ -122,6 +125,7 @@ struct CollectionMutationService {
         from collection: ScanCollection,
         in modelContext: ModelContext
     ) -> MembershipOutcome {
+        guard dependencies.allowsMutation() else { return .failed }
         let originalCollections = scan.collections
         var collections = originalCollections ?? []
         let originalCount = collections.count
@@ -146,6 +150,7 @@ struct CollectionMutationService {
         in collection: ScanCollection,
         in modelContext: ModelContext
     ) -> MembershipOutcome {
+        guard dependencies.allowsMutation() else { return .failed }
         let originalCollections = scan.collections
         var collections = originalCollections ?? []
         let outcome: MembershipOutcome

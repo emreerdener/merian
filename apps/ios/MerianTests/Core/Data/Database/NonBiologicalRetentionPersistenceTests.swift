@@ -326,4 +326,27 @@ struct NonBiologicalRetentionPersistenceTests {
         #expect(remainingIds == ["nonbio_newest"])
         #expect(queuedIds == ["nonbio_oldest", "nonbio_middle"])
     }
+    @Test func bulkAndRetentionDeletionPersistDistinctOrigins() async throws {
+        let container = try DatabaseActorTestSupport.makeIsolatedContainer()
+        let context = ModelContext(container)
+        let explicitID = UUID().uuidString.lowercased()
+        let expiredID = UUID().uuidString.lowercased()
+        for id in [explicitID, expiredID] {
+            context.insert(LocalScanRecord(id: id, speciesId: "nonbio", scientificName: "Rock",
+                commonName: "Rock", timestamp: .distantPast, isBiological: false))
+        }
+        try context.save()
+        let owner = CloudDeletionTestSupport.accountID
+        let actor = BackgroundDatabaseActor(modelContainer: container)
+        _ = try await actor.bulkDeleteNonBiologicalScans(payloads: [.init(id: explicitID, mediaPaths: [])], requestingAccountID: owner)
+        _ = try await actor.purgeExpiredNonBiologicalScans(cutoffDate: Date(), requestingAccountID: owner)
+        let fresh = ModelContext(container)
+        for (id, origin) in [(explicitID, CloudDeletionIntent.Origin.explicitUserDeletion), (expiredID, .nonBiologicalRetention)] {
+            let job = try #require(try fresh.fetchOfflineJob(id: "cloud-deletion:\(id)"))
+            let intent = try #require(CloudDeletionIntent.restoring(job.metadataJSON, scanID: id))
+            #expect(intent.requestingAccountID == owner)
+            #expect(intent.origin == origin)
+        }
+    }
+
 }

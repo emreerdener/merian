@@ -79,7 +79,14 @@ struct HistoricalObservationContext: Decodable, Sendable {
     }
 }
 
+struct HistoricalLibraryDetails: Decodable, Sendable {
+    let owner_id: UUID
+    let field_notes: String?
+    let is_favorite: Bool
+}
+
 struct HistoricalScanResponse: Decodable, Sendable {
+    var library_details: HistoricalLibraryDetails?
     let id: String
     let created_at: String?
     let image_storage_urls: [String]?

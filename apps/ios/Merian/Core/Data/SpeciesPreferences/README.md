@@ -19,7 +19,8 @@ normalized scientific name, stored in SwiftData, and reconciled with the
   significant for tombstones.
 - `Services/SpeciesPreferredNameCloudClient.swift` is the only direct Supabase
   owner in this package. It performs account-bound, scientific-name keyset pages
-  and composite-key upserts.
+  and composite-key upserts, and supplies the default account/mutation admission
+  predicate to the repository without moving Auth resolution into persistence.
 - `Services/SpeciesPreferredNameCloudSyncCoordinator.swift` owns main-actor
   single-flight reconciliation, trailing-request coalescing, account-specific
   freshness and diagnostics, lease checks around every suspension, bounded

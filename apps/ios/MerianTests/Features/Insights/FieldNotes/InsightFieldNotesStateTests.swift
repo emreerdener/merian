@@ -1,3 +1,4 @@
+import Foundation
 import SwiftData
 import Testing
 
@@ -7,7 +8,7 @@ import Testing
 struct InsightFieldNotesStateTests {
     @Test func testPublishedExploreFieldNotesPromoteWhenLocalRecordIsEmpty() async throws {
         let context = try InsightSheetTestSupport.createIsolatedContext()
-        let viewModel = InsightSheetViewModel()
+        let viewModel = InsightSheetViewModel(fieldNotesDependencies: Self.authorizedNotes)
         let record = LocalScanRecord(
             speciesId: "field_notes_repair_species",
             scientificName: "Quercus alba",
@@ -38,7 +39,7 @@ struct InsightFieldNotesStateTests {
 
     @Test func testPublishedExploreFieldNotesDoNotOverwriteLocalPrivateNotes() async throws {
         let context = try InsightSheetTestSupport.createIsolatedContext()
-        let viewModel = InsightSheetViewModel()
+        let viewModel = InsightSheetViewModel(fieldNotesDependencies: Self.authorizedNotes)
         let record = LocalScanRecord(
             speciesId: "field_notes_private_species",
             scientificName: "Acer rubrum",
@@ -69,7 +70,7 @@ struct InsightFieldNotesStateTests {
 
     @Test func testShareComposerFieldNotesSyncImmediatelyIntoInsightState() async throws {
         let context = try InsightSheetTestSupport.createIsolatedContext()
-        let viewModel = InsightSheetViewModel()
+        let viewModel = InsightSheetViewModel(fieldNotesDependencies: Self.authorizedNotes)
         let record = LocalScanRecord(
             speciesId: "share_composer_field_notes_species",
             scientificName: "Cyprinella lutrensis",
@@ -106,7 +107,8 @@ struct InsightFieldNotesStateTests {
         defer { FieldNotesStore.setFieldNotes(nil, for: queuedScan.id) }
 
         let viewModel = InsightSheetViewModel(
-            queuedContext: queuedScan.queuedScanContext()
+            queuedContext: queuedScan.queuedScanContext(),
+            fieldNotesDependencies: Self.authorizedNotes
         )
         viewModel.syncFieldNotesFromCurrentScan(modelContext: context)
         #expect(viewModel.currentFieldNotesScanId == queuedScan.id)
@@ -133,7 +135,8 @@ struct InsightFieldNotesStateTests {
         defer { FieldNotesStore.setFieldNotes(nil, for: queuedScan.id) }
 
         let viewModel = InsightSheetViewModel(
-            queuedContext: queuedScan.queuedScanContext()
+            queuedContext: queuedScan.queuedScanContext(),
+            fieldNotesDependencies: Self.authorizedNotes
         )
         viewModel.syncFieldNotesFromCurrentScan(modelContext: context)
 
@@ -211,4 +214,23 @@ struct InsightFieldNotesStateTests {
         #expect(feedbackCount == 1)
         #expect(viewModel.fieldNotesText == "Published note")
     }
+    private static var authorizedNotes: InsightFieldNotesDependencies {
+        let repository = FieldNotesRepository.Dependencies(
+            allowsMutation: { true },
+            ownerID: { UUID(uuidString: "00000000-0000-4000-8000-000000000001")! },
+            didCommit: { _ in }
+        )
+        return InsightFieldNotesDependencies(
+            fieldNotes: { id, context in
+                FieldNotesRepository.fieldNotes(for: id, modelContext: context, dependencies: repository)
+            },
+            setFieldNotes: { text, id, context in
+                FieldNotesRepository.setFieldNotes(text, for: id, modelContext: context, dependencies: repository)
+            },
+            promoteExternalFieldNotesIfLocalMissing: { text, id, context in
+                FieldNotesRepository.promoteExternalFieldNotesIfLocalMissing(text, for: id, modelContext: context, dependencies: repository)
+            }
+        )
+    }
+
 }

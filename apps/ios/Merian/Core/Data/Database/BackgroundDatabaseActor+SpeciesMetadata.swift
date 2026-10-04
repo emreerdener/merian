@@ -13,51 +13,56 @@ extension BackgroundDatabaseActor {
         imageUrl: String?,
         expectedScientificName: String? = nil
     ) -> Bool {
-        var descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
-        descriptor.fetchLimit = 1
-        let record: LocalScanRecord?
-        do {
-            record = try modelContext.fetch(descriptor).first
-        } catch {
-            MerianLog.data.debug("updateScanWithWikipedia: fetch failed for \(scanId, privacy: .private): \(error, privacy: .private)")
-            return false
-        }
-        guard let record, record.hasSpeciesLevelIdentification else { return false }
+        return ConfirmedSpeciesReviewPersistence.transaction {
+            let modelContext = ModelContext(modelContainer)
+            modelContext.autosaveEnabled = false
+            guard (try? ObservationHistoryEnrollmentIntent.holds(scanId, context: modelContext)) == false else { return false }
+            var descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanId })
+            descriptor.fetchLimit = 1
+            let record: LocalScanRecord?
+            do {
+                record = try modelContext.fetch(descriptor).first
+            } catch {
+                MerianLog.data.debug("updateScanWithWikipedia: fetch failed for \(scanId, privacy: .private): \(error, privacy: .private)")
+                return false
+            }
+            guard let record, record.hasSpeciesLevelIdentification else { return false }
 
-        guard expectedScientificName.map({
-            effectiveScientificName(for: record).caseInsensitiveCompare($0)
-                == .orderedSame
-        }) ?? true else {
-            return false
-        }
+            guard expectedScientificName.map({
+                effectiveScientificName(for: record).caseInsensitiveCompare($0)
+                    == .orderedSame
+            }) ?? true else {
+                return false
+            }
 
-        var didChange = false
-        if let extract, record.wikipediaOverview != extract {
-            record.wikipediaOverview = extract
-            didChange = true
-        }
-        if let url, record.wikipediaUrl != url {
-            record.wikipediaUrl = url
-            didChange = true
-        }
-        if let imageUrl, !imageUrl.isEmpty {
-            let sanitizedImageUrl = ExternalReferenceImagePolicy.sanitizedURLList(
-                imageUrl
-            )
-            if record.referenceImageUrl != sanitizedImageUrl {
-                record.referenceImageUrl = sanitizedImageUrl
+            var didChange = false
+            if let extract, record.wikipediaOverview != extract {
+                record.wikipediaOverview = extract
                 didChange = true
             }
-        }
-        guard didChange else { return false }
+            if let url, record.wikipediaUrl != url {
+                record.wikipediaUrl = url
+                didChange = true
+            }
+            if let imageUrl, !imageUrl.isEmpty {
+                let sanitizedImageUrl = ExternalReferenceImagePolicy.sanitizedURLList(
+                    imageUrl
+                )
+                if record.referenceImageUrl != sanitizedImageUrl {
+                    record.referenceImageUrl = sanitizedImageUrl
+                    didChange = true
+                }
+            }
+            guard didChange else { return false }
 
-        do {
-            try modelContext.save()
-            return true
-        } catch {
-            modelContext.rollback()
-            MerianLog.data.error("updateScanWithWikipedia: save failed for \(scanId, privacy: .private): \(error, privacy: .private)")
-            return false
+            do {
+                try modelContext.save()
+                return true
+            } catch {
+                modelContext.rollback()
+                MerianLog.data.error("updateScanWithWikipedia: save failed for \(scanId, privacy: .private): \(error, privacy: .private)")
+                return false
+            }
         }
     }
 
@@ -81,30 +86,36 @@ extension BackgroundDatabaseActor {
     private func mutateScan(
         id: String,
         expectedScientificName: String? = nil,
+        preservesEnrollment: Bool = false,
         mutation: (LocalScanRecord) -> Void
     ) {
-        var descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == id })
-        descriptor.fetchLimit = 1
-        let record: LocalScanRecord?
-        do {
-            record = try modelContext.fetch(descriptor).first
-        } catch {
-            MerianLog.data.error(
-                "mutateScan: fetch failed for \(id, privacy: .private): \(error, privacy: .private)"
-            )
-            return
-        }
-        guard let record,
-              expectedScientificName.map({
-                  effectiveScientificName(for: record).caseInsensitiveCompare($0)
-                      == .orderedSame
-              }) ?? true else {
-            return
-        }
-        mutation(record)
-        do { try modelContext.save() } catch {
-            modelContext.rollback()
-            MerianLog.data.error("mutateScan: save failed for \(id, privacy: .private): \(error, privacy: .private)")
+        ConfirmedSpeciesReviewPersistence.transaction {
+            let modelContext = ModelContext(modelContainer)
+            modelContext.autosaveEnabled = false
+            if preservesEnrollment, (try? ObservationHistoryEnrollmentIntent.holds(id, context: modelContext)) != false { return }
+            var descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == id })
+            descriptor.fetchLimit = 1
+            let record: LocalScanRecord?
+            do {
+                record = try modelContext.fetch(descriptor).first
+            } catch {
+                MerianLog.data.error(
+                    "mutateScan: fetch failed for \(id, privacy: .private): \(error, privacy: .private)"
+                )
+                return
+            }
+            guard let record,
+                  expectedScientificName.map({
+                      effectiveScientificName(for: record).caseInsensitiveCompare($0)
+                          == .orderedSame
+                  }) ?? true else {
+                return
+            }
+            mutation(record)
+            do { try modelContext.save() } catch {
+                modelContext.rollback()
+                MerianLog.data.error("mutateScan: save failed for \(id, privacy: .private): \(error, privacy: .private)")
+            }
         }
     }
 
@@ -123,7 +134,8 @@ extension BackgroundDatabaseActor {
     ) {
         mutateScan(
             id: scanId,
-            expectedScientificName: expectedScientificName
+            expectedScientificName: expectedScientificName,
+            preservesEnrollment: true
         ) { record in
             guard record.hasSpeciesLevelIdentification else { return }
             if let habitat = habitatDescription { record.habitatDescription = habitat }

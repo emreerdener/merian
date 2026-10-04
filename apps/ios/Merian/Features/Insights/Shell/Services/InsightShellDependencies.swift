@@ -8,6 +8,7 @@ struct InsightAuthenticationSnapshot: Equatable {
 
 @MainActor
 struct InsightShellDependencies {
+    var historyAccess: IdentificationHistoryAccess? = nil
     let appEvents: AnyPublisher<AppEvent, Never>
     let authenticationSnapshot: @MainActor () -> InsightAuthenticationSnapshot
     let defaultAppSettings: @MainActor () -> AppSettings
@@ -134,7 +135,7 @@ struct InsightShellDependencies {
         let container = AppDIContainer.shared
         let hapticManager = container.hapticManager
         let mediaExportService = MediaExportService.live
-        return Self(
+        var result = Self(
             appEvents: container.appEventPublisher.publisher,
             authenticationSnapshot: {
                 let manager = SupabaseManager.shared
@@ -231,5 +232,9 @@ struct InsightShellDependencies {
                 ShareSheetPresenter.present(items: payload.activityItems)
             }
         )
+        #if DEBUG
+        result.historyAccess = UITestSeedCoordinator.identificationHistoryAccess
+        #endif
+        return result
     }
 }

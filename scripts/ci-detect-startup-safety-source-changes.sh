@@ -83,6 +83,8 @@ is_startup_runtime_file() {
     apps/ios/Merian/Core/Data/OfflineSync/OfflineQueueManager.swift | \
     apps/ios/Merian/Core/Data/StoreRecovery/* | \
     apps/ios/Merian/Models/Aliases.swift | \
+    apps/ios/Merian/Models/ActiveSchema/* | \
+    apps/ios/MerianTests/Models/LocalAnalysisRecordTests.swift | \
     apps/ios/Merian/Models/Schema/SchemaV49Snapshots.swift | \
     apps/ios/Merian/Models/Schema/SchemaV50Snapshots.swift | \
     apps/ios/Merian/Models/Schema/SchemaV50ReleasedActiveSnapshots.swift | \
@@ -91,6 +93,20 @@ is_startup_runtime_file() {
     apps/ios/Merian/Models/Schema/SchemaV52ScanSnapshots.swift | \
     apps/ios/Merian/Models/Schema/SchemaV52QueueSnapshots.swift | \
     apps/ios/Merian/Models/Schema/SchemaV53.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV53ScanSnapshots.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV53QueueSnapshots.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV54.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV54ScanSnapshots.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV54QueueSnapshots.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV55.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV55ScanSnapshots.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV55QueueSnapshots.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV56.swift | \
+    apps/ios/Merian/Models/ActiveSchema/LocalAnalysisStateRecord.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV56ScanSnapshots.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV56QueueSnapshots.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV57.swift | \
+    apps/ios/MerianTests/Models/LocalAnalysisStateRecordTests.swift | \
     apps/ios/Merian/Models/SchemaVersions.swift | \
     apps/ios/MerianTests/Core/Data/StoreRecovery/* | \
     apps/ios/MerianTests/Core/Data/Database/CoreDataIntegrationArchitectureTests.swift | \

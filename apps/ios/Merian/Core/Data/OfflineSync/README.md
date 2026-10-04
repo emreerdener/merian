@@ -166,6 +166,8 @@ The canonical behavioral contract is the
 | `OfflineJobScheduler.swift`                                                       | Persisted wake restoration and the ordered foreground drain.                                                                                                                                                               |
 | `OfflineQueueManager.swift`                                                       | Observable queue facade, connectivity/lifecycle state, background-session setup, and retained transfer state.                                                                                                              |
 | `OfflineQueueManager+AudioQueue.swift`                                            | Single-audio convenience admission into the shared nonvisual queue path.                                                                                                                                                   |
+| `Policies/CloudDeletionIntent.swift`                                              | Versioned requesting-account and origin metadata; invalid/legacy intent never becomes automatic delete authority.                                                                                                          |
+| `Services/CloudDeletion/CloudDeletionAccountWork.swift`                           | Account lease for deletion admission/acknowledgement and stable requester capture.                                                                                                                                         |
 | `Services/CloudDeletion/OfflineQueueManager+CloudDeletionSync.swift`              | Durable cloud-deletion drain, explicit confirmation, job recovery, and bounded retry persistence.                                                                                                                          |
 | `Services/Collections/OfflineQueueManager+CollectionSync.swift`                   | Collection dirty-revision tracking, persisted job state, serialized drain, and auth-transition quiescence.                                                                                                                 |
 | `Services/Collections/CollectionSyncService.swift`                                | Injected account-work lease, pre-dispatch and post-response fencing, remote snapshot push, and acknowledgement commit orchestration.                                                                                       |
@@ -616,3 +618,48 @@ completed-owner prefix and stopping the full-history fallback and recovery
 polling. Updating the app permits an explicit retry from Scans; it does not
 automatically start paid identifications. See the
 [compatibility recovery contract](../../../../../../docs/backend-and-data/01-offline-sync-pipeline.md).
+
+Cloud deletion's account/provenance quarantine, bounded discovery and wake rules
+are defined by the
+[canonical deletion contract](../../../../../../docs/backend-and-data/01-offline-sync-pipeline.md#2-cloud-deletion-tasking-pendingclouddeletiontask).
+New intent uses existing job metadata; ambiguous old tasks remain held and no
+whole-history deletion action is enabled.
+
+## Library transition inventory
+
+`Persistence/LibraryMutationInventory.swift` owns the fresh fail-closed
+inventory used after Auth closes producer admission.
+`Services/LibraryDetailsSyncService` owns immutable owner-bound detail
+operations and receipt acknowledgment; it does not equate an empty runnable
+queue with durable synchronization. Its drain imports legacy notes before
+unrelated detail edits can clear them and re-reads pending batches after
+coalesced producer wake-ups. Failed acknowledgments retain their immutable
+operation and use the scheduler's five-second fallback when persistence cannot
+record another deadline. Earlier queue deadlines take precedence, and a fenced
+or cancelled attempt does not consume that retry. The canonical
+[guest library transition contract](../../../../../../docs/backend-and-data/21-guest-library-transitions.md)
+defines each operation's cleanup/merge boundary and recovery evidence.
+
+Prepared history enrollment uses an exact `observation-history-enrollment:`
+namespace in the existing `.future` job store. Active owner-bound intents are
+`.needsAttention` without deadlines and count as pending library mutations.
+Explicit erasure of held/acknowledged observations retains a metadata-free
+`.cancelled` identity fence; ordinary cloud deletion cleanup must not remove it.
+The scheduler excludes the entire namespace, including malformed rows. Account
+purge clears both states. The
+[Analysis History owner](../AnalysisHistory/README.md#prepared-native-enrollment)
+defines restoration, acknowledgment and deletion semantics; no worker dispatches
+these jobs automatically.
+
+Prepared selection/Undo uses a separate
+`observation-history-selection:<lower UUID>` `.future` job: `.needsAttention`
+while pending, `.complete` after atomic success/current-state admission, or
+`.cancelled` after a validated version-2 rejection/current-state admission. No
+state has a deadline. Bare cancellation is not a terminal proof. Pending rows
+count as library mutation obligations. The scheduler excludes the namespace even
+with damaged status/deadline metadata; no drain is connected. Explicit scan
+erasure removes its request/receipt payload while the history enrollment owner
+retains the identity-only deletion fence. Account purge removes every row. The
+[selection owner](../AnalysisHistory/README.md#prepared-selection-and-undo)
+defines explicit replay and revision-bound Undo; generic job retry helpers must
+not reopen or replace these records.

@@ -7,6 +7,7 @@ extension OfflineQueueManager {
     @discardableResult
     func deleteQueuedScan(
         scanId: String,
+        userInitiated: Bool = false,
         explicitlyAdoptedMediaPaths: [String] = [],
         preservePreferredGoalHint: Bool = false,
         inferenceExpectation: InferenceGenerationExpectation? = nil,
@@ -14,7 +15,8 @@ extension OfflineQueueManager {
         serverPollTokenToPreserve: UUID? = nil
     ) async -> Bool {
         await ScanInferencePersistenceCoordinator.shared.acquire(scanId: scanId)
-        guard !Task.isCancelled else {
+        guard !Task.isCancelled,
+              !userInitiated || SupabaseManager.shared.allowsLocalLibraryMutation else {
             await ScanInferencePersistenceCoordinator.shared.release(scanId: scanId)
             return false
         }

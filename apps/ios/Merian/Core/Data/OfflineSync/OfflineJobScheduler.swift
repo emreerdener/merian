@@ -9,6 +9,7 @@ final class OfflineJobScheduler {
     /// The drain effects, separated from scheduling policy so
     /// tests can exercise their ordering without starting live queue work.
     struct DrainOperations {
+        var syncLibraryDetails: @MainActor (OfflineQueueManager) async -> Void = { _ in }
         var syncIdentificationReviews: @MainActor (OfflineQueueManager) async -> Void = { _ in }
         let reconcileFunding: @MainActor (OfflineQueueManager) async -> Void
         let syncPendingScans: @MainActor (OfflineQueueManager) -> Void
@@ -18,6 +19,11 @@ final class OfflineJobScheduler {
         let syncCollections: @MainActor (OfflineQueueManager) -> Void
 
         fileprivate static let live = DrainOperations(
+            syncLibraryDetails: { manager in
+                if let context = manager.modelContext {
+                    await LibraryDetailsSyncService.drain(context: context, manager: .shared)
+                }
+            },
             syncIdentificationReviews: { await $0.syncPendingIdentificationReviews() },
             reconcileFunding: { await $0.reconcileDeferredFundingReservations() },
             syncPendingScans: { $0.syncPendingScans() },
@@ -32,10 +38,13 @@ final class OfflineJobScheduler {
     private static let databaseReadRetryDelay: TimeInterval = 5
 
     private let drainOperations: DrainOperations
+    private let deletionAccountID: @MainActor () -> UUID?
     private weak var scheduledManager: OfflineQueueManager?
     private var scheduledSourceDate: Date?
     private var scheduledWakeToken: UUID?
     private var scheduledWakeTask: Task<Void, Never>?
+    private weak var libraryRetryManager: OfflineQueueManager?
+    private var libraryRetryDate: Date?
 
     /// Actual in-process wake time. Kept internal so regression tests can prove
     /// a persisted future retry was restored instead of merely displayed.
@@ -43,10 +52,13 @@ final class OfflineJobScheduler {
 
     private init() {
         drainOperations = .live
+        deletionAccountID = { CloudDeletionAccountWork.currentAccountID }
     }
 
-    init(drainOperations: DrainOperations) {
+    init(drainOperations: DrainOperations,
+         deletionAccountID: @escaping @MainActor () -> UUID? = { CloudDeletionAccountWork.currentAccountID }) {
         self.drainOperations = drainOperations
+        self.deletionAccountID = deletionAccountID
     }
 
     func drainRunnableJobs(using manager: OfflineQueueManager) async {
@@ -60,6 +72,7 @@ final class OfflineJobScheduler {
         // deletion backlog, for example, must not delay a scan retry that
         // becomes eligible while that drain is still in flight.
         scheduleNextPersistedWake(using: manager)
+        await drainOperations.syncLibraryDetails(manager)
         await drainOperations.reconcileFunding(manager)
         drainOperations.syncPendingScans(manager)
         await drainOperations.syncIdentificationReviews(manager)
@@ -73,6 +86,23 @@ final class OfflineJobScheduler {
         // claims can clear a due retry date before selecting the next wake.
         await Task.yield()
         scheduleNextPersistedWake(using: manager)
+    }
+
+    /// Persistence can fail while acknowledging an RPC, so retry cannot depend
+    /// on saving another deadline. The immutable pending job survives restart;
+    /// this fallback supplies a bounded wake while the process remains alive.
+    func scheduleLibraryDetailsRetry(using manager: OfflineQueueManager, now: Date = Date()) {
+        libraryRetryManager = manager
+        libraryRetryDate = now.addingTimeInterval(Self.databaseReadRetryDelay)
+        scheduleNextPersistedWake(using: manager, now: now)
+    }
+
+    /// Called only after the details drain acquired its exact-owner lease.
+    /// Offline or identity-fenced attempts must retain the recovery wake.
+    func libraryDetailsDrainDidStart(using manager: OfflineQueueManager) {
+        guard libraryRetryManager === manager else { return }
+        libraryRetryDate = nil
+        libraryRetryManager = nil
     }
 
     /// Recreates the process-local timer from durable SwiftData dates.
@@ -89,7 +119,8 @@ final class OfflineJobScheduler {
             cancelScheduledWake(using: manager)
             return
         }
-        guard let sourceDate = nextPersistedWakeDate(using: manager) else {
+        let libraryDeadline = libraryRetryManager === manager ? libraryRetryDate : nil
+        guard let sourceDate = [nextPersistedWakeDate(using: manager), libraryDeadline].compactMap({ $0 }).min() else {
             cancelScheduledWake(using: manager)
             return
         }
@@ -204,7 +235,26 @@ final class OfflineJobScheduler {
             )
             return candidates.min()
         }
+        let deletionOwner = deletionAccountID()
         candidates.append(contentsOf: jobs.compactMap { job -> Date? in
+            // Enrollment recovery is explicit, including damaged/unknown hold metadata.
+            guard !job.id.hasPrefix(ObservationHistoryEnrollmentIntent.prefix),
+                  !job.id.hasPrefix(ObservationHistorySelectionIntent.prefix) else { return nil }
+            // Discovery cannot advance while the deletion drain owns its
+            // single-flight latch. Keep its durable deadline for restart, but
+            // avoid re-entering every sync service once per second during a
+            // slow network batch. The drain rearms it when releasing the latch.
+            if job.kind == .cloudDeletion {
+                guard let deletionOwner else { return nil }
+                if job.id == OfflineQueueManager.cloudDeletionDiscoveryJobID {
+                    guard !manager.isCloudDeletionSyncing else { return nil }
+                } else {
+                    guard !OfflineQueueManager.cloudDeletionIsHeld(job),
+                          let scanID = job.subjectId,
+                          let intent = CloudDeletionIntent.restoring(job.metadataJSON, scanID: scanID),
+                          intent.requestingAccountID == deletionOwner else { return nil }
+                }
+            }
             guard activeStatuses.contains(job.statusRaw),
                   !blockedScanJobIds.contains(job.id) else {
                 return nil

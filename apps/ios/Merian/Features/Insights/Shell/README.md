@@ -231,3 +231,14 @@ The focused suites do not replace the complete `merianTests` target. Manual
 parity covers modal and embedded presentation, queued-to-completed promotion,
 toolbar actions, Field Chat handoffs, Field-trip contribution routing, media and
 gallery continuity, VoiceOver, large Dynamic Type, and light/dark appearance.
+
+## Prepared history presentation
+
+`InsightShellPresentation.identificationHistory` shares the existing modal slot
+and binds observation identity plus scan generation. `InsightSheetView+History`
+admits only a multiple-result action supplied through optional `historyAccess`;
+normal `.live` access is nil. The Debug UI-test fixture is the only enabled
+path. `InsightSheetViewModel+History` refreshes the parent from an acknowledged
+Core projection, never preview content. Generation/dismissal and library events
+close or revalidate the model. History services and interaction state belong to
+[History](../History/README.md).

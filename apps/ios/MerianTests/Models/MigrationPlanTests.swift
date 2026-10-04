@@ -1218,6 +1218,198 @@ struct MigrationPlanTests {
         #expect(try context.fetch(FetchDescriptor<LocalScanRecord>()).first?.identificationProvenanceData == Data("unknown-present".utf8))
     }
 
+    @Test func v54StorePreservesCurrentProjectionWithoutInventingHistory() throws {
+        let url = migrationStoreURL(named: "v54-analysis-storage")
+        defer { keepSQLiteStoreForProcessLifetime(at: url) }
+        do {
+            let schema = Schema(versionedSchema: MerianSchemaV54.self)
+            let container = try makeModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, url: url)])
+            let context = ModelContext(container)
+            let scan = MerianSchemaV54.LocalScanRecord(speciesId: "fixture", scientificName: "Fixture", commonName: "Fixture")
+            scan.id = "fixture-id"
+            scan.speciesId = "fixture-speciesId"
+            scan.scientificName = "fixture-scientificName"
+            scan.commonName = "fixture-commonName"
+            scan.timestamp = Date(timeIntervalSince1970: 123456)
+            scan.captureDate = Date(timeIntervalSince1970: 123456)
+            scan.capturedMediaJSON = "fixture-capturedMediaJSON"
+            scan.semanticTags = ["fixture-semanticTags"]
+            scan.hazardType = "fixture-hazardType"
+            scan.isBiological = false
+            scan.isLiveCapture = false
+            scan.isInvasive = true
+            scan.invasiveStatusRegion = "fixture-invasiveStatusRegion"
+            scan.invasiveRationale = "fixture-invasiveRationale"
+            scan.invasiveConfidence = 42
+            scan.ecologyType = "fixture-ecologyType"
+            scan.wikipediaUrl = "fixture-wikipediaUrl"
+            scan.wikipediaOverview = "fixture-wikipediaOverview"
+            scan.referenceImageUrl = "fixture-referenceImageUrl"
+            scan.confidenceScore = 42
+            scan.isLocallyArchived = true
+            scan.taxonomyKingdom = "fixture-taxonomyKingdom"
+            scan.taxonomyPhylum = "fixture-taxonomyPhylum"
+            scan.taxonomyClass = "fixture-taxonomyClass"
+            scan.taxonomyOrder = "fixture-taxonomyOrder"
+            scan.taxonomyFamily = "fixture-taxonomyFamily"
+            scan.taxonomyGenus = "fixture-taxonomyGenus"
+            scan.locationName = "fixture-locationName"
+            scan.weatherCondition = "fixture-weatherCondition"
+            scan.weatherTemperatureF = 42
+            scan.similarSpecies = ["fixture-similarSpecies"]
+            scan.lookalikesData = Data("opaque-lookalikesData".utf8)
+            scan.candidatesData = Data("opaque-candidatesData".utf8)
+            scan.userIdentificationOverride = "fixture-userIdentificationOverride"
+            scan.userConfirmedIdentification = true
+            scan.isFlagged = true
+            scan.iucnRedListStatus = "fixture-iucnRedListStatus"
+            scan.gpsLatitude = nil
+            scan.gpsLongitude = nil
+            scan.gpsElevation = nil
+            scan.zoomFactor = 42
+            scan.aiReasoning = "fixture-aiReasoning"
+            scan.habitatDescription = "fixture-habitatDescription"
+            scan.gbifTaxonKey = 42
+            scan.estimatedSizeCm = 42
+            scan.lifeStage = "fixture-lifeStage"
+            scan.reproductiveCondition = "fixture-reproductiveCondition"
+            scan.sex = "fixture-sex"
+            scan.sexConfidence = 42
+            scan.sexEvidence = "fixture-sexEvidence"
+            scan.individualCount = 42
+            scan.ecologicalInteractions = ["fixture-ecologicalInteractions"]
+            scan.inferenceTier = "fixture-inferenceTier"
+            scan.identificationProvenanceData = Data("opaque-identificationProvenanceData".utf8)
+            scan.primaryIdentificationData = Data("opaque-primaryIdentificationData".utf8)
+            scan.confirmedSpeciesIdentityData = Data("opaque-confirmedSpeciesIdentityData".utf8)
+            scan.aiIdentificationReviewData = Data("opaque-aiIdentificationReviewData".utf8)
+            scan.customTags = ["fixture-customTags"]
+            scan.hasBeenViewed = false
+            scan.imageQualityScore = 42
+            scan.alternativeCommonNames = ["fixture-alternativeCommonNames"]
+            scan.petIdentificationData = Data("opaque-petIdentificationData".utf8)
+            scan.confirmedSpeciesId = "fixture-confirmedSpeciesId"
+            scan.userReviewStateRaw = "user_overridden"
+            scan.observationContextsJSON = ["fixture-observationContextsJSON"]
+            scan.fieldNotes = "fixture-fieldNotes"
+            scan.coverImagePath = "fixture-coverImagePath"
+            context.insert(scan)
+            let entries = [
+                MerianSchemaV54.CapturedMediaEntry(orderIndex: 0, item: .image(.documents("fixture.webp"))),
+                MerianSchemaV54.CapturedMediaEntry(orderIndex: 1, item: .description(ObservationContext(freeText: "Synthetic evidence")))
+            ]
+            entries.forEach { context.insert($0) }
+            scan.capturedMediaEntries = entries
+            context.insert(MerianSchemaV54.ScanCollection(name: "Saved collection", scans: [scan]))
+            context.insert(MerianSchemaV54.PendingCloudDeletionTask(scanId: "pending-deletion"))
+            context.insert(MerianSchemaV54.OfflineJobRecord(id: "pending-review", kind: .identificationReviewSync, subjectId: scan.id, metadataJSON: "{\"fixture\":true}"))
+            try context.save()
+        }
+        let decision = ModelStoreRecoveryCoordinator.migrationDecision(at: url, currentSchemaMajor: CurrentSchema.versionIdentifier.major)
+        #expect(decision.hint == .recentSource(.v54))
+        let schema = Schema(versionedSchema: CurrentSchema.self)
+        // Verify both the production predecessor lane and a subsequent plan-free reopen.
+        for migration in [true, false] {
+            let config = ModelConfiguration(schema: schema, url: url)
+            let container = try migration
+                ? makeModelContainer(for: schema, migrationPlan: MerianRecentV54MigrationPlan.self, configurations: [config])
+                : makeModelContainer(for: schema, configurations: [config])
+            let context = ModelContext(container)
+            let scan = try #require(context.fetch(FetchDescriptor<LocalScanRecord>()).first)
+            #expect(scan.id == "fixture-id")
+            #expect(scan.speciesId == "fixture-speciesId")
+            #expect(scan.scientificName == "fixture-scientificName")
+            #expect(scan.commonName == "fixture-commonName")
+            #expect(scan.timestamp == Date(timeIntervalSince1970: 123456))
+            #expect(scan.captureDate == Date(timeIntervalSince1970: 123456))
+            #expect(scan.capturedMediaJSON == "fixture-capturedMediaJSON")
+            #expect(scan.semanticTags == ["fixture-semanticTags"])
+            #expect(scan.hazardType == "fixture-hazardType")
+            #expect(scan.isBiological == false)
+            #expect(scan.isLiveCapture == false)
+            #expect(scan.isInvasive == true)
+            #expect(scan.invasiveStatusRegion == "fixture-invasiveStatusRegion")
+            #expect(scan.invasiveRationale == "fixture-invasiveRationale")
+            #expect(scan.invasiveConfidence == 42)
+            #expect(scan.ecologyType == "fixture-ecologyType")
+            #expect(scan.wikipediaUrl == "fixture-wikipediaUrl")
+            #expect(scan.wikipediaOverview == "fixture-wikipediaOverview")
+            #expect(scan.referenceImageUrl == "fixture-referenceImageUrl")
+            #expect(scan.confidenceScore == 42)
+            #expect(scan.isLocallyArchived == true)
+            #expect(scan.taxonomyKingdom == "fixture-taxonomyKingdom")
+            #expect(scan.taxonomyPhylum == "fixture-taxonomyPhylum")
+            #expect(scan.taxonomyClass == "fixture-taxonomyClass")
+            #expect(scan.taxonomyOrder == "fixture-taxonomyOrder")
+            #expect(scan.taxonomyFamily == "fixture-taxonomyFamily")
+            #expect(scan.taxonomyGenus == "fixture-taxonomyGenus")
+            #expect(scan.locationName == "fixture-locationName")
+            #expect(scan.weatherCondition == "fixture-weatherCondition")
+            #expect(scan.weatherTemperatureF == 42)
+            #expect(scan.similarSpecies == ["fixture-similarSpecies"])
+            #expect(scan.lookalikesData == Data("opaque-lookalikesData".utf8))
+            #expect(scan.candidatesData == Data("opaque-candidatesData".utf8))
+            #expect(scan.userIdentificationOverride == "fixture-userIdentificationOverride")
+            #expect(scan.userConfirmedIdentification == true)
+            #expect(scan.isFlagged == true)
+            #expect(scan.iucnRedListStatus == "fixture-iucnRedListStatus")
+            #expect(scan.gpsLatitude == nil)
+            #expect(scan.gpsLongitude == nil)
+            #expect(scan.gpsElevation == nil)
+            #expect(scan.zoomFactor == 42)
+            #expect(scan.aiReasoning == "fixture-aiReasoning")
+            #expect(scan.habitatDescription == "fixture-habitatDescription")
+            #expect(scan.gbifTaxonKey == 42)
+            #expect(scan.estimatedSizeCm == 42)
+            #expect(scan.lifeStage == "fixture-lifeStage")
+            #expect(scan.reproductiveCondition == "fixture-reproductiveCondition")
+            #expect(scan.sex == "fixture-sex")
+            #expect(scan.sexConfidence == 42)
+            #expect(scan.sexEvidence == "fixture-sexEvidence")
+            #expect(scan.individualCount == 42)
+            #expect(scan.ecologicalInteractions == ["fixture-ecologicalInteractions"])
+            #expect(scan.inferenceTier == "fixture-inferenceTier")
+            #expect(scan.identificationProvenanceData == Data("opaque-identificationProvenanceData".utf8))
+            #expect(scan.primaryIdentificationData == Data("opaque-primaryIdentificationData".utf8))
+            #expect(scan.confirmedSpeciesIdentityData == Data("opaque-confirmedSpeciesIdentityData".utf8))
+            #expect(scan.aiIdentificationReviewData == Data("opaque-aiIdentificationReviewData".utf8))
+            #expect(scan.customTags == ["fixture-customTags"])
+            #expect(scan.hasBeenViewed == false)
+            #expect(scan.imageQualityScore == 42)
+            #expect(scan.alternativeCommonNames == ["fixture-alternativeCommonNames"])
+            #expect(scan.petIdentificationData == Data("opaque-petIdentificationData".utf8))
+            #expect(scan.confirmedSpeciesId == "fixture-confirmedSpeciesId")
+            #expect(scan.userReviewStateRaw == "user_overridden")
+            #expect(scan.observationContextsJSON == ["fixture-observationContextsJSON"])
+            #expect(scan.fieldNotes == "fixture-fieldNotes")
+            #expect(scan.coverImagePath == "fixture-coverImagePath")
+            #expect(scan.analysisSelectionInitialized)
+            #expect(scan.selectedAnalysisID == nil)
+            #expect(scan.analysisOwnerAccountID == nil)
+            #expect(scan.observationStateRevision == nil)
+            #expect(try context.fetchCount(FetchDescriptor<LocalAnalysisRecord>()) == 0)
+            #expect(scan.collections?.first?.name == "Saved collection")
+            #expect(scan.capturedMediaEntries?.count == 2)
+            #expect(scan.capturedMediaEntries?.contains { $0.mediaPath == "fixture.webp" } == true)
+            #expect(try context.fetch(FetchDescriptor<PendingCloudDeletionTask>()).first?.scanId == "pending-deletion")
+            #expect(try context.fetch(FetchDescriptor<OfflineJobRecord>()).first?.metadataJSON == "{\"fixture\":true}")
+        }
+    }
+
+    @Test func outgoingV54ModelsAndRelationshipsAreFrozen() throws {
+        let schema = try String(contentsOf: repositoryRoot.appendingPathComponent("Merian/Models/Schema/SchemaV54.swift"), encoding: .utf8)
+        for name in ["LocalScanRecord", "ScanCollection", "CapturedMediaEntry", "OfflineQueuedScan", "PendingCloudDeletionTask", "UserSpeciesPreference", "OfflineJobRecord", "OfflineQueueEvent"] {
+            #expect(schema.contains("MerianSchemaV54.\(name).self"))
+        }
+        #expect(ObjectIdentifier(MerianSchemaV54.LocalScanRecord.self) != ObjectIdentifier(LocalScanRecord.self))
+        #expect(ObjectIdentifier(MerianSchemaV54.ScanCollection.self) != ObjectIdentifier(ScanCollection.self))
+        let snapshot = try String(contentsOf: repositoryRoot.appendingPathComponent("Merian/Models/Schema/SchemaV54ScanSnapshots.swift"), encoding: .utf8)
+        #expect(snapshot.contains("[MerianSchemaV54.CapturedMediaEntry]?"))
+        #expect(snapshot.contains("[MerianSchemaV54.ScanCollection]?"))
+        #expect(snapshot.contains("\\MerianSchemaV54.LocalScanRecord.collections"))
+        #expect(!snapshot.contains("analysisRecords"))
+    }
+
     @Test func v53StorePreservesReviewAndAddsDurableRejectionStorage() throws {
         let url = migrationStoreURL(named: "v53-rejection")
         defer { keepSQLiteStoreForProcessLifetime(at: url) }
@@ -1317,28 +1509,177 @@ struct MigrationPlanTests {
         #expect(!reopenedRecord.hasSpeciesLevelIdentification)
     }
 
-    @Test func allForwardPlansEndWithTheAdditivePrimaryIdentityStage() throws {
+    @Test func v55MigrationPreservesCompletionAndAdmitsUnknownImportedCompletion() throws {
+        let url = migrationStoreURL(named: "v55-unknown-completion")
+        let owner = UUID(uuidString: "00000000-0000-4000-8000-000000000501")!
+        let analysis = UUID(uuidString: "00000000-0000-4000-8000-000000000502")!
+        let observation = "00000000-0000-4000-8000-000000000503"
+        let completed = Date(timeIntervalSince1970: 1_750_000_000)
+        let bytes = Data("{ \"synthetic\" : true }".utf8)
+        do {
+            let schema = Schema(versionedSchema: MerianSchemaV55.self)
+            let container = try makeModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, url: url)])
+            let context = ModelContext(container)
+            let scan = MerianSchemaV55.LocalScanRecord(id: observation, speciesId: "saved-species", scientificName: "Savedfixture accepted", commonName: "Saved fixture")
+            scan.userIdentificationOverride = "Savedfixture correction"
+            scan.fieldNotes = "Synthetic retained note"
+            scan.analysisOwnerAccountID = owner.uuidString.lowercased()
+            scan.selectedAnalysisID = analysis.uuidString.lowercased()
+            scan.observationStateRevision = 7
+            let result = try MerianSchemaV55.LocalAnalysisRecord(analysisID: analysis, observationID: observation,
+                ownerAccountID: owner, completedAt: completed, resultSnapshotData: bytes)
+            context.insert(scan)
+            context.insert(result)
+            scan.analysisRecords = [result]
+            try context.save()
+        }
+        let decision = ModelStoreRecoveryCoordinator.migrationDecision(at: url, currentSchemaMajor: CurrentSchema.versionIdentifier.major)
+        #expect(decision.hint == .recentSource(.v55))
+        let imported = UUID(uuidString: "00000000-0000-4000-8000-000000000504")!
+        do {
+            let schema = Schema(versionedSchema: CurrentSchema.self)
+            let container = try makeModelContainer(for: schema, migrationPlan: MerianRecentV55MigrationPlan.self,
+                configurations: [ModelConfiguration(schema: schema, url: url)])
+            let context = ModelContext(container)
+            let scan = try #require(context.fetch(FetchDescriptor<LocalScanRecord>()).first)
+            let saved = try #require(context.fetch(FetchDescriptor<LocalAnalysisRecord>()).first)
+            #expect(saved.completedAt == completed)
+            #expect(saved.resultSnapshotData == bytes)
+            #expect(scan.selectedAnalysisID == analysis.uuidString.lowercased())
+            #expect(scan.observationStateRevision == 7)
+            #expect(scan.userIdentificationOverride == "Savedfixture correction")
+            #expect(scan.fieldNotes == "Synthetic retained note")
+            let result = try LocalAnalysisRecord(analysisID: imported, observationID: observation,
+                ownerAccountID: owner, completedAt: nil, snapshotVersion: 3, resultSnapshotData: Data("{}".utf8))
+            context.insert(result)
+            scan.analysisRecords?.append(result)
+            try context.save()
+        }
+        let schema = Schema(versionedSchema: CurrentSchema.self)
+        let reopened = try makeModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, url: url)])
+        let context = ModelContext(reopened)
+        let results = try context.fetch(FetchDescriptor<LocalAnalysisRecord>())
+        #expect(results.count == 2)
+        #expect(results.first(where: { $0.id == analysis.uuidString.lowercased() })?.completedAt == completed)
+        let savedImport = try #require(results.first(where: { $0.id == imported.uuidString.lowercased() }))
+        #expect(savedImport.completedAt == nil)
+        #expect(savedImport.snapshotVersion == 3)
+        #expect(try context.fetch(FetchDescriptor<LocalScanRecord>()).first?.analysisRecords?.count == 2)
+    }
+
+    @Test func v56MigrationPreservesSelectionAndAddsEmptyAnalysisStateCache() throws {
+        let url = migrationStoreURL(named: "v56-analysis-state")
+        let owner = UUID(uuidString: "00000000-0000-4000-8000-000000000501")!
+        let analysis = UUID(uuidString: "00000000-0000-4000-8000-000000000502")!
+        let observation = "00000000-0000-4000-8000-000000000503"
+        let completed = Date(timeIntervalSince1970: 1_750_000_000)
+        let bytes = Data("{ \"synthetic\" : true }".utf8)
+        do {
+            let schema = Schema(versionedSchema: MerianSchemaV56.self)
+            let container = try makeModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, url: url)])
+            let context = ModelContext(container)
+            let scan = MerianSchemaV56.LocalScanRecord(id: observation, speciesId: "saved-species", scientificName: "Savedfixture accepted", commonName: "Saved fixture")
+            scan.userIdentificationOverride = "Savedfixture correction"
+            scan.fieldNotes = "Synthetic retained note"
+            scan.analysisOwnerAccountID = owner.uuidString.lowercased()
+            scan.selectedAnalysisID = analysis.uuidString.lowercased()
+            scan.observationStateRevision = 7
+            let result = try MerianSchemaV56.LocalAnalysisRecord(analysisID: analysis, observationID: observation,
+                ownerAccountID: owner, completedAt: completed, resultSnapshotData: bytes)
+            context.insert(scan)
+            context.insert(result)
+            let importedID = UUID(uuidString: "00000000-0000-4000-8000-000000000505")!
+            let importedResult = try MerianSchemaV56.LocalAnalysisRecord(analysisID: importedID, observationID: observation,
+                ownerAccountID: owner, completedAt: nil, snapshotVersion: 3, resultSnapshotData: Data("{\"saved\":true}".utf8))
+            context.insert(importedResult)
+            scan.analysisRecords = [result, importedResult]
+            try context.save()
+        }
+        let decision = ModelStoreRecoveryCoordinator.migrationDecision(at: url, currentSchemaMajor: CurrentSchema.versionIdentifier.major)
+        #expect(decision.hint == .recentSource(.v56))
+        let imported = UUID(uuidString: "00000000-0000-4000-8000-000000000504")!
+        do {
+            let schema = Schema(versionedSchema: CurrentSchema.self)
+            let container = try makeModelContainer(for: schema, migrationPlan: MerianRecentV56MigrationPlan.self,
+                configurations: [ModelConfiguration(schema: schema, url: url)])
+            let context = ModelContext(container)
+            let scan = try #require(context.fetch(FetchDescriptor<LocalScanRecord>()).first)
+            let saved = try #require(context.fetch(FetchDescriptor<LocalAnalysisRecord>()).first { $0.id == analysis.uuidString.lowercased() })
+            #expect(saved.state == nil)
+            #expect(try context.fetchCount(FetchDescriptor<LocalAnalysisStateRecord>()) == 0)
+            #expect(saved.completedAt == completed)
+            #expect(saved.resultSnapshotData == bytes)
+            #expect(scan.selectedAnalysisID == analysis.uuidString.lowercased())
+            #expect(scan.observationStateRevision == 7)
+            #expect(scan.userIdentificationOverride == "Savedfixture correction")
+            #expect(scan.fieldNotes == "Synthetic retained note")
+            let result = try LocalAnalysisRecord(analysisID: imported, observationID: observation,
+                ownerAccountID: owner, completedAt: nil, snapshotVersion: 3, resultSnapshotData: Data("{}".utf8))
+            let cache = try LocalAnalysisStateRecord(analysisID: imported, observationID: observation,
+                ownerAccountID: owner, observationStateRevision: 7, reviewRevision: 2,
+                reviewSnapshotData: Data("{\"synthetic\":true}".utf8))
+            context.insert(cache)
+            result.state = cache
+            context.insert(result)
+            scan.analysisRecords?.append(result)
+            try context.save()
+        }
+        let schema = Schema(versionedSchema: CurrentSchema.self)
+        let reopened = try makeModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, url: url)])
+        let context = ModelContext(reopened)
+        let results = try context.fetch(FetchDescriptor<LocalAnalysisRecord>())
+        #expect(results.count == 3)
+        #expect(results.first(where: { $0.id == analysis.uuidString.lowercased() })?.completedAt == completed)
+        let savedImport = try #require(results.first(where: { $0.id == imported.uuidString.lowercased() }))
+        #expect(savedImport.completedAt == nil)
+        #expect(savedImport.snapshotVersion == 3)
+        #expect(savedImport.state?.reviewRevision == 2)
+        #expect(savedImport.state?.reviewSnapshotData == Data("{\"synthetic\":true}".utf8))
+        #expect(savedImport.state?.displaySnapshotData == nil)
+        let parent = try #require(context.fetch(FetchDescriptor<LocalScanRecord>()).first)
+        #expect(parent.analysisRecords?.count == 3)
+        let retainedUnknown = try #require(results.first { $0.id.hasSuffix("000505") })
+        #expect(retainedUnknown.completedAt == nil && retainedUnknown.snapshotVersion == 3)
+        #expect(retainedUnknown.resultSnapshotData == Data("{\"saved\":true}".utf8) && retainedUnknown.state == nil)
+        context.delete(parent)
+        try context.save()
+        let fresh = ModelContext(reopened)
+        #expect(try fresh.fetchCount(FetchDescriptor<LocalAnalysisRecord>()) == 0)
+        #expect(try fresh.fetchCount(FetchDescriptor<LocalAnalysisStateRecord>()) == 0)
+    }
+
+    @Test func outgoingV55CompletionAndRelationshipsStayFrozen() throws {
+        #expect(ObjectIdentifier(MerianSchemaV55.LocalScanRecord.self) != ObjectIdentifier(LocalScanRecord.self))
+        #expect(ObjectIdentifier(MerianSchemaV55.LocalAnalysisRecord.self) != ObjectIdentifier(LocalAnalysisRecord.self))
+        let source = try DatabaseActorTestSupport.loadRepositorySource(at: "apps/ios/Merian/Models/Schema/SchemaV55ScanSnapshots.swift")
+        #expect(source.contains("var completedAt: Date\n"))
+        #expect(!source.contains("var completedAt: Date?"))
+        #expect(source.contains("[MerianSchemaV55.LocalAnalysisRecord]?"))
+        #expect(source.contains("inverse: \\MerianSchemaV55.LocalScanRecord.collections"))
+    }
+
+    @Test func allForwardPlansEndWithAnalysisStateStage() throws {
         let plans: [any SchemaMigrationPlan.Type] = [MerianMigrationPlan.self,
             MerianRecentV42MigrationPlan.self, MerianRecentV43MigrationPlan.self,
             MerianRecentV44MigrationPlan.self, MerianRecentV45MigrationPlan.self,
             MerianRecentV46MigrationPlan.self, MerianRecentV47MigrationPlan.self,
             MerianRecentV48MigrationPlan.self, MerianOptionalQueueV48RecoveryPlan.self,
             MerianRecentV49MigrationPlan.self, MerianRecentV50MigrationPlan.self,
-            MerianReleasedActiveV50MigrationPlan.self, MerianRecentV51MigrationPlan.self, MerianRecentV52MigrationPlan.self]
+            MerianReleasedActiveV50MigrationPlan.self, MerianRecentV51MigrationPlan.self, MerianRecentV52MigrationPlan.self, MerianRecentV53MigrationPlan.self, MerianRecentV54MigrationPlan.self, MerianRecentV55MigrationPlan.self, MerianRecentV56MigrationPlan.self]
         for plan in plans {
-            #expect(plan.schemas.last?.versionIdentifier.major == 54)
+            #expect(plan.schemas.last?.versionIdentifier.major == 57)
             switch try #require(plan.stages.last) {
             case let .lightweight(fromVersion, toVersion):
-                #expect(fromVersion.versionIdentifier.major == 53)
-                #expect(toVersion.versionIdentifier.major == 54)
+                #expect(fromVersion.versionIdentifier.major == 56)
+                #expect(toVersion.versionIdentifier.major == 57)
             default:
-                Issue.record("Primary identity requires only the additive V52 to V53 stage.")
+                Issue.record("History storage requires only the additive authority/display V56 to V57 stage.")
             }
         }
-        #expect(MerianRecentV51MigrationPlan.schemas.map { $0.versionIdentifier.major } == [51, 52, 53, 54])
-        #expect(MerianRecentV51MigrationPlan.stages.count == 3)
-        #expect(MerianRecentV52MigrationPlan.schemas.map { $0.versionIdentifier.major } == [52, 53, 54])
-        #expect(MerianRecentV52MigrationPlan.stages.count == 2)
+        #expect(MerianRecentV51MigrationPlan.schemas.map { $0.versionIdentifier.major } == [51, 52, 53, 54, 55, 56, 57])
+        #expect(MerianRecentV51MigrationPlan.stages.count == 6)
+        #expect(MerianRecentV52MigrationPlan.schemas.map { $0.versionIdentifier.major } == [52, 53, 54, 55, 56, 57])
+        #expect(MerianRecentV52MigrationPlan.stages.count == 5)
     }
 
     @Test func outgoingV51ModelsAndRelationshipsAreFrozen() throws {
@@ -1365,7 +1706,7 @@ struct MigrationPlanTests {
     @Test func activeCollectionTombstoneUsesSourceOnlyV50RenameMapping() throws {
         let source = try currentScanCollectionSource()
 
-        #expect(CurrentSchema.versionIdentifier.major == 54)
+        #expect(CurrentSchema.versionIdentifier.major == 57)
         #expect(source.contains("@Attribute(originalName: \"isDeleted\")"))
         #expect(source.contains("public var isPendingDeletion: Bool = false"))
         #expect(source.contains("isPendingDeletion: Bool = false"))
@@ -1826,10 +2167,10 @@ struct MigrationPlanTests {
         let schemaMajors = MerianRecentV49MigrationPlan.schemas.map {
             $0.versionIdentifier.major
         }
-        #expect(schemaMajors == [49, 50, 51, 52, 53, 54])
+        #expect(schemaMajors == [49, 50, 51, 52, 53, 54, 55, 56, 57])
 
         let stages = MerianRecentV49MigrationPlan.stages
-        #expect(stages.count == 5)
+        #expect(stages.count == 8)
         switch try #require(stages.first) {
         case let .lightweight(fromVersion, toVersion):
             #expect(fromVersion.versionIdentifier.major == 49)
@@ -1855,8 +2196,8 @@ struct MigrationPlanTests {
         let schemaMajors = MerianRecentV50MigrationPlan.schemas.map {
             $0.versionIdentifier.major
         }
-        #expect(schemaMajors == [50, 51, 52, 53, 54])
-        #expect(MerianRecentV50MigrationPlan.stages.count == 4)
+        #expect(schemaMajors == [50, 51, 52, 53, 54, 55, 56, 57])
+        #expect(MerianRecentV50MigrationPlan.stages.count == 7)
 
         switch try #require(MerianRecentV50MigrationPlan.stages.first) {
         case let .custom(fromVersion, toVersion, _, _):
@@ -1873,8 +2214,8 @@ struct MigrationPlanTests {
         let schemaMajors = MerianReleasedActiveV50MigrationPlan.schemas.map {
             $0.versionIdentifier.major
         }
-        #expect(schemaMajors == [50, 51, 52, 53, 54])
-        #expect(MerianReleasedActiveV50MigrationPlan.stages.count == 4)
+        #expect(schemaMajors == [50, 51, 52, 53, 54, 55, 56, 57])
+        #expect(MerianReleasedActiveV50MigrationPlan.stages.count == 7)
 
         switch try #require(MerianReleasedActiveV50MigrationPlan.stages.first) {
         case let .custom(fromVersion, toVersion, _, _):

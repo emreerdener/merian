@@ -148,6 +148,7 @@ struct MerianApp: App {
         if let container {
             let mainContext = container.mainContext
             dependencies.scanRepository.configure(with: mainContext)
+            dependencies.supabaseManager.refreshLibraryAccountIsolation()
             SpeciesPreferredNameRepository.discardLegacyUnscopedPreferences(
                 modelContext: mainContext
             )
@@ -237,6 +238,7 @@ struct MerianApp: App {
                     }
                     .modelContainer(container)
                     .injectAppDependencies(container: diContainer)
+                    .modifier(LibraryTransitionPresentation(supabase: diContainer.supabaseManager))
                     .environment(\.startupStoreState, startupStoreState)
                     .environment(\.startupRecoveryNotice, startupRecoveryNotice)
                 } else {

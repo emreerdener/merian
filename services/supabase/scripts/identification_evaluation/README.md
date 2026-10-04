@@ -64,6 +64,58 @@ failed command. It never emits provider prose, raw bodies or keys. See the RFC
 for the frozen selection/statistics, private artifact list and production
 compatibility limits.
 
+## Reasoning effort and Gemini tradeoff
+
+`../evaluate_reasoning_tradeoff.ts` and `../run_reasoning_tradeoff.sh` own the
+separate
+[20-case development screen](../../../../docs/rfcs/identification-reasoning-tradeoff-2026-10-02.md).
+Its two reviewed library cases and 18 unchanged controls receive low, medium and
+Gemini arms: 60 attempts, proposed $10 ceiling, no retry or replacement. Four
+library reference holds stay excluded. No other study's authorization is reused.
+
+The private packet contains `tradeoff-plan.json`, `tradeoff-corpus.json`,
+`tradeoff-review.json`, `taxonomy.json`, `openai-pricing.json`,
+`gemini-pricing.json` and `assets/`. Preparation binds source, canonical packet
+path and all JSON/media digests. The exact plan schema lives in
+`reasoningTradeoffPreparation.ts`. Per-case review binds the accepted reference,
+visible evidence and limitations, subject grouping/exposure and explicit
+`["openai", "gemini_paid"]` permissions. Review URLs may not include
+credentials, queries or fragments. Real control references and image hashes must
+match the pinned 1 October adjudication; score-only types carry no invented
+curation or provider-permission metadata.
+
+The CLI commands are `prepare`, `report`, `next` and
+`--one-live <packet> <arm>`. `prepare`, `report` and `next` require
+network/environment denial. Packet mode is separate from command: `inspection`
+prepares real reviewed inputs offline with `paidServiceApproved: false` and null
+credential digests; it can never dispatch. `offline` is synthetic test data
+only. `live` requires a clean source snapshot, new authorization reference,
+fixed ceiling, `paidServiceApproved: true`, and `credentialDigests` for both
+providers, computed with `fingerprintJson` on each key in the hidden-input
+parent process. Never save a raw key. Approval and key binding produce a
+separate live packet; changing an existing frozen inspection packet fails
+manifest validation.
+
+Run offline commands with the repository's frozen Deno config, `--deny-net`,
+`--deny-env`, bounded repository/packet reads, packet writes and
+`--allow-run=git`. Use the launcher only after a live manifest has been prepared
+in isolation. It holds keys transiently, grants each child one provider
+host/key, and suppresses child output. Every slot reconstructs and verifies
+request/settings digests, claims exclusively under a process lock and settles
+through the existing provider-specific accounting. Missing usage or a torn claim
+retains its full reservation and stops; any technical failure also stops. Prices
+expire after seven days, and retention is checked before each call. A sibling
+`.reasoning-tradeoff-authorizations/` receipt prevents copying an authorization
+onto another packet or freeze.
+
+`tradeoff-report.json` includes scheduled denominators, both strata, paired
+outcomes/intervals, high-confidence and mapping diagnostics, mean/median/p90,
+settled cost and outstanding reservations. Both comparisons are descriptive;
+only a complete accountable live run may advance to separate fresh validation.
+No result qualifies confidence or changes production. The focused tests in
+`testing/reasoningTradeoffTests.ts` and launcher isolation test run through the
+existing discovery-based Supabase tooling gate.
+
 ## Focused Gemini photo recheck
 
 `../evaluate_gemini_photo_baseline.ts` and `geminiPhotoBaselinePilot.ts` own the

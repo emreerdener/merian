@@ -1,5 +1,7 @@
 /// Single source of truth for app-owned Keychain key strings.
 enum KeychainKeys {
+    static let libraryAccountOwner = "merian.libraryAccountOwner.v1"
+    static let librarySignOutJournal = "merian.librarySignOutJournal.v1"
     /// Distinguishes OAuth-authenticated users from anonymous ghost sessions.
     static let hasAuthenticatedOAuth = "Merian_HasAuthenticatedOAuth"
     /// Retired presentation-only logout marker. Kept only so upgraded clients

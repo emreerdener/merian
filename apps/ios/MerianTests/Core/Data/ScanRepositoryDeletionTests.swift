@@ -7,6 +7,16 @@ import Testing
 extension ScanRepositoryTests {
     // MARK: - Deletion queueing
 
+    @Test func deniedIdentityTransitionFencePreservesScan() throws {
+        let context = try ScanRepositoryTestSupport.makeContext()
+        let record = LocalScanRecord(speciesId: "fixture", scientificName: "Fixture", commonName: "Fixture")
+        context.insert(record)
+        try context.save()
+        #expect(ScanRepository.shared.eradicateScan(record: record, modelContext: context, allowsMutation: { false }) == nil)
+        #expect(try context.fetchCount(FetchDescriptor<LocalScanRecord>()) == 1)
+        #expect(try context.fetchCount(FetchDescriptor<PendingCloudDeletionTask>()) == 0)
+    }
+
     @Test func testEradicateScanQueuesPendingCloudDeletionAndRemovesRecord() async throws {
         let ctx = try ScanRepositoryTestSupport.makeContext()
         let record = LocalScanRecord(
@@ -23,7 +33,7 @@ extension ScanRepositoryTests {
         offlineQueue.modelContext = ctx
         offlineQueue.isOnline = false
 
-        let cleanup = ScanRepository.shared.eradicateScan(record: record, modelContext: ctx)
+        let cleanup = ScanRepository.shared.eradicateScan(record: record, modelContext: ctx, allowsMutation: { true })
         await cleanup?.value
 
         let recordId = record.id
@@ -53,7 +63,7 @@ extension ScanRepositoryTests {
         offlineQueue.modelContext = ctx
         offlineQueue.isOnline = false
 
-        let cleanup = ScanRepository.shared.eradicateScan(record: record, modelContext: ctx)
+        let cleanup = ScanRepository.shared.eradicateScan(record: record, modelContext: ctx, allowsMutation: { true })
         await cleanup?.value
 
         let recordId = record.id

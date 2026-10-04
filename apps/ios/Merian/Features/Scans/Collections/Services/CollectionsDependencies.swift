@@ -3,6 +3,7 @@ import SwiftData
 
 @MainActor
 struct CollectionsDependencies {
+    var allowsMutation: @MainActor () -> Bool = { true }
     let events: AnyPublisher<AppEvent, Never>
     let sharedPostID: @MainActor (_ scanID: String) -> String?
     let save: @MainActor (_ modelContext: ModelContext) throws -> Void
@@ -41,12 +42,18 @@ struct CollectionsDependencies {
 
     static var live: Self {
         let container = AppDIContainer.shared
-        return Self(
+        var dependencies = Self(
             events: container.appEventPublisher.publisher,
             sharedPostID: { scanID in
                 ExploreShareStateStore.sharedPostId(for: scanID)
             },
             save: { modelContext in
+                guard let owner = container.supabaseManager.currentUser?.id else {
+                    throw SupabaseAuthTransitionError.signOutSessionChanged
+                }
+                for record in modelContext.changedModelsArray.compactMap({ $0 as? LocalScanRecord }) {
+                    try LibraryDetailsSyncService.stage(record, ownerID: owner, context: modelContext)
+                }
                 try modelContext.save()
             },
             rollback: { modelContext in
@@ -57,6 +64,9 @@ struct CollectionsDependencies {
             },
             enqueueCollectionSync: {
                 OfflineQueueManager.shared.enqueueCollectionSync()
+                if let context = OfflineQueueManager.shared.modelContext {
+                    Task { await LibraryDetailsSyncService.drain(context: context, manager: .shared) }
+                }
             },
             triggerSuccessFeedback: {
                 container.hapticManager.triggerSuccessPulse()
@@ -68,5 +78,7 @@ struct CollectionsDependencies {
                 container.hapticManager.triggerLightImpact()
             }
         )
+        dependencies.allowsMutation = { container.supabaseManager.allowsLocalLibraryMutation }
+        return dependencies
     }
 }

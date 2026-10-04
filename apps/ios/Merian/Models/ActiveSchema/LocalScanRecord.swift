@@ -12,6 +12,18 @@ public final class LocalScanRecord {
     public var capturedMediaJSON: String?
     @Relationship(deleteRule: .cascade) public var capturedMediaEntries: [CapturedMediaEntry]? = []
 
+    /// Lifecycle ownership only. Read history through bounded child queries, never this array.
+    @Relationship(deleteRule: .cascade)
+    public var analysisRecords: [LocalAnalysisRecord]? = []
+    /// Existing and legacy-created scans already have a projection. Nil selection is not
+    /// permission for a completion to replace it. Only a future new-observation writer
+    /// may explicitly opt into first-result selection after establishing ownership.
+    public var analysisSelectionInitialized: Bool = true
+    public var selectedAnalysisID: String?
+    /// Nil until acknowledged history enrollment; never inferred from the signed-in user.
+    public var analysisOwnerAccountID: String?
+    public var observationStateRevision: Int?
+
     public var semanticTags: [String]
     /// Hazard classification returned by the AI. One of: "none" | "poisonous" | "venomous" | "allergenic" | "irritant".
     public var hazardType: String = "none"

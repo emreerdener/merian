@@ -850,14 +850,19 @@ compatibility rules add no client-side UUID or batch-size restriction.
 
 `deleteScan` keeps its raw camel-case `scanId` body and requires a decodable
 Boolean `success: true`. Malformed or unconfirmed success remains
-`MerianError.invalidResponse`, not proof of remote erasure. Status requests
+`MerianError.invalidResponse`, not proof of remote erasure. The exact
+`409 legacy_observation_delete_requires_upgrade` error envelope is preserved by
+transport for Core Data to hold the task durably; no success or automatic replay
+is inferred. `ScanDeletionEndpointTests` verifies this boundary. Status requests
 retain the existing single ambiguous-failure replay allowance even though
 server-side reconciliation can mutate job/quota/staging state. Deletion retains
 ambiguous-replay refusal and adds no idempotency key. Single status,
-compatibility status, and deletion keep the shared classified-401 refresh. The
-bulk status request instead returns a classified `401` to its sole production
-caller, whose funding task already retains an outer Auth-quiescence lease. All
-four keep the shared per-attempt Auth lease and cancellation behavior.
+compatibility status, and unbound compatibility deletion keep the shared
+classified-401 refresh. The queue supplies `expectedOwnerID` to bind each delete
+attempt and returns classified `401` without refresh, because its drain retains
+an outer account-work lease. Bulk status also returns classified `401` to its
+funding owner for the same reason. All four keep the shared per-attempt Auth
+lease and cancellation behavior.
 
 `Recovery/` owns `OwnedScanRecoveryPayload`, missing-row classification, and the
 record-based publication and Field Chat compatibility flows. `Media/` owns
@@ -1079,12 +1084,19 @@ the individually extracted slices. It requires exactly 18 endpoint-extension
 owners, rejects an endpoint entry point duplicated in the remaining aggregate,
 and applies the 600-line review ceiling to every Swift owner under `Auth/`,
 `Endpoints/`, `Inference/`, `Media/`, `Recovery/`, and `Transport/`, plus the
-client façade. The Auth inventory is exactly sixty-one production files; its
-source guard also caps Auth at 7,756 production lines, Purchase Identity at
-2,016, `SupabaseManager.swift` at 3,475, and the combined surface at 13,247. The
+client façade. The Auth inventory is exactly sixty-four production files; its
+source guard also caps Auth at 7,886 production lines, Purchase Identity at
+2,016, `SupabaseManager.swift` at 3,792, and the combined surface at 13,694. The
 September 2026 startup fix adds exactly 22 Auth lines and 14 façade lines for
 keyed foreground/listener coalescing and replacement fencing; the other limits
-and ownership checks remain unchanged. See the
+and ownership checks remain unchanged. The October deletion-account resume hook
+adds 7 Auth lines and 7 facade lines, including its extra session fence. The
+subsequent library-transition preparation adds 123 Auth lines and 310 facade
+lines for durable sign-out recovery, ownership/admission fences and transfer
+status. The facade remains the existing reviewed residual owner because these
+live bindings share private transition state; no mutable internals were widened
+solely to satisfy the earlier feature budget. Other extracted owners retain the
+600-line ceiling. See the
 [startup investigation](../../../../../docs/incidents/2026-09-startup-log-triage.md).
 The guard freezes the effect-free observable runtime owner for transition,
 generation, analytics-token, exact-session lease/drain, and local sign-out
@@ -2783,8 +2795,11 @@ mutation or deployment is authorized by this refactor.
   response is `MerianError.invalidResponse`; the durable
   `PendingCloudDeletionTask` remains queued because auth or response failure is
   never evidence that remote data is absent. Its capped-backoff retries do not
-  expire; the next drain repairs legacy paused job state while the backend
-  independently resumes any owner-bound tombstone it already accepted.
+  expire for ordinary failures; the next drain repairs legacy paused job state
+  while the backend independently resumes any owner-bound tombstone it already
+  accepted. The exact history-upgrade refusal is held without retry or
+  acknowledgement, using the existing job state. Only future explicit history
+  reconciliation may resolve that hold.
 
 ## Species Dictionary identity and cache boundary
 

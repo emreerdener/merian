@@ -3,6 +3,13 @@ import SwiftData
 
 @MainActor
 enum FieldNotesRepository {
+    struct Dependencies {
+        var allowsMutation: @MainActor () -> Bool = { SupabaseManager.shared.allowsLocalLibraryMutation }
+        var ownerID: @MainActor () -> UUID? = { SupabaseManager.shared.currentUser?.id }
+        var didCommit: @MainActor (ModelContext) -> Void = { context in
+            Task { await LibraryDetailsSyncService.drain(context: context, manager: .shared) }
+        }
+    }
     static func nonEmptyText(_ fieldNotes: String?) -> String? {
         guard let fieldNotes else { return nil }
         let trimmed = fieldNotes.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -15,7 +22,8 @@ enum FieldNotesRepository {
 
     static func fieldNotes(
         for scanId: String,
-        modelContext: ModelContext
+        modelContext: ModelContext,
+        dependencies: Dependencies = Dependencies()
     ) -> String? {
         do {
             if let notes = nonEmptyText(
@@ -24,6 +32,23 @@ enum FieldNotesRepository {
             ) {
                 FieldNotesStore.setFieldNotes(notes, for: scanId)
                 return notes
+            }
+
+            // A completed restored snapshot proves a remote clear. A tag-only
+            // client operation cannot prove an old bridge note was migrated.
+            if try localRecord(for: scanId, modelContext: modelContext) != nil {
+                let jobs = try modelContext.fetch(FetchDescriptor<OfflineJobRecord>(
+                    predicate: #Predicate { $0.subjectId == scanId }
+                ))
+                if jobs.contains(where: { job in
+                    guard job.id.hasPrefix("library-details:baseline:"), job.status == .complete,
+                          let json = job.metadataJSON,
+                          let mutation = try? JSONDecoder().decode(LibraryDetailsSyncService.Mutation.self, from: Data(json.utf8)) else { return false }
+                    return mutation.scanID == scanId && mutation.ownerID == dependencies.ownerID() && mutation.fieldNotes == nil
+                }) {
+                    FieldNotesStore.setFieldNotes(nil, for: scanId)
+                    return nil
+                }
             }
 
             if let notes = nonEmptyText(
@@ -42,7 +67,8 @@ enum FieldNotesRepository {
             _ = setFieldNotes(
                 legacyNotes,
                 for: scanId,
-                modelContext: modelContext
+                modelContext: modelContext,
+                dependencies: dependencies
             )
             return legacyNotes
         }
@@ -54,8 +80,10 @@ enum FieldNotesRepository {
     static func setFieldNotes(
         _ fieldNotes: String?,
         for scanId: String,
-        modelContext: ModelContext
+        modelContext: ModelContext,
+        dependencies: Dependencies = Dependencies()
     ) -> Bool {
+        guard dependencies.allowsMutation() else { return false }
         let persistedText = nonEmptyText(fieldNotes)
 
         do {
@@ -69,10 +97,16 @@ enum FieldNotesRepository {
                 }
 
                 record.fieldNotes = persistedText
+                guard let owner = dependencies.ownerID() else {
+                    modelContext.rollback()
+                    return false
+                }
+                try LibraryDetailsSyncService.stage(record, ownerID: owner, context: modelContext)
                 return commitFieldNotesChange(
                     scanId: scanId,
                     persistedText: persistedText,
-                    modelContext: modelContext
+                    modelContext: modelContext,
+                    dependencies: dependencies
                 )
             }
 
@@ -89,10 +123,12 @@ enum FieldNotesRepository {
                 return commitFieldNotesChange(
                     scanId: scanId,
                     persistedText: persistedText,
-                    modelContext: modelContext
+                    modelContext: modelContext,
+                    dependencies: dependencies
                 )
             }
         } catch {
+            modelContext.rollback()
             logReadFailure(error, scanId: scanId)
             return false
         }
@@ -106,11 +142,13 @@ enum FieldNotesRepository {
     static func promoteExternalFieldNotesIfLocalMissing(
         _ fieldNotes: String,
         for scanId: String,
-        modelContext: ModelContext
+        modelContext: ModelContext,
+        dependencies: Dependencies = Dependencies()
     ) -> String? {
         if let existingNotes = self.fieldNotes(
             for: scanId,
-            modelContext: modelContext
+            modelContext: modelContext,
+            dependencies: dependencies
         ) {
             return existingNotes
         }
@@ -121,7 +159,8 @@ enum FieldNotesRepository {
         guard setFieldNotes(
             trimmedNotes,
             for: scanId,
-            modelContext: modelContext
+            modelContext: modelContext,
+            dependencies: dependencies
         ) else {
             return nil
         }
@@ -157,11 +196,13 @@ enum FieldNotesRepository {
     private static func commitFieldNotesChange(
         scanId: String,
         persistedText: String?,
-        modelContext: ModelContext
+        modelContext: ModelContext,
+        dependencies: Dependencies = Dependencies()
     ) -> Bool {
         do {
             try modelContext.save()
             FieldNotesStore.setFieldNotes(persistedText, for: scanId)
+            dependencies.didCommit(modelContext)
             return true
         } catch {
             modelContext.rollback()

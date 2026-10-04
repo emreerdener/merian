@@ -145,3 +145,26 @@ Break.swift"
 assert_local true
 
 echo "Startup safety scope detector regression tests passed."
+
+# Private history schema and storage regressions must run startup validation.
+for history_path in \
+  apps/ios/Merian/Models/ActiveSchema/LocalAnalysisRecord.swift \
+  apps/ios/Merian/Models/Schema/SchemaV55.swift \
+  apps/ios/Merian/Models/Schema/SchemaV55ScanSnapshots.swift \
+  apps/ios/Merian/Models/Schema/SchemaV55QueueSnapshots.swift \
+  apps/ios/Merian/Models/Schema/SchemaV56.swift \
+  apps/ios/Merian/Models/ActiveSchema/LocalAnalysisStateRecord.swift \
+  apps/ios/Merian/Models/Schema/SchemaV56ScanSnapshots.swift \
+  apps/ios/Merian/Models/Schema/SchemaV56QueueSnapshots.swift \
+  apps/ios/Merian/Models/Schema/SchemaV57.swift \
+  apps/ios/MerianTests/Models/LocalAnalysisStateRecordTests.swift \
+  apps/ios/MerianTests/Models/LocalAnalysisRecordTests.swift; do
+  history_base="$(git -C "$test_repo" rev-parse HEAD)"
+  mkdir -p "$test_repo/$(dirname "$history_path")"
+  printf 'history fixture\n' > "$test_repo/$history_path"
+  git -C "$test_repo" add .
+  git -C "$test_repo" commit -qm History
+  history_head="$(git -C "$test_repo" rev-parse HEAD)"
+  push_event "$history_base" "$history_head"
+  assert_event true push "$test_root/event.json"
+done

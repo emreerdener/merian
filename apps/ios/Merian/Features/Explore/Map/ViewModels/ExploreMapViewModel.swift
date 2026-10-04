@@ -202,7 +202,10 @@ final class ExploreMapViewModel {
             invalidateFocusedPost()
             needsSearchInArea = true
             selectedPostId = nil
-            scheduleAutomaticSearch()
+            let zoomChanged = ExploreMapCameraPolicy.zoomBucket(for: region)
+                != ExploreMapCameraPolicy.zoomBucket(for: lastCommittedRegion)
+                || abs(region.span.longitudeDelta / max(lastCommittedRegion.span.longitudeDelta, 0.000_01) - 1) > 0.22
+            scheduleAutomaticSearch(debounced: mode != .clusters || !zoomChanged)
         }
     }
 
@@ -266,14 +269,15 @@ final class ExploreMapViewModel {
     }
 
     func zoomIntoCluster(_ cluster: ExploreMapCluster) {
-        searchesOnNextCameraSettle = false
-        immediateSearchRegion = nil
+        prepareForNavigation()
+        searchesOnNextCameraSettle = true
         let currentSpan = visibleRegion?.span ?? lastCommittedRegion?.span ?? fallbackRegion.span
+        let minimumSpan = 360 / pow(2, ExploreMapCameraPolicy.maximumZoomLevel)
         let nextRegion = MKCoordinateRegion(
             center: cluster.coordinate,
             span: MKCoordinateSpan(
-                latitudeDelta: max(currentSpan.latitudeDelta * 0.45, 0.02),
-                longitudeDelta: max(currentSpan.longitudeDelta * 0.45, 0.02)
+                latitudeDelta: max(currentSpan.latitudeDelta * 0.45, minimumSpan),
+                longitudeDelta: max(currentSpan.longitudeDelta * 0.45, minimumSpan)
             )
         )
 
@@ -282,7 +286,6 @@ final class ExploreMapViewModel {
         visibleRegion = nextRegion
         cameraPosition = .region(nextRegion)
         needsSearchInArea = true
-        scheduleAutomaticSearch()
     }
 
     private func scheduleAutomaticSearch(debounced: Bool = true) {
@@ -333,6 +336,7 @@ final class ExploreMapViewModel {
         return abs(lhs.center.latitude - rhs.center.latitude) > latitudeThreshold
             || wrappedLongitudeDelta(lhs.center.longitude, rhs.center.longitude) > longitudeThreshold
             || zoomDelta > 0.22
+            || ExploreMapCameraPolicy.zoomBucket(for: lhs) != ExploreMapCameraPolicy.zoomBucket(for: rhs)
     }
 
     private func wrappedLongitudeDelta(_ lhs: Double, _ rhs: Double) -> Double {

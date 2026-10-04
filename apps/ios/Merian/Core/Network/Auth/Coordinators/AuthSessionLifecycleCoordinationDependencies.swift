@@ -58,6 +58,7 @@ struct AuthSessionLifecycleIdentityBoundary {
         AuthTransitionSession
     ) async -> Void
     let handleSupabaseSignOut: @MainActor () async -> Void
+    let resumeCloudDeletions: @MainActor (AuthTransitionSession, UInt64) async -> Void
     let scheduleHistoricalSync: @MainActor (
         AuthTransitionSession,
         UInt64

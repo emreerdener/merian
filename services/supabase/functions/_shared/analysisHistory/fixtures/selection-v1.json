@@ -1,0 +1,28 @@
+{
+  "request": {
+    "schema_version": 1,
+    "observation_id": "00000000-0000-4000-8000-000000000001",
+    "analysis_id": "00000000-0000-4000-8000-000000000004",
+    "operation_id": "00000000-0000-4000-8000-000000000005",
+    "expected_observation_revision": 10,
+    "expected_review_revision": 0
+  },
+  "receipt": {
+    "schema_version": 1,
+    "operation_id": "00000000-0000-4000-8000-000000000005",
+    "observation_id": "00000000-0000-4000-8000-000000000001",
+    "previous_analysis_id": "00000000-0000-4000-8000-000000000002",
+    "selected_analysis_id": "00000000-0000-4000-8000-000000000004",
+    "observation_revision": 11,
+    "review_revision": 0
+  },
+  "rejection": {
+    "schema_version": 1,
+    "observation_id": "00000000-0000-4000-8000-000000000001",
+    "analysis_id": "00000000-0000-4000-8000-000000000004",
+    "operation_id": "00000000-0000-4000-8000-000000000005",
+    "expected_observation_revision": 10,
+    "expected_review_revision": 0,
+    "outcome": "revision_conflict"
+  }
+}

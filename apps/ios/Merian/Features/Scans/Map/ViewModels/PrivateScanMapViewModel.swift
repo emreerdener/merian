@@ -238,7 +238,16 @@ final class PrivateScanMapViewModel {
               !Self.hasCoincidentCoordinates(cluster.points) else {
             return nil
         }
-        return cluster.focusRegion
+        guard let fittedRegion = cluster.focusRegion else { return nil }
+        guard let visibleRegion else { return fittedRegion }
+        // A fitted extent's minimum span must not trap repeated taps at the same zoom.
+        return MKCoordinateRegion(
+            center: fittedRegion.center,
+            span: MKCoordinateSpan(
+                latitudeDelta: min(fittedRegion.span.latitudeDelta, visibleRegion.span.latitudeDelta * 0.45),
+                longitudeDelta: min(fittedRegion.span.longitudeDelta, visibleRegion.span.longitudeDelta * 0.45)
+            )
+        )
     }
 
     func focus(on cluster: PrivateScanMapCluster) {

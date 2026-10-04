@@ -405,6 +405,7 @@ final class AuthSessionLifecycleLiveProviderTests: XCTestCase {
         dependencies.coordinatorHarness.isTestExecution = false
         dependencies.coordinatorHarness.suspendTelemetry = {
             await gate.wait()
+            dependencies.events.append("cancelled-telemetry-returned")
         }
         let provider = stream.makeProvider()
         let liveDependencies = dependencies.dependencies()
@@ -415,12 +416,13 @@ final class AuthSessionLifecycleLiveProviderTests: XCTestCase {
         provider.start(dependencies: liveDependencies)
         await gate.release()
         await waitUntil {
-            dependencies.coordinatorHarness.diagnostics.last == .processed
+            dependencies.events.contains("cancelled-telemetry-returned")
         }
 
         XCTAssertFalse(
             dependencies.events.contains("resume-revocation")
         )
+        XCTAssertFalse(dependencies.coordinatorHarness.events.contains("resume-cloud-deletions"))
         provider.cancel()
     }
 

@@ -3,6 +3,7 @@ import {
   type ConfidenceObservation,
   confidenceRows,
   confidenceSplitReport,
+  type ScoringCase,
 } from "./confidenceScoring.ts";
 import type { ConfidenceCase } from "./confidenceCorpus.ts";
 import { confidenceRate } from "./confidenceProtocol.ts";
@@ -25,7 +26,7 @@ export const PHOTO_DECISION_PROTOCOL = Object.freeze({
 });
 
 export function decisionRows(
-  cases: readonly ConfidenceCase[],
+  cases: readonly ScoringCase[],
   observations: readonly ConfidenceObservation[],
 ) {
   return confidenceRows(cases, observations).map((r) => ({
@@ -35,7 +36,7 @@ export function decisionRows(
   }));
 }
 export function decisionMetrics(
-  cases: readonly ConfidenceCase[],
+  cases: readonly ScoringCase[],
   observations: readonly ConfidenceObservation[],
 ) {
   const rows = decisionRows(cases, observations);

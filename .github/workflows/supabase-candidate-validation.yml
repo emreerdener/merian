@@ -155,6 +155,19 @@ jobs:
             supabase/functions/_shared/aiQuota_test.ts \
             supabase/functions/_shared/complimentaryScans.ts \
             supabase/functions/_shared/complimentaryScans_test.ts \
+            supabase/functions/_shared/analysisHistory/history_test.ts \
+            supabase/functions/_shared/analysisHistory/authority_test.ts \
+            supabase/functions/_shared/analysisHistory/reader_test.ts \
+            supabase/functions/_shared/analysisHistory/state_test.ts \
+            supabase/functions/_shared/analysisHistory/append_test.ts \
+            supabase/functions/_shared/analysisHistory/evidence_test.ts \
+            supabase/functions/_shared/analysisHistory/intent_test.ts \
+            supabase/functions/_shared/analysisHistory/execution_test.ts \
+            supabase/functions/_shared/analysisHistory/protectedManifest_test.ts \
+            supabase/functions/resolve-history-photo/handler_test.ts \
+            supabase/functions/analyze-observation/handler_test.ts \
+            supabase/functions/recover-observation-analyses/handler_test.ts \
+            supabase/functions/delete-scan/handler_test.ts \
             supabase/functions/_shared/entitlement.ts \
             supabase/functions/_shared/entitlement_test.ts \
             supabase/functions/_shared/biology.ts \
@@ -309,6 +322,18 @@ jobs:
             supabase/functions/_shared/clientAddress_test.ts \
             supabase/functions/_shared/audioModeration_test.ts \
             supabase/functions/_shared/complimentaryScans_test.ts \
+            supabase/functions/_shared/analysisHistory/history_test.ts \
+            supabase/functions/_shared/analysisHistory/authority_test.ts \
+            supabase/functions/_shared/analysisHistory/reader_test.ts \
+            supabase/functions/_shared/analysisHistory/state_test.ts \
+            supabase/functions/_shared/analysisHistory/append_test.ts \
+            supabase/functions/_shared/analysisHistory/evidence_test.ts \
+            supabase/functions/_shared/analysisHistory/intent_test.ts \
+            supabase/functions/_shared/analysisHistory/execution_test.ts \
+            supabase/functions/_shared/analysisHistory/protectedManifest_test.ts \
+            supabase/functions/resolve-history-photo/handler_test.ts \
+            supabase/functions/analyze-observation/handler_test.ts \
+            supabase/functions/recover-observation-analyses/handler_test.ts \
             supabase/functions/share-scan-to-explore/audioModeration_test.ts \
             supabase/functions/identify-multimodal/index.test.ts \
             supabase/functions/identify-multimodal/provider.test.ts \
@@ -439,6 +464,7 @@ jobs:
             supabase/functions/reconcile-dwca-archive-cleanup/db_test.ts \
             supabase/functions/request-export-dwca/db_test.ts \
             supabase/functions/delete-scan/db_test.ts \
+            supabase/functions/delete-scan/handler_test.ts \
             supabase/functions/reconcile-scan-deletions/worker_test.ts \
             supabase/functions/reconcile-scan-deletions/db_test.ts
 

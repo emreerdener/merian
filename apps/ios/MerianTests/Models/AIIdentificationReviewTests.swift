@@ -17,7 +17,7 @@ struct AIIdentificationReviewTests {
         scan.customTags = ["garden"]
         scan.fieldNotes = "Synthetic note"
         context.insert(scan); try context.save()
-        let service = IdentificationReviewSyncService(dependencies: .init(ownerID: { ownerID }))
+        let service = IdentificationReviewSyncService(dependencies: .init(allowsMutation: { true }, ownerID: { ownerID }))
         let state = try service.enqueue(scanID: scanID, action: .reject, context: context)
         #expect(state.isUnresolved)
         #expect(state.authority == nil)
@@ -46,7 +46,7 @@ struct AIIdentificationReviewTests {
         let context = ModelContext(container)
         context.insert(LocalScanRecord(id: scanID, speciesId: "species", scientificName: "Fixtureus species", commonName: "Fixture"))
         try context.save()
-        let service = IdentificationReviewSyncService(dependencies: .init(ownerID: { ownerID }))
+        let service = IdentificationReviewSyncService(dependencies: .init(allowsMutation: { true }, ownerID: { ownerID }))
         var species = SpeciesData(scanId: scanID, commonName: "Fixture", scientificName: "Fixtureus species",
             insightData: InsightData(aiReasoning: "Synthetic observation", hazardType: "none"),
             confidenceScore: 0.8, isBiological: true)
@@ -97,7 +97,7 @@ struct AIIdentificationReviewTests {
         source.aiIdentificationReviewData = try LocalAIIdentificationReview(authority: .init(revision: 2, state: .aiRejected, originScanID: scanID, originIdentification: nil)).storedData()
         let replacement = LocalScanRecord(id: "00000000-0000-4000-8000-000000000003", speciesId: "new", scientificName: "Fixtureus proposal", commonName: "Proposal")
         context.insert(source); context.insert(replacement); try context.save()
-        let service = IdentificationReviewSyncService(dependencies: .init(ownerID: { ownerID }))
+        let service = IdentificationReviewSyncService(dependencies: .init(allowsMutation: { true }, ownerID: { ownerID }))
         try service.carryRejection(from: source, to: replacement, context: context); try context.save()
         #expect(replacement.localAIIdentificationReview.state == .awaitingAcceptance)
         #expect(replacement.localAIIdentificationReview.authority == nil)
@@ -111,7 +111,7 @@ struct AIIdentificationReviewTests {
         context.insert(LocalScanRecord(id: scanID, speciesId: "species", scientificName: "Fixtureus species", commonName: "Fixture"))
         try context.save()
         var calls = 0
-        var dependencies = IdentificationReviewSyncService.Dependencies(ownerID: { ownerID }, submit: { _ in
+        var dependencies = IdentificationReviewSyncService.Dependencies(allowsMutation: { true }, ownerID: { ownerID }, submit: { _ in
             calls += 1; throw ConfirmedSpeciesReview.IntegrityError.invalidRequest
         })
         dependencies.beginWork = { AccountBoundWorkLease(id: UUID(), session: AuthTransitionSession(userID: ownerID, isAnonymous: false)) }
@@ -137,7 +137,7 @@ struct AIIdentificationReviewTests {
         context.insert(LocalScanRecord(id: scanID, speciesId: "species", scientificName: "Fixtureus species", commonName: "Fixture"))
         try context.save()
         var calls = 0
-        var dependencies = IdentificationReviewSyncService.Dependencies(ownerID: { ownerID }, submit: { _ in
+        var dependencies = IdentificationReviewSyncService.Dependencies(allowsMutation: { true }, ownerID: { ownerID }, submit: { _ in
             calls += 1
             throw ConfirmedSpeciesReview.IntegrityError.invalidRequest
         })

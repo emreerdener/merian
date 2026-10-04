@@ -226,7 +226,7 @@ export function resolveQuotaIpHashSecret(input: {
   }
 }
 
-async function quotaIpHash(req: Request): Promise<string> {
+export async function quotaIpHash(req: Request): Promise<string> {
   const serverKey = resolveServerApiKeyFromEnvironment();
   const secret = resolveQuotaIpHashSecret({
     dedicatedSecret: Deno.env.get("AI_QUOTA_IP_HASH_SECRET"),

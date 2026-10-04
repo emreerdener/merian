@@ -499,11 +499,15 @@ production Shell and Library file remains below the 600-line review guard.
   after `NonBiologicalRetentionPolicy.retentionDays` through the feature's
   injected service and
   `ScanRepository.purgeExpiredNonBiologicalScans(modelContainer:)` on app
-  foreground and again when the destination opens, preserving the save-first
-  tombstone and file-cleanup contract. The focused
-  `BackgroundDatabaseActor+NonBiologicalRetention.swift` extension owns the
-  bounded SwiftData selection and atomic record/tombstone commit. Its retention
-  result distinguishes accepted erasures from rows actually deleted;
+  foreground and again when the destination opens, once a stable account lease
+  can be acquired, preserving the save-first tombstone and file-cleanup
+  contract. Expiry stores `nonBiologicalRetention` provenance; user-requested
+  bulk removal stores `explicitUserDeletion`. New cloud requests remain bound to
+  the requesting account, and unknown older requests are held under the
+  [deletion contract](../backend-and-data/01-offline-sync-pipeline.md#2-cloud-deletion-tasking-pendingclouddeletiontask).
+  The focused `BackgroundDatabaseActor+NonBiologicalRetention.swift` extension
+  owns the bounded SwiftData selection and atomic record/tombstone commit. Its
+  retention result distinguishes accepted erasures from rows actually deleted;
   `ScanRepository` drains files and cloud tombstones for the first count and
   publishes `scanLibraryChanged` only for the second. The feature service owns
   purge initiation plus user-requested bulk-deletion and presentation effects.
@@ -833,14 +837,16 @@ production Shell and Library file remains below the 600-line review guard.
   keeps the last successful results visible while the camera moves, surfaces a
   `Search This Area` CTA when the viewport meaningfully changes, supports
   `Recenter`, an offline banner, and a compact results chip, and keys its
-  aggressively evicted in-memory region cache by viewport plus both filter
-  groups. Map-owned focus/request values, presentation/camera/filtering policy,
-  region math, and cache policy live in `Explore/Map/Models`; only
-  `Explore/Map/Services` supplies the live map-points closure. The
-  `@MainActor @Observable` view model owns asynchronous spatial state, while
-  camera, annotation-tap, drag-axis, carousel-anchor, and swipe-commit timing
-  remain in `ExploreMapView`. Grouped filter, marker, preview, and status
-  components contain no direct networking.
+  aggressively evicted in-memory region cache by viewport, integer zoom bucket,
+  and both filter groups. Cluster taps search immediately after the camera
+  settles; zoom changes while clusters are visible also refresh on settle,
+  including small changes across a zoom bucket boundary. Map-owned focus/request
+  values, presentation/camera/filtering policy, region math, and cache policy
+  live in `Explore/Map/Models`; only `Explore/Map/Services` supplies the live
+  map-points closure. The `@MainActor @Observable` view model owns asynchronous
+  spatial state, while camera, annotation-tap, drag-axis, carousel-anchor, and
+  swipe-commit timing remain in `ExploreMapView`. Grouped filter, marker,
+  preview, and status components contain no direct networking.
 - **Map Selection Flow**: Tapping a cluster zooms inward. Tapping either a dot
   waypoint or a thumbnail waypoint selects it and opens a preview card above the
   bottom edge. The preview card can like, comment, share, unshare, report, or

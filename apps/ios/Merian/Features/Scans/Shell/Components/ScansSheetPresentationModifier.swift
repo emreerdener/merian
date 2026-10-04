@@ -35,8 +35,8 @@ struct ScansSheetPresentationModifier: ViewModifier {
                 isPresented: $isSearchFocused,
                 placement: .toolbar,
                 prompt: activeTab == .library
-                    ? "Search scans"
-                    : "Search collections"
+                    ? "Search your scans"
+                    : "Search your collections"
             )
             .onChange(of: searchManager.searchQuery) { _, newValue in
                 if activeTab == .library {

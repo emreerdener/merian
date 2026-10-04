@@ -2,6 +2,7 @@ import Foundation
 import Observation
 import os
 import Supabase
+import SwiftData
 
 // MARK: - Supabase Manager
 
@@ -31,8 +32,15 @@ import Supabase
     @ObservationIgnored private let authRuntimeState = AuthRuntimeState()
 
     // MARK: - State
-    var currentUser: User?
+    var currentUser: User? {
+        didSet { refreshLibraryAccountIsolation() }
+    }
+    private(set) var libraryAccountRecoveryRequired = false
     var isAuthenticated: Bool = false
+    @ObservationIgnored private var librarySignInPreparationTask: Task<Void, Never>?
+    private(set) var libraryTransferResult: LibraryTransferResult = .completed
+    var libraryTransitionIssue: LibraryTransitionIssue?
+    private(set) var librarySignOutRecoveryPending = LibrarySignOutJournalStore.live.isPending
 
     var isGuestUser: Bool {
         AccountPresentationPolicy.isGuest(
@@ -58,12 +66,26 @@ import Supabase
         activeAuthTransition != nil
     }
 
+    var allowsLocalLibraryMutation: Bool {
+        guard !isAuthTransitionInProgress, !librarySignOutRecoveryPending, !libraryAccountRecoveryRequired else { return false }
+        // Until transfer finishes, the unpartitioned local projection can still
+        // contain source records. Admit no local mutations under the destination.
+        guard let handoffs = try? ghostProfileMergeStore.loadPendingHandoffs().handoffs else { return false }
+        guard handoffs.isEmpty else { return false }
+        return ensureLibraryAccountOwnership()
+    }
+
     /// Account-scoped work that does not own the active Auth transition may
     /// start only while the current session is stable. Background workers use
     /// this gate before dispatch and immediately before their remote mutation;
     /// transition-owned requests use the token-aware request path instead.
     var allowsUnownedAccountBoundWork: Bool {
+        allowsStableAccountSessionWork && !libraryAccountRecoveryRequired
+    }
+
+    private var allowsStableAccountSessionWork: Bool {
         isAuthenticated
+            && !librarySignOutRecoveryPending
             && currentUser != nil
             && !isSigningOut
             && AuthTransitionPolicy.allowsAuthenticatedRequest(
@@ -80,7 +102,7 @@ import Supabase
     func beginUnownedAccountBoundWork(
         expectedUserID: UUID? = nil
     ) throws -> AccountBoundWorkLease {
-        guard allowsUnownedAccountBoundWork,
+        guard allowsUnownedAccountBoundWork, ensureLibraryAccountOwnership(),
               let currentUser,
               let sdkUser = client.auth.currentSession?.user,
               currentUser.id == sdkUser.id,
@@ -91,6 +113,20 @@ import Supabase
         return authRuntimeState.beginAccountWork(
             session: transitionSession(from: sdkUser)!
         )
+    }
+
+    /// Merge/public-author recovery may use the verified destination while the
+    /// local projection remains source-owned. It cannot dispatch a library queue.
+    private func beginLibraryTransferRecoveryWork(expectedUserID: UUID) -> AccountBoundWorkLease? {
+        guard allowsStableAccountSessionWork,
+              let published = currentUser,
+              let sdk = client.auth.currentSession?.user,
+              sdk.id == expectedUserID, published.id == sdk.id,
+              !published.isAnonymous, !sdk.isAnonymous,
+              let handoffs = try? ghostProfileMergeStore.loadPendingHandoffs().handoffs,
+              !handoffs.isEmpty,
+              handoffs.allSatisfy({ $0.destinationUserID == nil || $0.destinationUserID == expectedUserID }) else { return nil }
+        return authRuntimeState.beginAccountWork(session: transitionSession(from: sdk)!)
     }
 
     func isAccountBoundWorkLeaseCurrent(
@@ -128,7 +164,9 @@ import Supabase
     // MARK: - Session Deduplication
     /// Invalidates suspended Auth-session work whenever the SDK emits a new
     /// lifecycle event, including a same-user refresh.
-    private var authSessionGeneration: UInt64 {
+    // Presentation may retain this value to invalidate private UI without
+    // retaining a work lease that would block Auth transition draining.
+    var authSessionGeneration: UInt64 {
         authRuntimeState.sessionGeneration
     }
 
@@ -227,6 +265,7 @@ import Supabase
         )
 
         super.init()
+        refreshLibraryTransferStatus()
 
         // Remove the retired presentation-only logout marker. Linked sessions
         // must restore as linked accounts; ordinary logout creates a new
@@ -333,9 +372,121 @@ import Supabase
         return activeAuthTransition == nil
     }
 
+    private func allowsIdentityReplacement(_ kind: AuthTransitionKind) -> Bool {
+        if librarySignOutRecoveryPending {
+            switch kind {
+            case .recovery: return true
+            default: return false
+            }
+        }
+        if kind == .signOut, libraryAccountRecoveryRequired {
+            libraryTransitionIssue = .needsAttention
+            return false
+        }
+        switch kind {
+        case .oauth, .signOut, .authenticationCallback, .accountDeletion:
+            do {
+                let handoffs = try ghostProfileMergeStore.loadPendingHandoffs().handoffs
+                guard !handoffs.isEmpty else { return true }
+                libraryTransferResult = handoffs.contains { $0.requiresAttention == true }
+                    ? .needsAttention : .pending
+                if case .oauth(let provider) = kind,
+                   let source = client.auth.currentSession?.user, source.isAnonymous,
+                   handoffs.allSatisfy({
+                       $0.ghostUserId.caseInsensitiveCompare(source.id.uuidString) == .orderedSame
+                           && $0.provider == provider.rawValue
+                           && $0.destinationUserID == nil
+                           && $0.requiresAttention != true
+                   }) { return true }
+                libraryTransitionIssue = .transferPending
+                return false
+            } catch {
+                libraryTransferResult = .needsAttention
+                libraryTransitionIssue = .unreadable
+                return false
+            }
+        default: return true
+        }
+    }
+
+    func refreshLibraryAccountIsolation() {
+        do {
+            if let owner = try LibraryAccountOwnerStore.load() {
+                if LibraryAccountOwnershipPolicy.requiresRecovery(owner: owner, session: currentUser?.id, libraryIsEmpty: localLibraryIsEmpty()) {
+                    libraryAccountRecoveryRequired = true
+                } else {
+                    if currentUser?.id != owner { try LibraryAccountOwnerStore.clear() }
+                    libraryAccountRecoveryRequired = false
+                }
+            } else {
+                let pending = try ghostProfileMergeStore.loadPendingHandoffs().handoffs
+                libraryAccountRecoveryRequired = !LibraryAccountOwnershipPolicy.canAdoptUnmarkedLibrary(
+                    session: currentUser?.id, pendingSourceIDs: pending.map(\.ghostUserId)
+                )
+            }
+        } catch { libraryAccountRecoveryRequired = true }
+    }
+
+    /// Establish legacy ownership only from the still-installed source session.
+    /// A missing/foreign session must never relabel the device's private rows.
+    func ensureLibraryAccountOwnership() -> Bool {
+        guard let user = currentUser, client.auth.currentSession?.user.id == user.id else { return false }
+        do {
+            if let owner = try LibraryAccountOwnerStore.load() {
+                guard owner == user.id else {
+                    libraryAccountRecoveryRequired = true
+                    return false
+                }
+            } else {
+                let pending = try ghostProfileMergeStore.loadPendingHandoffs().handoffs
+                guard LibraryAccountOwnershipPolicy.canAdoptUnmarkedLibrary(
+                    session: user.id, pendingSourceIDs: pending.map(\.ghostUserId)
+                ) else {
+                    libraryAccountRecoveryRequired = true
+                    return false
+                }
+                try LibraryAccountOwnerStore.save(user.id)
+            }
+            libraryAccountRecoveryRequired = false
+            return true
+        } catch {
+            libraryAccountRecoveryRequired = true
+            return false
+        }
+    }
+
+    private func localLibraryIsEmpty() -> Bool {
+        guard let context = OfflineQueueManager.shared.modelContext else { return false }
+        do {
+            return try LibraryMutationInventory.isEmptyLibrary(in: context.container)
+        } catch { return false }
+    }
+
+    func refreshLibraryTransferStatus() {
+        do {
+            let handoffs = try ghostProfileMergeStore.loadPendingHandoffs().handoffs
+            libraryTransferResult = handoffs.isEmpty ? .completed
+                : handoffs.contains { $0.requiresAttention == true } ? .needsAttention : .pending
+        } catch {
+            libraryTransferResult = .needsAttention
+        }
+    }
+
+    func retryLibraryTransfer() async {
+        guard let user = currentUser, !user.isAnonymous, activeAuthTransition == nil else { return }
+        let result = await ghostProfileMergeCoordinator.completeTransfer(
+            expectedTargetUserID: user.id,
+            ownedBy: nil,
+            dependencies: ghostProfileMergeDependencies()
+        )
+        guard currentUser?.id == user.id else { return }
+        libraryTransferResult = result
+    }
+
     private func beginAuthTransition(
         _ kind: AuthTransitionKind
     ) -> AuthTransitionToken? {
+        if !allowsIdentityReplacement(kind) { return nil }
         if let deletionRecoveryState =
             AccountDeletionLocalCleanupStore.state() {
             guard AuthTransitionPolicy
@@ -494,6 +645,26 @@ import Supabase
         await OfflineQueueManager.shared
             .awaitCollectionSyncQuiescenceForAuthTransition()
         await authRuntimeState.awaitAccountWorkDrain()
+        if let transition = activeAuthTransition,
+           transition.sourceSession != nil,
+           transition.sourceSession == transition.expectedSession {
+            switch transition.token.kind {
+            case .oauth, .signOut, .authenticationCallback:
+                guard let context = OfflineQueueManager.shared.modelContext else {
+                    libraryTransitionIssue = .unreadable
+                    return false
+                }
+                do {
+                    let inventory = try LibraryMutationInventory.read(from: context.container, sourceUserID: transition.sourceSession?.userID)
+                    libraryTransitionIssue = inventory.issue
+                    guard inventory.isReady else { return false }
+                } catch {
+                    libraryTransitionIssue = .unreadable
+                    return false
+                }
+            default: break
+            }
+        }
         return true
     }
 
@@ -819,6 +990,13 @@ import Supabase
                 handleSupabaseSignOut: {
                     await RevenueCatManager.shared.handleSupabaseSignOut()
                 },
+                resumeCloudDeletions: { [weak self] session, generation in
+                    guard let self, let sdkUser,
+                          transitionSession(from: sdkUser) == session,
+                          hasCurrentPublishedSession(sdkUser, expectedAuthGeneration: generation),
+                          !TestExecutionCoordinator.isRunningTests else { return }
+                    await OfflineQueueManager.shared.syncPendingDeletions()
+                },
                 scheduleHistoricalSync: { [weak self] session, generation in
                     guard let self else { return }
                     guard let sdkUser,
@@ -1089,6 +1267,7 @@ import Supabase
     func initializeGhostSession(
         ownedBy transition: AuthTransitionToken? = nil
     ) async -> User? {
+        guard !librarySignOutRecoveryPending || transition != nil else { return nil }
         guard let identity = await authSessionBootstrapCoordinator.initialize(
             ownedBy: transition,
             dependencies: authSessionBootstrapDependencies()
@@ -1170,7 +1349,12 @@ import Supabase
                     )
                 },
                 createAnonymousSession: { [self] in
-                    authSessionBootstrapSnapshot(
+                    guard localLibraryIsEmpty() else {
+                        libraryAccountRecoveryRequired = true
+                        throw LibraryDetailsSyncService.LibraryTransferPersistenceError.pending
+                    }
+                    try LibraryAccountOwnerStore.clear()
+                    return authSessionBootstrapSnapshot(
                         try await authSessionBootstrapLiveService
                             .createAnonymousSession()
                     )
@@ -1562,8 +1746,18 @@ import Supabase
     private func performVerifiedLocalSignOut(
         ownedBy transition: AuthTransitionToken
     ) async -> Bool {
-        await performLocalSignOut(ownedBy: transition)
-        guard ownsAuthTransition(transition),
+        var sdkAcknowledged = false
+        await performLocalSignOut(
+            ownedBy: transition,
+            performRemoteSignOut: { [supabaseAuthSessionService] in
+                try await supabaseAuthSessionService.signOutLocal()
+                sdkAcknowledged = true
+            },
+            performExternalSignOut: {
+                await RevenueCatManager.shared.handleSupabaseSignOut()
+            }
+        )
+        guard sdkAcknowledged, ownsAuthTransition(transition),
               client.auth.currentSession == nil,
               currentUser == nil,
               !isAuthenticated else {
@@ -1594,12 +1788,60 @@ import Supabase
     /// removed only after RevenueCat and the server verify the new identity.
     @discardableResult
     func transitionToGhostSession() async -> Bool {
-        await userSignOutSingleFlight.run { [weak self] in
+        librarySignInPreparationTask?.cancel()
+        if librarySignOutRecoveryPending { return await resumeLibrarySignOut() }
+        return await userSignOutSingleFlight.run { [weak self] in
             guard let self else { return false }
-            return await PurchaseIdentitySignOutCoordinator(
+            await drainLibraryBeforeIdentityTransition()
+            guard !Task.isCancelled else { return false }
+            let completed = await PurchaseIdentitySignOutCoordinator(
                 dependencies: purchaseIdentitySignOutDependencies()
             ).transitionToGhostSession()
+            if LibrarySignOutJournalStore.live.isPending {
+                return await self.resumeLibrarySignOut()
+            }
+            return completed
         }
+    }
+
+    @discardableResult
+    func resumeLibrarySignOut() async -> Bool {
+        guard librarySignOutRecoveryPending else { return true }
+        guard let transition = beginAuthTransition(.recovery) else { return false }
+        defer { finishAuthTransition(transition) }
+        guard await awaitAccountBoundWorkQuiescenceForAuthTransition() else { return false }
+        let completed = await LibrarySignOutRecoveryCoordinator(
+            store: .live,
+            dependencies: .init(
+                currentSession: { [self] in transitionSession(from: client.auth.currentSession?.user) },
+                clearSourceSession: { [self] in await performVerifiedLocalSignOut(ownedBy: transition) },
+                clearLibrary: {
+                    guard let context = OfflineQueueManager.shared.modelContext else { return false }
+                    guard ScanRepository.shared.purgeAllData(
+                        modelContext: context,
+                        resetDerivedState: AppDIContainer.shared.privateScanMapStore.resetSensitiveState
+                    ) else { return false }
+                    do { try LibraryAccountOwnerStore.clear(); return true } catch { return false }
+                },
+                createDestination: { [self] in
+                    guard let user = await initializeGhostSession(ownedBy: transition) else { return nil }
+                    return transitionSession(from: user)
+                },
+                completePurchases: { [self] destination in
+                    // Reconcile an SDK-persisted destination before purchase recovery.
+                    guard let user = client.auth.currentSession?.user, user.id == destination,
+                          adoptAuthTransitionSession(user, for: transition) else { return false }
+                    currentUser = user
+                    isAuthenticated = true
+                    return await completePendingSignOutPurchaseHandoffIfNeeded(
+                        expectedDestinationUserId: destination.uuidString,
+                        ownedBy: transition
+                    )
+                }
+            )
+        ).resume()
+        librarySignOutRecoveryPending = LibrarySignOutJournalStore.live.isPending
+        return completed
     }
 
     /// Explicit foreground retry for an anonymous session whose device-durable
@@ -1667,6 +1909,7 @@ import Supabase
                     )
             },
             initializeAnonymousSession: { transition in
+                if LibrarySignOutJournalStore.live.isPending { return nil }
                 guard let user = await self.initializeGhostSession(
                     ownedBy: transition
                 ) else {
@@ -1678,7 +1921,15 @@ import Supabase
                 )
             },
             performLocalSignOut: { transition in
-                await self.performLocalSignOut(ownedBy: transition)
+                guard let source = self.activeAuthTransition?.sourceSession,
+                      self.currentSessionMatchesAuthTransition(transition) else { return }
+                do {
+                    try LibrarySignOutJournalStore.live.save(LibrarySignOutJournal(sourceUserID: source.userID))
+                    self.librarySignOutRecoveryPending = true
+                    await self.performLocalSignOut(ownedBy: transition)
+                } catch {
+                    self.libraryTransitionIssue = .unreadable
+                }
             },
             resolveLinkedSourceContext: { starting, transition in
                 let identity = starting.identity
@@ -1733,6 +1984,7 @@ import Supabase
                 )
             },
             abandonStableRotationIfSourceRestored: { sourceUserID, transition in
+                guard !LibrarySignOutJournalStore.live.isPending else { return }
                 await self.purchaseIdentitySourceHandoffCoordinator()
                     .abandonStableRotationIfSourceRestored(
                         sourceUserID: sourceUserID,
@@ -1740,6 +1992,7 @@ import Supabase
                     )
             },
             abandonLegacyHandoffIfSourceRestored: { sourceUserID, transition in
+                guard !LibrarySignOutJournalStore.live.isPending else { return }
                 await self.purchaseIdentitySourceHandoffCoordinator()
                     .abandonLegacyHandoffIfSourceRestored(
                         sourceUserID: sourceUserID,
@@ -1761,6 +2014,7 @@ import Supabase
                     )
             },
             restoreSourceIdentityAfterFailedSignOut: { sourceUserID, transition in
+                guard !LibrarySignOutJournalStore.live.isPending else { return }
                 await self.purchaseIdentitySourceHandoffCoordinator()
                     .restoreSourceIdentityAfterFailedSignOut(
                         sourceUserID: sourceUserID,
@@ -1912,7 +2166,20 @@ import Supabase
     /// Clears a broken anonymous session and creates a fresh ghost identity.
     @discardableResult
     func resetGhostSessionForRetry() async -> Bool {
-        await AuthSessionRecoveryCoordinator(
+        // Automatic authentication recovery must never replace a guest that
+        // still has local library state; retain it for same-identity recovery.
+        guard let context = OfflineQueueManager.shared.modelContext else { return false }
+        do {
+            guard try LibraryMutationInventory.read(from: context.container).isReady,
+                  try context.fetchCount(FetchDescriptor<LocalScanRecord>()) == 0 else {
+                libraryTransitionIssue = .needsAttention
+                return false
+            }
+        } catch {
+            libraryTransitionIssue = .unreadable
+            return false
+        }
+        return await AuthSessionRecoveryCoordinator(
             dependencies: authSessionRecoveryDependencies()
         ).resetGhostSessionForRetry()
     }
@@ -2005,11 +2272,15 @@ import Supabase
                 )
             },
             resetAnonymousSession: { [self] transition in
-                await PurchaseIdentitySignOutCoordinator(
+                guard localLibraryIsEmpty() else { return false }
+                return await PurchaseIdentitySignOutCoordinator(
                     dependencies: purchaseIdentitySignOutDependencies()
                 ).resetGhostSessionForRetry(ownedBy: transition)
             },
             performLocalSDKSignOut: { [self] in
+                if let owner = client.auth.currentSession?.user.id, !localLibraryIsEmpty() {
+                    if try LibraryAccountOwnerStore.load() == nil { try LibraryAccountOwnerStore.save(owner) }
+                }
                 try await supabaseAuthSessionService.signOutLocal()
             },
             finishPurchaseIdentitySignOut: {
@@ -2272,6 +2543,8 @@ import Supabase
     // MARK: - Google Sign-In
 
     func signInWithGoogle() async {
+        await drainLibraryBeforeIdentityTransition()
+        guard !Task.isCancelled else { return }
         await oauthProviderSignInCoordinator.signInWithGoogle(
             dependencies: oauthProviderSignInDependencies()
         )
@@ -2280,9 +2553,23 @@ import Supabase
     // MARK: - Apple Sign-In
 
     func startAppleSignIn() {
-        oauthProviderSignInCoordinator.startAppleSignIn(
-            dependencies: oauthProviderSignInDependencies()
-        )
+        guard librarySignInPreparationTask == nil else { return }
+        librarySignInPreparationTask = Task { [weak self] in
+            guard let self else { return }
+            defer { librarySignInPreparationTask = nil }
+            await drainLibraryBeforeIdentityTransition()
+            guard !Task.isCancelled else { return }
+            oauthProviderSignInCoordinator.startAppleSignIn(dependencies: oauthProviderSignInDependencies())
+        }
+    }
+
+    private func drainLibraryBeforeIdentityTransition() async {
+        guard activeAuthTransition == nil, !librarySignOutRecoveryPending else { return }
+        guard ensureLibraryAccountOwnership() else { libraryTransitionIssue = .needsAttention; return }
+        await OfflineJobScheduler.shared.drainRunnableJobs(using: .shared)
+        if let context = OfflineQueueManager.shared.modelContext {
+            await SpeciesPreferredNameRepository.syncCloudPreferences(modelContext: context, force: true)
+        }
     }
 
     // MARK: - Private OAuth Helpers
@@ -2485,18 +2772,21 @@ import Supabase
                         for: sourceUserID,
                         dependencies: self.ghostProfileMergeDependencies()
                     )
+                    self.refreshLibraryTransferStatus()
                 },
                 completePendingGhostMerge: { userID, token in
                     guard let targetUserID = UUID(uuidString: userID) else {
-                        return false
+                        return .needsAttention
                     }
-                    return await self.ghostProfileMergeCoordinator
-                        .completePendingHandoffs(
+                    let result = await self.ghostProfileMergeCoordinator
+                        .completeTransfer(
                             expectedTargetUserID: targetUserID,
                             ownedBy: token,
                             dependencies:
                                 self.ghostProfileMergeDependencies()
                         )
+                    self.libraryTransferResult = result
+                    return result
                 }
             ),
             completion: OAuthSignInCompletionBoundary(
@@ -2676,9 +2966,7 @@ import Supabase
                     currentSessionMatchesAuthTransition(transition)
                 },
                 beginUnownedAccountWork: { [self] userID in
-                    try? beginUnownedAccountBoundWork(
-                        expectedUserID: userID
-                    )
+                    beginLibraryTransferRecoveryWork(expectedUserID: userID)
                 },
                 finishAccountWork: { [self] lease in
                     finishAccountBoundWork(lease)
@@ -2725,12 +3013,27 @@ import Supabase
                 },
                 complete: { [self] handoff in
                     try await ghostProfileMergeRemoteService.complete(handoff)
+                    guard let destination = handoff.destinationUserID,
+                          currentUser?.id == destination,
+                          client.auth.currentSession?.user.id == destination else {
+                        throw SupabaseAuthTransitionError.guestMergeSessionChanged
+                    }
+                    // Server acknowledgment proves ownership before purchase
+                    // and consent recovery need destination account-work leases.
+                    try LibraryAccountOwnerStore.save(destination)
+                    refreshLibraryAccountIsolation()
                 },
                 synchronizeProviderPurchases: {
                     try await RevenueCatManager.shared
                         .synchronizePurchasesAfterAccountMerge()
                 },
-                rebindAndSynchronizeLocalEvidence: { source, target in
+                rebindAndSynchronizeLocalEvidence: { [self] source, target in
+                    guard let context = OfflineQueueManager.shared.modelContext else {
+                        throw LibraryDetailsSyncService.LibraryTransferPersistenceError.unreadable
+                    }
+                    try LibraryDetailsSyncService.finalizeTransfer(from: source, to: target, context: context)
+                    try LibraryAccountOwnerStore.save(target)
+                    self.refreshLibraryAccountIsolation()
                     try await ConsentManager.shared
                         .rebindAndSynchronizeGhostEvidence(
                             from: source,
@@ -2761,7 +3064,18 @@ import Supabase
                     isSuppressed
                 )
             },
-            diagnose: { diagnostic, error in
+            diagnose: { [weak self] diagnostic, error in
+                switch diagnostic {
+                case .secured, .retryPending, .sessionUnavailable:
+                    self?.libraryTransferResult = .pending
+                case .queueUnreadable, .terminalCleanupPending, .invalidSource, .unexpectedTarget:
+                    self?.libraryTransferResult = .needsAttention
+                case .completed:
+                    if (try? self?.ghostProfileMergeStore.loadPendingHandoffs().handoffs.isEmpty) == true {
+                        self?.libraryTransferResult = .completed
+                    }
+                default: break
+                }
                 let errorKind = error.map(MerianLog.errorKind)
                     ?? "unavailable"
                 switch diagnostic {
@@ -3431,9 +3745,9 @@ import Supabase
                 },
                 beginUnownedAccountWork: { [weak self] userID in
                     guard let self else { return nil }
-                    return try? self.beginUnownedAccountBoundWork(
+                    return (try? self.beginUnownedAccountBoundWork(
                         expectedUserID: userID
-                    )
+                    )) ?? self.beginLibraryTransferRecoveryWork(expectedUserID: userID)
                 },
                 finishAccountWork: { [weak self] lease in
                     self?.finishAccountBoundWork(lease)
@@ -3445,10 +3759,13 @@ import Supabase
             operations: PublicAuthorRefreshOperationBoundary(
                 completePendingGhostMerges: { [weak self] userID in
                     guard let self else { return }
-                    _ = await self.ghostProfileMergeCoordinator.completePendingHandoffs(
+                    let result = await self.ghostProfileMergeCoordinator.completeTransfer(
                         expectedTargetUserID: userID,
+                        ownedBy: nil,
                         dependencies: self.ghostProfileMergeDependencies()
                     )
+                    guard self.currentUser?.id == userID else { return }
+                    self.libraryTransferResult = result
                 },
                 refreshRemoteIdentity: {
                     try await remoteService.refreshIdentity()

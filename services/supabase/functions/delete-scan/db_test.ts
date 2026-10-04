@@ -59,6 +59,20 @@ Deno.test("scan deletion request fails closed on database and shape errors", asy
   );
 });
 
+Deno.test("legacy deletion rejection remains distinct from successful erasure", async () => {
+  assertEquals(
+    await requestScanDeletion(
+      "00000000-0000-4000-8000-00000000d203",
+      "00000000-0000-4000-8000-00000000d204",
+      rpcClient({
+        data: "legacy_observation_delete_requires_upgrade",
+        error: null,
+      }),
+    ),
+    "legacy_observation_delete_requires_upgrade",
+  );
+});
+
 Deno.test("scan deletion completion requires the durable owner fence", async () => {
   await completeScanDeletion(
     "00000000-0000-4000-8000-00000000d203",

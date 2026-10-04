@@ -2161,13 +2161,17 @@ Cloudflare R2 Object Lifecycle rule cannot be used because R2 lifecycle rules
 operate on object age and prefix, not on the canonical PostgreSQL
 `is_biological_subject = false` flag. The route drains bounded calls to
 `request_nonbiological_scan_retention_deletions(integer)`. That routine
-discovers candidates oldest first, acquires canonical scan-generation locks in
-UUID order, rechecks age, classification, `is_tombstoned = false`,
-non-null/non-reserved ownership, and generation-tombstone absence under each row
-lock, and commits the permanent deletion fence. Ownerless, reserved-owner, and
-rows already tombstoned by account deletion remain exclusively owned by the
-account-deletion pipeline. The route never captures media URLs, deletes R2
-objects, or deletes scan rows.
+discovers candidates oldest first, locks the bounded set of owners in UUID
+order, then acquires canonical scan-generation locks in UUID order. It rechecks
+age, classification, `is_tombstoned = false`, membership in the locked owner
+set, non-null/non-reserved ownership, history-enrollment exclusion, and
+generation-tombstone absence under each row lock, then commits the permanent
+deletion fence. Observations enrolled in versioned history are excluded both at
+discovery and under the row lock, regardless of selected classification. The
+history enrollment gate remains closed pending the matching native and connected
+consumer implementation. Ownerless, reserved-owner, and rows already tombstoned
+by account deletion remain exclusively owned by the account-deletion pipeline.
+The route never captures media URLs, deletes R2 objects, or deletes scan rows.
 
 The independent `reconcile-scan-deletions` reaper subsequently reloads each
 fenced row and performs idempotent external erasure. It accepts only the exact
@@ -2520,14 +2524,24 @@ so another simulator or device session is not revoked.
 
 Individual scan deletion severs the record from both Supabase and Cloudflare R2:
 
-1. **Auth**: JWT is extracted and verified manually. Deletion is locked to the
-   scan's `user_id`.
+Prepared history enrollment is an exception to this legacy route: an owned
+enrolled observation returns `409 legacy_observation_delete_requires_upgrade`
+before tombstone creation, media lookup or erasure. Native source now retains
+that refusal as a durable hold. New native requests retain local account/origin
+provenance and unknown legacy requests are quarantined. History reconciliation
+and explicit history deletion remain unimplemented, so enrollment stays closed.
+See the
+[activation hold](./06-supabase-deployment-runbook.md#observation-analysis-history-activation-hold).
+Accepted legacy deletion proceeds as follows:
+
+1. **Auth**: `withEdgeHandler` verifies the session; the handler receives its
+   verified owner. Deletion is locked to the scan's `user_id`.
 2. **Durable Generation Fence**: The service-only
-   `request_scan_deletion(scan_id, user_id)` routine locks the scan generation,
-   verifies exact ownership, inserts a private deletion tombstone, and
-   terminal-marks any noncomplete ingestion job. From that commit onward,
-   inserts, updates, provider completion, replay, and owner-row recovery for the
-   UUID fail closed.
+   `request_scan_deletion(scan_id, user_id)` routine locks the owner and then
+   the scan generation, verifies exact ownership, inserts a private deletion
+   tombstone, and terminal-marks any noncomplete ingestion job. From that commit
+   onward, inserts, updates, provider completion, replay, and owner-row recovery
+   for the UUID fail closed.
 3. **Owner-bound R2 Deletion**: The function reads canonical source and derived
    media only after the fence. A candidate is deletable only when it is an exact
    HTTPS URL on `media.merian.app` with the flat key

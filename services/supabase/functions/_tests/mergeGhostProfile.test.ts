@@ -305,3 +305,29 @@ Deno.test("ghost merge cannot consume a bound sign-out purchase destination", ()
   assertEquals(mapped.status, 409);
   assertStringIncludes(mapped.message, "Finish signing out");
 });
+
+Deno.test("ghost merge preserves unfinished server work with an explicit retry result", () => {
+  for (
+    const [message, code] of [
+      ["ghost_merge_source_work_pending", "pending_library_work"],
+      [
+        "ghost_merge_source_history_requires_attention",
+        "library_transfer_needs_attention",
+      ],
+    ]
+  ) {
+    const payload = {
+      name: "PostgrestError",
+      message,
+      code: "55000",
+      details: "",
+      hint: "",
+    };
+    const mapped = mapDatabaseError(
+      { ...payload, toJSON: () => payload },
+      "fallback",
+    );
+    assertEquals(mapped.status, 409);
+    assertEquals(mapped.code, code);
+  }
+});

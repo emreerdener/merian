@@ -9,15 +9,38 @@ in Cloudflare R2 (`media.merian.app`).
 To enforce clean routing boundaries and prevent IDOR exploits, the logic is
 decoupled:
 
-- **`index.ts`**: The HTTP orchestrator. Validates the JSON payload, checks the
-  `scanId` constraint, and passes the verified owner UUID to the service-only
-  deletion RPC. Only after that transaction commits does it collect source and
-  derived media, require every R2 delete to return 2xx/idempotent 404, and call
-  the completion RPC that removes the database row.
+- **`index.ts`**: Validates the JSON payload and `scanId`, then passes the
+  verified session owner to `handler.ts`.
+- **`handler.ts`**: Calls the service-only deletion RPC. Only after that
+  transaction accepts deletion does it collect source and derived media, require
+  every R2 delete to return 2xx/idempotent 404, and call the completion RPC that
+  removes the database row.
 - **`db.ts`**: Persists the owner-bound deletion request, distinguishes a real
   missing row from a database failure, reads the now-immutable canonical media
   snapshot, and completes deletion through the guarded RPC. Relational or RPC
   failures bubble to the shared public error boundary.
+
+An observation enrolled in versioned identification history rejects this legacy
+request with HTTP `409` and code `legacy_observation_delete_requires_upgrade`.
+The rejection creates no tombstone and performs no media lookup, external
+erasure, or deletion completion. An old request may be a queued replacement
+deletion and is not authorization to erase all retained analyses. The storage
+enrollment gate remains closed; a separate explicit observation-deletion
+contract and native history reconciliation are still required before activation.
+This response is neither confirmed erasure nor a transport failure. Native
+source now retains the task as a durable hold using the exact HTTP status and
+stable code; older builds still retry. Local optimistic erasure may already have
+occurred. New native requests now retain local requesting-account/origin
+provenance; missing legacy provenance is quarantined before dispatch.
+Reconciliation and a new explicit history-deletion action remain required by the
+[activation hold](../../../../docs/backend-and-data/06-supabase-deployment-runbook.md#observation-analysis-history-activation-hold).
+
+The
+[native deletion contract](../../../../docs/backend-and-data/01-offline-sync-pipeline.md#2-cloud-deletion-tasking-pendingclouddeletiontask)
+owns hold persistence, continuation paging and restart behavior. The
+[support diagnostics](../../../../docs/development-guides/04-logging-and-debugging.md#legacy-history-deletion-holds)
+distinguish an unaccepted legacy request from an accepted server tombstone
+awaiting cleanup.
 
 `internal.scan_deletion_tombstones` is the durable generation fence. It is
 written before external erasure and retained after completion. Scan

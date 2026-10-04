@@ -363,7 +363,7 @@ Deno.test("iOS retries every retained Ghost handoff after permanent-session rest
 
   assertStringIncludes(
     performerSource,
-    "for pending in pendingHandoffs",
+    "for var pending in pendingHandoffs",
   );
   assertStringIncludes(
     performerSource,
@@ -395,7 +395,12 @@ Deno.test("iOS retries every retained Ghost handoff after permanent-session rest
   );
   assertStringIncludes(
     source,
-    "completePendingGhostMerges: { [weak self] userID in guard let self else { return } _ = await self.ghostProfileMergeCoordinator.completePendingHandoffs(",
+    "completePendingGhostMerges: { [weak self] userID in guard let self else { return } let result = await self.ghostProfileMergeCoordinator.completeTransfer(",
+  );
+  assertStringIncludes(source, "self.libraryTransferResult = result");
+  assertStringIncludes(
+    source,
+    ")) ?? self.beginLibraryTransferRecoveryWork(expectedUserID: userID)",
   );
   assertStringIncludes(
     source,
@@ -423,7 +428,7 @@ Deno.test("iOS retries every retained Ghost handoff after permanent-session rest
       "testPreparationRejectsProviderTransitionMismatchBeforeRemoteWork",
       "testPreparationRejectsChangedSessionBeforePersistingProof",
       "testSameTargetAndOwnerShareOneCompletionTask",
-      "testDifferentTargetCancelsStaleTaskBeforeProofRemoval",
+      "testDifferentTargetCannotReplayPinnedTransfer",
       "testTransitionOwnerReplacesOwnerlessTaskForSameTarget",
       "testCanceledTerminalResponseCannotSynchronizeOrClearProof",
       "testRetryableHandoffDoesNotBlockLaterHandoffCompletion",
@@ -509,7 +514,7 @@ Deno.test("iOS keeps Ghost finalization cancellation-fenced and proof-removal-la
   );
 });
 
-Deno.test("iOS deletes Ghost proofs only for invalid or expired handoffs", async () => {
+Deno.test("iOS classifies terminal Ghost responses while the coordinator retains recovery proof", async () => {
   const [liveRemoteSource, policySource, policyTestSource, adapterTestSource] =
     await Promise.all([
       Deno.readTextFile(ghostMergeLiveRemoteServiceUrl).then(compact),

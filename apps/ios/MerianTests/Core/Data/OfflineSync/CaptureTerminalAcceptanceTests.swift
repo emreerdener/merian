@@ -9,6 +9,8 @@ import UIKit
 struct CaptureTerminalAcceptanceTests {
     @Test func stagedVisualTerminalCompletionDrainsSignOutAndRejectsDuplicateCallbacks() async throws {
         let manager = OfflineQueueManager.shared
+        let oldAdmission = manager.captureLibraryAdmission
+        manager.captureLibraryAdmission = { _ in true }
         let oldContext = manager.modelContext
         let oldOnline = manager.isOnline
         let oldCount = manager.unsyncedItemsCount
@@ -44,6 +46,7 @@ struct CaptureTerminalAcceptanceTests {
             manager.retiredInferenceGenerations.remove(generation)
             manager.backgroundAccountWorkLeases[taskIdentifier] = nil
             manager.inferenceTerminalTaskIdentifiers.remove(taskIdentifier)
+            manager.captureLibraryAdmission = oldAdmission
             manager.modelContext = oldContext
             manager.isOnline = oldOnline
             manager.unsyncedItemsCount = oldCount

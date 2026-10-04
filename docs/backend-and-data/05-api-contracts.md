@@ -10190,6 +10190,207 @@ and
 
 ---
 
+## Prepared observation-history contracts
+
+The
+[history contract owner](../../services/supabase/functions/_shared/analysisHistory/README.md)
+defines bounded version-1 identity, selection, pagination and chat-context
+parsers. These are private preparation contracts, not deployed routes or
+generated native DTOs. Explicit history reader protocols 7, 8 and 9 do not
+change the current Identify reader capability. Native advertises protocol 9 for
+history reads only; V56 admits saved imports with unknown completion dates.
+Enrollment still requires state/authority hydration. A separate owner-only
+history read RPC is prepared behind a default-false reader gate; no history
+selection/deletion RPC is exposed and no chat endpoint persists this context
+yet. The
+[schema contract](./04-database-schema.md#prepared-observation-analysis-history)
+owns prepared storage and transaction behavior; connected API/DTO changes remain
+under the
+[activation hold](./06-supabase-deployment-runbook.md#observation-analysis-history-activation-hold).
+The legacy deletion refusal below remains mandatory.
+
+### Prepared owner analysis history reader
+
+`get_owned_observation_analysis_page(p_request jsonb, p_reader integer)` is
+callable only by `authenticated`. It derives the owner from `auth.uid()` and
+requires `p_reader` 7, 8 or 9 and
+`observation_history_rollout.reader_enabled = true`. Protocol 7 refuses an
+entire history containing V2 or V3; protocol 8 accepts mixed V1/V2 snapshots but
+rejects any history containing V3. Protocol 9 additionally reads imported saved
+identifications, with the unchanged version-1 page envelope. The gate defaults
+false; this is not permission to enable it. Ordinary Identify and scan-history
+requests still advertise capability 6.
+
+`p_request` has exactly `schema_version: 1`, a lowercase UUID `observation_id`,
+nullable positive `before_ordinal`, and `limit` from 1 to 20. There is no
+caller-supplied owner. The RPC takes the established owner → generation → scan →
+history locks and rejects missing, detached, foreign, unenrolled or deleted
+observations. Anonymous and service roles have no execution grant, and no API
+role gains direct table access.
+
+The response has exactly `schema_version`, `owner_id`, `observation_id`,
+`state_revision`, `items`, and `next_before_ordinal`. Items descend by immutable
+ordinal and contain `ordinal` plus a **JSON string** `snapshot`. A page is at
+most 4 MiB; a byte-limited prefix can contain fewer than the requested number of
+items. Resume only with the returned last accepted ordinal. Null means the
+current traversal is complete; later reanalyses are discovered by starting again
+at the head. A cursor is never persisted independently of its owner and
+observation by this implementation.
+
+Snapshot version 1 contains `schema_version`, `observation_id`, `analysis_id`,
+nullable `source_analysis_id`, SHA-256 `request_digest`, positive `ordinal`,
+integer UTC `completed_at_ms`, canonical Identify `result` data, and
+`evidence_manifest: {schema_version: 1, captured_media: [...]}`. Identify's
+`scan_id` binds to the observation; analysis identity is independent. Funding,
+review authority and active selection are absent. The media list uses the
+existing strict current wire contract, with at least one item and no legacy
+local-file references. Added evidence still requires protected-media promotion
+before activation; merely decoding a URL does not establish privacy or
+recoverability.
+
+The original server result object may also contain projection fields such as
+`species_id`, which the canonical Identify validator does not return. Readers
+preserve those fields in the original bytes. A future completion producer must
+validate the projection-ready object against canonical Identify data and the
+species dictionary; it must not persist the normalized parser return as the
+server `result_snapshot`.
+
+`internal.observation_analysis_snapshot` produces stable PostgreSQL JSONB text;
+the same function enforces the **complete** snapshot's 1 MiB limit on insertion.
+The client stores those exact UTF-8 bytes, including ordinal and evidence,
+without re-encoding them. Conflicting bytes for an existing analysis ID reject
+the whole page before insertion. A future serialization change must preserve
+these bytes or introduce a reviewed snapshot-version migration.
+
+Native `ObservationHistorySyncService` accepts one bounded page per call. It
+requires an existing acknowledged local owner, initialized selection, selected
+analysis UUID and server revision; current login never establishes enrollment.
+The account lease surrounds fetch and local commit. A fresh context, pending
+deletion check, complete duplicate preflight, parent attachment and save form
+one synchronous transaction. A stale lease rolls back even staged children.
+Existing selection, correction, rejection, confirmation and community payloads
+remain unchanged; the response state revision is not an authority update. There
+is no normal sync, completion or UI call site yet. Completion admission,
+enrollment, selection/authority hydration and scheduling remain separate
+implementation work under the activation hold.
+
+### Prepared private analysis append
+
+`internal.append_observation_analysis(p_user_id uuid, p_request jsonb)` is a
+private storage primitive behind default-false `append_enabled`. No API role,
+including `service_role`, can execute it directly. No endpoint calls it. Its
+caller must eventually be an authenticated, admitted completion orchestrator; a
+storage return is not a provider-completion or complimentary-credit receipt.
+
+`analysisHistory/append.ts` owns the canonical builder. The exact request keys
+are `schema_version: 1`, `observation_id`, `analysis_id`, nullable
+`source_analysis_id`, SHA-256 `request_digest`, `result_snapshot`, and
+`evidence_manifest`. These identities are distinct. Full Identify validation
+normalizes result data, excludes caller review/funding metadata, and adds only
+an independently resolved `species_id`. The database rechecks that link against
+its species dictionary and existing primary-identification/projection policy. It
+creates fresh unreviewed authority; confirmation of another result cannot
+transfer through append.
+
+Evidence is currently limited to 1–64 canonical descriptions with nonempty text
+of at most 8,192 characters each. Images, audio, video, local/staging
+references, public CDN URLs and signed delivery URLs all fail closed. Current
+scan promotion uses public delivery and is not a private history-media contract.
+This boundary cannot be enabled for media-backed analyses until protected object
+promotion, durable receipts, authorized reads and deletion cleanup are
+implemented.
+
+The transaction locks owner → observation generation → owned scan → history.
+Ownership, detachment and tombstone checks precede exact replay. A reused
+analysis ID must match observation, source, digest, canonical result and
+evidence; changed input conflicts. Replay returns the original complete snapshot
+text even if new appends are disabled, and changes neither selection nor
+authority. New results receive serialized ordinals and a server timestamp. The
+aggregate snapshot still has the reader's one-MiB bound.
+
+Initial selection requires an empty revision-zero history and immutable
+`initial_selection_permitted`, recorded at history creation and false by
+default. A future admission transaction must prove that this is a newly created
+observation; clients cannot supply this permission. Subsequent appends,
+including concurrent first results, preserve whichever result first initialized
+selection. Only initialization writes a projection/reconciliation obligation.
+Optional source identity must refer to a result in the same observation.
+
+The prepared child lifecycle below now binds description-only admission and
+provider accounting to atomic append/settlement. The raw appender rejects a
+funded intent unless that completion transaction owns its fence. Existing
+`complete_scan_ingestion_with_entitlement` remains tied to a public scan;
+passing a child ID to it is rejected. The separate V2 photo-binding path below
+now connects ready private receipts to funded completion. Enrollment and
+consumer activation remain prerequisites.
+
+### Prepared funded child-analysis lifecycle
+
+Migration `20261003054717_prepare_funded_observation_analysis.sql` adds private
+admission, dispatch, draft, completion and terminal-failure routines. All API
+roles, including `service_role`, lack execution and table access. Separate
+`admission_enabled` and `dispatch_enabled` gates default false. These are
+transaction primitives, not an HTTP endpoint or a running provider/recovery
+worker. `analysisHistory/intent.ts` owns the bounded canonical input/draft
+builders; existing Identify wire DTOs do not change.
+
+Admission freezes the append identity and description manifest, plus the actual
+submitting client's separate `entitlement_protocol: 3`,
+`identification_protocol: 6`, `history_protocol: 7`, and
+`expected_processor_permission` (`google_gemini` or `openai`). Recovery must
+reuse that stored input rather than synthesize capability or reread mutable
+notes. Observation and analysis IDs are distinct; an optional source belongs to
+that observation. Input and draft are bounded to 1 MiB; the completion receipt
+to 2 MiB; provider usage to an allowlisted 2 KiB object. Media-backed input
+still rejects in V1. Description admission and protected-media reservation
+remain mutually exclusive there; the separately gated V2 admission below binds
+ready photo receipts.
+
+The state flow is `admitted → dispatched → draft → complete`, with proven
+terminal failure from `admitted` or `dispatched`. Admission reserves using the
+analysis ID as the existing complimentary ledger identity and original analysis
+ID; it creates neither a public scan nor a legacy ingestion job. Exact admission
+retries reuse the intent. Only an expired pre-dispatch reservation may acquire a
+new lease/attempt under that same analysis. A changed input or stale lease
+conflicts. After dispatch, retry is recovery-only and never requests another
+provider execution. No automatic inference retry is prepared.
+
+Dispatch rechecks current processor consent, commits provider quota and records
+immutable provenance/attempt accounting once. Its `may_dispatch` is false on
+replay. Saving a canonical draft validates the original input, lease and
+provenance and records provider usage through the existing idempotent usage
+owner. Known refusal/invalid-result/proven-provider-failure records the matching
+outcome; a timeout does not prove failure. Existing late usage reconciliation
+may preserve an earlier unknown-outcome witness. Drafts are immutable on retry.
+
+Completion locks owner → observation generation → owned scan → history → intent,
+checks deletion before replay, then appends the result, settles the
+complimentary ledger and stores a receipt in one transaction. It returns exact
+saved receipt data after a lost response. The receipt contains the stable
+snapshot text, admitted plan, credit consumption and post-settlement
+entitlement; it is not yet a client DTO. Reanalysis never changes an existing
+selection. Only the separately proven first-selection rule above can initialize
+one. Each analysis has at most one credit consumption. Provider executions are
+accounted at dispatch; complimentary holds settle at durable completion or
+proven terminal failure under the
+[funding rules](18-complimentary-pro-scans.md#completion-and-terminal-settlement).
+
+Legacy ingestion, quota, provider-dispatch/reporting and scan-completion paths
+cannot bypass an admitted child's owner. Parent deletion and account detachment
+erase private inputs/drafts/receipts and release unfinished holds; only an
+unused pre-dispatch provider reservation is refunded. Consumed credits remain
+consumed. Each erased child leaves a completed ownerless marker in the existing
+scan deletion ledger, with no observation link or cleanup lease. Its generation
+ID cannot become a legacy scan/job or new quota admission. Owner and
+child-generation locks serialize admission/deletion against legacy writers. Raw
+result insertion and media reservation are fenced as well.
+
+Before activation, add authenticated orchestration, bounded recovery/delivery,
+normal native photo presentation, audio/video evidence binding, analytics
+identity discrimination (existing usage `scan_id` means the child analysis
+here), verified enrollment, explicit deletion delivery and native sync. This
+preparation runs no provider calls and authorizes no deployment.
+
 ## Deno `/delete-scan` Edge Node
 
 Deletes a single scan from both Supabase PostgreSQL and Cloudflare R2.
@@ -10220,7 +10421,17 @@ without explicit network confirmation. See the
    It verifies exact ownership under the per-scan generation lock and persists
    the private deletion tombstone before external work. Foreign ownership
    returns `403`; a genuinely absent or already-completed owner generation
-   returns idempotent `200`.
+   returns idempotent `200`. An observation enrolled in versioned identification
+   history instead returns `409` with code
+   `legacy_observation_delete_requires_upgrade`, before any tombstone or
+   external erasure. Legacy replacement-deletion intent cannot authorize
+   deleting its full history. Native source now stores this exact HTTP/code pair
+   as a durable held task without retrying or acknowledging erasure. Other
+   failures retain their existing retry behavior. Enrollment stays disabled
+   pending reconciliation of ambiguous legacy intent and explicit history
+   deletion; new native requests retain account/origin metadata locally, bind
+   transport to that account, and keep the same `{scanId}` wire body; the
+   rejection is not a success acknowledgement.
 3. Reads the fenced canonical scan, normalized media assets, and post-derived
    thumbnails. A database read error is a sanitized `5xx`, never not-found.
 4. Deletes only exact
@@ -12013,3 +12224,465 @@ identifications. Older readers receive `client_update_required` for affected
 rows. Admission recognizes 4, 5, and 6 without raising provider binding minima.
 Ship this backend contract before the corresponding native reader. No release or
 deployment is implied by repository implementation.
+
+## Prepared protected evidence lifecycle
+
+Upload and erasure remain internal preparation. The protocol-8 photo read
+adapter below now has a narrow service-only wrapper and authenticated Edge
+source; there is still no scheduled erasure worker or deployed photo route.
+Existing V1 history snapshots remain unchanged, and
+`append_observation_analysis` continues accepting descriptions only. Enrollment,
+append, media issuance and media reads remain closed.
+
+`internal.reserve_observation_evidence(owner,observation,analysis,media,type,bytes,sha256)`
+returns an immutable database-generated object identity and five-minute
+deadline. The future caller must derive owner from a verified session and
+validate an admitted child-analysis intent; possession of these internal
+arguments is not authorization. Identical reservation replay preserves its
+key/deadline; changed payload conflicts. Current description-only result
+insertion and reservation share an analysis lock, so both cannot claim the same
+analysis identity.
+
+The shared storage owner owns a buffered copy, hashes it, performs a conditional
+PUT with `If-None-Match: *`, and HEAD-verifies exact length, content type and
+trusted writer hash metadata. Only afterward may
+`internal.complete_observation_evidence(owner,observation,analysis,media,object)`
+mark readiness, with the same current-owner and deletion fence as reserve. Lost
+PUT responses can recover through a matching existing object; a deletion marker
+never verifies as evidence. This is not provider completion, quota settlement,
+media moderation or client-declared upload proof.
+
+`internal.read_owned_observation_evidence` requires matching current owner,
+observation, analysis and media IDs and a ready receipt. The protocol-8 Edge
+adapter additionally requires a completed V2 reference and uses that receipt to
+sign a GET with a separate read credential and fixed 30-second lifetime. The URL
+is a bearer capability, is not persisted, and carries no-store cache controls. A
+previously issued capability remains usable until expiry or marker replacement;
+the database cannot revoke a signature already issued. All new reads fail after
+the deletion fence.
+
+Erasure is asynchronous and durable. Receipt removal—including scan tombstone,
+parent cascade and account detachment—queues an opaque object UUID independently
+of the parent. `claim_observation_evidence_erasure` leases one obligation for
+one minute; `finish_observation_evidence_erasure` rejects stale/expired tokens.
+The bounded worker seam overwrites the exact key with a zero-byte marker,
+HEAD-verifies it, and only then acknowledges success. Failure remains retryable.
+No DELETE is issued, because deleting the marker would allow delayed writes to
+restore content. The
+[storage owner README](../../services/supabase/functions/_shared/analysisHistory/README.md#prepared-protected-evidence-storage)
+details the boundaries and tests.
+
+The V2 photo contract below now prepares receipt binding, admitted intents and
+cancellation/expiry cleanup. Activation still requires normal native
+presentation, authenticated inference orchestration, explicit history deletion
+delivery, worker routing/scheduling, audio/video evidence contracts, account
+scientific allowlisting, and a private-bucket/credential audit with real R2 race
+evidence. No public-CDN URL, staging URL, signed URL or caller-nominated key can
+stand in for a durable protected-media receipt.
+
+## Prepared protected photo analyses
+
+`20261003063309_bind_protected_analysis_evidence.sql` connects private ready
+photo receipts to funded analysis completion behind a new default-false
+`protected_analysis_enabled` gate. `admit_protected_observation_analysis` and
+`append_protected_observation_analysis` have no API execution grants. V1
+admission/append remain description-only. All earlier gates stay closed. The
+protocol-8 reader and private-photo read endpoint are now prepared below. No
+provider materializer or recovery schedule is introduced.
+
+`protectedManifest.ts` owns the strict V2 contract. Input and draft identities
+use `schema_version: 2`; evidence is `{schema_version: 2, items: [...]}`.
+Ordered items are either `{kind: "description", text}` or
+`{kind: "image", media_id, content_type, byte_count, sha256}`. There must be at
+least one image, no repeated media UUID, at most 64 total items, descriptions of
+1–8,192 Unicode characters, and at most 32 MiB of referenced image bytes in
+aggregate. JPEG, PNG and HEIC are accepted; audio/video and all unknown fields
+reject. Object UUIDs/keys, staging references, public URLs and signed URLs never
+enter the manifest. A content reference is not proof of upload: the SQL owner
+joins it to the exact current owner/observation/analysis receipt and verifies
+readiness and every content field under locks.
+
+The future orchestrator first reserves and verifies private uploads, then admits
+all ready receipts atomically. Initial admission requires each receipt's
+five-minute deadline still to be live; it rejects extra unreferenced receipts
+for that analysis. Admission freezes the entire ordered manifest and actual
+client claims: entitlement 3, identification 6, history 8 and expected
+processor. The existing `multimodal_photo_v1` binding determines provider/model
+and consent; no provider policy, credit rule or inference fallback changes. The
+new source must use canonical Identify/taxonomy validation shared with V1.
+
+An admitted intent pins its ready evidence beyond the upload deadline, including
+ambiguous provider work and saved drafts. New receipts cannot be added after
+admission. Independent receipt deletion/expiry cannot remove evidence needed by
+an intent or retained result. Completion rechecks the same receipt set, appends
+through the funded draft fence, and settles the existing complimentary ledger in
+the same transaction. Exact completion retries return the same saved receipt.
+Existing selection and review authority remain unchanged.
+
+Terminal failure/cancellation queues unused photo erasure before its transaction
+returns. Deleting an intent also retires its unused receipts; parent deletion
+and account detachment supersede every pin and queue retained photos for
+erasure. `expire_unbound_observation_evidence` can retire ready or unready
+uploads after their deadline only when no intent or result owns them. It
+rechecks the exact object generation under owner/observation/analysis locks. No
+cleanup scheduler is activated. Failed cleanup remains in the existing durable
+opaque-key outbox.
+
+The snapshot serializer emits version 2 only for V2 evidence, preserving all V1
+serialization bytes. The protocol-7 page RPC rejects an entire history
+containing V2 with `analysis_history_reader_upgrade_required`, even when a
+cursor would skip those rows, and only after owner/deletion checks. No partial
+mixed page is returned. The Deno default parser remains strict V1; explicit
+reader 8 and the native decoder accept both versions with exact version-matched
+manifests. `LocalAnalysisRecord` admits version values 1 and 2 without changing
+its V55 stored shape. The coordinated protocol-8 implementation below must be
+validated before any V2 enrollment or production use. Public
+Identify/captured-media DTOs, Explore and Field Chat remain unchanged.
+
+This slice proves database binding and cleanup transactions with synthetic
+receipts; it does not prove live R2 policy, photo moderation, media budgets for
+a provider request, image decoding or end-to-end reanalysis. Those remain
+orchestration/activation requirements.
+
+## Prepared protocol-8 reads and private photo resolution
+
+`20261003070545_prepare_protocol8_history_reads.sql` extends the existing owner
+page RPC without changing request/page schema 1, limits, ordinal cursors or V1
+snapshot bytes. Protocol 8 admits mixed V1/V2 results; protocol 7 still refuses
+whole V2 histories after ownership/deletion checks. Unknown readers fail closed.
+Native admission stores the decoded snapshot version and compares it alongside
+all immutable bytes on replay. It leaves selection and review authority alone.
+
+`POST resolve-history-photo` authenticates through `withEdgeHandler`. Its exact
+body is `{observation_id, analysis_id, media_id, reader_protocol: 8}` with
+lowercase UUIDs and no supplied owner. `db.ts` calls the service-only
+`resolve_owned_observation_photo` RPC with the verified owner. The routine
+checks service authorization, current owner and deletion fencing, both
+`reader_enabled` and `media_reader_enabled`, completed V2 result membership,
+readiness and the exact MIME/byte-count/SHA-256 tuple. A ready but uncommitted
+upload is insufficient. Anonymous/authenticated roles cannot call this routine
+or read internal receipts directly.
+
+Success has exactly `schema_version: 1`, `owner_id`, `observation_id`,
+`analysis_id`, `media_id`, `content_type`, `byte_count`, `sha256`, `url` and
+integer `expires_at_ms`. The URL is a temporary 30-second signed GET. No
+separate receipt object UUID field, upload deadline or storage configuration is
+returned. The signed URL necessarily contains its opaque storage path and must
+remain transient. The adapter rechecks the database fence after signing and
+returns `Cache-Control: private, no-store`. Fixed safe errors are 400
+`invalid_analysis_history`, 404 `analysis_history_not_found`, or 503
+`analysis_history_unavailable`; raw database and storage diagnostics are never
+returned or logged. A deletion after the final check can still leave an issued
+capability usable until expiry or erasure-marker replacement; no new capability
+is authorized after the fence.
+
+Native `ObservationHistoryPhotoLoader` reopens the saved child under its
+enrolled owner, uses an account work lease, validates ticket
+identity/content/expiry and the HTTPS R2 account host, and fetches through an
+isolated ephemeral URLSession. It rejects redirects, cookies, disk caching,
+unexpected MIME/length and excess stream bytes, then verifies SHA-256 away from
+MainActor. Account, child and pending-deletion checks surround suspensions. Only
+transient verified `Data` is returned; neither URLs nor photo bytes enter
+SwiftData or public-media caches. Failures require a fresh caller invocation and
+a newly authorized ticket; there is no automatic stale-URL retry.
+Rendering/image decompression and visible-view invalidation remain the future
+presentation owner's responsibility.
+
+All read/enrollment/write gates remain false. This source is not deployed and
+has no normal UI/sync caller. Bucket provisioning, real R2 policy/expiry
+evidence, provider orchestration, explicit deletion/erasure delivery and the
+other activation requirements remain open. Public Identify/captured-media DTOs,
+Explore and Field Chat are unchanged.
+
+## Prepared child-analysis orchestration and recovery
+
+Migration `20261003074429_prepare_observation_analysis_recovery.sql` adds the
+false-by-default `orchestration_enabled` gate. `analyze-observation` validates
+the existing strict V1/V2 admission contract, derives owner from verified auth
+and IP HMAC from the trusted request boundary, and returns only
+`{schema_version:1, observation_id, analysis_id, state}`. Terminal states
+`complete`/`failed_terminal` return 200; admitted/dispatched/draft return 202.
+All responses are private/no-store. Transport failure requires the same analysis
+ID/input on retry. An immutable identity conflict from admission returns HTTP
+409 with `analysis_history_operation_conflict`; it does not invite endless retry
+of the conflicting input. Later worker-claim conflicts remain sanitized 503
+failures so retry can recover saved work. New analyses use fresh IDs. Completion
+never changes selection. V2 input is additionally limited to five photos and 5
+MiB combined before quota; storage's 32 MiB receipt allowance does not expand
+provider admission.
+
+The service-only `begin_owned_observation_analysis`,
+`advance_owned_observation_analysis`, `claim_observation_analysis_recovery`, and
+`list_observation_analysis_recovery` RPCs are inaccessible to
+anon/authenticated. They do not grant API access to internal tables/routines.
+New admission/dispatch requires the applicable admission, dispatch, append and
+protected-media gates. A 120-second work token fences materialization, taxonomy,
+draft, completion and release; it is independent of quota and invocation
+identities. An existing active claim returns only busy state to the
+orchestrator.
+
+The foreground worker prepares the qualified provider adapter and result policy
+before committing dispatch. Private photo GETs verify exact receipt bytes,
+content type, hash and absence of erasure markers, without public promotion or
+provider-visible URLs. Dispatch rechecks parent ownership/deletion, consent and
+ready evidence. SQL dispatch is the external-processing authorization point; its
+provider call follows immediately. A later deletion may not retract
+already-authorized external processing, but it prevents outcome persistence,
+completion, replay and delivery. No lock spans the provider network call.
+
+Received output is normalized and saved as a bounded immutable canonical
+checkpoint before taxonomy I/O. The checkpoint binds invocation provenance and
+allowlisted provider usage. Its exact retry is idempotent, including a late
+response after work-lease expiry when the original dispatch quota token still
+matches. The final draft's result must equal that checkpoint except for its
+verified dictionary `species_id`. Taxonomy creates only a missing
+scientific-name identity under the deletion fence; it does not overwrite curated
+facts, publish private result prose, or confer identification authority.
+
+A proven refusal/invalid result releases the complimentary hold under the shared
+terminal settlement rules. A still-live worker may cancel with its original
+claim after a dispatch-RPC failure only before entering provider `invoke()`.
+Quota accounting already committed at SQL dispatch remains committed. Expired
+claims, crashes, unknown executions and timeouts provide no terminal proof and
+retain their holds. There is no qualified provider retrieval/idempotency
+contract for these ambiguous outcomes; no automatic redispatch or age-based
+refund is allowed. This remains an explicit activation limitation.
+
+The service-authenticated `recover-observation-analyses` source discovers at
+most ten due saved outcomes/drafts, stops starting work after 40 seconds, and
+retries failed completion after 60 seconds. RPCs have bounded deadlines; a
+started item can finish after the admission deadline. Recovery never admits or
+invokes AI. It reads immutable saved context only. The default-off gate, absence
+of a cron schedule, and remaining enrollment/native/public/chat/erasure
+prerequisites mean this prepared source is not a production-enabled feature.
+
+## Private library detail RPCs
+
+[Guest library transitions](./21-guest-library-transitions.md#private-detail-api)
+defines `set_owned_scan_library_details` and `get_owned_scan_library_details`,
+including explicit nullable notes, owner verification, 100-ID read pages, stable
+operation receipts and tombstone refusal. Replay of an accepted operation UUID
+is a no-op, including after a newer operation; reusing that UUID with a
+different payload conflicts. Distinct operations follow server arrival order,
+not a cross-device revision or client-time last-edit-wins protocol.
+Notes/Favorites stay private in scan-linked internal tables; tags keep their
+existing public projection. Merge can return `pending_library_work` or
+`library_transfer_needs_attention` (409) without retiring the source identity.
+These additive RPCs must precede a client that requires their restoration
+response.
+
+### Prepared saved-identification enrollment and protocol 9
+
+Migration `20261003152940_prepare_saved_identification_enrollment.sql` adds
+`enroll_owned_observation_history(p_observation uuid, p_reader integer)`. Only
+`authenticated` can execute it; `auth.uid()` supplies ownership and `p_reader`
+must be 9. There is no client-supplied result, review, owner, import timestamp
+or analysis identity. Under owner → observation generation → owned live scan →
+history locks, new enrollment requires `reader_enabled`, `enrollment_enabled`
+and the new `saved_import_enabled`, all still false in source defaults.
+
+The server copies the surviving identification into one immutable child, copies
+all seven current review fields exactly into its separate authority, and selects
+that baseline at observation revision 1. `review_revision = 0` is the new
+history counter; copied confirmed-species and AI-review revisions retain their
+own values. `initial_selection_permitted` stays false. Enrollment changes no
+public scan fields, existing eligibility, funding or reconciliation credits.
+Existing primary/provenance semantics must pass the current projection policy;
+enrollment never invents missing provenance to make a primary answer valid.
+
+The acknowledgement has exactly `schema_version: 1`, `owner_id`,
+`observation_id`, and `baseline_analysis_id`. An exact retry returns the
+original baseline UUID after ownership/deletion checks, even when new import
+admission is closed. It does not restore a later-changed selection, revision or
+review. The reader gate remains required. This acknowledgement is not an
+authority snapshot; native enrollment must await separately acknowledged current
+selection/review state, with its account and deletion fences.
+
+Snapshot V3 uses the existing nine outer keys but has `schema_version: 3`,
+`ordinal: 1`, and explicit null `source_analysis_id`, `request_digest` and
+`completed_at_ms`. Its evidence manifest is exactly:
+
+```json
+{
+  "schema_version": 3,
+  "origin": "saved_identification",
+  "imported_at_ms": 1750000000000,
+  "availability": "unavailable"
+}
+```
+
+The timestamp records import, never original inference completion. The result
+has exactly `scan_id`, `primary_identification`, `identification_provenance`,
+`species_id`, `is_biological_subject`, `candidates`, `pet_identification`,
+`ai_confidence_score`, `ai_reasoning`, and `inference_tier`, copied from the
+locked row. Older candidate/pet JSON is retained as opaque bounded saved data;
+it must not be decoded or dispatched as a current Identify provider response.
+Review, private notes, location, account fields and public media URLs are not
+merged into this immutable identification. In particular, legacy public images
+are not converted into private evidence receipts. “Saved identification” is the
+appropriate presentation label; this import does not establish “Original.”
+
+V1/V2 retain their non-null execution metadata and exact serializer bytes. V3
+alone permits missing execution metadata; its exact manifest, ordinal and
+nullability are enforced together. Unknown versions fail closed. The aggregate
+one-MiB snapshot and four-MiB page caps still apply. Readers 7/8 refuse the
+entire history containing an import, including requests whose cursor would skip
+it. Protocol 9 is explicit to this owner history read; it does not alter
+Identify, funded-input or photo-resolution protocols. Imported IDs cannot enter
+legacy scan ingestion, quota or settlement; deletion retains an ownerless
+child-ID fence without retaining the private snapshot.
+
+`savedIdentification.ts` owns the executable imported-result and enrollment
+acknowledgement validation; `result.ts`/`page.ts` own version negotiation and
+byte-preserving delivery. Native V56 advertises reader 9 and validates/stores V3
+with nil completion; import time stays separate and private photo resolution
+remains V2-only. State hydration, owner and community review synchronization,
+public/chat projections, explicit deletion, and the other RFC activation gates
+remain required. No enrollment backfill or live app call site is enabled by this
+slice.
+
+### Prepared owner observation state read
+
+`20261003162801_prepare_owner_observation_state_read.sql` adds
+authenticated-only
+`get_owned_observation_analysis_state(p_request jsonb, p_reader integer)`. Both
+`reader_enabled` and the new `state_reader_enabled` must be true; all source
+rollout defaults remain false. Reader 9 is required. The exact request is
+`{schema_version:1, observation_id:<lowercase UUID>, analysis_id:null|<lowercase UUID>}`.
+An analysis cannot equal its observation. The owner is always derived from auth.
+
+A null target resolves the selected result under owner → observation advisory →
+owned live scan → history locks. An explicit target previews that child without
+selecting it. The response contains exactly `schema_version`, `owner_id`,
+`observation_id`, `state_revision`, `selection_initialized:true`,
+`selected_analysis_id`, and `analysis`. The latter contains exactly `snapshot`,
+`review_revision`, and `review_snapshot`. Snapshot is the same immutable
+V1/V2/V3 text as the result-page reader, bounded to one MiB; the entire response
+is bounded to four MiB. Review is the separate seven-field saved authority,
+bounded to 32 KiB. Neither active projection nor arbitrary scan columns are
+returned.
+
+`analysisHistory/state.ts` validates this contract, retaining legacy review
+fields without manufacturing a verified identity. Explicit identity and AI
+review envelopes use their existing validators; nested AI review is capped at
+eight KiB and its label limits use UTF-16 units on both clients. Native
+`ObservationHistoryState` and `ObservationHistoryAuthority` share
+`state-v1.json`, preserve result bytes, and keep mutable review separate. The
+cloud adapter and `ObservationHistoryStateSyncService` are prepared. Native
+admission can atomically cache the exact result, refresh review and advance the
+observation revision. A changed server-selected ID requires a strictly newer
+revision, retained prior evidence/display and matching acknowledged authority, a
+complete target display, and representable target review. Nested review
+revisions are compared within each analysis, never across selections. It
+rechecks account/deletion and pending review, rejects stale/equal-conflicting
+state, and applies display, own authority, selection and revision atomically.
+Missing V3 display and ambiguous legacy intent still defer. Normal sync and
+enrollment remain disconnected. Selection transport and a separately injected
+history sheet are prepared behind closed gates; normal UI access is nil. The
+listing consumer retains the existing page revision and ordered analysis IDs
+without changing protocol 9 or its wire shape. V57 additionally caches exact
+per-analysis authority and review/observation revisions, separately from
+immutable result bytes, in the same transaction. Complete V1/V2 results produce
+immutable allowlisted display bytes. An eligible already-selected V3 can capture
+a versioned, provenance-labelled device-local display baseline; this does not
+change server snapshot bytes or protocol 9. Explicit native preview requires
+exactly the acknowledged observation revision and selected ID, never mutates
+parent selection/review, and returns display origin separately. A missing V3
+baseline remains unavailable on that device. Existing selected-review
+representability and pending-intent guards still apply. The
+[native boundary](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md)
+owns the local admission rules.
+
+Missing/non-owned/deleted observations or children return
+`analysis_history_not_found`; closed gates or incomplete internal state return
+`analysis_history_unavailable`; malformed requests and unsupported reader values
+return `invalid_analysis_history`. Reads create no receipts, credit obligations,
+enrollment or selection changes. Review updates serialize against the state
+read, and changes on an inactive result still advance the observation revision.
+The client must recheck account/deletion, reject stale state and preserve
+pending local review intent at eventual admission. A preview response is never
+permission to replace selection; restore/Undo must use the explicit revisioned
+mutation.
+
+### Prepared native saved-identification enrollment admission
+
+The native `ObservationHistoryEnrollmentService` now implements the two-response
+admission contract above without an app caller. Its bounded exact-key
+`ObservationHistoryEnrollment` decoder shares `enrollment-v1.json` with Deno.
+The authenticated account lease must survive both the enrollment RPC and current
+state read. Only a still-selected V3 baseline whose surviving evidence and exact
+review match the unchanged local scan can establish local ownership/selection.
+The result, authority, saved-local display and enrollment fields commit
+together; existing display, review and private details are preserved. Divergence
+requires reconciliation, never silent server preference. Lost responses leave no
+local acknowledgment and permit idempotent server retry.
+
+Before dispatch, native admission now commits a bounded owner-bound enrollment
+intent in the existing job store. Lost responses and failed local admission
+retain the same receipt; successful admission removes it atomically. A fresh
+transaction fence blocks legacy replacement deletion for either pending or
+acknowledged history. Expiry and hydration honor that protection. Explicit user
+erasure retains an identity-only terminal local fence, so late history reads
+cannot recreate the observation after cloud deletion cleanup. No autonomous
+retry or ordinary enrollment caller is connected. The
+[native admission boundary](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#prepared-native-enrollment)
+owns the exact local eligibility, tombstone and rollback rules. No server
+payload, reader protocol or rollout gate changed.
+
+### Prepared native selection requests and Undo receipts
+
+Native `ObservationHistorySelectionRequest` matches the existing six-field
+private selection transaction: `schema_version`, `observation_id`,
+`analysis_id`, `operation_id`, `expected_observation_revision`,
+`expected_review_revision`. Native preparation requires a positive initialized
+revision below exhaustion, a distinct target with retained evidence/display, and
+current target authority. `ObservationHistorySelectionReceipt` checks the seven
+existing fields, including exact operation, observation, previous and selected
+IDs, the next observation revision, and the expected target review revision.
+`selection-v1.json` is shared by native tests and the Deno transition producer.
+The protocol-9 owner RPC below wraps the existing success shape and adds a
+separate strict revision-conflict outcome.
+
+The prepared native owner persists the request before dispatch and reuses it
+across ambiguous retries. It reads current state after receipt validation, then
+commits projection/authority and the completed receipt atomically. A newer state
+supersedes an older receipt; replay does not reinstall old selection. Undo is a
+new conditional request bound to the latest receipt's still-current revision and
+selection. Local selection remains pending until acknowledgment and awards no
+credit. The
+[native selection boundary](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#prepared-selection-and-undo)
+owns persistence, preview freshness, account/deletion checks and rollback.
+Protocol-9 mutation transport and definitive-conflict recovery are prepared;
+workers and UI remain disconnected and all gates remain closed.
+
+`select_owned_observation_analysis(p_request JSONB, p_reader INTEGER)` accepts
+exact reader 9 and the six-key request, bounded to 2,048 database JSON-text
+bytes. Only `authenticated` has execute permission. The server derives ownership
+from `auth.uid()`; no owner parameter is accepted. The private implementation
+remains ungranted to API roles. Outer owner-row, observation advisory and
+owned-live-scan locks protect deletion and every outcome. Under those locks an
+exact existing outcome replays before any rollout gate; changed input with the
+same operation returns `analysis_history_operation_conflict`. Fresh operations
+require `selection_api_enabled`, `reader_enabled`, `state_reader_enabled` and
+`selection_enabled`, all default false. Closing gates stops new choices while
+preserving outcome recovery; state-read gates still apply to the subsequent
+native read, so a closed reader keeps the native intent pending.
+
+Only the explicit `analysis_history_revision_conflict` from the private CAS is
+converted into a durable rejection. The wrapper's outer locks survive the nested
+transaction rollback; insertion into `observation_selection_receipts` commits
+before response. The exact seven fields are the original six request fields plus
+`outcome: "revision_conflict"`. This is proof that the operation cannot later
+apply, not current authority. It changes neither selection nor revision and
+emits no reconciliation obligation. Other failures, including infrastructure
+serialization failures, missing/foreign/deleted targets and closed gates, remain
+errors without a terminal proof. Deletion wins over both insertion and replay.
+
+Native success and rejection decoding reject extra, mismatched or wrongly typed
+fields. After either outcome, current selected state must pass the existing
+account, deletion, baseline, authority and revision checks. One save commits
+state plus either the success receipt or version-2 cancelled rejection intent.
+Failed reads/saves leave the original request pending. A rejected operation
+cannot enable Undo; a fresh preview is required before a new choice. No
+complimentary credit, provider dispatch or public publication is triggered by
+this selection boundary.

@@ -5731,7 +5731,7 @@ Deno.test("scientific retention documentation matches the account tombstone cont
   );
   assertStringIncludes(
     schema,
-    "Exact coordinates, elevation, time, taxonomy, identification, environmental, quality, and provenance facts remain unchanged as mandatory Scientific Data.",
+    "Exact coordinates, elevation, time, taxonomy, original AI identification, environmental, quality, and provenance facts remain as mandatory Scientific Data.",
   );
   assertStringIncludes(
     api,

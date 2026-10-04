@@ -5,6 +5,14 @@ time (October 1 UTC). The result is mixed and does not support promoting medium
 reasoning from this pilot. Retain Sol-low for both Free and Pro. No production
 profile or confidence threshold changed.
 
+Follow-up recorded 3 October: the separate
+[matched reasoning-effort comparison](identification-reasoning-tradeoff-2026-10-02.md)
+completed 60 calls on 20 photos. Medium was faster than Gemini but had zero
+supported gains and one unmapped regression versus low; it did not advance. This
+pilot and its budget remain closed and its findings below are unchanged. The
+[research index](../research/identification/README.md) owns the current research
+decision and next priority.
+
 The owner approved a small effort-only comparison after two scans of one photo
 returned different species. Test whether Sol-medium is a useful Pro candidate
 while retaining Sol-low for Free. Preserve the activated

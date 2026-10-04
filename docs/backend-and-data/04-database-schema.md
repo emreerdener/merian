@@ -26,6 +26,61 @@ for the complete release contract.
 
 ## Supabase PostgreSQL Schema (`00001_initial_schema.sql`)
 
+### Prepared observation analysis history
+
+The October 2 history migrations add private `internal.observation_histories`,
+`observation_analysis_results`, `observation_analysis_authorities`,
+`observation_selection_receipts`, and `observation_history_reconciliation`.
+Ownership follows the stable parent scan. Immutable result and receipt updates
+are rejected; analysis membership is enforced by composite foreign keys. API
+roles, including `service_role`, have no direct table or private selection
+function access. Default-deny RLS is enabled.
+
+`observation_history_rollout` defaults enrollment, selection, reader and append
+gates to false; missing configuration rejects each operation. Exact receipt
+replay remains available to the private transaction after ownership/deletion
+checks without changing state. The separately gated saved-identification
+enrollment RPC described below is prepared; no backfill or live app enrollment
+is enabled. Result and evidence JSON have individual one-MiB bounds; the reader
+migration additionally bounds their complete transport snapshot to one MiB,
+including immutable metadata and ordinal. review/projection JSON have 32-KiB
+bounds, and revisions stop at 2,147,483,646. Strict result producers and the
+connected consumer gates must be implemented before these storage envelopes can
+be activated.
+
+The private `append_observation_analysis(uuid,jsonb)` storage primitive is
+separately held by `append_enabled` and has no API-role execution grant. It
+accepts only canonical description evidence until protected-media admission,
+owner delivery and cleanup exist. It serializes owner/deletion checks, immutable
+result and unreviewed authority insertion, and server ordinal assignment. An
+exact replay returns original snapshot bytes without reinstalling state.
+Existing selection, review and public scan fields remain unchanged. Initial
+selection additionally requires immutable `initial_selection_permitted = true`,
+an empty history and revision zero. That permission defaults false for existing
+rows and cannot be changed after insertion; a future admission owner must prove
+new-observation creation before granting it. Blank migrated history is never
+permission to select. The storage primitive does not mark provider work complete
+or settle funding. The
+[append contract](05-api-contracts.md#prepared-private-analysis-append) owns the
+remaining orchestration requirements.
+
+The private selection transaction validates the full operation identity and
+expected observation/review revisions under owner-first locks. It commits the
+selected pointer, current-authority projection, receipt, and reconciliation
+obligation together. Exact replay returns the original receipt without restoring
+old state. Review changes also advance the observation revision and create
+reconciliation work. These obligations do not yet award credits or update public
+consumers; no worker or public mutation RPC is enabled.
+
+Legacy deletion refuses enrolled observations before fencing or erasure. Backend
+non-biological retention excludes enrollment at discovery and locked recheck.
+Account detachment locks the owner before scans and clears private history on
+detachment; the required scientific-field allowlist/materializer is still an
+activation prerequisite. See the
+[implementation status](../rfcs/reversible-reanalysis-and-identification-history-2026-10-02.md#implementation-progress)
+and
+[history contract owner](../../services/supabase/functions/_shared/analysisHistory/README.md).
+
 ### Privileged routine ACL catalog
 
 `internal.privileged_routine_grants` is the reviewed source of truth for API
@@ -1342,8 +1397,11 @@ The transaction log for every successful identification.
   invalidate both identity and confirmed FK, preserving review intent and
   advancing revision. Current legacy scans keep null identity/revision zero.
   There is no historical confirmation backfill or client write grant. Names
-  follow existing scan visibility and retention; verification establishes
-  taxonomy, not photographic correctness or calibrated model confidence.
+  follow existing scan visibility; account detachment clears the identity and
+  confirmation fields while preserving its revision under the
+  [retention contract](./17-scientific-observation-retention.md#account-tombstone-data-boundary).
+  Verification establishes taxonomy, not photographic correctness or calibrated
+  model confidence.
 - Result-reader compatibility: migration
   `20260927185833_require_identification_result_reader.sql` adds an invoker
   capability check inside the original owner/public SELECT policy predicates.
@@ -1504,10 +1562,13 @@ The transaction log for every successful identification.
   the ownerless forward migrations for account deletion. Retained rows have no
   owner and clear media, semantic/public location labels, device context, custom
   tags, and free-form intervention notes. Exact coordinates, elevation, time,
-  taxonomy, identification, environmental, quality, and provenance facts remain
-  unchanged as mandatory Scientific Data. Tombstones are available only to
-  reviewed backend scientific paths and are excluded from the broad anonymous
-  scans policy. See the
+  taxonomy, original AI identification, environmental, quality, and provenance
+  facts remain as mandatory Scientific Data. Review guards separately clear
+  owner-bound AI-review and verified-confirmation authority; these fields do not
+  remain unchanged. Prepared private history also clears on detachment, with
+  enrollment held pending the scientific allowlist/materializer. Tombstones are
+  available only to reviewed backend scientific paths and are excluded from the
+  broad anonymous scans policy. See the
   [canonical retention contract](./17-scientific-observation-retention.md) for
   the complete retained-versus-cleared boundary and required change procedure.
 - `custom_tags` (Text Array): User-defined plain-text labels for personal
@@ -5456,11 +5517,17 @@ snapshot SHA-256 values, so a property, annotation, default, relationship,
 initializer, or helper edit requires an explicit historical-shape review.
 `SchemaV51Snapshots.swift` freezes all eight `MerianSchemaV51` model classes and
 their relationships; the unchanged goal-hint companion retains its V50 owner.
-`MerianSchemaV54` owns the active global models. V53 is independently frozen in
+`MerianSchemaV57` owns the active global models. V56 is frozen in
+`SchemaV56ScanSnapshots.swift` and `SchemaV56QueueSnapshots.swift`; the graph
+compiled before adding the state-cache relationship. V55 is frozen in
+`SchemaV55ScanSnapshots.swift` and `SchemaV55QueueSnapshots.swift`; its graph
+was compiled before making completion nullable. V54 is frozen in
+`SchemaV54ScanSnapshots.swift` and `SchemaV54QueueSnapshots.swift`; the outgoing
+graph was compiled before active-model edits. V53 is independently frozen in
 `SchemaV53ScanSnapshots.swift` and `SchemaV53QueueSnapshots.swift`. V52 is
 independently frozen in `SchemaV52ScanSnapshots.swift` and
 `SchemaV52QueueSnapshots.swift`. Disk migration suites create source stores from
-the frozen snapshots, migrate V49 through V50 and V51 into V54, and migrate both
+the frozen snapshots, migrate V49 through V50 and V51 into V57, and migrate both
 V50 graphs through their source-isolated custom plans. The V51 fixture verifies
 production metadata selection and preserves scan, media, collection, preference,
 queue, event, deletion and goal-hint state while adding nullable provenance,
@@ -5491,7 +5558,7 @@ each new row into the migration `ModelContext` before assigning the
 relationship; relationship assignment alone is not a durable insert path while
 SwiftData is inside staged store migration.
 
-The current active schema is `MerianSchemaV54`. Recent milestones:
+The current active schema is `MerianSchemaV57`. Recent milestones:
 
 - V38 added single-value audio/context storage (`audioFilePath`,
   `observationContextJSON`) to both local and offline scan models.
@@ -5531,22 +5598,23 @@ The current active schema is `MerianSchemaV54`. Recent milestones:
   directly to V49 from source-isolated V44→V49, V45→V49, and V46→V49 plans so
   SwiftData never migrates unchanged entities across duplicate-prone recent
   representatives. App startup reads store metadata before creating
-  `ModelContainer`: fresh/current V54 stores open without a migration plan,
+  `ModelContainer`: fresh/current V57 stores open without a migration plan,
   known recent stores use the source-isolated
-  V53/V52/V51/V50/V49/V48/V47/V46/V45/V44/V43/V42 plans, and only unknown older
-  stores use the full historical plan. V53 needs only lightweight V53→V54; V52
-  and V51 retain their previous stages and append V53→V54. Each V50 plan
-  contains its custom V50→V51 preference-ownership stage followed by
-  V51→V52→V53; the V49 plan prepends the required lightweight V49→V50 hop.
-  Immediate predecessors therefore never validate unrelated history. The V42 and
-  V43 recent plans jump directly to V49 to avoid validating older
-  full-historical custom stages and to keep V42 off the older V42→V43 bridge
-  that still failed on real TestFlight stores, while V45 and V46 deliberately
-  use one matching source representative each before the V49 repair target.
-  Stores that still hit SwiftData's duplicate-checksum validator during plan
-  construction retry with the same source-isolated recent plans before legacy
-  rescue or safe mode. Safe mode itself creates an empty in-memory V54 container
-  without any migration plan; it does not validate this historical ladder again.
+  V56/V55/V54/V53/V52/V51/V50/V49/V48/V47/V46/V45/V44/V43/V42 plans, and only
+  unknown older stores use the full historical plan. V56 needs only lightweight
+  V56→V57; earlier plans retain their previous stages and append V56→V57. Each
+  V50 plan contains its custom V50→V51 preference-ownership stage followed by
+  V51→V52→V53→V54→V55→V56→V57; the V49 plan prepends the required lightweight
+  V49→V50 hop. Immediate predecessors therefore never validate unrelated
+  history. The V42 and V43 recent plans jump directly to V49 to avoid validating
+  older full-historical custom stages and to keep V42 off the older V42→V43
+  bridge that still failed on real TestFlight stores, while V45 and V46
+  deliberately use one matching source representative each before the V49 repair
+  target. Stores that still hit SwiftData's duplicate-checksum validator during
+  plan construction retry with the same source-isolated recent plans before
+  legacy rescue or safe mode. Safe mode itself creates an empty in-memory V57
+  container without any migration plan; it does not validate this historical
+  ladder again.
 - V47 added `OfflineQueuedScan.inferenceImagePaths` and `visualMediaItemsJSON`
   so queued video replay can keep sampled inference frames separate from the
   user-visible playback video timeline.
@@ -5606,19 +5674,19 @@ The current active schema is `MerianSchemaV54`. Recent milestones:
   `confirmedSpeciesIdentityData` through lightweight V52→V53. Both remain nil
   for existing observations. V52 was frozen and compiled before editing the
   active model. Every older plan appends the stage, and
-  `MerianRecentV52MigrationPlan` now contains V52, V53, and V54. The primary
-  bytes preserve the versioned original AI label and resolution independently of
-  dictionary enrichment or review. Required missing, malformed or unpaired
-  snapshots remain integrity failures, never legacy results. Duplicate explicit
-  completions preserve saved review/media state and reject conflicting identity
-  or provenance. The native review checkpoint now stores the strictly validated
-  server review envelope in the confirmation field: revision, nullable identity
-  and mirrored review tuple. An authoritative clear retains its revision after
-  reopening. No legacy boolean, typed override, dictionary UUID or arbitrary
-  stored bytes establishes this authority. History and acknowledgements merge
-  under one fresh-context transaction gate; pending local intent remains
-  separate. This consumer adds no persisted field or migration and does not
-  enable a protocol-5 producer.
+  `MerianRecentV52MigrationPlan` now contains V52, V53, V54, V55, V56, and V57.
+  The primary bytes preserve the versioned original AI label and resolution
+  independently of dictionary enrichment or review. Required missing, malformed
+  or unpaired snapshots remain integrity failures, never legacy results.
+  Duplicate explicit completions preserve saved review/media state and reject
+  conflicting identity or provenance. The native review checkpoint now stores
+  the strictly validated server review envelope in the confirmation field:
+  revision, nullable identity and mirrored review tuple. An authoritative clear
+  retains its revision after reopening. No legacy boolean, typed override,
+  dictionary UUID or arbitrary stored bytes establishes this authority. History
+  and acknowledgements merge under one fresh-context transaction gate; pending
+  local intent remains separate. This consumer adds no persisted field or
+  migration and does not enable a protocol-5 producer.
 
 **Edge DTO Layer** (`apps/ios/Merian/Core/AI/InferenceEdgeDTOs.swift`): The
 marked Identify `EdgeResponseWrapper` / `EdgeResponse` graph is generated from
@@ -5855,7 +5923,7 @@ with non-optional defaults (`queueAttemptCount = 0`, `queueUpdatedAt = now`,
 ### `OfflineQueuedScanGoalHint`
 
 Added in released `MerianSchemaV50` and retained through the
-`ActiveOfflineQueuedScanGoalHint` alias in current V54 source. This optional
+`ActiveOfflineQueuedScanGoalHint` alias in current V57 source. This optional
 companion exists only for a queued scan submitted from an eligible live Capture
 goal selection.
 
@@ -5896,11 +5964,12 @@ values are `scanIngestion`, `cloudDeletion`, `collectionSync`,
   durable jobs. Scan ingestion and collection sync pause at `needsAttention`
   after `OfflineQueueRetryPolicy.maximumAutomaticRetryAttempts` automatic
   failures. Cloud deletion uses the same capped value only as a bounded backoff
-  exponent; a still-present `PendingCloudDeletionTask` retries without
-  expiration and repairs an older paused or contradictory terminal job state.
-  For scan ingestion this is the redundant scheduler copy of
-  `OfflineQueuedScan.queueAttemptCount`; fresh reads consult both and use their
-  monotonic maximum.
+  exponent; ordinary failures for a still-present `PendingCloudDeletionTask`
+  retry without expiration and repair older paused or contradictory terminal job
+  state. The explicit `legacy_observation_delete_requires_upgrade` hold is
+  excluded from that repair and automatic retry. For scan ingestion this is the
+  redundant scheduler copy of `OfflineQueuedScan.queueAttemptCount`; fresh reads
+  consult both and use their monotonic maximum.
 - `lastErrorCode`, `lastErrorMessage`: String? For scan ingestion,
   `server_retryable_failure` and completed-result recovery codes mirror the
   queued-scan authority. Either surviving copy repairs the other before a
@@ -5910,17 +5979,42 @@ values are `scanIngestion`, `cloudDeletion`, `collectionSync`,
   mirrors for scan jobs.
 - `requiresUnconstrainedNetwork`, `allowsCellular`: Bool policy hints.
 - `approximateBytes`: Int64 redacted local footprint estimate.
-- `metadataJSON`: String? object for non-media scheduler metadata.
-  Scan-ingestion jobs may carry `inference_generation` and `funding_reservation`
-  at the same time. `funding_reservation` encodes account ID, stable scan ID,
-  source (`paid_pro`, `complimentary_pro`, `immediate_flash`, or
-  `deferred_flash`), earlier blocker scan IDs, and creation time. Generation and
-  funding helpers remove only the property they own. A proven pre-dispatch local
-  failure removes the reservation and durably sets
-  `funding_reservation_released: true` while preserving all other metadata. A
-  fresh claim removes that marker. Relaunch restores nonterminal reservations; a
-  pre-protocol-3 job lacking funding is a conservative potential complimentary
-  blocker unless the durable release marker proves otherwise.
+- `metadataJSON`: String? object for non-media scheduler metadata. The
+  `cloud-deletion-discovery` job has kind `cloudDeletion`, no `subjectId`, and a
+  version-2 cursor containing `version`, `timestamp`, `scanID`, `accountID`, and
+  optional `offeredWork`. The timestamp uses the default Swift `Codable` date
+  encoding (seconds since January 1, 2001); the scan-ID tie-breaker is lexical.
+  A persisted `offeredWork = true` schedules a head sweep after reaching the
+  end, allowing interrupted earlier batches to be recovered. Missing or
+  undecodable cursor data, an unsupported version (including unbound version 1),
+  or a different current account starts discovery from the head. This is
+  scheduling metadata, never observation selection or deletion authority. The
+  [offline deletion contract](./01-offline-sync-pipeline.md#2-cloud-deletion-tasking-pendingclouddeletiontask)
+  owns paging and wake behavior.
+
+Deletion jobs also store `CloudDeletionIntent` version 1 in `metadataJSON`:
+`scanID`, `requestingAccountID`, and `origin` (`explicitUserDeletion`,
+`reanalysisReplacement`, or `nonBiologicalRetention`). Existing pending tasks
+never acquire new provenance on duplicate enqueue. Missing/invalid metadata is
+held during bounded discovery with `cloud_deletion_intent_requires_review` and
+no retry date. This is a semantic migration within V54, not a model change;
+requester provenance does not prove ownership or authorize history deletion.
+
+History-refused cloud deletion uses existing `needsAttention`, `lastErrorCode`,
+`lastHTTPStatus = 409`, and a nil `nextRunAt`. The pending task remains intact.
+This changes no persisted model shape or schema version. See the
+[offline deletion contract](./01-offline-sync-pipeline.md#2-cloud-deletion-tasking-pendingclouddeletiontask).
+
+Scan-ingestion jobs may carry `inference_generation` and `funding_reservation`
+at the same time. `funding_reservation` encodes account ID, stable scan ID,
+source (`paid_pro`, `complimentary_pro`, `immediate_flash`, or
+`deferred_flash`), earlier blocker scan IDs, and creation time. Generation and
+funding helpers remove only the property they own. A proven pre-dispatch local
+failure removes the reservation and durably sets
+`funding_reservation_released: true` while preserving all other metadata. A
+fresh claim removes that marker. Relaunch restores nonterminal reservations; a
+pre-protocol-3 job lacking funding is a conservative potential complimentary
+blocker unless the durable release marker proves otherwise.
 
 ### `OfflineQueueEvent`
 
@@ -6188,7 +6282,7 @@ A top-level album type associated with `LocalScanRecord` nodes, added in
 - `createdAt`: Date
 - `scans`: [LocalScanRecord]? (Inverse `@Relationship` using IDs rather than
   encoded objects, reducing memory pressure.)
-- `isPendingDeletion`: Bool (Active V54 application tombstone, mapped to the
+- `isPendingDeletion`: Bool (Active V57 application tombstone, mapped to the
   released `isDeleted` column with `@Attribute(originalName:)`; the value is
   explicitly projected to the unchanged `is_deleted` Edge field for safe cloud
   erasure instead of destructive state-diffs.)
@@ -6371,14 +6465,15 @@ and disposable `species_discovery_search.sql` catalog/denial tests.
 
 ### Identification rejection authority and V54
 
-The active graph is now `MerianSchemaV54`. V53 is independently frozen in
+V54 introduced rejection storage. V53 is independently frozen in
 `SchemaV53ScanSnapshots.swift` and `SchemaV53QueueSnapshots.swift` before adding
 optional `LocalScanRecord.aiIdentificationReviewData`.
-`MerianRecentV53MigrationPlan` contains V53→V54; all earlier supported lanes
-append that lightweight stage. Existing stores retain their scans, original
-identification, confirmations, collections, and queue jobs. The new optional
-bytes start nil. They store local pending intent separately from acknowledged
-server authority. No new legacy `UserReviewState` enum case is introduced.
+`MerianRecentV53MigrationPlan` includes V53→V54 followed by V54→V55→V56→V57; all
+earlier supported lanes retain that lightweight rejection stage. Existing stores
+retain their scans, original identification, confirmations, collections, and
+queue jobs. The new optional bytes start nil. They store local pending intent
+separately from acknowledged server authority. No new legacy `UserReviewState`
+enum case is introduced.
 
 `scans.ai_identification_review` and the matching `scan_ingestion_jobs` backup
 contain a strict, bounded versioned review envelope. The service-only
@@ -6402,3 +6497,326 @@ See
 for client behavior and the owning route for exact envelope fields. The SQL
 fixture is `services/supabase/tests/identification_rejection.sql`; native
 coverage is in `AIIdentificationReviewTests` and `MigrationPlanTests`.
+
+### Owner history read preparation
+
+`20261003034325_prepare_owner_analysis_history_reader.sql` adds a separate
+`reader_enabled` default-false gate and the authenticated owner-only
+`get_owned_observation_analysis_page(jsonb,integer)` RPC. The private tables
+remain inaccessible directly. The RPC locks the same owner and observation
+generation as deletion, uses descending ordinal keysets (at most 20 rows plus
+one lookahead), and returns no more than 4 MiB. It never enrolls, inserts,
+selects, reviews or settles credits.
+
+The migration adds `observation_analysis_readable_snapshot`: finite nonnegative
+completion time and a combined metadata/result/evidence snapshot no larger than
+1 MiB. The earlier independent JSON column limits still apply, but do not alone
+define a completable result. The shared SQL serializer owns both this aggregate
+constraint and the exact snapshot text returned to clients. Original Identify
+`scan_id` remains the observation ID. Result and evidence remain immutable;
+strict producer semantics, protected media and completion proof are
+prerequisites for future live writes. See the
+[reader wire contract](./05-api-contracts.md#prepared-owner-analysis-history-reader).
+
+### Native analysis history storage and V55
+
+V55 adds `LocalAnalysisRecord` and a cascade-owned `analysisRecords`
+relationship on `LocalScanRecord`. Each child has an immutable UUID analysis ID,
+exact local observation ID, required UUID owner ID, completion timestamp,
+snapshot version, and opaque result bytes. Identity, completion, version, and
+bytes have private setters. Construction accepts version values 1 or 2 and a
+JSON object of at most 1,048,576 bytes; it preserves the supplied bytes exactly.
+This is structural storage validation, **not** proof of durable server
+completion, an evidence manifest, or identification authority. The prepared
+owner reader and `Core/Data/AnalysisHistory` admission service now validate
+versioned snapshot/identity/media boundaries, exact replay bytes, account leases
+and deletion fences. They remain disconnected from normal app sync and live
+completion, and cannot enroll a local observation. SwiftData uniqueness/upsert
+alone is not an immutable-result contract. Presentation reads must page child
+queries; the parent relationship is used only for cascade attachment during
+writes.
+
+The cascade is one-way, matching captured-media storage. The child has no
+SwiftData backlink to the active scan type: a backlink causes relationship-link
+failure when the full historical plan resolves legacy model aliases. Admission
+inserts and attaches the child to the parent with the matching observation ID in
+the same synchronous transaction.
+
+The lightweight V54→V55 stage leaves every existing projection, review payload,
+correction, collection, media record, and pending job unchanged. It creates no
+analysis rows and infers no owner. `selectedAnalysisID`,
+`analysisOwnerAccountID`, and `observationStateRevision` remain nil.
+`analysisSelectionInitialized` defaults to true for migrated and legacy-created
+scans: a nil selected analysis must never authorize first-completion selection
+over an existing projection. Only a future new-observation admission path may
+explicitly establish an uninitialized selection. Verified enrollment must
+preserve the existing effective state while seeding surviving evidence; it
+cannot invent deleted history or reinterpret a user correction as an AI result.
+
+Parent deletion cascades to child history. Account purge explicitly deletes the
+new entity as well, including orphan rows. Results and evidence remain private
+local data; none are added to sharing, chat, telemetry, or scientific retention
+exports. Native automatic non-biological expiry now excludes acknowledged
+history at discovery and the locked fresh-context recheck. Explicit bulk
+deletion shares the admission transaction gate. Existing replacement behavior is
+not history-safe merely because storage exists: enrollment/selection remain
+disabled until the append-only writers, owner-scoped sync, retention, deletion,
+and authority consumers are connected and tested. Restoration UI is not enabled.
+
+`MerianRecentV56MigrationPlan` is the current immediate-predecessor lane; every
+older supported lane appends V56→V57 after its existing stages. Startup checksum
+retries attempt V56 before V55, V54 and V53. Safe mode remains a plan-free
+current-schema container. V54, V55 and V56 snapshot pairs are hash-pinned.
+`MigrationPlanTests` verifies disk migration and reopen preservation;
+`LocalAnalysisRecordTests` verifies byte bounds, unsupported versions,
+persistence and cascade deletion; `ScanRepositoryPurgeTests` verifies account
+erasure. Genuine released-binary install-over evidence remains a release gate,
+separate from these source-created fixtures.
+
+### Prepared protected observation evidence
+
+Migration `20261003051251_prepare_private_observation_evidence.sql` adds
+private, RLS-enabled `internal.observation_evidence_objects` and
+`internal.observation_evidence_erasure`. All API roles, including service_role,
+lack table access and routine execution. Both `media_enabled` and
+`media_reader_enabled` default false. These are prepared internal primitives;
+there is no deployed media API or scheduled worker.
+
+Evidence receipts bind distinct observation, analysis and media IDs to a current
+owner, independently generated object UUID, allowlisted content type, byte count
+from one byte through 32 MiB, and SHA-256. An analysis has at most 64 receipts.
+The reservation is valid for five minutes. Only the reserved-to-ready timestamp
+transition is mutable. There is no result FK because evidence must be durable
+before completion. The V1 description-only appender rejects every analysis that
+has reserved media; the separate V2 photo binder below now connects ready
+receipts to funded completion. A shared analysis advisory lock serializes that
+check against reservation, including across parents. Object allocation excludes
+live keys and permanent erasure markers and never embeds account or observation
+IDs in storage paths.
+
+Reserve, readiness and owner reads lock owner → observation generation → scan →
+history before touching receipts. Deletion/ownership checks precede replay.
+Expired reservations cannot become ready or extend their deadline. Expiry
+rechecks under owner/generation locks before deleting a still-unready receipt.
+The later V2 binder retires unused ready evidence on terminal failure and adds
+an unbound-ready expiry primitive. No cleanup scheduler is active.
+
+A receipt's BEFORE DELETE trigger records the opaque object ID in an erasure
+outbox without a parent FK. Scan tombstone insertion removes reserved and ready
+receipts immediately; existing account-detachment history cascades do the same.
+Therefore cleanup survives parent and account deletion. The erasure ledger has
+no owner, observation, analysis, digest, MIME or media payload. Claims last one
+minute, use SKIP LOCKED, and accept completion only from the unexpired current
+token. Failed attempts delay retry one minute. Successful receipts remain as
+opaque anti-reuse records.
+
+Erasure means a verified empty R2 marker, never an object DELETE/404. The marker
+blocks subsequent conditional uploads under the dedicated writer contract.
+Neither database success nor local mocked storage tests prove hosted R2 policy.
+See the
+[protected evidence contract](05-api-contracts.md#prepared-protected-evidence-lifecycle)
+and
+[activation hold](06-supabase-deployment-runbook.md#observation-analysis-history-activation-hold).
+
+### Prepared funded observation-analysis intents
+
+`20261003054717_prepare_funded_observation_analysis.sql` adds RLS-protected
+`internal.observation_analysis_intents`, keyed by immutable child analysis ID
+and cascading from observation history. Owner, frozen bounded input,
+reservation, invocation, draft, usage and final receipt support the private
+state transitions in the
+[lifecycle contract](05-api-contracts.md#prepared-funded-child-analysis-lifecycle).
+No API role can read/write the table or execute its orchestration helpers.
+`admission_enabled` and `dispatch_enabled` default false.
+
+`internal.settle_complimentary_analysis` is the single ledger-transition helper
+used by both existing public scan completion/terminalization and the new private
+child lifecycle. It is not itself admission or completion proof. Existing public
+ABIs remain in place; guarded source extraction fails migration on unexpected
+function drift. Legacy paths reject child identities while admitted. Erasing an
+intent writes a completed ownerless deleted-generation marker before its
+identity can be reused; these markers do not enter deletion cleanup claims. The
+`a_guard_history_child_scan_identity` insertion trigger serializes legacy scan
+creation against admission and deletion. Description-only intents and protected
+media receipts cannot share a V1 analysis ID. V2 photo admission below binds
+them through a distinct entry point.
+
+### Prepared V2 protected photo binding
+
+Migration `20261003063309_bind_protected_analysis_evidence.sql` adds no public
+table or API grant. It adds `protected_analysis_enabled` (false), distinct V2
+admission/append routines, a locked receipt-set validator and
+deletion/retirement triggers. Both versions use the existing
+intent/result/authority tables and one funding owner. New snapshots have schema
+version 2 while V1 bytes remain stable.
+
+Ready receipt pins are derived from the intent/result identity; immutable
+content metadata cannot change, and deletion is rejected while a live owner
+still retains either binding. Parent/account deletion overrides the pin.
+Terminalization queues receipt erasure, and generation-bound unbound expiry
+covers abandoned ready uploads. The protocol-7 page function refuses whole V2
+histories after authorization. Native storage/decoding now supports both
+versions through the protocol-8 boundary below. See the
+[V2 photo contract](05-api-contracts.md#prepared-protected-photo-analyses) for
+bounds, private reference shape and the future protocol-8 activation
+requirement.
+
+### Protocol-8 owner reads and photo resolution
+
+`20261003070545_prepare_protocol8_history_reads.sql` extends the gated owner
+page RPC to protocol 8, retaining the version-1 page envelope and exact V1
+bytes. Protocol 7 still refuses entire mixed histories. The new service-only
+`resolve_owned_observation_photo(uuid,uuid,uuid,uuid,integer)` allowlist entry
+requires verified Edge owner, completed V2 membership, both read gates and the
+existing locked deletion/receipt fences. No internal table grants are added. V55
+storage is unchanged; native validation now admits snapshot version values 1
+and 2. See the
+[wire/read contract](05-api-contracts.md#prepared-protocol-8-reads-and-private-photo-resolution).
+
+### Prepared analysis worker state
+
+Migration `20261003074429` adds a bounded immutable `provider_outcome`, paired
+`work_token`/`work_expires_at`, and indexed `recover_after` to private analysis
+intents. A separate default-false `orchestration_enabled` gate controls the
+service-only begin/advance/list/claim wrappers. Discovery returns at most ten
+saved outcomes/drafts and grants no work authority. Claims and every write use
+the existing owner/parent deletion fence. Cascading deletion removes checkpoints
+and claims with the private intent. No new native persisted field is required.
+See the
+[orchestration contract](05-api-contracts.md#prepared-child-analysis-orchestration-and-recovery).
+
+## Private library detail receipts
+
+`internal.scan_library_details` stores nullable private field notes and
+Favorites by scan ID. `internal.scan_library_detail_receipts` records immutable
+operation UUID, scan ID and payload digest. Both cascade from the stable scan
+and expose no direct API-role table grants. Authenticated owner-only definer
+RPCs check live scan ownership and deletion tombstones. See the
+[transition and privacy contract](./21-guest-library-transitions.md).
+
+### V56 unknown completion storage
+
+V56 changes only `LocalAnalysisRecord.completedAt` from `Date` to `Date?`. The
+frozen V55 model retains its required completion. The lightweight V55→V56 stage
+preserves old dates and bytes; it does not populate imports or select an
+identification. Current construction allows V3 only with nil completion and
+requires finite completion for V1/V2. Import time is decoded separately from the
+immutable V3 manifest, never substituted for execution time. All full/recent
+plans now append V57; V55 startup retains its isolated lane and safe mode stays
+plan-free. `MigrationPlanTests` covers disk migration, insertion of a nil-date
+import and a current-store reopen. Released-binary install-over remains separate
+from source-created migration fixtures.
+
+### Imported saved-identification baselines
+
+`20261003152940_prepare_saved_identification_enrollment.sql` adds a
+default-false `saved_import_enabled` gate and an authenticated owner-only
+enrollment RPC. It baselines the locked current server row with a new child
+UUID; it never selects the earliest guessed execution or changes existing public
+scan/review fields. All seven authority fields survive exactly, with a separate
+history review counter starting at zero and selected observation revision
+starting at one. Retry recovers the baseline identity without reapplying
+selection or authority.
+
+`observation_analysis_results` now permits null request digest/completion only
+for explicitly imported V3 evidence. Its exhaustive origin constraint requires
+ordinal one, null source analysis and execution metadata, and the exact bounded
+saved-origin manifest. All V1/V2 rows still require the original execution
+metadata; unknown manifest versions fail closed. The aggregate snapshot bound
+also applies when completion is null. Legacy candidate/pet JSON remains opaque
+saved evidence, not newly validated provider output. See the
+[protocol 9 contract](05-api-contracts.md#prepared-saved-identification-enrollment-and-protocol-9)
+for fields, provenance limitations and reader compatibility.
+
+Imported child IDs share the protected namespace with funded analyses and legacy
+scans. Ingestion/quota/settlement cannot use them, and history cascades preserve
+an ownerless child tombstone. No funding, reconciliation award, private-media
+promotion, schema backfill or native enrollment is performed. Authority/public
+projection consumers and all other activation gates remain closed.
+
+### Prepared atomic observation state reader
+
+`20261003162801` adds only `state_reader_enabled = false` and an owner-only RPC;
+it creates no result, review cache or selection mutation. The reader locks the
+owner, observation generation, owned scan and history before returning one
+result with its own authority and the current selected ID/state revision. Null
+target means selected; explicit target means preview. Its exact grant is listed
+in `internal.privileged_routine_grants`; private tables remain inaccessible to
+API roles. See the
+[state API](05-api-contracts.md#prepared-owner-observation-state-read). V57 now
+adds a durable native per-analysis authority cache; result bytes stay immutable.
+The prepared native state service uses existing selected-review and
+observation-revision fields to synchronize the acknowledged selected analysis,
+atomically with its result and per-analysis authority cache. A changed
+server-selected ID can now be admitted at a newer revision with complete target
+display and representable authority, while preserving the outgoing result and
+its valid display/review cache. It cannot request selection or enroll a scan.
+Unrepresentable legacy authority still defers until the selected native
+projection can retain it without losing acknowledged revision or pending intent.
+Cache availability alone does not remove that fence.
+
+### V57 per-analysis authority and display storage
+
+`LocalAnalysisRecord.state` is an optional one-way cascade relationship to
+`LocalAnalysisStateRecord`. Its immutable identity binds analysis, observation
+and account; bounded mutable fields hold `reviewRevision`,
+`observationStateRevision`, and canonical `reviewSnapshotData` (32 KiB maximum).
+An optional `displaySnapshotData` (one MiB maximum) is immutable once set. No
+backlink or public projection is added. Account purge explicitly deletes this
+entity, including orphan rows, before deleting immutable results.
+
+The lightweight V56→V57 migration creates no state rows, chooses no
+identification, and changes no result bytes, completion dates, review, media,
+private details or pending jobs. The outgoing V56 graph is frozen/hash-pinned;
+all full/recent plans append V57 and startup adds a source-isolated V56 lane.
+Current and safe-mode containers remain plan-free. Recovery signature and
+quarantine policy are unchanged.
+
+Prepared selected-state admission writes result, exact authority cache, selected
+native review and observation revision atomically. The cache rejects stale
+revisions and changed equal-revision authority, and requires observation
+revision advancement whenever review revision advances. Display mapping derives
+only from complete V1/V2 results and uses an explicit allowlist; no old species
+ID, private context or review state can leak into it. V3 saved imports retain
+unknown original display evidence. Their optional local cache uses a version-1
+`saved_local_projection` envelope with `source_result_version = 3`, capturing
+only an eligible acknowledged selected display. It is not a provider response or
+portable server history. The first capture is immutable, bounded to one MiB
+including its envelope, and omitted if the envelope exceeds that bound. This
+uses existing V57 storage and does not change the schema or wire protocol. Full
+replacement mapping clears missing values and stale lookalike enrichment, but is
+used only inside fenced server-selected state admission. See the
+[native boundary](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md).
+
+Native saved-identification enrollment admission now uses the existing V57
+columns and child/cache entities; no schema or migration stage changes. The
+prepared service commits receipt- and current-state-verified ownership,
+selection, result, review cache and saved-local display atomically while
+preserving current identification/review. No ordinary enrollment caller or
+backfill is enabled. A bounded owner/observation/nonce enrollment intent now
+uses the existing `.future` job store before remote dispatch. Success removes it
+in the same local commit; explicit erasure retains a metadata-free terminal
+identity fence until account purge. No schema change is required; see the
+[native boundary](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#prepared-native-enrollment).
+
+### Prepared owner selection outcomes
+
+`20261003221730_prepare_owned_observation_selection.sql` adds default-false
+`internal.observation_history_rollout.selection_api_enabled` and the protocol-9
+authenticated owner wrapper `public.select_owned_observation_analysis`. The
+private selection routine remains ungranted to API roles. Its existing immutable
+`observation_selection_receipts` ledger now holds either the unchanged
+seven-field success receipt or the exact request plus
+`outcome: revision_conflict`. The same `(observation_id, operation_id)` key
+prevents contradictory terminal outcomes. Full request identity remains
+immutable; rejected operations never advance state or enqueue reconciliation.
+Outer owner/advisory/scan locks survive the nested semantic-conflict rollback
+and protect rejection insertion. Deletion cascades both outcome types and
+prevents replay. Recovery precedes rollout gates. See the
+[wire contract](05-api-contracts.md#prepared-native-selection-requests-and-undo-receipts).
+
+Native rejection persistence uses a version-2 metadata envelope in the existing
+`.future` selection job, with `.cancelled` status only after atomic
+current-state admission. Existing version-1 pending and success envelopes remain
+valid. No SwiftData schema change or feature activation accompanies this
+migration.

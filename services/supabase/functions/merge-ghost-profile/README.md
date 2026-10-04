@@ -42,8 +42,8 @@ stable replacement and terminal-code classification, and
 completion order and cancellation boundaries.
 `GhostProfileMergeCoordinator.swift` owns durable preparation, exact source and
 provider-transition admission, exact target admission,
-target-and-transition-keyed task lifetime, retry, terminal cleanup, and
-suppression projection through injected dependencies.
+target-and-transition-keyed task lifetime, retry, terminal needs-attention
+retention, and suppression projection through injected dependencies.
 `Core/Security/GhostProfileMerge/Services/GhostProfileMergeRemoteService+Live.swift`
 alone owns the prepare, complete, and identity-refresh DTOs, Supabase
 invocation, and error mapping.
@@ -59,10 +59,10 @@ idempotency contract.
 The completion call is idempotent for the same destination and secret. If the
 RevenueCat handoff or Auth cleanup fails after the data transaction, the
 function returns a retryable 503; repeating the same completion cannot move the
-data twice. The client removes only fully synchronized or terminal
-invalid/expired queue entries. A service-role worker also reconciles committed
-cleanup receipts every five minutes and repeats provider preservation before
-Auth deletion.
+data twice. The client removes only fully synchronized queue entries. Invalid or
+expired proofs remain as needs-attention recovery evidence. A service-role
+worker also reconciles committed cleanup receipts every five minutes and repeats
+provider preservation before Auth deletion.
 
 ## Database guarantees
 
@@ -190,7 +190,7 @@ publication, owner-filtered Realtime construction and retry fencing, complete
 synchronization-task draining, UUID-keyed restoration-task retention through
 exact completion and the combined Auth-transition drain, canceled-retry
 admission after manual retry reuses an attempt number, stale-account rejection,
-proof removal last, device-only Keychain storage, terminal-only deletion,
+proof removal last, device-only Keychain storage, terminal proof retention,
 target-consent synchronization order, and every exact retired Ghost helper
 exclusion in `SupabaseManager`. It requires the manager to delegate both direct
 identity linking and replacement-session installation, requires the live adapter
@@ -279,14 +279,13 @@ synchronization generation before any evidence, persistence, or analytics
 change. It removes the handoff only afterward with a throwing,
 read-after-write-verified Keychain operation. Any persistence, synchronization,
 refetch, cancellation, identity drift, or removal failure retains the handoff
-for an idempotent retry. Only server-terminal `handoff_expired` and
-`handoff_invalid` responses discard a handoff without rebinding local evidence;
-those paths still refetch the permanent account before verified removal.
-Analytics can resume only after the durable queue is empty and permanent state
-is authoritative. Keychain read/decode uncertainty retains the original bytes
-and keeps analytics suppressed instead of treating the queue as absent. This
-closes `CONSENT-002` in source; hosted exact-SHA test execution remains required
-by the
+for an idempotent retry. Server-terminal `handoff_expired` and `handoff_invalid`
+responses retain the handoff as needs-attention evidence. They do not prove
+transfer or authorize proof removal. Analytics can resume only after the durable
+queue is empty and permanent state is authoritative. Keychain read/decode
+uncertainty retains the original bytes and keeps analytics suppressed instead of
+treating the queue as absent. This closes `CONSENT-002` in source; hosted
+exact-SHA test execution remains required by the
 [production consent readiness record](../../../../docs/legal/production-consent-readiness-2026-08-03.md).
 
 The OAuth session switch itself uses a separate generation-fenced analytics
@@ -360,3 +359,17 @@ Supabase CLI `2.109.1` is exact-pinned. Static migration tests or a focused SQL
 file do not substitute for clean replay plus every checked-in catalog test. A
 database-test connection skip is not proof; release validation sets
 `SUPABASE_DB_TEST_URL` so a connection failure is fatal.
+
+## Library transition boundary
+
+The
+[guest library transition contract](../../../../docs/backend-and-data/21-guest-library-transitions.md)
+requires source-owned durable queues to drain before OAuth session replacement.
+The merge transaction additionally refuses nonterminal server ingestion and
+resumable orphan intents with `pending_library_work` (409). Explicit
+source-owned prepared history/evidence returns
+`library_transfer_needs_attention` (409). The source profile and proof remain
+intact on either refusal. Supported ingestion admission/recovery RPCs lock and
+verify the public owner before scan work, rejecting a stale source after profile
+retirement even while its Auth shell awaits cleanup. Private notes/Favorites
+follow stable scan ownership.

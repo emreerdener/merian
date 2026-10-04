@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "owner_id": "00000000-0000-4000-8000-000000000003",
+  "observation_id": "00000000-0000-4000-8000-000000000001",
+  "state_revision": 10,
+  "items": [
+    {
+      "ordinal": 2,
+      "snapshot": "{\"analysis_id\":\"00000000-0000-4000-8000-000000000004\",\"completed_at_ms\":1750000000000,\"evidence_manifest\":{\"schema_version\":2,\"items\":[{\"kind\":\"image\",\"media_id\":\"00000000-0000-4000-8000-000000000005\",\"content_type\":\"image/jpeg\",\"byte_count\":3,\"sha256\":\"039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81\"},{\"kind\":\"description\",\"text\":\"Synthetic private evidence.\"}]},\"observation_id\":\"00000000-0000-4000-8000-000000000001\",\"ordinal\":2,\"request_digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"result\":{\"ai_reasoning\":\"Synthetic identification fixture.\",\"blur_score\":0.2,\"candidates\":null,\"colors\":[],\"common_name\":\"Monarch Butterfly\",\"confidence_score\":0.87,\"estimated_size_cm\":8.5,\"extracted_visual_traits\":[\"orange wings\"],\"image_quality\":{\"diagnostic_utility\":9,\"framing\":7,\"overall_score\":82,\"sharpness\":8},\"inference_tier\":\"flash\",\"is_biological_subject\":true,\"is_live_capture\":true,\"pet_identification\":null,\"scan_id\":\"00000000-0000-4000-8000-000000000001\",\"scientific_name\":\"Danaus plexippus\"},\"schema_version\":2,\"source_analysis_id\":null}"
+    },
+    {
+      "ordinal": 1,
+      "snapshot": "{\"analysis_id\":\"00000000-0000-4000-8000-000000000002\",\"completed_at_ms\":1750000000000,\"evidence_manifest\":{\"captured_media\":[{\"description\":{\"_0\":{\"freeText\":\"Synthetic observation fixture.\"}}}],\"schema_version\":1},\"observation_id\":\"00000000-0000-4000-8000-000000000001\",\"ordinal\":1,\"request_digest\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"result\":{\"ai_reasoning\":\"Synthetic identification fixture.\",\"blur_score\":0.2,\"candidates\":null,\"colors\":[],\"common_name\":\"Monarch Butterfly\",\"confidence_score\":0.87,\"estimated_size_cm\":8.5,\"extracted_visual_traits\":[\"orange wings\"],\"image_quality\":{\"diagnostic_utility\":9,\"framing\":7,\"overall_score\":82,\"sharpness\":8},\"inference_tier\":\"flash\",\"is_biological_subject\":true,\"is_live_capture\":true,\"pet_identification\":null,\"scan_id\":\"00000000-0000-4000-8000-000000000001\",\"scientific_name\":\"Danaus plexippus\"},\"schema_version\":1,\"source_analysis_id\":null}"
+    }
+  ],
+  "next_before_ordinal": null
+}

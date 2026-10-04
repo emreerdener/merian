@@ -166,6 +166,27 @@ final class GhostProfileMergeCoordinator {
         return result
     }
 
+    func completeTransfer(
+        expectedTargetUserID: UUID,
+        ownedBy transition: AuthTransitionToken?,
+        dependencies: GhostProfileMergeDependencies
+    ) async -> LibraryTransferResult {
+        let completed = await completePendingHandoffs(
+            expectedTargetUserID: expectedTargetUserID,
+            ownedBy: transition,
+            dependencies: dependencies
+        )
+        if completed { return .completed }
+        do {
+            let handoffs = try loadQueue(dependencies: dependencies)
+            if handoffs.isEmpty { return .completed }
+            return handoffs.contains { $0.requiresAttention == true }
+                ? .needsAttention : .pending
+        } catch {
+            return .needsAttention
+        }
+    }
+
     func cancel() {
         task?.cancel()
         task = nil
@@ -215,7 +236,7 @@ final class GhostProfileMergeCoordinator {
         }
 
         var allHandoffsResolved = true
-        for pending in pendingHandoffs {
+        for var pending in pendingHandoffs {
             guard !Task.isCancelled,
                   !dependencies.session.isSigningOut() else {
                 return false
@@ -228,7 +249,22 @@ final class GhostProfileMergeCoordinator {
                 continue
             }
 
+            guard pending.requiresAttention != true,
+                  pending.destinationUserID == nil || pending.destinationUserID == target.userID else {
+                allHandoffsResolved = false
+                continue
+            }
             do {
+                // Pin the destination before the first server side effect. Never
+                // replay a retained capability under a replacement account.
+                pending.destinationUserID = target.userID
+                var current = try loadQueue(dependencies: dependencies)
+                guard let index = current.firstIndex(where: { $0.handoffId == pending.handoffId }) else {
+                    allHandoffsResolved = false
+                    continue
+                }
+                current[index] = pending
+                try persistQueue(current, dependencies: dependencies)
                 try await GhostProfileMergeWorkflow.finalizeHandoff(
                     completeServerHandoff: {
                         guard self.exactSessionMatches(
@@ -305,31 +341,17 @@ final class GhostProfileMergeCoordinator {
             } catch {
                 guard !Task.isCancelled else { return false }
                 if dependencies.operations.isTerminalHandoffError(error) {
+                    // Invalid/expired proof is not evidence that the library moved.
+                    allHandoffsResolved = false
                     do {
-                        try await dependencies.operations
-                            .synchronizeTargetEvidence(transition)
-                        try Task.checkCancellation()
-                        guard exactSessionMatches(
-                            target,
-                            ownedBy: transition,
-                            dependencies: dependencies
-                        ), dependencies.operations.targetEvidenceMatches(
-                            target.userID
-                        ) else {
-                            throw SupabaseAuthTransitionError
-                                .guestMergeSessionChanged
+                        var current = try loadQueue(dependencies: dependencies)
+                        if let index = current.firstIndex(where: { $0.handoffId == pending.handoffId }) {
+                            current[index].requiresAttention = true
+                            try persistQueue(current, dependencies: dependencies)
                         }
-                        try clearHandoff(
-                            pending.handoffId,
-                            dependencies: dependencies
-                        )
-                        dependencies.diagnose(.terminalDiscarded, error)
+                        dependencies.diagnose(.terminalCleanupPending, error)
                     } catch {
-                        allHandoffsResolved = false
-                        dependencies.diagnose(
-                            .terminalCleanupPending,
-                            error
-                        )
+                        dependencies.diagnose(.queueUnreadable, error)
                     }
                 } else {
                     allHandoffsResolved = false

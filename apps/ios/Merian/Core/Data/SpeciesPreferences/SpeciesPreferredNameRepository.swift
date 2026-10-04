@@ -131,8 +131,10 @@ enum SpeciesPreferredNameRepository {
         for scientificName: String,
         ownerUserID: UUID,
         modelContext: ModelContext,
-        legacyDefaults: UserDefaults = .standard
+        legacyDefaults: UserDefaults = .standard,
+        allowsMutation: @MainActor (UUID) -> Bool = SpeciesPreferredNameCloudClient.allowsLocalMutation
     ) -> Bool {
+        guard allowsMutation(ownerUserID) else { return false }
         let scientificName = SpeciesPreferredNamePolicy
             .normalizedScientificName(scientificName)
         guard !scientificName.isEmpty else { return false }
@@ -150,7 +152,8 @@ enum SpeciesPreferredNameRepository {
                 for: scientificName,
                 ownerUserID: ownerUserID,
                 modelContext: modelContext,
-                legacyDefaults: legacyDefaults
+                legacyDefaults: legacyDefaults,
+                allowsMutation: allowsMutation
             )
         }
 
@@ -207,8 +210,10 @@ enum SpeciesPreferredNameRepository {
         for scientificName: String,
         ownerUserID: UUID,
         modelContext: ModelContext,
-        legacyDefaults: UserDefaults = .standard
+        legacyDefaults: UserDefaults = .standard,
+        allowsMutation: @MainActor (UUID) -> Bool = SpeciesPreferredNameCloudClient.allowsLocalMutation
     ) -> Bool {
+        guard allowsMutation(ownerUserID) else { return false }
         let scientificName = SpeciesPreferredNamePolicy
             .normalizedScientificName(scientificName)
         guard !scientificName.isEmpty else { return false }

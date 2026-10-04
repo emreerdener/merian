@@ -46,7 +46,11 @@ a singleton or broad protocol.
 
 - Names are trimmed, `Favorites` is reserved, and duplicates are rejected
   against non-deleted persisted collections. The protected Favorites folder
-  cannot be renamed or deleted through the service boundary.
+  cannot be renamed or deleted through the service boundary. Legacy remote
+  collections colliding with that reserved name retain their IDs and membership
+  under `<original label> (restored <collection UUID>)`; ordinary collection
+  synchronization propagates the adapted name. Private favorite state is kept
+  separate using its detail snapshot/edit evidence during reconciliation.
 - A local save must succeed before collection sync or library invalidation is
   published.
 - Failed saves first restore the captured in-memory model values, then roll back

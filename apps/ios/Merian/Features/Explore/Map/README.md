@@ -94,11 +94,15 @@ compatibility. The live adapter sends the current bounding region, derived zoom,
 `/get-explore-map-points`.
 
 The view model keeps the last successful results while the camera moves. A
-meaningful settled change exposes **Search this area** and schedules the same
-1.5-second cancellable search used before this organization pass. Recent
-responses are cached by compatible viewport plus both filter groups, capped at 8
-regions and 1,400 cluster/post items, and considered fresh for 90 seconds. Stale
-entries render immediately and then revalidate.
+meaningful settled pan exposes **Search this area** and schedules a 1.5-second
+cancellable search. Cluster taps search the final settled viewport immediately,
+superseding requests for the previous view. Zooming while clusters are displayed
+also refreshes on settle, including small changes across an integer zoom
+boundary. Recent responses are cached by compatible viewport, integer zoom
+bucket, and both filter groups, capped at 8 regions and 1,400 cluster/post
+items, and considered fresh for 90 seconds. A broader zoom bucket cannot supply
+cached clusters to a closer one. Stale entries render immediately and then
+revalidate.
 
 Species choices OR together, media choices OR together, and the groups
 intersect. Local filtering is used only while an unfiltered response is visible

@@ -226,6 +226,160 @@ legacy HTTPS/custom-scheme parsing, malformed UUID rejection, share URL copy,
 conflicting-route cleanup, Dictionary-tab presentation state, and survival of
 the immediate foreground timeout reset.
 
+## Observation analysis history preparation
+
+The protected-photo preparation adds
+`analysisHistory/protectedManifest_test.ts`,
+`tests/observation_protected_analysis.sql`, and
+`_tests/observationProtectedAnalysisConcurrencyDb.test.ts`. They verify exact
+private receipt sets, ownership/readiness/content checks, aggregate bounds,
+immutable admission, receipt pins, funded completion replay, terminal/unbound
+cleanup, deletion/account races and whole-history rejection for protocol 7. V1
+fixtures remain the byte-compatibility baseline. Protocol-8 coverage adds
+`tests/observation_protocol8_reader.sql`,
+`_tests/observationPhotoReadConcurrencyDb.test.ts`,
+`resolve-history-photo/handler_test.ts`, mixed `fixtures/page-v2.json`, and
+native `ObservationHistoryPhotoTests`. These exercise mixed
+decoding/persistence, owner-only completed-photo resolution, deletion ordering,
+ticket privacy and account/content validation. They do not prove live R2 policy,
+provider media materialization, image rendering or undo UI.
+
+The prepared funded-child slice adds `analysisHistory/intent_test.ts`, the
+rollback-scoped `tests/observation_analysis_funding.sql`, and
+`_tests/observationAnalysisFundingConcurrencyDb.test.ts`. These cover actual
+closed gates/ACLs, frozen capabilities/evidence, one hold per analysis, lease
+renewal, one-time dispatch accounting, lost-response receipt replay, atomic
+rollback on settlement failure, purchase/refusal settlement, deletion
+retirement, legacy bypass rejection and separate-session
+completion/deletion/admission races. Run them with the full catalog, Edge and
+migration-contract suites. These tests make no provider calls and do not qualify
+an active recovery/media/UI path.
+
+This matrix covers the private October 2 foundation, not a working native
+restoration feature. The
+[history README](../../services/supabase/functions/_shared/analysisHistory/README.md)
+owns implementation boundaries; the
+[RFC](../rfcs/reversible-reanalysis-and-identification-history-2026-10-02.md)
+owns full acceptance and its dated local verification record.
+
+| Owner                                                             | Implemented coverage                                                                                                                                                                                                                   | Evidence limit                                                                                            |
+| ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `_shared/analysisHistory/history_test.ts` and `authority_test.ts` | Strict bounded identity/context parsing, selection and authority decisions, receipt replay, initial-selection rules, stale revision predicates, public-authority policy                                                                | Pure functions; no live chat persistence, provider billing, public invalidation, or reconciliation worker |
+| `_tests/observationAnalysisHistoryMigrationContract.test.ts`      | Default-closed gates, no public writer/grant, deletion refusal ordering, owner-first locks, atomic selection/receipt/outbox boundaries                                                                                                 | Source contracts, not runtime concurrency proof                                                           |
+| `tests/observation_analysis_history.sql`                          | 30 catalog assertions covering private ACL/RLS, gate closure, immutable evidence, revision checks, A → B → A and old receipt replay, legacy deletion refusal, non-biological exemption, parent fencing, and account-detachment cleanup | Synthetic rollback-scoped SQL; selection ordering is sequential, not simultaneous multi-session execution |
+| `delete-scan/db_test.ts` and `handler_test.ts`                    | Strict deletion status parsing and execution proving the history refusal stops before media lookup or completion                                                                                                                       | Mocked route dependencies; no hosted media erasure or native held-task proof                              |
+
+Run the focused Deno tests from the repository root:
+
+```bash
+deno test --frozen --allow-read --config services/supabase/functions/deno.json \
+  services/supabase/functions/_shared/analysisHistory/history_test.ts \
+  services/supabase/functions/_shared/analysisHistory/authority_test.ts \
+  services/supabase/functions/_shared/analysisHistory/reader_test.ts \
+  services/supabase/functions/_shared/analysisHistory/append_test.ts \
+  services/supabase/functions/_shared/analysisHistory/evidence_test.ts \
+  services/supabase/functions/delete-scan/db_test.ts \
+  services/supabase/functions/delete-scan/handler_test.ts
+```
+
+`reader_test.ts` and `ObservationHistorySyncTests` share the synthetic
+`analysisHistory/fixtures/page-v1.json` wire fixture. They exercise observation
+versus analysis identity, exact bytes, cursor/ordinal consistency, invalid
+versions and evidence, duplicate conflicts, account-generation changes,
+whole-page rollback, preserved correction/selection/review, cascade deletion,
+pending deletion during fetch and enrolled non-biological expiry. The native
+final-save lease fixture verifies rollback after children have been staged.
+`observation_analysis_reader.sql` adds 19 database assertions for actual-role
+access, closed reader/old protocol denial, cursor ordering, aggregate snapshot
+and page bounds, and deletion fencing. These are deterministic interleavings and
+transaction assertions, not simultaneous multi-session/provider execution.
+Normal app scheduling, provider completion, protected media and restoration UI
+remain unimplemented and cannot be claimed covered by these tests.
+
+`append_test.ts` covers canonical result construction, taxonomy binding,
+review/funding exclusion and rejection of every media delivery variant.
+`observation_analysis_append.sql` exercises private grants, gate closure,
+first-selection eligibility, immutable replay, append-only authority
+preservation, ordinal exhaustion and deletion-before-replay. The separate
+`observationAnalysisAppendConcurrencyDb.test.ts` uses actual blocked PostgreSQL
+sessions to verify duplicate replay, two first results and both deletion orders.
+It requires an explicitly configured disposable loopback `SUPABASE_DB_TEST_URL`;
+the complete candidate database-backed suite discovers it. Synthetic fixtures
+restore gates and remove their rows. These tests do not claim provider
+admission, complimentary settlement, protected media or production deletion
+orchestration.
+
+`evidence_test.ts` adds synthetic storage tests for separate-bucket fail-closed
+configuration, content hashing and buffer ownership, conditional retries,
+owner-bound 30-second reads, deletion in either upload ordering, marker HEAD
+verification and stale cleanup claims. `observation_evidence.sql` tests actual
+private grants/gates, immutable receipts, expiry, tombstone erasure, account
+cascade and claim-token acknowledgement.
+`observationEvidenceConcurrencyDb.test.ts` uses six multi-session cases:
+duplicate completion, both completion/deletion orders, account deletion before
+completion, and both cross-owner append/reserve orders. Tests observe real
+PostgreSQL blocking; R2 operations remain mocked. No hosted storage, scheduled
+worker, admitted intent or native media manifest is covered. Activation requires
+the separate real-R2 evidence in the release hold.
+
+The candidate workflow explicitly includes the focused tests. Its migration
+contract script discovers `*Migration*.test.ts`, including the history file; the
+disposable catalog runner discovers all SQL test files, including the history
+fixture. Keep these within the complete affected Supabase gate described above.
+Fixture-only gate changes roll back and are not enrollment instructions.
+
+`CloudDeletionSyncTests` now exercises the native refusal boundary with an
+injected deletion effect: only the exact HTTP/code pair holds; the pending task
+and hold survive store close/reopen and duplicate enqueue; 201 held tasks cannot
+starve an unrelated deletion; an 801-task prefix with identical timestamps and
+fixed hexadecimal IDs advances through bounded, durable continuation pages using
+a lexical tie-breaker matching the cursor predicate; an interrupted offered
+batch is revisited after the saved cursor reaches the end; ordinary 409/503
+failures still retry to confirmed success. During active dispatch, the discovery
+deadline remains durable but cannot create a wake loop; unrelated retry
+deadlines remain visible, and batch completion rearms discovery.
+`ScanDeletionEndpointTests` verifies the actual network error envelope and
+absence of replay. No server enrollment is used by these fixtures. Run these
+with `ScanLifecycleNetworkTransportTests` and `OfflineJobSchedulerTests` through
+`make ios-local-build` on the supported simulator.
+
+For a focused rerun, replace `SIMULATOR_UDID` with the supported local simulator
+identifier and run from the repository root:
+
+```bash
+make ios-local-build ARGS='simulator -- test -configuration Debug -destination "platform=iOS Simulator,id=SIMULATOR_UDID" -only-testing:merianTests/CloudDeletionSyncTests -only-testing:merianTests/CloudDeletionIntentTests -only-testing:merianTests/OfflineJobSchedulerTests -only-testing:merianTests/ScanDeletionEndpointTests -only-testing:merianTests/ScanLifecycleNetworkTransportTests -only-testing:merianTests/OfflineQueueSyncArchitectureTests'
+```
+
+`CloudDeletionIntentTests` additionally covers disk-reopened legacy quarantine,
+non-retagging enqueue, foreign-account deadlines, auth-event-only return to the
+original account, restarting an account-mismatched discovery cursor ahead of a
+401-task prefix, and stale acknowledgements. `ScanDeletionEndpointTests` covers
+classified 401 without self-blocking refresh; the lifecycle architecture test
+checks forwarding of the expected account into the existing Auth transport.
+`NonBiologicalRetentionPersistenceTests` verifies explicit versus expiry origin.
+Run `AuthSessionLifecycleCoordinatorTests` and
+`AuthSessionLifecycleLiveProviderTests` for the stable-session resume boundary
+as well.
+
+The architecture suite preserves the save-before-dispatch requirement. A focused
+pass does not replace the complete `merianTests` target for native
+implementation changes. Final local evidence for the scheduler and cursor
+corrections is recorded in the
+[dated RFC addendum](../rfcs/reversible-reanalysis-and-identification-history-2026-10-02.md#native-scheduler-and-cursor-review-corrections--october-2-2026);
+earlier runs describe earlier source states.
+
+Still required before activation: real competing-session
+selection/review/deletion tests; out-of-order Field Trip reconciliation across A
+→ B → A; lost-response analysis retries without duplicate complimentary
+consumption; deletion during provider inference and media promotion; legacy
+queued deletion after upgrade; native non-biological expiry; account switching
+during sync; migration preserving an existing correction; protected private
+history; immutable pre-dispatch chat context recovery; public authority
+revocation; and allowlisted account-deletion materialization. Existing unit
+predicates and catalog assertions do not close those integration cases. Native
+install-over and UI evidence must use the normal iOS build/migration gates when
+those surfaces are implemented.
+
 ## In-Memory Database Containers (`SwiftData`)
 
 Test suites must not pollute the user's iOS files or application store. Ordinary
@@ -3448,6 +3602,16 @@ absent from HTTP and durable payloads.
 | Queue and request body     | `CaptureRefinementReplayTests.swift`, under the same workspace selector: original + image/audio + description persists three entries, replay matches the staged projection, and the actual HTTP body builder emits the expected media arrays, one text context, and exact owner-timeline indexes. This constructs JSON without contacting a provider.                                            |
 | Speech lifecycle           | Existing `DescribeInputViewModelTests` cover cancellation and stale-session callbacks. The mounted transcript binding additionally ignores callbacks after the request ends; simulator checks must exercise submission, historical-editor entry, and replacement routing while dictation is active.                                                                                              |
 
+The Free tray's locked Pro media slot is covered by
+`CaptureStagingToolbarPresentationTests` (visible upgrade versus usable
+capacity, text-only and media-first drafts, full capacity, and reanalysis) and
+`CaptureWorkspaceViewModelRefinementTests` (default paywall routing, draft
+preservation, admission locks, and paid/complimentary unlocks).
+`testStagedProSlotOpensDefaultPaywallAndPreservesDraft` verifies the mounted
+upgrade action and paywall dismissal; it is registered in the runtime audit's UI
+group. `testNoteAtMediaCapacityWithLargerText` also requires the upgrade slot to
+remain reachable.
+
 After `make xcodegen` and `make validate-ios-project`, run the focused matrix on
 an available simulator through the checkout-local build wrapper. Replace
 `SIMULATOR_UDID` with a real local destination:
@@ -4136,8 +4300,8 @@ import, and permission-denial UI require the physical-device checklist in
   owner in `Auth/`, `Endpoints/`, `Inference/`, `Media/`, `Models/`,
   `Recovery/`, and `Transport/` plus the client façade. It requires the exact
   sixty-one Auth foundation paths and caps Auth, Purchase Identity,
-  `SupabaseManager.swift`, and their combined production surface at 7,756,
-  2,016, 3,475, and 13,247 lines, respectively. It includes the effect-free
+  `SupabaseManager.swift`, and their combined production surface at 7,886,
+  2,016, 3,792, and 13,694 lines, respectively. It includes the effect-free
   observable runtime owner for transition, generation, analytics-token,
   exact-session lease/drain, and local sign-out state; focused
   listener/current-state and historical-sync task owners; lifecycle diagnostics;
@@ -8710,9 +8874,12 @@ The surrounding export suite is intentionally split by boundary:
   `CloudDeletionSyncTests.cloudDeletionRequiresExplicitNetworkConfirmation`
   proves `invalidResponse`, HTTP, and transport errors all retain durable cloud
   erasure work; only a validated nil dispatch error may remove the pending task.
+  The exact history-upgrade refusal is now a durable hold rather than a retry;
+  the history preparation matrix above owns those persistence/paging cases.
   `cloudDeletionRetriesNeverEnterAnUnrecoverableState` proves exhausted legacy
   and contradictory terminal job statuses are repairable, while retry delay
-  progression remains numerically capped without expiring the erasure request.
+  progression remains numerically capped without expiring an ordinary erasure
+  retry. Explicit history holds are excluded before generic status recovery.
   `cloudDeletionDrainIsProcessSingleFlight` proves a competing foreground wake
   cannot claim, dispatch, or mutate the same pending erasure task while one
   process-local drain owns it. The persisted `.running` state intentionally
@@ -9865,3 +10032,305 @@ deterministic CI therefore enforces it. The docs suite also includes research
 skill routing and evidence-boundary scenarios. These checks validate record
 organization; they do not establish biological accuracy or exposure from private
 ledgers.
+
+### V55 native history storage verification
+
+Run the complete `MigrationPlanTests`, `LocalAnalysisRecordTests`,
+`ModelsIntegrationArchitectureTests`, `CapturedMediaArchitectureTests`,
+`ScanRepositoryPurgeTests`, and Store Recovery suites, then the complete native
+unit target. The V54 disk fixture verifies every outgoing scalar, opaque review
+bytes, an existing correction, mixed media, collections and pending work through
+migration and a plan-free reopen. History starts empty, owner/revision/selection
+remain nil, and initialized selection prevents future completion from treating
+the preserved projection as a new observation. Child tests cover the exact 1 MiB
+bound, malformed/unsupported snapshots, exact-byte reopen, and cascade deletion.
+The full historical rescue-eligibility fixture also guards against introducing a
+child backlink that crashes historical relationship resolution. Account purge
+includes the new private entity. The Models architecture gate permits child
+construction only in the reviewed account-bound admission owner and still
+restricts selection/enrollment writes to their prepared admission owners and
+rejects normal history scheduling. `ObservationHistorySyncTests` covers the
+prepared admission transaction; the backend reader gate remains false.
+Identical-byte duplicate UUID insertion verifies the uniqueness constraint; it
+does not claim conflicting upserts are safe.
+
+`make validate-ios-migration-guardrails` pins both outgoing V54 snapshots and
+requires every recent plan to end at V57, including the dedicated V56 startup
+route and preserved V55/V54 lanes. `make test-ios-ci-tooling` exercises
+missing-tail/plan mutations and the startup-safety source scope. Regenerate
+Xcode sources and run the repository's project and native validation gates. Use
+the supported simulator matrix; record unavailable runtimes separately. Physical
+released-binary V54 install-over and second-launch evidence remain an explicit
+distribution gate under
+[Startup Store Recovery](../backend-and-data/08-startup-store-recovery.md#v54v55-analysis-storage-acceptance).
+
+### Prepared history execution recovery verification
+
+`analysisHistory/execution_test.ts` and the two analysis worker handler suites
+cover pre-admission limits, one-shot dispatch, output-before-taxonomy ordering,
+saved-result/draft recovery, safe status projections and bounded batches.
+`evidence_test.ts` verifies trusted private GET hashes, body bounds and erasure
+markers. `observation_analysis_recovery.sql` checks closed/partial gates, work
+claims, late output, immutable draft binding, proven cancellation versus crash
+ambiguity, shared settlement and deletion. Separate-session
+`observationAnalysisRecoveryConcurrencyDb.test.ts` covers competing claims,
+outcome/deletion in both orders and account deletion. Candidate CI explicitly
+selects the new pure/handler suites. All use synthetic data; they do not prove
+hosted R2 behavior, a recovery schedule or provider retrieval semantics.
+
+## Guest library transition validation
+
+The [transition contract](../backend-and-data/21-guest-library-transitions.md)
+defines the operation inventory and recovery matrix. The focused native owners
+are listed below; use their selectors through `make ios-local-build`, then run
+the complete affected native gate. Test counts in a dated candidate record do
+not replace current execution.
+
+| Suite                                                                | Acceptance boundary                                                                                                                                                                                   |
+| -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `LibrarySignOutRecoveryTests`                                        | Durable phase recovery, unreadable journals, lost local saves, exact replacement destination, purchase retry and anonymous-create response loss                                                       |
+| `LibraryMutationInventoryTests`                                      | Failed/unknown work, source ownership, legacy-note acknowledgment, stale projection repair, edits arriving during drain, same-operation retry, cancelled late responses and partial/stale restoration |
+| `OfflineJobSchedulerTests`                                           | Actual timer-driven detail retry after acknowledgment save failure, earlier queue deadline preservation and retry retention while admission is fenced                                                 |
+| `FieldNotesRepositoryTests`                                          | Remote clear cannot resurrect a stale bridge; pending or completed tag-only work cannot erase an unmigrated note                                                                                      |
+| `HistoricalScanReconciliationTests`                                  | Paged and targeted legacy preparation before a valid empty cloud baseline; pending local details win; remote Favorites collisions preserve membership without inventing private favorites             |
+| `OAuthSignInCoordinatorTests`, `GhostProfileMergeCoordinatorTests`   | Authentication versus transfer result, provider/source/destination fences and retained merge evidence                                                                                                 |
+| `CaptureIdentityAdmissionTests` and existing library producer suites | New local writes cannot cross the final identity-transition fence                                                                                                                                     |
+
+Disposable SQL coverage includes `private_library_details.sql`,
+`ghost_profile_merge_security.sql` and historical
+`identity_merge_scan_recovery_security.sql`. The new
+`libraryIdentityRetirementConcurrencyDb.test.ts` observes the actual profile
+lock between merge and stale ingestion admission. Run it through the complete
+Deno task with the disposable database URL. Client/migration source contracts
+are `ghostProfileMergeClientContract.test.ts` and
+`libraryTransitionMigrationContract.test.ts`; they supplement native/SQL runtime
+coverage rather than replacing it.
+
+The interrupted-ingestion test first proves that new merges reject nonterminal
+source work. Its later repair schedule uses an explicitly historical receipt; it
+does not prove that current ingestion can continue across source retirement.
+Prepared analysis-history ownership also remains a merge blocker.
+
+Physical Apple/Google linking and existing-account merge, two-device restoration
+of notes/tags/Favorites/collections/deletions, purchase continuity, process
+termination at durable boundaries, accessibility of recovery screens, and actual
+issued-media expiry/revocation remain separate device/hosted acceptance.
+Cross-account private reads, writes and fresh media signing must be denied;
+intentionally public content retains its existing visibility. Do not label the
+original plan complete while destination-account editing during unresolved
+transfer remains blocked by the shared local projection. Guest-only transfer and
+backup-based guest recovery are not promised.
+
+#### Saved-identification enrollment verification
+
+`tests/observation_saved_enrollment.sql` tests default denial, actual-role
+access, locked baseline copying, exact seven-field review preservation,
+corrected/ rejected/community/withdrawn/non-biological projections, unchanged
+scan fields and eligibility, explicit unknown execution metadata, whole-history
+old-reader refusal, idempotent enrollment after later selection, cross-owner
+denial, deleted-parent replay and imported child identity fencing. Imported
+legacy candidate JSON is retained as opaque saved data rather than coerced to
+today's provider contract. `reader_test.ts` checks V3 byte preservation and
+strict origin, metadata, version and identity decoding; V1/V2 fixtures remain
+readable unchanged.
+
+`observationSavedEnrollmentConcurrencyDb.test.ts` uses separate local database
+sessions and observes actual lock blocking for duplicate import, deletion first,
+account deletion first, and import-before-deletion ordering. It restores rollout
+flags during cleanup. Full database catalogs and the complete history
+concurrency suite must pass on the candidate. These are not native
+store-migration, live review-selection race, deployment or feature-activation
+evidence.
+
+### V56 imported-history native verification
+
+`MigrationPlanTests` exercises the frozen V55 disk-store upgrade to V56,
+preserves existing dates/bytes/selection/correction, persists a V3 result with
+unknown completion and reopens the current store. `LocalAnalysisRecordTests`
+requires nil only for V3 and finite dates for V1/V2.
+`ObservationHistorySavedIdentificationTests` shares `page-v3.json` with Deno and
+checks import-time separation, exact-byte replay, malformed metadata, unchanged
+current identification and account switching. Existing history/photo suites
+retain V1/V2 and private resolution coverage. Reader 9 is scoped to history;
+photo resolution and Identify protocols do not advance.
+
+Run these selectors under the actual `merianTests` target through
+`make ios-local-build`, followed by the complete native unit/recovery gate.
+`make test-ios-ci-tooling` verifies the V55 frozen graph hashes, V56 forward
+stages and startup source scope. These tests do not establish live enrollment,
+review hydration, history UI or hosted feature activation.
+
+### Atomic observation state-read verification
+
+`observation_state_reader.sql` covers dual gates, actual-role grants, selected
+and explicit-preview reads, exact immutable bytes, unsupported readers, owner
+and child isolation, inactive review revision advancement and deletion.
+`observationStateReadConcurrencyDb.test.ts` observes real blocking between reads
+and review updates in both orders, observation deletion, and account deletion.
+The reader never awards credit or mutates selection. Deno `state_test.ts` and
+native `ObservationHistoryStateTests` use `state-v1.json` for
+owner/result/review binding, unknown completion, explicit preview and malformed
+state denial. Native admission and restore are subsequent acceptance boundaries,
+not established by these decoder tests.
+
+### Prepared selected-history authority admission
+
+`ObservationHistoryStateSyncTests` covers an atomic result/review/revision
+refresh for the unchanged selected analysis: identical replay, stale/equal
+conflict, nested review regression, revisioned identity clear, immutable replay
+conflict, pending/unknown outbox status, malformed or optimistic local review,
+legacy correction/verified intent, ambiguous default-tuple offline Undo,
+unrepresentable legacy revision denial, account/deletion races and final-lease
+rollback. `ObservationHistorySyncTests` continues to cover the extracted shared
+immutable insertion helper. Run both with the state decoder, V3 and private
+photo suites through `make ios-local-build`.
+
+This boundary now includes a V57 per-analysis authority cache. It deliberately
+defers changed selection without complete prior/target display and acknowledged
+representable authority. It does not prove selection mutation, Restore/Undo,
+enrollment, normal scheduling or history-sheet acceptance. Those remain separate
+prerequisites before activation.
+
+### V57 per-analysis state verification
+
+Run the complete `MigrationPlanTests`, `LocalAnalysisRecordTests`,
+`LocalAnalysisStateRecordTests`, `ObservationHistoryStateSyncTests`,
+`ObservationHistoryStateCacheTests`, account purge and startup recovery suites.
+The outgoing V56 snapshot compiled before active-model mutation. Disk migration
+must preserve selection/corrections, result bytes and unknown completion, create
+no cache automatically, persist the new cache across reopen and cascade it on
+parent deletion. Cache tests cover stale/out-of-order revisions, conflicting
+replays and immutable display bytes; the cache integration suite covers
+equal-review conflict rollback, foreign cache-owner rollback and V1/V2 display
+privacy. Display replacement must clear stale fields while preserving
+observation-wide private details and review authority. Admission failure must
+roll back all cache and native projection changes. V3 display stays absent
+unless an eligible device-local saved baseline is captured by selected-state
+synchronization.
+
+Run XcodeGen, project validation, migration guardrails and all iOS CI tooling.
+The startup scope includes V56 frozen files, V57 and the state entity/tests.
+Released-binary install-over and device second-launch evidence remain required
+before activation. No storage test authorizes enabling the backend gates.
+
+### Prepared history preview and saved local display verification
+
+`ObservationHistoryPreviewTests` covers explicit V1/V3 previews, unchanged
+parent selection/display and pending review jobs, replay/cascade deletion,
+stale/future/conflicting revisions, account changes, cancellation, deletion and
+selection races, and refusal before owner acknowledgement. Future state requires
+selected-state refresh; preview cannot advance parent revision.
+
+`SavedIdentificationDisplayBaselineTests` covers source-labelled selected V3
+capture, unknown completion, private-note exclusion, first-baseline immutability
+under later enrichment, preview origin, evidence/review mismatch, display
+changes during suspension, strict codec keys/identity, and a valid one-MiB
+display whose enclosing optional baseline exceeds its bound. That last case must
+still admit result and authority without display. Run both suites with state
+sync/cache, immutable-page admission, saved-import and model-ownership tests. No
+ordinary app caller, schema/wire change or activation is implied.
+
+### Prepared server-selected projection admission
+
+`ObservationHistorySelectionSyncTests` covers acknowledged A → B → A for V3
+saved display and V1/V2 results, lower B review revisions independent of A,
+per-result confirmation/rejection, immutable outgoing display retention, private
+notes/media/tags/capture-date preservation, absent enrichment clearing, and
+delayed B replay after returning to A. Target cache equivocation and nested
+review regression, missing imported display, unrepresentable target authority,
+pending or unacknowledged prior intent, corrupted retained display binding,
+final-lease rollback and deletion/local edit races must leave selection and all
+staged target writes unchanged.
+
+Run this suite with selected-state/cache, saved-display, preview, history page
+and model-ownership suites. Ordinary callers and selection mutations remain
+held; these tests admit a server selection and do not exercise Restore requests,
+offline selection outbox settlement, credit reconciliation or UI acceptance.
+
+### Prepared native enrollment admission
+
+`ObservationHistoryEnrollmentTests` shares `enrollment-v1.json` with the Deno
+reader suite. It rejects malformed/oversized/wrong-owner receipts; preserves
+saved display, private details and per-result confirmation/rejection; admits
+result/cache/owner/selection/revision atomically; retries lost enrollment or
+state-read responses; refuses replay after a different remote selection; defers
+mismatched evidence/review and oversized local display; and protects deletion,
+local edits, pending ingestion/review and every account fence. Run alongside
+selected-state, selection projection and model architecture suites.
+
+`ObservationHistoryEnrollmentIntentTests` and
+`ObservationHistoryEnrollmentProtectionTests` now cover store reopen after lost
+responses, staging and final-save rollback, owner/nonce conflicts, malformed and
+terminal intents, scheduler exclusion, delayed replacement through stale
+contexts, explicit erasure, persistent deletion fences after cloud receipt
+cleanup, pending legacy deletion hydration, automatic expiry paging and deferred
+point/historical hydration. Account-purge coverage includes active and terminal
+enrollment rows. Run these with enrollment admission, Scan Repository,
+retention, metadata, scheduler and model-ownership suites. Ordinary scheduling,
+divergent-state reconciliation and Restore/Undo remain separately held.
+
+### Prepared native selection and Undo acceptance
+
+`ObservationHistorySelectionIntentTests` covers strict shared request/receipt
+fixtures; durable staging without changing the display; exact retry after lost
+responses; A → B → A with each result's own review; stale Undo after selection
+or authority advances; a delayed receipt followed by newer current state; atomic
+save rollback; pending-intent exclusion of ordinary state sync; malformed and
+changed operation identity; account/review changes; explicit deletion; disk
+reopen and scheduler exclusion. Run it with
+`ObservationHistorySelectionSyncTests`, `ObservationHistoryStateSyncTests`,
+`ObservationHistoryEnrollmentProtectionTests` and
+`ModelsIntegrationArchitectureTests`. The shared Deno fixture test produces the
+same receipt and proves that replay preserves a newer server state. These tests
+use injected mutation transport. Shared rejection cases additionally cover exact
+identity, malformed cancellation, version-1 compatibility, atomic conflict/state
+admission, failed state reads/saves, stale state, fresh-preview retry and
+disabled Undo after rejection. They do not establish credit/public
+reconciliation or UI readiness.
+
+`observation_owned_selection.sql` verifies authenticated-only grants, owner and
+protocol validation, closed gates, exact success/rejection replay, changed retry
+identity, missing targets, immutable outcomes, unchanged state/reconciliation on
+conflict, and deletion precedence/cascade. Replay remains available when all
+admission gates close. `observationOwnedSelectionConcurrencyDb.test.ts` uses
+independent local database sessions and observed blocking barriers for duplicate
+and competing operations, review-before-selection, selection-before-review, scan
+deletion and account deletion. Run it with a disposable localhost
+`SUPABASE_DB_TEST_URL`; the complete candidate Edge suite includes it. No test
+may target a hosted database. Require full migration replay, catalog tests,
+lint, recursive Deno checks and native suites before extending presentation.
+
+### Prepared history sheet verification
+
+`ObservationHistoryListingTests` covers server-order retention,
+zero/one/multiple availability, the 20-row bound, newer-page evidence without
+selection changes, and per-result authority. Its injected Auth runtime case also
+checks that an idle history session holds no work lease, permits account-work
+draining, and rejects transitions or a changed session generation.
+`IdentificationHistoryViewModelTests` covers read-only preview, explicit
+restore/Undo, pending exact retry, conflict recovery, bounded page replacement,
+expiry, account/close cancellation, late photo ordering and parent refresh only
+when acknowledged selection or authority changes. Regression cases also cover
+invalidation of authority-bearing rows/previews, delayed stale page/preview
+responses, busy Back ownership, receipt retention when post-acknowledgment page
+refresh fails, and observed Auth-transition invalidation before the user
+changes. The listing suite verifies that opaque legacy candidates do not block a
+valid saved-identification preview. `ModelsIntegrationArchitectureTests` keeps
+normal access and scheduling closed.
+
+`IdentificationHistoryUITests/testHistoryPreviewRestoreAndUndoKeepBothEntries`
+uses `-seedPrivateScanMapFlow -seedIdentificationHistory` with the existing
+Debug UI-test runtime. It opens the real menu/sheet, previews, restores, checks
+Current, undoes, checks both retained entries, and saves a screenshot. It is
+registered in `scripts/config/ios-runtime-audit.json`. The test accepts the
+seed's Scans route when already presented and otherwise enters through the
+visible root tab. It waits for the saved identification to bind before opening
+its actions. This fixture does not exercise a live backend, protected storage or
+real account transition. Run the complete native target and focused UI flow
+through `make ios-local-build`, plus project/event routing and audit-tooling
+gates. Device photo-memory profiling, actual cross-device recovery and the
+remaining activation matrix are not established by this fixture.
+
+The Release binary audit in `.github/workflows/ios-build-and-test.yml` must
+exclude `-seedIdentificationHistory`, alongside every existing Debug fixture
+marker. `make test-ios-ci-tooling` verifies that the denylist remains exact.

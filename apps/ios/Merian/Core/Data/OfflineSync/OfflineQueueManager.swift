@@ -93,6 +93,15 @@ import SwiftData
     @ObservationIgnored var isCloudDeletionSyncing: Bool = false
     /// SwiftData context injected at app startup via `ScanRepository.configure(with:)`.
     var modelContext: ModelContext?
+    /// Both checks run on MainActor: before media staging and immediately
+    /// before persistence. The latter verifies the funding owner as well.
+    @ObservationIgnored var captureLibraryAdmission: @MainActor (UUID?) -> Bool = OfflineQueueManager.liveCaptureLibraryAdmission
+
+    static func liveCaptureLibraryAdmission(expectedOwner: UUID?) -> Bool {
+        let manager = SupabaseManager.shared
+        guard manager.allowsLocalLibraryMutation else { return false }
+        return expectedOwner.map { manager.currentUser?.id == $0 } ?? true
+    }
     @ObservationIgnored var appUpdateCoordinator: AppUpdateCoordinator?
     /// Hardware constraints injected for tests/previews; production uses the shared orchestrator.
     @ObservationIgnored var hardwareOrchestrator = HardwareOrchestrator.shared

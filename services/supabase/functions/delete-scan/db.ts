@@ -84,7 +84,8 @@ export type ScanDeletionRequestResult =
   | "accepted"
   | "already_deleted"
   | "not_found"
-  | "forbidden";
+  | "forbidden"
+  | "legacy_observation_delete_requires_upgrade";
 
 export async function requestScanDeletion(
   scanId: string,
@@ -102,7 +103,8 @@ export async function requestScanDeletion(
     data !== "accepted" &&
     data !== "already_deleted" &&
     data !== "not_found" &&
-    data !== "forbidden"
+    data !== "forbidden" &&
+    data !== "legacy_observation_delete_requires_upgrade"
   ) {
     throw new Error("Scan deletion returned an invalid state.");
   }

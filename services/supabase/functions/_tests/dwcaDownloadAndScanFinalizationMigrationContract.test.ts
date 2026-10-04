@@ -52,7 +52,7 @@ const identifyDescribe = await Deno.readTextFile(
   new URL("../identify-describe/index.ts", import.meta.url),
 );
 const deleteScan = await Deno.readTextFile(
-  new URL("../delete-scan/index.ts", import.meta.url),
+  new URL("../delete-scan/handler.ts", import.meta.url),
 );
 const deleteScanDb = await Deno.readTextFile(
   new URL("../delete-scan/db.ts", import.meta.url),
@@ -273,7 +273,7 @@ Deno.test("scan deletion durably fences a UUID before external erasure", () => {
   );
   assertStringIncludes(
     deleteScan,
-    "deleteScanMediaR2Objects(mediaUrls, user.id, r2Config)",
+    "deleteScanMediaR2Objects(mediaUrls, userId, r2Config)",
   );
   assertStringIncludes(aws, "isOwnedScanMediaR2Url(url, ownerUserId)");
   assertStringIncludes(autoPurgeNonBio, "RUNTIME_BUDGET_MS = 40_000");

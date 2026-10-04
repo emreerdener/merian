@@ -6,8 +6,9 @@ struct CaptureStagingToolbarPresentation {
     let photoSelectionCount: Int?
     let submitTitle: String
     let isSubmitDisabled: Bool
+    let showsProMediaPlaceholder: Bool
 
-    /// Every unused physical-media slot is visible, independently of shared text.
+    /// Usable empty slots only; the upgrade placeholder never increases admission.
     var emptyMediaSlotCount: Int { photoSelectionCount ?? 0 }
 
     init(
@@ -15,6 +16,9 @@ struct CaptureStagingToolbarPresentation {
         isRefining: Bool,
         stagedCaptureLimit: Int
     ) {
+        showsProMediaPlaceholder = !isRefining
+            && stagedCaptureLimit == 1
+            && stagedCapture.physicalItemCount < stagedCaptureCapacity
         visibleNodes = stagedCapture.orderedNodes.filter { node in
             if case .description(_, let description) = node {
                 return isRefining && !description.isRefinementSupplement

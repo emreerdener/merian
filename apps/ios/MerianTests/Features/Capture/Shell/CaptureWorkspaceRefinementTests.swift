@@ -8,6 +8,73 @@ import XCTest
 @testable import Merian
 
 extension CaptureWorkspaceViewModelRefinementTests {
+    func testStagedMediaUpgradePreservesDraftAndUnlocksAfterPurchase() throws {
+        RevenueCatManager.shared.isSubscribed = false
+        EntitlementManager.shared.resetForTesting()
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: .preview,
+            preparedImageLoader: { _ in nil },
+            prewarmHeadersOnInit: false
+        )
+        viewModel.stagedCapture.audios = [StagedAudio(filePath: "bird.wav")]
+        viewModel.stagedCapture.observationContexts = [StagedObservationContext(
+            context: ObservationContext(freeText: "Beside a pond")
+        )]
+        let nodeIDs = viewModel.stagedCapture.orderedNodes.map(\.id)
+        XCTAssertEqual(viewModel.stagedCaptureLimit, 1)
+        XCTAssertEqual(viewModel.availableStagedCaptureSlots, 0)
+
+        viewModel.presentStagedMediaUpgradePaywall()
+        XCTAssertEqual(viewModel.activeSheet, .paywall)
+        XCTAssertEqual(viewModel.stagedCapture.orderedNodes.map(\.id), nodeIDs)
+        viewModel.dismissActivePresentation()
+        viewModel.handleRootSheetDismissed()
+        XCTAssertNil(viewModel.activeSheet)
+        XCTAssertEqual(viewModel.stagedCapture.audios.first?.filePath, "bird.wav")
+        XCTAssertEqual(viewModel.stagedCapture.observationContexts.first?.context.freeText, "Beside a pond")
+
+        RevenueCatManager.shared.isSubscribed = true
+        XCTAssertEqual(viewModel.stagedCaptureLimit, 2)
+        XCTAssertEqual(viewModel.availableStagedCaptureSlots, 1)
+        viewModel.presentStagedMediaUpgradePaywall()
+        XCTAssertNil(viewModel.activeSheet)
+        XCTAssertEqual(viewModel.stagedCapture.orderedNodes.map(\.id), nodeIDs)
+
+        RevenueCatManager.shared.isSubscribed = false
+        EntitlementManager.shared.resetForTesting(userID: Self.entitlementTestUserID)
+        defer { EntitlementManager.shared.resetForTesting() }
+        let snapshotData = try JSONSerialization.data(withJSONObject: [
+            "current_plan": "pro_complimentary", "current_tier": "pro", "is_paid": false,
+            "scans_remaining": 1, "scans_available_to_start": 1,
+            "in_flight_count": 0, "entitlement_version": 1
+        ])
+        let snapshot = try JSONDecoder().decode(EntitlementSnapshotDTO.self, from: snapshotData)
+        XCTAssertTrue(EntitlementManager.shared.apply(snapshot, for: Self.entitlementTestUserID))
+        XCTAssertEqual(viewModel.stagedCaptureLimit, 2)
+        XCTAssertEqual(viewModel.availableStagedCaptureSlots, 1)
+        viewModel.presentStagedMediaUpgradePaywall()
+        XCTAssertNil(viewModel.activeSheet)
+    }
+
+    func testStagedMediaUpgradeRespectsAdmissionLockAndFullCapacity() {
+        RevenueCatManager.shared.isSubscribed = false
+        EntitlementManager.shared.resetForTesting()
+        let viewModel = CaptureWorkspaceViewModel(
+            diContainer: .preview,
+            preparedImageLoader: { _ in nil },
+            prewarmHeadersOnInit: false
+        )
+        viewModel.stagedCapture.audios = [StagedAudio(filePath: "bird.wav")]
+        viewModel.isCheckingScanAdmission = true
+        viewModel.presentStagedMediaUpgradePaywall()
+        XCTAssertNil(viewModel.activeSheet)
+
+        viewModel.isCheckingScanAdmission = false
+        viewModel.stagedCapture.audios.append(StagedAudio(filePath: "second.wav"))
+        viewModel.presentStagedMediaUpgradePaywall()
+        XCTAssertNil(viewModel.activeSheet)
+    }
+
     func testStartRefinementScanStagesPreparedHistoricalImage() async throws {
         let expectedCompressedData = makePNGData()
         let expectedFileName = "historical-refinement-\(UUID().uuidString).webp"

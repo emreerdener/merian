@@ -2,8 +2,9 @@
 
 This is the starting point for Naturebook identification research across photos,
 audio, text, models, prompts, preprocessing and confidence. Last reconciled: 1
-October 2026. This hub records decisions supported by completed evidence; it
-does not attest to the current hosted deployment.
+October 2026, with completed reasoning-comparison results through 3 October.
+This hub records decisions supported by completed evidence; it does not attest
+to the current hosted deployment.
 
 ## Where to start
 
@@ -55,6 +56,23 @@ calibration guarantee from any later model comparison. Audio results also have
 their own input/reference limitations; photo outcomes cannot qualify audio.
 
 ## Next justified question
+
+The owner's everyday-regression report motivated the completed
+[matched reasoning-effort comparison](../../rfcs/identification-reasoning-tradeoff-2026-10-02.md).
+On 3 October all 60 calls completed: low 10/20 supported outcomes, medium 9/20
+and Gemini 10/20; mean provider times 6.732, 10.961 and 15.542 seconds. Medium
+passed the speed gate but had no gains, one unmapped regression and no library
+improvement. It did not advance. The $2.335830008 run has zero outstanding
+reservations and its remaining allowance is closed. No production change.
+
+The two admitted library plants were solved by every arm; four ambiguous library
+groups remain reference holds. Neither admitted case was a confirmed
+owner-reported failure. Keep low reasoning and establish supported references
+for actual reported regressions before more provider/reasoning comparisons. This
+narrow development result does not establish equivalence or settle the owner's
+experience. The current evidence does not justify medium or a Gemini switch.
+
+The broader research question remains:
 
 Investigate whether insufficient distinguishing evidence can be recognized
 reliably, while retaining species identification when the evidence supports it.

@@ -209,6 +209,12 @@ struct AuthSessionLifecycleCoordinator {
             event.authGeneration
         ) else { return false }
 
+        guard !Task.isCancelled else { return false }
+        await dependencies.identity.resumeCloudDeletions(session, event.authGeneration)
+        guard !Task.isCancelled, dependencies.state.isCurrentPublishedSession(
+            session, event.authGeneration
+        ) else { return false }
+
         if didLinkExternalIdentity {
             dependencies.identity.scheduleHistoricalSync(
                 session,

@@ -73,7 +73,8 @@ extension InferenceLiveCompletionCoordinator.Dependencies {
                           ) else { return }
                 scanRepository().eradicateScan(
                     record: originalRecord,
-                    modelContext: modelContext
+                    modelContext: modelContext,
+                    origin: .reanalysisReplacement
                 )
             },
             recordCircuitSuccess: {

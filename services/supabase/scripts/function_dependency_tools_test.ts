@@ -49,6 +49,7 @@ Deno.test("Identify contract changes deploy every direct and shared-adapter cons
       "services/supabase/functions/_shared/identify/contract.ts",
     ], graphs),
     [
+      "analyze-observation",
       "audio-spec",
       "confirm-scan-species",
       "enrich-scan",
@@ -56,6 +57,7 @@ Deno.test("Identify contract changes deploy every direct and shared-adapter cons
       "identify-describe",
       "identify-multimodal",
       "insight-chat",
+      "recover-observation-analyses",
       "refresh-species-model-content",
       "request-community-identification",
       "review-scan-identification",

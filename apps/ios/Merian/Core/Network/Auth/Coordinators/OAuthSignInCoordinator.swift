@@ -104,7 +104,8 @@ struct OAuthSignInCoordinator {
 
         return OAuthSignInCompletion(
             previousUserID: installed.previousUserID,
-            session: session
+            session: session,
+            libraryTransfer: installed.libraryTransfer
         )
     }
 
@@ -122,6 +123,7 @@ struct OAuthSignInCoordinator {
             .verifyExpectedSessionIfPresent(transition)
         try Task.checkCancellation()
         let previousUserID = previousSession?.userID.uuidString
+        var libraryTransfer = LibraryTransferResult.completed
 
         if previousSession?.isAnonymous == true {
             guard await dependencies.merge.completePendingPurchaseHandoff(
@@ -217,7 +219,7 @@ struct OAuthSignInCoordinator {
                 if targetSession.userID.uuidString.lowercased() == ghostID {
                     try dependencies.merge.clearGhostMerges(ghostID)
                 } else {
-                    _ = await dependencies.merge.completePendingGhostMerge(
+                    libraryTransfer = await dependencies.merge.completePendingGhostMerge(
                         targetSession.userID.uuidString,
                         transition
                     )
@@ -264,7 +266,8 @@ struct OAuthSignInCoordinator {
         }
         return OAuthSignInCompletion(
             previousUserID: previousUserID,
-            session: targetSession
+            session: targetSession,
+            libraryTransfer: libraryTransfer
         )
     }
 }

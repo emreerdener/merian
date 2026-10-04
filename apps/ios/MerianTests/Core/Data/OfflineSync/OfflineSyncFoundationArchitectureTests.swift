@@ -204,6 +204,7 @@ struct OfflineSyncFoundationArchitectureTests {
     }
 
     private static let declarationOwners: [String: String] = [
+        "struct CloudDeletionIntent": "Policies/CloudDeletionIntent.swift",
         "struct CollectionSyncSnapshot":
             "Models/CollectionSyncSnapshot.swift",
         "struct PendingScanPayload": "Models/OfflineScanPayloads.swift",
@@ -324,6 +325,8 @@ struct OfflineSyncFoundationArchitectureTests {
     ]
 
     private static let extractedOwnerPaths: Set<String> = [
+        "Persistence/LibraryMutationInventory.swift",
+        "Services/LibraryDetailsSyncService.swift",
         "Coordinators/GenerationTaskRegistry.swift",
         "Models/CollectionSyncSnapshot.swift",
         "Models/ExtractedScanData.swift",
@@ -337,6 +340,7 @@ struct OfflineSyncFoundationArchitectureTests {
         "Persistence/OfflineQueueManager+QueuedScanExtraction.swift",
         "Policies/InferenceURLSessionTaskContract.swift",
         "Policies/BackgroundInferencePolicy.swift",
+        "Policies/CloudDeletionIntent.swift",
         "Policies/MediaStagingContract.swift",
         "Policies/OfflineQueueBatchPolicy.swift",
         "Policies/QueuedInferenceMediaPolicy.swift",
@@ -356,6 +360,7 @@ struct OfflineSyncFoundationArchitectureTests {
         "Models/MediaStagingModels.swift",
         "Models/OfflineScanPayloads.swift",
         "Policies/BackgroundInferencePolicy.swift",
+        "Policies/CloudDeletionIntent.swift",
         "Policies/InferenceURLSessionTaskContract.swift",
         "Policies/MediaStagingContract.swift",
         "Policies/OfflineQueueBatchPolicy.swift",
@@ -367,6 +372,8 @@ struct OfflineSyncFoundationArchitectureTests {
     ]
 
     private static let expectedImportsByPath: [String: Set<String>] = [
+        "Persistence/LibraryMutationInventory.swift": ["import Foundation", "import SwiftData"],
+        "Services/LibraryDetailsSyncService.swift": ["import Foundation", "import SwiftData"],
         "Services/IdentificationReviewSyncService.swift": ["import Foundation", "import Supabase", "import SwiftData"],
         "Services/OfflineQueueManager+IdentificationReview.swift": ["import Foundation", "import SwiftData"],
         "Coordinators/GenerationTaskRegistry.swift": ["import Foundation"],
@@ -399,6 +406,7 @@ struct OfflineSyncFoundationArchitectureTests {
             "import SwiftData"
         ],
         "Policies/BackgroundInferencePolicy.swift": ["import Foundation"],
+        "Policies/CloudDeletionIntent.swift": ["import Foundation"],
         "Policies/InferenceURLSessionTaskContract.swift": ["import Foundation"],
         "Policies/MediaStagingContract.swift": ["import Foundation"],
         "Policies/OfflineQueueBatchPolicy.swift": [],

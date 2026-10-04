@@ -160,6 +160,12 @@ that layout.
 
 ## Shared owners
 
+[`_shared/analysisHistory/`](./_shared/analysisHistory/README.md) owns the
+prepared history identity/bounds and result/page contracts, pure
+selection/authority decisions, and the canonical description-only append
+builder. Its private SQL foundation is release-held; no current Identify,
+review, Explore or Field Chat endpoint consumes it.
+
 The existing [`_shared/ai/`](./_shared/ai/README.md) directory owns provider
 contracts, explicit bindings, and execution; `_shared/identify/` owns common
 identification rules and finalization helpers. See the
@@ -221,3 +227,36 @@ retain completed local evidence and outstanding candidate/hosted/device checks.
 File organization does not enable another provider or clear those checks.
 Historical benchmark source fingerprints continue to describe their original
 revision; future changes need their own evidence where applicable.
+
+The prepared history owner now also contains private-bucket evidence storage,
+owner receipt resolution and an erasure worker seam. Its media gates remain
+closed; read adapter/endpoint source is prepared, with no deployed route or
+worker schedule, and result V1 append still accepts descriptions only. The
+separate gated V2 photo binder now joins ready receipts to funded completion;
+native protocol-8 history now accepts V1/V2 and resolves private photos. See the
+canonical
+[protected evidence lifecycle](../../../docs/backend-and-data/05-api-contracts.md#prepared-protected-evidence-lifecycle).
+
+The prepared `analysisHistory/intent.ts` owner and funded-child migration now
+freeze description-only input, account one provider invocation and atomically
+append a result with shared complimentary settlement. Admission/dispatch gates
+remain closed; there is no live provider or recovery caller. See the
+[private lifecycle contract](../../../docs/backend-and-data/05-api-contracts.md#prepared-funded-child-analysis-lifecycle).
+
+The prepared protocol-8 read slice adds mixed immutable V1/V2 owner pages,
+`resolve-history-photo` authenticated temporary photo delivery, and native
+`ObservationHistoryPhotoReference` / `ObservationHistoryPhotoLoader` validation.
+All gates and normal app access remain closed. An injected native history sheet
+and Debug UI fixture now consume the prepared private-photo boundary; ordinary
+enrollment and sync scheduling remain disconnected. The canonical contract is
+[protocol-8 owner reads](../../../docs/backend-and-data/05-api-contracts.md#prepared-protocol-8-reads-and-private-photo-resolution).
+
+### Prepared analysis orchestration — 2026-10-03
+
+`analyze-observation` owns authenticated V1/V2 child-analysis submission;
+`recover-observation-analyses` completes received outcomes/drafts without
+another AI dispatch. Migration `20261003074429` introduces exclusive work
+claims, immutable canonical checkpoints and service-only lifecycle wrappers. All
+gates remain false and no route/schedule is deployed. Enrollment, normal native
+presentation, public/chat snapshots and explicit erasure delivery remain
+activation requirements. See the function READMEs and canonical API contract.

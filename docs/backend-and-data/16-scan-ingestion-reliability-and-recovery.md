@@ -69,6 +69,42 @@ placeholder classification, protected regressions, and remaining exact-SHA and
 physical-device closure gates are tracked separately in the
 [live scan connectivity handoff incident](../incidents/2026-08-live-scan-connectivity-handoff-gap.md).
 
+### Reanalysis history preparation — October 2, 2026
+
+The
+[private history foundation](./04-database-schema.md#prepared-observation-analysis-history)
+does not change current Identify admission, job identity, same-UUID replay,
+provider dispatch or funding settlement. No live result producer or enrollment
+path writes that history. The future observation/analysis/retry identity split,
+durable completion including evidence references, append-only reanalysis and
+first-result selection rules remain specified in the
+[RFC](../rfcs/reversible-reanalysis-and-identification-history-2026-10-02.md).
+Provider executions continue to be accounted for at dispatch. Under the existing
+[funding contract](./18-complimentary-pro-scans.md), complimentary credit is
+consumed only after durable completion; proven terminal failure releases the
+hold, while ambiguous outcomes retain it. The new selection outbox does not
+settle funding or award Field Trip credit.
+
+The October 3 private description-only lifecycle now freezes input before
+provider dispatch, records one invocation, preserves ambiguous holds, and
+commits result/settlement/receipt atomically behind closed gates. It checks
+parent deletion before replay and erases child intents on deletion, leaving
+ownerless retired-generation markers. The legacy scan/job recovery paths below
+must not be used for child analyses. See the
+[child lifecycle contract](05-api-contracts.md#prepared-funded-child-analysis-lifecycle).
+The separate V2 path now binds ready private still photos to the same funded
+completion boundary and pins them through ambiguous recovery. Protocol-7 native
+history readers remain incompatible and receive no mixed page. Authenticated
+provider orchestration and bounded saved-outcome recovery now exist behind a
+separate false gate. Ambiguous provider execution, normal native
+delivery/presentation, enrollment and audio/video binding remain activation
+work. See the
+[child worker contract](05-api-contracts.md#prepared-child-analysis-orchestration-and-recovery).
+Private selection alone does not change Explore publication or save immutable
+Field Chat context before execution. These are
+[activation prerequisites](./06-supabase-deployment-runbook.md#observation-analysis-history-activation-hold),
+not capabilities supplied by the existing ingestion path below.
+
 This is the normative joined contract for the app's most important user journey:
 
 > A user submits one observation, receives one durable analysis for its stable
@@ -247,10 +283,14 @@ body with explicit `success: true`; the server uses that envelope for both a
 newly completed deletion and an already-absent idempotent replay.
 `invalidResponse`, including auth/session ambiguity or a malformed 2xx body,
 retains the task and its offline job for retry. No local error category is
-treated as proof that owner data has been erased. Unlike ordinary queued work,
+treated as proof that owner data has been erased. The exact HTTP 409 plus
+`legacy_observation_delete_requires_upgrade` response instead retains a durable
+history hold without retrying or acknowledging deletion. For other failures,
 privacy erasure never exhausts an automatic retry budget: delay is bounded, not
 completion attempts. A still-present task repairs legacy paused or contradictory
-terminal job status on the next drain. A process-local single-flight latch
+terminal job status on the next drain only after excluding that hold. The
+[offline deletion contract](./01-offline-sync-pipeline.md#2-cloud-deletion-tasking-pendingclouddeletiontask)
+owns bounded continuation and recovery. A process-local single-flight latch
 serializes competing foreground drains, while persisted `.running` work remains
 runnable after termination.
 

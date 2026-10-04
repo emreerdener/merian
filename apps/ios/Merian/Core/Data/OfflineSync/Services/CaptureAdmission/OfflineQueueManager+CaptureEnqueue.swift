@@ -30,6 +30,11 @@ extension OfflineQueueManager {
         onQueued: (@MainActor @Sendable (Bool) -> Void)? = nil,
         onAdmission: (@MainActor @Sendable ([CaptureSubmissionMediaItem]?) -> Void)? = nil
     ) {
+        guard captureLibraryAdmission(nil) else {
+            onQueued?(false)
+            onAdmission?(nil)
+            return
+        }
         let legacyOnQueued = onQueued
         let onQueued: (@MainActor @Sendable (Bool) -> Void)? = { accepted in
             legacyOnQueued?(accepted)
@@ -261,6 +266,7 @@ extension OfflineQueueManager {
         foregroundInferenceGeneration: UUID? = nil,
         onAccepted: (([CaptureSubmissionMediaItem]) -> Void)? = nil
     ) -> Bool {
+        guard captureLibraryAdmission(nil) else { return false }
         let filteredAudioFileNames = audioFileNames.filter { !$0.isEmpty }
         let filteredVideoFilePaths = videoFilePaths.filter { !$0.isEmpty }
         let filteredObservationContexts = observationContexts.filter { !$0.isEmpty }
@@ -490,6 +496,11 @@ extension OfflineQueueManager {
             return false
         }
 
+        guard captureLibraryAdmission(funding.accountId) else {
+            await cleanupPersistedCaptureFiles(fileURLs)
+            rollbackFundingAdmission(funding)
+            return false
+        }
         let scan = OfflineQueuedScan(
             id: scanId,
             timestamp: timestamp,
