@@ -234,6 +234,19 @@ export function publicationCopyRepository(
       return Object.freeze(ids);
     });
   }
+  async function bind(signal?: AbortSignal) {
+    // SQL owns both fresh authority and historical success after work retirement.
+    const result = await rpc("bind_publication_copy_cohort", scope, signal);
+    return checked(() => publication(result));
+  }
+  async function cleanupTargets(): Promise<readonly string[]> {
+    try {
+      return await abandon() ?? [];
+    } catch {
+      // Only validated original reservation IDs survive loss of private state.
+      return Object.freeze(original?.copies.map((c) => c.object_id) ?? []);
+    }
+  }
   function forPhoto(attempt: string) {
     const member = members.find((m) => m.attempt_id === historyUUID(attempt));
     if (!member) return invalidHistory();
@@ -287,16 +300,16 @@ export function publicationCopyRepository(
       },
       async cleanupTargets(input: PhotoCopyLease): Promise<readonly string[]> {
         assertLease(input);
-        try {
-          return await abandon() ?? [];
-        } catch {
-          // Private deletion or a lost response may prevent recovery. Only
-          // previously validated original IDs are hints; registry claims still
-          // decide whether anything may be erased, protecting committed posts.
-          return Object.freeze(original!.copies.map((c) => c.object_id));
-        }
+        return await cleanupTargets();
       },
     });
   }
-  return Object.freeze({ read, reserve, abandon, forPhoto });
+  return Object.freeze({
+    read,
+    reserve,
+    abandon,
+    bind,
+    cleanupTargets,
+    forPhoto,
+  });
 }

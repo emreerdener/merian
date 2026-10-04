@@ -10637,3 +10637,12 @@ and registry state. Actual anonymous/authenticated callers are denied. The
 moderation-outcome concurrency suite adds duplicate binding and both orderings
 of binding versus deletion and abandonment. These tests use synthetic local
 fixtures and no external storage or provider calls.
+
+## Bounded copy operation checks
+
+`publicationCopyOperation_test.ts` covers six-photo verification before writes,
+corrupt final evidence, shared work deadlines, ready-member recovery, lost or
+invalid binding replies, denied binding with cohort cleanup, account/source
+mutation, and noncooperative read, write and registry transports. Both candidate
+CI test lists include it. Fixtures use synthetic bytes and mocked transports;
+these checks do not establish hosted CPU, memory or CDN cache behavior.

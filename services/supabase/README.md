@@ -3394,3 +3394,12 @@ precedes work/gate checks and still verifies the reservation. Mismatches roll
 back every publication write. The independent binding gate stays false; no Edge
 worker or activation is added. See the
 [binding contract](../../docs/backend-and-data/05-api-contracts.md#prepared-exact-reserved-cohort-binding).
+
+## Prepared bounded copy operation
+
+The prepared operation controller connects whole-cohort private verification,
+sequential scoped copies, exact binding and targeted cleanup under one shared
+110-second deadline, reserving time for recovery. It spends no provider quota
+and does not infer terminal failure from transport uncertainty. HTTP worker
+admission, durable copy outcomes and activation remain pending. See the
+[controller contract](../../docs/backend-and-data/05-api-contracts.md#prepared-bounded-copy-operation-controller).

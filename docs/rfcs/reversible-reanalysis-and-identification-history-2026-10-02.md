@@ -2547,3 +2547,11 @@ against both the transactional publication receipt and actual ordered post
 bindings. Historical recovery precedes live work/gate checks and retains
 deletion fencing. The explicit no-note subset and a new default-false gate
 remain; the bounded storage worker and native delivery are still pending.
+
+## October 4, 2026: bounded copy operation controller
+
+A prepared controller now connects whole-cohort verification to sequential
+copies and exact binding with shared work, completion and cleanup deadlines. It
+recovers durable publication before targeted erasure and treats uncertain
+transport results as reconciliation. The HTTP service owner, durable copy-phase
+needs-action outcomes and runtime qualification remain required before rollout.

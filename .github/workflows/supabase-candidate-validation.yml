@@ -166,6 +166,7 @@ jobs:
             supabase/functions/_shared/analysisHistory/photoCopyExecution_test.ts \
             supabase/functions/_shared/analysisHistory/publicationModerationRepository_test.ts \
             supabase/functions/_shared/analysisHistory/publicationCopyRepository_test.ts \
+            supabase/functions/_shared/analysisHistory/publicationCopyOperation_test.ts \
             supabase/functions/_shared/analysisHistory/publicationDeadline_test.ts \
             supabase/functions/_shared/analysisHistory/photoCohortPreflight_test.ts \
             supabase/functions/_shared/analysisHistory/protectedManifest_test.ts \
@@ -343,6 +344,7 @@ jobs:
             supabase/functions/_shared/analysisHistory/photoCopyExecution_test.ts \
             supabase/functions/_shared/analysisHistory/publicationModerationRepository_test.ts \
             supabase/functions/_shared/analysisHistory/publicationCopyRepository_test.ts \
+            supabase/functions/_shared/analysisHistory/publicationCopyOperation_test.ts \
             supabase/functions/_shared/analysisHistory/publicationDeadline_test.ts \
             supabase/functions/_shared/analysisHistory/photoCohortPreflight_test.ts \
             supabase/functions/_shared/analysisHistory/protectedManifest_test.ts \

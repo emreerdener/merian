@@ -13762,9 +13762,9 @@ original IDs as cleanup hints; it never uses an unvalidated response. A
 committed publication returns an empty target set. No object may be erased
 without its registry claim. The future worker must bound all cleanup
 dependencies with its overall deadline. This adapter does not approve bytes,
-read storage, write public objects or bind a post. Whole-cohort container
-preflight, bounded transport execution, final binding and durable phase outcomes
-remain unconnected; all activation gates stay false.
+read storage, write public objects or bind a post. The operation controller
+below connects preflight, transport and binding; service-worker admission and
+durable phase outcomes remain unconnected. All activation gates stay false.
 
 ## Prepared exact reserved-cohort binding
 
@@ -13794,3 +13794,45 @@ before requesting targeted cleanup of unbound siblings.
 
 This slice supplies no public storage transport or Edge execution route, does
 not dispatch providers or charge credits, and leaves all activation gates false.
+
+## Prepared bounded copy operation controller
+
+`executePublicationCopyOperation` consumes one already-claimed operation and its
+original work expiry. It constructs the scoped repository, recovers a historical
+publication first, and reserves the complete exact approved cohort before
+private or public storage I/O. The repository now exposes strict `bind` receipt
+decoding and operation-level cleanup hints restricted to its validated original
+keys.
+
+A single 110-second overall deadline includes recovery and cleanup. Fresh work
+ends at the earlier of 80 seconds or 30 seconds before the original work expiry;
+binding ends at the earlier of 92 seconds or that expiry. No phase or photo
+renews the claim or staging deadline. Every RPC is additionally capped at 12
+seconds. Cancellation reaches storage and registry transports; bounded waits
+regain control even when transport cancellation is not acknowledged. CPU-bound
+container and digest work checks cancellation at phase boundaries and still
+requires runtime CPU/memory qualification.
+
+The controller verifies every ordered private source's exact length, digest and
+strict JPEG/PNG container before any public write. At most 32 MiB of verified
+raw cohort bytes are retained, with bounded per-photo read/copy buffers; no
+provider bodies are created. This is a retained-input limit, not a process-heap
+limit: defensive transport copies of the current photo increase peak memory. It
+executes photos sequentially under the shared fresh-work signal, releases each
+retained buffer after use, and skips already ready writes while still verifying
+current private evidence and authority. Binding runs once only after every
+member reports readiness. A stalled or failed member stops further writes.
+
+A lost or invalid binding response triggers durable publication recovery before
+cleanup. If recovery cannot establish success, only the original reserved keys
+are offered for targeted registry claims. Bound objects remain protected by the
+registry, including when a late binding commits after the response is lost.
+Cleanup uses the remaining overall deadline and leaves unfinished work to the
+permanent registry. No transport failure is asserted to be durable terminal
+failure; the result is only `published` or `reconcile`.
+
+There is no HTTP copy worker or scheduler connected yet. Before activation, the
+service owner must settle durable needs-action outcomes for unsupported notes,
+unsupported media, verified evidence failures and exhausted staging deadlines,
+without treating ambiguous network/storage results as terminal. Owner status,
+native delivery and runtime qualification also remain. All gates stay false.
