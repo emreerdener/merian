@@ -341,6 +341,16 @@ Current authority/source checks, public snapshots and a scheduled retry owner
 remain prerequisites for activation. See the
 [community foundation contract](05-api-contracts.md#private-analysis-bound-community-authority-preparation).
 
+Publication preparation introduces no API writer or privileged public history
+reader. Its private registration gate defaults false. The public sidecar holds
+only allowlisted display fields and follows existing post RLS; service-mediated
+readers retain privacy and moderation checks. Authority/source invalidation is
+transactional and remains active if admission is held. NOWAIT public-row locks,
+account-deletion preflight and try-lock reference-cache retirement prevent
+reverse lock waits. See the
+[publication contract](05-api-contracts.md#prepared-analysis-publication-snapshots-and-public-reads)
+for the separate moderated-publisher and activation requirements.
+
 ## Migration Execution Contract
 
 CI pins Supabase CLI `2.109.1`, which owns migration transaction and

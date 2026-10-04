@@ -12887,8 +12887,64 @@ Binding and queue records survive request deletion long enough to revoke its
 authority, but cascade with the observation/analysis. Deletion and owner checks
 precede reconciliation and binding replay. The future dispatcher must retain and
 retry pending work, and public/credit consumers must enforce current source and
-authority revisions before counting or displaying verified identity. Publication
-snapshots, otherwise-visible post/discussion preservation on revocation,
-privacy/moderation invalidation, new-request admission receipts, worker
-scheduling and native integration remain activation requirements. No publication
-behavior is claimed by this private foundation.
+authority revisions before counting or displaying verified identity. The
+subsequent
+[publication preparation](#prepared-analysis-publication-snapshots-and-public-reads)
+adds frozen public snapshots, immediate invalidation and otherwise-visible
+post/discussion preservation. Moderated publication admission, explicit shared
+updates, new-request receipts, worker scheduling and native integration remain
+activation requirements. The community foundation alone enables none of them.
+
+### Prepared analysis publication snapshots and public reads
+
+`publication_snapshot_enabled` defaults false. Private
+`internal.register_observation_publication` has no API-role execution grant,
+including service role. It is a preparation for the future moderated atomic
+publisher, not a new sharing endpoint. Only a resolved, published request
+already explicitly bound to a named result can register. Registration checks
+owner/deletion fences, both current revisions and current reconciliation, locks
+its request/post/media without waiting, and requires an exact match between the
+caller-approved bounded manifest and persisted public media. Exact retries
+recover the immutable registration without restoring old authority. Initial
+registration creates version 1; explicit update/version advancement and its
+native caller remain outstanding. No legacy request is silently bound.
+
+The private publication records the named result, admission revisions, original
+public labels and approved media cohort. The separate
+`public.explore_analysis_public_projection` contains only a post ID, publication
+version, public names, species ID and the existing allowlisted identification
+object. It contains no analysis/owner/request ID, private evidence or review
+payload. Direct reads follow existing owner post RLS; public app/web reads use
+the existing service-mediated RPCs and their privacy/moderation/block guards. No
+new privileged public reader or private-history grant is introduced.
+
+Community source changes invalidate public names and species eligibility in the
+same transaction, before a worker runs. Named review changes also invalidate
+immediately. Reconciliation can republish only matching current source and
+review revisions, never a superseded owner decision. Private selection does not
+change the published result. Missing private history retains an unresolved
+public marker, preventing fallback to the legacy scan. Otherwise-visible posts
+and discussion remain, while privacy, moderation, media quarantine and deletion
+still hide them. Cards, detail, species filters/search, public web, community
+detail and both notification readers follow this projection. Community detail
+uses approved media, suppresses private suggestions and model metadata, and
+clears current/initial taxon labels when unresolved. Discussion timeline entries
+remain historical contributions.
+
+Approved media identity/order/content cannot be changed by legacy refresh or
+composer writes. Health metadata remains mutable; unsharing and parent deletion
+can erase media. Versioned replacement needs the future explicit publisher.
+Registration retires derived Merian reference entries attributed to that post,
+including matching dictionary fallback URLs, and marks provenance disqualified.
+A transaction advisory lock serializes this with reference refresh; registration
+uses try-lock and retries on contention. Refresh excludes bound posts. A shared
+URL may be reconsidered under another eligible post's attribution on a later
+refresh; no private evidence is deleted by this cache invalidation.
+
+Owner/history writers use NOWAIT for public projection rows and return
+`analysis_history_unavailable` on contention. Account tombstoning prelocks bound
+request and projection rows without waiting before detachment, avoiding cycles
+with request-first consensus. A failed operation rolls back completely and must
+retry. New admission gates never suppress revocation. The moderated publisher,
+explicit shared-identification update, durable worker, native integration and
+remaining activation checks are still required.

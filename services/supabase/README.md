@@ -3171,8 +3171,8 @@ scan-row authority to the selected result. `analysisHistory/review.ts` owns the
 wire contract and `identify/legacyReview.ts` owns Edge preflight; SQL commit
 checks remain authoritative. See the
 [analysis-bound review contract](../../docs/backend-and-data/05-api-contracts.md#prepared-analysis-bound-reject-and-undo).
-Native review admission, confirmation, community authority and ordinary history
-activation remain outstanding.
+Native review admission, community/publication integration and ordinary history
+activation remain outstanding. Confirmation is separately prepared below.
 
 ## Prepared analysis-bound confirmation
 
@@ -3194,3 +3194,13 @@ requests are not migrated; new registration requires same-transaction insertion
 proof. See the
 [canonical contract](../../docs/backend-and-data/05-api-contracts.md#private-analysis-bound-community-authority-preparation)
 for lock contention, superseded review and request-deletion revocation behavior.
+
+## Prepared public publication snapshots
+
+Private, default-off publication registration and sanitized Explore projections
+now pin original labels/media to a named result and remove public species
+authority transactionally on revocation. No new sharing endpoint or API writer
+is exposed. Existing privacy/moderation guards remain authoritative; legacy
+media refresh cannot replace a bound cohort. See the
+[publication contract](../../docs/backend-and-data/05-api-contracts.md#prepared-analysis-publication-snapshots-and-public-reads)
+for consumer coverage, reference-cache retirement and remaining integration.

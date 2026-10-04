@@ -353,3 +353,13 @@ revocation work, while observation deletion erases it. The new-binding gate
 defaults false. Public snapshot/admission and dispatcher integration remain
 required; see the
 [canonical contract](../../../../../docs/backend-and-data/05-api-contracts.md#private-analysis-bound-community-authority-preparation).
+
+## Prepared public publication reads
+
+Private registration now freezes an approved public media cohort and original
+labels for a named, community-bound result. A sanitized public projection drives
+Explore readers and invalidates immediately on authority/source changes. The
+writer has no API grant and its gate defaults false; there is no moderated
+publisher or native sharing caller yet. See the
+[publication contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-analysis-publication-snapshots-and-public-reads)
+for read coverage, reference retirement and remaining activation work.

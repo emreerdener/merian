@@ -6902,3 +6902,25 @@ bindings but does not suppress already-required revocations. The
 [canonical contract](05-api-contracts.md#private-analysis-bound-community-authority-preparation)
 owns transition semantics and the missing publisher, dispatcher, public-consumer
 and native activation work.
+
+### Prepared publication snapshots
+
+`20261004054206_prepare_analysis_publication_snapshots.sql` adds default-false
+`publication_snapshot_enabled`, private immutable
+`observation_analysis_publications`, and RLS-protected
+`public.explore_analysis_public_projection`. Publication versions are unique per
+post; indexed result/request foreign keys cascade private records with history.
+The public projection cascades with the post and keeps an unresolved marker if
+only private history disappears. It exposes no history identities or payloads.
+Direct owner reads follow post visibility; service projections preserve existing
+public privacy guards. API roles receive SELECT only on the sanitized table and
+no registration or private-table grant.
+
+Authority and community-queue triggers invalidate labels transactionally;
+matching reconciliation alone can republish them. NOWAIT prevents public-row
+contention from creating a reverse lock dependency. Account deletion prelocks
+bound request/public rows before detachment. Media content/order is frozen while
+health checks remain mutable. Registration retires attributed reference cache
+rows and compatibility URLs under a try-lock shared with reference refresh. The
+[publication contract](05-api-contracts.md#prepared-analysis-publication-snapshots-and-public-reads)
+owns admission, consumer coverage and the remaining publisher/activation work.

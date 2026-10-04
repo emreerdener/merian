@@ -10376,3 +10376,18 @@ revocation does not depend on the new-binding gate. These checks enter the
 existing complete backend and disposable-database gates. The
 [community foundation contract](../backend-and-data/05-api-contracts.md#private-analysis-bound-community-authority-preparation)
 lists the public/native integrations still required before activation.
+
+## Publication snapshot verification
+
+`tests/observation_publication_snapshots.sql` owns private registration, public
+allowlisting, actual-role reads, card/detail/community/search/notification
+revocation, legacy-empty scan independence, approved media immutability,
+reference retirement, privacy and erasure assertions.
+`_tests/observationPublicationConcurrencyDb.test.ts` exercises review/consensus
+ordering, pending workers, duplicate registration, deletion replay, account
+deletion contention and reference-refresh admission contention with separate
+sessions. Static migration contracts preserve default-off/no-API admission,
+private/public column separation and NOWAIT guards. These enter the existing
+complete backend and disposable-database gates. See the
+[publication contract](../backend-and-data/05-api-contracts.md#prepared-analysis-publication-snapshots-and-public-reads)
+for the integration boundaries these tests do not activate.

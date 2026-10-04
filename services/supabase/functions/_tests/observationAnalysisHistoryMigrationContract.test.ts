@@ -526,3 +526,50 @@ Deno.test("private community authority binds fresh requests and serializes curre
   );
   assert(!/UPDATE public\.scans|selected_analysis_id\s*=/i.test(projector));
 });
+
+Deno.test("publication snapshots preserve a private writer and immediate public revocation without legacy media fallback", async () => {
+  const sql = await migration(
+    "20261004054206_prepare_analysis_publication_snapshots",
+  );
+  for (
+    const fragment of [
+      "publication_snapshot_enabled BOOLEAN NOT NULL DEFAULT FALSE",
+      "CREATE TABLE internal.observation_analysis_publications",
+      "CREATE TABLE public.explore_analysis_public_projection",
+      "FOR UPDATE NOWAIT",
+      "work.source_revision=work.applied_source_revision",
+      "authority.review_revision=work.applied_review_revision",
+      "CREATE TRIGGER invalidate_observation_publication",
+      "CREATE TRIGGER reconcile_observation_publication",
+      "CREATE TRIGGER guard_observation_publication_media",
+      "pg_try_advisory_xact_lock",
+      "public.search_species_discovery(uuid,text,text,text,text,jsonb,boolean)",
+      "public.get_community_identification_detail(uuid,uuid)",
+      "public.get_explore_notifications_with_reactions(uuid,integer,timestamp with time zone,uuid)",
+      "FOR UPDATE OF request NOWAIT",
+      "FOR UPDATE OF published NOWAIT",
+    ]
+  ) assertStringIncludes(sql, fragment);
+  assert(
+    !/GRANT EXECUTE|UPDATE internal\.observation_history_rollout/i.test(sql),
+  );
+  const publicColumns = sql.slice(
+    sql.indexOf("CREATE TABLE public.explore_analysis_public_projection"),
+    sql.indexOf("ALTER TABLE public.explore_analysis_public_projection"),
+  );
+  for (
+    const forbidden of [
+      "analysis_id",
+      "observation_id",
+      "owner_id",
+      "request_id",
+      "review_snapshot",
+      "media_manifest",
+      "result_snapshot",
+    ]
+  ) assert(!publicColumns.includes(forbidden));
+  assert(
+    !/GRANT (?:ALL|INSERT|UPDATE|DELETE).*explore_analysis_public_projection/i
+      .test(sql),
+  );
+});

@@ -2300,3 +2300,45 @@ independently of private selection and worker delivery order. A durable retry
 owner, native review admission, remaining downstream consumers and final account
 deletion integration still precede activation. No deployment, activation or
 TestFlight upload was performed.
+
+### October 4, 2026 — prepared immutable public publication reads
+
+The next held slice adds private publication registration and immutable approved
+media/original-label records for an explicitly bound result. A sanitized public
+projection supplies Explore identity without exposing private history IDs or
+payloads. Source/review changes invalidate it transactionally; only current
+reconciliation can republish authority. Private A → B → A selection and replay
+of an old publication receipt do not change the shared identification.
+
+Cards, detail, species search/filtering, public web, community detail and
+notification labels now use this boundary. Otherwise-visible posts and community
+discussion remain unresolved after revocation. Private scan images, candidates,
+reasoning and inference metadata do not become a publication fallback. Approved
+media remains frozen while health checks and unsharing work. Registration
+retires the post's derived reference cache and compatibility URLs; serialized
+refresh cannot reintroduce that bound source. Account deletion prelocks bound
+request/public rows without waiting before detachment.
+
+The
+[current publication contract](../backend-and-data/05-api-contracts.md#prepared-analysis-publication-snapshots-and-public-reads)
+owns implemented behavior and limitations. Registration has no API grant, its
+gate defaults false, and no endpoint/client or scheduler is activated. The
+moderated atomic publisher, explicit shared-identification updates, native
+admission and remaining downstream/account integration are still required.
+
+Verification passed 51 focused SQL assertions and six publication concurrency
+tests. Clean disposable migration replay and all catalogs passed 921 assertions
+across 88 files. The complete backend suite passed 2,457 tests with 343 steps;
+all 108 function entry points type-checked. Database lint passed, and advisors
+retained 103 security and 79 performance warnings with no errors or new
+publication-object findings. The complete Supabase tooling gate passed 499
+standard tests, 157 evaluation tests, 20/21 isolated DTO tests and all 19 shell
+test files. Migration, DTO, lint and formatting checks passed.
+
+For the preceding community commit `ea6541de0`, hosted compilation, the complete
+unit target, Release archive and Startup Safety passed. The critical scan UI
+lane failed its queued-audio handoff case because Boost did not expose a
+playable source before the assertion. That failure remains under investigation;
+neither these backend checks nor earlier native evidence establish a green
+candidate. This slice changes no native source and performs no deployment,
+activation or TestFlight upload.
