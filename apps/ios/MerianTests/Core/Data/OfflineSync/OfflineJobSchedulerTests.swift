@@ -90,7 +90,7 @@ struct OfflineJobSchedulerTests {
         ))
         defer { scheduler.cancelScheduledWake(using: manager) }
         let earlier = Date().addingTimeInterval(2)
-        let job = OfflineJobRecord(id: "earlier-fixture", kind: .future, nextRunAt: earlier)
+        let job = OfflineJobRecord(id: "library-details:earlier-fixture", kind: .future, nextRunAt: earlier)
         context.insert(job)
         try context.save()
         scheduler.scheduleLibraryDetailsRetry(using: manager)
@@ -103,6 +103,29 @@ struct OfflineJobSchedulerTests {
         let retained = try #require(scheduler.scheduledWakeDate)
         #expect(retained > earlier)
         #expect(retained < Date().addingTimeInterval(6))
+    }
+
+    @Test func unknownAndPreparedJobsDoNotCreateUnserviceableWakeLoops() throws {
+        let manager = OfflineQueueManager.shared, previous = manager.modelContext
+        let schema = Schema(CurrentSchema.models)
+        let container = try ModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)])
+        let context = ModelContext(container); manager.modelContext = context
+        defer { manager.modelContext = previous }
+        let scheduler = OfflineJobScheduler(drainOperations: .init(
+            reconcileFunding: { _ in }, syncPendingScans: { _ in }, replayInference: { _ in },
+            replayFieldTripProgress: { _ in }, syncPendingDeletions: { _ in }, syncCollections: { _ in }))
+        let date = Date().addingTimeInterval(30)
+        let unknown = OfflineJobRecord(id: "unknown", kind: .future, nextRunAt: date)
+        unknown.kindRaw = "newer-client-kind"
+        context.insert(unknown)
+        context.insert(OfflineJobRecord(id: "unknown-future", kind: .future, nextRunAt: date))
+        context.insert(OfflineJobRecord(id: "observation-publication:prepared", kind: .observationPublicationSync, nextRunAt: date))
+        try context.save()
+        #expect(scheduler.nextPersistedWakeDate(using: manager) == nil)
+        #expect(try context.fetchCount(FetchDescriptor<OfflineJobRecord>()) == 3)
+        context.insert(OfflineJobRecord(id: "library-details:known", kind: .future, nextRunAt: date))
+        try context.save()
+        #expect(scheduler.nextPersistedWakeDate(using: manager) == date)
     }
 
     @Test(arguments: [Step.funding, .progress, .deletions])

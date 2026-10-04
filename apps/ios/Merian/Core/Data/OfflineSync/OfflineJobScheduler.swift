@@ -237,6 +237,10 @@ final class OfflineJobScheduler {
         }
         let deletionOwner = deletionAccountID()
         candidates.append(contentsOf: jobs.compactMap { job -> Date? in
+            // Unknown kinds cannot be drained by this binary. Prepared publication
+            // work stays dormant until its account-bound execution owner is connected.
+            guard let kind = OfflineJobKind(rawValue: job.kindRaw), kind != .observationPublicationSync,
+                  kind != .future || job.id.hasPrefix("library-details:") else { return nil }
             // Enrollment recovery is explicit, including damaged/unknown hold metadata.
             guard !job.id.hasPrefix(ObservationHistoryEnrollmentIntent.prefix),
                   !job.id.hasPrefix(ObservationHistorySelectionIntent.prefix) else { return nil }

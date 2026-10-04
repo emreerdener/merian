@@ -162,6 +162,7 @@ struct LibraryPendingChangesView: View {
         case .scanIngestion: "Scan"
         case .cloudDeletion: "Scan deletion"
         case .identificationReviewSync: "Identification review"
+        case .observationPublicationSync: "Identification sharing"
         case .collectionSync: "Collections and memberships"
         case .speciesPreferenceSync: "Species preferences"
         case .future: "Library change"

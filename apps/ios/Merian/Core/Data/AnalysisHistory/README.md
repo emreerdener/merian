@@ -325,3 +325,50 @@ already-loaded previews may use a valid cache on transport failure. This is not
 a complete offline history browser. See the
 [product contract](../../../../../../docs/features-and-hardware/05-insight-sheet.md#prepared-identification-history-sheet)
 for interaction, memory and lifecycle limits.
+
+## Prepared publication persistence
+
+`ObservationPublicationIntent` stores version-1 exact consent before I/O. Its
+local SHA-256 fingerprint covers lowercase UUIDs, explicit nulls, bounded
+integer revisions, ordered media, sorted-key UTF-8 JSON with unescaped slashes
+and no Unicode normalization. It is an anti-drift check, not backend
+authorization or a server-compatible digest. After validated admission/status,
+storage removes the request (including note and media consent), retaining owner,
+three identities, fingerprint, bounded status and local observation time.
+Historical `admitted` does not assert current visibility or provide a post ID.
+
+`ObservationPublicationPersistence` owns prepared transactional stage and
+compare-and-save acknowledgement. Its job key includes both observation and
+operation UUIDs for erasure lookup; the operation UUID remains globally
+single-use across observations. Stage rejects any reuse with another owner,
+observation, analysis or consent fingerprint before I/O; it never calls generic
+job upsert or revives terminal work. Acknowledgement checks the exact prior
+envelope, fresh enrolled observation, original analysis owner, delete/enrollment
+fences and the caller's current account-work guard before save. Both `admitted`
+and `needs_action` finish the job as complete; their distinct outcomes remain in
+minimal receipts across restart without blocking account transitions as
+unfinished work. Same-terminal replay preserves its first local observation
+time. Storage never selects a result or modifies review authority.
+
+Direct and bulk scan deletion erase the scan-qualified job namespace in the same
+transaction as the observation. This does not depend on intact consent or
+subject metadata. Confirmed cloud deletion additionally checks the exact owner;
+ambiguous owner metadata keeps deletion retryable. Whole-account purge already
+erases all offline jobs. Late acknowledgements refetch parent and job and cannot
+recreate either.
+
+The new raw `observationPublicationSync` kind changes no SwiftData stored field
+or schema version. Its jobs are deliberately excluded from scheduler wakes until
+the execution owner is connected. Unknown raw kinds and unknown `future`
+namespaces also cannot create wake-only loops; known `library-details:` work
+keeps its existing deadlines. Older app binaries still require a capability gate
+before enqueue activation. No network drain, ordinary UI caller, provider work
+or rollout activation is added by persistence.
+
+`ObservationPublicationPersistenceTests` covers exact consent/fingerprint drift,
+Unicode and null distinctions, strict corruption rejection, stale response and
+account guards, disk reopening, terminal replay, direct/bulk deletion and scoped
+cleanup. Scheduler tests preserve known details work and exclude unsupported or
+prepared work. The next execution slice must acquire/recheck real account work
+leases around every await, recover status before exact lost-response replay,
+classify permanent admission failures, and supply bounded scheduling.

@@ -663,3 +663,19 @@ retains the identity-only deletion fence. Account purge removes every row. The
 [selection owner](../AnalysisHistory/README.md#prepared-selection-and-undo)
 defines explicit replay and revision-bound Undo; generic job retry helpers must
 not reopen or replace these records.
+
+## Prepared publication job boundary
+
+`observationPublicationSync` is a raw kind in the existing job store, with no
+SwiftData shape change. AnalysisHistory owns strict immutable consent, minimal
+terminal receipts and same-ID replay; generic `ensureOfflineJobRecord` must not
+reopen these jobs. Direct/bulk scan deletion and acknowledged cloud deletion
+remove their scan-qualified namespace atomically with erasure state. The
+account-transition inventory counts unfinished work, with the existing settings
+summary labeling it Identification sharing.
+
+Publication jobs remain excluded from wake discovery until a durable execution
+owner is connected. Unknown raw kinds and unrecognized `future` namespaces are
+also excluded without deleting them. Known `library-details:` retries retain
+their deadlines. This is a client capability boundary, not rollout activation;
+older binaries must remain excluded before admission becomes available.

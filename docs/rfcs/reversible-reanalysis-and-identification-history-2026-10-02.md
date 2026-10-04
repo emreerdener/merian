@@ -2614,3 +2614,21 @@ The existing raw-JSON bridge already supports expected-owner dispatch and
 deferred 401 recovery, so no core transport extension was needed. No queue, UI
 or activation is connected in this slice; future persistence must retain minimal
 terminal status across restart and erase it with the scan.
+
+### Native durable storage checkpoint (October 4)
+
+Prepared publication persistence now saves exact owner-bound consent under an
+observation-qualified operation key. Versioned canonical SHA-256 survives raw
+consent removal after acknowledgement, preventing changed consent from reusing
+an old operation ID. Minimal terminal status survives disk reopening, with
+compare-and-save protecting newer acknowledgements and no same-ID resurrection.
+Direct, bulk and cloud-confirmed deletion remove associated receipts/work;
+scan-qualified keys retain erasure reachability when subject metadata is
+damaged. Unknown job kinds cannot cause timer-only retry loops; known
+library-details work is preserved. No persisted schema shape or frozen snapshot
+changes.
+
+This slice does not connect a network drain or UI. Exact account leases around
+awaits, status-first lost-response recovery, durable retry/permanent-failure
+classification and bounded polling remain the next execution slice. Activation
+and production scheduling remain disabled.

@@ -78,6 +78,7 @@ extension BackgroundDatabaseActor {
                 if origin == .explicitUserDeletion {
                     try ObservationHistoryEnrollmentIntent.supersedeForExplicitDeletion(scanId, context: context)
                 }
+                try ObservationPublicationPersistence.removeForDeletion(scanId, context: context)
                 if let record {
                     context.delete(record)
                     deletedRecordCount += 1

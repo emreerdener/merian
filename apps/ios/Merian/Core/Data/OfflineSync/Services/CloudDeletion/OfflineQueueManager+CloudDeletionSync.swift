@@ -90,6 +90,7 @@ extension OfflineQueueManager {
             guard let task = taskById[scanId] else { continue }
             do {
                 if Self.cloudDeletionWasConfirmed(error: error) {
+                    try ObservationPublicationPersistence.removeForDeletion(scanId, context: context, ownerID: lease.session.userID)
                     MerianLog.data.debug("✅ Deleted \(scanId, privacy: .private) from Edge")
                     try markCloudDeletionJob(
                         scanId: scanId,

@@ -14037,5 +14037,9 @@ Responses are bounded to 4 KiB before parsing. Native `admitted` is historical
 operation evidence, never current public eligibility or a post ID. Dedicated
 wire/transport tests exercise immutable consent, malformed/private fields,
 missing-account dispatch prevention, and ambiguous admission without automatic
-replay. Durable persistence, post-await deletion/account fencing and UI delivery
-remain separate; all activation gates remain false.
+replay. Prepared local persistence now saves exact consent, then strips raw
+consent after acknowledgement while retaining a versioned local fingerprint and
+minimal terminal status. The fingerprint is not a backend digest or authority.
+Network execution, post-await account/deletion fencing and UI delivery remain
+separate; all activation gates remain false. See
+[the storage contract](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#prepared-publication-persistence).

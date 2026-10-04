@@ -5956,9 +5956,23 @@ cache for Insight contribution cards.
 
 Added in `MerianSchemaV48` and carried forward unchanged through V50.
 Scheduler/control-plane row for media-agnostic offline work. Current `kindRaw`
-values are `scanIngestion`, `cloudDeletion`, `collectionSync`,
-`speciesPreferenceSync`, and `future`; current `statusRaw` values are `pending`,
-`running`, `waiting`, `needsAttention`, `complete`, and `cancelled`.
+values are `scanIngestion`, `cloudDeletion`, `identificationReviewSync`,
+`observationPublicationSync`, `collectionSync`, `speciesPreferenceSync`, and
+`future`; current `statusRaw` values are `pending`, `running`, `waiting`,
+`needsAttention`, `complete`, and `cancelled`.
+
+Prepared publication jobs use
+`observation-publication:<observation UUID>:<operation UUID>` so atomic scan
+erasure can locate them even when subject/consent metadata is damaged. This key
+is an erasure index: the operation UUID remains globally single-use. Rebinding
+it to another owner, observation, analysis or consent fingerprint is rejected
+before I/O. Their versioned metadata retains exact consent until server
+admission is proven, then only owner/identities, a local canonical-consent
+SHA-256, bounded status and observation time. Both terminal receipts use
+complete jobs and persist until scan or account deletion and cannot be revived
+by same-ID staging. This raw kind changes no stored schema shape or frozen
+snapshot. Network execution and wake admission remain disconnected. See
+[publication persistence](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#prepared-publication-persistence).
 
 - `id`: String (unique stable job id such as `scan-ingestion:{scanId}`,
   `cloud-deletion:{scanId}`, or `collection-sync`.)

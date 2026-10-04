@@ -540,6 +540,7 @@ final class ScanRepository {
                 }
                 try modelContext.ensurePendingCloudDeletionTask(scanId: record.id,
                     requestingAccountID: CloudDeletionAccountWork.captureRequestAccount(using: historicalCloudClient), origin: origin)
+                try ObservationPublicationPersistence.removeForDeletion(record.id, context: modelContext)
                 modelContext.delete(record)
                 try modelContext.save()
             } catch {
