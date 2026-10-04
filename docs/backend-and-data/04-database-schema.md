@@ -7020,3 +7020,16 @@ acknowledgements remain available. Authenticated and anonymous roles cannot
 invoke them or read private tables. Cleanup survives account/history erasure and
 closed admission gates while excluding valid bound publications. See the
 [worker contract](05-api-contracts.md#prepared-public-photo-erasure-worker).
+
+### Prepared durable publication operation intake
+
+`20261004122108_prepare_publication_operation_admission.sql` adds private
+immutable `observation_publication_operations` beneath the existing intent, its
+owner/time and observation indexes, and default-false
+`publication_operation_enabled`. The service-only admission RPC persists the
+original quota-address HMAC and bounded public acceptance receipt, with fresh
+authorization on first intake and exact recovery afterward. No direct table
+grants exist. An observation tombstone deletes queued intake immediately;
+parent/account erasure cascades it. No worker or execution claim is introduced.
+See the
+[intake contract](05-api-contracts.md#prepared-authenticated-publication-operation-intake).

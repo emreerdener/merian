@@ -724,3 +724,12 @@ changing that config selects the whole function fleet. This runtime gate is not
 a deployment exclusion. Deployment, scheduling, monitoring and namespace cache
 bypass require separate release evidence and authorization; source validation is
 not a hosted erasure claim.
+
+The prepared `request-observation-publication` endpoint uses verified user
+identity and the shared privileged SDK factory; no caller-nominated owner is
+accepted. Its only new service RPC grants durable private intake, not provider
+execution, copying or public binding. The first server-derived HMAC IP hash is
+private and deletion-bound. No storage/provider credential is used at intake.
+The independent operation gate stays false and the configured route follows
+normal future main deployment planning. See the
+[intake boundary](05-api-contracts.md#prepared-authenticated-publication-operation-intake).

@@ -466,3 +466,13 @@ No live copy repository or authenticated publisher is connected; `reconcile`
 requires durable operation-state recovery, never automatic successor allocation.
 See the
 [copy execution contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-public-photo-copy-execution).
+
+## Prepared durable publication intake
+
+`request-observation-publication` now authenticates and persists exact ordered
+consent before external work, returning an immutable acceptance receipt.
+`publicationOperation.ts` owns strict parsing; the default-off service RPC and
+private records preserve replay, original hash and deletion fences. Acceptance
+never authorizes copying or means publication completed. Live execution/status
+workers and native delivery remain required. See the
+[intake contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-authenticated-publication-operation-intake).

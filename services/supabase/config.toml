@@ -758,3 +758,6 @@ verify_jwt = false
 # Explicit service-role authorization; no user JWT or caller-nominated key.
 [functions.erase-publication-photos]
 verify_jwt = false
+
+[functions.request-observation-publication]
+verify_jwt = false

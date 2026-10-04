@@ -13378,3 +13378,52 @@ a lost completion may already have been bound by another worker. It is not an
 automatic retry or successor permit. Expired or abandoned copies never allocate
 another key through the same attempt. The live copy repository, authenticated
 operation admission and recovery owner remain unconnected; all gates stay off.
+
+## Prepared authenticated publication operation intake
+
+`request-observation-publication` is an owner-authenticated POST endpoint using
+`withEdgeHandler`. It accepts the exact protected-publication-intent request:
+`schema_version:1`, operation/observation/analysis UUIDs, both expected
+revisions, taxonomy version, nullable initial taxon, nullable note and one to
+six unique ordered `media_ids`. Consent covers that exact order only. No owner,
+public URL, source tuple, moderation decision or provider/copy identity is
+accepted. The body is limited to 4KiB and canonical request JSON to 3,800 UTF-8
+bytes; notes allow at most 1,000 Unicode code points within that byte limit.
+
+The service-only `admit_owned_observation_publication` RPC derives its owner
+argument exclusively from the verified Edge user. It locks ownership/deletion
+before reading any saved operation, validates the entire request through the
+private intent owner, and atomically persists immutable intent plus intake
+record. Previously prepared intents require fresh revision/taxonomy/source/gate
+revalidation before first intake. The original server HMAC IP hash is retained
+privately for later quota admission; changed networks never change a retry's
+saved hash. It is not a raw address and is never included in responses or logs.
+
+Success is always HTTP 202 with an immutable six-field receipt:
+`{schema_version:1, operation_id, observation_id, analysis_id,
+status:"accepted", admitted_at}`.
+Accepted means durable intake, not completed moderation, public availability or
+a scheduled worker. No provider quota, scan credit, storage write or post
+creation occurs here. A later execution/status owner must supply the terminal
+result; no native caller is connected yet.
+
+At most eight new operations per owner are accepted in a rolling 24-hour window.
+This is intake protection, separate from provider and complimentary-credit
+accounting. Exact matching replay returns the original receipt even after this
+bound or the rollout gate closes and even after authority changes; replay grants
+no permission to execute. Changed request fields conflict. Owner loss or
+deletion wins over replay. Observation tombstones immediately erase queued
+intake facts; parent result/account deletion cascades them as private history,
+outside the scientific-retention allowlist. Capacity checks and insertion
+serialize under the existing owner-first lock order.
+
+`publication_operation_enabled` defaults false. Public/client database roles
+cannot call the service RPC or read its table. Safe request errors return 400,
+missing/deleted observations 404, operation/revision conflicts 409, and other
+failures 503; responses are private/no-store. Invalid database receipts fail
+closed as server errors. Calls have a twelve-second client deadline and
+ten-second SQL limit, with no automatic mutation retry. The route participates
+in normal main deployment planning; runtime-off is not a deployment exclusion.
+Worker claims, source-container preflight before quota, moderated
+execution/copy, final cohort binding and cleanup, durable retirement and native
+delivery remain held.

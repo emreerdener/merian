@@ -803,3 +803,26 @@ Deno.test("photo erasure worker wrappers are service-only and registry-fenced", 
   assert(!sql.includes("DELETE FROM"));
   assert(!sql.includes("lock_owned_observation_evidence"));
 });
+
+Deno.test("publication operation intake is durable, private, bounded and default-off", async () => {
+  const sql = await migration(
+    "20261004122108_prepare_publication_operation_admission",
+  );
+  assertStringIncludes(
+    sql,
+    "publication_operation_enabled BOOLEAN NOT NULL DEFAULT FALSE",
+  );
+  assertStringIncludes(sql, "internal.privileged_routine_grants");
+  assertStringIncludes(
+    sql,
+    "internal.revalidate_observation_publication_intent",
+  );
+  assertStringIncludes(
+    sql,
+    "AFTER INSERT ON internal.scan_deletion_tombstones",
+  );
+  assertStringIncludes(sql, "ON DELETE CASCADE");
+  assertStringIncludes(sql, "LIMIT 8");
+  assert(!sql.includes("TO authenticated"));
+  assert(!sql.includes("reserve_ai_quota"));
+});

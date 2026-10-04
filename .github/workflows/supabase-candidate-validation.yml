@@ -170,6 +170,7 @@ jobs:
             supabase/functions/recover-observation-analyses/handler_test.ts \
             supabase/functions/erase-publication-photos/handler_test.ts \
             supabase/functions/erase-publication-photos/db_test.ts \
+            supabase/functions/request-observation-publication/handler_test.ts \
             supabase/functions/delete-scan/handler_test.ts \
             supabase/functions/_shared/entitlement.ts \
             supabase/functions/_shared/entitlement_test.ts \
@@ -340,6 +341,7 @@ jobs:
             supabase/functions/recover-observation-analyses/handler_test.ts \
             supabase/functions/erase-publication-photos/handler_test.ts \
             supabase/functions/erase-publication-photos/db_test.ts \
+            supabase/functions/request-observation-publication/handler_test.ts \
             supabase/functions/share-scan-to-explore/audioModeration_test.ts \
             supabase/functions/identify-multimodal/index.test.ts \
             supabase/functions/identify-multimodal/provider.test.ts \

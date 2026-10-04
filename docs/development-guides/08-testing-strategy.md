@@ -10525,3 +10525,15 @@ recovery. The erasure endpoint tests continue to exercise the extracted shared
 claim/marker owner. These injected tests do not prove a live repository,
 authenticated publisher, hosted storage or CDN policy; those remain separate
 activation gates.
+
+### Durable publication intake verification
+
+`publication_operation_admission.sql` exercises service/client ACLs, closed
+activation, immutable acceptance, changed-network replay, no premature quota or
+public copying, bounded intake, request conflicts and observation-fence erasure.
+`observationPublicationOperationConcurrencyDb.test.ts` verifies duplicate
+intake, review-before-intake, account deletion in both orders and the last
+owner-wide intake slot raced by two observations with independent sessions.
+Endpoint/parser/repository tests cover exact ordered consent, owner scope,
+payload limits, response privacy, frozen requests and no implicit retry. These
+tests prove intake only; no scheduled publisher or native delivery exists.

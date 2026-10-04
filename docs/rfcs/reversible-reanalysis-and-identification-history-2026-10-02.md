@@ -2449,3 +2449,14 @@ deletion removed private receipts; SQL claims prevent erasing another worker's
 valid publication. Operation admission, live repository integration, cohort-wide
 failure recovery and native delivery remain held. See the
 [copy execution contract](../backend-and-data/05-api-contracts.md#prepared-public-photo-copy-execution).
+
+### October 4, 2026: authenticated durable publication intake
+
+The prepared endpoint now freezes exact ordered photo consent and persists an
+immutable owner-bound acceptance before external work. Replay retains the first
+quota-address hash, bypasses closed intake gates/bounds, and still checks
+deletion and exact request equality. Acceptance is distinct from publication.
+Execution claims/status, preflight, moderation/copy repositories, cohort failure
+cleanup, expired-attempt recovery and native delivery remain separate held
+slices. See the
+[intake contract](../backend-and-data/05-api-contracts.md#prepared-authenticated-publication-operation-intake).

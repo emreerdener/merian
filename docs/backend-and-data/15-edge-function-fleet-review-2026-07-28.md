@@ -288,6 +288,7 @@ report-explore-comment
 report-explore-post
 report-user
 request-community-identification
+request-observation-publication
 request-export-dwca
 resolve-purchase-principal
 restore-community-identification
@@ -395,3 +396,11 @@ outcomes/drafts. Both use a default-off orchestration gate; no deployment,
 schedule, paid inference, or private-bucket verification is implied. The bounded
 claim/retry/deletion contracts are documented in their function READMEs and the
 canonical API owner.
+
+## Source inventory update — 2026-10-04 publication intake
+
+`request-observation-publication` uses `withEdgeHandler` to derive the verified
+owner before a narrowly granted service-only intake RPC. It saves exact consent
+and returns a private immutable acceptance receipt, without provider or storage
+work. Its independent gate defaults false. This inventory addition is source
+scope only and supplies no deployment, worker scheduling or activation evidence.

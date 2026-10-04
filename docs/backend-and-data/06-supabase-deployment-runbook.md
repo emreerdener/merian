@@ -45,6 +45,16 @@ Admission must preflight the supported container before provider quota
 admission. See the
 [prepared storage boundary](05-api-contracts.md#prepared-public-photo-storage-boundary).
 
+The authenticated publication intake is separately held by default-false
+`publication_operation_enabled`. Keep it false until the durable
+execution/status owner, source preflight, moderated copy/binding and terminal
+recovery are wired. HTTP 202 acceptance saves consent only; it does not schedule
+or complete public sharing. Preserve accepted receipts and original
+quota-address hashes through admission rollback, subject to owner/deletion
+fences. Source configuration remains part of normal future main deployment
+planning. See the
+[intake contract](05-api-contracts.md#prepared-authenticated-publication-operation-intake).
+
 The October 2 reversible-history work is a locally validated backend
 preparation, not an activated feature. The three forward migrations beginning
 `20261002213257`, `20261002215330`, and `20261002215809` prepare private
