@@ -2520,3 +2520,12 @@ Refused outcomes never enter the stage; binding or deletion retires it. This
 completes recovery ownership, not storage execution. Atomic cohort reservation,
 fixed shared expiry, copy/binding integration, targeted cleanup and public-note
 approval remain next. All activation gates stay false.
+
+## October 4, 2026: atomic copy cohort reservation
+
+Prepared service RPCs now reserve the complete settled photo cohort atomically
+under one immutable ten-minute expiry, with a separate closed activation gate.
+Scoped completion repeats current authority; historical publication recovery
+precedes cleanup and abandonment queues every unbound sibling. This path
+explicitly refuses nonnull public notes until separate note moderation exists.
+Storage execution and live binding remain unconnected; rollout stays disabled.

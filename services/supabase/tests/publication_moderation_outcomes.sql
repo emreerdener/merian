@@ -87,7 +87,7 @@ $$;
 CREATE FUNCTION pg_temp.publication_request(observation UUID,analysis UUID,operation UUID,media UUID) RETURNS JSONB LANGUAGE SQL AS $$
  SELECT jsonb_build_object('schema_version',1,'observation_id',observation,'analysis_id',analysis,'operation_id',operation,
  'expected_observation_revision',1,'expected_review_revision',0,'taxonomy_version_id',public.active_taxonomy_version_id(),
- 'initial_taxon_id',NULL,'note','Synthetic public note','media_ids',jsonb_build_array(media,'00000000-0000-4000-8000-00000000ee32'));
+ 'initial_taxon_id',NULL,'note',CASE WHEN operation='00000000-0000-4000-8000-00000000ee41' THEN NULL ELSE 'Synthetic public note' END,'media_ids',jsonb_build_array(media,'00000000-0000-4000-8000-00000000ee32'));
 $$;
 
 CREATE FUNCTION pg_temp.seed_photo_moderation(owner_id UUID,observation UUID,analysis UUID,media UUID,operation UUID) RETURNS VOID LANGUAGE PLPGSQL AS $$
@@ -269,8 +269,81 @@ RESET ROLE;
 SET LOCAL ROLE anon;
 SELECT extensions.throws_ok('SELECT pg_temp.copy_claim()','42501','permission denied for function claim_publication_copy_work','actual anonymous role denied');
 RESET ROLE;
+-- Atomic no-note cohort reservation under the reclaimed copy token.
+UPDATE internal.observation_publication_copy_work SET work_expires_at=clock_timestamp()+INTERVAL '120 seconds' WHERE operation_id='00000000-0000-4000-8000-00000000ee41';
+CREATE FUNCTION pg_temp.reserve_cohort() RETURNS JSONB LANGUAGE SQL AS $$
+ SELECT public.reserve_publication_copy_cohort('00000000-0000-4000-8000-00000000ee01','00000000-0000-4000-8000-00000000ee11','00000000-0000-4000-8000-00000000ee41',(SELECT (receipt->>'work_token')::UUID FROM copy_reclaim));
+$$;
+CREATE FUNCTION pg_temp.read_cohort() RETURNS JSONB LANGUAGE SQL AS $$
+ SELECT public.read_publication_copy_cohort('00000000-0000-4000-8000-00000000ee01','00000000-0000-4000-8000-00000000ee11','00000000-0000-4000-8000-00000000ee41');
+$$;
+CREATE FUNCTION pg_temp.abandon_cohort() RETURNS JSONB LANGUAGE SQL AS $$
+ SELECT public.abandon_publication_copy_cohort('00000000-0000-4000-8000-00000000ee01','00000000-0000-4000-8000-00000000ee11','00000000-0000-4000-8000-00000000ee41',(SELECT (receipt->>'work_token')::UUID FROM copy_reclaim));
+$$;
+GRANT SELECT ON copy_reclaim TO service_role,authenticated;
+GRANT EXECUTE ON FUNCTION pg_temp.reserve_cohort(),pg_temp.read_cohort(),pg_temp.abandon_cohort() TO service_role,authenticated;
+SELECT extensions.throws_ok('SELECT pg_temp.reserve_cohort()','55000','analysis_history_unavailable','copy gate must also authorize reservation');
+SELECT extensions.ok(NOT (SELECT publication_copy_reservation_enabled FROM internal.observation_history_rollout),'reservation has an independent closed gate');
+UPDATE internal.observation_history_rollout SET publication_copy_enabled=TRUE;
+SELECT extensions.throws_ok('SELECT pg_temp.reserve_cohort()','55000','analysis_history_unavailable','enabling old copy gates cannot enable allocation');
+UPDATE internal.observation_history_rollout SET publication_copy_reservation_enabled=TRUE;
+-- Force a failure on the second allocation: both inserted objects must roll back.
+CREATE FUNCTION pg_temp.reject_second_copy() RETURNS TRIGGER LANGUAGE PLPGSQL AS $$
+BEGIN
+ IF NEW.source->>'media_id'='00000000-0000-4000-8000-00000000ee32' THEN RAISE EXCEPTION 'synthetic_second_copy_failure'; END IF;
+ RETURN NEW;
+END;
+$$;
+CREATE TRIGGER test_second_copy BEFORE INSERT ON internal.observation_photo_copies FOR EACH ROW EXECUTE FUNCTION pg_temp.reject_second_copy();
+SELECT extensions.throws_ok('SELECT pg_temp.reserve_cohort()','P0001','synthetic_second_copy_failure','second member failure aborts the whole reservation');
+SELECT extensions.is((SELECT count(*)::INT FROM internal.publication_photo_objects),0,'failed cohort leaves no partial object registry');
+DROP TRIGGER test_second_copy ON internal.observation_photo_copies;
+CREATE FUNCTION pg_temp.legacy_partial_reserve() RETURNS JSONB LANGUAGE PLPGSQL AS $$
+BEGIN
+ PERFORM internal.reserve_publication_photo_copy('00000000-0000-4000-8000-00000000ee01','00000000-0000-4000-8000-00000000ee11',(SELECT (first_attempt->>'attempt_id')::UUID FROM outcomes_work WHERE operation='00000000-0000-4000-8000-00000000ee41'));
+ RETURN pg_temp.reserve_cohort();
+END;
+$$;
+SELECT extensions.throws_ok('SELECT pg_temp.legacy_partial_reserve()','22023','analysis_history_operation_conflict','legacy partial reservation cannot be silently adopted or renewed');
+SET LOCAL ROLE service_role;
+CREATE TEMP TABLE cohort_reservation AS SELECT pg_temp.reserve_cohort() AS receipt;
+SELECT extensions.is(jsonb_array_length((SELECT receipt->'copies' FROM cohort_reservation)),2,'actual service reserves the complete ordered cohort');
+SELECT extensions.is(pg_temp.reserve_cohort(),(SELECT receipt FROM cohort_reservation),'lost response recovers same keys leases and expiry');
+SELECT extensions.is(pg_temp.read_cohort()->'reservation',(SELECT receipt FROM cohort_reservation),'historical read returns original reservation');
+SELECT extensions.is(pg_temp.read_cohort()->'publication','null'::JSONB,'reservation is not a publication');
+SELECT extensions.throws_ok('SELECT * FROM internal.observation_publication_copy_cohorts','42501','permission denied for table observation_publication_copy_cohorts','no direct service access to cohort receipts');
+RESET ROLE;
+SELECT extensions.is((SELECT count(DISTINCT expires_at)::INT FROM internal.observation_photo_copies),1,'all copies share one expiry');
+SELECT extensions.ok((SELECT bool_and(p.expires_at=r.available_at) FROM internal.observation_photo_copies p JOIN internal.publication_photo_objects r USING(object_id)),'registry erasure deadlines match the original common expiry');
+SELECT extensions.throws_ok($$UPDATE internal.observation_publication_copy_cohorts SET expires_at=expires_at+INTERVAL '1 minute'$$,'22023','analysis_history_evidence_immutable','cohort deadline immutable');
+CREATE FUNCTION pg_temp.complete_cohort_member(index INT) RETURNS JSONB LANGUAGE SQL AS $$
+ SELECT public.complete_publication_copy_cohort_photo('00000000-0000-4000-8000-00000000ee01','00000000-0000-4000-8000-00000000ee11','00000000-0000-4000-8000-00000000ee41',(SELECT (receipt->>'work_token')::UUID FROM copy_reclaim),
+ (receipt->'copies'->index->>'attempt_id')::UUID,(receipt->'copies'->index->>'object_id')::UUID,(receipt->'copies'->index->>'lease_token')::UUID) FROM cohort_reservation;
+$$;
+SELECT extensions.ok(pg_temp.complete_cohort_member(0)->>'ready_at' IS NOT NULL,'exact first member completes');
+SELECT extensions.is(pg_temp.complete_cohort_member(0),pg_temp.complete_cohort_member(0),'identical completion is recoverable');
+SELECT extensions.is(pg_temp.read_cohort()#>>'{reservation,expires_at}',(SELECT receipt->>'expires_at' FROM cohort_reservation),'readiness does not extend expiry');
+SELECT extensions.throws_ok($$SELECT public.complete_publication_copy_cohort_photo('00000000-0000-4000-8000-00000000ee01','00000000-0000-4000-8000-00000000ee11','00000000-0000-4000-8000-00000000ee41',(SELECT (receipt->>'work_token')::UUID FROM copy_reclaim),(SELECT (receipt#>>'{copies,1,attempt_id}')::UUID FROM cohort_reservation),(SELECT (receipt#>>'{copies,0,object_id}')::UUID FROM cohort_reservation),(SELECT (receipt#>>'{copies,0,lease_token}')::UUID FROM cohort_reservation))$$,'22023','analysis_history_operation_conflict','substituted member identity is denied');
+CREATE TEMP TABLE note_copy_claim AS SELECT pg_temp.copy_claim('00000000-0000-4000-8000-00000000ee45') AS receipt;
+SELECT extensions.throws_ok($$SELECT public.reserve_publication_copy_cohort('00000000-0000-4000-8000-00000000ee01','00000000-0000-4000-8000-00000000ee11','00000000-0000-4000-8000-00000000ee45',(SELECT (receipt->>'work_token')::UUID FROM note_copy_claim))$$,'22023','analysis_history_operation_conflict','public note needs its own approval before copying');
+SELECT public.release_publication_copy_work('00000000-0000-4000-8000-00000000ee01','00000000-0000-4000-8000-00000000ee11','00000000-0000-4000-8000-00000000ee45',(SELECT (receipt->>'work_token')::UUID FROM note_copy_claim));
+UPDATE internal.observation_publication_copy_work SET recover_after=clock_timestamp()-INTERVAL '1 second' WHERE operation_id='00000000-0000-4000-8000-00000000ee45';
+UPDATE internal.observation_histories SET state_revision=state_revision+1 WHERE observation_id='00000000-0000-4000-8000-00000000ee11';
+SELECT extensions.throws_ok('SELECT pg_temp.reserve_cohort()','40001','analysis_history_revision_conflict','stale revision cannot reuse a reservation for I/O');
+SELECT extensions.throws_ok('SELECT pg_temp.complete_cohort_member(1)','40001','analysis_history_revision_conflict','authority changes block readiness after external writes');
+SELECT extensions.ok(pg_temp.read_cohort()->'reservation' IS NOT NULL,'authority loss still permits historical cleanup recovery');
+UPDATE internal.observation_history_rollout SET publication_copy_reservation_enabled=FALSE;
+SELECT extensions.is(pg_temp.abandon_cohort()->>'abandoned','true','authority loss and gate closure can abandon the entire unbound cohort');
+SELECT extensions.is((SELECT count(*)::INT FROM internal.publication_photo_objects WHERE revoked_at IS NOT NULL AND available_at<=clock_timestamp()),2,'all siblings become due for targeted erasure');
+SELECT extensions.is(pg_temp.abandon_cohort()->>'abandoned','true','abandon replay does not allocate or extend anything');
+SET LOCAL ROLE authenticated;
+SELECT extensions.throws_ok('SELECT pg_temp.reserve_cohort()','42501','permission denied for function reserve_publication_copy_cohort','actual client cannot nominate reservation owner');
+SELECT extensions.throws_ok('SELECT pg_temp.read_cohort()','42501','permission denied for function read_publication_copy_cohort','actual client cannot read private cohort receipts');
+RESET ROLE;
 INSERT INTO internal.observation_photo_publications(operation_id,object_ids,receipt) VALUES('00000000-0000-4000-8000-00000000ee41',ARRAY[gen_random_uuid()],'{"status":"admitted"}');
 SELECT extensions.is(pg_temp.copy_claim(),'{"claimed":false}'::JSONB,'durable binding retires copy recovery');
+SELECT extensions.is(pg_temp.read_cohort()->'publication','{"status":"admitted"}'::JSONB,'lost binding response recovers despite retired work');
+SELECT extensions.is(pg_temp.abandon_cohort(),'{"abandoned":false}'::JSONB,'historical publication wins over late abandonment');
 CREATE TEMP TABLE live_deleted_copy AS SELECT pg_temp.copy_claim('00000000-0000-4000-8000-00000000ee45') AS receipt;
 SELECT extensions.is((SELECT receipt->>'claimed' FROM live_deleted_copy),'true','unbound operation holds a live lease before deletion');
 INSERT INTO internal.scan_deletion_tombstones(scan_id,user_id) VALUES('00000000-0000-4000-8000-00000000ee11','00000000-0000-4000-8000-00000000ee01');
@@ -280,5 +353,8 @@ SELECT extensions.is((SELECT count(*)::INT FROM internal.observation_publication
 SELECT extensions.throws_ok('SELECT pg_temp.copy_claim()','P0002','analysis_history_not_found','deletion defeats copy recovery');
 SELECT extensions.throws_ok($$SELECT public.read_publication_copy_work('00000000-0000-4000-8000-00000000ee01','00000000-0000-4000-8000-00000000ee11','00000000-0000-4000-8000-00000000ee45',(SELECT (receipt->>'work_token')::UUID FROM live_deleted_copy))$$,'P0002','analysis_history_not_found','deletion defeats active copy read');
 SELECT extensions.throws_ok($$SELECT public.release_publication_copy_work('00000000-0000-4000-8000-00000000ee01','00000000-0000-4000-8000-00000000ee11','00000000-0000-4000-8000-00000000ee45',(SELECT (receipt->>'work_token')::UUID FROM live_deleted_copy))$$,'P0002','analysis_history_not_found','deletion defeats active copy release');
+SELECT extensions.is((SELECT count(*)::INT FROM internal.observation_publication_copy_cohorts),0,'deletion removes private cohort receipts');
+SELECT extensions.is((SELECT count(*)::INT FROM internal.publication_photo_objects),2,'registry obligations survive private history deletion');
+SELECT extensions.throws_ok('SELECT pg_temp.read_cohort()','P0002','analysis_history_not_found','deletion wins over cohort and publication recovery');
 SELECT * FROM extensions.finish();
 ROLLBACK;

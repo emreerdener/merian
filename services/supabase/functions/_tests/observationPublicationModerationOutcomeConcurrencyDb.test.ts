@@ -32,6 +32,10 @@ for (
     "copy duplicate",
     "copy deletion first",
     "copy before deletion",
+    "cohort duplicate",
+    "cohort abandon before complete",
+    "cohort deletion before complete",
+    "cohort complete before deletion",
   ]
 ) {
   Deno.test({
@@ -69,6 +73,8 @@ for (
         "publication_execution_enabled",
         "publication_moderation_enabled",
         "publication_copy_execution_enabled",
+        "publication_copy_enabled",
+        "publication_copy_reservation_enabled",
       ];
       let previous: Record<string, boolean> | undefined;
       let funding: {
@@ -84,12 +90,18 @@ for (
             `SELECT set_config('request.jwt.claims','{"role":"service_role"}',false)`,
           );
         }
-        const fixture = await Deno.readTextFile(
+        let fixture = await Deno.readTextFile(
           new URL(
             "../../tests/publication_moderation_operations.sql",
             import.meta.url,
           ),
         );
+        if (scenario.startsWith("cohort ")) {
+          fixture = fixture.replace(
+            "'note','Synthetic public note'",
+            "'note',NULL",
+          );
+        }
         await observer.queryArray(
           fixture.split("-- BEGIN PHOTO MODERATION HELPERS\n")[1].split(
             "-- END PHOTO MODERATION HELPERS",
@@ -199,13 +211,106 @@ for (
         if (!["completion first", "finalization first"].includes(scenario)) {
           await complete(observer);
         }
-        const copy = scenario.startsWith("copy ");
+        const copy = scenario.startsWith("copy ") ||
+          scenario.startsWith("cohort ");
         const claimCopy = (client: Client) =>
           client.queryObject<{ receipt: { claimed: boolean } }>(
             "SELECT public.claim_publication_copy_work($1,$2,$3) AS receipt",
             [owner, observation, operation],
           );
         if (copy) await finalize(observer);
+        if (scenario.startsWith("cohort ")) {
+          const claim =
+            (await observer.queryObject<{ receipt: { work_token: string } }>(
+              "SELECT public.claim_publication_copy_work($1,$2,$3) AS receipt",
+              [owner, observation, operation],
+            )).rows[0].receipt;
+          const scope = [owner, observation, operation, claim.work_token];
+          type Member = {
+            attempt_id: string;
+            object_id: string;
+            lease_token: string;
+          };
+          const reserve = (client: Client) =>
+            client.queryObject<
+              { receipt: { expires_at: string; copies: Member[] } }
+            >(
+              "SELECT public.reserve_publication_copy_cohort($1,$2,$3,$4) AS receipt",
+              scope,
+            );
+          const saved = scenario === "cohort duplicate"
+            ? null
+            : (await reserve(observer)).rows[0].receipt;
+          const completeCopy = (client: Client) =>
+            client.queryObject<{ receipt: unknown }>(
+              "SELECT public.complete_publication_copy_cohort_photo($1,$2,$3,$4,$5,$6,$7) AS receipt",
+              [
+                ...scope,
+                saved!.copies[0].attempt_id,
+                saved!.copies[0].object_id,
+                saved!.copies[0].lease_token,
+              ],
+            );
+          const abandon = (client: Client) =>
+            client.queryObject<{ receipt: unknown }>(
+              "SELECT public.abandon_publication_copy_cohort($1,$2,$3,$4) AS receipt",
+              scope,
+            );
+          const firstPID = (await first.queryObject<{ pid: number }>(
+            "SELECT pg_backend_pid() AS pid",
+          )).rows[0].pid;
+          const secondPID = (await second.queryObject<{ pid: number }>(
+            "SELECT pg_backend_pid() AS pid",
+          )).rows[0].pid;
+          await first.queryArray("BEGIN");
+          await second.queryArray("BEGIN");
+          let original: unknown;
+          if (scenario === "cohort duplicate") {
+            original = (await reserve(first)).rows[0].receipt;
+          } else if (scenario === "cohort abandon before complete") {
+            await abandon(first);
+          } else if (scenario === "cohort deletion before complete") {
+            await erase(first);
+          } else await completeCopy(first);
+          const pending = settle(
+            scenario === "cohort duplicate"
+              ? reserve(second)
+              : scenario === "cohort complete before deletion"
+              ? erase(second)
+              : completeCopy(second),
+          );
+          await observeBlock(observer, secondPID, firstPID);
+          await first.queryArray("COMMIT");
+          const outcome = await pending;
+          if (
+            scenario === "cohort duplicate" ||
+            scenario === "cohort complete before deletion"
+          ) {
+            assert(outcome.ok);
+            await second.queryArray("COMMIT");
+            if (scenario === "cohort duplicate") {
+              assertEquals(outcome.value.rows[0].receipt, original);
+            }
+          } else {
+            assert(!outcome.ok);
+            assert(
+              outcome.error.includes(
+                scenario.includes("deletion")
+                  ? "analysis_history_not_found"
+                  : "analysis_history_operation_conflict",
+              ),
+            );
+            await second.queryArray("ROLLBACK");
+          }
+          assertEquals(
+            (await observer.queryObject<{ count: number }>(
+              "SELECT count(*)::int AS count FROM internal.observation_publication_copy_cohorts WHERE operation_id=$1",
+              [operation],
+            )).rows[0].count,
+            scenario.includes("deletion") ? 0 : 1,
+          );
+          return;
+        }
         const firstPid = (await first.queryObject<{ pid: number }>(
           "SELECT pg_backend_pid() AS pid",
         )).rows[0].pid;

@@ -13669,8 +13669,61 @@ whose authority changed. It creates no storage object, renews no staging TTL,
 spends no provider quota or complimentary credit, and approves no public note.
 There is no Edge consumer or scheduler yet; client DTOs are unchanged. The
 separate copy executor must still recover any durable binding first, revalidate
-current authority and verified containers, atomically reserve the exact cohort
-under one fixed deadline, and obtain registry claims before cleanup. The held
-private per-photo copy/binder routines remain ungranted. Live binding must also
-require immutable exact-note approval or an explicitly restricted no-note path.
-All activation gates remain false.
+current authority and verified containers, consume the prepared atomic cohort
+reservation below, propagate its fixed deadline, and obtain registry claims
+before cleanup. The held private per-photo copy/binder routines remain
+ungranted. Live binding must also require immutable exact-note approval or an
+explicitly restricted no-note path. All activation gates remain false.
+
+## Prepared atomic publication copy reservation
+
+`20261004152009_reserve_publication_copy_cohort.sql` adds a separate
+default-false `publication_copy_reservation_enabled` gate. Enabling recovery
+alone cannot activate these allocation/completion APIs.
+`reserve_publication_copy_cohort` requires a live copy-work token, the exact
+settled ordered causal-leaf cohort, current intent/source/review/consent
+authorization and the existing copy gates. This prepared path explicitly accepts
+only a null public note. Photo approval cannot authorize arbitrary public text;
+nonnull notes need separate immutable moderation before that restriction may
+change.
+
+Reservation creates every member's opaque object, copy lease and registry
+cleanup obligation in one transaction, along with a private immutable operation
+receipt. All members share one ten-minute deadline assigned at first
+reservation. A failure on any member rolls back all allocations. Exact retries
+return the original objects, leases and deadline; existing legacy partial
+allocations are rejected rather than adopted or renewed. Readiness never extends
+expiry.
+
+The service-only `complete_publication_copy_cohort_photo` verifies live work,
+exact member/object/lease, all registry states and the unchanged common
+deadline, then repeats current authority checks before marking that member
+ready. It does not attest storage bytes: the pending execution adapter must
+verify exact private bytes, strict container policy and the conditional public
+write/HEAD receipt, with one shared request signal reaching the completion RPC.
+
+`read_publication_copy_cohort` returns private
+`{reservation:{expires_at,copies}|null,publication:<historical receipt>|null}`.
+It checks owner/deletion and immutable cohort identities, but deliberately does
+not require live work, an open gate, unexpired staging or current publication
+authority. Binding retires work; its lost response must remain recoverable
+before any cleanup decision. A historical receipt does not assert current
+visibility.
+
+`abandon_publication_copy_cohort` checks for a committed publication first and
+returns `{abandoned:false}` when one exists. Otherwise it requires live exact
+copy work and queues every unbound member for erasure under stable registry lock
+ordering, even after authority/gate changes. Success returns
+`{abandoned:true,object_ids:[...]}`; this is eligibility, not permission to
+erase. The external cleanup owner still needs a targeted registry claim per
+object. Expired/stale workers cannot abandon a newer claim; fixed TTL cleanup
+remains. Deletion removes private receipts and makes surviving registry objects
+due; the independent erasure worker can claim them without private owner
+records.
+
+All four RPCs are service-only, allowlisted and ungranted to clients; private
+helpers/tables remain ungranted. They never create provider attempts or charge
+complimentary credits. No Edge repository/worker or live binder is connected by
+this migration. The next execution slice must enforce whole-cohort cleanup after
+final denial and consume historical publication recovery before cleanup. Every
+activation gate stays false.

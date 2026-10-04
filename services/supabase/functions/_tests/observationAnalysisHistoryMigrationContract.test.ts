@@ -905,3 +905,23 @@ Deno.test("copy recovery has a separate default-off lease and exact settled coho
   assert(!sql.includes("reserve_ai_quota"));
   assert(!sql.includes("reserve_publication_photo_copy"));
 });
+
+Deno.test("copy cohort reservation is atomic, immutable, no-note and service scoped", async () => {
+  const sql = await migration("20261004152009_reserve_publication_copy_cohort");
+  assertStringIncludes(
+    sql,
+    "publication_copy_reservation_enabled BOOLEAN NOT NULL DEFAULT FALSE",
+  );
+  assertStringIncludes(sql, "internal.authorize_publication_copy_cohort");
+  assertStringIncludes(sql, "internal.assert_publication_copy_work");
+  assertStringIncludes(sql, "request->>'note' IS NOT NULL");
+  assertStringIncludes(
+    sql,
+    "deadline:=clock_timestamp()+INTERVAL '10 minutes'",
+  );
+  assertStringIncludes(sql, "ON DELETE CASCADE");
+  assertStringIncludes(sql, "internal.privileged_routine_grants");
+  assertStringIncludes(sql, "internal.observation_photo_publications");
+  assert(!sql.includes("TO authenticated"));
+  assert(!sql.includes("reserve_ai_quota"));
+});

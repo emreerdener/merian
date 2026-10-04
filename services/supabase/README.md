@@ -3361,7 +3361,17 @@ and scoped denial.
 
 Approved photo outcomes now seed private copy work with a distinct token and
 exact ordered causal-leaf cohort. The four service-only recovery RPCs add no
-storage, provider or binding authority. Gates remain false. Current-authority
-checks, common fixed staging deadlines, targeted cohort cleanup and note
-approval still belong to the pending execution integration. See the
+storage, provider or binding authority. Gates remain false. The pending
+execution integration must consume current-authority checks and fixed staging
+deadlines, perform targeted cohort cleanup and enforce note approval. See the
 [canonical copy recovery contract](../../docs/backend-and-data/05-api-contracts.md#prepared-publication-copy-recovery-ownership).
+
+## Prepared atomic copy cohort reservation
+
+A separate default-false reservation gate now protects atomic allocation of the
+exact approved no-note cohort under one immutable expiry. Scoped completion
+rechecks current authority; historical publication recovery precedes cleanup,
+and abandonment queues all unbound siblings without itself granting erasure.
+Private receipts cascade on deletion while registry cleanup survives. No live
+copy worker or binder is connected. See the
+[canonical reservation contract](../../docs/backend-and-data/05-api-contracts.md#prepared-atomic-publication-copy-reservation).

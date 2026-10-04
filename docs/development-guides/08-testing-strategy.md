@@ -10594,3 +10594,21 @@ retirement and deletion of live copy work. The moderation outcome concurrency
 suite also exercises simultaneous copy claims and account deletion in both
 orders. These checks do not qualify storage writes or note moderation; those
 remain separate activation requirements.
+
+## Atomic publication copy reservation checks
+
+The photo-outcome catalog now forces a second-member allocation failure to prove
+full rollback, then verifies stable replay, common immutable expiry, independent
+activation, scoped readiness, stale authority, no-note restriction, whole-cohort
+abandonment, lost-binding recovery and deletion cleanup survival. The
+separate-session outcome suite also covers concurrent reservation and completion
+racing abandonment or account deletion. These are synthetic database checks;
+strict byte/container and shared transport-deadline integration still require
+the pending copy execution adapter.
+
+Run the catalog suite on a fresh migration replay before database runtime tests.
+Concurrency tests deliberately leave permanent detached erasure obligations;
+those synthetic registry rows survive account cleanup and invalidate catalog
+fixtures that assert whole-table counts. Reset the disposable database before
+rerunning catalogs after concurrency tests; do not delete or weaken the durable
+registry to make those counts pass.

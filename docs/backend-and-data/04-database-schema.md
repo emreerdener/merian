@@ -7080,3 +7080,14 @@ enforce separate leases and exact ordered causal-leaf recovery; no direct table
 access or storage mutation is granted. `publication_copy_execution_enabled`
 defaults false. See the
 [copy recovery contract](05-api-contracts.md#prepared-publication-copy-recovery-ownership).
+
+### Prepared immutable copy cohort reservations
+
+`20261004152009_reserve_publication_copy_cohort.sql` adds private
+`observation_publication_copy_cohorts`, keyed to a settled moderation outcome
+with cascading deletion. It freezes the ordered original copy receipts and one
+shared expiry, guarded against updates. Allocation inserts all object/registry
+rows and this receipt atomically. The independent default-false
+`publication_copy_reservation_enabled` gate protects new reserve/complete RPCs;
+historical read and targeted cleanup eligibility remain separate. See the
+[atomic reservation contract](05-api-contracts.md#prepared-atomic-publication-copy-reservation).
