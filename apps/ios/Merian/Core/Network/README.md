@@ -74,13 +74,20 @@ behavior coverage.
 
 ## Supabase Auth cold-start adoption
 
-The factory also attaches `X-Merian-Identification-Protocol: 5` to SDK requests
+The factory also attaches `X-Merian-Identification-Protocol: 6` to SDK requests
 using the same decoder-capability constant as identification dispatch. This
 covers PostgREST history and single-scan reads, independently of entitlement
 protocol 3 and recipient permission. Unsupported older readers get a query error
 for visible V2 or explicit-primary results they cannot decode; the backend
 preserves their saved observations. See the
 [result-reader contract](../../../../../docs/backend-and-data/05-api-contracts.md#identification-result-readers).
+
+Debug unit and UI tests give each SDK client an isolated, synchronized in-memory
+Auth store. They cannot restore or overwrite a simulator's persistent SDK
+session. Explicitly installed synthetic sessions still use the normal Auth
+client behavior; normal Debug launches and Release keep `KeychainLocalStorage`.
+`HistoricalSyncCloudClientTests` verifies store isolation, round trips and
+removal.
 
 `MerianSupabaseClientFactory` enables `emitLocalSessionAsInitialSession`. The
 pinned Supabase Swift SDK therefore emits the cached session immediately,

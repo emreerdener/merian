@@ -607,6 +607,13 @@ cannot dispatch or publish twice, and that cancellation during a suspended
 persistence callback prevents late presentation, notification, hydration and
 milestone effects.
 
+Debug test execution also isolates the Supabase SDK's Auth storage per client
+through `MerianSupabaseClientFactory`. A UI launch cannot adopt a session left
+in the simulator Keychain by an earlier run. Tests install synthetic sessions
+explicitly where needed; normal Debug launches and Release retain persistent
+Keychain storage. `HistoricalSyncCloudClientTests` verifies the storage round
+trip, removal and isolation between clients.
+
 The formerly unconditionally skipped Photos-based background UI test is replaced
 by `testBackgroundInterruptionPreservesQueuedAudioInsight`, which uses the
 existing synthetic audio seed, waits for actual background/foreground state and

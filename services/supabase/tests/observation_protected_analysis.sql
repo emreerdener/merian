@@ -57,7 +57,7 @@ CREATE FUNCTION pg_temp.funded_draft(owner_id UUID,observation UUID,analysis UUI
     FROM internal.observation_analysis_intents WHERE analysis_id=analysis;
 $$;
 CREATE FUNCTION pg_temp.protected_input(observation UUID,analysis UUID,media UUID) RETURNS JSONB LANGUAGE SQL AS $$
- SELECT pg_temp.funded_input(observation,analysis) || jsonb_build_object('schema_version',2,'history_protocol',8,'expected_processor_permission','openai','evidence_manifest',jsonb_build_object('schema_version',2,'items',jsonb_build_array(jsonb_build_object('kind','image','media_id',media,'content_type','image/jpeg','byte_count',3,'sha256',repeat('a',64)),jsonb_build_object('kind','description','text','Synthetic private observation'))));
+ SELECT pg_temp.funded_input(observation,analysis) || jsonb_build_object('schema_version',2,'history_protocol',8,'expected_processor_permission','google_gemini','evidence_manifest',jsonb_build_object('schema_version',2,'items',jsonb_build_array(jsonb_build_object('kind','image','media_id',media,'content_type','image/jpeg','byte_count',3,'sha256',repeat('a',64)),jsonb_build_object('kind','description','text','Synthetic private observation'))));
 $$;
 CREATE FUNCTION pg_temp.protected_ready(owner_id UUID,observation UUID,analysis UUID,media UUID) RETURNS UUID LANGUAGE PLPGSQL AS $$
 DECLARE receipt JSONB;
@@ -93,6 +93,9 @@ SELECT extensions.throws_ok($$SELECT internal.admit_observation_analysis('000000
 SELECT extensions.throws_ok($$SELECT internal.admit_protected_observation_analysis('00000000-0000-4000-8000-00000000e701',pg_temp.protected_input('00000000-0000-4000-8000-00000000e711','00000000-0000-4000-8000-00000000e729','00000000-0000-4000-8000-00000000e731'),repeat('a',64))$$,'55000','analysis_history_evidence_unavailable','another analysis cannot reuse this receipt');
 SELECT extensions.throws_ok($$SELECT internal.admit_protected_observation_analysis('00000000-0000-4000-8000-00000000e701',jsonb_set(pg_temp.protected_input('00000000-0000-4000-8000-00000000e711','00000000-0000-4000-8000-00000000e721','00000000-0000-4000-8000-00000000e731'),'{evidence_manifest,items,0,object_id}','"00000000-0000-4000-8000-00000000e740"'),repeat('a',64))$$,'22023','invalid_analysis_history','object keys cannot be smuggled into protected snapshots');
 SELECT extensions.throws_ok($$SELECT internal.admit_protected_observation_analysis('00000000-0000-4000-8000-00000000e701',pg_temp.protected_input('00000000-0000-4000-8000-00000000e711','00000000-0000-4000-8000-00000000e721','00000000-0000-4000-8000-00000000e731') || '{"history_protocol":7}',repeat('a',64))$$,'22023','invalid_analysis_history','old client cannot initiate protected V2');
+-- A stale provider preflight must fail before funding, even with ready private media.
+SELECT extensions.throws_ok($$SELECT internal.admit_protected_observation_analysis('00000000-0000-4000-8000-00000000e701',jsonb_set(pg_temp.protected_input('00000000-0000-4000-8000-00000000e711','00000000-0000-4000-8000-00000000e721','00000000-0000-4000-8000-00000000e731'),'{expected_processor_permission}','"openai"'),repeat('a',64))$$,'P0001','ai_identification_preflight_changed','stale processor permission cannot admit protected analysis');
+SELECT extensions.is((SELECT count(*) FROM internal.complimentary_scan_usage WHERE user_id='00000000-0000-4000-8000-00000000e701'),0::BIGINT,'stale processor preflight cannot reserve a credit');
 SELECT pg_temp.admit_protected();
 SELECT pg_temp.admit_protected();
 SELECT extensions.is((SELECT count(*) FROM internal.complimentary_scan_usage WHERE user_id='00000000-0000-4000-8000-00000000e701'),1::BIGINT,'photo admission replay holds one credit');

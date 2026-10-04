@@ -1,4 +1,5 @@
 import Foundation
+import os
 import Supabase
 
 enum MerianSupabaseClientFactory {
@@ -16,7 +17,7 @@ enum MerianSupabaseClientFactory {
             supabaseKey: MerianEnvironment.supabaseAnonKey,
             options: SupabaseClientOptions(
                 auth: .init(
-                    storage: KeychainLocalStorage(),
+                    storage: makeAuthStorage(),
                     emitLocalSessionAsInitialSession: emitLocalSessionAsInitialSession
                 ),
                 global: .init(
@@ -29,4 +30,33 @@ enum MerianSupabaseClientFactory {
             )
         )
     }
+
+    static func makeAuthStorage() -> any AuthLocalStorage {
+        #if DEBUG
+        if TestExecutionCoordinator.isRunningTests {
+            return ProcessLocalAuthStorage()
+        }
+        #endif
+        return KeychainLocalStorage()
+    }
 }
+
+#if DEBUG
+/// Test clients must neither restore nor overwrite a simulator's saved session.
+/// Each client owns its storage; explicitly installed test sessions still work.
+private struct ProcessLocalAuthStorage: AuthLocalStorage {
+    private let values = OSAllocatedUnfairLock(initialState: [String: Data]())
+
+    func store(key: String, value: Data) throws {
+        values.withLock { $0[key] = value }
+    }
+
+    func retrieve(key: String) throws -> Data? {
+        values.withLock { $0[key] }
+    }
+
+    func remove(key: String) throws {
+        values.withLock { _ = $0.removeValue(forKey: key) }
+    }
+}
+#endif

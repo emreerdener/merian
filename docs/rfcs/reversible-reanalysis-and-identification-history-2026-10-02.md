@@ -2167,5 +2167,25 @@ contract. This is a design finding, not an implemented review endpoint.
 The accumulated work is prepared on a separate candidate branch. A push to
 `main` would invoke the production deployment workflow; a draft pull request is
 the validation destination. Local and CI evidence, deployment and TestFlight
-availability remain separate states. Verification results will be recorded after
-the candidate checks complete.
+availability remain separate states.
+
+After merging the latest Gemini routing preparation, the protected-photo SQL
+fixtures now assert the configured Gemini preflight. A stale OpenAI preflight is
+rejected before a complimentary hold is reserved. The fresh disposable migration
+replay and all database catalogs passed 777 assertions across 84 files. The
+complete backend suite passed 2,409 tests, including the database concurrency
+cases. Database lint passed; security and performance advisors reported 103 and
+79 warnings respectively, with no errors under the existing warning policy. The
+disposable database was removed afterward. All 107 function entry points,
+dependency/config checks, lint, DTO checks, 26 documentation contracts and both
+complete tooling gates passed.
+
+The complete native unit target passed: the retained combined result at
+`.artifacts/local-ios/832d3f026f084bc0b0fcb605f72e9926.xcresult` records 4,788
+passing tests, seven skipped and one failed UI test. Swift Testing completed
+3,354 tests in 503 suites without issues. The remaining UI failure occurs before
+history opens: tapping the root Scans entry does not present the library. The
+same failure reproduced in an isolated UI run at
+`.artifacts/local-ios/a903bd493c5b40bcbc64e97a8afa58a8.xcresult`. This evidence
+resolves the earlier 12 unit failures but does not establish a green history UI
+gate for this candidate.

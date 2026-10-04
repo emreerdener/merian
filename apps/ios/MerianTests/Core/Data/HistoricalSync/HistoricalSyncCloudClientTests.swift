@@ -7,6 +7,18 @@ import Testing
 @MainActor
 @Suite("Historical Sync Cloud Client")
 struct HistoricalSyncCloudClientTests {
+    @Test func sdkTestSessionStorageIsIsolatedPerClient() throws {
+        let first = MerianSupabaseClientFactory.makeAuthStorage()
+        let second = MerianSupabaseClientFactory.makeAuthStorage()
+        let key = "synthetic-session"
+        let value = Data("synthetic-test-value".utf8)
+        try first.store(key: key, value: value)
+        #expect(try first.retrieve(key: key) == value)
+        #expect(try second.retrieve(key: key) == nil)
+        try first.remove(key: key)
+        #expect(try first.retrieve(key: key) == nil)
+    }
+
     @Test func sdkScanReadsCarryTheResultReaderCapability() async throws {
         let transport = ScopedMockTransport()
         let session = transport.makeSession()
