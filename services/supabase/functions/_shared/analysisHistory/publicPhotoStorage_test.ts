@@ -332,3 +332,22 @@ Deno.test("public copy credentials cannot alias generic, private or opposite-acc
     }
   }
 });
+
+Deno.test("public marker erasure shares cancellation and cannot start verification after expiry", async () => {
+  const abort = new AbortController(), calls: string[] = [];
+  const storage = new PublicHistoryPhotoStorage(
+    () => config,
+    () => config,
+    (request) => {
+      calls.push(request.method);
+      assert(!request.signal.aborted);
+      abort.abort();
+      assert(request.signal.aborted);
+      return Promise.resolve(new Response(null, { status: 200 }));
+    },
+  );
+  await assertRejects(() => storage.erase(id(1), abort.signal));
+  assertEquals(calls, ["PUT"]);
+  await assertRejects(() => storage.erase(id(1), abort.signal));
+  assertEquals(calls, ["PUT"]);
+});

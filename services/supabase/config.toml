@@ -765,3 +765,7 @@ verify_jwt = false
 # Service-only bounded photo moderation; activation remains separately gated.
 [functions.moderate-publication-photos]
 verify_jwt = false
+
+# Service-only bounded publication copying; activation remains independently gated.
+[functions.copy-publication-photos]
+verify_jwt = false

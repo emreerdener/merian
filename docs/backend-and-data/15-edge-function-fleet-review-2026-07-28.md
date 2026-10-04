@@ -290,6 +290,7 @@ report-user
 request-community-identification
 request-observation-publication
 moderate-publication-photos
+copy-publication-photos
 request-export-dwca
 resolve-purchase-principal
 restore-community-identification
@@ -415,3 +416,15 @@ new provider work. SQL execution/moderation gates remain false. A shared
 recovery bound the pass. It supplies no deployment, scheduling, public-copy,
 publication or note-approval evidence. See its
 [README](../../services/supabase/functions/moderate-publication-photos/README.md).
+
+## Source inventory update — 2026-10-04 publication copy worker
+
+`copy-publication-photos` is a prepared service-authenticated, no-store POST
+worker. It strictly recovers one ordered approved cohort, settles durable note
+or expiry outcomes before copying, and preserves original deadlines and targeted
+registry erasure authority. Its 135-second request reserves cleanup and release
+time; slow setup cannot truncate the controller's budget. All gates remain off.
+Recurring independent erasure invocation, backlog monitoring and CDN bypass must
+be authorized and verified before activation because terminal expiry deletes
+copy work. Source inventory is not deployment or scheduling evidence. See the
+[README](../../services/supabase/functions/copy-publication-photos/README.md).

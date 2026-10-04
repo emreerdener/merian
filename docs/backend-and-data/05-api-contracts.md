@@ -13168,26 +13168,26 @@ never invokes again, refunds, or admits a successor.
 
 Recovery of dispatched work calls the authoritative retirement boundary: before
 expiry it remains pending; after expiry it can become `unknown_execution`,
-retaining its charge. Expiry alone does not transition state. No scheduler,
-claiming recovery worker, authenticated endpoint or live repository adapter is
-installed; those integrations remain required. If a valid provider result never
-commits before expiry, it is intentionally treated as an uncertain execution. An
-already-committed terminal result remains replayable after expiry and generic
-quota pruning. Neither result nor historical receipt authorizes public copying.
+retaining its charge. Expiry alone does not transition state. The prepared
+moderation worker and scoped repository below consume recovery; no deployment or
+scheduler is authorized. If a valid provider result never commits before expiry,
+it is intentionally treated as an uncertain execution. An already-committed
+terminal result remains replayable after expiry and generic quota pruning.
+Neither result nor historical receipt authorizes public copying.
 
 ## Prepared public-photo storage boundary
 
 `analysisHistory/publicPhotoStorage.ts` supplies bounded transport, not
 publication authority. The prepared erasure worker uses its permanent-marker
-operation; the prepared copy execution owner below is not yet connected to an
-authenticated publisher or live copy repository. Private SQL now reserves a
-never-reused opaque object UUID and durable cleanup obligation before I/O and
-revalidates current source, moderation policy, authority and the complete
-ordered cohort before atomic publication binding. Historical approval alone is
-insufficient. Bound ownership coordinates unshare, moderation and deletion
-revocation independently of private selection; reversible health quarantine does
-not erase the cohort. The contracts below define the staged, bound and revoked
-lifetimes.
+operation; the prepared copy worker below connects the scoped execution
+repository to durable authenticated publication operations behind closed gates.
+Private SQL now reserves a never-reused opaque object UUID and durable cleanup
+obligation before I/O and revalidates current source, moderation policy,
+authority and the complete ordered cohort before atomic publication binding.
+Historical approval alone is insufficient. Bound ownership coordinates unshare,
+moderation and deletion revocation independently of private selection;
+reversible health quarantine does not erase the cohort. The contracts below
+define the staged, bound and revoked lifetimes.
 
 The writer uses `publication_media/v1/<object UUID>` in the public bucket,
 separate from legacy scan upload ownership. It requires exact private bytes,
@@ -13831,11 +13831,12 @@ Cleanup uses the remaining overall deadline and leaves unfinished work to the
 permanent registry. No transport failure is asserted to be durable terminal
 failure; the result is only `published` or `reconcile`.
 
-There is no HTTP copy worker or scheduler connected yet. Before activation, the
-service owner must settle durable needs-action outcomes for unsupported notes,
-unsupported media, verified evidence failures and exhausted staging deadlines,
-without treating ambiguous network/storage results as terminal. Owner status,
-native delivery and runtime qualification also remain. All gates stay false.
+The prepared HTTP copy worker below connects this controller and settles durable
+needs-action outcomes before new copy execution. Unsupported source and verified
+container outcomes are handled by the moderation boundaries below; ambiguous
+network/storage results remain recoverable. No scheduler is connected.
+Owner-status delivery, native operations and runtime qualification remain. All
+gates stay false.
 
 ## Prepared durable copy needs-action outcomes
 
@@ -13876,10 +13877,10 @@ Reasons, storage keys and work tokens stay private. Deletion defeats all replay.
 Gate closure, a changed review/privacy/consent revision, expired worker token,
 and transport uncertainty are not terminal content facts. They remain
 recoverable under existing authority and cleanup rules. A note with a legacy
-copy also remains pending rather than being silently discarded. This slice does
-not yet settle verified container preflight failures or connect the copy HTTP
-service owner. Unsupported source types are handled separately below. All
-activation gates remain false.
+copy also remains pending rather than being silently discarded. The prepared
+copy HTTP owner below calls this finalizer before execution. Unsupported sources
+and verified container rejections are handled by the separate moderation
+boundaries below. All activation gates remain false.
 
 ## Prepared unsupported publication source settlement
 
@@ -13952,3 +13953,42 @@ silently transformed or replaced bytes. Policy changes must version the
 validator and its accepted attestation contract together. All activation gates
 stay false; native remediation delivery and runtime/CDN qualification remain
 pending.
+
+## Prepared service publication copy worker
+
+`POST /functions/v1/copy-publication-photos` uses explicit service
+authorization; it accepts no caller-controlled work parameters. Strict bounded
+database hints lead to one original copy claim, whose ordered
+`{attempt_id,source}` cohort, owner/operation scope, token and `work_expires_at`
+are frozen before execution. Claim receipts reject extra fields, aliases,
+unsupported media, expired leases, more than six photos or 32 MiB combined
+input. Database authority and byte checks remain necessary; claim decoding
+grants no permission to write.
+
+`finalize_publication_copy_work` runs first. Historical admitted state skips
+copying and cleanup. Note-required outcomes do no I/O; expired staging allows
+only targeted registry claims for the original SQL-returned objects. Pending
+eligible work enters the existing exact-cohort controller, with full preflight,
+original reserved keys and deadlines, scoped binding, durable publication
+recovery before cleanup, and permanent erasure authority. Unknown failures
+release/reconcile; no terminal state is inferred from transport or gate failure.
+
+The aggregate response is exactly `{claimed,published,needs_action}`; published
+includes recovered historical admission, not current visibility. All responses
+are no-store. Private sources, object keys, notes, reasons and work tokens never
+leave the service boundary.
+
+The total request deadline is 135 seconds. Work/cleanup ends at 123 seconds to
+reserve a 12-second release window. The 110-second controller starts only when
+at least 122 seconds remain; three worst-case setup RPCs cannot be added to its
+budget. Slow setup releases the original claim for later recovery. Each RPC also
+has a 12-second cap and marker PUT/HEAD honors parent cancellation. Original
+120-second claim expiry remains authoritative and is never recreated locally.
+
+**Activation remains blocked** until separately authorized recurring registry
+erasure invocation, due-backlog/oldest-age monitoring and CDN cache bypass are
+verified. Expiry settlement deletes copy work before best-effort immediate
+cleanup, so failed cleanup depends on the permanent registry and independent
+`erase-publication-photos` worker; no copy claim will recover it. All gates
+remain false. CPU/process-memory qualification and owner/native delivery remain
+pending. This prepared endpoint does not authorize scheduling or deployment.

@@ -150,19 +150,35 @@ export class PublicHistoryPhotoStorage {
       head.headers.has("x-amz-meta-erased")
     ) throw new Error("publication_photo_verification_failed");
   }
-  async erase(objectId: string): Promise<void> {
+  async erase(objectId: string, signal?: AbortSignal): Promise<void> {
+    signal?.throwIfAborted();
     historyUUID(objectId);
     // Marker permanence is essential: DELETE would allow a delayed PUT to win.
     const { write, read } = this.configs();
-    const response = await this.request(write, objectId, "PUT", {
-      "Content-Type": "application/octet-stream",
-      "Content-Length": "0",
-      "Cache-Control": CACHE_CONTROL,
-      "x-amz-meta-erased": "true",
-    }, new Uint8Array());
+    const response = await this.request(
+      write,
+      objectId,
+      "PUT",
+      {
+        "Content-Type": "application/octet-stream",
+        "Content-Length": "0",
+        "Cache-Control": CACHE_CONTROL,
+        "x-amz-meta-erased": "true",
+      },
+      new Uint8Array(),
+      signal,
+    );
     await response.body?.cancel();
     if (!response.ok) throw new Error("publication_photo_erasure_failed");
-    const head = await this.request(read, objectId, "HEAD");
+    const head = await this.request(
+      read,
+      objectId,
+      "HEAD",
+      {},
+      undefined,
+      signal,
+    );
+    signal?.throwIfAborted();
     await head.body?.cancel();
     if (
       !head.ok || head.headers.get("Content-Length") !== "0" ||

@@ -850,3 +850,15 @@ No public/client attestation authority or direct table access is granted. No
 attempts, quota, copies or activation are created. Publication and deletion
 precedence, identical replay, and immutable evidence are mandatory. Validator
 policy changes must version the accepted attestation contract together.
+
+## Copy worker activation and erasure liveness
+
+Prepared `copy-publication-photos` uses explicit service authorization and
+closed SQL execution/reservation/settlement/binding gates. Do not enable copying
+until separately authorized recurring `erase-publication-photos` invocation,
+due-backlog/oldest-age monitoring and public CDN cache bypass are verified.
+Terminal staging-expiry settlement deletes copy work; failed best-effort cleanup
+can be recovered only from the permanent registry by the independent erasure
+worker. No source-level gate proves that scheduling is functioning. Runtime
+CPU/process-memory qualification and owner/native delivery also remain
+prerequisites; source/config inventory authorizes no deployment or schedule.

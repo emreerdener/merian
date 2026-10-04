@@ -2585,3 +2585,13 @@ preserves generic read/parser/network/digest/cancellation recovery. Original
 attempts and committed publications cannot be replaced. All gates remain off.
 Bounded copy service ownership, owner/native remediation delivery and
 CPU/memory/CDN qualification remain incomplete.
+
+## Implementation checkpoint: bounded copy service owner
+
+The prepared service-only copy endpoint now connects durable claim/finalization,
+exact cohort preflight/binding, original expiry and targeted cleanup. It
+preserves a full controller window and separate lease-release budget; slow setup
+skips copying. The endpoint is not scheduled, deployed or activated. Verified
+recurring independent erasure and backlog/CDN monitoring are hard activation
+requirements because terminal expiry removes copy work. CPU/memory
+qualification, owner status and native durable operations remain incomplete.

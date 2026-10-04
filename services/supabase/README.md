@@ -3220,9 +3220,9 @@ publisher integration.
 Private pre-I/O preparation now freezes a caller operation, named-result
 revisions and exact owned V2 photo receipt tuples. Historical retry and fresh
 revalidation are separate; neither permits media publication. The new gate
-defaults false and no API caller is granted. Content approval, public-copy
-cleanup, authenticated publishing and native operation recovery remain required.
-See the
+defaults false and no API caller is granted. The prepared moderation and copy
+workers below consume this intent behind closed gates. Native operation recovery
+and authorized runtime qualification remain required. See the
 [intent contract](../../docs/backend-and-data/05-api-contracts.md#prepared-protected-photo-publication-intent).
 
 ## Prepared photo moderation lifecycle
@@ -3231,8 +3231,8 @@ Private source-bound photo jobs now own explicit provider attempts, one-time
 dispatch permits, terminal decision receipts and stale-ambiguity recovery. They
 consume provider quota only, never complimentary scan credits. All new gates,
 quota policies and API access remain closed. The classifier adapter is prepared
-below; durable execution, public-copy cleanup and publisher integration remain
-required; see the
+below, with scoped execution, copy cleanup and binding connected through the
+prepared service owners. Activation remains held; see the
 [attempt contract](../../docs/backend-and-data/05-api-contracts.md#prepared-photo-moderation-attempt-lifecycle).
 
 ## Prepared protected-photo classifier
@@ -3253,7 +3253,8 @@ classifier facts and usage commit atomically with decisions, and exact retries
 cannot alter either proof or output. The prepared TypeScript owner uses one
 frozen invocation and retries only completion writes. The prepared service
 worker and scoped moderation repository now connect this owner. Recovery
-scheduling and public-copy ownership remain held; see the
+scheduling remains held; the prepared copy owner below supplies separate
+public-copy ownership. See the
 [execution contract](../../docs/backend-and-data/05-api-contracts.md#prepared-durable-photo-execution-binding).
 
 ## Prepared public-photo transport
@@ -3361,9 +3362,10 @@ and scoped denial.
 
 Approved photo outcomes now seed private copy work with a distinct token and
 exact ordered causal-leaf cohort. The four service-only recovery RPCs add no
-storage, provider or binding authority. Gates remain false. The pending
-execution integration must consume current-authority checks and fixed staging
-deadlines, perform targeted cohort cleanup and enforce note approval. See the
+storage, provider or binding authority. Gates remain false. The prepared copy
+owner below consumes current-authority checks and fixed staging deadlines,
+performs targeted cohort cleanup and settles nonnull notes as needs-action. See
+the
 [canonical copy recovery contract](../../docs/backend-and-data/05-api-contracts.md#prepared-publication-copy-recovery-ownership).
 
 ## Prepared atomic copy cohort reservation
@@ -3372,8 +3374,9 @@ A separate default-false reservation gate now protects atomic allocation of the
 exact approved no-note cohort under one immutable expiry. Scoped completion
 rechecks current authority; historical publication recovery precedes cleanup,
 and abandonment queues all unbound siblings without itself granting erasure.
-Private receipts cascade on deletion while registry cleanup survives. No live
-copy worker or binder is connected. See the
+Private receipts cascade on deletion while registry cleanup survives. The
+prepared copy worker and scoped binder below consume this reservation behind
+closed gates. See the
 [canonical reservation contract](../../docs/backend-and-data/05-api-contracts.md#prepared-atomic-publication-copy-reservation).
 
 ## Prepared scoped copy repository
@@ -3382,8 +3385,9 @@ copy worker or binder is connected. See the
 completion and abandonment boundary to the existing copy executor through the
 dedicated `publicationCopyExecution.ts` coordinator. It freezes the exact
 cohort, validates common expiry and private lease identities, propagates shared
-deadlines and checks historical publication before cleanup. No storage worker,
-binder or activation is added. See the
+deadlines and checks historical publication before cleanup. The prepared copy
+worker and scoped binder below consume this coordinator; activation remains
+held. See the
 [repository contract](../../docs/backend-and-data/05-api-contracts.md#prepared-scoped-publication-copy-repository).
 
 ## Prepared reserved-cohort binding
@@ -3432,3 +3436,13 @@ remain recoverable. The service-only finalizer and worker integration are behind
 an independent default-false gate; this is conservative publication remediation,
 not invalidation of private evidence. See the
 [API contract](../../docs/backend-and-data/05-api-contracts.md#prepared-verified-container-rejection-attestation).
+
+## Prepared publication copy service owner
+
+`copy-publication-photos` connects strict original claims and durable copy
+outcomes to full-cohort verification, exact binding and targeted erasure. It
+reserves cleanup/release time inside a 135-second request and skips new copying
+after slow setup. Gates stay false. Activation requires verified recurring
+independent erasure, backlog monitoring and CDN bypass because terminal expiry
+retires copy work before best-effort cleanup. See its
+[README](functions/copy-publication-photos/README.md).

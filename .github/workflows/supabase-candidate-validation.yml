@@ -175,6 +175,8 @@ jobs:
             supabase/functions/recover-observation-analyses/handler_test.ts \
             supabase/functions/moderate-publication-photos/handler_test.ts \
             supabase/functions/moderate-publication-photos/db_test.ts \
+            supabase/functions/copy-publication-photos/handler_test.ts \
+            supabase/functions/copy-publication-photos/db_test.ts \
             supabase/functions/erase-publication-photos/handler_test.ts \
             supabase/functions/erase-publication-photos/db_test.ts \
             supabase/functions/request-observation-publication/handler_test.ts \
@@ -353,6 +355,8 @@ jobs:
             supabase/functions/recover-observation-analyses/handler_test.ts \
             supabase/functions/moderate-publication-photos/handler_test.ts \
             supabase/functions/moderate-publication-photos/db_test.ts \
+            supabase/functions/copy-publication-photos/handler_test.ts \
+            supabase/functions/copy-publication-photos/db_test.ts \
             supabase/functions/erase-publication-photos/handler_test.ts \
             supabase/functions/erase-publication-photos/db_test.ts \
             supabase/functions/request-observation-publication/handler_test.ts \
