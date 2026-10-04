@@ -180,6 +180,8 @@ jobs:
             supabase/functions/erase-publication-photos/handler_test.ts \
             supabase/functions/erase-publication-photos/db_test.ts \
             supabase/functions/request-observation-publication/handler_test.ts \
+            supabase/functions/prepare-observation-publication-consent/handler_test.ts \
+            supabase/functions/prepare-observation-publication-consent/route_test.ts \
             supabase/functions/get-observation-publication-status/handler_test.ts \
             supabase/functions/get-observation-publication-status/route_test.ts \
             supabase/functions/delete-scan/handler_test.ts \
@@ -362,6 +364,8 @@ jobs:
             supabase/functions/erase-publication-photos/handler_test.ts \
             supabase/functions/erase-publication-photos/db_test.ts \
             supabase/functions/request-observation-publication/handler_test.ts \
+            supabase/functions/prepare-observation-publication-consent/handler_test.ts \
+            supabase/functions/prepare-observation-publication-consent/route_test.ts \
             supabase/functions/get-observation-publication-status/handler_test.ts \
             supabase/functions/get-observation-publication-status/route_test.ts \
             supabase/functions/share-scan-to-explore/audioModeration_test.ts \

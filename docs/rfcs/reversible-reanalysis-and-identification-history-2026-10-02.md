@@ -2647,3 +2647,14 @@ inventing a server terminal result. Connectivity cancellation and awaited Auth
 quiescence retain task/lease ownership. Ordinary UI enqueue and every activation
 gate remain disabled. Validation evidence belongs to the candidate checkpoint;
 this implementation note does not assert production qualification or deployment.
+
+### October 4 update: dedicated consent preflight
+
+Prepared owner-authenticated consent preflight now projects an explicit
+analysis's current revisions, active taxonomy, fixed-null initial taxon and
+ordered immutable V2 photo candidates under shared locked eligibility. It
+creates no operation and promises no ready media or publication authority.
+Existing exact consent admission retains its receipt and revision checks; closed
+generic history/status readers are unchanged. Native consent production and UI
+remain next, with all activation gates false. The current contract is
+[documented here](../backend-and-data/05-api-contracts.md#owner-publication-consent-preflight).

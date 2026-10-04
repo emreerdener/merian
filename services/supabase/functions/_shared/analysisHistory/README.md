@@ -629,3 +629,13 @@ returned. Native durable delivery recovers this status before exact admission
 and remains status-only after acknowledgement. Ordinary UI admission and
 activation remain separate. See the
 [status contract](../../../../../docs/backend-and-data/05-api-contracts.md#owner-publication-operation-status).
+
+### Consent preflight
+
+`publicationConsent.ts` owns the closed dedicated preflight request/snapshot. It
+reuses protected V2 metadata bounds, preserves candidate order and exposes no
+operation or object identity. The endpoint and shared locked SQL eligibility are
+described in the
+[API contract](../../../../../docs/backend-and-data/05-api-contracts.md#owner-publication-consent-preflight).
+These candidates are descriptive; exact selected receipt readiness remains an
+admission check. Existing history and operation-status contracts stay closed.

@@ -7151,3 +7151,16 @@ to accepted operation and deletion cascade, and the default-false
 source tuples and fixed policy can enter the service finalizer. Zero-attempt
 `public_container_rejected` outcomes commit with attestation and work
 retirement; existing provider outcomes and copy authority are unchanged.
+
+## Prepared publication consent read
+
+`20261004223926_prepare_publication_consent_preflight.sql` adds no table or
+activation. Its service-only allowlisted
+`prepare_owned_observation_publication_consent(uuid,uuid,uuid)` projects current
+revisions, active taxonomy and ordered immutable V2 photo candidate metadata
+under the same locked eligibility used by intent source resolution. The shared
+internal helper is revoked from all API roles. Existing resolver denial order
+and selected-receipt validation remain intact; candidates promise no readiness
+or publication authority. Owner/deletion fences and the existing default-false
+publication-intent/reader/media-reader gates protect this read. See the
+[API contract](05-api-contracts.md#owner-publication-consent-preflight).

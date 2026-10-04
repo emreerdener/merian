@@ -14052,3 +14052,46 @@ receipt. Network uncertainty retains the same operation under bounded backoff;
 Auth cancellation is awaited before replacing the session. Ordinary UI delivery
 remains separate; all activation gates remain false. See
 [the storage contract](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#prepared-publication-persistence).
+
+## Owner publication consent preflight
+
+Prepared `POST prepare-observation-publication-consent` authenticates the owner
+with `withEdgeHandler`. Its exact request is
+`{schema_version:1,observation_id,analysis_id}` (lowercase UUIDs, 1 KiB body).
+The exact response is
+`{schema_version:1,observation_id,analysis_id,
+expected_observation_revision,expected_review_revision,taxonomy_version_id,
+initial_taxon_id:null,media:[{media_id,content_type,byte_count,sha256}]}`.
+The taxonomy UUID is the active version; no name matching invents an initial
+version-bound taxon. No operation, post, URL, storage key, description, note or
+visibility claim is returned. General history and operation-status shapes are
+unchanged. The native consent producer and ordinary UI are not connected yet.
+
+The service-only `prepare_owned_observation_publication_consent` RPC and the
+existing intent resolver share `internal.lock_publication_consent_eligibility`.
+Owner/generation/deletion locks precede the existing closed publication-intent,
+reader and media-reader gates. Authority is locked before reading current
+revisions. Eligibility remains biological, unreviewed, without community
+authority or human identity, and without an existing Explore post or community
+request. Here unreviewed means `user_review_state=unreviewed`: an AI rejection
+remains eligible for community help while preserving its separate rejection
+authority and returning the advanced review revision. An explicit historical
+analysis can qualify independently of private selection. This boundary prepares
+initial community intake, not later resolved Explore publication. The existing
+resolver still rejects stale revisions before evidence, review or taxonomy
+failures and validates selected ready receipts.
+
+Photo candidates preserve immutable V2 manifest order and metadata (up to 64
+items and 32 MiB total image bytes), omitting descriptions. They do **not**
+prove ready media or reserve publication authority. V1/imported V3 evidence is
+unavailable. The later explicit consent must select exactly 1–6 photos; clients
+must not silently truncate candidates. Admission rechecks current authority,
+revisions, taxonomy, deletion and the exact selected ready receipts. This read
+creates no intent, provider attempt, quota debit or public copy.
+
+Every response includes `Cache-Control: private, no-store`, including auth and
+parser errors. Invalid requests receive 400. Missing, foreign and deleted
+analyses share opaque 404; changed/ineligible review or existing-publication
+conflicts receive 409. Closed gates, unavailable evidence, transport failures
+and malformed server projections return sanitized 503. The RPC transport has a
+12-second deadline without internal retries. All activation gates stay false.

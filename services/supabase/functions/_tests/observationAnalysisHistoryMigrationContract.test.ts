@@ -1024,3 +1024,35 @@ Deno.test("verified container settlement stores exact immutable service attestat
   assertStringIncludes(sql, "internal.privileged_routine_grants");
   assert(!sql.includes("reserve_ai_quota"));
 });
+
+Deno.test("publication consent shares locked eligibility without operation admission or private media projection", async () => {
+  const sql = await migration(
+    "20261004223926_prepare_publication_consent_preflight",
+  );
+  assertStringIncludes(
+    sql,
+    "internal.lock_owned_observation_evidence(p_owner,observation)",
+  );
+  assertStringIncludes(
+    sql,
+    "NOT p_preflight AND (p_expected_observation_revision IS NULL",
+  );
+  assert(
+    sql.indexOf("analysis_history_revision_conflict") <
+      sql.indexOf("evidence.evidence_manifest->'schema_version'"),
+  );
+  assertStringIncludes(sql, "p_taxonomy_version_id IS DISTINCT FROM taxonomy");
+  assertStringIncludes(sql, "ORDER BY ordinal");
+  assertStringIncludes(sql, "'initial_taxon_id',NULL");
+  assertStringIncludes(
+    sql,
+    "REVOKE ALL ON FUNCTION internal.lock_publication_consent_eligibility",
+  );
+  assertStringIncludes(sql, "internal.privileged_routine_grants");
+  const projection = sql.split(
+    "CREATE FUNCTION public.prepare_owned_observation_publication_consent",
+  )[1];
+  assert(!projection.includes("object_id"));
+  assert(!projection.includes("resolve_owned_observation_photo"));
+  assert(!sql.includes("SET publication_intent_enabled"));
+});

@@ -3220,9 +3220,11 @@ publisher integration.
 Private pre-I/O preparation now freezes a caller operation, named-result
 revisions and exact owned V2 photo receipt tuples. Historical retry and fresh
 revalidation are separate; neither permits media publication. The new gate
-defaults false and no API caller is granted. The prepared moderation and copy
-workers below consume this intent behind closed gates. Native operation recovery
-and authorized runtime qualification remain required. See the
+defaults false and preparation helpers remain private. The separate
+authenticated consent preflight exposes only descriptive metadata under the same
+locked eligibility. The prepared moderation and copy workers below consume this
+intent behind closed gates. Native consent/UI integration and authorized runtime
+qualification remain required. See the
 [intent contract](../../docs/backend-and-data/05-api-contracts.md#prepared-protected-photo-publication-intent).
 
 ## Prepared photo moderation lifecycle
@@ -3459,3 +3461,13 @@ returned. Native durable delivery recovers this status before exact admission
 and remains status-only after acknowledgement. Ordinary UI admission and
 activation remain separate. See the
 [status contract](../../docs/backend-and-data/05-api-contracts.md#owner-publication-operation-status).
+
+## Prepared owner consent preflight
+
+`prepare-observation-publication-consent` reads one explicit analysis with owner
+and deletion fences, returning exact revisions, active taxonomy, a fixed-null
+initial taxon and ordered V2 photo candidates. It creates no operation and
+confers no ready-media authority; final 1–6 selection still passes exact intent
+admission. Default-false gates remain closed. Native consent/UI integration is
+next. See the
+[canonical contract](../../docs/backend-and-data/05-api-contracts.md#owner-publication-consent-preflight).

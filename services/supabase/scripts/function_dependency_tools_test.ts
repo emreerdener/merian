@@ -57,6 +57,7 @@ Deno.test("Identify contract changes deploy every direct and shared-adapter cons
       "identify-describe",
       "identify-multimodal",
       "insight-chat",
+      "prepare-observation-publication-consent",
       "recover-observation-analyses",
       "refresh-species-model-content",
       "request-community-identification",

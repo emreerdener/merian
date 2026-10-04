@@ -290,6 +290,7 @@ report-user
 request-community-identification
 request-observation-publication
 get-observation-publication-status
+prepare-observation-publication-consent
 moderate-publication-photos
 copy-publication-photos
 request-export-dwca
@@ -438,3 +439,14 @@ moderation reason, source or post ID escapes; no state advances. Generated
 per-function deployment config and both candidate test lists cover the route.
 Publication gates remain false and release is not authorized. See its
 [README](../../services/supabase/functions/get-observation-publication-status/README.md).
+
+### October 4 consent preflight addition
+
+`prepare-observation-publication-consent` is an owner-authenticated bounded POST
+read under existing closed publication gates. It shares locked eligibility with
+intent admission, returning only revisions, active taxonomy and ordered V2
+candidate metadata. It creates no operation or media-read capability. The closed
+response validator reuses the V2 manifest contract, so its transitive Identify
+dependency participates in deployment planning. Native UI and activation remain
+separate. See its
+[README](../../services/supabase/functions/prepare-observation-publication-consent/README.md).

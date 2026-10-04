@@ -773,3 +773,7 @@ verify_jwt = false
 # Owner-authenticated exact-operation status; withEdgeHandler validates the user.
 [functions.get-observation-publication-status]
 verify_jwt = false
+
+# Owner-authenticated descriptive consent snapshot; publication gates stay closed.
+[functions.prepare-observation-publication-consent]
+verify_jwt = false
