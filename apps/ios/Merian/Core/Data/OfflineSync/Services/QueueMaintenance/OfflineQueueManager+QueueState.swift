@@ -118,18 +118,25 @@ extension OfflineQueueManager {
         guard let context = modelContext else { return }
         let readContext = ModelContext(context.container)
         let firstNonRunnableRaw = ScanQueueState.externalImport.rawValue
-        let descriptor = FetchDescriptor<OfflineQueuedScan>(
+        var descriptor = FetchDescriptor<OfflineQueuedScan>(
             predicate: #Predicate {
                 $0.scanStateRaw < firstNonRunnableRaw
                     && !$0.queueNeedsAttention
-            }
+            },
+            sortBy: [SortDescriptor(\OfflineQueuedScan.id)]
         )
-        let count: Int
+        descriptor.fetchLimit = 100
+        var count = 0
         do {
-            count = try readContext.fetchCount(descriptor)
+            while true {
+                let page = try readContext.fetch(descriptor)
+                count += page.filter(\.permitsOrdinaryInference).count
+                guard page.count == 100 else { break }
+                descriptor.fetchOffset = (descriptor.fetchOffset ?? 0) + page.count
+            }
         } catch {
             MerianLog.data.debug(
-                "updateUnsyncedItemCount: fetchCount failed: \(error, privacy: .private)"
+                "updateUnsyncedItemCount: eligibility fetch failed: \(error, privacy: .private)"
             )
             return
         }

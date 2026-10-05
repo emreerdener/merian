@@ -247,6 +247,7 @@ extension BackgroundDatabaseActor {
             return nil
         }
 
+        guard scan.permitsOrdinaryInference else { return nil }
         let jobId = OfflineQueueManager.scanIngestionJobId(scanId: scanId)
         let existingJob: OfflineJobRecord?
         do {

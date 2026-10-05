@@ -691,3 +691,21 @@ Unknown raw kinds and unrecognized `future` namespaces are excluded without
 deleting them. Known `library-details:` retries retain their deadlines. This is
 a client capability boundary, not rollout activation; older binaries must remain
 excluded before admission becomes available.
+
+## Qualified reanalysis queue boundary
+
+V58 persists the work kind and parent/source/owner linkage on
+`OfflineQueuedScan`. `OfflineQueueWork` is the routing policy: ordinary work
+requires nil linkage; reanalysis requires canonical, distinct
+parent/source/child identities and an owner. Missing job metadata cannot change
+that classification. Legacy upload, replay, account-work activation, inference,
+retry and completion owners reject qualified or damaged rows, while explicit
+read/deletion APIs retain access. The ordinary runnable count also excludes
+those rows. Late offline completion requires a surviving ordinary row after
+taking the finalization lock.
+
+No producer creates qualified reanalysis work yet. Parent-linked atomic erasure,
+separate recovery/funding delivery and progress on the observation remain
+prerequisites. See the
+[V58 contract](../../../../../../docs/backend-and-data/04-database-schema.md#v58-qualified-queued-reanalysis-storage)
+for migration invariants and test ownership.

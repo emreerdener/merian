@@ -2724,3 +2724,19 @@ Immutable request/media payloads may still use the existing job envelope, but
 routing and erasure must not depend solely on decoding that payload. Frozen
 queue snapshots must remain unchanged; the discriminator needs explicit forward
 migration and damaged-metadata, deletion and library-projection coverage.
+
+### October 5: qualified queue storage boundary
+
+V57 was frozen and compiled before adding the V58 queue discriminator and
+nullable parent/source/owner fields. Existing queue IDs remain child analysis
+identities; legacy rows migrate to ordinary work with nil linkage. All forward
+plans and startup recovery routes advance through V58. The queue classifier and
+legacy upload, replay, account, retry and finalization guards fail closed
+independently of job JSON. An absent row cannot be recreated by a late offline
+completion.
+
+This is storage preparation, with no qualified capture producer enabled. The
+next integration must connect parent-linked atomic erasure and
+observation-attached progress before exact private upload/analysis delivery and
+append-only recovery. The canonical current contract is the
+[V58 storage section](../backend-and-data/04-database-schema.md#v58-qualified-queued-reanalysis-storage).

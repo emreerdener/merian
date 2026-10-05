@@ -11,6 +11,7 @@ struct ModelsIntegrationArchitectureTests {
             let stateOwner = source.relativePath == "Core/Data/AnalysisHistory/ObservationHistoryStateSyncService.swift"
             let enrollmentOwner = source.relativePath == "Core/Data/AnalysisHistory/ObservationHistoryEnrollmentService.swift"
             let stateModel = source.relativePath == "Models/ActiveSchema/LocalAnalysisStateRecord.swift"
+                || source.relativePath == "Models/Schema/SchemaV57ScanSnapshots.swift"
             let cacheOwner = source.relativePath == "Core/Data/AnalysisHistory/ObservationHistoryStateCache.swift"
             if !cacheOwner {
                 #expect(code.range(of: #"LocalAnalysisStateRecord\s*(?:\(|\.init\b)"#, options: .regularExpression) == nil,
@@ -156,9 +157,9 @@ struct ModelsIntegrationArchitectureTests {
         )
         #expect(registry.contains("enum MerianMigrationPlan"))
         #expect(registry.contains("enum MerianSchemaV51"))
-        let currentSchema = try source(at: "apps/ios/Merian/Models/Schema/SchemaV57.swift")
-        #expect(currentSchema.contains("enum MerianSchemaV57"))
-        #expect(registry.contains("migrateV56toV57"))
+        let currentSchema = try source(at: "apps/ios/Merian/Models/Schema/SchemaV58.swift")
+        #expect(currentSchema.contains("enum MerianSchemaV58"))
+        #expect(registry.contains("migrateV57toV58"))
     }
 
     @Test func historyPresentationRemainsAnExplicitClosedConsumer() throws {
@@ -200,6 +201,7 @@ struct ModelsIntegrationArchitectureTests {
 
     private static let rootSourcePaths = [
         "Aliases.swift",
+        "OfflineQueueWork.swift",
         "QueuedScanContext.swift",
         "ScanQueueState.swift",
         "SchemaVersions.swift",
@@ -207,6 +209,7 @@ struct ModelsIntegrationArchitectureTests {
     ]
 
     private static let rootValuePaths = [
+        "OfflineQueueWork.swift",
         "QueuedScanContext.swift",
         "ScanQueueState.swift",
         "UserReviewState.swift"

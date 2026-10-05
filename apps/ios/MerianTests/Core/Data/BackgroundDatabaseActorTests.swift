@@ -211,6 +211,8 @@ struct BackgroundDatabaseActorTests {
         let actor = BackgroundDatabaseActor(modelContainer: container)
 
         let originalTimestamp = Date(timeIntervalSince1970: 1_712_345_678)
+        context.insert(OfflineQueuedScan(id: "offline_scan_001", timestamp: originalTimestamp, scanState: .inferencing))
+        try context.save()
         let resultData = Data(
             """
             {
@@ -262,6 +264,8 @@ struct BackgroundDatabaseActorTests {
         let context = ModelContext(container)
         let actor = BackgroundDatabaseActor(modelContainer: container)
         let scanId = "finalization_race_scan_001"
+        context.insert(OfflineQueuedScan(id: scanId, scanState: .inferencing))
+        try context.save()
 
         let resultData = Data(
             """

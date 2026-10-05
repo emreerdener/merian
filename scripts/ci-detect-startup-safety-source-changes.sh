@@ -106,6 +106,9 @@ is_startup_runtime_file() {
     apps/ios/Merian/Models/Schema/SchemaV56ScanSnapshots.swift | \
     apps/ios/Merian/Models/Schema/SchemaV56QueueSnapshots.swift | \
     apps/ios/Merian/Models/Schema/SchemaV57.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV57ScanSnapshots.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV57QueueSnapshots.swift | \
+    apps/ios/Merian/Models/Schema/SchemaV58.swift | \
     apps/ios/MerianTests/Models/LocalAnalysisStateRecordTests.swift | \
     apps/ios/Merian/Models/SchemaVersions.swift | \
     apps/ios/MerianTests/Core/Data/StoreRecovery/* | \

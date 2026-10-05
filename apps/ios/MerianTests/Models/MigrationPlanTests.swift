@@ -1658,28 +1658,96 @@ struct MigrationPlanTests {
         #expect(source.contains("inverse: \\MerianSchemaV55.LocalScanRecord.collections"))
     }
 
-    @Test func allForwardPlansEndWithAnalysisStateStage() throws {
+    @Test func v57MigrationPreservesQueuedWorkAndAddsOrdinaryQualification() throws {
+        let url = migrationStoreURL(named: "v57-qualified-queue")
+        let owner = UUID(uuidString: "00000000-0000-4000-8000-000000000601")!
+        let source = UUID(uuidString: "00000000-0000-4000-8000-000000000602")!
+        let parent = "00000000-0000-4000-8000-000000000603"
+        let child = "00000000-0000-4000-8000-000000000604"
+        let bytes = Data("{ \"synthetic\" : true }".utf8)
+        do {
+            let schema = Schema(versionedSchema: MerianSchemaV57.self)
+            let container = try makeModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, url: url)])
+            let context = ModelContext(container)
+            let scan = MerianSchemaV57.LocalScanRecord(id: parent, speciesId: "fixture", scientificName: "Saved fixture", commonName: "Fixture")
+            scan.userIdentificationOverride = "Saved correction"
+            scan.selectedAnalysisID = source.uuidString.lowercased()
+            scan.analysisOwnerAccountID = owner.uuidString.lowercased()
+            scan.observationStateRevision = 7
+            let result = try MerianSchemaV57.LocalAnalysisRecord(analysisID: source, observationID: parent,
+                ownerAccountID: owner, completedAt: nil, snapshotVersion: 3, resultSnapshotData: bytes)
+            result.state = try MerianSchemaV57.LocalAnalysisStateRecord(analysisID: source, observationID: parent,
+                ownerAccountID: owner, observationStateRevision: 7, reviewRevision: 2, reviewSnapshotData: bytes)
+            scan.analysisRecords = [result]
+            context.insert(scan)
+            let queued = MerianSchemaV57.OfflineQueuedScan(id: child, scanState: .staged, stagedR2Keys: ["synthetic/key"])
+            queued.capturedMediaEntries = [MerianSchemaV57.CapturedMediaEntry(orderIndex: 0, item: .image("synthetic.jpg"))]
+            context.insert(queued)
+            context.insert(MerianSchemaV57.OfflineJobRecord(id: "scan-ingestion:" + child, kind: .scanIngestion,
+                subjectId: child, metadataJSON: "{\"synthetic\":true}"))
+            try context.save()
+        }
+        #expect(ModelStoreRecoveryCoordinator.migrationDecision(at: url,
+            currentSchemaMajor: CurrentSchema.versionIdentifier.major).hint == .recentSource(.v57))
+        do {
+            let schema = Schema(versionedSchema: CurrentSchema.self)
+            let container = try makeModelContainer(for: schema, migrationPlan: MerianRecentV57MigrationPlan.self,
+                configurations: [ModelConfiguration(schema: schema, url: url)])
+            let context = ModelContext(container)
+            let scan = try #require(context.fetch(FetchDescriptor<LocalScanRecord>()).first)
+            #expect(scan.selectedAnalysisID == source.uuidString.lowercased())
+            #expect(scan.observationStateRevision == 7 && scan.userIdentificationOverride == "Saved correction")
+            let result = try #require(scan.analysisRecords?.first)
+            #expect(result.resultSnapshotData == bytes && result.completedAt == nil)
+            #expect(result.state?.reviewSnapshotData == bytes && result.state?.reviewRevision == 2)
+            let queued = try #require(context.fetch(FetchDescriptor<OfflineQueuedScan>()).first)
+            #expect(queued.work == .ordinary && queued.id == child)
+            #expect(queued.parentObservationID == nil && queued.sourceAnalysisID == nil && queued.reanalysisOwnerAccountID == nil)
+            #expect(queued.queueState == .staged && queued.stagedR2Keys == ["synthetic/key"])
+            #expect(queued.capturedMediaEntries?.count == 1)
+            #expect(try context.fetch(FetchDescriptor<OfflineJobRecord>()).first?.metadataJSON == "{\"synthetic\":true}")
+            queued.workKindRaw = "reanalysis"
+            queued.parentObservationID = parent
+            queued.sourceAnalysisID = source.uuidString.lowercased()
+            queued.reanalysisOwnerAccountID = owner.uuidString.lowercased()
+            try context.save()
+        }
+        let schema = Schema(versionedSchema: CurrentSchema.self)
+        let reopened = try makeModelContainer(for: schema, configurations: [ModelConfiguration(schema: schema, url: url)])
+        let context = ModelContext(reopened)
+        let queued = try #require(context.fetch(FetchDescriptor<OfflineQueuedScan>()).first)
+        #expect(queued.work == .reanalysis(.init(observationID: UUID(uuidString: parent)!, sourceAnalysisID: source,
+            analysisID: UUID(uuidString: child)!, ownerID: owner)))
+        #expect(!queued.permitsOrdinaryInference)
+        context.delete(queued)
+        try context.save()
+        #expect(try ModelContext(reopened).fetchCount(FetchDescriptor<CapturedMediaEntry>()) == 0)
+        #expect(try context.fetchCount(FetchDescriptor<LocalScanRecord>()) == 1)
+        #expect(try context.fetchCount(FetchDescriptor<LocalAnalysisStateRecord>()) == 1)
+    }
+
+    @Test func allForwardPlansEndWithQueueQualificationStage() throws {
         let plans: [any SchemaMigrationPlan.Type] = [MerianMigrationPlan.self,
             MerianRecentV42MigrationPlan.self, MerianRecentV43MigrationPlan.self,
             MerianRecentV44MigrationPlan.self, MerianRecentV45MigrationPlan.self,
             MerianRecentV46MigrationPlan.self, MerianRecentV47MigrationPlan.self,
             MerianRecentV48MigrationPlan.self, MerianOptionalQueueV48RecoveryPlan.self,
             MerianRecentV49MigrationPlan.self, MerianRecentV50MigrationPlan.self,
-            MerianReleasedActiveV50MigrationPlan.self, MerianRecentV51MigrationPlan.self, MerianRecentV52MigrationPlan.self, MerianRecentV53MigrationPlan.self, MerianRecentV54MigrationPlan.self, MerianRecentV55MigrationPlan.self, MerianRecentV56MigrationPlan.self]
+            MerianReleasedActiveV50MigrationPlan.self, MerianRecentV51MigrationPlan.self, MerianRecentV52MigrationPlan.self, MerianRecentV53MigrationPlan.self, MerianRecentV54MigrationPlan.self, MerianRecentV55MigrationPlan.self, MerianRecentV56MigrationPlan.self, MerianRecentV57MigrationPlan.self]
         for plan in plans {
-            #expect(plan.schemas.last?.versionIdentifier.major == 57)
+            #expect(plan.schemas.last?.versionIdentifier.major == 58)
             switch try #require(plan.stages.last) {
             case let .lightweight(fromVersion, toVersion):
-                #expect(fromVersion.versionIdentifier.major == 56)
-                #expect(toVersion.versionIdentifier.major == 57)
+                #expect(fromVersion.versionIdentifier.major == 57)
+                #expect(toVersion.versionIdentifier.major == 58)
             default:
-                Issue.record("History storage requires only the additive authority/display V56 to V57 stage.")
+                Issue.record("Queue qualification requires the additive V57 to V58 stage.")
             }
         }
-        #expect(MerianRecentV51MigrationPlan.schemas.map { $0.versionIdentifier.major } == [51, 52, 53, 54, 55, 56, 57])
-        #expect(MerianRecentV51MigrationPlan.stages.count == 6)
-        #expect(MerianRecentV52MigrationPlan.schemas.map { $0.versionIdentifier.major } == [52, 53, 54, 55, 56, 57])
-        #expect(MerianRecentV52MigrationPlan.stages.count == 5)
+        #expect(MerianRecentV51MigrationPlan.schemas.map { $0.versionIdentifier.major } == [51, 52, 53, 54, 55, 56, 57, 58])
+        #expect(MerianRecentV51MigrationPlan.stages.count == 7)
+        #expect(MerianRecentV52MigrationPlan.schemas.map { $0.versionIdentifier.major } == [52, 53, 54, 55, 56, 57, 58])
+        #expect(MerianRecentV52MigrationPlan.stages.count == 6)
     }
 
     @Test func outgoingV51ModelsAndRelationshipsAreFrozen() throws {
@@ -1706,7 +1774,7 @@ struct MigrationPlanTests {
     @Test func activeCollectionTombstoneUsesSourceOnlyV50RenameMapping() throws {
         let source = try currentScanCollectionSource()
 
-        #expect(CurrentSchema.versionIdentifier.major == 57)
+        #expect(CurrentSchema.versionIdentifier.major == 58)
         #expect(source.contains("@Attribute(originalName: \"isDeleted\")"))
         #expect(source.contains("public var isPendingDeletion: Bool = false"))
         #expect(source.contains("isPendingDeletion: Bool = false"))
@@ -2167,10 +2235,10 @@ struct MigrationPlanTests {
         let schemaMajors = MerianRecentV49MigrationPlan.schemas.map {
             $0.versionIdentifier.major
         }
-        #expect(schemaMajors == [49, 50, 51, 52, 53, 54, 55, 56, 57])
+        #expect(schemaMajors == [49, 50, 51, 52, 53, 54, 55, 56, 57, 58])
 
         let stages = MerianRecentV49MigrationPlan.stages
-        #expect(stages.count == 8)
+        #expect(stages.count == 9)
         switch try #require(stages.first) {
         case let .lightweight(fromVersion, toVersion):
             #expect(fromVersion.versionIdentifier.major == 49)
@@ -2196,8 +2264,8 @@ struct MigrationPlanTests {
         let schemaMajors = MerianRecentV50MigrationPlan.schemas.map {
             $0.versionIdentifier.major
         }
-        #expect(schemaMajors == [50, 51, 52, 53, 54, 55, 56, 57])
-        #expect(MerianRecentV50MigrationPlan.stages.count == 7)
+        #expect(schemaMajors == [50, 51, 52, 53, 54, 55, 56, 57, 58])
+        #expect(MerianRecentV50MigrationPlan.stages.count == 8)
 
         switch try #require(MerianRecentV50MigrationPlan.stages.first) {
         case let .custom(fromVersion, toVersion, _, _):
@@ -2214,8 +2282,8 @@ struct MigrationPlanTests {
         let schemaMajors = MerianReleasedActiveV50MigrationPlan.schemas.map {
             $0.versionIdentifier.major
         }
-        #expect(schemaMajors == [50, 51, 52, 53, 54, 55, 56, 57])
-        #expect(MerianReleasedActiveV50MigrationPlan.stages.count == 7)
+        #expect(schemaMajors == [50, 51, 52, 53, 54, 55, 56, 57, 58])
+        #expect(MerianReleasedActiveV50MigrationPlan.stages.count == 8)
 
         switch try #require(MerianReleasedActiveV50MigrationPlan.stages.first) {
         case let .custom(fromVersion, toVersion, _, _):

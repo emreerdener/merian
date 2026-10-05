@@ -5524,7 +5524,9 @@ snapshot SHA-256 values, so a property, annotation, default, relationship,
 initializer, or helper edit requires an explicit historical-shape review.
 `SchemaV51Snapshots.swift` freezes all eight `MerianSchemaV51` model classes and
 their relationships; the unchanged goal-hint companion retains its V50 owner.
-`MerianSchemaV57` owns the active global models. V56 is frozen in
+`MerianSchemaV58` owns the active global models. V57 is frozen in
+`SchemaV57ScanSnapshots.swift` and `SchemaV57QueueSnapshots.swift`; the full
+relationship graph compiled before adding queue qualification. V56 is frozen in
 `SchemaV56ScanSnapshots.swift` and `SchemaV56QueueSnapshots.swift`; the graph
 compiled before adding the state-cache relationship. V55 is frozen in
 `SchemaV55ScanSnapshots.swift` and `SchemaV55QueueSnapshots.swift`; its graph
@@ -5534,7 +5536,7 @@ graph was compiled before active-model edits. V53 is independently frozen in
 `SchemaV53ScanSnapshots.swift` and `SchemaV53QueueSnapshots.swift`. V52 is
 independently frozen in `SchemaV52ScanSnapshots.swift` and
 `SchemaV52QueueSnapshots.swift`. Disk migration suites create source stores from
-the frozen snapshots, migrate V49 through V50 and V51 into V57, and migrate both
+the frozen snapshots, migrate V49 through V50 and V51 into V58, and migrate both
 V50 graphs through their source-isolated custom plans. The V51 fixture verifies
 production metadata selection and preserves scan, media, collection, preference,
 queue, event, deletion and goal-hint state while adding nullable provenance,
@@ -5565,7 +5567,7 @@ each new row into the migration `ModelContext` before assigning the
 relationship; relationship assignment alone is not a durable insert path while
 SwiftData is inside staged store migration.
 
-The current active schema is `MerianSchemaV57`. Recent milestones:
+The current active schema is `MerianSchemaV58`. Recent milestones:
 
 - V38 added single-value audio/context storage (`audioFilePath`,
   `observationContextJSON`) to both local and offline scan models.
@@ -5605,23 +5607,23 @@ The current active schema is `MerianSchemaV57`. Recent milestones:
   directly to V49 from source-isolated V44→V49, V45→V49, and V46→V49 plans so
   SwiftData never migrates unchanged entities across duplicate-prone recent
   representatives. App startup reads store metadata before creating
-  `ModelContainer`: fresh/current V57 stores open without a migration plan,
+  `ModelContainer`: fresh/current V58 stores open without a migration plan,
   known recent stores use the source-isolated
-  V56/V55/V54/V53/V52/V51/V50/V49/V48/V47/V46/V45/V44/V43/V42 plans, and only
-  unknown older stores use the full historical plan. V56 needs only lightweight
-  V56→V57; earlier plans retain their previous stages and append V56→V57. Each
-  V50 plan contains its custom V50→V51 preference-ownership stage followed by
-  V51→V52→V53→V54→V55→V56→V57; the V49 plan prepends the required lightweight
-  V49→V50 hop. Immediate predecessors therefore never validate unrelated
-  history. The V42 and V43 recent plans jump directly to V49 to avoid validating
-  older full-historical custom stages and to keep V42 off the older V42→V43
-  bridge that still failed on real TestFlight stores, while V45 and V46
-  deliberately use one matching source representative each before the V49 repair
-  target. Stores that still hit SwiftData's duplicate-checksum validator during
-  plan construction retry with the same source-isolated recent plans before
-  legacy rescue or safe mode. Safe mode itself creates an empty in-memory V57
-  container without any migration plan; it does not validate this historical
-  ladder again.
+  V57/V56/V55/V54/V53/V52/V51/V50/V49/V48/V47/V46/V45/V44/V43/V42 plans, and
+  only unknown older stores use the full historical plan. V57 needs only
+  lightweight V57→V58; earlier plans retain their previous stages and append
+  V57→V58. Each V50 plan contains its custom V50→V51 preference-ownership stage
+  followed by V51→V52→V53→V54→V55→V56→V57→V58; the V49 plan prepends the
+  required lightweight V49→V50 hop. Immediate predecessors therefore never
+  validate unrelated history. The V42 and V43 recent plans jump directly to V49
+  to avoid validating older full-historical custom stages and to keep V42 off
+  the older V42→V43 bridge that still failed on real TestFlight stores, while
+  V45 and V46 deliberately use one matching source representative each before
+  the V49 repair target. Stores that still hit SwiftData's duplicate-checksum
+  validator during plan construction retry with the same source-isolated recent
+  plans before legacy rescue or safe mode. Safe mode itself creates an empty
+  in-memory V58 container without any migration plan; it does not validate this
+  historical ladder again.
 - V47 added `OfflineQueuedScan.inferenceImagePaths` and `visualMediaItemsJSON`
   so queued video replay can keep sampled inference frames separate from the
   user-visible playback video timeline.
@@ -5681,8 +5683,8 @@ The current active schema is `MerianSchemaV57`. Recent milestones:
   `confirmedSpeciesIdentityData` through lightweight V52→V53. Both remain nil
   for existing observations. V52 was frozen and compiled before editing the
   active model. Every older plan appends the stage, and
-  `MerianRecentV52MigrationPlan` now contains V52, V53, V54, V55, V56, and V57.
-  The primary bytes preserve the versioned original AI label and resolution
+  `MerianRecentV52MigrationPlan` now contains V52, V53, V54, V55, V56, V57, and
+  V58. The primary bytes preserve the versioned original AI label and resolution
   independently of dictionary enrichment or review. Required missing, malformed
   or unpaired snapshots remain integrity failures, never legacy results.
   Duplicate explicit completions preserve saved review/media state and reject
@@ -5930,7 +5932,7 @@ with non-optional defaults (`queueAttemptCount = 0`, `queueUpdatedAt = now`,
 ### `OfflineQueuedScanGoalHint`
 
 Added in released `MerianSchemaV50` and retained through the
-`ActiveOfflineQueuedScanGoalHint` alias in current V57 source. This optional
+`ActiveOfflineQueuedScanGoalHint` alias in current V58 source. This optional
 companion exists only for a queued scan submitted from an eligible live Capture
 goal selection.
 
@@ -6309,7 +6311,7 @@ A top-level album type associated with `LocalScanRecord` nodes, added in
 - `createdAt`: Date
 - `scans`: [LocalScanRecord]? (Inverse `@Relationship` using IDs rather than
   encoded objects, reducing memory pressure.)
-- `isPendingDeletion`: Bool (Active V57 application tombstone, mapped to the
+- `isPendingDeletion`: Bool (Active V58 application tombstone, mapped to the
   released `isDeleted` column with `@Attribute(originalName:)`; the value is
   explicitly projected to the unchanged `is_deleted` Edge field for safe cloud
   erasure instead of destructive state-diffs.)
@@ -6495,12 +6497,12 @@ and disposable `species_discovery_search.sql` catalog/denial tests.
 V54 introduced rejection storage. V53 is independently frozen in
 `SchemaV53ScanSnapshots.swift` and `SchemaV53QueueSnapshots.swift` before adding
 optional `LocalScanRecord.aiIdentificationReviewData`.
-`MerianRecentV53MigrationPlan` includes V53→V54 followed by V54→V55→V56→V57; all
-earlier supported lanes retain that lightweight rejection stage. Existing stores
-retain their scans, original identification, confirmations, collections, and
-queue jobs. The new optional bytes start nil. They store local pending intent
-separately from acknowledged server authority. No new legacy `UserReviewState`
-enum case is introduced.
+`MerianRecentV53MigrationPlan` includes V53→V54 followed by V54→V55→V56→V57→V58;
+all earlier supported lanes retain that lightweight rejection stage. Existing
+stores retain their scans, original identification, confirmations, collections,
+and queue jobs. The new optional bytes start nil. They store local pending
+intent separately from acknowledged server authority. No new legacy
+`UserReviewState` enum case is introduced.
 
 `scans.ai_identification_review` and the matching `scan_ingestion_jobs` backup
 contain a strict, bounded versioned review envelope. The service-only
@@ -6590,10 +6592,10 @@ not history-safe merely because storage exists: enrollment/selection remain
 disabled until the append-only writers, owner-scoped sync, retention, deletion,
 and authority consumers are connected and tested. Restoration UI is not enabled.
 
-`MerianRecentV56MigrationPlan` is the current immediate-predecessor lane; every
-older supported lane appends V56→V57 after its existing stages. Startup checksum
-retries attempt V56 before V55, V54 and V53. Safe mode remains a plan-free
-current-schema container. V54, V55 and V56 snapshot pairs are hash-pinned.
+`MerianRecentV57MigrationPlan` is the current immediate-predecessor lane; every
+older supported lane appends V57→V58 after its existing stages. Startup checksum
+retries attempt V57 before V56, V55, V54 and V53. Safe mode remains a plan-free
+current-schema container. V54, V55, V56 and V57 snapshot pairs are hash-pinned.
 `MigrationPlanTests` verifies disk migration and reopen preservation;
 `LocalAnalysisRecordTests` verifies byte bounds, unsupported versions,
 persistence and cascade deletion; `ScanRepositoryPurgeTests` verifies account
@@ -6729,10 +6731,10 @@ preserves old dates and bytes; it does not populate imports or select an
 identification. Current construction allows V3 only with nil completion and
 requires finite completion for V1/V2. Import time is decoded separately from the
 immutable V3 manifest, never substituted for execution time. All full/recent
-plans now append V57; V55 startup retains its isolated lane and safe mode stays
-plan-free. `MigrationPlanTests` covers disk migration, insertion of a nil-date
-import and a current-store reopen. Released-binary install-over remains separate
-from source-created migration fixtures.
+plans now append V57 and V58; V55 startup retains its isolated lane and safe
+mode stays plan-free. `MigrationPlanTests` covers disk migration, insertion of a
+nil-date import and a current-store reopen. Released-binary install-over remains
+separate from source-created migration fixtures.
 
 ### Imported saved-identification baselines
 
@@ -6795,9 +6797,9 @@ entity, including orphan rows, before deleting immutable results.
 The lightweight V56→V57 migration creates no state rows, chooses no
 identification, and changes no result bytes, completion dates, review, media,
 private details or pending jobs. The outgoing V56 graph is frozen/hash-pinned;
-all full/recent plans append V57 and startup adds a source-isolated V56 lane.
-Current and safe-mode containers remain plan-free. Recovery signature and
-quarantine policy are unchanged.
+all full/recent plans retain this stage before V58, and startup retains a
+source-isolated V56 lane. Current and safe-mode containers remain plan-free.
+Recovery signature and quarantine policy are unchanged.
 
 Prepared selected-state admission writes result, exact authority cache, selected
 native review and observation revision atomically. The cache rejects stale
@@ -6810,13 +6812,13 @@ unknown original display evidence. Their optional local cache uses a version-1
 only an eligible acknowledged selected display. It is not a provider response or
 portable server history. The first capture is immutable, bounded to one MiB
 including its envelope, and omitted if the envelope exceeds that bound. This
-uses existing V57 storage and does not change the schema or wire protocol. Full
+uses storage introduced in V57 and does not change the wire protocol. Full
 replacement mapping clears missing values and stale lookalike enrichment, but is
 used only inside fenced server-selected state admission. See the
 [native boundary](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md).
 
-Native saved-identification enrollment admission now uses the existing V57
-columns and child/cache entities; no schema or migration stage changes. The
+Native saved-identification enrollment admission uses columns and child/cache
+entities introduced in V57; enrollment itself requires no additional schema. The
 prepared service commits receipt- and current-state-verified ownership,
 selection, result, review cache and saved-local display atomically while
 preserving current identification/review. No ordinary enrollment caller or
@@ -7186,3 +7188,32 @@ Private primitives remain ungranted, and no rollout flag changes. Protected
 admission compares the ordered image subsequence with the cohort; an intent
 insertion guard prevents cleaned photo identities becoming description-only
 requests.
+
+### V58 qualified queued reanalysis storage
+
+V58 adds `OfflineQueuedScan.workKindRaw` (default `ordinary`) and nullable
+`parentObservationID`, `sourceAnalysisID`, and `reanalysisOwnerAccountID`. The
+existing queue `id` remains the child analysis identity. Routing authority lives
+on the queue row, not in optional job metadata. The additive V57 to V58
+migration preserves existing queue media, job payloads, scan selection and
+per-analysis review state; existing rows remain ordinary with nil linkage. The
+frozen V57 graph includes all ten model classes and retains the unchanged V50
+goal-hint model.
+
+`OfflineQueueWork` requires ordinary rows to have no reanalysis linkage.
+Reanalysis requires canonical UUIDs for owner, parent, source and child, with
+parent, source and child distinct. Unknown kinds and partial or malformed
+linkage are invalid. The legacy queue selector, upload claim/completion,
+inference claim/retry/recovery and final persistence admit only ordinary work.
+Final persistence rechecks the durable row after the finalization lock; absent
+rows cannot be recreated by a late completion. Read and deletion paths remain
+able to find held work. No reanalysis producer is enabled in this storage slice;
+parent erasure, observation-attached presentation and the separate append-only
+executor must be connected before admission is enabled.
+
+`MigrationPlanTests.v57MigrationPreservesQueuedWorkAndAddsOrdinaryQualification`
+creates an on-disk V57 store, verifies production source routing, migrates and
+reopens it, preserves correction/state bytes, round-trips qualified linkage and
+verifies queue-media cascade without deleting the parent observation.
+`QueueWorkQualificationTests` exercises malformed routing, direct legacy claims
+and late completion refusal. All activation gates remain disabled.
