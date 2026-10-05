@@ -2701,3 +2701,26 @@ transport, durable capture/queue identities and append-only completion still
 need integration before the user-facing reanalysis path is complete. All
 activation gates remain disabled, and private-bucket/erasure qualification is
 still required. Implementation does not authorize deployment or scheduling.
+
+### October 5: native private upload and immutable request values
+
+The native upload transport now sends the exact binary cohort under an expected
+account lease, suppresses automatic ambiguous retries and session refresh, and
+validates receipt identities, order, byte counts and hashes against submitted
+bytes. Prepared photo reanalysis values preserve explicit source identity,
+processor expectation and complete request bytes with a checked fingerprint;
+execution receipts carry no result or selection authority. These boundaries have
+no ordinary capture producer yet. The next integration persists stable
+child/media identities in the existing scan-ingestion metadata, dispatches
+through the existing consent/funding owners, and recovers authoritative child
+history before queue completion. Existing SwiftData model shapes and rollout
+gates remain unchanged.
+
+The queue integration review also requires a persisted discriminator and parent
+observation linkage in a new SwiftData schema. Job JSON alone is insufficient:
+missing metadata can otherwise enter ordinary identification, parent deletion
+cannot find the child queue row, and the library can show a duplicate scan.
+Immutable request/media payloads may still use the existing job envelope, but
+routing and erasure must not depend solely on decoding that payload. Frozen
+queue snapshots must remain unchanged; the discriminator needs explicit forward
+migration and damaged-metadata, deletion and library-projection coverage.

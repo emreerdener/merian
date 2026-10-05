@@ -1,0 +1,52 @@
+# Observation analysis wire values
+
+`ObservationEvidenceUpload` owns the private reanalysis upload frame and strict
+receipt decoder. Durable capture supplies observation, child-analysis and media
+IDs plus immutable bytes. This value never creates an identity or owns retry,
+selection, quota, enrollment or persistence.
+
+The frame matches the
+[private upload contract](../../../../../../../docs/backend-and-data/05-api-contracts.md#private-reanalysis-photo-upload):
+uint32 big-endian metadata length, sorted-key UTF-8 metadata, then raw photo
+bytes in order. Validation permits 1–5 JPEG/PNG images and 5 MiB aggregate,
+rejects ID aliases and unsupported media, and computes SHA-256 on owned bytes.
+Endpoint preparation uses the existing cancellable inference-preparation task
+owner off the main actor; no base64 payload is produced.
+
+The schema-1 response is bounded to 4 KiB at decoding and must have exact keys,
+matching parent/child identities and one exact V2-shaped reference per submitted
+photo in original order. Byte count rejects JSON booleans, and every digest must
+match the prepared bytes. No decoder invents a manifest wrapper, URL, object ID,
+post or visibility. Reference encoding preserves `kind: "image"` for later V2
+admission. Existing publication/status decoder limits remain unchanged.
+
+The endpoint uses a fixed authenticated facade bridge with the initiating owner,
+a 130-second client timeout, no automatic ambiguous transport retry and no 401
+session refresh. Dispatcher admission and post-await account-lease checks remain
+the shared owners. Prepared values are not durable jobs: native capture/queue
+integration must persist exact identity and media before invoking this endpoint.
+
+`ObservationReanalysisRequest` prepares immutable protocol-8 photo admission
+bytes for `analyze-observation`. It requires distinct observation, child and
+source analysis IDs, 1–5 exact image references, ordered description items and
+an explicit processor expectation. That expectation must come from the existing
+recipient preflight, never a locally selected provider. The request validates
+both Unicode-scalar and UTF-16 description limits and rejects unsupported
+content instead of dropping it. Description-only protocol-7 admission is a
+separate contract and is not represented by this type.
+
+The native request fingerprint is SHA-256 of the complete input except
+`request_digest`, encoded as sorted-key UTF-8 JSON without escaped slashes.
+Identity strings are lowercase; array order and text are preserved. The golden
+fixture includes non-ASCII text, a slash and an emoji. Restoring saved bytes
+checks exact keys, limits and the fingerprint, then retains those original bytes
+for replay. This fingerprint is a native persistence convention; the server
+independently compares the entire admitted input. It is neither proof of
+uploaded evidence nor permission to run a provider. No capture producer, queue
+delivery or analysis dispatch is activated by these value types.
+
+`ObservationAnalysisReceipt` decodes only the four-field, 4 KiB execution
+acknowledgment. It accepts the five defined execution states and binds the
+response to the original parent/child IDs. Even `complete` carries no result or
+selection authority: the durable caller must recover the immutable child through
+owner history before committing local queue completion.

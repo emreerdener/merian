@@ -14165,3 +14165,27 @@ writes/verification. Lost responses retry the identical immutable frame. Partial
 uploads cannot start inference; expiry and permanent erasure-marker cleanup
 remain required. This source addition does not enable a native production
 caller, bucket, worker schedule or rollout gate.
+
+The prepared native `uploadObservationEvidence` caller emits this exact binary
+frame through the existing account-bound authenticated transport. It validates
+IDs and media bounds before dispatch, hashes/prepares off the main actor, and
+requires the schema-1 receipt to match every submitted reference in order and
+content. Its decoder caps receipt admission at 4 KiB. The fixed bridge uses a
+130-second client timeout and disables hidden transport/401 replay; the durable
+caller must retain exact request identity and decide recovery. This transport
+connection does not yet connect ordinary capture/queue reanalysis or activate
+history.
+
+The prepared native `ObservationReanalysisRequest` value represents photo-based
+protocol-8 admission without starting it. It requires a distinct nonnull source
+analysis, preserves ordered descriptions and exact V2 image references, and
+requires the existing recipient preflight's explicit processor expectation. Its
+native fingerprint convention hashes sorted-key UTF-8 JSON of the entire input
+except `request_digest`, with lowercase UUIDs and unescaped slashes. Restoration
+validates the digest and strict executable limits, retaining the original saved
+bytes rather than rebuilding an attempt from current scan content. Server
+identity still compares the complete admitted input; this fingerprint is not
+evidence or provider authority. The strict native execution receipt contains
+only parent ID, child ID and execution state with schema 1; completion requires
+a separate authoritative history read. These value types do not connect capture,
+queue delivery or selection, and do not activate any gate.

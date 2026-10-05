@@ -4186,7 +4186,8 @@ struct CoreNetworkIntegrationArchitectureTests {
         expectOwners(
             containing: "DetachedWork.value(",
             in: sources,
-            equal: ["Endpoints/MerianNetworkClient+Inference.swift"]
+            equal: ["Endpoints/MerianNetworkClient+Inference.swift",
+                    "Endpoints/MerianNetworkClient+ObservationEvidence.swift"]
         )
         #expect(sources.values.allSatisfy { !$0.contains("Task.detached") })
     }
@@ -4330,8 +4331,8 @@ struct CoreNetworkIntegrationArchitectureTests {
                 "private let authenticatedTransport: AuthenticatedTransportDispatcher"
             )
         )
-        #expect(client.contains("AuthenticatedRequestExecutor("))
-        #expect(client.contains("dependencies: .live("))
+        #expect(client.contains("AuthenticatedRequestExecutor.live(using: authenticatedTransport)"))
+        #expect(executor.contains("Self(dependencies: .live("))
         #expect(
             client.components(separatedBy: "PinnedNetworkTransport()").count
                 == 2
@@ -4486,6 +4487,7 @@ struct CoreNetworkIntegrationArchitectureTests {
         "MerianNetworkClient+IdentificationPreflight.swift",
         "MerianNetworkClient+MediaStorage.swift",
         "MerianNetworkClient+Notifications.swift",
+        "MerianNetworkClient+ObservationEvidence.swift",
         "MerianNetworkClient+ObservationPublication.swift",
         "MerianNetworkClient+ProductFeedback.swift",
         "MerianNetworkClient+PublicProfile.swift",

@@ -5,6 +5,20 @@ import Foundation
 /// authenticated dispatcher backed by the single pinned-session owner; this
 /// executor constructs no session or client singleton of its own.
 struct AuthenticatedRequestExecutor {
+    enum ContentType: String {
+        case json = "application/json"
+        case octetStream = "application/octet-stream"
+    }
+
+    /// Compose the existing dispatcher once; endpoint bridges cannot acquire raw Auth state.
+    static func live(using dispatcher: AuthenticatedTransportDispatcher) -> Self {
+        Self(dependencies: .live(
+            requestPayloadAuthUserID: { try await dispatcher.requestPayloadAuthUserID() },
+            performTransport: { try await dispatcher.perform($0) },
+            refreshOrdinarySession: { await dispatcher.refreshActiveSessionForRetry() }
+        ))
+    }
+
     struct TransportResult {
         let data: Data
         let response: URLResponse
@@ -26,6 +40,7 @@ struct AuthenticatedRequestExecutor {
         let onRequestBodySent: (@Sendable () -> Void)?
         let authTransitionOwner: AuthTransitionToken?
         let expectedAuthUserID: UUID?
+        var contentType: ContentType = .json
         var measurementContext: IdentificationMeasurementContext?
         var identificationAuthorization: IdentificationDispatchAuthorization?
     }
@@ -194,7 +209,7 @@ struct AuthenticatedRequestExecutor {
         )
         urlRequest.httpMethod = request.method
         urlRequest.setValue(
-            "application/json",
+            request.contentType.rawValue,
             forHTTPHeaderField: "Content-Type"
         )
         urlRequest.setValue(

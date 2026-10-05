@@ -3850,3 +3850,20 @@ The consent snapshot uses a separate 32 KiB decoder for up to 64 ordered photo
 candidates; existing admission/status 4 KiB bounds stay unchanged. Fixed-null
 initial taxon and exact identity/revisions are enforced, and no ready-media or
 publication authority is inferred. Ordinary UI and activation remain separate.
+
+### Private reanalysis binary upload
+
+`Endpoints/MerianNetworkClient+ObservationEvidence.swift` prepares the bounded
+raw-byte frame off the main actor and validates the exact content-bound receipt.
+Its wire values live in
+[`Models/ObservationAnalysis`](Models/ObservationAnalysis/README.md). The fixed
+facade bridge supplies the expected account, binary content type and 130-second
+timeout, disables transient retry and classified-401 refresh, and keeps the
+existing authenticated dispatcher/lease checks. The executor's typed content
+type defaults to JSON for every existing caller; its live composition now owns
+the same injected dispatcher callbacks. Raw transport remains private, and
+neither endpoint nor wire values mint IDs or own durable work.
+
+This is native transport preparation. Ordinary live/queued capture still needs
+explicit append-only integration, enrollment and persistence before it can use
+this route. All history activation gates remain false.

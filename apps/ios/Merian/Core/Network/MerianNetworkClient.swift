@@ -343,6 +343,16 @@ final class MerianNetworkClient {
         return data
     }
 
+    /// Fixed private evidence route; the durable owner alone retries ambiguous outcomes.
+    func performAuthenticatedObservationEvidenceUpload(body: Data, expectedAuthUserID: UUID) async throws -> Data {
+        let url = try endpointURL("upload-observation-evidence")
+        let (data, _) = try await performAuthenticatedRequest(
+            url: url, method: "POST", body: body, timeoutInterval: 130,
+            allowsTransientTransportRetry: false, allowsUnauthorizedSessionRecovery: false,
+            expectedAuthUserID: expectedAuthUserID, contentType: .octetStream)
+        return data
+    }
+
     /// Sends an already-serialized JSON body without changing its bytes.
     /// Endpoints with pre-dispatch validation first check configuration, then
     /// prepare the body and validate it before entering the private transport.
@@ -490,23 +500,10 @@ final class MerianNetworkClient {
         authTransitionOwner: AuthTransitionToken? = nil,
         expectedAuthUserID: UUID? = nil,
         measurementContext: IdentificationMeasurementContext? = nil,
-        identificationAuthorization: IdentificationDispatchAuthorization? = nil
+        identificationAuthorization: IdentificationDispatchAuthorization? = nil,
+        contentType: AuthenticatedRequestExecutor.ContentType = .json
     ) async throws -> (Data, HTTPURLResponse) {
-        let executor = AuthenticatedRequestExecutor(
-            dependencies: .live(
-                requestPayloadAuthUserID: { [self] in
-                    try await self.authenticatedTransport
-                        .requestPayloadAuthUserID()
-                },
-                performTransport: { [self] attempt in
-                    try await self.authenticatedTransport.perform(attempt)
-                },
-                refreshOrdinarySession: { [self] in
-                    await self.authenticatedTransport
-                        .refreshActiveSessionForRetry()
-                }
-            )
-        )
+        let executor = AuthenticatedRequestExecutor.live(using: authenticatedTransport)
         return try await executor.execute(
             AuthenticatedRequestExecutor.Request(
                 url: url,
@@ -521,6 +518,7 @@ final class MerianNetworkClient {
                 onRequestBodySent: onRequestBodySent,
                 authTransitionOwner: authTransitionOwner,
                 expectedAuthUserID: expectedAuthUserID,
+                contentType: contentType,
                 measurementContext: measurementContext,
                 identificationAuthorization: identificationAuthorization
             )
