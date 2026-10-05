@@ -827,9 +827,11 @@ unbound work remains discardable with a permanent erasure receipt. Parent
 deletion and account fences still win over every claim.
 
 These storage and admission seams are not yet connected to automatic recovery.
-The final owner must coordinate live preparation with recovery before claiming
-files-pending metadata, so it cannot invalidate a producer that is still
-writing. The final Capture action and all activation gates remain disabled.
+The single-phase executor shares preparation ownership with Capture and claims
+files-pending metadata only inside the locked verifier callback. The scheduler
+must skip active children and bound failures that occur before a claim, so it
+cannot invalidate a producer or repeatedly rediscover due work. The final
+Capture action and all activation gates remain disabled.
 `ObservationReanalysisAdmissionWorkTests` covers strict decoding, consent
 filtering, stale claims, retry/hold transitions, failed-save rollback, locked
 promotion, account loss, binding and discard fences.
@@ -866,3 +868,34 @@ consent-aware deadlines and explicit grant wakes before the Reanalyze action is
 connected. `ObservationReanalysisOwnershipTests` covers the saved-preparation
 race, separate file-store instances, late cancellation, duplicate work and the
 queue Auth barrier.
+
+### Advisory phase execution
+
+`ObservationReanalysisAdmissionExecutor` runs one submitted phase under the
+queue's shared preparation owner and an account lease. Complete local file
+verification can run without network or inference consent. It compares the
+original source under the durable claim transaction before reading bytes, then
+promotes only from the verifier's locked completion callback. A failure before
+that callback returns unclaimed with the original metadata unchanged. The future
+scheduler must apply a bounded process-local cooldown to that outcome; no new
+durable attempt or evidence-unavailable fact is inferred from an open, lock,
+digest or generic filesystem error. Claimed uncertainty waits under the same
+phase, then holds after ten attempts without replacing evidence.
+
+Ready admission separately requires current consent and network eligibility.
+Both are checked through the recipient preflight and one-time binding boundary.
+Lost connectivity uses a durable retry; revoked consent holds without a wake
+deadline. A recovery-only recipient holds for reconciliation and cannot invent a
+processor or request. Account loss, deletion and a superseding claim cannot
+settle over newer state. A completed binding wins over a late failed response.
+No phase executes upload, inference, funding, replacement or selection changes.
+
+`ObservationReanalysisAdmissionStore.rearmConsent` is an explicit full-wrapper
+CAS for an admission-phase consent hold after a grant event. It retains the
+original proof and attempt count and rejects stale snapshots and other hold
+reasons. A generic scheduler wake cannot perform this transition implicitly. The
+executor and rearm seam are prepared but are not yet wired to automatic
+admission or the final Capture action. `ObservationReanalysisAdvisoryTests`
+covers local promotion without consent, unchanged pre-lock failure, claimed file
+uncertainty, exact admission, consent versus connectivity, stale claims,
+account/deletion fences and explicit rearm.

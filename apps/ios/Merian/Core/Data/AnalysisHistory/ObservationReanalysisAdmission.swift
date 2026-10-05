@@ -5,6 +5,7 @@ import SwiftData
 /// It never uploads, dispatches inference, changes selection or revives attempted held work.
 @MainActor
 struct ObservationReanalysisAdmission {
+    enum Failure: Error { case recoveryOnly }
     typealias Validator = ObservationReanalysisExecutor.Validator
     var account = ObservationHistoryCloudClient.live
     var preflight: (ObservationReanalysisPreflightRequest, UUID, @escaping Validator) async throws -> IdentificationDispatchAuthorization = {
@@ -66,7 +67,7 @@ struct ObservationReanalysisAdmission {
             guard authorization.recipient == saved.intent.request.processor else { throw ObservationReanalysisPersistence.IntegrityError.conflict }
         }
         try validate()
-        guard authorization.recipient != .recoveryOnly else { throw ObservationReanalysisPersistence.IntegrityError.conflict }
+        guard authorization.recipient != .recoveryOnly else { throw Failure.recoveryOnly }
         try authorization.validate()
         return try ObservationReanalysisExecutionStore.bindAndAdmit(draft, processor: authorization.recipient,
             now: now(), container: container, isCurrent: current, submissionProof: submissionProof, admissionClaim: admissionClaim)

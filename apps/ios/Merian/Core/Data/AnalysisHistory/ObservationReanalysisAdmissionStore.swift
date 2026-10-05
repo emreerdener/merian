@@ -69,7 +69,8 @@ enum ObservationReanalysisAdmissionStore {
     }
 
     static func claim(_ expected: Snapshot, admission: Admission, now: Date, container: ModelContainer,
-                      isCurrent: () -> Bool, save: (ModelContext) throws -> Void = { try $0.save() }) throws -> Claim {
+                      isCurrent: () -> Bool, proof: ObservationReanalysisPreparationIntent.Verified? = nil,
+                      save: (ModelContext) throws -> Void = { try $0.save() }) throws -> Claim {
         let work = expected.work
         switch admission {
         case .initial: guard work.state == .pending else { throw Persistence.IntegrityError.conflict }
@@ -78,7 +79,7 @@ enum ObservationReanalysisAdmissionStore {
         }
         let updated = try Work(preparation: work.preparation, phase: work.phase, state: .running,
             attempt: work.attempt + 1, updatedAt: now)
-        return try Claim(change(expected, to: updated, container: container, isCurrent: isCurrent, save: save))
+        return try Claim(change(expected, to: updated, container: container, isCurrent: isCurrent, proof: proof, save: save))
     }
 
     @discardableResult
@@ -112,6 +113,19 @@ enum ObservationReanalysisAdmissionStore {
         }
     }
 
+    /// A grant event may rearm only a consent hold. A timer or generic retry cannot revive other holds.
+    static func rearmConsent(_ expected: Snapshot, now: Date, container: ModelContainer,
+                             isCurrent: () -> Bool, consentGranted: () -> Bool) throws -> Snapshot {
+        let work = expected.work
+        guard consentGranted(), work.phase == .admissionPending, work.state == .held, work.hold == .consentRequired else {
+            throw Persistence.IntegrityError.conflict
+        }
+        let updated = try Work(preparation: work.preparation, phase: work.phase, state: .waiting,
+            attempt: work.attempt, updatedAt: now, nextRetryAt: now.addingTimeInterval(1))
+        return try change(expected, to: updated, container: container,
+            isCurrent: { isCurrent() && consentGranted() }, save: { try $0.save() })
+    }
+
     /// Shared by the atomic transition into bound execution; caller already owns the persistence transaction.
     static func matching(_ claim: Claim, proof: ObservationReanalysisPreparationIntent.Verified?,
                          context: ModelContext) throws -> Pair {
@@ -131,10 +145,15 @@ enum ObservationReanalysisAdmissionStore {
     }
 
     private static func change(_ expected: Snapshot, to work: Work, container: ModelContainer, isCurrent: () -> Bool,
+                               proof: ObservationReanalysisPreparationIntent.Verified? = nil,
                                save: (ModelContext) throws -> Void) throws -> Snapshot {
         try Persistence.transaction(expected.identity, container: container, isCurrent: isCurrent, save: save) { context in
             let pair = try pair(expected.identity, context: context)
             guard pair.snapshot == expected else { throw Persistence.IntegrityError.conflict }
+            if let proof {
+                guard proof.pending == expected.work.preparation else { throw Persistence.IntegrityError.conflict }
+                try proof.validate(context: context)
+            }
             return try write(work, job: pair.job)
         }
     }
