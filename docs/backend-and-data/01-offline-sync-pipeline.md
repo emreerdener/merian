@@ -1866,6 +1866,15 @@ validation and current consent precede atomic binding. The editor and bounded
 admission recovery are still awaiting connection, so saving an ordinary draft
 remains inert.
 
+The prepared admission store adds a closed version-6 recovery wrapper retaining
+that exact submitted preparation. Its private phase, claim generation, retry and
+hold fields do not modify execution queue fields. Only locked successful cohort
+verification promotes files-pending to admission-pending; recipient binding
+consumes the current ready claim and source proof atomically. Consent-off ready
+work and all held work contribute no admission deadline. Automatic admission
+ownership still awaits live-producer coordination and cancellation wiring; these
+storage seams do not schedule recovery themselves.
+
 Dedicated delivery now processes only explicitly admitted bound children. Atomic
 processor binding plus pristine `pending` status closes the restart gap before
 first dispatch. The retained single-flight owner cancels on offline/constrained

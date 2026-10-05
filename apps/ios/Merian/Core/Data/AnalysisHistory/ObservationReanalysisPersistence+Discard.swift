@@ -40,6 +40,9 @@ extension ObservationReanalysisPersistence {
                     } else if let submitted = try? ObservationReanalysisSubmissionIntent.decode(bytes) {
                         guard submitted.draft.identity == identity,
                               case .submitted = try restoreDraft(submitted.draft, row: row, job: job) else { throw IntegrityError.conflict }
+                    } else if let work = try? ObservationReanalysisAdmissionWork.decode(bytes) {
+                        guard work.preparation.draft.identity == identity else { throw IntegrityError.conflict }
+                        try ObservationReanalysisAdmissionStore.validateDiscard(identity, context: context)
                     } else {
                         // Bound requests, unknown phases and terminal/attempted jobs cannot authorize local discard.
                         let draft = try ObservationReanalysisDraft.decode(bytes)
@@ -62,7 +65,7 @@ extension ObservationReanalysisPersistence {
 
     /// Completed results or another use of this UUID win over a local preparation's discard intent.
     @MainActor
-    private static func requireNoResultCollision(_ identity: OfflineQueueWork.Reanalysis, context: ModelContext) throws {
+    static func requireNoResultCollision(_ identity: OfflineQueueWork.Reanalysis, context: ModelContext) throws {
         let lower = identity.analysisID.uuidString.lowercased(), upper = identity.analysisID.uuidString
         let alternateReceiptID = "reanalysis-erasure:" + upper
         guard try (upper == lower || context.fetchOfflineJob(id: alternateReceiptID) == nil), try context.fetch(FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == lower || $0.id == upper })).isEmpty,

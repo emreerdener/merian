@@ -796,3 +796,40 @@ action are not connected yet. `ObservationReanalysisSubmissionTests` covers disk
 restart across file preparation, legacy compatibility, closed envelopes,
 source-proof admission, account/consent loss and discard races. No SwiftData
 schema shape or frozen snapshot changes are required.
+
+### Durable advisory admission claims
+
+`ObservationReanalysisAdmissionWork` wraps only explicitly submitted version-4
+or version-5 work in a closed version-6 envelope. It retains the original
+preparation and source fingerprint, an independent files-pending or
+admission-pending phase, and private claim-attempt, retry deadline or hold
+state. Normal queue/job execution status, attempts and deadlines stay pristine.
+`ObservationReanalysisAdmissionStore` compares the entire original metadata and
+owner-qualified pair before each mutation. Returned claim dates use the exact
+persisted representation so JSON timestamp rounding cannot reject a valid claim.
+Interrupted claims advance their own attempt so a stale worker cannot settle or
+bind newer work. Interrupted ownership may be reclaimed only after the preceding
+in-process task has drained.
+
+File failure never promotes the phase. Promotion is reserved for the complete
+cohort verifier's locked commit callback with the original source proof. Ready
+admission has no candidate deadline while current consent is unavailable; held
+work has none under any consent state. The future runtime owner must likewise
+suppress fallback timers for consent-blocked ready work and explicitly wake it
+after consent restoration. Generic filesystem conflict is not proof of damaged
+evidence and cannot authorize an evidence-unavailable hold.
+
+Claim-bound recipient preflight revalidates the full wrapper around suspended
+work. Binding consumes the exact ready claim and source proof in the same
+transaction that admits bound execution. Failed saves retain the original
+wrapper. Local preparation discard rejects a running advisory claim; nonrunning
+unbound work remains discardable with a permanent erasure receipt. Parent
+deletion and account fences still win over every claim.
+
+These storage and admission seams are not yet connected to automatic recovery.
+The final owner must coordinate live preparation with recovery before claiming
+files-pending metadata, so it cannot invalidate a producer that is still
+writing. The final Capture action and all activation gates remain disabled.
+`ObservationReanalysisAdmissionWorkTests` covers strict decoding, consent
+filtering, stale claims, retry/hold transitions, failed-save rollback, locked
+promotion, account loss, binding and discard fences.

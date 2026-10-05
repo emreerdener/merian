@@ -87,6 +87,7 @@ enum ObservationReanalysisExecutionStore {
     static func bindAndAdmit(_ draft: ObservationReanalysisDraft, processor: IdentificationRecipientExpectation,
                              now: Date, container: ModelContainer, isCurrent: () -> Bool,
                              submissionProof: ObservationReanalysisPreparationIntent.Verified? = nil,
+                             admissionClaim: ObservationReanalysisAdmissionStore.Claim? = nil,
                              save: (ModelContext) throws -> Void = { try $0.save() }) throws -> Snapshot {
         guard now.timeIntervalSince1970.isFinite else { throw Persistence.IntegrityError.conflict }
         if let submissionProof {
@@ -96,6 +97,13 @@ enum ObservationReanalysisExecutionStore {
         return try Persistence.transaction(draft.identity, container: container, isCurrent: isCurrent, save: save) { context in
             try validateNamespace(draft.identity, context: context)
             try submissionProof?.validate(context: context)
+            if let admissionClaim {
+                guard admissionClaim.snapshot.identity == draft.identity, let submissionProof,
+                      admissionClaim.snapshot.work.phase == .admissionPending else { throw Persistence.IntegrityError.conflict }
+                let pair = try ObservationReanalysisAdmissionStore.matching(admissionClaim, proof: submissionProof, context: context)
+                guard let metadata = String(bytes: try submissionProof.pending.readyData(), encoding: .utf8) else { throw Persistence.IntegrityError.conflict }
+                pair.job.metadataJSON = metadata
+            }
             guard let (row, job) = try Persistence.pair(draft.identity, context: context) else { throw Persistence.IntegrityError.unavailable }
             switch try Persistence.restoreDraft(draft, row: row, job: job) {
             case let .bound(stored):

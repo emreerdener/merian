@@ -18,6 +18,7 @@ struct ObservationReanalysisAdmission {
     var now: () -> Date = Date.init
 
     func admit(_ draft: ObservationReanalysisDraft, container: ModelContainer,
+               admissionClaim: ObservationReanalysisAdmissionStore.Claim? = nil,
                isCurrent: @escaping @MainActor @Sendable () -> Bool) async throws -> ObservationReanalysisExecutionStore.Snapshot {
         let lease = try account.begin(draft.identity.ownerID)
         defer { account.finish(lease) }
@@ -25,7 +26,7 @@ struct ObservationReanalysisAdmission {
             lease.session.userID == draft.identity.ownerID && account.isCurrent(lease) && isCurrent()
         }
         let submissionProof: ObservationReanalysisPreparationIntent.Verified?
-        if case let .ready(.submitted(saved)) = try ObservationReanalysisPersistence.preparation(draft.identity,
+        if case let .submitted(saved) = try Self.state(draft.identity, claim: admissionClaim, proof: nil,
             container: container, isCurrent: current) {
             guard saved.draft == draft else { throw ObservationReanalysisPersistence.IntegrityError.conflict }
             let source = try ObservationReanalysisSource.capture(observationID: draft.identity.observationID,
@@ -36,8 +37,7 @@ struct ObservationReanalysisAdmission {
         } else { submissionProof = nil }
         let read: @MainActor @Sendable () throws -> ObservationReanalysisPersistence.DraftState = {
             try Task.checkCancellation()
-            guard case let .ready(state) = try ObservationReanalysisPersistence.preparation(draft.identity,
-                container: container, isCurrent: current, submissionProof: submissionProof) else { throw ObservationReanalysisPersistence.IntegrityError.unavailable }
+            let state = try Self.state(draft.identity, claim: admissionClaim, proof: submissionProof, container: container, isCurrent: current)
             switch state {
             case let .draft(saved):
                 guard saved == draft, submissionProof == nil else { throw ObservationReanalysisPersistence.IntegrityError.conflict }
@@ -69,6 +69,21 @@ struct ObservationReanalysisAdmission {
         guard authorization.recipient != .recoveryOnly else { throw ObservationReanalysisPersistence.IntegrityError.conflict }
         try authorization.validate()
         return try ObservationReanalysisExecutionStore.bindAndAdmit(draft, processor: authorization.recipient,
-            now: now(), container: container, isCurrent: current, submissionProof: submissionProof)
+            now: now(), container: container, isCurrent: current, submissionProof: submissionProof, admissionClaim: admissionClaim)
+    }
+
+    private static func state(_ identity: OfflineQueueWork.Reanalysis, claim: ObservationReanalysisAdmissionStore.Claim?,
+                              proof: ObservationReanalysisPreparationIntent.Verified?, container: ModelContainer,
+                              isCurrent: () -> Bool) throws -> ObservationReanalysisPersistence.DraftState {
+        if let claim {
+            guard claim.snapshot.identity == identity, claim.snapshot.work.phase == .admissionPending else {
+                throw ObservationReanalysisPersistence.IntegrityError.conflict
+            }
+            let current = try ObservationReanalysisAdmissionStore.validate(claim, container: container, isCurrent: isCurrent, proof: proof)
+            return .submitted(.init(preparation: current.work.preparation))
+        }
+        guard case let .ready(state) = try ObservationReanalysisPersistence.preparation(identity,
+            container: container, isCurrent: isCurrent, submissionProof: proof) else { throw ObservationReanalysisPersistence.IntegrityError.unavailable }
+        return state
     }
 }
