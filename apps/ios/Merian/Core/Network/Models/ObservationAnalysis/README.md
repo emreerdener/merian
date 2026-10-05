@@ -29,11 +29,11 @@ integration must persist exact identity and media before invoking this endpoint.
 `ObservationReanalysisRequest` prepares immutable protocol-8 photo admission
 bytes for `analyze-observation`. It requires distinct observation, child and
 source analysis IDs, 1–5 exact image references, ordered description items and
-an explicit processor expectation. That expectation must come from the existing
-recipient preflight, never a locally selected provider. The request validates
-both Unicode-scalar and UTF-16 description limits and rejects unsupported
-content instead of dropping it. Description-only protocol-7 admission is a
-separate contract and is not represented by this type.
+an explicit processor expectation. That expectation must come from the dedicated
+owner-bound reanalysis recipient preflight, never a locally selected provider.
+The request validates both Unicode-scalar and UTF-16 description limits and
+rejects unsupported content instead of dropping it. Description-only protocol-7
+admission is a separate contract and is not represented by this type.
 
 The native request fingerprint is SHA-256 of the complete input except
 `request_digest`, encoded as sorted-key UTF-8 JSON without escaped slashes.
@@ -50,3 +50,12 @@ acknowledgment. It accepts the five defined execution states and binds the
 response to the original parent/child IDs. Even `complete` carries no result or
 selection authority: the durable caller must recover the immutable child through
 owner history before committing local queue completion.
+
+`ObservationReanalysisPreflightRequest` encodes only parent/source/child and
+protocol 3/6/8 claims. Its exact eight-field 4-KiB response decoder rejects
+foreign identities, unknown keys, boolean minima and ambiguous recovery states.
+Recovery requires null recipient/minima and cannot construct fresh admission.
+Capability 6 is understood without weakening the original native preflight
+format. Shared consent authorization validates the expected account both before
+the RPC and after suspension, then revalidates local consent and queue ownership
+before each authorized use. This read does not promise ready media or funding.

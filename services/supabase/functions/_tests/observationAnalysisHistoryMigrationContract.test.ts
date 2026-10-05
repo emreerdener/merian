@@ -1073,3 +1073,43 @@ Deno.test("private upload ingress retains expiry identity without opening rollou
   assert(!/GRANT\s+EXECUTE\s+ON\s+FUNCTION\s+internal\./i.test(sql));
   assert(!/GRANT[^;]+TO\s+(?:authenticated|anon)/i.test(sql));
 });
+
+Deno.test("owner reanalysis preflight binds child before advisory recipient reads without admission", async () => {
+  const sql = await migration(
+    "20261005022411_prepare_owner_reanalysis_preflight",
+  );
+  assertStringIncludes(sql, "caller UUID := auth.uid()");
+  assertStringIncludes(
+    sql,
+    "internal.lock_owned_observation_evidence(caller,observation)",
+  );
+  assertStringIncludes(
+    sql,
+    "saved.input_snapshot->>'source_analysis_id' IS DISTINCT FROM source::TEXT",
+  );
+  assertStringIncludes(
+    sql,
+    "'scan_identification','multimodal_photo_v1',FALSE,analysis,3,6",
+  );
+  assertStringIncludes(
+    sql,
+    "GRANT EXECUTE ON FUNCTION public.get_owned_observation_reanalysis_preflight(JSONB) TO authenticated",
+  );
+  assertStringIncludes(
+    sql,
+    "orchestration_enabled AND admission_enabled AND protected_analysis_enabled",
+  );
+  assert(
+    sql.indexOf("decision:='recovery_only'") <
+      sql.indexOf("FROM public.get_my_identification_preflight("),
+  );
+  assert(
+    sql.indexOf(
+      "internal.complimentary_scan_usage WHERE client_scan_id=analysis",
+    ) < sql.indexOf("FROM public.get_my_identification_preflight("),
+  );
+  assert(
+    !/INSERT INTO internal\.(observation_analysis_intents|ai_quota|complimentary)|reserve_identification_quota\(|UPDATE (internal|public)\./
+      .test(sql),
+  );
+});

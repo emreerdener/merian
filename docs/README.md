@@ -31,7 +31,7 @@ boundaries, and the [codebase map](./codebase-map.md) inventories source owners.
 | Database and Edge Functions             | [`services/supabase`](../services/supabase/README.md)                                                     |
 
 The app and widget target iOS 17.2; the companion targets watchOS 10.0. The
-active SwiftData schema is `MerianSchemaV57`. The
+active SwiftData schema is `MerianSchemaV58`. The
 [schema contract](./backend-and-data/04-database-schema.md) and
 [startup recovery guide](./backend-and-data/08-startup-store-recovery.md) own
 migration and install-over requirements.

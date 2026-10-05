@@ -45,3 +45,13 @@ execution, private bucket provisioning, or activation is authorized by this
 source change. See the
 [canonical contract](../../../../docs/backend-and-data/05-api-contracts.md#prepared-child-analysis-orchestration-and-recovery)
 and [recovery worker](../recover-observation-analyses/README.md).
+
+The separate authenticated `get_owned_observation_reanalysis_preflight` RPC
+checks owner, parent, immutable source and proposed child before previewing the
+current photo recipient. Existing exact intents are recovery-only; legacy
+identity collisions cannot start another analysis. This read reserves neither
+quota nor complimentary funding. Native callers persist the qualified child and
+request, then let this endpoint own atomic funding/admission; a legacy child
+credit preclaim would conflict. See the canonical contract above for its exact
+3/6/8 request and eight-field response. The RPC remains behind the existing
+closed execution gates.

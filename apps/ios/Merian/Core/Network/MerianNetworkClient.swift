@@ -230,8 +230,10 @@ final class MerianNetworkClient {
     }
 
     /// Fixed read-only RPC through the same account-bound, pinned dispatcher.
-    func performIdentificationRecipientPreflight(body: Data, expectedAuthUserID: UUID) async throws -> Data {
-        let url = try AdmissionRPCRequestPolicy.url(baseURL: supabaseUrl, route: .recipient)
+    func performIdentificationRecipientPreflight(body: Data, expectedAuthUserID: UUID,
+        route: AdmissionRPCRequestPolicy.Route = .recipient) async throws -> Data {
+        guard route == .recipient || route == .reanalysisRecipient else { throw MerianError.invalidURL }
+        let url = try AdmissionRPCRequestPolicy.url(baseURL: supabaseUrl, route: route)
         let (data, _) = try await performAuthenticatedRequest(
             url: url, method: "POST", body: body, timeoutInterval: 5,
             allowsTransientTransportRetry: false, allowsUnauthorizedSessionRecovery: false,

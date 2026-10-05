@@ -3867,3 +3867,16 @@ neither endpoint nor wire values mint IDs or own durable work.
 This is native transport preparation. Ordinary live/queued capture still needs
 explicit append-only integration, enrollment and persistence before it can use
 this route. All history activation gates remain false.
+
+## Prepared reanalysis recipient preflight
+
+`ObservationReanalysisPreflightRequest` owns the distinct protocol 3/6/8 request
+and bounded eight-field response for owner/source/child recipient discovery.
+`MerianNetworkClient+IdentificationPreflight` shares account, cancellation and
+local-consent validation across the original and reanalysis request formats.
+`AdmissionRPCRequestPolicy` permits only the two named recipient routes through
+that private pinned transport; it cannot send allowance or arbitrary RPCs.
+Reanalysis never invents a provider, operation ID or selection. Recovery-only
+requires null recipient and protocol minima and cannot build a new analysis
+request. Transport does not automatically retry or refresh a 401 while the outer
+durable owner holds an account lease. Normal UI/execution stays disabled.

@@ -81,6 +81,15 @@ activation prerequisite. See the
 and
 [history contract owner](../../services/supabase/functions/_shared/analysisHistory/README.md).
 
+The prepared `get_owned_observation_reanalysis_preflight(jsonb)` RPC is granted
+only to `authenticated`, derives its owner from `auth.uid()`, and requires the
+existing orchestration/admission/protected gates. It locks the owner and parent
+before checking source membership and child identities. Matching saved intents
+are recovery-only; fresh identities reuse the nonmutating recipient resolver. It
+changes no history, evidence, funding or quota state. The
+[API contract](05-api-contracts.md#prepared-child-analysis-orchestration-and-recovery)
+defines exact protocol and response fields. All gates remain false.
+
 ### Privileged routine ACL catalog
 
 `internal.privileged_routine_grants` is the reviewed source of truth for API

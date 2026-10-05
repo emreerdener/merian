@@ -12404,6 +12404,41 @@ Explore and Field Chat are unchanged.
 
 ## Prepared child-analysis orchestration and recovery
 
+The prepared authenticated RPC `get_owned_observation_reanalysis_preflight`
+accepts one exact `p_request` object: `schema_version:1`, distinct canonical
+`observation_id`, `analysis_id`, `source_analysis_id`, and independent protocols
+`entitlement_protocol:3`, `identification_protocol:6`, `history_protocol:8`. It
+targets photo reanalysis only, without content, caller-supplied owner, provider
+choice or fallback permission. Owner/history/deletion and source membership are
+checked under the same owner-first locks as admission. A historical source need
+not be selected or confirmed. Existing orchestration, admission and protected
+analysis gates must be open; this migration changes none of them.
+
+The response is exactly
+`{schema_version:1, observation_id, analysis_id,
+source_analysis_id, decision, processor_permission,
+minimum_entitlement_protocol, minimum_identification_protocol}`.
+Fresh children reuse the current read-only recipient policy with fixed photo
+shape and no free fallback. Decisions are `ready`, `permission_required`,
+`client_update_required` or `recovery_only`. An existing intent with the same
+owner, observation and source returns only `recovery_only`, with null recipient
+and minima, for every lifecycle state. Legacy or unrelated identity collisions
+fail before recipient resolution; they cannot become new analyses. Owned
+pre-admission private evidence is permitted but this read does not certify its
+readiness or extend its expiry.
+
+Preflight does not reserve quota, claim complimentary funding, admit an intent,
+select a result or authorize dispatch. In particular, native callers must not
+preclaim a legacy complimentary hold for the child: protected admission rejects
+existing unrelated funding identities and owns its own atomic hold. Persist the
+qualified child and exact request locally, then let `analyze-observation` admit
+or recover that same operation. Admission and dispatch still recheck current
+consent and recipient expectations. Native decoding has a separate bounded
+4-KiB, exact-key/identity contract and supports capability 6; it does not pass
+this request through the legacy native preflight format. The same account lease,
+consent and queue-currentness checks apply before the read and after suspension;
+there is no hidden transport retry or 401-refresh recursion.
+
 Migration `20261003074429_prepare_observation_analysis_recovery.sql` adds the
 false-by-default `orchestration_enabled` gate. `analyze-observation` validates
 the existing strict V1/V2 admission contract, derives owner from verified auth

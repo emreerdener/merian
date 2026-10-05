@@ -2753,3 +2753,17 @@ unrelated-parent isolation, namespace traversal and both deletion entry points
 have focused coverage. Qualified production admission remains disabled; detached
 progress, recipient preflight, funding, durable execution and append-only
 completion are still pending.
+
+### Owner-bound reanalysis preflight — October 5, 2026
+
+The dedicated authenticated photo preflight now binds parent, historical source
+and proposed child before reading current recipient policy. Existing exact
+intents return recovery-only across all lifecycle states; legacy identities
+conflict. The native request/decoder and consent authorization path are prepared
+without enabling UI or execution. Funding remains inside atomic server
+admission; native must not create a legacy complimentary hold first. The
+existing exact owner-state reader already supports targeted completed-child
+recovery independently of pagination. Qualified durable production,
+upload/recovery orchestration and append-only local completion remain the next
+integration work. See the
+[current API contract](../backend-and-data/05-api-contracts.md#prepared-child-analysis-orchestration-and-recovery).

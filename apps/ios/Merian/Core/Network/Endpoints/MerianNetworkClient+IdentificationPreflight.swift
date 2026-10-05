@@ -8,12 +8,43 @@ extension MerianNetworkClient {
         expectedAuthUserID: UUID,
         validateAttempt: (@MainActor @Sendable () throws -> Void)? = nil
     ) async throws -> IdentificationDispatchAuthorization {
+        try await prepareIdentificationAuthorization(expectedAuthUserID: expectedAuthUserID,
+            validateAttempt: validateAttempt, preflight: {
+                try await performIdentificationRecipientPreflight(
+                    body: JSONEncoder().encode(input), expectedAuthUserID: expectedAuthUserID)
+            }, decode: { try IdentificationPreflightResponse.recipient(from: $0, for: input) })
+    }
+
+    /// The child already has a durable identity. This read neither starts work nor selects a result.
+    func prepareIdentificationAuthorization(
+        input: ObservationReanalysisPreflightRequest,
+        expectedAuthUserID: UUID,
+        validateAttempt: (@MainActor @Sendable () throws -> Void)? = nil
+    ) async throws -> IdentificationDispatchAuthorization {
+        struct Parameters: Encodable { let p_request: ObservationReanalysisPreflightRequest }
+        return try await prepareIdentificationAuthorization(expectedAuthUserID: expectedAuthUserID,
+            validateAttempt: validateAttempt, preflight: {
+                try await performIdentificationRecipientPreflight(
+                    body: JSONEncoder().encode(Parameters(p_request: input)),
+                    expectedAuthUserID: expectedAuthUserID, route: .reanalysisRecipient)
+            }, decode: { try ObservationReanalysisPreflightRequest.recipient(from: $0, for: input) })
+    }
+
+    private func prepareIdentificationAuthorization(
+        expectedAuthUserID: UUID,
+        validateAttempt: (@MainActor @Sendable () throws -> Void)?,
+        preflight: () async throws -> Data,
+        decode: (Data) throws -> IdentificationRecipientExpectation
+    ) async throws -> IdentificationDispatchAuthorization {
         try Task.checkCancellation()
+        guard try await authenticatedUserIDForInferenceRequest() == expectedAuthUserID else {
+            throw SupabaseAuthTransitionError.signOutSessionChanged
+        }
+        try Task.checkCancellation()
+        try await validateAttempt?()
         let response: Data
         do {
-            response = try await performIdentificationRecipientPreflight(
-                body: JSONEncoder().encode(input), expectedAuthUserID: expectedAuthUserID
-            )
+            response = try await preflight()
         } catch let error as MerianError {
             // PostgREST uses its own error envelope. Project only the reviewed
             // entitlement denial; never expose raw SQL diagnostics as UI copy.
@@ -31,7 +62,7 @@ extension MerianNetworkClient {
         }
         let recipient: IdentificationRecipientExpectation
         do {
-            recipient = try IdentificationPreflightResponse.recipient(from: response, for: input)
+            recipient = try decode(response)
         } catch MerianError.aiConsentRequired {
             await MainActor.run {
                 let consent = ConsentManager.shared
