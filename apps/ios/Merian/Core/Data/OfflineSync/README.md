@@ -725,17 +725,23 @@ cleanup work. A minimal `observationReanalysisErasure` job is committed with
 each canonical child removal. It preserves canonical parent/child namespace
 ownership after the ingestion metadata disappears and prevents reuse of that
 child ID. These local receipts have no retry deadline and are excluded from the
-network scheduler. A dedicated local filesystem drain remains to be connected;
-receipt creation alone does not assert that bytes have been erased.
+network scheduler. `ObservationReanalysisErasureOwner` now drains them locally
+after deletion, at repository configuration and on foreground activation before
+consent gates. It requires an exact receipt and fresh child absence under the
+same filesystem lock used by preparation, and marks the receipt complete only
+after successful erasure. Failures remain pending for a later local opportunity;
+malformed or failed receipts cannot starve later pages. Completed receipts
+retain the identity tombstone but never reauthorize cleanup. No network or Auth
+work is started by this owner.
 
 After commit, `finishReanalysisErasure` refetches child absence and checks the
 same model container before cancelling exact transport and process ownership. It
 never cancels a surviving row, releases a funding hold or requests remote child
 deletion. Parent cloud erasure remains observation-scoped. Private queue file
-cleanup accepts only relative `ReanalysisQueue/<canonical-child-ID>/<file>`
-references and returns absolute Documents paths. A future producer must copy
-inputs into that namespace; parent/library paths and other children's paths do
-not authorize file removal. No qualified producer is enabled yet.
+cleanup is receipt-bound to the entire `ReanalysisQueue/<canonical-child-ID>`
+namespace, including interrupted preparation files. Generic observation-media
+cleanup no longer receives child paths. No qualified UI producer is enabled yet;
+complete-cohort recovery and full-account namespace purge remain prerequisites.
 
 The ordinary permission-resume affordance and automatic failed-queue purge also
 require ordinary classification. Held children cannot borrow legacy funding

@@ -29,6 +29,9 @@ actor ObservationReanalysisFileStore {
         let root = open(documents.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
         guard root >= 0 else { throw Failure.unavailable }
         defer { close(root) }
+        // Full-library erasure must take the exclusive side of this stable root lock.
+        guard flock(root, LOCK_SH | LOCK_NB) == 0 else { throw Failure.busy }
+        defer { flock(root, LOCK_UN) }
         let queue = try directory("ReanalysisQueue", inside: root)
         defer { close(queue) }
         let directory = try directory(child.uuidString.lowercased(), inside: queue)
@@ -73,6 +76,66 @@ actor ObservationReanalysisFileStore {
         }
     }
 
+    /// Namespace authority comes from a committed receipt, never from caller-provided paths.
+    /// Keep the empty directory as the stable child lock; full-library purge removes it later.
+    func erase(child: UUID, authorize: @MainActor @Sendable () throws -> Bool,
+               acknowledge: @MainActor @Sendable () throws -> Void) async throws {
+        guard activeChildren.insert(child).inserted else { throw Failure.busy }
+        defer { activeChildren.remove(child) }
+        try Task.checkCancellation()
+        let root = open(documents.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard root >= 0 else { throw Failure.unavailable }
+        defer { close(root) }
+        guard flock(root, LOCK_SH | LOCK_NB) == 0 else { throw Failure.busy }
+        defer { flock(root, LOCK_UN) }
+        let queue = try directory("ReanalysisQueue", inside: root)
+        defer { close(queue) }
+        let directory = try directory(child.uuidString.lowercased(), inside: queue)
+        defer { close(directory) }
+        guard flock(directory, LOCK_EX | LOCK_NB) == 0 else { throw Failure.busy }
+        defer { flock(directory, LOCK_UN) }
+        guard try await authorize() else { return }
+        for name in try names(in: directory) {
+            try Task.checkCancellation()
+            var info = stat()
+            guard fstatat(directory, name, &info, AT_SYMLINK_NOFOLLOW) == 0,
+                  [S_IFREG, S_IFLNK].contains(info.st_mode & S_IFMT) else { throw Failure.cleanupFailed }
+            guard unlinkat(directory, name, 0) == 0 else { throw Failure.cleanupFailed }
+        }
+        guard fsync(directory) == 0, fsync(queue) == 0, fsync(root) == 0 else { throw Failure.cleanupFailed }
+        try Task.checkCancellation()
+        guard sameDirectory(queue, named: "ReanalysisQueue", inside: root),
+              sameDirectory(directory, named: child.uuidString.lowercased(), inside: queue) else { throw Failure.cleanupFailed }
+        try await acknowledge()
+    }
+
+    private func sameDirectory(_ descriptor: Int32, named name: String, inside parent: Int32) -> Bool {
+        var held = stat(), current = stat()
+        return fstat(descriptor, &held) == 0 && fstatat(parent, name, &current, AT_SYMLINK_NOFOLLOW) == 0
+            && current.st_mode & S_IFMT == S_IFDIR && current.st_dev == held.st_dev && current.st_ino == held.st_ino
+    }
+
+    private func names(in directory: Int32) throws -> [String] {
+        let copy = dup(directory)
+        guard copy >= 0 else { throw Failure.unavailable }
+        guard let stream = fdopendir(copy) else { close(copy); throw Failure.unavailable }
+        defer { closedir(stream) }
+        var result: [String] = []
+        while true {
+            errno = 0
+            guard let entry = readdir(stream) else {
+                guard errno == 0 else { throw Failure.cleanupFailed }
+                return result.sorted()
+            }
+            let name = withUnsafePointer(to: &entry.pointee.d_name) {
+                $0.withMemoryRebound(to: CChar.self, capacity: Int(entry.pointee.d_namlen) + 1) { String(cString: $0) }
+            }
+            guard name != ".", name != ".." else { continue }
+            guard result.count < 256 else { throw Failure.cleanupFailed }
+            result.append(name)
+        }
+    }
+
     private func verify(_ data: Data, reference: ObservationEvidenceUpload.Reference) throws {
         guard data.count == reference.byteCount,
               SHA256.hash(data: data).map({ String(format: "%02x", $0) }).joined() == reference.sha256 else { throw Failure.conflict }
@@ -86,7 +149,7 @@ actor ObservationReanalysisFileStore {
     }
 
     private func read(_ name: String, directory: Int32, reference: ObservationEvidenceUpload.Reference) throws -> Data? {
-        let descriptor = openat(directory, name, O_RDONLY | O_NOFOLLOW | O_CLOEXEC)
+        let descriptor = openat(directory, name, O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
         guard descriptor >= 0 else {
             if errno == ENOENT { return nil }; throw Failure.conflict
         }

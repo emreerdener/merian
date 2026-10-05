@@ -42,6 +42,18 @@ extension OfflineQueueManager {
                 }
             }
         }
+        await drainPendingReanalysisErasures(in: container)
         updateUnsyncedItemCount()
+    }
+
+    func drainPendingReanalysisErasures(in container: ModelContainer) async {
+        await reanalysisErasureOwner.drain(container: container, isCurrent: { [weak self] in
+            self?.modelContext?.container === container
+        })
+    }
+
+    func requestReanalysisErasureRecovery() {
+        guard !TestExecutionCoordinator.isRunningTests, let container = modelContext?.container else { return }
+        Task { await drainPendingReanalysisErasures(in: container) }
     }
 }

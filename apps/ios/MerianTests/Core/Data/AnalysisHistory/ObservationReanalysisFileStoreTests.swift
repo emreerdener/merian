@@ -100,4 +100,16 @@ struct ObservationReanalysisFileStoreTests {
             try await store.persist(draft: draft, photos: [Data([3, 2, 1])]) { Issue.record("Unexpected commit"); return false }
         }
     }
+
+    @Test func specialFileCannotBlockOrMasqueradeAsPhoto() async throws {
+        let root = try directory(); defer { try? FileManager.default.removeItem(at: root) }
+        let draft = try draft(), file = root.appendingPathComponent(try #require(draft.photoPaths.first))
+        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        #expect(mkfifo(file.path, 0o600) == 0)
+        await #expect(throws: ObservationReanalysisFileStore.Failure.conflict) {
+            try await ObservationReanalysisFileStore(documents: root).persist(draft: draft, photos: [Data([1, 2, 3])]) {
+                Issue.record("Special file committed")
+            }
+        }
+    }
 }

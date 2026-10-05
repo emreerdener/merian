@@ -33,6 +33,7 @@ final class AppLifecycleManager {
     /// Handles application transition to active foreground.
     func handleActivePhase() {
         container.appUpdateCoordinator.refresh()
+        container.offlineQueueManager.requestReanalysisErasureRecovery()
         guard container.appSettings.hasCompletedOnboarding else { return }
 
         // Consent synchronization must also run while the required gate is

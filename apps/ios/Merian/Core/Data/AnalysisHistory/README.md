@@ -538,7 +538,13 @@ I/O, `ObservationReanalysisPreparationIntent` persists a closed version-3
 the frozen source snapshot bytes. The existing qualified child provides
 parent/owner/source linkage even when metadata is damaged. This phase has no
 processor or request and cannot pass draft binding or execution decoders. The
-producer hashes the source on its preparation worker.
+producer hashes the source on its preparation worker. Persistence accepts only a
+verified proof with a file-restricted constructor, requiring the digest and
+identity to match the frozen source. The exact source bytes are revalidated
+inside both database transactions. The digest fences the pending-to-ready
+transition and is discarded by ready version-2 metadata. Ready replay recovers
+already-committed state; subsequent delivery retains its own source, server,
+account and deletion checks.
 
 After taking the filesystem lock, the producer rechecks the exact unattempted
 pending pair, source, account, generation and deletion fences before writing.
@@ -553,19 +559,38 @@ Parent erasure creates a minimal durable `ObservationReanalysisErasureReceipt`
 before removing child rows and ingestion metadata in the same transaction. Its
 canonical parent/child identities authorize only local namespace cleanup;
 damaged source/owner metadata cannot strand that receipt. Any receipt, including
-a future completed receipt, prevents reuse of the child identity. The raw local
-job kind changes no stored schema and is excluded from network scheduler wakes.
+a completed receipt, prevents reuse of the child identity. The raw local job
+kind changes no stored schema and is excluded from network scheduler wakes.
 
-Interrupted preparations now remain discoverable through either the child or its
-erasure receipt. The local cleanup worker and complete-cohort restart recovery
-are not yet connected. Future recovery must take the same file lock, verify the
-exact canonical file set and all lengths/digests, then compare the persisted
-source identity and pending pair before making it ready. Incomplete, extra or
-changed files remain held for explicit remediation; no successor is created
-automatically. Cleanup must acknowledge its durable receipt only while holding
-the file lock after fresh database validation. It must never wait for a file
-lock inside the shared database transaction. Full-account namespace purge also
-remains required. Neither boundary may be activated before these cleanup and
-recovery paths are integrated and tested. The prepared producer still has no
-live capture-entry caller or execution wake; new durable children stay held and
-every activation gate remains closed.
+Interrupted preparations remain indexed by either their held child or erasure
+receipt. `ObservationReanalysisErasureOwner` drains pending local receipts in
+bounded pages, coalescing requests and advancing past failures. Post-deletion,
+repository configuration and foreground activation trigger recovery without
+network, onboarding or consent gates. Test execution suppresses automatic
+lifecycle triggers; focused tests invoke the same owner explicitly.
+
+`ObservationReanalysisErasurePersistence` validates the exact receipt, child
+absence and current model container before file I/O and acknowledgement. The
+filesystem owner keeps the child lock through both transactions and cleanup,
+unlinks regular files and file symlinks without following them, and retains
+pending receipts after any failure or unexpected subdirectory. Empty child
+directories remain stable locks. Before acknowledgement, the queue and child
+entries must still name the held directory inodes; replacement retains the
+pending receipt. Discovery yields between pages, including pages containing only
+malformed jobs. Existing-photo reads use nonblocking descriptors and reject
+special files before reading bytes. Completed receipts remain identity
+tombstones and never authorize another erasure. Generic observation-media
+deletion no longer receives child paths. No network timer or provider retry is
+involved. Writers and cleanup share a Documents root lock; full-account purge
+must take its exclusive side before removing the namespace. Complete-cohort
+restart recovery remains unconnected. Future recovery must take the same file
+lock, verify the exact canonical file set and all lengths/digests, then compare
+the persisted source identity and pending pair before making it ready.
+Incomplete, extra or changed files remain held for explicit remediation; no
+successor is created automatically. Cleanup must acknowledge its durable receipt
+only while holding the file lock after fresh database validation. It must never
+wait for a file lock inside the shared database transaction. Full-account
+namespace purge also remains required. Neither boundary may be activated before
+these cleanup and recovery paths are integrated and tested. The prepared
+producer still has no live capture-entry caller or execution wake; new durable
+children stay held and every activation gate remains closed.

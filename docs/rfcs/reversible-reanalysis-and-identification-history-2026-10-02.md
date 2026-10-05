@@ -2847,3 +2847,18 @@ closes the unindexed pre-save ownership gap in the October 5 producer
 checkpoint, but does not yet execute namespace cleanup or restart recovery.
 Those owners and full-account purge remain required before capture entry is
 connected. All activation gates remain false.
+
+### October 5: local durable reanalysis file cleanup
+
+A local cleanup owner now runs after parent deletion and from startup/foreground
+recovery without network or AI consent admission. It checks exact durable
+receipts and child absence under the preparation filesystem lock, removes child
+files without following symlinks, and acknowledges completion while retaining a
+minimal identity tombstone. Failed acknowledgement after file erasure remains
+recoverable; failed/malformed entries do not block later discovery pages.
+Generic observation file deletion no longer receives child paths.
+
+Writers and cleanup share a lock on the trusted Documents root to support the
+future exclusive full-account namespace purge. That purge and verified
+complete-cohort pending recovery still precede live capture integration. All
+activation gates remain false.

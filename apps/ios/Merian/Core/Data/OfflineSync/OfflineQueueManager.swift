@@ -113,6 +113,7 @@ import SwiftData
     @ObservationIgnored var syncGeneration: UUID?
     var identificationReviewSyncGeneration: UUID?
     var identificationReviewSyncTask: Task<Void, Never>?
+    @ObservationIgnored let reanalysisErasureOwner = ObservationReanalysisErasureOwner()
     @ObservationIgnored let publicationDeliveryOwner = ObservationPublicationDeliveryOwner()
 
     /// Active collection sync task. Cancelled immediately on connectivity loss.

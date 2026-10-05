@@ -16,11 +16,22 @@ directly.
 
 ## Phase Contract
 
-`handleActivePhase()` and `handleInactivePhase()` are first guarded by
-`AppSettings.hasCompletedOnboarding`. If onboarding has not been completed, they
-return immediately. After that legacy routing gate, the active handler always
-schedules `ConsentManager.synchronizeWithCurrentSession()` so a closed required
-gate can hydrate account evidence or retry an offline withdrawal. The separate
+Ordinary work in `handleActivePhase()` and `handleInactivePhase()` is guarded by
+`AppSettings.hasCompletedOnboarding`. Before that gate, the active handler
+refreshes app-update state and requests local reanalysis erasure recovery.
+`ObservationReanalysisErasureOwner` performs only receipt-authorized local
+filesystem cleanup, independently of network, Auth, onboarding and AI consent.
+It rechecks the active model container and child absence under the filesystem
+lock, and durably acknowledges successful erasure. Failed receipts remain
+pending for another local recovery opportunity. Repository configuration and
+committed parent deletion also invoke this coalesced owner. Complete-cohort
+preparation recovery and full-account namespace purge remain separate
+integration work; see the
+[private reanalysis contract](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#verified-file-production).
+
+After the onboarding routing gate, the active handler always schedules
+`ConsentManager.synchronizeWithCurrentSession()` so a closed required gate can
+hydrate account evidence or retry an offline withdrawal. The separate
 purchase-identity-readiness retry also runs after onboarding even while required
 consent is closed. All ordinary hardware, notification, usage, and queued
 provider work remains guarded by current adult, Terms, and Gemini consent. The
@@ -349,6 +360,12 @@ continue to use `AppEventPublisher`. See
 
 **Async tasks:**
 
+The local reanalysis-erasure request precedes onboarding and consent checks. Its
+own paged worker yields between batches, retains failed/malformed receipts, and
+never starts provider work or a network retry timer. Test process detection
+suppresses automatic lifecycle triggers; focused cleanup tests invoke the owner
+explicitly. The ordinary account/network tasks follow:
+
 1. Before the required-consent guard,
    `ConsentManager.synchronizeWithCurrentSession()` reconciles local and account
    evidence. It must remain session-bound after every suspension point and must
@@ -580,11 +597,11 @@ work; it is not an inventory of effects inside `AppLifecycleManager` alone.
   completion cannot clear its replacement. Completed work does not permanently
   suppress a later eligible synchronization.
 - **Always let `OfflineJobScheduler.drainRunnableJobs(using:)` own foreground
-  queue drain and replay after the required-consent guard.** `NWPathMonitor`
-  only fires when connectivity changes, while delayed Swift tasks do not survive
-  process termination. Do not restore direct lifecycle calls to
-  `syncPendingScans()` or `replayInferenceForUploadedScans()`; preserve the
-  scheduler's durable wake reconstruction.
+  network queue drain and replay after the required-consent guard.**
+  `NWPathMonitor` only fires when connectivity changes, while delayed Swift
+  tasks do not survive process termination. Do not restore direct lifecycle
+  calls to `syncPendingScans()` or `replayInferenceForUploadedScans()`; preserve
+  the scheduler's durable wake reconstruction.
 - All async work inside `handleActivePhase` is intentionally fire-and-forget
   (`Task {}`). Errors are logged but never surface to the user during a phase
   transition.

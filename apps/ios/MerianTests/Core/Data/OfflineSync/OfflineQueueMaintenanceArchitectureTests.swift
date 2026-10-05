@@ -153,6 +153,10 @@ struct OfflineQueueMaintenanceArchitectureTests {
     }
 
     private static let declarationOwners: [String: String] = [
+        "func drainPendingReanalysisErasures":
+            "Services/QueueMaintenance/OfflineQueueManager+ReanalysisErasure.swift",
+        "func requestReanalysisErasureRecovery":
+            "Services/QueueMaintenance/OfflineQueueManager+ReanalysisErasure.swift",
         "func finishReanalysisErasure":
             "Services/QueueMaintenance/OfflineQueueManager+ReanalysisErasure.swift",
         "func flushOfflineQueuedScan":

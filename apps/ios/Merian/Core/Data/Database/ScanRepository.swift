@@ -48,6 +48,7 @@ final class ScanRepository {
             self.seedFavoritesIfNeeded(modelContext: modelContext)
         }
         scheduleLocalMediaRecoveryRegistration(for: modelContext)
+        offlineQueue.requestReanalysisErasureRecovery()
     }
 
     private func scheduleLocalMediaRecoveryRegistration(
@@ -553,7 +554,7 @@ final class ScanRepository {
                 return nil
             }
 
-            let localPaths = imagesToErase.filter { !$0.starts(with: "http") } + childCleanup.mediaPaths
+            let localPaths = imagesToErase.filter { !$0.starts(with: "http") }
             let childIDs = childCleanup.childIDs
             let container = modelContext.container
             let cleanupTask = Task { [offlineQueue] in

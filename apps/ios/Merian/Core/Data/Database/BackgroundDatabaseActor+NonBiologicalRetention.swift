@@ -91,7 +91,6 @@ extension BackgroundDatabaseActor {
                 }
                 let children = try ObservationReanalysisErasure.removeChildren(of: scanId, context: context)
                 childIDs += children.childIDs
-                localMediaPathsToDelete += children.mediaPaths
                 try ObservationPublicationPersistence.removeForDeletion(scanId, context: context)
                 if let record {
                     context.delete(record)
