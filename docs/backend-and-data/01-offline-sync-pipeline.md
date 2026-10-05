@@ -2520,9 +2520,14 @@ the selected state before advancing the outgoing target cache, then completes
 the receipt in that same save. Reading a nonselected target cannot advance the
 parent revision by itself. Baseline, claim, account and deletion changes deny
 commit; failed admission or save rolls everything back. New reads require a live
-claim, while an unchanged late final reply can settle. Delivery and ordinary UI
-remain unconnected; the raw job kind stays outside generic wake discovery. This
-adds no SwiftData stored fields or schema version.
+claim, while an unchanged late final reply can settle. The prepared delivery
+service handles one saved operation under an account lease. Its mutation
+validator rechecks the exact claim after Auth awaits before sending; ambiguous
+replies retain the original request. Acknowledgement requires a new
+receipt-phase claim, and reconciliation failures never resubmit a received
+decision. Automatic scheduling and ordinary UI remain unconnected; the raw job
+kind stays outside generic wake discovery. This adds no SwiftData stored fields
+or schema version.
 
 Owner, deletion and claim fences apply to every commit. Direct/bulk deletion
 uses the immutable observation-qualified job namespace even after metadata

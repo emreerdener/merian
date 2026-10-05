@@ -12919,22 +12919,28 @@ binds every field to the original request and admits only outcome-specific keys.
 `ObservationAnalysisReviewTransport` owns only the fixed owner RPC (reader 9)
 and confirmation Edge route, selected by the typed decision. It composes the
 existing private authenticated dispatcher and disables transient transport
-replay and classified-401 recovery. The read-only admission RPC capability is
-unchanged. Transport never mints an operation ID, changes selection, projects
-review status, or falls back to legacy review. Prepared native persistence now
-retains the exact request, local fingerprint and terminal receipt across
-restart, with claim/account/deletion fences and a saved applied Reject
-association for Undo. Only one unfinished review is admitted per observation,
-through projection reconciliation. Storage does not treat receipt acceptance as
-current authority. The delivery owner must retain an account lease and reconcile
-current protocol-9 state separately. A nonselected target response cannot
-advance the parent revision while leaving a stale selected projection. The
-prepared native reconciler now reads the exact pair under one account lease and
-applies the selected state before the distinct target cache in one locked
+replay and classified-401 recovery. A required durable-attempt validator runs
+after Auth preparation and before actual dispatch. The read-only admission RPC
+capability and wire payloads are unchanged. Transport never mints an operation
+ID, changes selection, projects review status, or falls back to legacy review.
+Prepared native persistence now retains the exact request, local fingerprint and
+terminal receipt across restart, with claim/account/deletion fences and a saved
+applied Reject association for Undo. Only one unfinished review is admitted per
+observation, through projection reconciliation. Storage does not treat receipt
+acceptance as current authority. The delivery owner must retain an account lease
+and reconcile current protocol-9 state separately. A nonselected target response
+cannot advance the parent revision while leaving a stale selected projection.
+The prepared native reconciler now reads the exact pair under one account lease
+and applies the selected state before the distinct target cache in one locked
 transaction with receipt completion. Applied receipts bound only their own
 target authority; selected-result review authority remains independent. Failed
-validation or save rolls back the entire projection. Delivery scheduling and
-ordinary review UI remain separate implementation work. See the
+validation or save rolls back the entire projection. The prepared one-operation
+delivery service retains an account lease, replays the exact saved request
+before current-state preflight and acquires a new receipt claim after
+acknowledgement. Received receipts only reconcile; they never dispatch again.
+Exact permanent errors hold work without inventing receipt outcomes; network
+uncertainty and state revision races retain bounded retry. Delivery scheduling
+and ordinary review UI remain separate implementation work. See the
 [native persistence contract](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#prepared-analysis-bound-review-persistence).
 All activation gates remain false.
 

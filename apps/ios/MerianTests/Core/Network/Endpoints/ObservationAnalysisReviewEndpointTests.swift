@@ -104,7 +104,7 @@ struct ObservationAnalysisReviewEndpointTests {
             }
             return try NetworkEndpointTestSupport.response(to: wire, json: response)
         }
-        #expect(try await fixture.client.reviewObservationAnalysis(request, ownerID: owner).request == request)
+        #expect(try await fixture.client.reviewObservationAnalysis(request, ownerID: owner, validateAttempt: {}).request == request)
     }
     @Test(arguments: [false, true], [401, 409, 503, -1])
     func failuresNeverRefreshOrReplay(confirmation: Bool, status: Int) async throws {
@@ -118,7 +118,7 @@ struct ObservationAnalysisReviewEndpointTests {
             if status == -1 { throw URLError(.networkConnectionLost) }
             return try NetworkEndpointTestSupport.response(to: wire, status: status, json: "{\"code\":\"analysis_history_unavailable\"}")
         }
-        await #expect(throws: (any Error).self) { try await fixture.client.reviewObservationAnalysis(request, ownerID: owner) }
+        await #expect(throws: (any Error).self) { try await fixture.client.reviewObservationAnalysis(request, ownerID: owner, validateAttempt: {}) }
         #expect(calls.withLock { $0 } == 1); #expect(refreshes.withLock { $0 } == 0)
     }
     @Test(arguments: [false, true])
@@ -135,9 +135,27 @@ struct ObservationAnalysisReviewEndpointTests {
             return (response, Data("{\"code\":\"NOT_FOUND\"}".utf8))
         }
         await #expect(throws: MerianError.edgeFunctionUnavailable) {
-            try await fixture.client.reviewObservationAnalysis(request, ownerID: owner)
+            try await fixture.client.reviewObservationAnalysis(request, ownerID: owner, validateAttempt: {})
         }
         #expect(calls.withLock { $0 } == 1)
+    }
+
+    @Test(arguments: [false, true])
+    func attemptValidationPreventsDispatchAfterPreparation(confirmation: Bool) async throws {
+        let fixture = NetworkEndpointFixture(); defer { fixture.close() }
+        let owner = try #require(fixture.client.overridingAuthUserID)
+        let request = try Self.input(confirmation ? .confirmPrimary : .reject)
+        var checks = 0
+        fixture.transport.register(path: confirmation ? "/confirm-observation-analysis" : "/review_owned_observation_analysis") { _ in
+            Issue.record("Invalidated review reached dispatch"); throw URLError(.badServerResponse)
+        }
+        await #expect(throws: CancellationError.self) {
+            try await fixture.client.reviewObservationAnalysis(request, ownerID: owner, validateAttempt: {
+                checks += 1
+                throw CancellationError()
+            })
+        }
+        #expect(checks == 1)
     }
 
     @Test(arguments: [false, true])
@@ -146,7 +164,7 @@ struct ObservationAnalysisReviewEndpointTests {
         fixture.client.overridingAuthUserID = nil
         let request = try Self.input(confirmation ? .confirmPrimary : .reject)
         await #expect(throws: SupabaseAuthTransitionError.signOutSessionChanged) {
-            try await fixture.client.reviewObservationAnalysis(request, ownerID: UUID())
+            try await fixture.client.reviewObservationAnalysis(request, ownerID: UUID(), validateAttempt: {})
         }
     }
 }

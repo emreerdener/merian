@@ -1060,8 +1060,10 @@ original authority, then admits a distinct target cache and marks the receipt
 reconciled in the same save. Any failure rolls back all three changes. Missing
 selected-result display provenance is a hold, never permission to borrow another
 result's display. Account, deletion and claim replacement defeat late replies.
-The delivery executor and ordinary UI remain unconnected; no standalone
-completion API can mark a receipt complete without its paired projection.
+The prepared OfflineSync delivery service now submits one exact saved request or
+recovers its receipt, then obtains the receipt-phase claim for this reconciler.
+Runtime scheduling and ordinary UI remain unconnected; no standalone completion
+API can mark a receipt complete without its paired projection.
 
 The separate `observationAnalysisReviewSync` raw kind adds no stored schema
 field. Generic scheduling excludes it until its dedicated executor is connected;

@@ -3963,9 +3963,11 @@ closed request in `Models/ObservationReview`. Reject/Undo use the fixed
 protocol-9 owner RPC; confirmation uses `confirm-observation-analysis`. The
 typed `ObservationAnalysisReviewTransport` owns both exact routes, preserves the
 initiating account, and disables transient retry, gateway-route retry and
-classified-401 recovery. It exposes neither arbitrary URLs nor the dispatcher.
-The facade stores only the injected component; read-only admission routes stay
-unchanged.
+classified-401 recovery. A required caller validator reaches the existing
+dispatcher after asynchronous Auth preparation and before sending bytes; it
+rechecks exact claim, expiry, owner and deletion. It exposes neither arbitrary
+URLs nor the dispatcher. The facade stores only the injected component;
+read-only admission routes stay unchanged.
 
 Exact keys, lowercase UUIDs, integral non-Boolean revisions, required nulls, 2
 KiB requests and 4 KiB receipts match the executable backend parsers. Named
@@ -3976,7 +3978,8 @@ never changes selection or supplies current display/credit authority. The
 separate AnalysisHistory persistence owner now saves exact decisions, claims and
 restart-safe receipts. Its prepared reconciler uses one injected account lease
 for exact target and selected-state reads, then commits both states and receipt
-completion atomically. Mutation delivery and UI remain separate work; no
-ordinary caller or activation is enabled. The canonical
+completion atomically. The prepared one-operation delivery service retains the
+owner lease and claims each phase separately. Automatic scheduling and UI remain
+separate work; no ordinary caller or activation is enabled. The canonical
 [API contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-native-analysis-bound-review-wire)
 owns these bounds and remaining integration requirements.

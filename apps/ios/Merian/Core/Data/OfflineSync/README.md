@@ -791,3 +791,32 @@ require ordinary classification. Held children cannot borrow legacy funding
 metadata to enable a permission action, or disappear through automatic cleanup.
 The library's standalone queue-card projection excludes all nonordinary rows;
 owner/parent-scoped progress remains a separate, not-yet-connected presentation.
+
+## Prepared analysis-bound review delivery
+
+`ObservationAnalysisReviewDeliveryService` accepts one already-persisted exact
+intent per call, with an explicitly injected cloud client and mutation
+transport. It retains the expected account lease while claiming, submitting or
+recovering, and reconciling. No current-state preflight can replace a saved
+request: an ambiguous response retries that same operation. The closed transport
+requires the caller's claim validator after asynchronous Auth preparation and
+immediately before dispatch, so deletion, expiry and claim replacement prevent a
+new send.
+
+Acknowledgement saves the immutable receipt before projection and invalidates
+the mutation claim. Delivery obtains a fresh receipt-phase claim before paired
+reconciliation. All later failure writes use that new claim; received receipts
+never dispatch again. Network uncertainty and revision races retain a bounded
+retry date. Exact permanent wire errors, invalid immutable state or missing
+display provenance hold work without a deadline. Error responses never fabricate
+receipt outcomes. The service translates SDK errors into plain code/message
+inputs; the policy imports no networking or persistence framework. Cancellation
+and account changes leave durable work for its rightful owner; save failures
+propagate for future fallback scheduling.
+
+This service does not stage decisions, enumerate a queue, authorize inference,
+or install an automatic drain. The raw kind remains excluded from generic
+scheduling until retained cancellation and durable wake ownership are connected.
+Ordinary UI access and all activation gates remain disabled. The
+[native persistence contract](../AnalysisHistory/README.md#prepared-analysis-bound-review-persistence)
+owns exact requests, receipt claims and atomic projection completion.

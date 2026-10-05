@@ -7,7 +7,8 @@ struct ObservationAnalysisReviewTransport {
     init(baseURL: String, dispatcher: AuthenticatedTransportDispatcher) {
         self.baseURL = baseURL; self.dispatcher = dispatcher
     }
-    func submit(_ request: ObservationAnalysisReviewRequest, expectedAuthUserID: UUID) async throws -> Data {
+    func submit(_ request: ObservationAnalysisReviewRequest, expectedAuthUserID: UUID,
+                validateAttempt: @escaping @MainActor @Sendable () throws -> Void) async throws -> Data {
         guard let base = SecureTransportPolicy.httpsURL(from: baseURL) else {
             throw MerianError.invalidURL
         }
@@ -21,11 +22,13 @@ struct ObservationAnalysisReviewTransport {
             body = try JSONSerialization.data(withJSONObject: ["p_request": payload, "p_reader": 9])
             url = base.appendingPathComponent("rest/v1/rpc/review_owned_observation_analysis")
         }
-        let (data, _) = try await AuthenticatedRequestExecutor.live(using: dispatcher).execute(.init(
+        var transportRequest = AuthenticatedRequestExecutor.Request(
             url: url, method: "POST", body: body, timeoutInterval: 30, idempotencyKey: nil,
             allowsTransientTransportRetry: false, allowsUnauthorizedSessionRecovery: false,
             onRequestBodySent: nil, authTransitionOwner: nil, expectedAuthUserID: expectedAuthUserID,
-            allowsRouteUnavailableRetry: false))
+            allowsRouteUnavailableRetry: false)
+        transportRequest.validateAttempt = validateAttempt
+        let (data, _) = try await AuthenticatedRequestExecutor.live(using: dispatcher).execute(transportRequest)
         return data
     }
 }
