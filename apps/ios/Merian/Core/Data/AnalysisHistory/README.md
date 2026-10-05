@@ -622,3 +622,33 @@ shared database transaction. Execution may not activate before its recovery
 paths are integrated and tested. The prepared producer still has no live
 capture-entry caller or execution wake; new durable children stay held and every
 activation gate remains closed.
+
+### Explicit local preparation discard
+
+`ObservationReanalysisPersistence.discardPreparation` retires one explicitly
+chosen, unbound preparation under the existing shared database transaction. It
+requires the frozen source, expected owner and current caller generation; exact
+pending or ready row/job linkage must match. Bound requests, attempted or
+terminal jobs, malformed/missing counterparts and a colliding completed result
+fail closed. Row upload/inference state, an attempt timestamp, staged upload
+keys, error diagnostics or server-response evidence also block discard even when
+counters are zero. Malformed uppercase receipt aliases cannot create a second
+cleanup authority; numeric-only UUIDs still replay their canonical keys. The
+method never cancels provider execution or refunds funding.
+
+The same save records the minimal existing erasure receipt, removes only that
+child and ingestion job, and removes its optional goal hint. Siblings, source
+history, selection and authority remain intact. A plan discarded before its
+first write also receives a tombstone, so a delayed producer cannot later insert
+it. Failed saves or late account invalidation roll back removal and receipt
+together. Exact receipt replay requires no surviving child/job or result
+collision and returns before parent/source lookup, preserving prior parent
+deletion and cleanup completion.
+
+The transaction performs no file I/O. After successful discard, the caller must
+request the existing local erasure owner; cleanup can remain pending across
+interruption or a busy writer. The receipt immediately blocks preparation, ready
+promotion and identity reuse. `ObservationReanalysisDiscardTests` covers sibling
+preservation, pending/ready and pre-write discard, deletion replay,
+invalid-state denial, rollback and discard during a file write. Normal Capture
+presentation and automatic execution remain disconnected.

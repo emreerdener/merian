@@ -2902,3 +2902,16 @@ entry, the chooser, submission wiring and dedicated execution remain
 unconnected, with every activation gate disabled. Current ownership and tests
 are documented in the
 [Capture preparation contract](../../apps/ios/Merian/Features/Capture/Submission/README.md#protected-capture-preparation).
+
+### October 5: explicit unbound preparation discard
+
+The prepared Capture session can now retire its exact local preparation before
+UI discard. A single database transaction records the permanent erasure receipt
+and removes only that unbound child/job; siblings and the current identification
+remain unchanged. Bound, attempted, ambiguous or colliding completed work
+requires reconciliation. Cancellation before the first write also fences the
+child identity, while exact receipt replay survives parent deletion. The session
+becomes terminal only after successful retirement. Filesystem cleanup remains
+owned by the existing local receipt worker after commit. Native route/chooser
+integration remains next and all activation gates remain disabled. See the
+[local discard contract](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#explicit-local-preparation-discard).

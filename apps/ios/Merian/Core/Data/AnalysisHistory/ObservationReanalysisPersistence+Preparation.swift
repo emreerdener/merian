@@ -70,8 +70,8 @@ extension ObservationReanalysisPersistence {
     }
 
     @MainActor
-    private static func validatePending(_ pending: ObservationReanalysisPreparationIntent, row: OfflineQueuedScan,
-                                        job: OfflineJobRecord, context: ModelContext) throws {
+    static func validatePending(_ pending: ObservationReanalysisPreparationIntent, row: OfflineQueuedScan,
+                                job: OfflineJobRecord, context: ModelContext) throws {
         let draft = pending.draft, child = draft.identity.analysisID.uuidString.lowercased()
         guard try context.fetchOfflineJob(id: ObservationReanalysisErasureReceipt.jobID(draft.identity.analysisID)) == nil,
               let text = job.metadataJSON, try ObservationReanalysisPreparationIntent.decode(Data(text.utf8)) == pending,

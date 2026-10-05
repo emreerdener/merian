@@ -161,4 +161,34 @@ struct CaptureReanalysisSessionTests {
         #expect(try context.fetch(FetchDescriptor<LocalScanRecord>()).first?.selectedAnalysisID == seed.source.analysisID.uuidString.lowercased())
     }
 
+    @Test func discardedSessionNeverStagesOrMintsASuccessor() throws {
+        let seed = try seed(count: 1), generation = UUID()
+        var capture = StagedCapture()
+        capture.images = [.init(compressedData: seed.bytes, displayData: Data(), uiImage: UIImage(), original: .init(image: UIImage()))]
+        let session = CaptureReanalysisSession(source: seed.source, generation: generation)
+        let plan = try session.preparation(capture: capture, generation: generation)
+        var finishes = 0
+        let account = fixture.account(finish: { finishes += 1 })
+        let discarded = try session.discard(generation: generation, container: seed.container, account: account, isCurrent: { true })
+        let receipt = try #require(discarded)
+        #expect(receipt.childID == plan.analysisID && session.isDiscarded && session.plan?.analysisID == plan.analysisID)
+        #expect(throws: ObservationHistoryError.unavailable) { try session.preparation(capture: capture, generation: generation) }
+        #expect(try session.discard(generation: generation, container: seed.container, account: account, isCurrent: { true }) == receipt)
+        #expect(finishes == 2)
+        #expect(try ModelContext(seed.container).fetchCount(FetchDescriptor<OfflineQueuedScan>()) == 0)
+    }
+
+    @Test func staleDiscardCannotReleasePlanOrCreateReceipt() throws {
+        let seed = try seed(count: 1), generation = UUID()
+        var capture = StagedCapture()
+        capture.images = [.init(compressedData: seed.bytes, displayData: Data(), uiImage: UIImage(), original: .init(image: UIImage()))]
+        let session = CaptureReanalysisSession(source: seed.source, generation: generation)
+        let plan = try session.preparation(capture: capture, generation: generation)
+        #expect(throws: ObservationHistoryError.accountChanged) {
+            try session.discard(generation: generation, container: seed.container, account: fixture.account(current: { false }), isCurrent: { true })
+        }
+        #expect(!session.isDiscarded && session.plan?.analysisID == plan.analysisID)
+        #expect(try ModelContext(seed.container).fetchCount(FetchDescriptor<OfflineJobRecord>()) == 0)
+    }
+
 }

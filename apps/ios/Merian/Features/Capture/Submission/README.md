@@ -495,10 +495,12 @@ first explicit preparation freezes the input snapshot and mints one plan; exact
 retry reuses its child and media identities. Changed input or a changed
 generation is rejected. Its dedicated `stage` method invokes only the private
 held-child producer, with single-flight ownership and a final foreground fence.
-An ambiguous response leaves the plan retained. There is deliberately no reset
-API that could treat UI discard as durable cancellation of `files_pending` work.
-A caller must reconcile or explicitly cancel the saved child before starting a
-replacement.
+An ambiguous response leaves the plan retained. Explicit `discard` obtains an
+owner lease and retires only the same unbound, unattempted child through the
+transactional erasure receipt. It makes this session terminal only after that
+commit; failure retains the plan. A caller must wake local erasure recovery
+before releasing the session. Account teardown invalidates private presentation
+separately and cannot claim durable cancellation.
 
 These owners are compiled and covered by `CaptureReanalysisSessionTests`, but
 normal Capture routes, the explicit selection UI and submission branch remain to

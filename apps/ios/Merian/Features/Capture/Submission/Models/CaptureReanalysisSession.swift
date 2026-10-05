@@ -8,6 +8,7 @@ final class CaptureReanalysisSession {
     let generation: UUID
     private(set) var plan: ObservationReanalysisPreparationPlan?
     private var isPreparing = false
+    private(set) var isDiscarded = false
     private var submittedCapture: CaptureSubmissionAdmissionSnapshot?
 
     init(source: ObservationReanalysisSource, generation: UUID) {
@@ -18,6 +19,7 @@ final class CaptureReanalysisSession {
     /// Freeze before the first asynchronous producer call. An ambiguous result cannot mint a successor.
     /// Once frozen, editing or discarding requires explicit durable reconciliation by the caller.
     func preparation(capture: StagedCapture, generation: UUID) throws -> ObservationReanalysisPreparationPlan {
+        guard !isDiscarded else { throw ObservationHistoryError.unavailable }
         guard generation == self.generation else { throw ObservationHistoryError.accountChanged }
         let snapshot = CaptureSubmissionAdmissionSnapshot(capture)
         if let plan {
@@ -44,6 +46,25 @@ final class CaptureReanalysisSession {
         try Task.checkCancellation()
         guard isCurrent() else { throw ObservationHistoryError.accountChanged }
         return result
+    }
+
+    /// UI may release this session only after durable retirement succeeds. Account teardown is separate.
+    @discardableResult
+    func discard(generation: UUID, container: ModelContainer, account: ObservationHistoryCloudClient,
+                 isCurrent: @escaping @MainActor @Sendable () -> Bool) throws -> ObservationReanalysisErasureReceipt? {
+        guard !isPreparing else { throw ObservationHistoryError.unavailable }
+        guard generation == self.generation, isCurrent() else { throw ObservationHistoryError.accountChanged }
+        let lease = try account.begin(source.ownerID)
+        defer { account.finish(lease) }
+        let current = { lease.session.userID == self.source.ownerID && account.isCurrent(lease) && isCurrent() }
+        try Task.checkCancellation()
+        guard current() else { throw ObservationHistoryError.accountChanged }
+        guard let plan else { isDiscarded = true; return nil }
+        let receipt = try ObservationReanalysisPersistence.discardPreparation(source: source, analysisID: plan.analysisID,
+            container: container, isCurrent: current)
+        // Keep the plan as a terminal identity; this session must never mint or stage another child.
+        isDiscarded = true
+        return receipt
     }
 
 }
