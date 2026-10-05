@@ -2513,12 +2513,16 @@ the saved applied Reject association for the same owner and target. A current
 rejected flag alone is insufficient.
 
 Server receipt and local projection completion are separate durable phases.
-After receipt storage, request dispatch is forbidden. The forthcoming delivery
-owner must reconcile target and selected states at one server revision in an
-atomic cache/projection transaction. Reading a nonselected target cannot advance
-the parent revision by itself. The current persistence slice adds no delivery,
-reconciliation completion or ordinary UI caller; its raw job kind stays outside
-generic wake discovery. It adds no SwiftData stored fields or schema version.
+After receipt storage, request dispatch is forbidden. The prepared reconciler
+reads exact target and selected states under one account lease and requires the
+same observation revision and selection. Its fresh locked transaction applies
+the selected state before advancing the outgoing target cache, then completes
+the receipt in that same save. Reading a nonselected target cannot advance the
+parent revision by itself. Baseline, claim, account and deletion changes deny
+commit; failed admission or save rolls everything back. New reads require a live
+claim, while an unchanged late final reply can settle. Delivery and ordinary UI
+remain unconnected; the raw job kind stays outside generic wake discovery. This
+adds no SwiftData stored fields or schema version.
 
 Owner, deletion and claim fences apply to every commit. Direct/bulk deletion
 uses the immutable observation-qualified job namespace even after metadata

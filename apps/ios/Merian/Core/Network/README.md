@@ -3974,8 +3974,9 @@ normalization. Applied receipts must advance both revisions exactly once;
 negative/conflict receipts cannot carry authority fields. A historical receipt
 never changes selection or supplies current display/credit authority. The
 separate AnalysisHistory persistence owner now saves exact decisions, claims and
-restart-safe receipts. Account-leased delivery, paired current-state
-reconciliation and UI remain separate work; no ordinary caller or activation is
-enabled. The canonical
+restart-safe receipts. Its prepared reconciler uses one injected account lease
+for exact target and selected-state reads, then commits both states and receipt
+completion atomically. Mutation delivery and UI remain separate work; no
+ordinary caller or activation is enabled. The canonical
 [API contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-native-analysis-bound-review-wire)
 owns these bounds and remaining integration requirements.

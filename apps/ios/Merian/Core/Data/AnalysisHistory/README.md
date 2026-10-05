@@ -1043,11 +1043,25 @@ claim can persist its receipt; a newer claim defeats stale writers. Dispatch
 requires an unexpired claim with no receipt. All receipt outcomes are terminal
 for the mutation, but leave local reconciliation unfinished. The receipt is
 saved before any authority projection, with no automatic selection or
-parent-revision change. Future delivery must recover the receipt, fetch target
-and selected states at the same server revision and atomically reconcile both
-before completing the job. That reconciliation API and executor are not
-installed yet. No method in this boundary marks an unreconciled receipt
-complete.
+parent-revision change.
+
+`ObservationAnalysisReviewReconciliation` recovers an acknowledged receipt under
+one injected account lease. It reads the exact target and the server-selected
+analysis, requiring matching owner, observation, global revision and selected
+ID. Applied receipts supply minimum observation and target-review revisions; the
+selected analysis retains its independent review authority. Negative receipts
+supply no authority. Each new read needs live claimed work; a late final reply
+may settle only the unchanged claim.
+
+One fresh locked transaction revalidates the presented baseline, idle selection,
+settled legacy review, sibling jobs and receipt-phase claim. It applies the
+selected state first while the outgoing selection cache still proves its
+original authority, then admits a distinct target cache and marks the receipt
+reconciled in the same save. Any failure rolls back all three changes. Missing
+selected-result display provenance is a hold, never permission to borrow another
+result's display. Account, deletion and claim replacement defeat late replies.
+The delivery executor and ordinary UI remain unconnected; no standalone
+completion API can mark a receipt complete without its paired projection.
 
 The separate `observationAnalysisReviewSync` raw kind adds no stored schema
 field. Generic scheduling excludes it until its dedicated executor is connected;
@@ -1064,3 +1078,8 @@ revision checks, claim replacement, account loss, save rollback and deletion.
 Scheduler regression coverage keeps this prepared kind inert while preserving
 known library-details work. Ordinary access and all activation gates remain
 disabled.
+
+`ObservationAnalysisReviewReconciliationTests` covers selection changes,
+separate review authority, stale or mismatched pairs, immutable evidence and
+display provenance, late replies, account/deletion/claim changes and atomic
+rollback.

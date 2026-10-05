@@ -40,6 +40,14 @@ struct ObservationAnalysisReviewIntent: Sendable {
                     receipt: receipt, observedAt: date, reconciledAt: nil)
     }
 
+    /// Value-only transition. Persistence must save this with both reconciled caches and projection.
+    func reconciled(at date: Date) throws -> Self {
+        guard receipt != nil, let observedAt, Self.validDate(date) else { throw MerianError.invalidResponse }
+        if isComplete { return self }
+        return Self(ownerID: ownerID, request: request, digest: requestSHA256, receipt: receipt,
+                    observedAt: observedAt, reconciledAt: max(date, observedAt))
+    }
+
     func storedData() throws -> Data {
         let row: [String: Any] = [
             "version": 1, "owner_id": ownerID.uuidString.lowercased(),

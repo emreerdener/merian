@@ -12928,9 +12928,13 @@ association for Undo. Only one unfinished review is admitted per observation,
 through projection reconciliation. Storage does not treat receipt acceptance as
 current authority. The delivery owner must retain an account lease and reconcile
 current protocol-9 state separately. A nonselected target response cannot
-advance the parent revision while leaving a stale selected projection.
-Paired-state reconciliation, delivery scheduling and ordinary review UI remain
-separate implementation work. See the
+advance the parent revision while leaving a stale selected projection. The
+prepared native reconciler now reads the exact pair under one account lease and
+applies the selected state before the distinct target cache in one locked
+transaction with receipt completion. Applied receipts bound only their own
+target authority; selected-result review authority remains independent. Failed
+validation or save rolls back the entire projection. Delivery scheduling and
+ordinary review UI remain separate implementation work. See the
 [native persistence contract](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#prepared-analysis-bound-review-persistence).
 All activation gates remain false.
 
