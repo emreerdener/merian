@@ -932,3 +932,29 @@ wakes. Durable binding wakes the existing execution owner, with no selection,
 funding or provider fallback changes. `ReanalysisAdmissionRuntimeTests` covers
 finite unchanged-file retries, offline promotion, consent-held rearm, busy
 preparation, lease failures and awaited cancellation.
+
+### Private operation status
+
+`ObservationReanalysisOperationStatus` discovers at most 20 child linkages for
+one enrolled parent and expected owner, with an opaque child-ID cursor. It
+fetches only linkage columns before consulting the existing strict admission or
+execution reader for each child. Corrupt or foreign rows are omitted; the cursor
+advances over inspected corruption. This order is a pagination key, not a claim
+about chronology. A short account lease and final parent/deletion check withhold
+the entire page if its private scope changes.
+
+Only explicitly submitted preparations or admitted execution appear. The
+projection returns child/source IDs and a closed phase: preparing evidence,
+waiting to start, processing, waiting to retry, consent required, evidence
+unavailable, reconciliation required, retry limit or terminal failure.
+Processing means local execution ownership, not proof of provider dispatch.
+Completed immutable results belong to history; erasure receipts do not establish
+success. Raw metadata, evidence, paths, provider identity, attempts and
+diagnostics are not returned. Reads need no inference consent and never admit,
+rearm, retry, discard or alter selection. Status presentation and explicit
+remediation remain separate integrations; ordinary history and Capture gates
+stay disabled.
+
+`ReanalysisOperationStatusTests` covers preparation/ready phases, distinct inert
+holds, bounded pagination through damaged rows, owner/parent filtering,
+account/deletion rejection and completed-result omission without mutation.

@@ -2533,6 +2533,16 @@ presentation generation.
   operation. Opening the sheet again can retry it. Ordinary scheduling remains
   disabled.
 
+A separate prepared `ObservationReanalysisOperationStatus` read projects local
+submitted work for one owner and observation in bounded child-ID pages. It keeps
+consent, unavailable evidence, reconciliation, retry-limit and terminal failure
+states distinct, without returning private job payloads. Reading status never
+retries or discards work and does not require inference consent. Its local
+processing phase makes no claim about provider execution. Completed results
+belong to history; a cleanup receipt alone never means completion. The status UI
+and explicit remediation are not connected by this reader, and ordinary access
+remains disabled.
+
 An acknowledged selection or authority revision invalidates the existing rows,
 preview and photo, including titles derived from community review. A delayed
 page or preview cannot reinstall an older revision. Restore/Undo refreshes the
