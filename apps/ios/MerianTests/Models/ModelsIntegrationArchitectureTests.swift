@@ -174,10 +174,29 @@ struct ModelsIntegrationArchitectureTests {
                 #expect(!code.contains("CaptureReanalysisAccess.prepared"))
                 #expect(!code.contains("SavedIdentificationReanalysisAccess.prepared"))
             }
-            // The inert assembly is qualified in tests only; ordinary app code cannot install it.
+            // Only the App root may reach the immutable, default-off installation boundary.
             #expect(code.range(of: #"PreparedHistoryReanalysisComposition\s*(?:\(|\.prepared\b)"#,
                                options: .regularExpression) == nil, "Prepared history has no ordinary caller: \(entry.relativePath)")
+            if entry.relativePath != "App/MerianApp.swift" {
+                #expect(!code.contains(".appInstallation {"))
+            }
         }
+        let composition = try source(at: "apps/ios/Merian/App/Composition/PreparedHistoryReanalysisComposition.swift")
+        #expect(composition.contains("static let isAppInstallationQualified = false"))
+        #expect(composition.contains("guard isAppInstallationQualified else { return nil }\n        return make()"))
+        let app = try source(at: "apps/ios/Merian/App/MerianApp.swift")
+        #expect(app.contains("preparedHistoryReanalysis = .appInstallation {\n            .prepared(in: dependencies)"))
+        #expect(app.contains("reanalysisAccess: preparedHistoryReanalysis?.capture"))
+        #expect(app.contains(".environment(\\.insightHistoryReanalysisAccesses, preparedHistoryReanalysis?.insightAccesses)"))
+        let workspace = try source(at: "apps/ios/Merian/Features/Capture/Shell/Views/CaptureWorkspaceView.swift")
+        #expect(workspace.contains("reanalysisAccess: reanalysisAccess,"))
+        let workspaceModel = try source(at: "apps/ios/Merian/Features/Capture/Shell/ViewModels/CaptureWorkspaceViewModel.swift")
+        #expect(workspaceModel.contains("if dependencies == nil { workspaceDependencies.reanalysis = reanalysisAccess }"))
+        #expect(workspaceModel.contains("self.init(diContainer: container, dependencies: workspaceDependencies,"))
+        let insight = try source(at: "apps/ios/Merian/Features/Insights/Shell/Views/InsightSheetView.swift")
+        #expect(insight.contains("hasExplicitDependencies = dependencies != nil"))
+        #expect(insight.contains("guard !hasExplicitDependencies, let installedHistoryAccesses else { return baseDependencies }"))
+        #expect(insight.contains("return installedHistoryAccesses.applying(to: baseDependencies)"))
         let shell = try source(at: "apps/ios/Merian/Features/Insights/Shell/Services/InsightShellDependencies.swift")
         #expect(shell.contains("var savedReanalysisAccess: SavedIdentificationReanalysisAccess?"))
         #expect(shell.contains("result.savedReanalysisAccess = UITestSeedCoordinator.savedReanalysisFailureAccess\n        #endif"))

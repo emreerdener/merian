@@ -1,8 +1,10 @@
 # Identification history
 
-Prepared, injection-only history presentation. Normal Shell access is nil;
-`IdentificationHistoryAccess.prepared` has no ordinary call site. Only the
-explicit Debug UI-test fixture currently opens this screen.
+Prepared history presentation. Normal Shell access remains nil: the App
+installation boundary is fixed false and does not construct the prepared bundle.
+Only explicit test injection currently opens this screen. When qualified, all
+Insight hosts receive History, status and saved-result entry together from the
+same App-owned bundle as Capture; reading history never enrolls an observation.
 
 - `Models` maps each result's own display and authority to bounded rows/details.
 - `Services` owns the account-session adapter to Core listing, preview,

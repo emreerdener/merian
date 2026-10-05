@@ -9,6 +9,7 @@ struct InsightSheetView: View {
     @Environment(AppSettings.self) var appSettings
     @Environment(\.modelContext) var modelContext
     @Environment(\.dismiss) var dismiss
+    @Environment(\.insightHistoryReanalysisAccesses) private var installedHistoryAccesses
 
     @Binding var isPresented: Bool
     var queuedScan: QueuedScanContext?
@@ -17,7 +18,12 @@ struct InsightSheetView: View {
     var presentationStyle: InsightPresentationStyle
     var onOpenCommunityIdentificationRequest: ((String) -> Void)?
     var onOpenFieldTripOverview: ((InsightFieldTripOverviewDestination) -> Void)?
-    let dependencies: InsightShellDependencies
+    private let baseDependencies: InsightShellDependencies
+    private let hasExplicitDependencies: Bool
+    var dependencies: InsightShellDependencies {
+        guard !hasExplicitDependencies, let installedHistoryAccesses else { return baseDependencies }
+        return installedHistoryAccesses.applying(to: baseDependencies)
+    }
 
     // MARK: - State
     @State var pendingHistoryReanalysis: IdentificationHistoryReanalysisHandoff?
@@ -59,6 +65,7 @@ struct InsightSheetView: View {
         onOpenFieldTripOverview: ((InsightFieldTripOverviewDestination) -> Void)? = nil,
         dependencies: InsightShellDependencies? = nil
     ) {
+        hasExplicitDependencies = dependencies != nil
         let dependencies = dependencies ?? .live
         _isPresented = isPresented
         self.queuedScan = queuedScan
@@ -67,7 +74,7 @@ struct InsightSheetView: View {
         self.presentationStyle = presentationStyle
         self.onOpenCommunityIdentificationRequest = onOpenCommunityIdentificationRequest
         self.onOpenFieldTripOverview = onOpenFieldTripOverview
-        self.dependencies = dependencies
+        self.baseDependencies = dependencies
         _presentedScanId = State(initialValue: initialScanId)
         _viewModel = State(
             initialValue: InsightSheetViewModel(

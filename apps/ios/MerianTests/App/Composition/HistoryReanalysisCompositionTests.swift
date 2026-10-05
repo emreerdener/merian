@@ -1,11 +1,69 @@
 import Foundation
 @testable import Merian
 import SwiftData
+import SwiftUI
 import Testing
 
 @MainActor @Suite(.serialized, .sharedProcessState(.offlineQueueManager))
 struct HistoryReanalysisCompositionTests {
     let fixture = CaptureReanalysisSessionTests()
+
+    @Test func ordinaryInstallationDoesNotConstructAnyAccess() {
+        var builds = 0
+        let installation = PreparedHistoryReanalysisComposition.appInstallation {
+            builds += 1
+            return .prepared(in: .preview)
+        }
+        #expect(!PreparedHistoryReanalysisComposition.isAppInstallationQualified)
+        #expect(installation == nil && builds == 0)
+        #expect(EnvironmentValues().insightHistoryReanalysisAccesses == nil)
+        let ordinary = InsightShellDependencies()
+        #expect(ordinary.historyAccess == nil && ordinary.reanalysisStatusAccess == nil && ordinary.savedReanalysisAccess == nil)
+    }
+
+    @Test func groupedInstallationPreservesOtherShellDependencies() throws {
+        let container = AppDIContainer.preview
+        let bundle = PreparedHistoryReanalysisComposition.prepared(in: container)
+        var feedback = 0
+        let base = InsightShellDependencies(selectionFeedback: { feedback += 1 })
+        let installed = bundle.insightAccesses.applying(to: base)
+        #expect(installed.historyAccess != nil && installed.reanalysisStatusAccess != nil && installed.savedReanalysisAccess != nil)
+        #expect(base.historyAccess == nil && base.reanalysisStatusAccess == nil && base.savedReanalysisAccess == nil)
+        installed.selectionFeedback()
+        #expect(feedback == 1)
+        let target = HistoricalReanalysisTarget(observationID: UUID(), analysisID: UUID(), ownerID: UUID())
+        try #require(installed.savedReanalysisAccess).dispatch(target)
+        let request = try #require(container.appRouteCoordinator.pendingRequests.first)
+        guard case let .historicalReanalysis(actual) = request.route else { Issue.record("Wrong route"); return }
+        #expect(actual == target)
+    }
+
+    @Test(arguments: ["history", "status", "reanalysis"])
+    func singleFixtureAccessPreventsAnyPartialInstallation(_ slot: String) {
+        let bundle = PreparedHistoryReanalysisComposition.prepared(in: .preview)
+        var fixture = InsightShellDependencies()
+        switch slot {
+        case "history": fixture.historyAccess = bundle.history
+        case "status": fixture.reanalysisStatusAccess = bundle.status
+        default: fixture.savedReanalysisAccess = bundle.reanalyze
+        }
+        let result = bundle.insightAccesses.applying(to: fixture)
+        #expect((result.historyAccess != nil) == (slot == "history"))
+        #expect((result.reanalysisStatusAccess != nil) == (slot == "status"))
+        #expect((result.savedReanalysisAccess != nil) == (slot == "reanalysis"))
+    }
+
+    @Test func captureResolvesInstallationBeforeRoutingAndPreservesExplicitDependencies() {
+        let container = AppDIContainer.preview
+        let bundle = PreparedHistoryReanalysisComposition.prepared(in: container)
+        let installed = CaptureWorkspaceViewModel(diContainer: container, reanalysisAccess: bundle.capture,
+            prewarmHeadersOnInit: false)
+        #expect(installed.diContainer === container && installed.dependencies.reanalysis != nil)
+        let fixture = CaptureWorkspaceDependencies.live(diContainer: container)
+        let explicit = CaptureWorkspaceViewModel(diContainer: container, reanalysisAccess: bundle.capture,
+            dependencies: fixture, prewarmHeadersOnInit: false)
+        #expect(explicit.diContainer === container && explicit.dependencies.reanalysis == nil)
+    }
 
     @Test func appBuilderIsInertAndUsesSuppliedRouteOwner() throws {
         let dependencies = AppDIContainer.preview

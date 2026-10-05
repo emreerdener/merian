@@ -582,3 +582,12 @@ An opened editor retains session values, not an account-work lease, and checks
 owner, generation and session validity before use. The documents-location seam
 allows isolated qualification without changing production file ownership.
 Ordinary live Capture access remains nil.
+
+The root initializer accepts the App's exact optional `reanalysisAccess` and
+supplied AppDI container. Its ViewModel initializer resolves workspace
+dependencies before establishing route subscriptions, so a historical route
+cannot arrive before installation. Views only forward the injected values.
+Explicitly injected workspace dependencies are authoritative, including their
+nil access. The App installation gate is fixed false and does not construct the
+bundle; ordinary Capture remains unchanged and unavailable for historical
+routes.

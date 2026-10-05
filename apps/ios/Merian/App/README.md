@@ -143,3 +143,13 @@ retained enrollment owner. Its current-container predicate follows the queue's
 bound ModelContext. The bundle still starts no work and is not installed by
 ordinary live factories. Explicit taps freeze their displayed baseline; History
 and status reads do not enroll.
+
+The App root now retains one optional bundle from `appInstallation`. The
+immutable `isAppInstallationQualified` constant is false, so the factory is not
+evaluated and ordinary access stays nil. No user preference, remote flag or
+consent state can enable this source-controlled boundary. When qualified, the
+same retained bundle supplies Capture synchronously before its State ViewModel
+is created and supplies a feature-owned grouped Insight environment value across
+the complete workspace, including navigation and modal hosts. It never installs
+individual global optional services. Explicit injected feature dependencies take
+precedence.

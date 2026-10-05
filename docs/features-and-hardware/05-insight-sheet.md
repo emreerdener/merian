@@ -2617,3 +2617,16 @@ Changing the displayed result, closing the parent or switching accounts
 invalidates the handoff; it cannot select a newer result or enter legacy
 replacement. The parent remains visible on failure. All ordinary activation
 gates remain disabled.
+
+### Default-off atomic installation
+
+The App root retains a single optional prepared bundle. Its source-controlled
+qualification constant is false and prevents factory evaluation. No runtime
+preference, remote flag or consent change enables this gate. The prepared root
+wiring passes its exact Capture access before workspace State initialization and
+supplies History/status/saved-result entry together through a feature-owned
+optional environment value to all Insight hosts. Explicitly injected test
+feature dependencies win. Ordinary live factories remain unchanged and all
+accesses remain nil while the gate is false. This assembly does not enroll,
+select, publish or start work; current account/session and presentation fences
+continue to govern every explicit action.

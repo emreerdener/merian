@@ -296,3 +296,16 @@ fallback even if access changes during dismissal. Protected actions do not
 dismiss the parent Insight before resolution. Nil capability preserves the
 legacy entry behavior. Ordinary capabilities remain nil; these changes do not
 enable rollout or change review/publication authority.
+
+`InsightHistoryReanalysisAccesses` groups History, status and saved-result entry
+as one optional, nil-default environment value. The App root supplies all three
+from the same retained bundle as Capture. Every default Insight host resolves
+this overlay at the view boundary, including library, collections, Explore and
+profile hosts. Explicit `dependencies:` injection wins even when its accesses
+are nil; ordinary `.live` is never mutated. The Insight ViewModel does not
+consume these accesses. The immutable App qualification gate is false, so this
+wiring constructs no live bundle and enables no UI or background work.
+
+If any base access is already supplied, including a Debug fixture from `.live`,
+the entire base group remains authoritative. The overlay cannot mix fixture and
+prepared accesses.

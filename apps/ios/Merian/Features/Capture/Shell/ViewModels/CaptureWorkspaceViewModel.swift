@@ -202,6 +202,22 @@ final class CaptureWorkspaceViewModel {
 
     // MARK: - Lifecycle
     convenience init(
+        diContainer: AppDIContainer?,
+        reanalysisAccess: CaptureReanalysisAccess?,
+        dependencies: CaptureWorkspaceDependencies? = nil,
+        prewarmHeadersOnInit: Bool = true,
+        initialActiveSheet: ActiveSheet? = nil,
+        opensExploreAfterWhatsNew: Bool = false
+    ) {
+        let container = diContainer ?? AppDIContainer.shared
+        var workspaceDependencies = dependencies ?? .live(diContainer: container)
+        if dependencies == nil { workspaceDependencies.reanalysis = reanalysisAccess }
+        self.init(diContainer: container, dependencies: workspaceDependencies,
+            prewarmHeadersOnInit: prewarmHeadersOnInit, initialActiveSheet: initialActiveSheet,
+            opensExploreAfterWhatsNew: opensExploreAfterWhatsNew)
+    }
+
+    convenience init(
         initialActiveSheet: ActiveSheet? = nil,
         opensExploreAfterWhatsNew: Bool = false
     ) {

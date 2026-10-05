@@ -71,12 +71,18 @@ struct CaptureWorkspaceView: View {
     init(
         appSettings: AppSettings? = nil,
         opensExploreOnFreshLaunch: Bool = false,
-        showsWhatsNewOnFreshLaunch: Bool = false
+        showsWhatsNewOnFreshLaunch: Bool = false,
+        diContainer: AppDIContainer? = nil,
+        reanalysisAccess: CaptureReanalysisAccess? = nil,
+        dependencies: CaptureWorkspaceDependencies? = nil
     ) {
         self.showsWhatsNewOnFreshLaunch = showsWhatsNewOnFreshLaunch
         let raw = (appSettings ?? AppSettings.shared).captureModeOrderRaw
         let mode = CaptureMode.userOrder(from: raw).first ?? .visual
         _viewModel = State(initialValue: CaptureWorkspaceViewModel(
+            diContainer: diContainer,
+            reanalysisAccess: reanalysisAccess,
+            dependencies: dependencies,
             initialActiveSheet: showsWhatsNewOnFreshLaunch
                 ? .whatsNew : (opensExploreOnFreshLaunch ? .explore : nil),
             opensExploreAfterWhatsNew: showsWhatsNewOnFreshLaunch

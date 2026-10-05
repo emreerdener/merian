@@ -4,10 +4,22 @@ import SwiftData
 /// Inert assembly for qualification. Ordinary live dependencies do not install this bundle.
 @MainActor
 struct PreparedHistoryReanalysisComposition {
+    // Source-controlled qualification boundary. No preference or remote flag can enable it.
+    static let isAppInstallationQualified = false
+
+    static func appInstallation(make: () -> Self) -> Self? {
+        guard isAppInstallationQualified else { return nil }
+        return make()
+    }
+
     let history: IdentificationHistoryAccess
     let status: ReanalysisStatusAccess
     let capture: CaptureReanalysisAccess
     let reanalyze: SavedIdentificationReanalysisAccess
+
+    var insightAccesses: InsightHistoryReanalysisAccesses {
+        .init(history: history, status: status, reanalyze: reanalyze)
+    }
 
     init(routes: any AppRouteRequesting, cloud: ObservationHistoryCloudClient,
          currentOwner: @escaping @MainActor () -> UUID?, generation: @escaping @MainActor () -> UInt64,

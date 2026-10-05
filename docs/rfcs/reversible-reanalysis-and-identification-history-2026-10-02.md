@@ -3013,3 +3013,13 @@ distinct fences. No protected failure uses legacy refinement, and no child
 ticket can revive or cancel a newer operation. Ordinary activation stays
 disabled. Analysis-bound review, publication consent UI and integrated rollout
 qualification remain separate work.
+
+### October 5: default-off atomic App installation
+
+One App-retained optional composition now supplies the exact Capture dependency
+before workspace initialization and a grouped feature-owned Insight overlay
+across all hosts. Explicit fixture injection remains authoritative. A fixed
+false source qualification gate prevents even constructing the bundle during
+ordinary launches. This connects the future installation boundary without
+authorizing activation. Analysis-bound review, immutable publication consent and
+integrated operational qualification remain open.
