@@ -537,30 +537,34 @@ overwrite existing data. Exact retries verify length and digest. Failed
 preparation/commit removes only files created by that invocation; existing files
 are retained. Retained file descriptors prevent inode recycling; the directory
 descriptor prevents deletion/recreation from redirecting rollback. Before file
-I/O, `ObservationReanalysisPreparationIntent` persists a closed version-3
-`files_pending` envelope with the exact ordered draft and a SHA-256 identity for
-the frozen source snapshot bytes. The existing qualified child provides
-parent/owner/source linkage even when metadata is damaged. This phase has no
-processor or request and cannot pass draft binding or execution decoders. The
-producer hashes the source on its preparation worker. Persistence accepts only a
-verified proof with a file-restricted constructor, requiring the digest and
-identity to match the frozen source. The exact source bytes are revalidated
-inside both database transactions. The digest fences the pending-to-ready
+I/O, `ObservationReanalysisPreparationIntent` persists a closed `files_pending`
+envelope: version 3 for held-only work, or version 4 for explicit submission.
+Both retain the exact ordered draft and a SHA-256 identity for the frozen source
+snapshot bytes. The existing qualified child provides parent/owner/source
+linkage even when metadata is damaged. This phase has no processor or request
+and cannot pass draft binding or execution decoders. The producer hashes the
+source on its preparation worker. Persistence accepts only a verified proof with
+a file-restricted constructor, requiring the digest and identity to match the
+frozen source. The exact source bytes are revalidated inside both database
+transactions. For held-only preparation, the digest fences the pending-to-ready
 transition and is discarded by ready version-2 metadata. Ready replay recovers
 already-committed state; subsequent delivery retains its own source, server,
 account and deletion checks.
 
 After taking the filesystem lock, the producer rechecks the exact unattempted
 pending pair, source, account, generation and deletion fences before writing.
-Completion performs a fresh compare-and-save of that same pair into the ready
-version-2 draft; it cannot reinsert a deleted child. Both checks use the shared
-persistence transaction without holding it across file I/O. A ready/bound retry
-returns existing state without downgrading it or changing files. Cancellation
-after successful save cannot roll back committed files. After the file-store
-await, the producer rechecks the account, generation and source before returning
-private state to Capture. A lost lease withholds that result while preserving
-the committed files and ready child; retry retains the same plan. No network
-admission, funding or selection mutation occurs.
+Completion performs a fresh compare-and-save of that same pair into a held
+version-2 draft or submitted version-5 admission intent; it cannot reinsert a
+deleted child. Submitted work retains the source fingerprint through admission,
+as specified in the
+[submission-intent contract](#submission-intent-before-private-writes). Both
+checks use the shared persistence transaction without holding it across file
+I/O. A ready/bound retry returns existing state without downgrading it or
+changing files. Cancellation after successful save cannot roll back committed
+files. After the file-store await, the producer rechecks the account, generation
+and source before returning private state to Capture. A lost lease withholds
+that result while preserving the committed files and ready child; retry retains
+the same plan. No network admission, funding or selection mutation occurs.
 
 Parent erasure creates a minimal durable `ObservationReanalysisErasureReceipt`
 before removing child rows and ingestion metadata in the same transaction. Its
@@ -759,3 +763,36 @@ held/draft/malformed/deleted work. The generic raw-job exclusion stays in place.
 Local persistence uncertainty gets a five-second fallback floor, and active
 passes suppress wake loops. Each pass processes at most eight due children and
 wakes receipt-bound local erasure only after committed completion.
+
+### Submission intent before private writes
+
+The producer's explicit `.submit` disposition persists closed version-4
+`files_pending` metadata before private file writes. It includes
+`requested_action: admit`, the original draft and frozen source SHA-256.
+Existing version-3 preparations and bare version-2 drafts remain held-only; they
+are never implicitly upgraded. The Capture session retains this action alongside
+its one plan before awaiting the producer. A retry with another action
+conflicts.
+
+Verified file completion and complete-cohort recovery convert submitted work to
+closed version-5 `admission_pending`, retaining the exact draft and original
+source fingerprint. A save failure retains the preceding phase. A held retry
+cannot overwrite either submitted phase. These envelopes remain unbound,
+`needsAttention`, attempt zero, and absent from execution scheduler candidates.
+They confer no provider, upload, funding or inference permission.
+
+`ObservationReanalysisAdmission` revalidates the retained source fingerprint on
+the preparation worker before recipient preflight. Its immutable source proof is
+checked around suspended work and again inside the atomic binding transaction.
+Submitted work cannot enter the older binding-only path or bind without this
+proof. Recovery-only, consent denial or account loss leaves the same unbound
+submission intent; it never invents a processor. Pristine submitted preparation
+and ready phases remain explicitly discardable through the same permanent
+receipt. Once bound pending admission commits, preparation discard is denied.
+
+The producer/session seam is prepared; the ordinary editor still requests held
+preparation. Dedicated bounded admission recovery and the final Reanalyze UI
+action are not connected yet. `ObservationReanalysisSubmissionTests` covers disk
+restart across file preparation, legacy compatibility, closed envelopes,
+source-proof admission, account/consent loss and discard races. No SwiftData
+schema shape or frozen snapshot changes are required.

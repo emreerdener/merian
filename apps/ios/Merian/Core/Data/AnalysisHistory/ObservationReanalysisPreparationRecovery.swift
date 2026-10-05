@@ -33,7 +33,7 @@ struct ObservationReanalysisPreparationRecovery {
         }
         let recovered: ObservationReanalysisPersistence.DraftState = try await files.recover(draft: pending.draft, validateBeforeRead: { try validate(false) }) {
             try validate(true)
-            return .draft(pending.draft)
+            return pending.ready
         }
         // A committed phase remains durable even if its former account loses the right to receive this result.
         try validateAccount()

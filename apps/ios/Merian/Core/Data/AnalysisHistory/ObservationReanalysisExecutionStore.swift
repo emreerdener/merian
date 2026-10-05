@@ -86,16 +86,26 @@ enum ObservationReanalysisExecutionStore {
     /// Replays preserve every already-admitted or attempted state, including remediation holds.
     static func bindAndAdmit(_ draft: ObservationReanalysisDraft, processor: IdentificationRecipientExpectation,
                              now: Date, container: ModelContainer, isCurrent: () -> Bool,
+                             submissionProof: ObservationReanalysisPreparationIntent.Verified? = nil,
                              save: (ModelContext) throws -> Void = { try $0.save() }) throws -> Snapshot {
         guard now.timeIntervalSince1970.isFinite else { throw Persistence.IntegrityError.conflict }
+        if let submissionProof {
+            guard submissionProof.pending.draft == draft, submissionProof.pending.action == .submit else { throw Persistence.IntegrityError.conflict }
+        }
         let candidate = try draft.binding(processor: processor)
         return try Persistence.transaction(draft.identity, container: container, isCurrent: isCurrent, save: save) { context in
             try validateNamespace(draft.identity, context: context)
+            try submissionProof?.validate(context: context)
             guard let (row, job) = try Persistence.pair(draft.identity, context: context) else { throw Persistence.IntegrityError.unavailable }
             switch try Persistence.restoreDraft(draft, row: row, job: job) {
             case let .bound(stored):
                 guard stored.intent == candidate else { throw Persistence.IntegrityError.conflict }
             case .draft:
+                guard submissionProof == nil else { throw Persistence.IntegrityError.conflict }
+                guard let metadata = String(bytes: try candidate.storedData(), encoding: .utf8) else { throw Persistence.IntegrityError.conflict }
+                job.metadataJSON = metadata
+            case let .submitted(saved):
+                guard let submissionProof, submissionProof.pending == saved.preparation else { throw Persistence.IntegrityError.conflict }
                 guard let metadata = String(bytes: try candidate.storedData(), encoding: .utf8) else { throw Persistence.IntegrityError.conflict }
                 job.metadataJSON = metadata
             }

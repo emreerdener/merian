@@ -20,14 +20,14 @@ struct ObservationReanalysisRecoveryTests {
         var file: URL { root.appendingPathComponent(pending.draft.photoPaths[0]) }
     }
 
-    func seed() throws -> Seed {
-        let seed = try sourceFixture.seed(version: 3)
+    func seed(action: ObservationReanalysisPreparationIntent.Action = .hold, url: URL? = nil) throws -> Seed {
+        let seed = try sourceFixture.seed(version: 3, url: url)
         let source = try producerFixture.source(seed), bytes = try producerFixture.image()
         let photo = ObservationEvidenceUpload.Reference(mediaID: UUID(), contentType: "image/png", byteCount: bytes.count,
             sha256: SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined())
         let draft = try ObservationReanalysisDraft(identity: .init(observationID: source.observationID, sourceAnalysisID: source.analysisID,
             analysisID: UUID(), ownerID: source.ownerID), evidence: [.description("Before"), .image(photo), .description("After")])
-        let pending = try ObservationReanalysisPreparationIntent(draft: draft, source: source)
+        let pending = try ObservationReanalysisPreparationIntent(draft: draft, source: source, action: action)
         _ = try ObservationReanalysisPersistence.beginPreparation(pending.verified(source: source), container: seed.container, isCurrent: { true })
         return Seed(container: seed.container, root: try ObservationReanalysisFileStoreTests().directory(), pending: pending, source: source, bytes: bytes)
     }

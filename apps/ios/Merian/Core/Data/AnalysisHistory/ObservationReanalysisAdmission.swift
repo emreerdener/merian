@@ -24,13 +24,25 @@ struct ObservationReanalysisAdmission {
         let current: @MainActor @Sendable () -> Bool = {
             lease.session.userID == draft.identity.ownerID && account.isCurrent(lease) && isCurrent()
         }
+        let submissionProof: ObservationReanalysisPreparationIntent.Verified?
+        if case let .ready(.submitted(saved)) = try ObservationReanalysisPersistence.preparation(draft.identity,
+            container: container, isCurrent: current) {
+            guard saved.draft == draft else { throw ObservationReanalysisPersistence.IntegrityError.conflict }
+            let source = try ObservationReanalysisSource.capture(observationID: draft.identity.observationID,
+                analysisID: draft.identity.sourceAnalysisID, ownerID: draft.identity.ownerID, container: container)
+            submissionProof = try await DetachedWork.value(category: .inferenceRequestPreparation) {
+                try saved.preparation.verified(source: source)
+            }
+        } else { submissionProof = nil }
         let read: @MainActor @Sendable () throws -> ObservationReanalysisPersistence.DraftState = {
             try Task.checkCancellation()
             guard case let .ready(state) = try ObservationReanalysisPersistence.preparation(draft.identity,
-                container: container, isCurrent: current) else { throw ObservationReanalysisPersistence.IntegrityError.unavailable }
+                container: container, isCurrent: current, submissionProof: submissionProof) else { throw ObservationReanalysisPersistence.IntegrityError.unavailable }
             switch state {
             case let .draft(saved):
-                guard saved == draft else { throw ObservationReanalysisPersistence.IntegrityError.conflict }
+                guard saved == draft, submissionProof == nil else { throw ObservationReanalysisPersistence.IntegrityError.conflict }
+            case let .submitted(saved):
+                guard saved.draft == draft, submissionProof?.pending == saved.preparation else { throw ObservationReanalysisPersistence.IntegrityError.conflict }
             case let .bound(saved):
                 guard saved.intent.identity == draft.identity, saved.intent.request.evidence == draft.evidence else {
                     throw ObservationReanalysisPersistence.IntegrityError.conflict
@@ -42,7 +54,7 @@ struct ObservationReanalysisAdmission {
         let validate: Validator = { _ = try read() }
         let authorization: IdentificationDispatchAuthorization
         switch state {
-        case .draft:
+        case .draft, .submitted:
             let input = try ObservationReanalysisPreflightRequest(observationID: draft.identity.observationID,
                 analysisID: draft.identity.analysisID, sourceAnalysisID: draft.identity.sourceAnalysisID)
             authorization = try await preflight(input, draft.identity.ownerID, validate)
@@ -57,6 +69,6 @@ struct ObservationReanalysisAdmission {
         guard authorization.recipient != .recoveryOnly else { throw ObservationReanalysisPersistence.IntegrityError.conflict }
         try authorization.validate()
         return try ObservationReanalysisExecutionStore.bindAndAdmit(draft, processor: authorization.recipient,
-            now: now(), container: container, isCurrent: current)
+            now: now(), container: container, isCurrent: current, submissionProof: submissionProof)
     }
 }

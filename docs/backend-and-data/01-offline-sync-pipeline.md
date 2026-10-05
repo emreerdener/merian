@@ -1857,6 +1857,15 @@ an unbound draft. Drafts remain held until explicit admission; pristine bound
 work requires that same durable admission before execution. This adds no
 SwiftData model field or schema version.
 
+Explicit submission intent now has a separate prepared local path: version-4
+files-pending metadata records the user's requested action before private
+writes, and verified completion/recovery preserves its original source
+fingerprint in version-5 admission-pending metadata. Legacy held preparations
+remain held. Submitted unbound work is not an execution candidate; source-proof
+validation and current consent precede atomic binding. The editor and bounded
+admission recovery are still awaiting connection, so saving an ordinary draft
+remains inert.
+
 Dedicated delivery now processes only explicitly admitted bound children. Atomic
 processor binding plus pristine `pending` status closes the restart gap before
 first dispatch. The retained single-flight owner cancels on offline/constrained

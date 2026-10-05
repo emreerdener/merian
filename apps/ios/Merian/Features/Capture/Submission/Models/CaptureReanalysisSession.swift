@@ -10,6 +10,7 @@ final class CaptureReanalysisSession {
     private var isPreparing = false
     private(set) var isDiscarded = false
     private var submittedCapture: CaptureSubmissionAdmissionSnapshot?
+    private var preparationAction: ObservationReanalysisPreparationIntent.Action?
 
     init(source: ObservationReanalysisSource, generation: UUID) {
         self.source = source
@@ -35,14 +36,17 @@ final class CaptureReanalysisSession {
     /// Dedicated held-child submission; never invokes ordinary scan admission or complimentary funding.
     func stage(capture: StagedCapture, generation: UUID, container: ModelContainer,
                producer: ObservationReanalysisProducer,
+               action: ObservationReanalysisPreparationIntent.Action = .hold,
                isCurrent: @escaping @MainActor @Sendable () -> Bool) async throws -> ObservationReanalysisPersistence.DraftState {
         guard !isPreparing else { throw ObservationHistoryError.unavailable }
         try Task.checkCancellation()
         guard isCurrent() else { throw ObservationHistoryError.accountChanged }
         let plan = try preparation(capture: capture, generation: generation)
+        guard preparationAction == nil || preparationAction == action else { throw ObservationHistoryError.resultConflict }
+        preparationAction = action
         isPreparing = true
         defer { isPreparing = false }
-        let result = try await producer.stage(plan, container: container, isCurrent: isCurrent)
+        let result = try await producer.stage(plan, container: container, action: action, isCurrent: isCurrent)
         try Task.checkCancellation()
         guard isCurrent() else { throw ObservationHistoryError.accountChanged }
         return result

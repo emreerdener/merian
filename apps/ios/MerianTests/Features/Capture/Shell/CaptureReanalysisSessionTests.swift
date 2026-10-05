@@ -133,7 +133,8 @@ struct CaptureReanalysisSessionTests {
         #expect(session.plan?.analysisID == first.analysisID)
     }
 
-    @Test func lostPreparationResponseRetriesSameHeldChildWithoutLegacyAdmission() async throws {
+    @Test(arguments: [false, true])
+    func lostPreparationResponseRetriesSameChildAndActionWithoutLegacyAdmission(submitted: Bool) async throws {
         let seed = try seed(count: 1), generation = UUID()
         let selection = try CaptureReanalysisEvidenceSelection(source: seed.source, selectedPhotoIDs: [seed.source.photos[0].mediaID])
         let capture = try await CaptureReanalysisEvidenceLoader(account: fixture.account(), loadPhoto: { _, _, _ in seed.bytes })
@@ -143,16 +144,25 @@ struct CaptureReanalysisSessionTests {
         let producer = ObservationReanalysisProducer(files: .init(documents: root), account: fixture.account(), loadOriginal: { _, _, _ in seed.bytes })
         let session = CaptureReanalysisSession(source: seed.source, generation: generation)
         await #expect(throws: ObservationHistoryError.accountChanged) {
-            try await session.stage(capture: capture, generation: generation, container: seed.container, producer: producer, isCurrent: {
+            try await session.stage(capture: capture, generation: generation, container: seed.container, producer: producer, action: submitted ? .submit : .hold, isCurrent: {
                 let context = ModelContext(seed.container)
                 guard let text = try? context.fetch(FetchDescriptor<OfflineJobRecord>()).first?.metadataJSON else { return true }
                 return (try? ObservationReanalysisPreparationIntent.decode(Data(text.utf8))) != nil
             })
         }
         let child = try #require(session.plan?.analysisID)
-        let result = try await session.stage(capture: capture, generation: generation, container: seed.container, producer: producer, isCurrent: { true })
-        guard case let .draft(draft) = result else { Issue.record("Unexpected phase"); return }
+        let result = try await session.stage(capture: capture, generation: generation, container: seed.container, producer: producer, action: submitted ? .submit : .hold, isCurrent: { true })
+        let draft: ObservationReanalysisDraft
+        switch result {
+        case let .draft(saved): #expect(!submitted); draft = saved
+        case let .submitted(saved): #expect(submitted); draft = saved.draft
+        case .bound: Issue.record("Unexpected admission"); return
+        }
         #expect(draft.identity.analysisID == child)
+        await #expect(throws: ObservationHistoryError.resultConflict) {
+            try await session.stage(capture: capture, generation: generation, container: seed.container,
+                producer: producer, action: submitted ? .hold : .submit, isCurrent: { true })
+        }
         let context = ModelContext(seed.container)
         let jobs = try context.fetch(FetchDescriptor<OfflineJobRecord>())
         #expect(jobs.count == 1 && jobs[0].kind == .observationReanalysisSync && jobs[0].attemptCount == 0)

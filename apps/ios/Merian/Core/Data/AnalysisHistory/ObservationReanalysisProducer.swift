@@ -12,6 +12,7 @@ struct ObservationReanalysisProducer {
     }
 
     func stage(_ plan: ObservationReanalysisPreparationPlan, container: ModelContainer,
+               action: ObservationReanalysisPreparationIntent.Action = .hold,
                isCurrent: @escaping @MainActor @Sendable () -> Bool) async throws -> ObservationReanalysisPersistence.DraftState {
         let source = plan.source
         let lease = try account.begin(source.ownerID)
@@ -46,7 +47,7 @@ struct ObservationReanalysisProducer {
         let draft = try ObservationReanalysisDraft(identity: .init(observationID: source.observationID, sourceAnalysisID: source.analysisID,
             analysisID: plan.analysisID, ownerID: source.ownerID), evidence: evidence)
         let proof = try await DetachedWork.value(category: .inferenceRequestPreparation) {
-            try ObservationReanalysisPreparationIntent(draft: draft, source: source).verified(source: source)
+            try ObservationReanalysisPreparationIntent(draft: draft, source: source, action: action).verified(source: source)
         }
         try validate()
         if let prepared = try ObservationReanalysisPersistence.beginPreparation(proof, container: container,
@@ -61,7 +62,7 @@ struct ObservationReanalysisProducer {
         let prepared: ObservationReanalysisPersistence.DraftState = try await files.persist(draft: draft, photos: photos, validateBeforeWrite: { try validatePending(false) }) {
             // Compare-and-save only: deletion can never cause a missing child to be reinserted.
             try validatePending(true)
-            return .draft(draft)
+            return proof.pending.ready
         }
         // Withhold stale private results without rolling back the already-committed files or child.
         try validate()

@@ -12,6 +12,7 @@ enum ObservationReanalysisPersistence {
 
     enum DraftState: Sendable {
         case draft(ObservationReanalysisDraft)
+        case submitted(ObservationReanalysisSubmissionIntent)
         case bound(Stored)
     }
 
@@ -64,6 +65,9 @@ enum ObservationReanalysisPersistence {
                 guard let metadata = String(bytes: try candidate.storedData(), encoding: .utf8) else { throw IntegrityError.conflict }
                 job.metadataJSON = metadata
                 return Stored(intent: candidate, status: .needsAttention)
+            case .submitted:
+                // Submitted work requires source-proof validation and atomic execution admission.
+                throw IntegrityError.conflict
             }
         }
     }
@@ -76,7 +80,8 @@ enum ObservationReanalysisPersistence {
             guard bound.identity == expected.identity, bound.request.evidence == expected.evidence else { throw IntegrityError.conflict }
             return .bound(stored)
         }
-        let draft = try ObservationReanalysisDraft.decode(Data(text.utf8))
+        let submitted = try? ObservationReanalysisSubmissionIntent.decode(Data(text.utf8))
+        let draft = try submitted?.draft ?? ObservationReanalysisDraft.decode(Data(text.utf8))
         let childID = draft.identity.analysisID.uuidString.lowercased()
         guard draft == expected, row.work == .reanalysis(draft.identity), row.id == childID,
               row.inferenceImagePaths == draft.photoPaths, row.queueNeedsAttention,
@@ -85,7 +90,7 @@ enum ObservationReanalysisPersistence {
               job.kindRaw == OfflineJobKind.observationReanalysisSync.rawValue,
               job.statusRaw == OfflineJobStatus.needsAttention.rawValue,
               job.attemptCount == 0, job.lastAttemptAt == nil, job.nextRunAt == nil else { throw IntegrityError.conflict }
-        return .draft(draft)
+        return submitted.map { .submitted($0) } ?? .draft(draft)
     }
 
     @MainActor

@@ -495,13 +495,18 @@ ordering are preserved in the final preparation plan.
 first explicit preparation freezes the input snapshot and mints one plan; exact
 retry reuses its child and media identities. Changed input or a changed
 generation is rejected. Its dedicated `stage` method invokes only the private
-held-child producer, with single-flight ownership and a final foreground fence.
-An ambiguous response leaves the plan retained. Explicit `discard` obtains an
-owner lease and retires only the same unbound, unattempted child through the
-transactional erasure receipt. It makes this session terminal only after that
-commit; failure retains the plan. A caller must wake local erasure recovery
-before releasing the session. Account teardown invalidates private presentation
-separately and cannot claim durable cancellation.
+producer, with single-flight ownership and a final foreground fence. It freezes
+the requested held/submit disposition with the plan before awaiting file work; a
+different retry action conflicts. Explicit submit produces durable submission
+intent before private writes and retains it through verified file recovery.
+Default staging and the existing editor still produce held-only drafts. See the
+[submission-intent contract](../../../Core/Data/AnalysisHistory/README.md#submission-intent-before-private-writes).
+An ambiguous response leaves the same plan and action retained. Explicit
+`discard` obtains an owner lease and retires only the same unbound, unattempted
+child through the transactional erasure receipt. It makes this session terminal
+only after that commit; failure retains the plan. A caller must wake local
+erasure recovery before releasing the session. Account teardown invalidates
+private presentation separately and cannot claim durable cancellation.
 
 These owners are compiled and covered by `CaptureReanalysisSessionTests`. The
 prepared protected editor now connects explicit selection and held submission,

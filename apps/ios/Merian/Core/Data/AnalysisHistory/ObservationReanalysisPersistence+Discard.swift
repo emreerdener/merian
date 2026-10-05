@@ -37,6 +37,9 @@ extension ObservationReanalysisPersistence {
                     if let pending = try? ObservationReanalysisPreparationIntent.decode(bytes) {
                         guard pending.draft.identity == identity else { throw IntegrityError.conflict }
                         try validatePending(pending, row: row, job: job, context: context)
+                    } else if let submitted = try? ObservationReanalysisSubmissionIntent.decode(bytes) {
+                        guard submitted.draft.identity == identity,
+                              case .submitted = try restoreDraft(submitted.draft, row: row, job: job) else { throw IntegrityError.conflict }
                     } else {
                         // Bound requests, unknown phases and terminal/attempted jobs cannot authorize local discard.
                         let draft = try ObservationReanalysisDraft.decode(bytes)

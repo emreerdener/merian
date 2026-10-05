@@ -14,7 +14,7 @@ struct ObservationReanalysisSourceTests {
         let observationID: UUID
     }
 
-    func seed(version: Int = 2) throws -> Seed {
+    func seed(version: Int = 2, url: URL? = nil) throws -> Seed {
         let file = try DatabaseActorTestSupport.loadRepositorySource(at:
             "services/supabase/functions/_shared/analysisHistory/fixtures/page-v\(version).json")
         let page = try #require(JSONSerialization.jsonObject(with: Data(file.utf8)) as? [String: Any])
@@ -24,7 +24,7 @@ struct ObservationReanalysisSourceTests {
         let observation = try #require(snapshot["observation_id"] as? String)
         let result = try ObservationHistoryPage.snapshot(bytes, observationID: observation,
             ordinal: ObservationHistoryPage.integer(snapshot["ordinal"]))
-        let container = try fixture.container(seed: false), context = ModelContext(container)
+        let container = try fixture.container(url: url, seed: false), context = ModelContext(container)
         let parent = LocalScanRecord(id: observation, speciesId: "fixture", scientificName: "Fixture", commonName: "Fixture")
         parent.analysisOwnerAccountID = fixture.owner.uuidString.lowercased()
         parent.selectedAnalysisID = result.analysisID.uuidString.lowercased()

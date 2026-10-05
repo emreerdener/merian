@@ -10,8 +10,13 @@ extension ObservationReanalysisPersistence {
     /// Targeted local recovery read. Decoding a pending envelope never authorizes file or provider work.
     @MainActor
     static func preparation(_ identity: OfflineQueueWork.Reanalysis, container: ModelContainer,
-                            isCurrent: () -> Bool) throws -> PreparationState {
+                            isCurrent: () -> Bool,
+                            submissionProof: ObservationReanalysisPreparationIntent.Verified? = nil) throws -> PreparationState {
         try transaction(identity, container: container, isCurrent: isCurrent, save: { try $0.save() }) { context in
+            if let submissionProof {
+                guard submissionProof.pending.draft.identity == identity, submissionProof.pending.action == .submit else { throw IntegrityError.conflict }
+                try submissionProof.validate(context: context)
+            }
             guard let (row, job) = try pair(identity, context: context), let text = job.metadataJSON else { throw IntegrityError.unavailable }
             let data = Data(text.utf8)
             if let pending = try? ObservationReanalysisPreparationIntent.decode(data) {
@@ -22,6 +27,10 @@ extension ObservationReanalysisPersistence {
             if let draft = try? ObservationReanalysisDraft.decode(data) {
                 guard draft.identity == identity else { throw IntegrityError.conflict }
                 return .ready(try restoreDraft(draft, row: row, job: job))
+            }
+            if let submitted = try? ObservationReanalysisSubmissionIntent.decode(data) {
+                guard submitted.draft.identity == identity else { throw IntegrityError.conflict }
+                return .ready(try restoreDraft(submitted.draft, row: row, job: job))
             }
             let bound = try restore(row: row, job: job)
             guard bound.intent.identity == identity else { throw IntegrityError.conflict }
@@ -44,7 +53,13 @@ extension ObservationReanalysisPersistence {
                     try validatePending(pending, row: row, job: job, context: context)
                     return nil
                 }
-                return try restoreDraft(pending.draft, row: row, job: job)
+                let ready = try restoreDraft(pending.draft, row: row, job: job)
+                switch ready {
+                case .draft: guard pending.action == .hold else { throw IntegrityError.conflict }
+                case let .submitted(saved): guard saved.preparation == pending else { throw IntegrityError.conflict }
+                case .bound: break
+                }
+                return ready
             }
             try insert(pending.draft.identity, paths: pending.draft.photoPaths, metadata: pending.storedData(), context: context)
             return nil
@@ -63,7 +78,7 @@ extension ObservationReanalysisPersistence {
             guard let (row, job) = try pair(pending.draft.identity, context: context) else { throw IntegrityError.unavailable }
             try validatePending(pending, row: row, job: job, context: context)
             if makeReady {
-                guard let text = String(bytes: try pending.draft.storedData(), encoding: .utf8) else { throw IntegrityError.conflict }
+                guard let text = String(bytes: try pending.readyData(), encoding: .utf8) else { throw IntegrityError.conflict }
                 job.metadataJSON = text
             }
         }
