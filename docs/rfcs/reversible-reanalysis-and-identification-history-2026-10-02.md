@@ -2930,3 +2930,22 @@ live access dependency remains nil. Dedicated execution, the ordinary history
 action and complete UI/runtime qualification are still outstanding; all
 activation gates remain closed. Current ownership is documented in the
 [protected Shell contract](../../apps/ios/Merian/Features/Capture/Shell/README.md#protected-reanalysis-editor).
+
+## October 5: prepared scientific detachment allowlist
+
+The enrolled-observation account-deletion boundary now has a forward migration
+that retains the canonical original scientific facts and separately materializes
+the acknowledged selected interpretation into the existing restricted scan row.
+It does not copy private result JSON. Owner-first deletion locks, exact stored
+projection comparison, whole-row allowlist guards and immutable detached markers
+protect selection/review races and post-cascade writes. No selected result uses
+an explicit absence marker; selected legacy, unreviewed, rejected, confirmed,
+community-resolved, withdrawn, broader and non-biological outcomes retain their
+actual interpretation. Legacy detachment is unchanged.
+
+The complete column classification and scalar schema are normative in
+[scientific retention](../backend-and-data/17-scientific-observation-retention.md).
+This resolves the source-level allowlist/materializer gap recorded in earlier
+progress entries; ordinary feature access, deployment/rollout qualification,
+independent erasure operations and CPU/heap/CDN evidence remain outstanding. All
+activation gates remain disabled.

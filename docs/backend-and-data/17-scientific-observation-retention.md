@@ -33,12 +33,13 @@ survive detachment. Every new column needs an explicit privacy/scientific
 classification and review of the routine, triggers, tests, policies and this
 document; absence from the clearing list is not approval to retain private data.
 
-The prepared observation-history schema does not change this legacy retention
-classification. Its private children are removed on account detachment. History
-enrollment remains disabled until the RFC's explicit scientific-field allowlist
-and acknowledged-state materializer replace this clearing-list approach for
-enrolled observations. Copying private result JSON into retained scientific data
-is not permitted by that future contract.
+The prepared migration
+`20261005151359_retain_acknowledged_observation_science.sql` replaces that
+clearing-list approach **only for enrolled observations**. Before their private
+history is removed, the same restricted `public.scans` row receives an exact
+scientific allowlist and a separate `retained_identification`. Legacy
+observations keep the existing behavior below. Enrollment and all other
+activation gates remain disabled; prepared source is not deployment evidence.
 
 | Action                               | Data                                                                                                                                                                                                                                                                            |
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -53,12 +54,67 @@ confirmation and review state as retained unchanged. That does not match
 `internal.guard_scan_verified_species_review()` from the September 29 migration
 or `internal.guard_scan_ai_identification_review()` from the October 1
 migration. Those existing guards perform the resets above; the history
-preparation did not introduce them. Preserving permitted acknowledged
-identification facts for the future history model therefore requires an explicit
-allowlisted scientific projection before detachment and child cleanup. The
-current implementation does not fulfill that future materialization contract,
-and enrollment must remain closed. See the
+preparation did not introduce them. The October 5 prepared materializer now
+preserves permitted acknowledged identification facts separately before those
+resets. It does not preserve live review authority or make an ownerless
+observation eligible for species credit or public presentation. See the
 [RFC implementation status](../rfcs/reversible-reanalysis-and-identification-history-2026-10-02.md#implementation-progress).
+
+### Enrolled observation allowlist
+
+The following is the complete current original-field retention list. All fields
+not retained or explicitly reset below become SQL `NULL`. The source is an empty
+typed scan record with explicit assignments, not a copy of a result or
+active-projection payload. Original AI facts stay separate from the selected
+result; an unreviewed original identification is not erased merely because it
+was never confirmed.
+
+| Classification                                     | Exact columns                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Original observation and location                  | `id`, `timestamp`, `gps_lat_exact`, `gps_long_exact`, `gps_lat_public`, `gps_long_public`, `geoprivacy`, `coordinate_uncertainty_in_meters`, `gps_elevation`, `current_month`, `time_of_day`                                                                                                                                                                                                                                                                                                                                                                                             |
+| Original environmental and biological measurements | `weather_condition`, `weather_temperature_f`, `ecology_type`, `is_invasive`, `life_stage`, `reproductive_condition`, `individual_count`, `estimated_size_cm`, `is_biological_subject`, `sex`, `sex_confidence`, `invasive_confidence`                                                                                                                                                                                                                                                                                                                                                    |
+| Original AI identity, quality and provenance       | `species_id`, `ai_confidence_score`, `inference_tier`, `identification_provenance`, `primary_identification`, `is_live_capture`, `is_verified`, `blur_score`, `image_quality_score`, `zoom_factor`, `confirmed_species_identity_revision`                                                                                                                                                                                                                                                                                                                                                |
+| Empty arrays                                       | `image_storage_urls`, `video_storage_urls`, `audio_storage_urls`, `custom_tags`, `colors`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Explicit resets                                    | `user_id=NULL`, `is_tombstoned=TRUE`, `llm_usage_metadata={}`, `is_offline_queued=FALSE`, `is_flagged=FALSE`, `user_confirmed_identification=FALSE`, `user_review_state=unreviewed`                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Cleared private and review fields                  | `human_intervention_notes`, `semantic_location`, `device_locale`, `depth_scale_text`, `llm_prompt_tokens`, `llm_candidate_tokens`, `llm_total_tokens`, `ai_reasoning`, `ecological_interactions`, `extracted_visual_traits`, `candidates`, `user_identification_override`, `llm_thinking_tokens`, `llm_cached_tokens`, `confirmed_species_id`, `user_observation_context`, `device_time_zone`, `public_location_label`, `sex_evidence`, `pet_identification`, `invasive_status_region`, `invasive_rationale`, `captured_media`, `confirmed_species_identity`, `ai_identification_review` |
+| Separately materialized                            | `retained_identification` as defined below                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+
+Original `is_verified` is a retained legacy scientific-quality flag, not new
+identification authority. The original closed primary/provenance objects retain
+their existing scientific classification. No selected private JSON is copied.
+New nullable columns clear by default; a new required or generated column blocks
+enrolled detachment until explicitly classified. Coordinate source columns are
+not assigned, preventing location triggers from recalculating retained values.
+
+`retained_identification` is a version-1, at-most-4-KiB flat object with exactly
+these scalar keys:
+
+- Interpretation: `source`, `rank`, `scientific_name`, `common_name`,
+  `species_id`, `verified`, `pending_review`.
+- Selected analysis facts: `is_biological_subject`, `ai_confidence_score`,
+  `inference_tier`.
+- Content-free provenance: `provenance_version`, `provider`, `binding`, `model`,
+  `variant`, `operation`, `policy_version`, `prompt`, `schema`,
+  `confidence_policy`, `safety`, `timeout_ms`.
+- Format: `version`.
+
+It is derived from the selected immutable result and its current acknowledged
+review authority, recomputed and compared with the stored authoritative
+projection while locked. Sources `legacy`, `ai_primary`, and
+`verified_selection` preserve their actual meaning; rejection/withdrawal stays
+unresolved, broader taxa stay broader, and non-biological results stay
+non-biological. The booleans describe the historical interpretation and confer
+no current authority. There are no owner, reviewer, operation, analysis or
+request identifiers, notes, evidence, nested generation parameters or private
+payloads. No taxonomy-version identifier is invented when the selected record
+has none. Selected confidence never overwrites original confidence.
+
+An enrolled observation with no selected result gets `source=none`, false
+interpretation booleans, and null remaining facts; this is an immutable absence
+marker, not an invented identification. A null `retained_identification` remains
+valid for legacy/non-enrolled rows. All enrolled detached rows, including
+`none`, become immutable after history deletion. The field grants no new client
+column access and is not a native or public API response.
 
 Exact coordinates, time, and species can remain personal or sensitive
 information even after direct account linkage is removed. Internal and public
@@ -81,8 +137,12 @@ Account deletion remains a durable, claim-fenced workflow:
 2. `complete_account_deletion_cleanup` creates the idempotent storage-cleanup
    outbox row before calling `apply_user_tombstone`.
 3. `apply_user_tombstone` locks the owner before touching scans, using the same
-   user-first order as deletion, funding, and prepared history operations. It
-   detaches scans, clears the account-owned fields above, and deletes
+   user-first order as deletion, funding, and prepared history operations. For
+   enrolled scans it then locks the observation advisory key, scan, history and
+   selected result/authority, materializes the allowlist, and detaches the row
+   before private-history cascade. Bound community requests and public
+   projections use the existing NOWAIT locks; contention rolls back without
+   partial erasure. Legacy scans retain their clearing path. It deletes
    `public.users` in the same database transaction.
 4. The transaction verifies that no profile or scan still references the deleted
    account UUID.
@@ -108,6 +168,12 @@ only one account-detachment transition in that state:
 - every account-owned field is empty or null; and
 - complete `OLD` and `NEW` rows are identical after subtracting only the
   account-detachment columns.
+
+For enrolled observations, the additional permitted transition requires exact
+equality with the complete allowlisted expected row before history cascade. The
+final BEFORE trigger repeats this check after review guards and rejects any
+later change, including removal of the retained marker. Missing or inconsistent
+selected evidence/authority rolls back deletion.
 
 This complete-row comparison fails closed for current and future scientific
 columns. After detachment, delayed updates cannot rewrite exact coordinates or
@@ -230,3 +296,11 @@ allowlist/materialization activation prerequisite remains unchanged.
 - [Public Terms of Service](../../apps/web/app/terms/page.tsx)
 - [Public Privacy Policy](../../apps/web/app/privacy/page.tsx)
 - [Public Privacy Choices](../../apps/web/app/privacy-choices/page.tsx)
+
+The enrolled-retention catalog `tests/observation_scientific_retention.sql`
+covers selected original/review interpretations, original-versus-selected
+confidence, no-selection markers, projection mismatch rollback, unknown-field
+clearing, schema classification failures, immutable detachment and RLS.
+`observationScientificRetentionConcurrencyDb.test.ts` races real selection and
+bound rejection RPCs against account detachment in both orders. These tests use
+only a disposable local database; rollout qualification remains separate.

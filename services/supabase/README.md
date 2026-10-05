@@ -645,6 +645,15 @@ unchanged while free-form intervention notes and account context are cleared.
 `replay-scan-ingestion` treats that state as terminal and cannot dispatch
 another AI request for a deleted account's scan.
 
+Prepared migration `20261005151359_retain_acknowledged_observation_science.sql`
+adds an explicit scientific allowlist for enrolled observations only. It
+preserves original AI facts and materializes the selected acknowledged
+interpretation as a separate, closed scalar `scans.retained_identification`
+before private-history cascade. Raw review state, private payloads and media
+clear; owner-first locks serialize selection/review/deletion, and detached
+enrolled rows are immutable. All gates remain off and no client response
+changes.
+
 The complete retained-versus-cleared field boundary, visibility rules, change
 procedure, and verification requirements are canonicalized in
 [`docs/backend-and-data/17-scientific-observation-retention.md`](../../docs/backend-and-data/17-scientific-observation-retention.md).

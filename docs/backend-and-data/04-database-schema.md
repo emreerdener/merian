@@ -75,8 +75,12 @@ consumers; no worker or public mutation RPC is enabled.
 Legacy deletion refuses enrolled observations before fencing or erasure. Backend
 non-biological retention excludes enrollment at discovery and locked recheck.
 Account detachment locks the owner before scans and clears private history on
-detachment; the required scientific-field allowlist/materializer is still an
-activation prerequisite. See the
+detachment. The prepared October 5 materializer preserves an explicit original
+scientific allowlist and a separate closed, flat `scans.retained_identification`
+before that cascade. It recomputes selected authority under owner-first locks;
+private JSON/media/review state clear, and detached enrolled rows are immutable.
+No new client column grant or activation is introduced. The exact classification
+is in [scientific retention](./17-scientific-observation-retention.md). See the
 [implementation status](../rfcs/reversible-reanalysis-and-identification-history-2026-10-02.md#implementation-progress)
 and
 [history contract owner](../../services/supabase/functions/_shared/analysisHistory/README.md).

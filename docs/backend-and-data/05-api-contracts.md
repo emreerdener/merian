@@ -9294,6 +9294,13 @@ submitted observation.
 The exact retained-versus-cleared field boundary is normative in the
 [scientific-observation retention contract](./17-scientific-observation-retention.md).
 
+The prepared enrolled-observation detachment materializer adds no request or
+response field. Its `scans.retained_identification` is a restricted, immutable
+scientific snapshot, with no new client column grant; it is neither a history
+result nor a source of current review/publication authority. Selection/review
+writers and deletion serialize on the owner; inconsistent selected state aborts
+the relational transaction before erasure. Legacy detachment stays unchanged.
+
 The iOS wire methods live in
 `Core/Network/Endpoints/MerianNetworkClient+AccountDeletion.swift`, with
 accepted/recovery receipt and status DTOs, the operation-specific preparation

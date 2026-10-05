@@ -88,8 +88,13 @@ bounded page. Native `Core/Data/AnalysisHistory` decodes and admits these pages
 only for an already-enrolled matching local owner; ordinary app sync never calls
 it. Verified enrollment, live completion, held-task reconciliation (new native
 requests now carry local account/origin provenance), child ingestion fences,
-protected media, account-retention allowlist, publication and chat integrations
-remain required.
+protected media, publication and chat integrations remain part of activation
+qualification. The prepared October 5 account-retention materializer now retains
+an explicit original scientific allowlist plus separate acknowledged scalar
+facts in the ownerless scan, before private-history cascade. It copies no result
+JSON and creates no current identification authority. See the
+[canonical classification](../../../../../docs/backend-and-data/17-scientific-observation-retention.md);
+all history gates remain disabled.
 
 ## Prepared append boundary
 
