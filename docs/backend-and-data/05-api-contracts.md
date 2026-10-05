@@ -12939,8 +12939,12 @@ delivery service retains an account lease, replays the exact saved request
 before current-state preflight and acquires a new receipt claim after
 acknowledgement. Received receipts only reconcile; they never dispatch again.
 Exact permanent errors hold work without inventing receipt outcomes; network
-uncertainty and state revision races retain bounded retry. Delivery scheduling
-and ordinary review UI remain separate implementation work. See the
+uncertainty and state revision races retain bounded retry. The dedicated native
+scheduler now retains a bounded, account-fenced pass over saved work, restores
+strict owner-qualified deadlines and awaits task cancellation before Auth drain.
+Database uncertainty has a bounded owner/container recovery wake; malformed or
+held jobs cannot be automatically reclaimed. Ordinary review UI remains separate
+implementation work. See the
 [native persistence contract](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#prepared-analysis-bound-review-persistence).
 All activation gates remain false.
 

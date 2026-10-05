@@ -15,15 +15,49 @@ extension ObservationAnalysisReviewPersistence {
         let kind = OfflineJobKind.observationAnalysisReviewSync.rawValue
         let jobs = try context.fetch(FetchDescriptor<OfflineJobRecord>(predicate: #Predicate { $0.kindRaw == kind },
             sortBy: [SortDescriptor(\.createdAt)]))
-        return jobs.compactMap { job in
-            guard [.pending, .waiting, .running].contains(job.status), job.attemptCount >= 0, job.attemptCount < Int.max,
-                  let intent = try? restore(job), !intent.isComplete, intent.ownerID == ownerID,
-                  let scan = try? ObservationHistorySyncService.enrolledScan(intent.request.observationID.uuidString, context: context),
-                  scan.analysisOwnerAccountID == ownerID.uuidString.lowercased(),
-                  (try? ObservationHistoryEnrollmentIntent.holds(scan.id, context: context)) == false else { return nil }
-            guard (try? transaction(intent, container: container, isCurrent: { true }, body: { _ in true })) == true else { return nil }
-            return (intent, job.nextRunAt ?? job.createdAt)
+        return try discover(jobs, ownerID: ownerID) { intent in
+            try transaction(intent, container: container, isCurrent: { true }, body: { _ in })
         }
+    }
+
+    /// Decode failures block only their row; storage failures must reach the retry owner.
+    @MainActor
+    static func discover(_ jobs: [OfflineJobRecord], ownerID: UUID,
+                         validateScope: (ObservationAnalysisReviewIntent) throws -> Void) throws -> [(ObservationAnalysisReviewIntent, Date)] {
+        try jobs.compactMap { job in
+            guard let intent = try? restore(job), intent.ownerID == ownerID,
+                  (try? runnableShape(job, intent: intent)) == true else { return nil }
+            do {
+                try validateScope(intent)
+            } catch ObservationHistoryError.deleted { return nil
+            } catch ObservationHistoryError.unavailable { return nil
+            } catch IntegrityError.unavailable { return nil
+            } catch IntegrityError.conflict { return nil }
+            let due = job.nextRunAt ?? job.createdAt
+            guard ObservationAnalysisReviewIntent.validDate(due) else { return nil }
+            return (intent, due)
+        }.sorted { left, right in
+            left.1 == right.1 ? left.0.request.operationID.uuidString < right.0.request.operationID.uuidString : left.1 < right.1
+        }
+    }
+
+    /// A damaged running row cannot become permission for another dispatch.
+    static func runnableShape(_ job: OfflineJobRecord, intent: ObservationAnalysisReviewIntent) throws -> Bool {
+        guard !intent.isComplete, [.pending, .waiting, .running].contains(job.status) else { return false }
+        guard job.attemptCount >= 0, job.attemptCount < Int.max,
+              job.nextRunAt.map(ObservationAnalysisReviewIntent.validDate) ?? true,
+              job.lastAttemptAt.map(ObservationAnalysisReviewIntent.validDate) ?? true else { throw IntegrityError.conflict }
+        switch job.status {
+        case .pending:
+            guard !intent.hasReceipt, job.attemptCount == 0, job.lastAttemptAt == nil, job.nextRunAt == nil else { throw IntegrityError.conflict }
+        case .running:
+            guard job.attemptCount > 0, let start = job.lastAttemptAt, let expiry = job.nextRunAt,
+                  abs(expiry.timeIntervalSince(start) - 180) < 0.001 else { throw IntegrityError.conflict }
+        case .waiting:
+            guard job.attemptCount > 0, job.lastAttemptAt != nil, intent.hasReceipt || job.nextRunAt != nil else { throw IntegrityError.conflict }
+        default: return false
+        }
+        return true
     }
 
     @MainActor
@@ -32,7 +66,7 @@ extension ObservationAnalysisReviewPersistence {
         try transaction(expected, container: container, isCurrent: isCurrent, save: save) { context in
             guard let job = try context.fetchOfflineJob(id: jobID(expected.request.operationID, observationID: expected.request.observationID)),
                   try restore(job).storedData() == expected.storedData() else { throw IntegrityError.conflict }
-            guard !expected.isComplete, [.pending, .waiting, .running].contains(job.status),
+            guard try runnableShape(job, intent: expected),
                   job.nextRunAt.map({ $0 <= date }) ?? true else { return nil }
             guard ObservationAnalysisReviewIntent.validDate(date), job.attemptCount >= 0, job.attemptCount < Int.max else { throw IntegrityError.conflict }
             job.attemptCount += 1

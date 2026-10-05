@@ -1062,17 +1062,22 @@ selected-result display provenance is a hold, never permission to borrow another
 result's display. Account, deletion and claim replacement defeat late replies.
 The prepared OfflineSync delivery service now submits one exact saved request or
 recovers its receipt, then obtains the receipt-phase claim for this reconciler.
-Runtime scheduling and ordinary UI remain unconnected; no standalone completion
-API can mark a receipt complete without its paired projection.
+The dedicated retained runtime delivers at most eight due operations per pass
+and awaits cancellation before Auth drains. Ordinary UI remains unconnected; no
+standalone completion API can mark a receipt complete without its paired
+projection.
 
 The separate `observationAnalysisReviewSync` raw kind adds no stored schema
-field. Generic scheduling excludes it until its dedicated executor is connected;
-acknowledgement has no wake deadline. Attention holds cannot rearm through
-restaging or claiming. Direct and bulk deletion remove the observation-qualified
-namespace even if kind, subject or envelope metadata is damaged. Cloud-confirmed
-cleanup additionally requires the decoded owner and exact primary key. Account
-purge removes the jobs with the rest of the store. Late responses cannot
-recreate deleted work.
+field. Generic scheduling excludes it; the dedicated scheduler restores exact
+owner-qualified deadlines, including immediate receipt reconciliation after
+acknowledgement. Discovery propagates database failures for bounded recovery but
+leaves malformed or held envelopes inert. Both discovery and direct claiming
+validate the original running start/expiry and waiting mutation deadline.
+Attention holds cannot rearm through restaging or claiming. Direct and bulk
+deletion remove the observation-qualified namespace even if kind, subject or
+envelope metadata is damaged. Cloud-confirmed cleanup additionally requires the
+decoded owner and exact primary key. Account purge removes the jobs with the
+rest of the store. Late responses cannot recreate deleted work.
 
 `ObservationAnalysisReviewPersistenceTests` covers disk reopening, immutable
 replay, strict receipt binding, byte-exact names, saved Reject association,

@@ -12,6 +12,7 @@ final class OfflineJobScheduler {
         var syncLibraryDetails: @MainActor (OfflineQueueManager) async -> Void = { _ in }
         var syncReanalysisAdmissions: @MainActor (OfflineQueueManager) -> Void = { _ in }
         var syncReanalyses: @MainActor (OfflineQueueManager) -> Void = { _ in }
+        var syncAnalysisReviews: @MainActor (OfflineQueueManager) -> Void = { _ in }
         var syncPublications: @MainActor (OfflineQueueManager) async -> Void = { _ in }
         var syncIdentificationReviews: @MainActor (OfflineQueueManager) async -> Void = { _ in }
         let reconcileFunding: @MainActor (OfflineQueueManager) async -> Void
@@ -29,6 +30,7 @@ final class OfflineJobScheduler {
             },
             syncReanalysisAdmissions: { $0.requestReanalysisAdmissionRecovery() },
             syncReanalyses: { $0.requestReanalysisExecutionRecovery() },
+            syncAnalysisReviews: { $0.requestAnalysisReviewRecovery() },
             syncPublications: { await $0.syncObservationPublications() },
             syncIdentificationReviews: { await $0.syncPendingIdentificationReviews() },
             reconcileFunding: { await $0.reconcileDeferredFundingReservations() },
@@ -57,6 +59,10 @@ final class OfflineJobScheduler {
     private weak var reanalysisRetryManager: OfflineQueueManager?
     private var reanalysisRetryDate: Date?
     private var reanalysisRetryOwner: UUID?
+    private weak var analysisReviewRetryManager: OfflineQueueManager?
+    private weak var analysisReviewRetryContainer: ModelContainer?
+    private var analysisReviewRetryOwner: UUID?
+    private var analysisReviewRetryDate: Date?
 
     /// Actual in-process wake time. Kept internal so regression tests can prove
     /// a persisted future retry was restored instead of merely displayed.
@@ -86,6 +92,7 @@ final class OfflineJobScheduler {
         // becomes eligible while that drain is still in flight.
         scheduleNextPersistedWake(using: manager)
         drainOperations.syncReanalyses(manager)
+        drainOperations.syncAnalysisReviews(manager)
         await drainOperations.syncLibraryDetails(manager)
         await drainOperations.reconcileFunding(manager)
         drainOperations.syncPendingScans(manager)
@@ -144,6 +151,29 @@ final class OfflineJobScheduler {
         reanalysisRetryManager = nil; reanalysisRetryDate = nil; reanalysisRetryOwner = nil
     }
 
+    func scheduleAnalysisReviewRetry(using manager: OfflineQueueManager, ownerID: UUID,
+                                     container: ModelContainer, now: Date = Date()) {
+        guard deletionAccountID() == ownerID, manager.modelContext?.container === container else { return }
+        analysisReviewRetryManager = manager; analysisReviewRetryContainer = container
+        analysisReviewRetryOwner = ownerID; analysisReviewRetryDate = now.addingTimeInterval(Self.databaseReadRetryDelay)
+        scheduleNextPersistedWake(using: manager, now: now)
+    }
+
+    /// Only a valid lease in the captured owner/container may retire its fallback.
+    func analysisReviewDrainDidStart(using manager: OfflineQueueManager, ownerID: UUID, container: ModelContainer) {
+        guard analysisReviewRetryManager === manager, analysisReviewRetryContainer === container,
+              manager.modelContext?.container === container, analysisReviewRetryOwner == ownerID, deletionAccountID() == ownerID else { return }
+        analysisReviewRetryDate = nil; analysisReviewRetryManager = nil
+        analysisReviewRetryContainer = nil; analysisReviewRetryOwner = nil
+    }
+
+    private func analysisReviewRetryFloor(using manager: OfflineQueueManager) -> Date? {
+        guard analysisReviewRetryManager === manager, let container = analysisReviewRetryContainer,
+              manager.modelContext?.container === container, analysisReviewRetryOwner != nil,
+              analysisReviewRetryOwner == deletionAccountID(), !manager.analysisReviewDeliveryOwner.isRunning else { return nil }
+        return analysisReviewRetryDate
+    }
+
     /// Recreates the process-local timer from durable SwiftData dates.
     ///
     /// A retry timestamp is an eligibility boundary, not a timer. This bridge
@@ -164,7 +194,8 @@ final class OfflineJobScheduler {
             !manager.publicationDeliveryOwner.isRunning ? publicationRetryDate : nil
         let reanalysisDeadline = reanalysisRetryManager === manager && reanalysisRetryOwner != nil &&
             reanalysisRetryOwner == deletionAccountID() && !manager.reanalysisExecutionOwner.isRunning ? reanalysisRetryDate : nil
-        guard let sourceDate = [nextPersistedWakeDate(using: manager), libraryDeadline, publicationDeadline, reanalysisDeadline].compactMap({ $0 }).min() else {
+        guard let sourceDate = [nextPersistedWakeDate(using: manager), libraryDeadline, publicationDeadline, reanalysisDeadline,
+                               analysisReviewRetryFloor(using: manager)].compactMap({ $0 }).min() else {
             cancelScheduledWake(using: manager)
             return
         }
@@ -283,6 +314,14 @@ final class OfflineJobScheduler {
             return candidates.min()
         }
         let deletionOwner = deletionAccountID()
+        if let owner = deletionOwner, !manager.analysisReviewDeliveryOwner.isRunning {
+            do {
+                let floor = analysisReviewRetryFloor(using: manager)
+                candidates.append(contentsOf: try ObservationAnalysisReviewPersistence.candidates(container: context.container, ownerID: owner).map { candidate in
+                    floor.map { max($0, candidate.1) } ?? candidate.1
+                })
+            } catch { candidates.append(Date().addingTimeInterval(Self.databaseReadRetryDelay)) }
+        }
         if let owner = deletionOwner, !manager.publicationDeliveryOwner.isRunning {
             do {
                 let retryFloor = publicationRetryManager === manager && publicationRetryOwner == owner ? publicationRetryDate : nil

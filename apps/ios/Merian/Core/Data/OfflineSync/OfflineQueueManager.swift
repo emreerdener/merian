@@ -119,6 +119,7 @@ import SwiftData
     @ObservationIgnored lazy var reanalysisAdmissionRuntime = makeReanalysisAdmissionRuntime()
     @ObservationIgnored let reanalysisExecutionOwner = ObservationReanalysisExecutionOwner()
     @ObservationIgnored let publicationDeliveryOwner = ObservationPublicationDeliveryOwner()
+    @ObservationIgnored let analysisReviewDeliveryOwner = ObservationAnalysisReviewDeliveryOwner()
 
     /// Active collection sync task. Cancelled immediately on connectivity loss.
     /// Returns `true` when the attempt succeeded and `false` when the pending bit
@@ -497,6 +498,7 @@ import SwiftData
                     self.reconnectDebounceTask?.cancel()
                     self.reconnectDebounceTask = nil
                     guard !newIsConstrained else {
+                        self.analysisReviewDeliveryOwner.cancel()
                         self.reanalysisExecutionOwner.cancel()
                         OfflineJobScheduler.shared.cancelScheduledWake(
                             using: self
@@ -530,6 +532,7 @@ import SwiftData
                     self.identificationReviewSyncGeneration = nil
                     self.identificationReviewSyncTask?.cancel()
                     self.publicationDeliveryOwner.cancel()
+                    self.analysisReviewDeliveryOwner.cancel()
                     self.reanalysisExecutionOwner.cancel()
                     self.collectionSyncTask?.cancel()
                     // Cancel any pending backoff retry — it must not fire while offline.

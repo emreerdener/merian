@@ -812,11 +812,29 @@ display provenance hold work without a deadline. Error responses never fabricate
 receipt outcomes. The service translates SDK errors into plain code/message
 inputs; the policy imports no networking or persistence framework. Cancellation
 and account changes leave durable work for its rightful owner; save failures
-propagate for future fallback scheduling.
+propagate to bounded fallback scheduling.
 
-This service does not stage decisions, enumerate a queue, authorize inference,
-or install an automatic drain. The raw kind remains excluded from generic
-scheduling until retained cancellation and durable wake ownership are connected.
-Ordinary UI access and all activation gates remain disabled. The
+`ObservationAnalysisReviewDrain` holds an outer account lease and delivers at
+most eight due saved operations sequentially. QueueManager retains its task in
+`ObservationAnalysisReviewDeliveryOwner`; cancellation invalidates authority
+immediately and retains the slot until actual task exit. Offline and constrained
+network transitions cancel it, and both Auth quiescence boundaries await it. The
+common scheduler starts this pass without blocking other drains. Current owner,
+captured context, token and account lease fence all work. Reviews do not require
+inference consent.
+
+Only dedicated validated candidate dates feed review wakes; the raw kind stays
+excluded from generic discovery. Interrupted valid running claims wake at their
+original expiry. A damaged running claim without its start or fixed expiry
+cannot wake or be directly reclaimed. Received waiting work may reconcile
+immediately; waiting mutations require their saved retry deadline. Malformed,
+held, deleted and wrong-owner work stays inert. Genuine database read errors
+propagate instead of silently appearing empty. Read/save uncertainty gets a
+five-second process fallback qualified by manager, owner and captured container,
+cleared only after valid account work starts. Active retained passes suppress
+duplicate timers; actual task exit restores remaining durable deadlines.
+
+Delivery and scheduling do not stage decisions or authorize inference. Ordinary
+UI access and all activation gates remain disabled. The
 [native persistence contract](../AnalysisHistory/README.md#prepared-analysis-bound-review-persistence)
 owns exact requests, receipt claims and atomic projection completion.

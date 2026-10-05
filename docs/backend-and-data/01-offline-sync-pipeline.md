@@ -2525,9 +2525,16 @@ service handles one saved operation under an account lease. Its mutation
 validator rechecks the exact claim after Auth awaits before sending; ambiguous
 replies retain the original request. Acknowledgement requires a new
 receipt-phase claim, and reconciliation failures never resubmit a received
-decision. Automatic scheduling and ordinary UI remain unconnected; the raw job
-kind stays outside generic wake discovery. This adds no SwiftData stored fields
-or schema version.
+decision. A dedicated queue-owned pass delivers at most eight due operations
+under a retained account lease without blocking other drains. Its task remains
+retained through cancellation and is awaited before Auth lease drain. Offline,
+constrained, owner and context changes invalidate work. Strict review candidate
+dates restore pending and interrupted work; the raw kind stays outside generic
+wake discovery. Malformed running claims cannot be reclaimed without their
+original start/expiry, and held work has no recurring timer. Database
+uncertainty propagates to a five-second owner/manager/container-qualified
+fallback, rather than silently losing recovery. Ordinary UI remains unconnected.
+This adds no SwiftData stored fields or schema version.
 
 Owner, deletion and claim fences apply to every commit. Direct/bulk deletion
 uses the immutable observation-qualified job namespace even after metadata

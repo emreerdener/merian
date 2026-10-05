@@ -345,6 +345,9 @@ struct OfflineSyncFoundationArchitectureTests {
     ]
 
     private static let extractedOwnerPaths: Set<String> = [
+        "Services/OfflineQueueManager+AnalysisReview.swift",
+        "Services/ObservationAnalysisReviewDeliveryOwner.swift",
+        "Services/ObservationAnalysisReviewDrain.swift",
         "Services/ObservationAnalysisReviewDeliveryService.swift",
         "Policies/ObservationAnalysisReviewDeliveryPolicy.swift",
         "Services/ObservationReanalysisAdmissionRuntime.swift",
@@ -403,6 +406,9 @@ struct OfflineSyncFoundationArchitectureTests {
     ]
 
     private static let expectedImportsByPath: [String: Set<String>] = [
+        "Services/OfflineQueueManager+AnalysisReview.swift": ["import Foundation", "import SwiftData"],
+        "Services/ObservationAnalysisReviewDeliveryOwner.swift": ["import Foundation"],
+        "Services/ObservationAnalysisReviewDrain.swift": ["import Foundation", "import SwiftData"],
         "Services/ObservationAnalysisReviewDeliveryService.swift": ["import Foundation", "import Supabase", "import SwiftData"],
         "Policies/ObservationAnalysisReviewDeliveryPolicy.swift": ["import Foundation"],
         "Services/ObservationReanalysisAdmissionRuntime.swift": ["import Foundation", "import SwiftData"],
