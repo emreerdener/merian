@@ -1,0 +1,48 @@
+import Foundation
+import SwiftData
+
+/// The identification the user opened, independent of later selection or review changes.
+struct ObservationReanalysisSource: Equatable, Sendable {
+    let ownerID: UUID
+    let observationID: UUID
+    let analysisID: UUID
+    let snapshot: Data
+    let photos: [ObservationHistoryPhotoReference]
+
+    private init(ownerID: UUID, observationID: UUID, result: ObservationHistoryPage.Result) {
+        self.ownerID = ownerID; self.observationID = observationID; self.analysisID = result.analysisID
+        self.snapshot = result.bytes; self.photos = result.photos
+    }
+
+    /// Capture at entry. An explicit historical target need not be the selected identification.
+    @MainActor
+    static func capture(observationID: UUID, analysisID: UUID? = nil, ownerID: UUID, container: ModelContainer) throws -> Self {
+        try ConfirmedSpeciesReviewPersistence.transaction {
+            let context = ModelContext(container)
+            let scan = try ObservationHistorySyncService.enrolledScan(observationID.uuidString, context: context)
+            guard scan.analysisOwnerAccountID == ownerID.uuidString.lowercased(),
+                  !(try ObservationHistoryEnrollmentIntent.holds(scan.id, context: context)) else { throw ObservationHistoryError.unavailable }
+            let sourceID = try analysisID ?? ObservationHistoryPage.uuid(scan.selectedAnalysisID)
+            let id = sourceID.uuidString.lowercased()
+            var query = FetchDescriptor<LocalAnalysisRecord>(predicate: #Predicate { $0.id == id })
+            query.fetchLimit = 1
+            guard let record = try context.fetch(query).first, record.observationID == scan.id,
+                  record.ownerAccountID == scan.analysisOwnerAccountID,
+                  record.resultSnapshotData.count <= LocalAnalysisRecord.maximumSnapshotBytes else { throw ObservationHistoryError.unavailable }
+            let envelope = try JSONSerialization.jsonObject(with: record.resultSnapshotData) as? [String: Any]
+            let ordinal = try ObservationHistoryPage.integer(envelope?["ordinal"])
+            let result = try ObservationHistoryPage.snapshot(record.resultSnapshotData, observationID: observationID.uuidString.lowercased(), ordinal: ordinal)
+            guard result.analysisID == sourceID, result.version == record.snapshotVersion, result.completedAt == record.completedAt else {
+                throw ObservationHistoryError.resultConflict
+            }
+            return Self(ownerID: ownerID, observationID: observationID, result: result)
+        }
+    }
+
+    /// Called after suspended preparation and before persistence. Selection may have advanced.
+    @MainActor
+    func validate(container: ModelContainer) throws {
+        let current = try Self.capture(observationID: observationID, analysisID: analysisID, ownerID: ownerID, container: container)
+        guard current == self else { throw ObservationHistoryError.resultConflict }
+    }
+}

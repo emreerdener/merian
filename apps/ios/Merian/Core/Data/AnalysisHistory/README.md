@@ -482,3 +482,27 @@ photo reference; matching only photo IDs is insufficient. Original snapshot
 bytes are retained. It performs no mutation or authority/selection update and
 cannot substitute for the future execution owner's account, deletion and claim
 checks.
+
+### Frozen refinement source
+
+`ObservationReanalysisSource` prepares a frozen owner, observation, historical
+analysis and exact validated snapshot for capture entry. Its revalidation uses
+that historical analysis rather than the current selection, while retaining
+parent deletion, enrollment and owner fences. Replaced snapshot bytes fail even
+when their decoded meaning is equivalent. Review or selection revision changes
+do not retarget the source; they remain subject to the later server admission.
+
+V1 and imported V3 results remain eligible source identifications. Only V2
+supplies reusable protected photo references. A source with no verified photos
+requires explicitly added evidence; mutable observation media must not silently
+become protected source evidence. Source capture is a prepared local boundary,
+not an account lease, upload permission or connected refinement entry point.
+
+Staged photographs separately track added, original and edited-original
+provenance. Cropping clears authority to reuse original bytes while retaining
+lineage; thumbnail/display replacement does not. Submission admission snapshots
+include this provenance and chronological position, so suspended admission is
+invalidated by edits even when compressed bytes happen to match. The eventual
+producer must preserve the final user-selected sequence, mint new child-owned
+media identities once, and verify/copy bytes before saving the draft. It remains
+unconnected in this checkpoint.

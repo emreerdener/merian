@@ -452,3 +452,15 @@ chosen count before file loading, using the already-registered draft operation.
 This preserves exhausted-Pro/remaining-Free access to one photo with an optional
 note while rejecting an unfunded second photo. Final submission still rechecks
 its serialized composition and durable admission.
+
+## Refinement evidence identity
+
+`CaptureSubmissionAdmissionSnapshot` includes image provenance, focus regions
+and chronological insertion times as well as IDs and inference bytes. A crop
+that retains the same bytes, a late focus update or a reordered timeline
+therefore invalidates suspended admission. Staging owns the distinction between
+a newly added photo, verified original history media and an edited derivative.
+The prepared
+[history source boundary](../../../Core/Data/AnalysisHistory/README.md#frozen-refinement-source)
+freezes the identification separately from these photo choices. Its dedicated
+refinement producer and durable execution are not yet connected to this owner.

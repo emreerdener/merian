@@ -2804,3 +2804,15 @@ conflicts, and recovery-only cannot reconstruct an unbound request.
 Verified-file production, dedicated execution and ordinary UI remain
 unconnected; all gates remain closed. No persisted model field or retired
 snapshot changes.
+
+### October 5: frozen source and staged photo provenance
+
+Prepared native source capture now retains the exact owner, observation,
+historical analysis and immutable snapshot, revalidating membership and deletion
+without retargeting to a later selection. Imported V3 and legacy V1 analyses
+remain eligible identification anchors but cannot automatically supply protected
+photo references. Only V2 references authorize verified original-photo loading.
+Staged crop provenance and admission snapshots distinguish original evidence
+from edited or added photos, including chronological changes. Capture entry,
+verified-file production and dedicated execution remain unconnected; this
+checkpoint does not enable reanalysis or change the closed activation gates.
