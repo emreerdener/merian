@@ -5968,9 +5968,17 @@ cache for Insight contribution cards.
 Added in `MerianSchemaV48` and carried forward unchanged through V50.
 Scheduler/control-plane row for media-agnostic offline work. Current `kindRaw`
 values are `scanIngestion`, `cloudDeletion`, `identificationReviewSync`,
-`observationPublicationSync`, `collectionSync`, `speciesPreferenceSync`, and
-`future`; current `statusRaw` values are `pending`, `running`, `waiting`,
-`needsAttention`, `complete`, and `cancelled`.
+`observationPublicationSync`, `observationReanalysisSync`, `collectionSync`,
+`speciesPreferenceSync`, and `future`; current `statusRaw` values are `pending`,
+`running`, `waiting`, `needsAttention`, `complete`, and `cancelled`.
+
+Prepared reanalysis jobs use `observationReanalysisSync` with the existing
+`scan-ingestion:<child UUID>` erasure index. Their immutable version-1 envelope
+contains owner and exact validated request bytes; the qualified V58 row supplies
+independent parent/source/owner routing and deletion linkage. The distinct raw
+kind excludes them from ordinary complimentary-funding restoration. Adding a raw
+string value changes no stored schema shape or retired snapshot. Atomic staging
+remains held until dedicated execution is connected.
 
 Prepared publication jobs use
 `observation-publication:<observation UUID>:<operation UUID>` so atomic scan

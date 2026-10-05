@@ -226,19 +226,22 @@ final class OfflineJobScheduler {
             return Date().addingTimeInterval(Self.databaseReadRetryDelay)
         }
         let blockedScanJobIds = Set<String>(scans.compactMap { scan -> String? in
-            (scan.queueNeedsAttention ||
+            (!scan.permitsOrdinaryInference || scan.queueNeedsAttention ||
                 scan.scanStateRaw >= firstNonRunnableRaw)
                 ? OfflineQueueManager.scanIngestionJobId(scanId: scan.id)
                 : nil
         })
         var candidates: [Date] = scans.compactMap { scan -> Date? in
-            guard !scan.queueNeedsAttention,
+            guard scan.permitsOrdinaryInference, !scan.queueNeedsAttention,
                   scan.scanStateRaw < firstNonRunnableRaw else {
                 return nil
             }
             return scan.queueNextRetryAt
         }
 
+        let ordinaryScanJobIDs = Set(scans.filter(\.permitsOrdinaryInference).map {
+            OfflineQueueManager.scanIngestionJobId(scanId: $0.id)
+        })
         let jobDescriptor = FetchDescriptor<OfflineJobRecord>()
         let activeStatuses: Set<String> = [
             OfflineJobStatus.pending.rawValue,
@@ -269,8 +272,11 @@ final class OfflineJobScheduler {
         candidates.append(contentsOf: jobs.compactMap { job -> Date? in
             // Publication deadlines above require validated owner-bound envelopes.
             // Unknown kinds cannot be drained by this binary.
-            guard let kind = OfflineJobKind(rawValue: job.kindRaw), kind != .observationPublicationSync,
+            guard let kind = OfflineJobKind(rawValue: job.kindRaw),
+                  kind != .observationPublicationSync, kind != .observationReanalysisSync,
                   kind != .future || job.id.hasPrefix("library-details:") else { return nil }
+            // A qualified, damaged or absent queue row cannot feed a legacy wake loop.
+            if kind == .scanIngestion, !ordinaryScanJobIDs.contains(job.id) { return nil }
             // Enrollment recovery is explicit, including damaged/unknown hold metadata.
             guard !job.id.hasPrefix(ObservationHistoryEnrollmentIntent.prefix),
                   !job.id.hasPrefix(ObservationHistorySelectionIntent.prefix) else { return nil }

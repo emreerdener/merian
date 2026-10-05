@@ -420,3 +420,44 @@ grant deletion authority. Offline Sync owns post-commit transport cancellation
 and file cleanup; surviving queue rows and changed model containers reject stale
 cancellation. The [Offline Sync contract](../OfflineSync/README.md) describes
 these fences and the disabled producer.
+
+## Prepared immutable reanalysis staging
+
+`ObservationReanalysisIntent` retains the exact validated request bytes and
+owner in a bounded version-1 envelope. Its ordered local photo paths are derived
+from the immutable media UUIDs under `ReanalysisQueue/<child>/<media>.jpg` or
+`.png`. The preparation caller must durably copy verified input files there
+before staging; parent-owned file references are never adopted. Execution must
+recheck length and digest before private upload. This persistence boundary does
+not read files or claim that remote evidence is ready.
+
+`ObservationReanalysisPersistence.stage` writes the qualified V58 queue row and
+its dedicated `observationReanalysisSync` job in one fresh, non-autosaving
+transaction under the shared parent-deletion lock. It requires the enrolled
+owner, retained source analysis and no deletion/enrollment fence. Existing row
+and job must both survive and match the original request, owner and ordered
+paths. Missing or damaged metadata fails closed. Replay never changes attempts,
+clears a hold or revives a complete or cancelled job. New work rejects collision
+with scans, results, deletion tasks and enrollment tombstones. Save failure or a
+changed account rolls back both rows. No selection, authority, quota or
+complimentary hold changes occur; server admission owns funding.
+
+The prepared stage remains held without a deadline until dedicated delivery is
+connected. Ordinary scheduling ignores qualified, malformed and orphan ingestion
+work, including misleading retry dates. There is no UI enqueue caller yet.
+`ObservationReanalysisPersistenceTests` covers disk reopen, exact and terminal
+replay, damaged identity, atomic rollback, parent deletion and scheduler fences.
+
+The new raw job kind preserves the existing string column and V58 stored shape.
+It retains `scan-ingestion:<child>` as its deletion key, but ordinary funding
+restoration cannot interpret its exact request as a legacy complimentary-credit
+blocker. No retired snapshot or model field changes.
+
+`ObservationReanalysisResult.decode` is the prepared completion provenance
+check. It reruns the full V2 snapshot/provider validation, then requires the
+exact child, parent, source and saved request digest. Canonical comparison
+covers the complete ordered evidence manifest, including descriptions and every
+photo reference; matching only photo IDs is insufficient. Original snapshot
+bytes are retained. It performs no mutation or authority/selection update and
+cannot substitute for the future execution owner's account, deletion and claim
+checks.

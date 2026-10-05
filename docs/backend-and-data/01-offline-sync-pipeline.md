@@ -1833,6 +1833,19 @@ revalidation. This protection does not lift the
 Scan permanence and user privacy require that explicitly deleted datasets are
 permanently erased, even fully offline.
 
+Prepared reanalysis staging now atomically persists a qualified V58 child and
+its exact immutable request before upload or analysis admission. It preserves
+the parent selection, verifies enrolled owner/source membership and shares the
+parent deletion transaction lock. Missing row/job pairs cannot be reconstructed
+by retry, and terminal jobs never reopen. Child media uses an isolated local
+namespace; the preparation and execution owners must verify the original bytes.
+These rows remain held until dedicated delivery is connected. The prepared
+completion validator rechecks the full V2 result, exact source and saved request
+digest, and the complete ordered manifest before any future append; it does not
+apply selection or review state. Ordinary scheduler deadlines ignore qualified,
+invalid and orphan ingestion work. See the
+[local persistence contract](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#prepared-immutable-reanalysis-staging).
+
 ### 1. Transactional Destruction (`ScanRepository.eradicateScan`)
 
 Reanalysis must first pass `InferenceScanReplacement`: a typed persisted

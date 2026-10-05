@@ -482,7 +482,8 @@ struct BackgroundTransferArchitectureTests {
         inferenceLifecyclePath,
         inferenceWatchdogPath,
         accountWorkPath,
-        terminalRoutingPath
+        terminalRoutingPath,
+        "Services/QueueMaintenance/OfflineQueueManager+ReanalysisErasure.swift"
     ]
 
     private static let expectedTrackerConsumers: Set<String> = [

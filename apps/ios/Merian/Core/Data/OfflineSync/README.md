@@ -704,9 +704,12 @@ read/deletion APIs retain access. The ordinary runnable count also excludes
 those rows. Late offline completion requires a surviving ordinary row after
 taking the finalization lock.
 
-No producer creates qualified reanalysis work yet. Parent-linked atomic erasure,
-separate recovery/funding delivery and progress on the observation remain
-prerequisites. See the
+A prepared atomic staging helper now creates held qualified work with its exact
+request and child-owned photo paths. No ordinary UI producer or dedicated
+execution owner is connected yet. Scheduler deadlines exclude qualified or
+damaged rows and ingestion jobs without an ordinary row, preventing wake-only
+loops. Separate recovery/delivery and observation progress remain prerequisites;
+server admission owns funding. See the
 [V58 contract](../../../../../../docs/backend-and-data/04-database-schema.md#v58-qualified-queued-reanalysis-storage)
 for migration invariants and test ownership.
 

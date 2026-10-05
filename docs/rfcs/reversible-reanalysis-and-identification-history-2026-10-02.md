@@ -2767,3 +2767,20 @@ recovery independently of pagination. Qualified durable production,
 upload/recovery orchestration and append-only local completion remain the next
 integration work. See the
 [current API contract](../backend-and-data/05-api-contracts.md#prepared-child-analysis-orchestration-and-recovery).
+
+### October 5: prepared atomic native reanalysis staging
+
+The native persistence boundary now stores the exact owner-bound request and
+qualified V58 child/job pair atomically, with immutable child-owned photo paths.
+Restart and same-ID replay preserve bytes and terminal state; damaged metadata,
+identity collisions, account changes and parent deletion fail closed. Ordinary
+scheduler deadlines no longer wake unserviceable qualified or orphan ingestion
+work. Dedicated execution and the ordinary UI producer remain pending; this
+prepared stage stays held and changes no selection or funding. All activation
+gates remain disabled.
+
+The completion decoder now binds a structurally valid V2 result to the saved
+child/source/request digest and complete ordered evidence, including private
+descriptions. It retains exact result bytes and has no persistence side effects.
+The dedicated execution owner must still supply account/deletion/claim fences
+and perform append-only admission.
