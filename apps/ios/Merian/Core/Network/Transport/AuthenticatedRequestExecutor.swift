@@ -40,6 +40,7 @@ struct AuthenticatedRequestExecutor {
         let onRequestBodySent: (@Sendable () -> Void)?
         let authTransitionOwner: AuthTransitionToken?
         let expectedAuthUserID: UUID?
+        var allowsRouteUnavailableRetry: Bool = true
         var contentType: ContentType = .json
         var measurementContext: IdentificationMeasurementContext?
         var identificationAuthorization: IdentificationDispatchAuthorization?
@@ -342,6 +343,7 @@ struct AuthenticatedRequestExecutor {
             evidence: EdgeFunctionRouteResponseEvidence(response: response),
             responseData: data
         ) {
+            guard request.allowsRouteUnavailableRetry else { throw MerianError.edgeFunctionUnavailable }
             guard let delay = EdgeFunctionRoutePolicy.unavailableRetryDelay(
                 forAttempt: state.functionRouteRetryAttempt
             ) else {

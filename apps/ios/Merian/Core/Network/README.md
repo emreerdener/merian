@@ -3955,3 +3955,25 @@ atomically binding and admitting execution. Saved bound requests bypass
 recipient discovery; recovery-only never supplies a provider for an unbound
 draft. This helper does not upload evidence, charge funding or dispatch
 inference.
+
+## Prepared analysis-bound review transport
+
+`Endpoints/MerianNetworkClient+ObservationAnalysisReview.swift` accepts the
+closed request in `Models/ObservationReview`. Reject/Undo use the fixed
+protocol-9 owner RPC; confirmation uses `confirm-observation-analysis`. The
+typed `ObservationAnalysisReviewTransport` owns both exact routes, preserves the
+initiating account, and disables transient retry, gateway-route retry and
+classified-401 recovery. It exposes neither arbitrary URLs nor the dispatcher.
+The facade stores only the injected component; read-only admission routes stay
+unchanged.
+
+Exact keys, lowercase UUIDs, integral non-Boolean revisions, required nulls, 2
+KiB requests and 4 KiB receipts match the executable backend parsers. Named
+confirmation uses UTF-16 length and ECMAScript trim without Unicode
+normalization. Applied receipts must advance both revisions exactly once;
+negative/conflict receipts cannot carry authority fields. A historical receipt
+never changes selection or supplies current display/credit authority. Durable
+operation admission, account leases, current-state reconciliation and UI are
+separate work; no ordinary caller or activation is enabled. The canonical
+[API contract](../../../../../docs/backend-and-data/05-api-contracts.md#prepared-native-analysis-bound-review-wire)
+owns these bounds and remaining integration requirements.

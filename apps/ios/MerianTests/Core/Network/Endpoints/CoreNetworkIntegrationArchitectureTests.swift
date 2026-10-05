@@ -4292,7 +4292,8 @@ struct CoreNetworkIntegrationArchitectureTests {
             "MerianNetworkClient.swift",
             "Endpoints/MerianNetworkClient+Collections.swift",
             "Endpoints/MerianNetworkClient+Inference.swift",
-            "Endpoints/MerianNetworkClient+ScanLifecycle.swift"
+            "Endpoints/MerianNetworkClient+ScanLifecycle.swift",
+            "Transport/ObservationAnalysisReviewTransport.swift"
         ])
         #expect(dispatcher.contains("final class AuthenticatedTransportDispatcher"))
         #expect(dispatcher.contains("private let sessionTransport: PinnedNetworkTransport"))
@@ -4472,6 +4473,20 @@ struct CoreNetworkIntegrationArchitectureTests {
         #expect(pinnedTransportTests.contains("systemTrustIsValid: false"))
     }
 
+    @Test func analysisReviewTransportHasOnlyTypedDomainAccess() throws {
+        let sources = try networkSources()
+        let consumers = Set(sources.compactMap { path, text in
+            text.contains("observationHistoryReviewTransport") ? path : nil
+        })
+        #expect(consumers == ["MerianNetworkClient.swift", "Endpoints/MerianNetworkClient+ObservationAnalysisReview.swift"])
+        let transport = try networkSource("Transport/ObservationAnalysisReviewTransport.swift")
+        #expect(transport.contains("private let dispatcher: AuthenticatedTransportDispatcher"))
+        #expect(transport.contains("allowsTransientTransportRetry: false, allowsUnauthorizedSessionRecovery: false"))
+        let reads = try networkSource("Transport/AdmissionRPCRequestPolicy.swift")
+        #expect(!reads.contains("review_owned_observation_analysis"))
+        #expect(!reads.contains("confirm-observation-analysis"))
+    }
+
     private static let endpointOwnerFilenames: Set<String> = [
         "MerianNetworkClient+AIReview.swift",
         "MerianNetworkClient+AccountDeletion.swift",
@@ -4488,6 +4503,7 @@ struct CoreNetworkIntegrationArchitectureTests {
         "MerianNetworkClient+IdentificationPreflight.swift",
         "MerianNetworkClient+MediaStorage.swift",
         "MerianNetworkClient+Notifications.swift",
+        "MerianNetworkClient+ObservationAnalysisReview.swift",
         "MerianNetworkClient+ObservationEvidence.swift",
         "MerianNetworkClient+ObservationPublication.swift",
         "MerianNetworkClient+ProductFeedback.swift",
@@ -4509,6 +4525,7 @@ struct CoreNetworkIntegrationArchitectureTests {
         "EdgeFunctionErrorPolicy.swift",
         "EdgeFunctionRoutePolicy.swift",
         "IdentificationBenchmarkRecord.swift",
+        "ObservationAnalysisReviewTransport.swift",
         "PinnedNetworkTransport.swift"
     ]
 

@@ -29,3 +29,9 @@ checks actual roles, immutable admission, dual revisions, authority isolation
 and deletion. `_tests/observationAnalysisConfirmationConcurrencyDb.test.ts` uses
 separate database sessions for duplicate/competing completion, selection,
 rejection, deletion/account erasure and pending operation rebinding.
+
+The prepared native `ObservationAnalysisReviewRequest`/receipt boundary now
+mirrors these exact fields and limits. Its closed typed transport disables
+automatic transient replay and 401 recovery and never treats a receipt as
+current authority. Durable native delivery and ordinary UI remain separate; this
+adds no activation or deployment.

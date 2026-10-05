@@ -12904,6 +12904,31 @@ an operation outcome, not current authority: consumers must reread current state
 before display or credit decisions. Native confirmation admission, community
 transitions, downstream reconciliation and activation remain separate work.
 
+### Prepared native analysis-bound review wire
+
+Native `ObservationAnalysisReviewRequest` and `ObservationAnalysisReviewReceipt`
+mirror the rejection and confirmation contracts without enabling an ordinary
+caller. One immutable request retains the caller-supplied observation, analysis,
+operation and both expected revisions. Reject/Undo encode exactly
+`undo_operation_id`; confirmation encodes exactly `scientific_name`, including
+required nulls. Names use the backend's UTF-16 limit and ECMAScript trim set;
+canonically equivalent but byte-distinct names remain different operation
+intent. Saved requests are bounded to 2 KiB, receipts to 4 KiB. Receipt decoding
+binds every field to the original request and admits only outcome-specific keys.
+
+`ObservationAnalysisReviewTransport` owns only the fixed owner RPC (reader 9)
+and confirmation Edge route, selected by the typed decision. It composes the
+existing private authenticated dispatcher and disables transient transport
+replay and classified-401 recovery. The read-only admission RPC capability is
+unchanged. Transport never mints an operation ID, changes selection, projects
+review status, or falls back to legacy review. The subsequent durable owner must
+retain an account lease, exact immutable request and receipt, and reconcile
+current protocol-9 state separately. A nonselected target response cannot
+advance the parent revision while leaving a stale selected projection. Durable
+admission, restart-safe receipt-bound Undo, paired-state reconciliation and
+ordinary review UI remain separate implementation work. All activation gates
+remain false.
+
 ### Private analysis-bound community authority preparation
 
 The community-authority foundation has **no public RPC, Edge endpoint, native
