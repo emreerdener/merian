@@ -30,15 +30,18 @@ final class IdentificationReviewCoordinatorHarness {
     var speciesRecords = [String: InferenceSpeciesDictionaryRecord]()
     var speciesLookupGates = [String: InferenceOperationGate]()
     var speciesIDLookupGates = [String: InferenceOperationGate]()
+    var beforePersistence: (@MainActor () -> Void)?
     var syncGate: InferenceOperationGate?
     private(set) var events: [Event] = []
 
     var dependencies: InferenceIdentificationReviewCoordinator.Dependencies {
         .init(
             beginOverride: { [self] _, scanID, scientificName in
+                beforePersistence?()
                 events.append(.beginOverride(scanID, scientificName))
             },
             persistReview: { [self] _, mutation in
+                beforePersistence?()
                 events.append(
                     .persistReview(
                         mutation,
@@ -144,7 +147,7 @@ struct InferenceReviewCoordinatorTests {
         ])
     }
 
-    @Test func syncFailureSuppressesRefreshAndMilestone() async {
+    @Test func syncFailureSuppressesRefreshAndMilestone() async throws {
         let harness = IdentificationReviewCoordinatorHarness()
         harness.syncError = ReviewTestError.expected
         let subject = harness.makeSubject()
@@ -154,11 +157,12 @@ struct InferenceReviewCoordinatorTests {
         let task = subject.enqueueReviewMutation(
             mutation,
             actionGeneration: generation,
-            modelContainer: nil
+            modelContainer: try makeContainer()
         )
         await task?.value
 
         #expect(harness.events == [
+            .persistReview(mutation, UserReviewState.userOverridden.rawValue),
             .sync(mutation),
             .syncFailure
         ])
@@ -259,10 +263,11 @@ struct InferenceReviewCoordinatorTests {
             schema: schema,
             isStoredInMemoryOnly: true
         )
-        return try ModelContainer(
-            for: schema,
-            configurations: [configuration]
-        )
+        let container = try ModelContainer(for: schema, configurations: [configuration])
+        let context = ModelContext(container)
+        context.insert(LocalScanRecord(id: "scan-a", speciesId: "species", scientificName: "Procyon lotor", commonName: "Raccoon"))
+        try context.save()
+        return container
     }
 
     private enum ReviewTestError: Error {

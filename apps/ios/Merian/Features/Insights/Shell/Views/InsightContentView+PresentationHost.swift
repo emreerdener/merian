@@ -143,7 +143,8 @@ extension InsightContentView {
                                     note: note,
                                     locationSharing: locationSharing,
                                     expectedScanId: scanId,
-                                    expectedGeneration: communityGeneration
+                                    expectedGeneration: communityGeneration,
+                                    modelContext: modelContext
                                 )
                             } else {
                                 await viewModel.requestCommunityIdentification(

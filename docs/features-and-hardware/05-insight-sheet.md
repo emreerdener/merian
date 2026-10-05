@@ -2630,3 +2630,21 @@ feature dependencies win. Ordinary live factories remain unchanged and all
 accesses remain nil while the gate is false. This assembly does not enroll,
 select, publish or start work; current account/session and presentation fences
 continue to govern every explicit action.
+
+### Legacy mutations during enrollment
+
+Staged enrollment and acknowledged history metadata block the scan-only review
+and Insight Community create/edit workflows locally. The common review owner
+checks before optimistic changes, action generations, lookups or queue writes.
+Community callbacks use a fresh ModelContext check even when their editor was
+opened before enrollment. Missing review context, deleted or ambiguous scan
+rows, or failed lookups deny the operation; async completions recheck before
+presentation effects. Unenrolled legacy workflows remain available. This
+protection does not substitute the selected analysis or authorize analysis-bound
+review or publication.
+
+Queued legacy writes also check inside their database transaction. An existing
+legacy review job blocked by enrollment keeps its original request in a held
+state without a retry deadline. A late success, failure or conflict-recovery
+response cannot overwrite history authority. Backend generation locks remain the
+final authority for an enrollment race during network execution.

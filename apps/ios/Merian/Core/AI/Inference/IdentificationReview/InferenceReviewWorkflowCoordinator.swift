@@ -73,7 +73,8 @@ final class InferenceReviewWorkflowCoordinator {
         guard !reviewCoordinator.isAuthTransitionFenceActive,
               let context = modelContext,
               let current = callbacks.speciesHydration.currentSpeciesData(), let scanID = current.scanId,
-              matchesExpectedScan(expectedScanID, scanID: scanID) else { return }
+              matchesExpectedScan(expectedScanID, scanID: scanID),
+              ObservationHistoryEnrollmentService.permitsLegacyMutation(scanID: scanID, container: context.container) else { return }
         let generation = callbacks.speciesHydration.currentPresentationGeneration()
         let reviewGeneration = reviewCoordinator.beginReviewAction(scanId: scanID)
         cancelSpeciesHydration(callbacks: callbacks)
@@ -86,6 +87,7 @@ final class InferenceReviewWorkflowCoordinator {
             onLocalSave?()
             await dependencies.syncPendingIdentificationReviews()
             guard !reviewCoordinator.isAuthTransitionFenceActive,
+                  ObservationHistoryEnrollmentService.permitsLegacyMutation(scanID: scanID, container: context.container),
                   callbacks.speciesHydration.currentPresentationGeneration() == generation,
                   callbacks.speciesHydration.currentSpeciesData()?.scanId == scanID,
                   reviewCoordinator.isReviewActionCurrent(scanId: scanID, generation: reviewGeneration),
@@ -113,7 +115,8 @@ final class InferenceReviewWorkflowCoordinator {
         guard !reviewCoordinator.isAuthTransitionFenceActive,
               let current = callbacks.speciesHydration.currentSpeciesData(),
               let scanID = current.scanId,
-              matchesExpectedScan(request.expectedScanID, scanID: scanID) else {
+              matchesExpectedScan(request.expectedScanID, scanID: scanID),
+              ObservationHistoryEnrollmentService.permitsLegacyMutation(scanID: scanID, container: request.modelContainer) else {
             return
         }
 
@@ -138,13 +141,6 @@ final class InferenceReviewWorkflowCoordinator {
         )
         cancelSpeciesHydration(callbacks: callbacks)
 
-        callbacks.applyPresentation(
-            IdentificationReviewPresentation.override(
-                current,
-                scientificName: request.scientificName
-            )
-        )
-
         let admission = request.modelContainer.flatMap { container in
             reviewCoordinator.enqueueOverrideAdmission(
                 scanId: scanID,
@@ -154,7 +150,16 @@ final class InferenceReviewWorkflowCoordinator {
             )
         }
         await admission?.value
-        guard isCurrent(identity, callbacks: callbacks) else { return }
+        let priorIdentity = InferenceSpeciesHydrationCoordinator.Identity(scanId: scanID, scientificName: current.scientificName,
+            presentationGeneration: presentationGeneration, reviewActionGeneration: reviewGeneration)
+        guard isCurrent(priorIdentity, callbacks: callbacks),
+              ObservationHistoryEnrollmentService.permitsLegacyMutation(scanID: scanID, container: request.modelContainer) else { return }
+        callbacks.applyPresentation(
+            IdentificationReviewPresentation.override(
+                current,
+                scientificName: request.scientificName
+            )
+        )
 
         let scientificName = request.scientificName
         let modelContainer = request.modelContainer
@@ -170,7 +175,8 @@ final class InferenceReviewWorkflowCoordinator {
                 callbacks: callbacks
             )
             guard !Task.isCancelled,
-                  self.isCurrent(identity, callbacks: callbacks) else {
+                  self.isCurrent(identity, callbacks: callbacks),
+                  ObservationHistoryEnrollmentService.permitsLegacyMutation(scanID: scanID, container: modelContainer) else {
                 return
             }
 
@@ -207,7 +213,8 @@ final class InferenceReviewWorkflowCoordinator {
               let current = callbacks.speciesHydration.currentSpeciesData(),
               let scanID = current.scanId,
               current.userIdentificationOverride == nil,
-              matchesExpectedScan(request.expectedScanID, scanID: scanID) else {
+              matchesExpectedScan(request.expectedScanID, scanID: scanID),
+              ObservationHistoryEnrollmentService.permitsLegacyMutation(scanID: scanID, container: request.modelContext?.container) else {
             return
         }
 
@@ -239,18 +246,22 @@ final class InferenceReviewWorkflowCoordinator {
             scanId: scanID
         )
         taskCoordinator.cancelCurrentTask(in: .review)
-        callbacks.applyPresentation(
-            IdentificationReviewPresentation.confirmation(current)
-        )
-        reviewCoordinator.enqueueReviewMutation(
+        let presentationGeneration = callbacks.speciesHydration.currentPresentationGeneration()
+        let admission = reviewCoordinator.enqueueReviewMutation(
             .aiConfirmation(
                 scanID: scanID,
                 confirmedSpeciesID: confirmedSpeciesID
             ),
             actionGeneration: actionGeneration,
             channel: .confirmation,
-            modelContainer: request.modelContext?.container
+            modelContainer: request.modelContext?.container,
+            didPersist: {
+                guard callbacks.speciesHydration.currentPresentationGeneration() == presentationGeneration,
+                      callbacks.speciesHydration.currentSpeciesData()?.scanId == scanID else { return }
+                callbacks.applyPresentation(IdentificationReviewPresentation.confirmation(current))
+            }
         )
+        await admission?.value
     }
 
     func reset(
@@ -267,7 +278,8 @@ final class InferenceReviewWorkflowCoordinator {
               let current = callbacks.speciesHydration.currentSpeciesData(),
               let scanID = current.scanId,
               matchesExpectedScan(request.expectedScanID, scanID: scanID),
-              !current.aiScientificName.isEmpty else {
+              !current.aiScientificName.isEmpty,
+              ObservationHistoryEnrollmentService.permitsLegacyMutation(scanID: scanID, container: request.modelContext?.container) else {
             return
         }
 
@@ -311,13 +323,6 @@ final class InferenceReviewWorkflowCoordinator {
         let restoredReasoning = originalAIReasoning
             ?? current.aiReasoning
             ?? ""
-        callbacks.applyPresentation(
-            IdentificationReviewPresentation.reset(
-                current,
-                scientificName: scientificName,
-                aiReasoning: restoredReasoning
-            )
-        )
 
         let modelContainer = request.modelContext?.container
         if let modelContainer {
@@ -327,11 +332,21 @@ final class InferenceReviewWorkflowCoordinator {
                 modelContainer: modelContainer
             )
         }
-        reviewCoordinator.enqueueReviewMutation(
+        let admission = reviewCoordinator.enqueueReviewMutation(
             .reset(scanID: scanID),
             actionGeneration: reviewGeneration,
-            modelContainer: modelContainer
+            modelContainer: modelContainer,
+            didPersist: { [weak self] in
+                guard let self, self.reviewCoordinator.isFlagActionCurrent(scanId: scanID, generation: flagGeneration),
+                      callbacks.speciesHydration.currentPresentationGeneration() == presentationGeneration,
+                      callbacks.speciesHydration.currentSpeciesData()?.scanId == scanID else { return }
+                callbacks.applyPresentation(IdentificationReviewPresentation.reset(current,
+                    scientificName: scientificName, aiReasoning: restoredReasoning))
+            }
         )
+        await admission?.value
+        guard isCurrent(identity, callbacks: callbacks),
+              ObservationHistoryEnrollmentService.permitsLegacyMutation(scanID: scanID, container: modelContainer) else { return }
 
         guard current.primaryIdentification == nil || current.hasSpeciesLevelIdentification else { return }
         await taskCoordinator.replaceAndAwaitTask(in: .review) { [weak self] in
@@ -346,7 +361,8 @@ final class InferenceReviewWorkflowCoordinator {
                 callbacks: callbacks
             )
             guard !Task.isCancelled,
-                  self.isCurrent(identity, callbacks: callbacks) else {
+                  self.isCurrent(identity, callbacks: callbacks),
+                  ObservationHistoryEnrollmentService.permitsLegacyMutation(scanID: scanID, container: modelContainer) else {
                 return
             }
             await self.speciesHydrationCoordinator
@@ -394,7 +410,9 @@ final class InferenceReviewWorkflowCoordinator {
         )
         guard !Task.isCancelled,
               let reviewGeneration = identity.reviewActionGeneration,
-              isCurrent(identity, callbacks: callbacks) else {
+              isCurrent(identity, callbacks: callbacks),
+              !replacingSpeciesIdentity || ObservationHistoryEnrollmentService.permitsLegacyMutation(
+                  scanID: identity.scanId, container: modelContainer) else {
             return nil
         }
 
@@ -436,14 +454,18 @@ final class InferenceReviewWorkflowCoordinator {
         }
 
         guard !Task.isCancelled,
-              isCurrent(identity, callbacks: callbacks) else {
+              isCurrent(identity, callbacks: callbacks),
+              !replacingSpeciesIdentity || ObservationHistoryEnrollmentService.permitsLegacyMutation(
+                  scanID: identity.scanId, container: modelContainer) else {
             return nil
         }
         let speciesID = await reviewCoordinator.loadSpeciesIDIfAvailable(
             scientificName: scientificName
         )
         guard !Task.isCancelled,
-              isCurrent(identity, callbacks: callbacks) else {
+              isCurrent(identity, callbacks: callbacks),
+              !replacingSpeciesIdentity || ObservationHistoryEnrollmentService.permitsLegacyMutation(
+                  scanID: identity.scanId, container: modelContainer) else {
             return nil
         }
         return speciesID
@@ -454,7 +476,8 @@ final class InferenceReviewWorkflowCoordinator {
         _ mutation: InferenceIdentificationReviewMutation, current: SpeciesData,
         container: ModelContainer, callbacks: Callbacks
     ) -> Task<Void, Never>? {
-        guard current.primaryIdentification?.value != nil else { return nil }
+        guard current.primaryIdentification?.value != nil,
+              ObservationHistoryEnrollmentService.permitsLegacyMutation(scanID: mutation.scanID, container: container) else { return nil }
         let generation = reviewCoordinator.beginReviewAction(scanId: mutation.scanID)
         let presentationGeneration = callbacks.speciesHydration.currentPresentationGeneration()
         cancelSpeciesHydration(callbacks: callbacks)
@@ -467,12 +490,14 @@ final class InferenceReviewWorkflowCoordinator {
         return reviewCoordinator.enqueueVerifiedReviewMutation(
             mutation, actionGeneration: generation, modelContainer: container,
             didPrepare: {
-                guard callbacks.speciesHydration.currentPresentationGeneration() == presentationGeneration,
+                guard ObservationHistoryEnrollmentService.permitsLegacyMutation(scanID: mutation.scanID, container: container),
+                      callbacks.speciesHydration.currentPresentationGeneration() == presentationGeneration,
                       callbacks.speciesHydration.currentSpeciesData()?.scanId == mutation.scanID else { return }
                 callbacks.applyPresentation(.init(speciesData: pendingPresentation, referenceState: nil))
             }
         ) { review in
-            guard callbacks.speciesHydration.currentPresentationGeneration() == presentationGeneration,
+            guard ObservationHistoryEnrollmentService.permitsLegacyMutation(scanID: mutation.scanID, container: container),
+                      callbacks.speciesHydration.currentPresentationGeneration() == presentationGeneration,
                   var latest = callbacks.speciesHydration.currentSpeciesData(), latest.scanId == mutation.scanID else { return }
             latest.confirmedSpeciesReview = review
             latest.userIdentificationOverride = review.userIdentificationOverride

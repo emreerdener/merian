@@ -204,6 +204,103 @@ struct InsightExploreSharingViewModelTests {
         #expect(viewModel.state.sharedExploreLocationSharing == .obscured)
     }
 
+    @Test(arguments: ["owner", "selection", "revision", "hold"])
+    func enrollmentBlocksCommunityCreateAndEditFromAlreadyOpenPresentation(protection: String) async throws {
+        let context = try InsightSheetTestSupport.createIsolatedContext()
+        let record = LocalScanRecord(speciesId: "community-species", scientificName: "Danaus plexippus",
+            commonName: "Monarch", coverImagePath: "monarch.webp")
+        context.insert(record)
+        try context.save()
+        var calls = 0
+        let dependencies = InsightSharingDependencies(
+            requestCommunityIdentification: { _, _, _, _, _ in calls += 1; throw URLError(.badServerResponse) },
+            updateCommunityIdentificationRequest: { _, _, _ in calls += 1; throw URLError(.badServerResponse) }
+        )
+        let viewModel = makePresentedViewModel(record: record, dependencies: dependencies)
+        #expect(viewModel.canRequestCommunityIdentification)
+        let fresh = ModelContext(context.container)
+        let freshRecord = try #require(try fresh.fetch(FetchDescriptor<LocalScanRecord>()).first)
+        switch protection {
+        case "owner": freshRecord.analysisOwnerAccountID = UUID().uuidString
+        case "selection": freshRecord.selectedAnalysisID = "malformed"
+        case "revision": freshRecord.observationStateRevision = 0
+        default:
+            fresh.insert(OfflineJobRecord(id: ObservationHistoryEnrollmentIntent.jobID(record.id), kind: .future,
+                subjectId: record.id, status: .needsAttention))
+        }
+        try fresh.save()
+        await viewModel.requestCommunityIdentification(note: nil, locationSharing: .obscured,
+            expectedScanId: record.id, expectedGeneration: viewModel.scanBoundActionGeneration, modelContext: context)
+        viewModel.state.sharedCommunityIdentificationRequestId = UUID().uuidString
+        await viewModel.updateCommunityIdentificationRequest(note: nil, locationSharing: .obscured,
+            expectedScanId: record.id, expectedGeneration: viewModel.scanBoundActionGeneration, modelContext: context)
+        #expect(calls == 0)
+        #expect(!viewModel.state.isRequestingCommunityIdentification)
+    }
+
+    @Test(arguments: [false, true])
+    func communityCreateRechecksEnrollmentBeforeCacheAndPresentation(enrollDuringRequest: Bool) async throws {
+        let context = try InsightSheetTestSupport.createIsolatedContext()
+        let record = LocalScanRecord(speciesId: "community-species", scientificName: "Danaus plexippus",
+            commonName: "Monarch", coverImagePath: "monarch.webp")
+        context.insert(record); try context.save()
+        var calls = 0, cacheWrites = 0, events = 0, successes = 0
+        let requestID = UUID().uuidString
+        let dependencies = InsightSharingDependencies(requestCommunityIdentification: { _, _, _, _, _ in
+            calls += 1
+            if enrollDuringRequest {
+                let fresh = ModelContext(context.container)
+                fresh.insert(OfflineJobRecord(id: ObservationHistoryEnrollmentIntent.jobID(record.id), kind: .future,
+                    subjectId: record.id, status: .needsAttention))
+                try fresh.save()
+            }
+            return CommunityIdentificationRequest(id: requestID, postId: UUID().uuidString, scanId: record.id,
+                requestedBy: UUID().uuidString, requestedAt: "2026-10-05T00:00:00Z", status: .needsId, note: nil,
+                initialTaxonNodeId: nil, taxonomyVersionId: nil, currentCommunityTaxonNodeId: nil, resolvedTaxonNodeId: nil,
+                consensusScore: nil, consensusIdentificationCount: 0, consensusRank: nil, consensusProcessingState: nil)
+        }, storeCachedPostID: { _, _ in cacheWrites += 1 }, publishShareStateChanged: { _, _ in events += 1 },
+           successFeedback: { successes += 1 })
+        let viewModel = makePresentedViewModel(record: record, dependencies: dependencies)
+        viewModel.state.isCommunityRequestSheetPresented = true
+        await viewModel.requestCommunityIdentification(note: nil, locationSharing: .obscured,
+            expectedScanId: record.id, expectedGeneration: viewModel.scanBoundActionGeneration, modelContext: context)
+        #expect(calls == 1)
+        #expect(cacheWrites == (enrollDuringRequest ? 0 : 1))
+        #expect(events == cacheWrites && successes == cacheWrites)
+        #expect(viewModel.state.sharedCommunityIdentificationRequestId == (enrollDuringRequest ? nil : requestID))
+        #expect(viewModel.state.isCommunityRequestSheetPresented == enrollDuringRequest)
+        #expect(!viewModel.state.isRequestingCommunityIdentification)
+    }
+
+    @Test(arguments: [false, true])
+    func communityEditRechecksEnrollmentAfterAwait(enrollDuringRequest: Bool) async throws {
+        let context = try InsightSheetTestSupport.createIsolatedContext()
+        let record = LocalScanRecord(speciesId: "community-species", scientificName: "Danaus plexippus",
+            commonName: "Monarch", coverImagePath: "monarch.webp")
+        context.insert(record)
+        try context.save()
+        var calls = 0
+        var successes = 0
+        let dependencies = InsightSharingDependencies(updateCommunityIdentificationRequest: { request, _, sharing in
+            calls += 1
+            if enrollDuringRequest {
+                let fresh = ModelContext(context.container)
+                fresh.insert(OfflineJobRecord(id: ObservationHistoryEnrollmentIntent.jobID(record.id), kind: .future,
+                    subjectId: record.id, status: .needsAttention))
+                try fresh.save()
+            }
+            return CommunityRequestUpdate(id: request, postId: UUID().uuidString, note: nil,
+                locationSharing: sharing, updatedAt: "2026-10-05T00:00:00Z")
+        }, successFeedback: { successes += 1 })
+        let viewModel = makePresentedViewModel(record: record, dependencies: dependencies)
+        viewModel.state.sharedCommunityIdentificationRequestId = UUID().uuidString
+        await viewModel.updateCommunityIdentificationRequest(note: nil, locationSharing: .obscured,
+            expectedScanId: record.id, expectedGeneration: viewModel.scanBoundActionGeneration, modelContext: context)
+        #expect(calls == 1)
+        #expect(successes == (enrollDuringRequest ? 0 : 1))
+        #expect(!viewModel.state.isRequestingCommunityIdentification)
+    }
+
     private func makePresentedViewModel(
         record: LocalScanRecord,
         dependencies: InsightSharingDependencies

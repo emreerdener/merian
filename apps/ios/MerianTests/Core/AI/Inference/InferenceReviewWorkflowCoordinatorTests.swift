@@ -109,7 +109,7 @@ struct InferenceReviewWorkflowCoordinatorTests {
                 scientificName: "Procyon cancrivorus",
                 expectedScanID: "scan-review",
                 modelContainer:
-                    try DatabaseActorTestSupport.makeIsolatedContainer()
+                    try makeLegacyContainer()
             ),
             callbacks: presentation.callbacks()
         )
@@ -144,7 +144,8 @@ struct InferenceReviewWorkflowCoordinatorTests {
         await syncGate.release()
     }
 
-    @Test func newerOverrideRejectsCancellationIgnoringLookupResult() async {
+    @Test func newerOverrideRejectsCancellationIgnoringLookupResult() async throws {
+        let container = try makeLegacyContainer()
         let reviewHarness = IdentificationReviewCoordinatorHarness()
         let olderLookupGate = InferenceOperationGate()
         let syncGate = InferenceOperationGate()
@@ -172,7 +173,7 @@ struct InferenceReviewWorkflowCoordinatorTests {
                 .init(
                     scientificName: "Procyon cancrivorus",
                     expectedScanID: "scan-review",
-                    modelContainer: nil
+                    modelContainer: container
                 ),
                 callbacks: presentation.callbacks()
             )
@@ -183,7 +184,7 @@ struct InferenceReviewWorkflowCoordinatorTests {
             .init(
                 scientificName: "Nasua nasua",
                 expectedScanID: "scan-review",
-                modelContainer: nil
+                modelContainer: container
             ),
             callbacks: presentation.callbacks()
         )
@@ -216,7 +217,8 @@ struct InferenceReviewWorkflowCoordinatorTests {
         )
     }
 
-    @Test func missingDictionaryRowUsesEnrichmentThenIDFallback() async {
+    @Test func missingDictionaryRowUsesEnrichmentThenIDFallback() async throws {
+        let container = try makeLegacyContainer()
         let reviewHarness = IdentificationReviewCoordinatorHarness()
         let syncGate = InferenceOperationGate()
         let hydrationRecorder = ReviewWorkflowHydrationRecorder()
@@ -234,15 +236,20 @@ struct InferenceReviewWorkflowCoordinatorTests {
             .init(
                 scientificName: "Procyon cancrivorus",
                 expectedScanID: nil,
-                modelContainer: nil
+                modelContainer: container
             ),
             callbacks: presentation.callbacks()
         )
         await syncGate.waitUntilStarted()
 
         #expect(reviewHarness.events == [
+            .beginOverride("scan-review", "Procyon cancrivorus"),
             .loadSpecies("Procyon cancrivorus"),
             .loadSpeciesID("Procyon cancrivorus"),
+            .persistReview(
+                .userOverride(scanID: "scan-review", scientificName: "Procyon cancrivorus", confirmedSpeciesID: "fallback-species-id"),
+                UserReviewState.userOverridden.rawValue
+            ),
             .sync(
                 .userOverride(
                     scanID: "scan-review",
@@ -359,6 +366,107 @@ struct InferenceReviewWorkflowCoordinatorTests {
             .loadSpecies("Procyon cancrivorus"),
             .loadSpeciesID("Procyon cancrivorus")
         ])
+    }
+
+    @Test(arguments: ["owner", "selection", "revision", "hold", "damagedHold", "missingContext"])
+    func historyProtectionDeniesEveryLegacyReviewBeforeEffects(protection: String) async throws {
+        let container = try DatabaseActorTestSupport.makeIsolatedContainer()
+        let context = ModelContext(container)
+        let record = LocalScanRecord(speciesId: "review-species", scientificName: "Procyon lotor", commonName: "Raccoon")
+        record.id = "scan-review"
+        context.insert(record)
+        switch protection {
+        case "owner": record.analysisOwnerAccountID = UUID().uuidString
+        case "selection": record.selectedAnalysisID = "damaged"
+        case "revision": record.observationStateRevision = 0
+        case "hold", "damagedHold":
+            context.insert(OfflineJobRecord(id: ObservationHistoryEnrollmentIntent.jobID(record.id), kind: .future,
+                subjectId: record.id, status: .needsAttention, metadataJSON: protection == "hold" ? "{}" : nil))
+        default: break
+        }
+        try context.save()
+        let harness = IdentificationReviewCoordinatorHarness()
+        let subject = makeSubject(reviewHarness: harness)
+        let presentation = ReviewWorkflowPresentationHarness(speciesData: speciesData())
+        let supplied: ModelContext? = protection == "missingContext" ? nil : context
+        await subject.workflow.applyOverride(.init(scientificName: "Nasua nasua", expectedScanID: record.id,
+            modelContainer: supplied?.container), callbacks: presentation.callbacks())
+        await subject.workflow.confirm(.init(expectedScanID: record.id, modelContext: supplied), callbacks: presentation.callbacks())
+        await subject.workflow.reset(.init(expectedScanID: record.id, modelContext: supplied), callbacks: presentation.callbacks())
+        await subject.workflow.submitOwnerReview(action: .reject, expectedScanID: record.id,
+            modelContext: supplied, callbacks: presentation.callbacks())
+        #expect(harness.events.isEmpty)
+        #expect(presentation.speciesData?.scientificName == "Procyon lotor")
+        #expect(presentation.speciesData?.userIdentificationOverride == nil)
+        #expect(presentation.speciesData?.userConfirmedIdentification == false)
+        #expect(presentation.speciesData?.aiReview.pending == nil)
+    }
+
+    @Test func enrollmentDuringDictionaryLookupPreventsLateOverrideEffects() async throws {
+        let container = try makeLegacyContainer()
+        let harness = IdentificationReviewCoordinatorHarness()
+        let gate = InferenceOperationGate()
+        harness.speciesLookupGates["Nasua nasua"] = gate
+        harness.speciesRecords["Nasua nasua"] = dictionaryRecord(id: "coati", scientificName: "Nasua nasua", commonName: "Coati")
+        let subject = makeSubject(reviewHarness: harness)
+        let presentation = ReviewWorkflowPresentationHarness(speciesData: speciesData())
+        let task = Task { @MainActor in
+            await subject.workflow.applyOverride(.init(scientificName: "Nasua nasua", expectedScanID: "scan-review",
+                modelContainer: container), callbacks: presentation.callbacks())
+        }
+        await gate.waitUntilStarted()
+        let fresh = ModelContext(container)
+        fresh.insert(OfflineJobRecord(id: ObservationHistoryEnrollmentIntent.jobID("scan-review"), kind: .future,
+            subjectId: "scan-review", status: .needsAttention))
+        try fresh.save()
+        let before = harness.events
+        await gate.release()
+        await task.value
+        #expect(harness.events == before)
+        #expect(presentation.speciesData?.commonName != "Coati")
+    }
+
+    @Test(arguments: ["override", "confirm", "reset"], [false, true])
+    func enrollmentWhileQueuedWriteWaitsPreservesOriginalPresentation(action: String, delete: Bool) async throws {
+        let container = try makeLegacyContainer()
+        let harness = IdentificationReviewCoordinatorHarness()
+        harness.beforePersistence = {
+            do {
+                let context = ModelContext(container)
+                if delete {
+                    for record in try context.fetch(FetchDescriptor<LocalScanRecord>()) { context.delete(record) }
+                } else {
+                    context.insert(OfflineJobRecord(id: ObservationHistoryEnrollmentIntent.jobID("scan-review"), kind: .future,
+                        subjectId: "scan-review"))
+                }
+                try context.save()
+            } catch { Issue.record("Failed to stage synthetic hold") }
+        }
+        let subject = makeSubject(reviewHarness: harness)
+        let initial = action == "reset" ? speciesData(scientificName: "Nasua nasua", override: "Nasua nasua") : speciesData()
+        let presentation = ReviewWorkflowPresentationHarness(speciesData: initial)
+        switch action {
+        case "override":
+            await subject.workflow.applyOverride(.init(scientificName: "Nasua nasua", expectedScanID: "scan-review",
+                modelContainer: container), callbacks: presentation.callbacks())
+        case "confirm":
+            await subject.workflow.confirm(.init(expectedScanID: "scan-review", modelContext: ModelContext(container)),
+                callbacks: presentation.callbacks())
+        default:
+            await subject.workflow.reset(.init(expectedScanID: "scan-review", modelContext: ModelContext(container)),
+                callbacks: presentation.callbacks())
+        }
+        #expect(presentation.speciesData?.scientificName == initial.scientificName)
+        #expect(presentation.speciesData?.userIdentificationOverride == initial.userIdentificationOverride)
+        #expect(presentation.speciesData?.userConfirmedIdentification == initial.userConfirmedIdentification)
+        #expect(reviewMutations(in: harness.events).isEmpty)
+    }
+
+    private func makeLegacyContainer() throws -> ModelContainer {
+        let container = try DatabaseActorTestSupport.makeIsolatedContainer(), context = ModelContext(container)
+        context.insert(LocalScanRecord(id: "scan-review", speciesId: "species", scientificName: "Procyon lotor", commonName: "Raccoon"))
+        try context.save()
+        return container
     }
 
     private func makeSubject(

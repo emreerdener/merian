@@ -60,9 +60,10 @@ enum InferenceScanReplacement {
 
             do {
                 if carriesReview {
-                    try IdentificationReviewSyncService().carryRejection(from: original, to: replacement, context: context)
+                    try IdentificationReviewSyncService().carryRejection(from: original, to: replacement, context: context, save: saveMetadata)
+                } else {
+                    try saveMetadata(context)
                 }
-                try saveMetadata(context)
             } catch {
                 // Restore only our staged values. A context-wide rollback would
                 // discard unrelated user edits in the presentation context.

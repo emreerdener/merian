@@ -86,6 +86,9 @@ extension BackgroundDatabaseActor {
             let context = ModelContext(modelContainer)
             do {
                 try Task.checkCancellation()
+                guard try !ObservationHistoryEnrollmentIntent.protects(scanID, context: context) else {
+                    throw ConfirmedSpeciesReview.IntegrityError.invalidRequest
+                }
                 var descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == scanID })
                 descriptor.fetchLimit = 1
                 guard let record = try context.fetch(descriptor).first else {

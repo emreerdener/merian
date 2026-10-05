@@ -1463,3 +1463,30 @@ from a displaced session. The restored `SpeciesData` carries this authority
 separately; shared species consumers now preserve this authority, and the native
 reader advertises protocol 6 for owner-review-aware results without activating a
 new producer.
+
+### Legacy review during history enrollment
+
+`InferenceReviewWorkflowCoordinator` denies scan-only confirmation, override,
+rejection and undo before optimistic presentation or queue admission when a
+fresh locked `ObservationHistoryEnrollmentIntent.protects` read finds a staged
+hold or any history metadata. Missing persistence context, absent or ambiguous
+scan rows, and lookup failures also deny admission. Async dictionary and
+acknowledgement callbacks recheck the fence before applying review presentation.
+This does not implement an analysis-bound review operation or redirect an action
+to the selected result.
+
+Serialized legacy actor writes and verified review preparation/acknowledgement
+repeat the check inside the persistence transaction. The legacy outbox similarly
+checks enqueue, both carry endpoints, dispatch admission, completion and
+conflict reconciliation. A protected pending job retains its exact payload in
+`needsAttention` with no deadline and `analysis_bound_review_required`; it is
+never silently rebased or retried through another endpoint. Carry stages and
+saves under the same lock, preserving the replacement caller's save callback.
+
+Legacy override/reset/confirmation presentation now waits for the guarded local
+write phase. If enrollment wins while a queued write waits, the displayed
+identification stays unchanged and no follow-on dictionary lookup or legacy
+transport starts. The server's exact `analysis_bound_review_required` response
+also holds the job when enrollment happened on another device; it does not
+trigger legacy authority reconciliation. Carry rechecks both endpoints after
+post-acceptance work and before requesting source retirement.

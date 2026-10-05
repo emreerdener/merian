@@ -2486,3 +2486,19 @@ local fence does not authorize remote deletion of retained history or release
 backend rollout controls. The
 [native history owner](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#prepared-native-enrollment)
 defines the exact intent and tombstone lifecycle.
+
+## Legacy review protection during history enrollment
+
+The native review outbox retains a scan-only request when staged or acknowledged
+history makes it ineligible. Its enqueue, carry endpoints, dispatch admission,
+response commit and conflict-recovery writes check a fresh context under the
+shared review persistence lock. Existing protected jobs become `needsAttention`
+with no deadline and retain their exact payload. The server's exact
+`analysis_bound_review_required` response applies the same hold even when this
+device has not yet learned about enrollment. No alternative endpoint, automatic
+revision rebase or legacy-authority fetch is attempted. Carry rechecks both
+observations after post-acceptance work before source retirement.
+
+The interactive review/Community guard also requires exactly one current local
+record; missing context, deletion, duplicate rows and lookup failure deny the
+operation. History activation remains disabled.

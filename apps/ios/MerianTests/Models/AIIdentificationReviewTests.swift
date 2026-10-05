@@ -69,6 +69,162 @@ struct AIIdentificationReviewTests {
         #expect(try ModelContext(container).fetchCount(FetchDescriptor<OfflineJobRecord>()) == 3)
     }
 
+    @Test(arguments: [false, true])
+    func stagedOrAcknowledgedEnrollmentBlocksAdmissionAndHoldsPendingJob(acknowledged: Bool) async throws {
+        let container = try DatabaseActorTestSupport.makeIsolatedContainer(), context = ModelContext(container)
+        let scan = LocalScanRecord(id: scanID, speciesId: "species", scientificName: "Fixtureus species", commonName: "Fixture")
+        context.insert(scan); try context.save()
+        var calls = 0
+        var dependencies = IdentificationReviewSyncService.Dependencies(allowsMutation: { true }, ownerID: { ownerID }, submit: { _ in
+            calls += 1; throw URLError(.badServerResponse)
+        })
+        dependencies.beginWork = { AccountBoundWorkLease(id: UUID(), session: AuthTransitionSession(userID: ownerID, isAnonymous: false)) }
+        dependencies.finishWork = { _ in }; dependencies.isWorkCurrent = { _ in true }
+        let service = IdentificationReviewSyncService(dependencies: dependencies)
+        let pending = try service.enqueue(scanID: scanID, action: .reject, context: context)
+        let fresh = ModelContext(container)
+        if acknowledged {
+            let stored = try #require(try IdentificationReviewSyncService.record(scanID, context: fresh))
+            stored.analysisOwnerAccountID = ownerID.uuidString.lowercased()
+        } else {
+            _ = try ObservationHistoryEnrollmentIntent.stage(observationID: UUID(uuidString: scanID)!, ownerID: ownerID, context: fresh)
+        }
+        try fresh.save()
+        #expect(throws: (any Error).self) { try service.enqueue(scanID: scanID, action: .undo, context: context) }
+        await service.drain(context: context)
+        await service.drain(context: context)
+        let verify = ModelContext(container)
+        let job = try #require(try verify.fetchOfflineJob(id: "identification-review:\(pending.pending!.operationID)"))
+        #expect(calls == 0 && job.attemptCount == 0)
+        #expect(job.status == .needsAttention && job.nextRunAt == nil)
+        #expect(job.lastErrorCode == "analysis_bound_review_required")
+        #expect(try IdentificationReviewSyncService.record(scanID, context: verify)?.localAIIdentificationReview.pending == pending.pending)
+    }
+
+    @Test(arguments: [false, true])
+    func enrollmentDuringLegacyResponsePreservesHistoryAuthority(fails: Bool) async throws {
+        let container = try DatabaseActorTestSupport.makeIsolatedContainer(), context = ModelContext(container)
+        context.insert(LocalScanRecord(id: scanID, speciesId: "species", scientificName: "Fixtureus species", commonName: "Fixture"))
+        try context.save()
+        var accepted = 0
+        var dependencies = IdentificationReviewSyncService.Dependencies(allowsMutation: { true }, ownerID: { ownerID }, submit: { _ in
+            let fresh = ModelContext(container)
+            _ = try ObservationHistoryEnrollmentIntent.stage(observationID: UUID(uuidString: scanID)!, ownerID: ownerID, context: fresh)
+            try fresh.save()
+            if fails { throw URLError(.badServerResponse) }
+            return AIIdentificationReviewReceipt(schemaVersion: 1, scanID: scanID,
+                review: .init(revision: 1, state: .aiRejected, originScanID: scanID, originIdentification: nil),
+                speciesReview: nil, confirmedSpeciesID: nil)
+        })
+        dependencies.beginWork = { AccountBoundWorkLease(id: UUID(), session: AuthTransitionSession(userID: ownerID, isAnonymous: false)) }
+        dependencies.finishWork = { _ in }; dependencies.isWorkCurrent = { _ in true }
+        dependencies.didAccept = { _ in accepted += 1 }
+        let service = IdentificationReviewSyncService(dependencies: dependencies)
+        let pending = try service.enqueue(scanID: scanID, action: .reject, context: context)
+        await service.drain(context: context)
+        let verify = ModelContext(container)
+        let stored = try #require(try IdentificationReviewSyncService.record(scanID, context: verify))
+        #expect(stored.localAIIdentificationReview.pending == pending.pending)
+        #expect(stored.localAIIdentificationReview.authority == nil && accepted == 0)
+        let job = try #require(try verify.fetchOfflineJob(id: "identification-review:\(pending.pending!.operationID)"))
+        #expect(job.status == .needsAttention && job.nextRunAt == nil)
+    }
+
+    @Test(arguments: [false, true])
+    func carryDeniesEitherProtectedEndpoint(protectSource: Bool) throws {
+        let container = try DatabaseActorTestSupport.makeIsolatedContainer(), context = ModelContext(container)
+        let source = LocalScanRecord(id: scanID, speciesId: "species", scientificName: "Fixtureus species", commonName: "Fixture")
+        source.aiIdentificationReviewData = try LocalAIIdentificationReview(authority: .init(revision: 2, state: .aiRejected,
+            originScanID: scanID, originIdentification: nil)).storedData()
+        let replacement = LocalScanRecord(speciesId: "new", scientificName: "Fixtureus proposal", commonName: "Proposal")
+        context.insert(source); context.insert(replacement); try context.save()
+        let fresh = ModelContext(container)
+        let protected = protectSource ? source.id : replacement.id
+        fresh.insert(OfflineJobRecord(id: ObservationHistoryEnrollmentIntent.jobID(protected), kind: .future, subjectId: protected))
+        try fresh.save()
+        let service = IdentificationReviewSyncService(dependencies: .init(allowsMutation: { true }, ownerID: { ownerID }))
+        var saved = false
+        #expect(throws: (any Error).self) {
+            try service.carryRejection(from: source, to: replacement, context: context, save: { _ in saved = true })
+        }
+        #expect(!saved && replacement.aiIdentificationReviewData == nil)
+        #expect(try ModelContext(container).fetchCount(FetchDescriptor<OfflineJobRecord>()) == 1)
+    }
+
+    @Test func remoteEnrollmentConflictHoldsExactRequestWithoutLegacyReconciliation() async throws {
+        let container = try DatabaseActorTestSupport.makeIsolatedContainer(), context = ModelContext(container)
+        context.insert(LocalScanRecord(id: scanID, speciesId: "species", scientificName: "Fixtureus species", commonName: "Fixture"))
+        try context.save()
+        var calls = 0, reconciliations = 0
+        var dependencies = IdentificationReviewSyncService.Dependencies(allowsMutation: { true }, ownerID: { ownerID }, submit: { _ in
+            calls += 1
+            throw MerianError.httpError(statusCode: 409, message: "{\"code\":\"analysis_bound_review_required\"}")
+        })
+        dependencies.beginWork = { AccountBoundWorkLease(id: UUID(), session: AuthTransitionSession(userID: ownerID, isAnonymous: false)) }
+        dependencies.finishWork = { _ in }; dependencies.isWorkCurrent = { _ in true }
+        dependencies.fetchLatest = { _ in reconciliations += 1; throw URLError(.badServerResponse) }
+        let service = IdentificationReviewSyncService(dependencies: dependencies)
+        let pending = try service.enqueue(scanID: scanID, action: .reject, context: context)
+        await service.drain(context: context)
+        await service.drain(context: context)
+        let verify = ModelContext(container)
+        let job = try #require(try verify.fetchOfflineJob(id: "identification-review:\(pending.pending!.operationID)"))
+        #expect(calls == 1 && reconciliations == 0)
+        #expect(job.status == .needsAttention && job.nextRunAt == nil)
+        #expect(job.lastErrorCode == "analysis_bound_review_required")
+        #expect(try IdentificationReviewSyncService.record(scanID, context: verify)?.localAIIdentificationReview.pending == pending.pending)
+    }
+
+    @Test(arguments: [false, true])
+    func carryRetirementRechecksBothEndpointsAfterAcceptance(protectSource: Bool) async throws {
+        let container = try DatabaseActorTestSupport.makeIsolatedContainer(), context = ModelContext(container)
+        let source = LocalScanRecord(id: scanID, speciesId: "species", scientificName: "Fixtureus species", commonName: "Fixture")
+        source.aiIdentificationReviewData = try LocalAIIdentificationReview(authority: .init(revision: 2, state: .aiRejected,
+            originScanID: scanID, originIdentification: nil)).storedData()
+        let replacement = LocalScanRecord(speciesId: "new", scientificName: "Fixtureus proposal", commonName: "Proposal")
+        context.insert(source); context.insert(replacement); try context.save()
+        var retired = 0
+        var dependencies = IdentificationReviewSyncService.Dependencies(allowsMutation: { true }, ownerID: { ownerID }, submit: { request in
+            AIIdentificationReviewReceipt(schemaVersion: 1, scanID: request.scanID,
+                review: .init(revision: 1, state: .awaitingAcceptance, originScanID: scanID, originIdentification: nil),
+                speciesReview: nil, confirmedSpeciesID: nil)
+        })
+        dependencies.beginWork = { AccountBoundWorkLease(id: UUID(), session: AuthTransitionSession(userID: ownerID, isAnonymous: false)) }
+        dependencies.finishWork = { _ in }; dependencies.isWorkCurrent = { _ in true }
+        dependencies.didAccept = { _ in
+            do {
+                let fresh = ModelContext(container)
+                let protected = protectSource ? source.id : replacement.id
+                fresh.insert(OfflineJobRecord(id: ObservationHistoryEnrollmentIntent.jobID(protected), kind: .future, subjectId: protected))
+                try fresh.save()
+            } catch { Issue.record("Failed to stage synthetic hold") }
+        }
+        dependencies.retireSource = { _, _ in retired += 1 }
+        let service = IdentificationReviewSyncService(dependencies: dependencies)
+        try service.carryRejection(from: source, to: replacement, context: context)
+        await service.drain(context: context)
+        #expect(retired == 0)
+        #expect(try ModelContext(container).fetchCount(FetchDescriptor<LocalScanRecord>()) == 2)
+    }
+
+    @Test func failedCarrySaveRestoresOnlyItsOwnStagedFields() throws {
+        let container = try DatabaseActorTestSupport.makeIsolatedContainer(), context = ModelContext(container)
+        let source = LocalScanRecord(id: scanID, speciesId: "species", scientificName: "Fixtureus species", commonName: "Fixture")
+        source.aiIdentificationReviewData = try LocalAIIdentificationReview(authority: .init(revision: 2, state: .aiRejected,
+            originScanID: scanID, originIdentification: nil)).storedData()
+        let replacement = LocalScanRecord(speciesId: "new", scientificName: "Fixtureus proposal", commonName: "Proposal")
+        context.insert(source); context.insert(replacement); try context.save()
+        source.fieldNotes = "Unrelated synthetic draft"
+        let service = IdentificationReviewSyncService(dependencies: .init(allowsMutation: { true }, ownerID: { ownerID }))
+        #expect(throws: (any Error).self) {
+            try service.carryRejection(from: source, to: replacement, context: context, save: { _ in throw CocoaError(.fileWriteUnknown) })
+        }
+        #expect(replacement.aiIdentificationReviewData == nil)
+        #expect(source.fieldNotes == "Unrelated synthetic draft")
+        try context.save()
+        #expect(try ModelContext(container).fetchCount(FetchDescriptor<OfflineJobRecord>()) == 0)
+    }
+
     @Test func legacyPresentationDoesNotClearStoredRejection() {
         var species = SpeciesData(scanId: scanID, commonName: "Fixture", scientificName: "Fixtureus species",
             insightData: InsightData(aiReasoning: "Synthetic observation", hazardType: "none"),

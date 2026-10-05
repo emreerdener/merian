@@ -87,11 +87,13 @@ extension BackgroundDatabaseActor {
         id: String,
         expectedScientificName: String? = nil,
         preservesEnrollment: Bool = false,
+        legacyReview: Bool = false,
         mutation: (LocalScanRecord) -> Void
     ) {
         ConfirmedSpeciesReviewPersistence.transaction {
             let modelContext = ModelContext(modelContainer)
             modelContext.autosaveEnabled = false
+            if legacyReview, (try? ObservationHistoryEnrollmentIntent.protects(id, context: modelContext)) != false { return }
             if preservesEnrollment, (try? ObservationHistoryEnrollmentIntent.holds(id, context: modelContext)) != false { return }
             var descriptor = FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == id })
             descriptor.fetchLimit = 1
@@ -203,7 +205,7 @@ extension BackgroundDatabaseActor {
         scanId: String,
         scientificName: String
     ) {
-        mutateScan(id: scanId) { record in
+        mutateScan(id: scanId, legacyReview: true) { record in
             record.userIdentificationOverride = scientificName
             record.userConfirmedIdentification = false
             record.confirmedSpeciesId = nil
@@ -229,7 +231,7 @@ extension BackgroundDatabaseActor {
         newConfirmedSpeciesId: String?,
         userReviewState: UserReviewState
     ) {
-        mutateScan(id: scanId) { record in
+        mutateScan(id: scanId, legacyReview: true) { record in
             // Snapshot the original AI identity before mutating any SwiftData-backed
             // review fields. The reset placeholder must not depend on a managed
             // accessor after the record has begun changing.
@@ -294,7 +296,7 @@ extension BackgroundDatabaseActor {
         taxonomy: TaxonomyData?,
         replacingSpeciesIdentity: Bool
     ) {
-        mutateScan(id: scanId) { record in
+        mutateScan(id: scanId, legacyReview: true) { record in
             guard record.primaryIdentification == nil else { return }
             record.commonName = commonName
             record.hazardType = hazardType
@@ -331,6 +333,6 @@ extension BackgroundDatabaseActor {
 
     /// Clears legacy manual-review state when an identification is changed or reset.
     func updateScanAsUnflagged(scanId: String) {
-        mutateScan(id: scanId) { $0.isFlagged = false }
+        mutateScan(id: scanId, legacyReview: true) { $0.isFlagged = false }
     }
 }

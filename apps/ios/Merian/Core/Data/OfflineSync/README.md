@@ -232,6 +232,14 @@ files above.
 reconciliation read, encoding, or save fails. Fresh mutation contexts disable
 autosave, so partially staged authority and dependent-job deletion cannot commit
 after an error. Previously saved running or waiting jobs remain retryable.
+History-protected legacy review jobs are different: a staged hold, acknowledged
+metadata, or the exact server `analysis_bound_review_required` code retains the
+original request as `needsAttention` without a retry deadline or legacy
+reconciliation. Admission, carry (both endpoints), response commit and failure
+reconciliation check fresh history protection within the shared persistence
+transaction. Carry saves once through the caller's save boundary and restores
+only its staged review/job if that save throws, preserving unrelated context
+edits.
 
 SwiftData absence is a valid domain result only after a successful read. No
 production Swift file under `Core/Data` may use `try?` with `fetch` or

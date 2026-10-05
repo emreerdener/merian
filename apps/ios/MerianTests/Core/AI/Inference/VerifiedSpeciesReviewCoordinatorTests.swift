@@ -11,6 +11,7 @@ private final class VerifiedReviewCoordinatorHarness {
     var syncGate: InferenceOperationGate?
     var applyGate: InferenceOperationGate?
     var failure = false
+    var preparationFailure = false
     var outcome: VerifiedSpeciesReviewOutcome
     var events: [String] = []
 
@@ -34,6 +35,7 @@ private final class VerifiedReviewCoordinatorHarness {
         return InferenceIdentificationReviewCoordinator(writeCoordinator: writes, reviewService: service,
             snapshotService: legacy.snapshotService, dependencies: legacy.dependencies,
             verifiedDependencies: .init(prepare: { [self] container, mutation in
+                if preparationFailure { throw ConfirmedSpeciesReview.IntegrityError.invalidEnvelope }
                 let request = try await BackgroundDatabaseActor(modelContainer: container).prepareVerifiedSpeciesReview(mutation)
                 events.append("prepared")
                 return request
@@ -70,10 +72,18 @@ struct VerifiedSpeciesReviewCoordinatorTests {
     }
 
     @Test func failedPreparationDoesNotPublishOrCallServer() async throws {
-        let harness = try VerifiedReviewCoordinatorHarness()
+        let harness = try VerifiedReviewCoordinatorHarness(); try await harness.seed()
+        harness.preparationFailure = true
         let subject = harness.makeSubject()
         await harness.submit(subject)?.value
         #expect(harness.events.isEmpty && harness.legacy.events == [.syncFailure])
+    }
+
+    @Test func missingScanNeverBeginsPreparationOrPublishes() async throws {
+        let harness = try VerifiedReviewCoordinatorHarness()
+        let subject = harness.makeSubject()
+        await harness.submit(subject)?.value
+        #expect(harness.events.isEmpty && harness.legacy.events.isEmpty)
     }
 
     @Test func failedRequestRetainsPendingIntentWithoutAuthorityOrSuccessEffects() async throws {
