@@ -93,14 +93,15 @@ struct ReanalysisOperationStatusTests {
         _ = try ObservationReanalysisPersistence.discardPreparation(source: seed.source, analysisID: seed.pending.draft.identity.analysisID,
             container: seed.container, isCurrent: { true })
         var children: [UUID] = []
-        for index in 1...5 {
-            let child = try #require(UUID(uuidString: "40000000-0000-4000-8000-00000000000\(index)")); children.append(child)
+        // Numeric-aware localized sorting puts 2a before 10000000, unlike the cursor predicate.
+        for prefix in ["10000000", "2a000000", "30b00000", "40000000", "50000000"] {
+            let child = try #require(UUID(uuidString: "\(prefix)-0000-4000-8000-000000000001")); children.append(child)
             let draft = try ObservationReanalysisDraft(identity: .init(observationID: seed.source.observationID, sourceAnalysisID: seed.source.analysisID,
                 analysisID: child, ownerID: seed.source.ownerID), evidence: seed.pending.draft.evidence)
             let intent = try ObservationReanalysisPreparationIntent(draft: draft, source: seed.source, action: .submit)
             _ = try ObservationReanalysisPersistence.beginPreparation(intent.verified(source: seed.source), container: seed.container, isCurrent: { true })
         }
-        let context = ModelContext(seed.container), rows = try context.fetch(FetchDescriptor<OfflineQueuedScan>(sortBy: [SortDescriptor(\.id)]))
+        let context = ModelContext(seed.container), rows = try context.fetch(FetchDescriptor<OfflineQueuedScan>(sortBy: [SortDescriptor(\.id, comparator: .lexical)]))
         let savedJob = try context.fetchOfflineJob(id: OfflineQueueManager.scanIngestionJobId(scanId: rows[0].id))
         let job = try #require(savedJob)
         job.metadataJSON = "{}"

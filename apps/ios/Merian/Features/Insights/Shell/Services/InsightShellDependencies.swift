@@ -9,6 +9,7 @@ struct InsightAuthenticationSnapshot: Equatable {
 @MainActor
 struct InsightShellDependencies {
     var historyAccess: IdentificationHistoryAccess? = nil
+    var reanalysisStatusAccess: ReanalysisStatusAccess?
     let appEvents: AnyPublisher<AppEvent, Never>
     let authenticationSnapshot: @MainActor () -> InsightAuthenticationSnapshot
     let defaultAppSettings: @MainActor () -> AppSettings

@@ -166,12 +166,16 @@ struct ModelsIntegrationArchitectureTests {
         let sources = try DatabaseActorTestSupport.swiftSources(below: "apps/ios/Merian")
         for entry in sources {
             #expect(!codeLines(in: entry.contents).contains("IdentificationHistoryAccess.prepared"))
+            #expect(!codeLines(in: entry.contents).contains("ReanalysisStatusAccess.prepared"))
         }
         let shell = try source(at: "apps/ios/Merian/Features/Insights/Shell/Services/InsightShellDependencies.swift")
         // Optional stored properties default to nil in both spellings.
         #expect(shell.range(of: #"(?m)^    var historyAccess: IdentificationHistoryAccess\?(?: = nil)?$"#,
                             options: .regularExpression) != nil)
         #expect(shell.contains("#if DEBUG\n        result.historyAccess = UITestSeedCoordinator.identificationHistoryAccess\n        #endif"))
+        #expect(shell.range(of: #"(?m)^    var reanalysisStatusAccess: ReanalysisStatusAccess\?(?: = nil)?$"#,
+                            options: .regularExpression) != nil)
+        #expect(!shell.contains("result.reanalysisStatusAccess ="))
         let fixture = try source(at: "apps/ios/Merian/App/UITesting/UITestSeedCoordinator+IdentificationHistory.swift")
         #expect(fixture.contains("#if DEBUG"))
         #expect(fixture.contains("-seedIdentificationHistory"))

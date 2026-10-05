@@ -56,3 +56,24 @@ owns persistence and authority. Verification lives in
 `IdentificationHistoryViewModelTests`, `IdentificationHistoryReanalysisTests`,
 `ObservationHistoryListingTests` and `IdentificationHistoryUITests`; the runtime
 audit manifest registers the UI flow.
+
+## Prepared reanalysis status
+
+`ReanalysisStatusAccess` is a separate optional Shell entry, independent of the
+history menu's multiple-result condition. It reuses
+`IdentificationHistorySession` for owner/session/generation checks but exposes
+only Core's bounded operation pages. A page with omitted rows and a continuation
+still offers access to later pages; it does not prove those unseen rows are
+active requests.
+
+`ReanalysisStatusViewModel` retains only one page of closed status summaries and
+cancels and clears them on account, parent or presentation invalidation. The
+native `ReanalysisStatusSheet` offers refresh and bounded paging, with distinct
+consent, unavailable-evidence, reconciliation, retry-limit and terminal-failure
+copy. It has no admission, retry, discard, source-photo or provider action.
+Refresh reads status only. Completed identifications remain in history and
+current selection is unchanged. Ordinary `reanalysisStatusAccess` remains nil.
+`ReanalysisStatusViewModelTests` covers single-result availability, corrupt-page
+continuation, exact session reads, late-result rejection and
+account/parent/generation teardown. Core `ReanalysisOperationStatusTests` covers
+disk restart and distinct inert holds.

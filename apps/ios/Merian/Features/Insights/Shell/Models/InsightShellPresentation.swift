@@ -24,6 +24,7 @@ enum InsightChatDismissalAction: Equatable {
 enum InsightShellPresentation: Identifiable, Equatable {
     case paywall
     case identificationHistory(scanId: String, generation: UInt64)
+    case reanalysisStatus(scanId: String, generation: UInt64)
     case fieldTripAuthor(ExploreAuthorProfileRoute)
     case chat(scanId: String, generation: UInt64)
     case exploreOnboarding(scanId: String, generation: UInt64)
@@ -31,6 +32,8 @@ enum InsightShellPresentation: Identifiable, Equatable {
 
     var id: String {
         switch self {
+        case .reanalysisStatus(let scanId, let generation):
+            "reanalysis-status-\(scanId)-\(generation)"
         case .identificationHistory(let scanId, let generation):
             "identification-history-\(scanId)-\(generation)"
         case .paywall:

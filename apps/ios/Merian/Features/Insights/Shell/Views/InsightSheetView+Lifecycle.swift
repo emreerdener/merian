@@ -185,6 +185,7 @@ extension InsightSheetView {
             .onReceive(dependencies.appEvents) { event in
                 guard case .scanLibraryChanged = event else { return }
                 historyModel?.validate()
+                reanalysisStatusModel?.validate()
                 guard let scanId = viewModel.queuedContext?.id else { return }
                 Task { await attemptQueuedCompletionHandoff(scanId: scanId) }
             }

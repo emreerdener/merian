@@ -250,3 +250,12 @@ Parent presentation teardown clears it. Revalidation precedes the injected
 historical route request, whose root dismissal and account/session fencing stay
 owned by `AppRouteCoordinator` and Capture. It never uses the legacy refinement
 callback. Ordinary history access and protected Capture access remain disabled.
+
+The prepared **Reanalysis status** menu uses a separate optional
+`reanalysisStatusAccess` and `.reanalysisStatus(scanId:generation)` in this same
+presentation slot. `InsightSheetView+ReanalysisStatus` admits its owner-scoped
+read model independently of history's multiple-result condition. Root dismissal,
+scan-generation changes, nested dismissal and library invalidation close or
+revalidate its private state. The History area owns phase-only rows and bounded
+paging; Shell never admits, retries or discards a request from this surface.
+Ordinary access remains nil.

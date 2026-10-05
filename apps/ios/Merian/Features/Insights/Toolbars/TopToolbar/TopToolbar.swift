@@ -108,6 +108,7 @@ struct TopToolbar: ToolbarContent {
     @Binding var showNewCollectionAlert: Bool
     let hasCollectionScanId: Bool
     var onIdentificationHistory: (() -> Void)?
+    var onReanalysisStatus: (() -> Void)?
     var onReanalyze: (() -> Void)?
     var onReviewAlternatives: (() -> Void)?
     var onConfirmIdentification: (() -> Void)?
@@ -145,6 +146,7 @@ struct TopToolbar: ToolbarContent {
         showNewCollectionAlert: Binding<Bool>,
         hasCollectionScanId: Bool,
         onIdentificationHistory: (() -> Void)? = nil,
+        onReanalysisStatus: (() -> Void)? = nil,
         onReanalyze: (() -> Void)? = nil,
         onReviewAlternatives: (() -> Void)? = nil,
         onConfirmIdentification: (() -> Void)? = nil,
@@ -181,6 +183,7 @@ struct TopToolbar: ToolbarContent {
         self._showNewCollectionAlert = showNewCollectionAlert
         self.hasCollectionScanId = hasCollectionScanId
         self.onIdentificationHistory = onIdentificationHistory
+        self.onReanalysisStatus = onReanalysisStatus
         self.onReanalyze = onReanalyze
         self.onReviewAlternatives = onReviewAlternatives
         self.onConfirmIdentification = onConfirmIdentification
@@ -402,6 +405,10 @@ struct TopToolbar: ToolbarContent {
         }
 
         Section("Identification") {
+            if let onReanalysisStatus {
+                Button(action: onReanalysisStatus) { Label("Reanalysis status", systemImage: "clock") }
+                    .accessibilityIdentifier("ReanalysisStatusMenu")
+            }
             if let onIdentificationHistory {
                 Button(action: onIdentificationHistory) { Label("Identification history", systemImage: "clock.arrow.circlepath") }
                     .accessibilityIdentifier("IdentificationHistoryMenu")

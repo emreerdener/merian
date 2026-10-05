@@ -84,6 +84,7 @@ extension InsightSheetView {
             showNewCollectionAlert: toolbarNewCollectionBinding,
             hasCollectionScanId: toolbarRecordSnapshot != nil,
             onIdentificationHistory: historyAction(scanId: toolbarLocalScanId, generation: toolbarGeneration),
+            onReanalysisStatus: reanalysisStatusAction(scanId: toolbarLocalScanId, generation: toolbarGeneration),
             onReanalyze: viewModel.canReanalyze ? {
                 guard let scanId = toolbarLocalScanId,
                       viewModel.isPresentingLocalRecord(

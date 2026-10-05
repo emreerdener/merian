@@ -2539,9 +2539,15 @@ consent, unavailable evidence, reconciliation, retry-limit and terminal failure
 states distinct, without returning private job payloads. Reading status never
 retries or discards work and does not require inference consent. Its local
 processing phase makes no claim about provider execution. Completed results
-belong to history; a cleanup receipt alone never means completion. The status UI
-and explicit remediation are not connected by this reader, and ordinary access
-remains disabled.
+belong to history; a cleanup receipt alone never means completion. A separate
+prepared **Reanalysis status** menu and native sheet use this reader, including
+when history contains only one completed result. The history menu still requires
+multiple results. Status offers refresh and bounded paging, without retry,
+discard or inference actions. An empty page with a continuation keeps its More
+requests action so omitted corruption cannot hide later valid work. Account,
+parent and presentation changes clear the sheet; delayed reads cannot restore
+its private state. Phase-only rows contain no source photos or provider claims.
+Explicit remediation remains separate, and ordinary status access is nil.
 
 An acknowledged selection or authority revision invalidates the existing rows,
 preview and photo, including titles derived from community review. A delayed

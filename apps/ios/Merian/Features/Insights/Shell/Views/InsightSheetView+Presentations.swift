@@ -18,6 +18,8 @@ extension InsightSheetView {
         _ presentation: InsightShellPresentation
     ) -> some View {
         switch presentation {
+        case .reanalysisStatus:
+            if let reanalysisStatusModel { ReanalysisStatusSheet(model: reanalysisStatusModel) }
         case .identificationHistory:
             if let historyModel { IdentificationHistorySheet(model: historyModel) }
         case .paywall:
@@ -320,6 +322,8 @@ extension InsightSheetView {
             resumePendingInsightChatDismissalAction()
         case .explore:
             handleExploreSheetDismissed()
+        case .reanalysisStatus:
+            reanalysisStatusModel?.close(); reanalysisStatusModel = nil
         case .identificationHistory(let scanID, let generation):
             historyModel?.close(); historyModel = nil
             resumeHistoryReanalysis(scanID: scanID, generation: generation)
@@ -342,6 +346,8 @@ extension InsightSheetView {
     @MainActor
     func isShellPresentationValid(_ presentation: InsightShellPresentation) -> Bool {
         switch presentation {
+        case .reanalysisStatus(let scanId, let generation):
+            reanalysisStatusModel != nil && viewModel.isPresentingLocalRecord(scanId: scanId, generation: generation)
         case .identificationHistory(let scanId, let generation):
             historyModel != nil && viewModel.isPresentingLocalRecord(scanId: scanId, generation: generation)
         case .paywall:
@@ -387,6 +393,9 @@ extension InsightSheetView {
         releasePayload: Bool
     ) {
         switch presentation {
+        case .reanalysisStatus:
+            reanalysisStatusModel?.close()
+            if releasePayload { reanalysisStatusModel = nil }
         case .identificationHistory:
             historyModel?.close()
             if releasePayload { historyModel = nil; pendingHistoryReanalysis = nil }

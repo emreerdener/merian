@@ -32,7 +32,7 @@ struct ObservationReanalysisOperationStatus {
             let context = ModelContext(container), after = cursor?.childID ?? "", kind = "reanalysis"
             var query = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate {
                 $0.workKindRaw == kind && $0.parentObservationID == parent && $0.reanalysisOwnerAccountID == owner && $0.id > after
-            }, sortBy: [SortDescriptor(\.id)])
+            }, sortBy: [SortDescriptor(\.id, comparator: .lexical)])
             query.fetchLimit = limit + 1
             query.propertiesToFetch = [\.id, \.workKindRaw, \.parentObservationID, \.sourceAnalysisID, \.reanalysisOwnerAccountID]
             return try context.fetch(query).map { ($0.id, $0.work) }
