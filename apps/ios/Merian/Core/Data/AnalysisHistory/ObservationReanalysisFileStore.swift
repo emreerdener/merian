@@ -80,6 +80,28 @@ actor ObservationReanalysisFileStore {
     func recover<T: Sendable>(draft: ObservationReanalysisDraft,
                               validateBeforeRead: @MainActor @Sendable () throws -> Void,
                               commit: @MainActor @Sendable () throws -> T) async throws -> T {
+        try await withVerifiedPhotos(draft: draft, validateBeforeRead: validateBeforeRead) { _ in try commit() }
+    }
+
+    /// Returns the original ordered upload bytes, never paths or newly encoded successors.
+    /// Callers supply fresh durable claim/account checks at both locked boundaries and
+    /// must revalidate the account and claim again after awaiting this private result.
+    func readPhotos(draft: ObservationReanalysisDraft,
+                    validateBeforeRead: @MainActor @Sendable () throws -> Void,
+                    validateBeforeReturn: @MainActor @Sendable () throws -> Void) async throws -> [ObservationEvidenceUpload.Photo] {
+        let photos = try await withVerifiedPhotos(draft: draft, validateBeforeRead: validateBeforeRead) { photos in
+            try Task.checkCancellation()
+            try validateBeforeReturn()
+            try Task.checkCancellation()
+            return photos
+        }
+        try Task.checkCancellation()
+        return photos
+    }
+
+    private func withVerifiedPhotos<T: Sendable>(draft: ObservationReanalysisDraft,
+                                                 validateBeforeRead: @MainActor @Sendable () throws -> Void,
+                                                 commit: @MainActor @Sendable ([ObservationEvidenceUpload.Photo]) throws -> T) async throws -> T {
         let child = draft.identity.analysisID
         guard activeChildren.insert(child).inserted else { throw Failure.busy }
         defer { activeChildren.remove(child) }
@@ -101,18 +123,21 @@ actor ObservationReanalysisFileStore {
         }
         let expected = references.map { $0.mediaID.uuidString.lowercased() + ($0.contentType == "image/png" ? ".png" : ".jpg") }
         guard try names(in: directory) == expected.sorted() else { throw Failure.incomplete }
+        // The validated draft caps the entire retained cohort at 5 MiB.
+        var photos: [ObservationEvidenceUpload.Photo] = []
         for (reference, name) in zip(references, expected) {
             try Task.checkCancellation()
             guard let bytes = try read(name, directory: directory, reference: reference, synchronize: true) else { throw Failure.incomplete }
             // The original-byte path verifies digest, length and actual one-frame JPEG/PNG type without re-encoding.
             _ = try ObservationReanalysisPhotoPreparation.prepare(bytes: bytes, mediaID: reference.mediaID,
                 original: .init(mediaID: reference.mediaID, contentType: reference.contentType, byteCount: reference.byteCount, sha256: reference.sha256))
+            photos.append(.init(mediaID: reference.mediaID, contentType: reference.contentType, bytes: bytes))
         }
         guard fsync(directory) == 0, fsync(queue) == 0, fsync(root) == 0 else { throw Failure.unavailable }
         try Task.checkCancellation()
         guard sameDirectory(queue, named: "ReanalysisQueue", inside: root),
               sameDirectory(directory, named: child.uuidString.lowercased(), inside: queue) else { throw Failure.conflict }
-        return try await commit()
+        return try await commit(photos)
     }
 
     /// Namespace authority comes from a committed receipt, never from caller-provided paths.

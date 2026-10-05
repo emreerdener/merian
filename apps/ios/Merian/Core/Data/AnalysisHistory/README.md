@@ -652,3 +652,16 @@ promotion and identity reuse. `ObservationReanalysisDiscardTests` covers sibling
 preservation, pending/ready and pre-write discard, deletion replay,
 invalid-state denial, rollback and discard during a file write. Normal Capture
 presentation and automatic execution remain disconnected.
+
+### Verified delivery bytes
+
+`ObservationReanalysisFileStore.readPhotos` shares the complete-cohort verifier
+with preparation recovery. It opens existing directories, holds the root and
+child locks, checks the exact file set, and verifies every ordered length,
+digest and single-frame JPEG/PNG container before returning any photo. The
+validated manifest limits retained input to 5 MiB. Original IDs, content types
+and bytes are retained; no path repair, re-encoding or replacement identity is
+allowed. Fresh account and durable claim validation callbacks run before reads
+and before return while locks are held. The execution caller must additionally
+recheck its lease and claim after awaiting the private result and before I/O.
+This prepared read does not itself admit, upload, fund or dispatch analysis.

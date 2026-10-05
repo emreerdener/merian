@@ -1,3 +1,4 @@
+import CryptoKit
 import Darwin
 import Foundation
 @testable import Merian
@@ -16,6 +17,80 @@ struct ObservationReanalysisFileStoreTests {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: false)
         return url
+    }
+
+    @Test func uploadReadPreservesOrderedBytesAndHoldsLocksThroughFinalValidation() async throws {
+        let root = try directory(); defer { try? FileManager.default.removeItem(at: root) }
+        let bytes = try ObservationReanalysisProducerTests().image()
+        let identity = try draft().identity
+        let refs = [UUID(), UUID()].map { ObservationEvidenceUpload.Reference(mediaID: $0, contentType: "image/png",
+            byteCount: bytes.count, sha256: SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()) }
+        let draft = try ObservationReanalysisDraft(identity: identity,
+            evidence: [.image(refs[1]), .description("Between photos"), .image(refs[0])])
+        let store = ObservationReanalysisFileStore(documents: root)
+        try await store.persist(draft: draft, photos: [bytes, bytes]) {}
+        var boundaries = 0
+        let validate: @MainActor @Sendable () throws -> Void = {
+            boundaries += 1
+            let child = root.appendingPathComponent("ReanalysisQueue/" + identity.analysisID.uuidString.lowercased())
+            for url in [root, child] {
+                let descriptor = open(url.path, O_RDONLY | O_DIRECTORY)
+                #expect(descriptor >= 0); defer { close(descriptor) }
+                #expect(flock(descriptor, LOCK_EX | LOCK_NB) != 0)
+            }
+        }
+        let photos = try await store.readPhotos(draft: draft, validateBeforeRead: validate, validateBeforeReturn: validate)
+        #expect(boundaries == 2 && photos.map(\.mediaID) == [refs[1].mediaID, refs[0].mediaID])
+        #expect(photos.allSatisfy { $0.bytes == bytes && $0.contentType == "image/png" })
+        let upload = try ObservationEvidenceUpload(observationID: identity.observationID, analysisID: identity.analysisID, photos: photos).prepare()
+        #expect(upload.references == [refs[1], refs[0]])
+    }
+
+    @Test(arguments: [false, true])
+    func uploadReadWithholdsAllBytesWhenEitherAuthorizationBoundaryFails(failAfterRead: Bool) async throws {
+        let seed = try ObservationReanalysisRecoveryTests().seed()
+        defer { try? FileManager.default.removeItem(at: seed.root) }
+        try await ObservationReanalysisRecoveryTests().publish(seed)
+        let store = ObservationReanalysisFileStore(documents: seed.root)
+        var reachedFinal = false
+        await #expect(throws: Rejected.commit) {
+            try await store.readPhotos(draft: seed.pending.draft, validateBeforeRead: {
+                if !failAfterRead { throw Rejected.commit }
+            }, validateBeforeReturn: {
+                reachedFinal = true; throw Rejected.commit
+            })
+        }
+        #expect(reachedFinal == failAfterRead)
+        #expect(try Data(contentsOf: seed.file) == seed.bytes)
+    }
+
+    @Test func cancellationDuringFinalValidationWithholdsPrivateBytes() async throws {
+        let seed = try ObservationReanalysisRecoveryTests().seed()
+        defer { try? FileManager.default.removeItem(at: seed.root) }
+        try await ObservationReanalysisRecoveryTests().publish(seed)
+        let store = ObservationReanalysisFileStore(documents: seed.root)
+        let task = Task {
+            try await store.readPhotos(draft: seed.pending.draft, validateBeforeRead: {}, validateBeforeReturn: {
+                withUnsafeCurrentTask { $0?.cancel() }
+            })
+        }
+        await #expect(throws: CancellationError.self) { try await task.value }
+        #expect(try Data(contentsOf: seed.file) == seed.bytes)
+    }
+
+    @Test func uploadReadRejectsDigestMatchingNonImageAndDoesNotReturnPartialCohort() async throws {
+        let root = try directory(); defer { try? FileManager.default.removeItem(at: root) }
+        let invalid = try draft(), store = ObservationReanalysisFileStore(documents: root)
+        let bytes = try ObservationReanalysisProducerTests().image()
+        let valid = ObservationEvidenceUpload.Reference(mediaID: UUID(), contentType: "image/png", byteCount: bytes.count,
+            sha256: SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined())
+        let draft = try ObservationReanalysisDraft(identity: invalid.identity, evidence: [.image(valid)] + invalid.evidence)
+        try await store.persist(draft: draft, photos: [bytes, Data([1, 2, 3])]) {}
+        await #expect(throws: (any Error).self) {
+            try await store.readPhotos(draft: draft, validateBeforeRead: {}, validateBeforeReturn: {
+                Issue.record("Invalid container reached final admission")
+            })
+        }
     }
 
     @Test func fullNamespacePurgeErasesOrphansWithoutFollowingLinks() async throws {
