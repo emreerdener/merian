@@ -7,11 +7,13 @@ struct PreparedHistoryReanalysisComposition {
     let history: IdentificationHistoryAccess
     let status: ReanalysisStatusAccess
     let capture: CaptureReanalysisAccess
+    let reanalyze: SavedIdentificationReanalysisAccess
 
     init(routes: any AppRouteRequesting, cloud: ObservationHistoryCloudClient,
          currentOwner: @escaping @MainActor () -> UUID?, generation: @escaping @MainActor () -> UInt64,
          sessionIsCurrent: @escaping @MainActor (AuthTransitionSession) -> Bool,
          preparationOwner: ObservationReanalysisPreparationOwner,
+         enrollmentOwner: ObservationHistoryEnrollmentOwner, containerIsCurrent: @escaping @MainActor (ModelContainer) -> Bool,
          submitted: @escaping @MainActor (UUID) -> Void, cleanup: @escaping @MainActor () -> Void,
          documents: @escaping @MainActor () throws -> URL = {
              try FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
@@ -28,6 +30,9 @@ struct PreparedHistoryReanalysisComposition {
         history.requestReanalysis = { routes.request(.historicalReanalysis($0), source: .internalUserAction) }
         self.history = history
         status = .prepared(session: session)
+        reanalyze = .prepared(cloud: cloud, enrollment: enrollmentOwner, currentOwner: currentOwner,
+            generation: generation, sessionIsCurrent: sessionIsCurrent, containerIsCurrent: containerIsCurrent,
+            dispatch: { routes.request(.historicalReanalysis($0), source: .internalUserAction) })
         capture = .prepared(ownership: preparationOwner, account: cloud, photos: photos, documents: documents,
             isCurrentOwner: currentOwner, generation: generation, sessionIsCurrent: sessionIsCurrent, requestSubmitted: submitted, requestCleanup: cleanup)
     }
@@ -45,6 +50,7 @@ struct PreparedHistoryReanalysisComposition {
                     && manager.client.auth.currentSession?.user.id == session.userID
                     && manager.client.auth.currentSession?.user.isAnonymous == session.isAnonymous
             }, preparationOwner: queue.reanalysisPreparationOwner,
+            enrollmentOwner: queue.historyEnrollmentOwner, containerIsCurrent: { queue.modelContext?.container === $0 },
             submitted: { queue.requestReanalysisAdmissionRecovery(.submitted($0)) },
             cleanup: { queue.requestReanalysisErasureRecovery() })
     }

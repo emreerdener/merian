@@ -10,6 +10,7 @@ struct InsightAuthenticationSnapshot: Equatable {
 struct InsightShellDependencies {
     var historyAccess: IdentificationHistoryAccess? = nil
     var reanalysisStatusAccess: ReanalysisStatusAccess?
+    var savedReanalysisAccess: SavedIdentificationReanalysisAccess?
     let appEvents: AnyPublisher<AppEvent, Never>
     let authenticationSnapshot: @MainActor () -> InsightAuthenticationSnapshot
     let defaultAppSettings: @MainActor () -> AppSettings
@@ -235,6 +236,7 @@ struct InsightShellDependencies {
         )
         #if DEBUG
         result.historyAccess = UITestSeedCoordinator.identificationHistoryAccess
+        result.savedReanalysisAccess = UITestSeedCoordinator.savedReanalysisFailureAccess
         #endif
         return result
     }

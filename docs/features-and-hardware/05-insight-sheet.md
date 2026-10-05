@@ -2595,3 +2595,16 @@ Ordinary live access remains nil. This composition neither enrolls a scan nor
 changes selection, and read-only History/status does not require inference
 consent. Explicit enrollment admission and activation qualification remain
 separate work.
+
+The prepared saved-result entry reuses the existing **Reanalyze species** menu
+action. When injected, it takes precedence over legacy refinement and supplies
+its own unlocked presentation independently of legacy Pro access. A first result
+is enrolled using the correction visible at the tap, then opens the exact
+imported identification; older results with no immutable photos start an empty
+editor for explicit added evidence. An enrolled result freezes the selected
+analysis and acknowledged revision before suspension. A changed account,
+container, correction, source or presentation prevents routing. Failures do not
+fall back to the replacement flow. Dismissing the caller does not cancel another
+caller's shared enrollment. Ordinary access remains disabled, History still
+requires more than one result, and opening History/status never enrolls or
+requires inference consent.

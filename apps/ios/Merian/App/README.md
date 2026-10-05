@@ -136,3 +136,10 @@ change selection, request consent or enable rollout. Explicit enrollment and
 release qualification remain separate. `HistoryReanalysisCompositionTests`
 exercises the actual prepared photo/editor/persistence/status handoff with
 synthetic tickets, bytes and isolated files.
+
+The inert history/reanalysis composition also exposes a protected saved-result
+entry using the same cloud/account/session dependencies and QueueManager's
+retained enrollment owner. Its current-container predicate follows the queue's
+bound ModelContext. The bundle still starts no work and is not installed by
+ordinary live factories. Explicit taps freeze their displayed baseline; History
+and status reads do not enroll.

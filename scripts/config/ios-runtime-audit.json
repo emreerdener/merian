@@ -293,6 +293,13 @@
         "OfflineQueueOpenAIPermissionTests"
       ],
       "owner": "apps/ios/MerianTests/Core/Data/OfflineSync/OfflineQueueOpenAIPermissionTests.swift"
+    },
+    {
+      "selector": "merianTests/SavedIdentificationReanalysisTests",
+      "suite_names": [
+        "SavedIdentificationReanalysisTests"
+      ],
+      "owner": "apps/ios/MerianTests/Features/Insights/History/SavedIdentificationReanalysisTests.swift"
     }
   ],
   "ui": [
@@ -367,6 +374,13 @@
     },
     {
       "selector": "merianUITests/IdentificationHistoryUITests/testHistoryPreviewRestoreAndUndoKeepBothEntries",
+      "suite_names": [
+        "IdentificationHistoryUITests"
+      ],
+      "owner": "apps/ios/MerianUITests/IdentificationHistoryUITests.swift"
+    },
+    {
+      "selector": "merianUITests/IdentificationHistoryUITests/testProtectedReanalysisFailureKeepsSavedScanWithoutLegacyFallback",
       "suite_names": [
         "IdentificationHistoryUITests"
       ],

@@ -172,16 +172,19 @@ struct ModelsIntegrationArchitectureTests {
                 #expect(!code.contains("IdentificationHistoryAccess.prepared"))
                 #expect(!code.contains("ReanalysisStatusAccess.prepared"))
                 #expect(!code.contains("CaptureReanalysisAccess.prepared"))
+                #expect(!code.contains("SavedIdentificationReanalysisAccess.prepared"))
             }
             // The inert assembly is qualified in tests only; ordinary app code cannot install it.
             #expect(code.range(of: #"PreparedHistoryReanalysisComposition\s*(?:\(|\.prepared\b)"#,
                                options: .regularExpression) == nil, "Prepared history has no ordinary caller: \(entry.relativePath)")
         }
         let shell = try source(at: "apps/ios/Merian/Features/Insights/Shell/Services/InsightShellDependencies.swift")
+        #expect(shell.contains("var savedReanalysisAccess: SavedIdentificationReanalysisAccess?"))
+        #expect(shell.contains("result.savedReanalysisAccess = UITestSeedCoordinator.savedReanalysisFailureAccess\n        #endif"))
         // Optional stored properties default to nil in both spellings.
         #expect(shell.range(of: #"(?m)^    var historyAccess: IdentificationHistoryAccess\?(?: = nil)?$"#,
                             options: .regularExpression) != nil)
-        #expect(shell.contains("#if DEBUG\n        result.historyAccess = UITestSeedCoordinator.identificationHistoryAccess\n        #endif"))
+        #expect(shell.contains("#if DEBUG\n        result.historyAccess = UITestSeedCoordinator.identificationHistoryAccess\n        result.savedReanalysisAccess = UITestSeedCoordinator.savedReanalysisFailureAccess\n        #endif"))
         #expect(shell.range(of: #"(?m)^    var reanalysisStatusAccess: ReanalysisStatusAccess\?(?: = nil)?$"#,
                             options: .regularExpression) != nil)
         #expect(!shell.contains("result.reanalysisStatusAccess ="))

@@ -11,6 +11,17 @@ struct ObservationHistoryStateSyncService {
 
     var cloud = ObservationHistoryCloudClient.live
 
+    /// Local, settled display ticket for explicit entry. Does not sync or change selection.
+    static func displayBaseline(observation: UUID, container: ModelContainer) throws -> ReviewBaseline {
+        try ConfirmedSpeciesReviewPersistence.transaction {
+            let context = ModelContext(container)
+            let scan = try ObservationHistorySyncService.enrolledScan(observation.uuidString, context: context)
+            try ObservationHistorySelectionIntent.requireIdle(scan.id, context: context)
+            try requireSettledReview(scan, context: context)
+            return ReviewBaseline(scan, displayAnalysisID: observation)
+        }
+    }
+
     @discardableResult
     func syncSelected(observationID: String, container: ModelContainer) async throws -> Int {
         let baseline = try ConfirmedSpeciesReviewPersistence.transaction {
@@ -184,6 +195,13 @@ struct ObservationHistoryStateSyncService {
         let confirmed: Bool
         let reviewState: String?
         let display: AnalysisDisplaySnapshot?
+
+        /// Enrollment changes owner/selection/revision metadata, never the visible identification.
+        func retainsIdentification(of other: Self) -> Bool {
+            ai == other.ai && species == other.species && speciesID == other.speciesID
+                && override == other.override && confirmed == other.confirmed
+                && reviewState == other.reviewState && display == other.display
+        }
 
         init(_ scan: LocalScanRecord, displayAnalysisID: UUID? = nil) {
             owner = scan.analysisOwnerAccountID ?? ""

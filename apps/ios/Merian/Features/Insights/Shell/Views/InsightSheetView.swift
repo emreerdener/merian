@@ -23,6 +23,8 @@ struct InsightSheetView: View {
     @State var pendingHistoryReanalysis: IdentificationHistoryReanalysisHandoff?
     @State var historyModel: IdentificationHistoryViewModel?
     @State var reanalysisStatusModel: ReanalysisStatusViewModel?
+    @State var savedReanalysisTask: Task<Void, Never>?
+    @State var savedReanalysisTaskID: UUID?
     @State var viewModel: InsightSheetViewModel
     @State var chatViewModel = InsightChatViewModel()
     @State var fieldTripExploreViewModel = ExploreFeedViewModel()
@@ -169,6 +171,7 @@ struct InsightSheetView: View {
         }
         .onChange(of: isPresented) { _, isNowPresented in
             guard isNowPresented else {
+                cancelSavedReanalysis()
                 historyModel?.close(); historyModel = nil; pendingHistoryReanalysis = nil
                 reanalysisStatusModel?.close(); reanalysisStatusModel = nil
                 viewModel.endPresentationSession()
@@ -193,6 +196,7 @@ struct InsightSheetView: View {
         }
 
         .onChange(of: viewModel.scanBoundActionGeneration) { _, _ in
+            cancelSavedReanalysis()
             historyModel?.close(); historyModel = nil; pendingHistoryReanalysis = nil
             reanalysisStatusModel?.close(); reanalysisStatusModel = nil
             cancelOrDismissShellPresentation { if case .reanalysisStatus = $0 { true } else { false } }

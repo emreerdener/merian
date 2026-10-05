@@ -2990,3 +2990,15 @@ submission, explicit new photo addition and durable submission with unchanged
 selection. It cannot resolve original photos or inherit mutable parent media.
 This qualifies the older-scan editor path before the first-result UI connection;
 it does not activate the feature.
+
+### October 5: protected first-result menu entry
+
+The inert App composition now supplies an optional saved-result Reanalyze
+capability with the shared account/cloud/container and retained enrollment
+owners. The existing menu action gives that capability precedence over legacy
+refinement, without duplicate items or a legacy Pro lock. It captures the
+visible correction before suspension, uses the exact enrollment receipt's
+analysis ID, and validates the frozen source and authority immediately before
+routing. Shell cancellation discards only its waiter. A protected failure never
+falls back to replacement. History/status remain read-only and ordinary live
+access remains nil; this is preparation for qualification, not activation.

@@ -93,6 +93,10 @@ extension InsightSheetView {
                       ) else {
                     return
                 }
+                if dependencies.savedReanalysisAccess != nil {
+                    startSavedReanalysis(scanID: scanId, generation: toolbarGeneration)
+                    return
+                }
                 if dependencies.isProActive() {
                     if let record = viewModel.activeLocalRecord,
                        record.id.caseInsensitiveCompare(scanId) == .orderedSame {
@@ -106,6 +110,7 @@ extension InsightSheetView {
                     viewModel.state.showPaywall = true
                 }
             } : nil,
+            reanalysisRequiresPro: dependencies.savedReanalysisAccess == nil && !dependencies.isProActive(),
             onReviewAlternatives: viewModel.canReviewAlternatives ? {
                 guard let scanId = toolbarLocalScanId else { return }
                 viewModel.presentCandidateSwipe(

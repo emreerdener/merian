@@ -1007,3 +1007,11 @@ client's resolver. Injected clients without a resolver fail closed. No request
 or response protocol changed, no inference consent is required for these reads,
 and no ordinary entry or enrollment scheduling is enabled by constructing the
 composition.
+
+The prepared saved-result UI captures the same ticket from its displayed record.
+For enrolled observations, `StateSyncService.displayBaseline` is a settled,
+read-only local ticket; it requires idle selection and review work. Enrollment
+may change owner/selection/revision metadata, but `retainsIdentification` checks
+that the original review and display still agree before opening the returned
+source. The final route action separately fences the acknowledged revision and
+immutable source; none of these reads changes selection or authorizes inference.

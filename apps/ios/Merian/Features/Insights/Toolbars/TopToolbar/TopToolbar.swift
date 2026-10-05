@@ -110,6 +110,7 @@ struct TopToolbar: ToolbarContent {
     var onIdentificationHistory: (() -> Void)?
     var onReanalysisStatus: (() -> Void)?
     var onReanalyze: (() -> Void)?
+    let reanalysisRequiresPro: Bool
     var onReviewAlternatives: (() -> Void)?
     var onConfirmIdentification: (() -> Void)?
     var onUndoIncorrect: (() -> Void)?
@@ -148,6 +149,7 @@ struct TopToolbar: ToolbarContent {
         onIdentificationHistory: (() -> Void)? = nil,
         onReanalysisStatus: (() -> Void)? = nil,
         onReanalyze: (() -> Void)? = nil,
+        reanalysisRequiresPro: Bool? = nil,
         onReviewAlternatives: (() -> Void)? = nil,
         onConfirmIdentification: (() -> Void)? = nil,
         onUndoIncorrect: (() -> Void)? = nil,
@@ -185,6 +187,7 @@ struct TopToolbar: ToolbarContent {
         self.onIdentificationHistory = onIdentificationHistory
         self.onReanalysisStatus = onReanalysisStatus
         self.onReanalyze = onReanalyze
+        self.reanalysisRequiresPro = reanalysisRequiresPro ?? !isProActive
         self.onReviewAlternatives = onReviewAlternatives
         self.onConfirmIdentification = onConfirmIdentification
         self.onUndoIncorrect = onUndoIncorrect
@@ -425,12 +428,13 @@ struct TopToolbar: ToolbarContent {
             }
             if let onReanalyze = onReanalyze {
                 Button(action: onReanalyze) {
-                    if isProActive {
+                    if !reanalysisRequiresPro {
                         Label("Reanalyze species", systemImage: "arrow.2.circlepath")
                     } else {
                         Label("Reanalyze species", systemImage: "lock.fill")
                     }
                 }
+                .accessibilityIdentifier("ReanalyzeSpeciesMenu")
             }
             if let communityAction = menuState.communityAction {
                 Button(action: {

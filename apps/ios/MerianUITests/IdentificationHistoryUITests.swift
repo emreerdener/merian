@@ -1,6 +1,33 @@
 import XCTest
 
 @MainActor final class IdentificationHistoryUITests: XCTestCase {
+    func testProtectedReanalysisFailureKeepsSavedScanWithoutLegacyFallback() {
+        continueAfterFailure = false
+        let app = UITestAppLauncher.launchConfiguredApp(extraArguments: ["-seedPrivateScanMapFlow", "-seedSavedReanalysisFailure"])
+        defer { app.terminate() }
+        let scans = app.segmentedControls.buttons["Scans"]
+        if !scans.waitForExistence(timeout: 5) {
+            let entry = app.buttons["MainTabBar_Scans"]
+            XCTAssertTrue(entry.waitForExistence(timeout: 10)); entry.tap()
+        }
+        XCTAssertTrue(scans.waitForExistence(timeout: 10)); scans.tap()
+        let tile = app.buttons["ScanTile_00000000-0000-4000-8000-000000000004"]
+        XCTAssertTrue(tile.waitForExistence(timeout: 10)); tile.tap()
+        let identification = app.staticTexts.matching(NSPredicate(format: "label IN %@", ["Map Meadowlark", "Sturnella magna"])).firstMatch
+        XCTAssertTrue(identification.waitForExistence(timeout: 10))
+        let menu = app.buttons["InsightTopMenu"]
+        XCTAssertTrue(menu.waitForExistence(timeout: 10)); menu.tap()
+        let reanalyze = app.buttons["Reanalyze species"]
+        XCTAssertTrue(reanalyze.waitForExistence(timeout: 5))
+        XCTAssertEqual(app.buttons.matching(identifier: "Reanalyze species").count, 1)
+        XCTAssertFalse(app.buttons["Identification history"].exists)
+        reanalyze.tap()
+        let error = app.staticTexts["Reanalysis couldn’t be opened. Your identification is unchanged. Try again."]
+        XCTAssertTrue(error.waitForExistence(timeout: 5), "Protected failure must reach its error, not a paywall or refinement.")
+        XCTAssertTrue(menu.exists && identification.exists)
+        let shot = XCTAttachment(screenshot: app.screenshot()); shot.name = "Protected reanalysis failure preserves saved scan"; shot.lifetime = .keepAlways; add(shot)
+    }
+
     func testHistoryPreviewRestoreAndUndoKeepBothEntries() {
         continueAfterFailure = false
         let app = UITestAppLauncher.launchConfiguredApp(extraArguments: ["-seedPrivateScanMapFlow", "-seedIdentificationHistory"])
@@ -21,7 +48,7 @@ import XCTest
         XCTAssertTrue(identification.waitForExistence(timeout: 10), "The saved scan must finish binding before opening its actions.")
         let menu = app.buttons["InsightTopMenu"]
         XCTAssertTrue(menu.waitForExistence(timeout: 10)); menu.tap()
-        let history = app.buttons["IdentificationHistoryMenu"]
+        let history = app.buttons["Identification history"]
         XCTAssertTrue(history.waitForExistence(timeout: 5)); history.tap()
         let second = app.buttons["HistoryRow_00000000-0000-4000-8000-000000000003"]
         XCTAssertTrue(second.waitForExistence(timeout: 5)); second.tap()

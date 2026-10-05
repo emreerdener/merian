@@ -494,7 +494,7 @@ enum UITestSeedCoordinator {
         let baseTimestamp = Date(timeIntervalSince1970: 1_787_501_200)
         let primaryFixtures = [
             PrivateScanMapFixture(
-                id: "private_map_bird",
+                id: savedReanalysisFailureEnabled ? savedReanalysisFixtureID : "private_map_bird",
                 commonName: "Map Meadowlark",
                 scientificName: "Sturnella magna",
                 kingdom: "Animalia",

@@ -259,3 +259,26 @@ scan-generation changes, nested dismissal and library invalidation close or
 revalidate its private state. The History area owns phase-only rows and bounded
 paging; Shell never admits, retries or discards a request from this surface.
 Ordinary access remains nil.
+
+The optional `savedReanalysisAccess` supplies the existing single Reanalyze menu
+action before the legacy Pro/refinement branch. Its lock presentation is
+supplied separately from legacy Pro access. `InsightSheetView+SavedReanalysis`
+captures the displayed baseline before awaiting, retains a token-qualified
+waiter, and checks the exact scan/presentation generation before routing.
+Dismissal, disappearance or generation changes cancel only that waiter;
+QueueManager retains any shared enrollment. A protected failure shows an error
+and never invokes legacy refinement. Ordinary access remains nil.
+
+The final action rechecks settled review state as well as acknowledged revision:
+a newly pending identification-review job invalidates routing even when the
+revision has not advanced. `SavedIdentificationReanalysisTests` covers that
+boundary and account, source, selection and deletion races.
+`IdentificationHistoryUITests` also exercises a Debug-only protected-entry
+failure on a single-result scan: one menu item, no History entry, visible
+failure and the original Insight retained. The synthetic failure never enrolls,
+routes or calls a provider.
+
+The runtime-audit manifest registers the entry acceptance suite and failure UI
+smoke. The Release archive seed denylist includes the Debug-only failure launch
+argument. UI checks query native context-menu labels because the menu does not
+retain custom SwiftUI accessibility identifiers.

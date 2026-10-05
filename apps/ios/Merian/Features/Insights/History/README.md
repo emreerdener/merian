@@ -84,3 +84,19 @@ listing uses the same cloud instead of a global client. History photo delivery
 uses its injected resolver/downloader as well. The default prepared convenience
 remains for existing explicit fixtures; ordinary live access stays nil. Opening
 or probing either menu never enrolls a scan or requests inference consent.
+
+## Prepared saved-result entry
+
+`SavedIdentificationReanalysisAccess` is a separate explicit-tap capability. The
+App composition supplies its cloud/account, enrollment owner and current
+container predicate. Preparing a request freezes the displayed correction before
+suspension. A legacy scan enrolls through the retained owner using that exact
+ticket; the returned baseline analysis ID is revalidated without changing
+selection. An enrolled scan freezes its selected source and acknowledged
+revision immediately. Both produce a final synchronous source-qualified action,
+so selection, authority, source deletion or account changes prevent dispatch.
+
+This path requires no inference consent merely to open the editor. Submission
+and execution retain their own consent/funding checks. It never borrows mutable
+parent media, retries inference, or falls back to legacy refinement. History and
+status reads never invoke enrollment. Ordinary access remains nil.

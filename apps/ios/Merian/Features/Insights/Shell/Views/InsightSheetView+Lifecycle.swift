@@ -83,6 +83,7 @@ extension InsightSheetView {
             }
             .onAppear(perform: handleAppearance)
             .onDisappear {
+                cancelSavedReanalysis()
                 appSettings.suppressInferenceBanners = false
             }
             .task(id: viewModel.resultToolbarRevealKey) {
@@ -451,6 +452,7 @@ extension InsightSheetView {
     }
 
     func dismissInsightPresentation() {
+        cancelSavedReanalysis()
         viewModel.endPresentationSession()
         switch presentationStyle {
         case .sheet:

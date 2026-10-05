@@ -34,7 +34,7 @@ struct HistoryReanalysisCompositionTests {
         let routes = AppRouteCoordinator(), bytes = seed.bytes
         let bundle = PreparedHistoryReanalysisComposition(routes: routes, cloud: cloud,
             currentOwner: { seed.source.ownerID }, generation: { 1 }, sessionIsCurrent: { $0.userID == seed.source.ownerID },
-            preparationOwner: .init(), submitted: { submitted.append($0) }, cleanup: { cleanups += 1 },
+            preparationOwner: .init(), enrollmentOwner: .init(), containerIsCurrent: { _ in true }, submitted: { submitted.append($0) }, cleanup: { cleanups += 1 },
             documents: { root }, downloadPhoto: { _ in bytes })
         #expect(begins.isEmpty && resolves.isEmpty && submitted.isEmpty && routes.pendingRequests.isEmpty)
         let id = seed.source.observationID.uuidString
@@ -72,7 +72,7 @@ struct HistoryReanalysisCompositionTests {
         var current = true
         let bundle = PreparedHistoryReanalysisComposition(routes: AppRouteCoordinator(), cloud: support.client(fetch: { _ in Data() }),
             currentOwner: { support.owner }, generation: { 1 }, sessionIsCurrent: { _ in current },
-            preparationOwner: .init(), submitted: { _ in Issue.record("Availability submitted work") }, cleanup: { Issue.record("Availability erased work") })
+            preparationOwner: .init(), enrollmentOwner: .init(), containerIsCurrent: { _ in true }, submitted: { _ in Issue.record("Availability submitted work") }, cleanup: { Issue.record("Availability erased work") })
         #expect(bundle.history.hasMultiple(fixture.observation, container))
         current = false
         #expect(!bundle.history.hasMultiple(fixture.observation, container))
@@ -89,7 +89,7 @@ struct HistoryReanalysisCompositionTests {
         let bytes = seed.bytes
         let bundle = PreparedHistoryReanalysisComposition(routes: AppRouteCoordinator(), cloud: cloud,
             currentOwner: { owner }, generation: { generation }, sessionIsCurrent: { _ in current },
-            preparationOwner: .init(), submitted: { _ in wake += 1 }, cleanup: { wake += 1 },
+            preparationOwner: .init(), enrollmentOwner: .init(), containerIsCurrent: { _ in true }, submitted: { _ in wake += 1 }, cleanup: { wake += 1 },
             documents: { root }, downloadPhoto: { _ in bytes })
         let id = seed.source.observationID.uuidString
         let history = try bundle.history.open(id, seed.container), status = try bundle.status.open(id, seed.container)
