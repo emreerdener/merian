@@ -2,6 +2,7 @@ import Foundation
 @testable import Merian
 import SwiftData
 import Testing
+import UIKit
 
 @MainActor
 @Suite(.serialized, .sharedProcessState(.offlineQueueManager))
@@ -153,6 +154,43 @@ struct CaptureReanalysisEditorTests {
         await editor.submit()
         #expect(editor.phase == .submitted)
         #expect(delivered == (bound ? [] : [saved.draft.identity.analysisID]))
+    }
+
+    @Test func importedBaselineContinuesEmptyAndSubmitsOnlyExplicitNewEvidence() async throws {
+        let original = try fixture.fixture.fixture.seed(version: 3), bytes = try fixture.fixture.image()
+        let source = try fixture.fixture.source(original)
+        let seed = CaptureReanalysisSessionTests.Seed(container: original.container, source: source, bytes: bytes)
+        let root = try ObservationReanalysisFileStoreTests().directory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        var delivered: [UUID] = []
+        let account = fixture.fixture.account()
+        let loader = CaptureReanalysisEvidenceLoader(account: account, loadPhoto: { _, _, _ in
+            Issue.record("An imported baseline must not load mutable parent photos"); throw MerianError.invalidResponse
+        })
+        let producer = ObservationReanalysisProducer(files: .init(documents: root), ownership: .init(), account: account,
+            loadOriginal: { _, _, _ in
+                Issue.record("New evidence must not borrow an original photo"); throw MerianError.invalidResponse
+            })
+        let editor = make(seed, root: root, loader: loader, producer: producer, submitted: { delivered.append($0) })
+        #expect(editor.photos.isEmpty && editor.selectedPhotoIDs.isEmpty)
+        await editor.loadSelection()
+        #expect(editor.phase == .editing && editor.canEdit && editor.capture.isEmpty && !editor.canSubmit)
+        await editor.submit()
+        #expect(try ModelContext(seed.container).fetchCount(FetchDescriptor<OfflineJobRecord>()) == 0)
+        let image = try #require(UIImage(data: bytes)?.cgImage)
+        editor.addPhoto(.init(compressedData: bytes, displayData: bytes, historicalContext: nil,
+            previewCGImage: SendableCGImage(image: image)))
+        #expect(editor.capture.images.count == 1 && editor.capture.images[0].reanalysisProvenance == .added)
+        #expect(editor.capture.observationContexts.isEmpty && editor.canSubmit)
+        await editor.submit()
+        #expect(editor.phase == .submitted)
+        let context = ModelContext(seed.container)
+        let job = try #require(context.fetch(FetchDescriptor<OfflineJobRecord>()).first)
+        let intent = try ObservationReanalysisSubmissionIntent.decode(Data(try #require(job.metadataJSON).utf8))
+        #expect(intent.draft.identity.sourceAnalysisID == source.analysisID)
+        #expect(intent.draft.evidence.count == 1 && intent.draft.photoPaths.count == 1)
+        #expect(delivered == [intent.draft.identity.analysisID])
+        #expect(try context.fetch(FetchDescriptor<LocalScanRecord>()).first?.selectedAnalysisID == source.analysisID.uuidString.lowercased())
     }
 
     private func make(_ seed: CaptureReanalysisSessionTests.Seed, root: URL,

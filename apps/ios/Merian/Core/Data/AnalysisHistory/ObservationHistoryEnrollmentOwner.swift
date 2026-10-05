@@ -15,6 +15,7 @@ final class ObservationHistoryEnrollmentOwner {
     private struct Entry {
         let token: UUID
         let scope: Scope
+        let baseline: ObservationHistoryStateSyncService.ReviewBaseline
         let task: Task<UUID, Error>
         var cancelled = false
     }
@@ -25,7 +26,9 @@ final class ObservationHistoryEnrollmentOwner {
 
     /// The supplied predicate owns current account/generation/container admission, independently of inference consent.
     func enroll(observation: UUID, owner: UUID, generation: UInt64, container: ModelContainer,
-                cloud: ObservationHistoryCloudClient, isCurrent: @escaping @MainActor () -> Bool) async throws -> UUID {
+                cloud: ObservationHistoryCloudClient,
+                expectedBaseline: ObservationHistoryStateSyncService.ReviewBaseline? = nil,
+                isCurrent: @escaping @MainActor () -> Bool) async throws -> UUID {
         try Task.checkCancellation()
         guard drains == 0 else { throw Failure.draining }
         guard isCurrent() else { throw ObservationHistoryError.accountChanged }
@@ -33,9 +36,12 @@ final class ObservationHistoryEnrollmentOwner {
         let entry: Entry
         if let active = entries[observation] {
             guard active.scope == scope, !active.cancelled else { throw Failure.busy }
+            let baseline = try expectedBaseline ?? ObservationHistoryEnrollmentService.baseline(observation: observation, container: container)
+            guard active.baseline == baseline else { throw ObservationHistoryEnrollmentService.AdmissionError.localStateChanged }
             entry = active
         } else {
             guard entries.count < Self.maximumActiveObservations else { throw Failure.capacity }
+            let baseline = try expectedBaseline ?? ObservationHistoryEnrollmentService.baseline(observation: observation, container: container)
             let token = UUID()
             let task = Task { @MainActor [self] in
                 defer { if entries[observation]?.token == token { entries[observation] = nil } }
@@ -47,12 +53,12 @@ final class ObservationHistoryEnrollmentOwner {
                 var scopedCloud = cloud
                 scopedCloud.isCurrent = { cloud.isCurrent($0) && current() }
                 let result = try await ObservationHistoryEnrollmentService(cloud: scopedCloud).enroll(
-                    observationID: observation.uuidString, expectedOwnerID: owner, container: container)
+                    observationID: observation.uuidString, expectedOwnerID: owner, container: container, expectedBaseline: baseline)
                 try Task.checkCancellation()
                 guard current() else { throw ObservationHistoryError.accountChanged }
                 return result
             }
-            entry = Entry(token: token, scope: scope, task: task)
+            entry = Entry(token: token, scope: scope, baseline: baseline, task: task)
             entries[observation] = entry
         }
         // A dismissed waiter cannot cancel another caller's admission. Queue/Auth/deletion own the task.

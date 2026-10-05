@@ -2460,15 +2460,19 @@ acceptance nor durable pausing alone authorizes identity replacement.
 QueueManager retains a bounded explicit enrollment owner, separate from the
 scheduled drain and child-analysis preparation. At most four parent operations
 run; repeated taps share work only under the same owner, auth generation and
-container. Environment and token checks fence service admission and returned
-results. Cancelling a waiting caller withholds its result without cancelling
-shared work. Auth cancels and awaits retained operations before draining account
-leases; cancelled operation slots remain occupied until transport exits. Direct
-repository deletion cancels a matching parent/container only after its database
-commit. Other erasure paths preserve their durable deletion fences. None of
-these events removes an ambiguous enrollment hold or schedules its retry.
-History/status reads do not enroll, and enrollment requires no inference
-consent. Ordinary entry remains disabled.
+container and exact review/display baseline. The caller can capture an eligible
+baseline before suspension; the same ticket must match before durable staging,
+when joining existing work and at commit. This prevents a later tap for a
+different correction from joining the original request. Environment and token
+checks fence service admission and returned results. Cancelling a waiting caller
+withholds its result without cancelling shared work. Auth cancels and awaits
+retained operations before draining account leases; cancelled operation slots
+remain occupied until transport exits. Direct repository deletion cancels a
+matching parent/container only after its database commit. Other erasure paths
+preserve their durable deletion fences. None of these events removes an
+ambiguous enrollment hold or schedules its retry. History/status reads do not
+enroll, and enrollment requires no inference consent. Ordinary entry remains
+disabled.
 
 Before the prepared enrollment RPC, native code persists an owner-bound intent
 in the existing `.future` job store. The namespace is never scheduled; errors

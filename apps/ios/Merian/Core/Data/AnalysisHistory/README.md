@@ -214,6 +214,14 @@ predicate fences the service's account checks across both requests and commit,
 and each caller is checked again before receiving the result. This owner does
 not require inference consent, create another durable identity or run a timer.
 
+Explicit callers can freeze `EnrollmentService.baseline` before suspending. The
+local eligibility read creates no intent. The owner also captures it when no
+ticket is supplied, includes the exact review/display baseline in coalescing,
+and passes it to the service's pre-staging comparison. A later tap for a changed
+correction cannot join an earlier request even after an A → B → A transition.
+The existing final comparison still fences the commit. Presentation checks
+belong to each waiter, separately from the common account/container predicate.
+
 Cancelling one waiting caller does not cancel work shared with another caller.
 The queue retains the operation; cancelled callers discard its eventual result.
 Auth cancels and awaits retained enrollment before draining account leases;
@@ -227,6 +235,11 @@ already committed admission may survive caller cancellation, but stale callers
 cannot receive its private result. `HistoryEnrollmentOwnerTests` covers
 coalescing, scope changes, capacity, cancel/await, original-intent retry and
 committed deletion. Ordinary entry remains disconnected.
+
+The imported V3 editor regression continues into an empty editor, rejects empty
+submission, adds fresh photo evidence and persists only that explicit evidence.
+It never resolves an original photo or borrows mutable parent media, and retains
+the selected identification.
 
 Presence in this namespace protects the observation even if metadata is damaged.
 `ScanRepository.eradicateScan` checks a fresh context under the shared

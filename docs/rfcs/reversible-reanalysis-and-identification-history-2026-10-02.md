@@ -2976,3 +2976,17 @@ ordinary caller, inference-consent requirement or activation was added. The
 first-result entry and legacy added-photo editor regression remain separate
 integration work. Current semantics live in the
 [native enrollment contract](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#prepared-native-enrollment).
+
+### October 5: tap-specific enrollment and imported-editor qualification
+
+Enrollment now accepts an exact local review/display ticket captured before the
+caller suspends. Coalescing and initial staging require the same ticket, while
+the existing final check protects the commit. A caller that saw a different
+correction cannot inherit an older operation, including A → B → A changes.
+Capturing eligibility is read-only; ordinary entry remains disconnected.
+
+The V3 editor regression exercises Continue into empty editing, refusal of empty
+submission, explicit new photo addition and durable submission with unchanged
+selection. It cannot resolve original photos or inherit mutable parent media.
+This qualifies the older-scan editor path before the first-result UI connection;
+it does not activate the feature.

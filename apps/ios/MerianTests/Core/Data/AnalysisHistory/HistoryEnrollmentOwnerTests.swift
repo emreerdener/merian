@@ -10,6 +10,48 @@ struct HistoryEnrollmentOwnerTests {
     var observation: UUID { UUID(uuidString: fixture.support.support.observation)! }
     var account: UUID { fixture.support.support.owner }
 
+    @Test func changedTapCannotJoinAnOlderCorrectionEvenWhenItLaterReturnsToOriginal() async throws {
+        let owner = ObservationHistoryEnrollmentOwner(), container = try fixture.container(), gate = Pause()
+        defer { gate.release(); owner.cancelAll() }
+        let baseline = try ObservationHistoryEnrollmentService.baseline(observation: observation, container: container)
+        var cloud = fixture.service().cloud, calls = 0
+        cloud.enroll = { _ in calls += 1; await gate.wait(); return try fixture.receipt() }
+        let first = Task { try await owner.enroll(observation: observation, owner: account, generation: 1,
+            container: container, cloud: cloud, expectedBaseline: baseline, isCurrent: { true }) }
+        await gate.entered()
+        let context = ModelContext(container)
+        let scan = try #require(context.fetch(FetchDescriptor<LocalScanRecord>()).first)
+        let original = scan.commonName
+        scan.commonName = "Changed synthetic correction"; try context.save()
+        let changed = try ObservationHistoryEnrollmentService.baseline(observation: observation, container: container)
+        #expect(changed != baseline)
+        scan.commonName = original; try context.save()
+        await #expect(throws: ObservationHistoryEnrollmentService.AdmissionError.localStateChanged) {
+            try await owner.enroll(observation: observation, owner: account, generation: 1,
+                container: container, cloud: cloud, expectedBaseline: changed, isCurrent: { true })
+        }
+        #expect(calls == 1)
+        gate.release()
+        let result = try await first.value
+        #expect(result.uuidString.lowercased() == fixture.support.analysisID)
+    }
+
+    @Test func staleTapTicketFailsBeforeCreatingIntentOrSendingEnrollment() async throws {
+        let container = try fixture.container()
+        let baseline = try ObservationHistoryEnrollmentService.baseline(observation: observation, container: container)
+        let context = ModelContext(container)
+        #expect(try context.fetchCount(FetchDescriptor<OfflineJobRecord>()) == 0)
+        let scan = try #require(context.fetch(FetchDescriptor<LocalScanRecord>()).first)
+        scan.commonName = "Changed synthetic correction"; try context.save()
+        var cloud = fixture.service().cloud
+        cloud.enroll = { _ in Issue.record("Stale tap reached the server"); throw MerianError.invalidResponse }
+        await #expect(throws: ObservationHistoryEnrollmentService.AdmissionError.localStateChanged) {
+            try await ObservationHistoryEnrollmentOwner().enroll(observation: observation, owner: account, generation: 1,
+                container: container, cloud: cloud, expectedBaseline: baseline, isCurrent: { true })
+        }
+        #expect(try ModelContext(container).fetchCount(FetchDescriptor<OfflineJobRecord>()) == 0)
+    }
+
     @Test func duplicateRequestsJoinExactScopeAndCannotCrossOwnerGenerationOrContainer() async throws {
         let owner = ObservationHistoryEnrollmentOwner(), container = try fixture.container(), gate = Pause()
         defer { gate.release(); owner.cancelAll() }

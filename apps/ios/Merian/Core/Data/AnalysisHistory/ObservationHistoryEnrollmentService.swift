@@ -11,8 +11,17 @@ struct ObservationHistoryEnrollmentService {
     var cloud = ObservationHistoryCloudClient.live
     var save: (ModelContext) throws -> Void = { try $0.save() }
 
+    /// Local admission ticket captured before an explicit caller suspends. It creates no intent.
+    static func baseline(observation: UUID, container: ModelContainer) throws -> ObservationHistoryStateSyncService.ReviewBaseline {
+        try ConfirmedSpeciesReviewPersistence.transaction {
+            let scan = try eligibleScan(observation, context: ModelContext(container))
+            return ObservationHistoryStateSyncService.ReviewBaseline(scan, displayAnalysisID: observation)
+        }
+    }
+
     @discardableResult
-    func enroll(observationID: String, expectedOwnerID: UUID, container: ModelContainer) async throws -> UUID {
+    func enroll(observationID: String, expectedOwnerID: UUID, container: ModelContainer,
+                expectedBaseline: ObservationHistoryStateSyncService.ReviewBaseline? = nil) async throws -> UUID {
         guard let observation = UUID(uuidString: observationID) else { throw ObservationHistoryError.invalidPage }
         let lease = try cloud.begin(expectedOwnerID)
         defer { cloud.finish(lease) }
@@ -23,6 +32,7 @@ struct ObservationHistoryEnrollmentService {
             do {
                 let scan = try Self.eligibleScan(observation, context: context)
                 let baseline = ObservationHistoryStateSyncService.ReviewBaseline(scan, displayAnalysisID: observation)
+                guard expectedBaseline == nil || expectedBaseline == baseline else { throw AdmissionError.localStateChanged }
                 let intent = try ObservationHistoryEnrollmentIntent.stage(observationID: observation, ownerID: expectedOwnerID, context: context)
                 try check(lease, owner: expectedOwnerID)
                 try save(context)
