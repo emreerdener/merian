@@ -62,6 +62,10 @@ struct CameraSheetRouter: ViewModifier {
                             appSettings.hasUnseenScan = false
                             AppIconBadgeCoordinator.updateAppIconBadge()
                         }
+                    case .reanalysis:
+                        if let editor = viewModel.reanalysisEditor {
+                            CaptureReanalysisSheet(editor: editor, close: { viewModel.dismissActivePresentation() })
+                        }
                     case .whatsNew:
                         WhatsNewSheet()
                             .onAppear { hasDisplayedWhatsNew = true }

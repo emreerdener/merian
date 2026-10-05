@@ -26,6 +26,7 @@ struct CaptureWorkspaceDependencies {
         _ completion: @escaping (Bool) -> Void
     ) -> Void
     let feedback: CaptureWorkspaceFeedback
+    var reanalysis: CaptureReanalysisAccess?
 
     @MainActor
     static func live(

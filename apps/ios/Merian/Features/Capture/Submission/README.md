@@ -466,8 +466,9 @@ freezes the identification separately from these photo choices.
 `CaptureReanalysisPreparation` maps the final staged timeline into the immutable
 producer plan, preserving removals, order and crop lineage while rejecting
 unsupported modalities. The prepared producer verifies child-owned files and
-saves a held draft; capture entry, ordinary submission and dedicated execution
-are not yet connected to it.
+saves a held draft. The protected Shell editor connects preparation behind a
+closed access boundary; ordinary submission and dedicated execution remain
+disconnected.
 
 ### Protected Capture preparation
 
@@ -502,7 +503,15 @@ commit; failure retains the plan. A caller must wake local erasure recovery
 before releasing the session. Account teardown invalidates private presentation
 separately and cannot claim durable cancellation.
 
-These owners are compiled and covered by `CaptureReanalysisSessionTests`, but
-normal Capture routes, the explicit selection UI and submission branch remain to
-be connected. They do not enable inference, ordinary scan admission, funding,
-provider retry or automatic selection. All activation gates remain closed.
+These owners are compiled and covered by `CaptureReanalysisSessionTests`. The
+prepared protected editor now connects explicit selection and held submission,
+while normal entry stays disabled. It does not enable inference, ordinary scan
+admission, funding, provider retry or automatic selection. All activation gates
+remain closed.
+
+The prepared protected root route now composes these owners through the
+[separate Shell editor](../Shell/README.md#protected-reanalysis-editor). Its
+explicit save creates only a held draft; execution and normal entry remain
+disabled. It bypasses ordinary admission and funding. The editor keeps its
+session after ambiguous save failures and uses the transactional discard
+boundary before allowing replacement. Legacy Capture submission is unchanged.

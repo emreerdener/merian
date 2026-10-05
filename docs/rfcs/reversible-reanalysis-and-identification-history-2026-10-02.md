@@ -2915,3 +2915,18 @@ becomes terminal only after successful retirement. Filesystem cleanup remains
 owned by the existing local receipt worker after commit. Native route/chooser
 integration remains next and all activation gates remain disabled. See the
 [local discard contract](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#explicit-local-preparation-discard).
+
+### October 5: protected Capture editor integration
+
+The prepared owner-qualified route now opens a separate reanalysis editor using
+an explicit historical analysis and frozen source. Original photos require
+explicit selection and verified loading; the editor supports added photos and
+note edits/removals without inheriting mutable parent media. Its five-photo
+budget does not alter ordinary Capture's two-item capacity. Saving retains one
+immutable session plan and creates only a held local child, preserving the
+selected identification. Discard uses exact transactional child retirement;
+account teardown clears private presentation without asserting cancellation. The
+live access dependency remains nil. Dedicated execution, the ordinary history
+action and complete UI/runtime qualification are still outstanding; all
+activation gates remain closed. Current ownership is documented in the
+[protected Shell contract](../../apps/ios/Merian/Features/Capture/Shell/README.md#protected-reanalysis-editor).

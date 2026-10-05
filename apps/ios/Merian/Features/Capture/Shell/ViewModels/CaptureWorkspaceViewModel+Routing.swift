@@ -40,6 +40,13 @@ extension CaptureWorkspaceViewModel {
 
     private func apply(_ route: AppRoute) -> AppRouteOutcome {
         switch route {
+        case let .historicalReanalysis(target):
+            guard reanalysisEditor == nil, let access = dependencies.reanalysis,
+                  let container = diContainer.offlineQueueManager.modelContext?.container else {
+                return .rejected(reason: .targetUnavailable)
+            }
+            do { reanalysisEditor = try access.open(target, container) } catch { return .rejected(reason: .targetUnavailable) }
+            activeSheet = .reanalysis
         case .proAccessRequired:
             activeSheet = .paywall
         case .scan(let scanId):
@@ -124,12 +131,14 @@ extension CaptureWorkspaceViewModel {
     }
 
     func handleRouteAccountGenerationChanged() {
+        reanalysisEditor?.invalidate()
+        reanalysisEditor = nil
         operationState.clearPendingRoutes()
         clearExplorePresentationRoute()
         pendingScansRecoveryContext = nil
         pendingScansShowsNonBiologicalCollection = false
         pendingAchievementAward = nil
-        if activePresentation?.routeRequestID != nil {
+        if activePresentation?.routeRequestID != nil || activeSheet == .reanalysis {
             dismissActivePresentation()
         }
     }
@@ -260,6 +269,10 @@ extension CaptureWorkspaceViewModel {
 
     func dismissActivePresentation() {
         guard let activePresentation else { return }
+        if activePresentation.destination == .reanalysis {
+            reanalysisEditor?.invalidate()
+            reanalysisEditor = nil
+        }
         operationState.beginDismissing(activePresentation)
         self.activePresentation = nil
     }

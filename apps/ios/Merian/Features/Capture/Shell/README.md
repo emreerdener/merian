@@ -516,3 +516,48 @@ Successful staging never opens the intermediate recorder review; it returns
 Record to idle and makes the audio node available. Current-draft capacity
 failure retains recovery playback/discard and manual retry. Stale completion
 cleanup never clears a newer operation or deletes an already-staged original.
+
+## Protected reanalysis editor
+
+The prepared `historicalReanalysis` route carries an explicit observation,
+historical analysis and expected owner. `CaptureReanalysisAccess` validates the
+owner and frozen source at entry, then `CameraSheetRouter` mounts a dedicated
+`CaptureReanalysisSheet`. `CaptureWorkspaceDependencies.reanalysis` defaults to
+nil: ordinary entry remains disabled until the complete activation contract is
+qualified. The prepared access factory requires a current-owner/session check
+and account generation from its assembler; idle sheets hold no Auth work lease.
+
+`CaptureReanalysisEditor` owns explicit original-photo selection, private
+preview loading, a complete verified staged cohort, photo additions and note
+edits/removal. It uses the existing immutable source, selection, loader and
+session owners. Its five-photo budget is independent of ordinary Capture's two
+physical slots. Selection starts empty, retains exact mixed source order and
+never takes the first N originals. Photos can be previewed before selection;
+unsupported originals require choosing another photo or adding new evidence.
+V1/V3 analyses inherit no mutable observation media or notes. Added photos use
+file-backed import and bounded existing image preparation, without borrowing
+parent location or gallery metadata into the reanalysis request.
+
+The editor submits only through `CaptureReanalysisSession.stage`; it never calls
+ordinary admission, local funding, replacement or `InferenceEngine.analyze`.
+First submission freezes the exact plan. A failed save retains that identity and
+disables edits until explicit discard succeeds. Saved status means a held local
+draft, not provider execution or a new completed result. The dedicated execution
+owner is still outstanding.
+
+Explicit discard retires only the session's unattempted child and requests
+receipt-bound local cleanup after commit. Account-generation changes and root
+presentation teardown instead invalidate the editor and clear private previews,
+selection and source references. The sheet also clears its picker, preview and
+discard-dialog state; a late preview cannot assign an image after closure. These
+transitions do not claim cancellation of durable work. Suspended operations
+check the editor and account fences before exposing results. Interactive sheet
+dismissal is disabled so normal user cancellation uses the explicit discard
+boundary.
+
+`CaptureReanalysisEditorTests` covers explicit subsets above ordinary capacity,
+source/order preservation, held save without changing selection, same-session
+retry, exact discard, account invalidation and owner-qualified route identity.
+The existing Core routing and Capture architecture/refinement gates remain
+applicable. The protected editor's final end-to-end UI and execution
+qualification remain part of the disabled activation contract.

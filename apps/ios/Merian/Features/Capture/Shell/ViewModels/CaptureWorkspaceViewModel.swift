@@ -9,7 +9,7 @@ final class CaptureWorkspaceViewModel {
 
     // MARK: - Types
     enum ActiveSheet: String, Identifiable, Sendable {
-        case insight, paywall, scans, profile, explore, achievement, notificationPrompt, whatsNew
+        case insight, paywall, scans, profile, explore, achievement, notificationPrompt, whatsNew, reanalysis
         var id: String { rawValue }
     }
 
@@ -63,6 +63,7 @@ final class CaptureWorkspaceViewModel {
             )
         }
     }
+    var reanalysisEditor: CaptureReanalysisEditor?
     var pendingExplorePostId: String?
     var pendingSpeciesDictionaryRoute: SpeciesDictionaryRoute?
     var pendingCommunityIdentificationRequestId: String?
