@@ -34,7 +34,7 @@ struct ObservationReanalysisProducerTests {
         let root = try ObservationReanalysisFileStoreTests().directory()
         defer { try? FileManager.default.removeItem(at: root) }
         var finished = 0
-        let producer = ObservationReanalysisProducer(files: .init(documents: root), account: account(finish: { finished += 1 }))
+        let producer = ObservationReanalysisProducer(files: .init(documents: root), ownership: .init(), account: account(finish: { finished += 1 }))
         let result = try await producer.stage(plan, container: seed.container, isCurrent: { true })
         guard case let .draft(draft) = result else { Issue.record("Expected held draft"); return }
         #expect(draft.identity.analysisID == plan.analysisID && draft.identity.sourceAnalysisID == source.analysisID)
@@ -57,7 +57,7 @@ struct ObservationReanalysisProducerTests {
         let root = try ObservationReanalysisFileStoreTests().directory()
         defer { try? FileManager.default.removeItem(at: root) }
         var current = true, finished = false
-        let producer = ObservationReanalysisProducer(files: .init(documents: root), account: account(current: { current }, finish: { finished = true }),
+        let producer = ObservationReanalysisProducer(files: .init(documents: root), ownership: .init(), account: account(current: { current }, finish: { finished = true }),
             loadOriginal: { _, _, _ in current = false; return Data([1, 2, 3]) })
         await #expect(throws: ObservationHistoryError.accountChanged) {
             try await producer.stage(plan, container: seed.container, isCurrent: { true })
@@ -80,7 +80,7 @@ struct ObservationReanalysisProducerTests {
             return (try? ObservationReanalysisPreparationIntent.decode(Data(text.utf8))) != nil
         }
         var finished = 0
-        let producer = ObservationReanalysisProducer(files: .init(documents: root),
+        let producer = ObservationReanalysisProducer(files: .init(documents: root), ownership: .init(),
             account: account(current: { !accountChanged || beforeCommit() }, finish: { finished += 1 }))
         await #expect(throws: ObservationHistoryError.accountChanged) {
             try await producer.stage(plan, container: seed.container, isCurrent: { accountChanged || beforeCommit() })
@@ -92,7 +92,7 @@ struct ObservationReanalysisProducerTests {
             container: seed.container, isCurrent: { true }) else { Issue.record("Ready child was lost"); return }
         let file = root.appendingPathComponent(try #require(draft.photoPaths.first))
         #expect(FileManager.default.fileExists(atPath: file.path))
-        let replay = try await ObservationReanalysisProducer(files: .init(documents: root), account: account())
+        let replay = try await ObservationReanalysisProducer(files: .init(documents: root), ownership: .init(), account: account())
             .stage(plan, container: seed.container, isCurrent: { true })
         guard case let .draft(replayed) = replay else { Issue.record("Replay changed phase"); return }
         #expect(replayed == draft)

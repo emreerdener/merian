@@ -38,7 +38,7 @@ struct ObservationReanalysisRecoveryTests {
     }
 
     func recover(_ seed: Seed, current: @escaping @MainActor @Sendable () -> Bool = { true }) async throws -> ObservationReanalysisPersistence.DraftState {
-        try await ObservationReanalysisPreparationRecovery(files: .init(documents: seed.root), account: producerFixture.account())
+        try await ObservationReanalysisPreparationRecovery(files: .init(documents: seed.root), ownership: .init(), account: producerFixture.account())
             .recover(seed.pending.draft.identity, container: seed.container, isCurrent: current)
     }
 
@@ -118,7 +118,7 @@ struct ObservationReanalysisRecoveryTests {
             return (try? ObservationReanalysisPreparationIntent.decode(Data(text.utf8))) != nil
         }, finish: { finished += 1 })
         await #expect(throws: ObservationHistoryError.accountChanged) {
-            try await ObservationReanalysisPreparationRecovery(files: .init(documents: seed.root), account: account)
+            try await ObservationReanalysisPreparationRecovery(files: .init(documents: seed.root), ownership: .init(), account: account)
                 .recover(seed.pending.draft.identity, container: seed.container, isCurrent: { true })
         }
         #expect(finished == 1)

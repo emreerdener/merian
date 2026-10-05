@@ -5,6 +5,7 @@ import SwiftData
 @MainActor
 struct ObservationReanalysisProducer {
     let files: ObservationReanalysisFileStore
+    let ownership: ObservationReanalysisPreparationOwner
     var account = ObservationHistoryCloudClient.live
     var loadOriginal: (ObservationReanalysisSource, ObservationHistoryPhotoReference, ModelContainer) async throws -> Data = { source, photo, container in
         try await ObservationHistoryPhotoLoader().load(observationID: source.observationID.uuidString,
@@ -17,6 +18,22 @@ struct ObservationReanalysisProducer {
         let source = plan.source
         let lease = try account.begin(source.ownerID)
         defer { account.finish(lease) }
+        let identity = OfflineQueueWork.Reanalysis(observationID: source.observationID, sourceAnalysisID: source.analysisID,
+            analysisID: plan.analysisID, ownerID: source.ownerID)
+        let result = try await ownership.perform(identity) { tokenCurrent in
+            try await stageOwned(plan, container: container, action: action, lease: lease,
+                isCurrent: { tokenCurrent() && isCurrent() })
+        }
+        try Task.checkCancellation()
+        guard account.isCurrent(lease), isCurrent() else { throw ObservationHistoryError.accountChanged }
+        try source.validate(container: container)
+        return result
+    }
+
+    private func stageOwned(_ plan: ObservationReanalysisPreparationPlan, container: ModelContainer,
+                            action: ObservationReanalysisPreparationIntent.Action, lease: AccountBoundWorkLease,
+                            isCurrent: @escaping @MainActor @Sendable () -> Bool) async throws -> ObservationReanalysisPersistence.DraftState {
+        let source = plan.source
         let validate: @MainActor @Sendable () throws -> Void = {
             try Task.checkCancellation()
             guard lease.session.userID == source.ownerID, account.isCurrent(lease), isCurrent() else { throw ObservationHistoryError.accountChanged }

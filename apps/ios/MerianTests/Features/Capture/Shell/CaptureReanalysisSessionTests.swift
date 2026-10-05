@@ -141,7 +141,7 @@ struct CaptureReanalysisSessionTests {
             .load(selection, container: seed.container, isCurrent: { true })
         let root = try ObservationReanalysisFileStoreTests().directory()
         defer { try? FileManager.default.removeItem(at: root) }
-        let producer = ObservationReanalysisProducer(files: .init(documents: root), account: fixture.account(), loadOriginal: { _, _, _ in seed.bytes })
+        let producer = ObservationReanalysisProducer(files: .init(documents: root), ownership: .init(), account: fixture.account(), loadOriginal: { _, _, _ in seed.bytes })
         let session = CaptureReanalysisSession(source: seed.source, generation: generation)
         await #expect(throws: ObservationHistoryError.accountChanged) {
             try await session.stage(capture: capture, generation: generation, container: seed.container, producer: producer, action: submitted ? .submit : .hold, isCurrent: {

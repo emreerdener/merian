@@ -525,7 +525,10 @@ owner and frozen source at entry, then `CameraSheetRouter` mounts a dedicated
 `CaptureReanalysisSheet`. `CaptureWorkspaceDependencies.reanalysis` defaults to
 nil: ordinary entry remains disabled until the complete activation contract is
 qualified. The prepared access factory requires a current-owner/session check
-and account generation from its assembler; idle sheets hold no Auth work lease.
+and account generation from its assembler, plus the queue-owned shared
+preparation coordinator; idle sheets hold no Auth work lease. Producer and local
+recovery reserve the same child before metadata access, so recovery cannot
+invalidate a writer that has not reached its file lock.
 
 `CaptureReanalysisEditor` owns explicit original-photo selection, private
 preview loading, a complete verified staged cohort, photo additions and note
@@ -542,8 +545,9 @@ The editor submits only through `CaptureReanalysisSession.stage`; it never calls
 ordinary admission, local funding, replacement or `InferenceEngine.analyze`.
 First submission freezes the exact plan. A failed save retains that identity and
 disables edits until explicit discard succeeds. Saved status means a held local
-draft, not provider execution or a new completed result. The dedicated execution
-owner is still outstanding.
+draft, not provider execution or a new completed result. Bound execution already
+has a dedicated owner; automatic advisory admission and the final Reanalyze
+action remain to be connected.
 
 Explicit discard retires only the session's unattempted child and requests
 receipt-bound local cleanup after commit. Account-generation changes and root

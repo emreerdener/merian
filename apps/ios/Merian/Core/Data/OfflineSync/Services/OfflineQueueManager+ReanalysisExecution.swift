@@ -25,6 +25,8 @@ extension OfflineQueueManager {
 
     func awaitRetainedSyncQuiescenceForAuthTransition() async {
         reanalysisExecutionOwner.cancel()
+        reanalysisPreparationOwner.cancelAll()
+        await reanalysisPreparationOwner.cancelAndAwaitAll()
         await awaitCollectionSyncQuiescenceForAuthTransition()
         await reanalysisExecutionOwner.cancelAndAwait()
     }

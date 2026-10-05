@@ -25,7 +25,7 @@ struct ObservationReanalysisSubmissionTests {
         }
         defer { try? FileManager.default.removeItem(at: root) }
         let container = try fixture.sourceFixture.fixture.container(url: url, seed: false)
-        let recovery = ObservationReanalysisPreparationRecovery(files: .init(documents: root), account: fixture.producerFixture.account())
+        let recovery = ObservationReanalysisPreparationRecovery(files: .init(documents: root), ownership: .init(), account: fixture.producerFixture.account())
         let result = try await recovery.recover(pending.draft.identity, container: container, isCurrent: { true })
         if submitted {
             guard case let .submitted(saved) = result else { Issue.record("Submission became a held draft"); return }

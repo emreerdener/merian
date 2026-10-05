@@ -38,7 +38,7 @@ struct CaptureReanalysisEditorTests {
         defer { try? FileManager.default.removeItem(at: root) }
         var calls = 0, cleanup = 0
         let account = fixture.fixture.account()
-        let producer = ObservationReanalysisProducer(files: .init(documents: root), account: account, loadOriginal: { _, _, _ in
+        let producer = ObservationReanalysisProducer(files: .init(documents: root), ownership: .init(), account: account, loadOriginal: { _, _, _ in
             calls += 1; throw MerianError.invalidResponse
         })
         let editor = make(seed, root: root, producer: producer, cleanup: { cleanup += 1 })
@@ -93,7 +93,7 @@ struct CaptureReanalysisEditorTests {
         #expect(route.isAccountSensitive && route.coalesces(with: route))
         #expect(!route.coalesces(with: .historicalReanalysis(.init(observationID: target.observationID, analysisID: UUID(), ownerID: target.ownerID))))
         #expect(!route.coalesces(with: .historicalReanalysis(.init(observationID: target.observationID, analysisID: target.analysisID, ownerID: UUID()))))
-        let access = CaptureReanalysisAccess.prepared(account: fixture.fixture.account(), isCurrentOwner: { UUID() }, generation: { 1 }, requestCleanup: {})
+        let access = CaptureReanalysisAccess.prepared(ownership: .init(), account: fixture.fixture.account(), isCurrentOwner: { UUID() }, generation: { 1 }, requestCleanup: {})
         #expect(throws: ObservationHistoryError.accountChanged) { try access.open(target, seed.container) }
     }
 
@@ -103,7 +103,7 @@ struct CaptureReanalysisEditorTests {
         let account = fixture.fixture.account()
         return CaptureReanalysisEditor(source: seed.source, container: seed.container, account: account,
             loader: loader ?? .init(account: account, loadPhoto: { _, _, _ in seed.bytes }),
-            producer: producer ?? .init(files: .init(documents: root), account: account, loadOriginal: { _, _, _ in seed.bytes }),
+            producer: producer ?? .init(files: .init(documents: root), ownership: .init(), account: account, loadOriginal: { _, _, _ in seed.bytes }),
             isCurrent: { true }, requestCleanup: cleanup)
     }
 }

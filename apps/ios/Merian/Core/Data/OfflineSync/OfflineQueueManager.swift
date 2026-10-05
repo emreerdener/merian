@@ -114,6 +114,7 @@ import SwiftData
     var identificationReviewSyncGeneration: UUID?
     var identificationReviewSyncTask: Task<Void, Never>?
     @ObservationIgnored let reanalysisErasureOwner = ObservationReanalysisErasureOwner()
+    @ObservationIgnored let reanalysisPreparationOwner = ObservationReanalysisPreparationOwner()
     @ObservationIgnored let reanalysisExecutionOwner = ObservationReanalysisExecutionOwner()
     @ObservationIgnored let publicationDeliveryOwner = ObservationPublicationDeliveryOwner()
 

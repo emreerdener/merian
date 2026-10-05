@@ -6,7 +6,7 @@ import SwiftData
 struct CaptureReanalysisAccess {
     let open: (HistoricalReanalysisTarget, ModelContainer) throws -> CaptureReanalysisEditor
 
-    static func prepared(account: ObservationHistoryCloudClient? = nil,
+    static func prepared(ownership: ObservationReanalysisPreparationOwner, account: ObservationHistoryCloudClient? = nil,
                          isCurrentOwner: @escaping @MainActor () -> UUID?,
                          generation: @escaping @MainActor () -> UInt64,
                          requestCleanup: @escaping @MainActor () -> Void) -> Self {
@@ -24,7 +24,7 @@ struct CaptureReanalysisAccess {
             let documents = try FileManager.default.url(for: .documentDirectory, in: .userDomainMask, appropriateFor: nil, create: false)
             return CaptureReanalysisEditor(source: source, container: container, account: account,
                 loader: CaptureReanalysisEvidenceLoader(account: account),
-                producer: ObservationReanalysisProducer(files: ObservationReanalysisFileStore(documents: documents), account: account),
+                producer: ObservationReanalysisProducer(files: ObservationReanalysisFileStore(documents: documents), ownership: ownership, account: account),
                 isCurrent: current, requestCleanup: requestCleanup)
         })
     }

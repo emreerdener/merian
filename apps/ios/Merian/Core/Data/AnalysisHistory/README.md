@@ -833,3 +833,36 @@ writing. The final Capture action and all activation gates remain disabled.
 `ObservationReanalysisAdmissionWorkTests` covers strict decoding, consent
 filtering, stale claims, retry/hold transitions, failed-save rollback, locked
 promotion, account loss, binding and discard fences.
+
+### Shared preparation ownership
+
+`ObservationReanalysisPreparationOwner` reserves each immutable child before a
+producer or local recovery call can read or mutate its durable preparation. Both
+owners require explicit injection of the same instance; different file-store
+actors still share that metadata reservation. A duplicate call fails busy while
+the original task remains retained. Filesystem locks remain independently
+required for byte verification, promotion and cleanup.
+
+Cancellation immediately invalidates the child token and cancels the retained
+task. The slot remains occupied until the task actually exits, including a
+callback that does not immediately cooperate with cancellation. Coalesced drain
+callers block new work until their captured tasks finish. Cancelled work cannot
+return its private result, clear a successor's token or silently retire durable
+preparation. A committed result remains durable; explicit discard still needs
+its separate erasure receipt.
+
+`OfflineQueueManager` owns the shared instance and cancels/awaits it within
+`awaitRetainedSyncQuiescenceForAuthTransition`, before the existing final Auth
+account-work drain. Producer and recovery retain their account leases across the
+coordinator await and revalidate account/deletion state before returning. The
+prepared Capture access factory requires its assembler to inject this same
+queue-owned instance. Ordinary access remains disabled.
+
+This coordination is installed for the existing producer and targeted local
+recovery. The automatic advisory admission pass still needs to reserve through
+this owner, skip active children, and take its durable recovery claim only from
+the file verifier's locked callback. It must also implement bounded retry,
+consent-aware deadlines and explicit grant wakes before the Reanalyze action is
+connected. `ObservationReanalysisOwnershipTests` covers the saved-preparation
+race, separate file-store instances, late cancellation, duplicate work and the
+queue Auth barrier.

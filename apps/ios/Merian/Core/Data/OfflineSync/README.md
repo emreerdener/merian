@@ -711,8 +711,14 @@ Drafts and attempted remediation holds never auto-activate.
 `ObservationReanalysisExecutionOwner` retains a single pass and awaits
 cancellation through actual lease release;
 `ObservationReanalysisExecutionService` processes at most eight due children.
-Foreground recovery precedes inference consent checks so stored results can
-still recover. Fresh execution separately checks saved-processor consent.
+The manager also owns `ObservationReanalysisPreparationOwner`, shared explicitly
+with the prepared Capture producer and targeted local file recovery. It reserves
+the child before metadata access and retains cancelled work until task exit.
+Queue Auth quiescence cancels and awaits this owner before the final account
+lease drain. Automatic advisory admission still needs its separate bounded pass,
+consent-aware deadlines and grant wakes. Foreground recovery precedes inference
+consent checks so stored results can still recover. Fresh execution separately
+checks saved-processor consent.
 
 Scheduler dates come from strict owner-qualified snapshots, with due pending,
 waiting and interrupted running states. The generic raw-job exclusion remains;

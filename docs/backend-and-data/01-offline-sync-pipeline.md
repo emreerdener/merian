@@ -1872,8 +1872,12 @@ hold fields do not modify execution queue fields. Only locked successful cohort
 verification promotes files-pending to admission-pending; recipient binding
 consumes the current ready claim and source proof atomically. Consent-off ready
 work and all held work contribute no admission deadline. Automatic admission
-ownership still awaits live-producer coordination and cancellation wiring; these
-storage seams do not schedule recovery themselves.
+scheduling is not connected yet; these storage seams do not schedule recovery
+themselves. Producer and targeted local recovery now require the shared
+queue-owned preparation coordinator. It reserves the child before metadata
+access, retains cancelled tasks until exit, and is cancelled/awaited before the
+final Auth lease drain. Automatic admission must use that same reservation and
+claim only after file locking.
 
 Dedicated delivery now processes only explicitly admitted bound children. Atomic
 processor binding plus pristine `pending` status closes the restart gap before
