@@ -2740,3 +2740,16 @@ next integration must connect parent-linked atomic erasure and
 observation-attached progress before exact private upload/analysis delivery and
 append-only recovery. The canonical current contract is the
 [V58 storage section](../backend-and-data/04-database-schema.md#v58-qualified-queued-reanalysis-storage).
+
+### October 5 implementation: atomic queued-child erasure
+
+Direct and explicit non-biological parent deletion now erase exact parent-linked
+queue rows, ingestion jobs and preferred-goal hints within the parent
+transaction, including damaged kind/owner/source/job data. Post-commit
+cancellation refetches child absence and retains the original model-container
+boundary. File cleanup is restricted to the dedicated child namespace; shared
+parent/library paths are never inferred to be owned. Rollback, damaged linkage,
+unrelated-parent isolation, namespace traversal and both deletion entry points
+have focused coverage. Qualified production admission remains disabled; detached
+progress, recipient preflight, funding, durable execution and append-only
+completion are still pending.

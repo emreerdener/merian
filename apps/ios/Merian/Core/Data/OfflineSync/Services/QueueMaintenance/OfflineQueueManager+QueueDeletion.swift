@@ -418,7 +418,7 @@ extension OfflineQueueManager {
             let failedScans = try context.fetch(descriptor)
             guard !failedScans.isEmpty else { return }
             var pathsToDelete: [String] = []
-            for scan in failedScans {
+            for scan in failedScans where scan.permitsOrdinaryInference {
                 let scanId = scan.id
                 for item in scan.capturedMediaSnapshot.items {
                     switch item {

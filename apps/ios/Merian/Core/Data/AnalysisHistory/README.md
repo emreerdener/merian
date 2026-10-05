@@ -1,8 +1,8 @@
 # Analysis history admission
 
 This prepared boundary is separate from ordinary `Database/HistoricalSync`,
-which hydrates the current scan projection. It has no production call site yet.
-The backend reader, enrollment and selection gates remain false.
+which hydrates the current scan projection. Ordinary history admission remains
+disconnected. The backend reader, enrollment and selection gates remain false.
 
 - `ObservationHistoryCloudClient` owns the existing Auth work lease and the
   owner-only `get_owned_observation_analysis_page` RPC. Protocol 9 is explicit
@@ -403,3 +403,20 @@ saved-operation recovery, then saves before waking the durable scheduler.
 Historical terminal receipts remain recoverable after review/selection changes
 and do not wake work. The ordinary UI remains unconnected and all activation
 gates remain closed.
+
+## Parent deletion of queued reanalyses
+
+`ObservationReanalysisErasure` is used by direct and non-biological deletion. It
+removes exact canonical parent-linked queue children, ingestion jobs and goal
+hints within the existing parent transaction, even if routing or job metadata is
+damaged. It does not save, dispatch, cancel tasks or erase files itself. Callers
+return cleanup only after save; failures roll back both parent and children.
+Every future qualified queue writer must share the same serialized parent
+transaction and deletion fence.
+
+Its cleanup projection accepts only the dedicated Documents-relative
+`ReanalysisQueue/<child-ID>/<file>` namespace. Parent/library references do not
+grant deletion authority. Offline Sync owns post-commit transport cancellation
+and file cleanup; surviving queue rows and changed model containers reject stale
+cancellation. The [Offline Sync contract](../OfflineSync/README.md) describes
+these fences and the disabled producer.

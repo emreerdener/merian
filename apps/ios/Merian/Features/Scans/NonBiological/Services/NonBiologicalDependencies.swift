@@ -65,9 +65,11 @@ struct NonBiologicalDependencies {
                         mediaPaths: $0.mediaPaths
                     )
                 }
-                return try await actor.bulkDeleteNonBiologicalScans(
+                let result = try await actor.bulkDeleteNonBiologicalScansWithQueueCleanup(
                     payloads: payloads, requestingAccountID: lease?.session.userID
                 )
+                await container.offlineQueueManager.finishReanalysisErasure(result.childIDs, in: modelContainer)
+                return result.localMediaPaths
             },
             deleteFiles: { paths in
                 await FileIOActor.shared.deleteFiles(at: paths)

@@ -102,16 +102,15 @@ file owners and must not infer ownership from a broad directory alone.
 V50 introduced `OfflineQueuedScanGoalHint`, a scan-keyed companion that stores
 the optional standard-outing and checklist-item IDs selected in a qualifying
 live Capture. Keeping this separate preserved the released V49 queue entity. The
-current V52 schema retains that companion through
-`ActiveOfflineQueuedScanGoalHint` and keeps the collection tombstone
-`ScanCollection.isPendingDeletion` mapped to the released `isDeleted` column
-while the Core Network adapter continues to emit the `is_deleted` wire field.
-V51 separately makes preferred species names account-scoped.
-Foreground/background completion read the same goal hint. Successful queue
-finalization preserves it as a durable progress outbox until acknowledgement;
-explicit cancellation and terminal orphan repair remove it. Persistent Insight
-contribution cards are server-backed and are intentionally not cached in
-SwiftData.
+current schema retains that companion through `ActiveOfflineQueuedScanGoalHint`
+and keeps the collection tombstone `ScanCollection.isPendingDeletion` mapped to
+the released `isDeleted` column while the Core Network adapter continues to emit
+the `is_deleted` wire field. V51 separately makes preferred species names
+account-scoped. Foreground/background completion read the same goal hint.
+Successful queue finalization preserves it as a durable progress outbox until
+acknowledgement; explicit cancellation and terminal orphan repair remove it.
+Persistent Insight contribution cards are server-backed and are intentionally
+not cached in SwiftData.
 
 Authenticated historical reconciliation treats a nonempty `scans.captured_media`
 projection as authoritative only when domain mapping yields a usable image or
@@ -831,9 +830,12 @@ serialized under the shared Offline Queue process-state lease.
 
 `Database/BackgroundDatabaseActor+NonBiologicalRetention.swift` is the focused
 persistence owner for `ScanErasurePayload`, `ExpiredNonBiologicalPurgeResult`,
-the bounded retention purge, and bulk deletion. The actor and method signatures
-remain unchanged. The internal payload member is named `mediaPaths` because the
-value carries image, audio, and video paths.
+the bounded retention purge, and bulk deletion. The live bulk adapter uses
+`bulkDeleteNonBiologicalScansWithQueueCleanup` to receive committed child IDs
+alongside file paths, then cancels their runtime owners after commit. The
+original path-only method remains available for persistence callers. The
+internal payload member is named `mediaPaths` because the value carries image,
+audio, and video paths.
 
 The UI's non-biological erasure snapshots are advisory values, not deletion
 authority. `BackgroundDatabaseActor.bulkDeleteNonBiologicalScans` re-fetches

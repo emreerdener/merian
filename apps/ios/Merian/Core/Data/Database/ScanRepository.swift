@@ -483,6 +483,7 @@ final class ScanRepository {
             // Missing rows can still commit file/tombstone work.
             guard result.committedErasureCount > 0 else { return }
 
+            await offlineQueue.finishReanalysisErasure(result.childIDs, in: modelContainer)
             await FileIOActor.shared.deleteFiles(at: result.localMediaPaths)
             // Refresh projections only when this transaction removed a row.
             if result.deletedRecordCount > 0 {
@@ -525,7 +526,6 @@ final class ScanRepository {
                 })
             }
 
-            // 1. Cancel/tombstone any in-flight upload for this now-deleted scan.
             offlineQueue.softDeleteQueuedScan(
                 scanId: record.id,
                 reason: "Scan was deleted locally.",
@@ -534,12 +534,14 @@ final class ScanRepository {
             )
 
             // 2. Queue cloud deletion task + remove SwiftData record atomically.
+            var childCleanup = ObservationReanalysisErasure.Cleanup()
             do {
                 if origin == .explicitUserDeletion {
                     try ObservationHistoryEnrollmentIntent.supersedeForExplicitDeletion(record.id, context: modelContext)
                 }
                 try modelContext.ensurePendingCloudDeletionTask(scanId: record.id,
                     requestingAccountID: CloudDeletionAccountWork.captureRequestAccount(using: historicalCloudClient), origin: origin)
+                childCleanup = try ObservationReanalysisErasure.removeChildren(of: record.id, context: modelContext)
                 try ObservationPublicationPersistence.removeForDeletion(record.id, context: modelContext)
                 modelContext.delete(record)
                 try modelContext.save()
@@ -551,10 +553,11 @@ final class ScanRepository {
                 return nil
             }
 
-            // 3. File cleanup and the immediate cloud attempt share a completion
-            // handle without delaying the already-committed local deletion.
-            let localPaths = imagesToErase.filter { !$0.starts(with: "http") }
+            let localPaths = imagesToErase.filter { !$0.starts(with: "http") } + childCleanup.mediaPaths
+            let childIDs = childCleanup.childIDs
+            let container = modelContext.container
             let cleanupTask = Task { [offlineQueue] in
+                await offlineQueue.finishReanalysisErasure(childIDs, in: container)
                 await withTaskGroup(of: Void.self) { group in
                     if !localPaths.isEmpty {
                         group.addTask {

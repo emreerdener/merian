@@ -7208,8 +7208,13 @@ inference claim/retry/recovery and final persistence admit only ordinary work.
 Final persistence rechecks the durable row after the finalization lock; absent
 rows cannot be recreated by a late completion. Read and deletion paths remain
 able to find held work. No reanalysis producer is enabled in this storage slice;
-parent erasure, observation-attached presentation and the separate append-only
-executor must be connected before admission is enabled.
+observation-attached presentation and the separate append-only executor must be
+connected before admission is enabled. Parent erasure now removes exact
+parent-linked queue children, ingestion jobs and goal hints atomically with the
+parent and cloud deletion intent, including damaged routing metadata. It only
+returns child-owned file paths and cancellation IDs after commit; rollback
+preserves all rows. Missing or noncanonical parent linkage cannot be inferred
+from analysis IDs or job JSON.
 
 `MigrationPlanTests.v57MigrationPreservesQueuedWorkAndAddsOrdinaryQualification`
 creates an on-disk V57 store, verifies production source routing, migrates and

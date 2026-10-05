@@ -153,6 +153,8 @@ struct OfflineQueueMaintenanceArchitectureTests {
     }
 
     private static let declarationOwners: [String: String] = [
+        "func finishReanalysisErasure":
+            "Services/QueueMaintenance/OfflineQueueManager+ReanalysisErasure.swift",
         "func flushOfflineQueuedScan":
             "Services/QueueMaintenance/OfflineQueueManager+QueueState.swift",
         "func updateUnsyncedItemCount":
@@ -176,6 +178,9 @@ struct OfflineQueueMaintenanceArchitectureTests {
     ]
 
     private static let expectedImportsByPath: [String: Set<String>] = [
+        "Services/QueueMaintenance/OfflineQueueManager+ReanalysisErasure.swift": [
+            "import Foundation", "import SwiftData"
+        ],
         "Services/QueueMaintenance/OfflineQueueManager+QueueState.swift": [
             "import Foundation",
             "import SwiftData",

@@ -10,7 +10,9 @@ extension OfflineQueueManager {
     func ownsOpenAIConsentPausedScan(scanId: String, accountId: UUID) -> Bool {
         guard let context = modelContext else { return false }
         do {
-            guard let job = try context.fetchOfflineJob(id: Self.scanIngestionJobId(scanId: scanId)),
+            let query = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == scanId })
+            guard let scan = try context.fetch(query).first, scan.permitsOrdinaryInference,
+                let job = try context.fetchOfflineJob(id: Self.scanIngestionJobId(scanId: scanId)),
                 job.kind == .scanIngestion, job.status == .needsAttention,
                 job.subjectId?.lowercased() == scanId.lowercased(),
                 job.lastErrorCode == "ai_openai_consent_required",

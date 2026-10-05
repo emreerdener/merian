@@ -709,3 +709,28 @@ separate recovery/funding delivery and progress on the observation remain
 prerequisites. See the
 [V58 contract](../../../../../../docs/backend-and-data/04-database-schema.md#v58-qualified-queued-reanalysis-storage)
 for migration invariants and test ownership.
+
+### Parent-bound reanalysis erasure
+
+`ObservationReanalysisErasure` removes exact canonical parent-linked children,
+their ingestion jobs and preferred-goal hints inside the parent's local deletion
+transaction. Classification and optional job metadata are not erasure authority:
+damaged children with a valid parent link are still removed. Direct deletion and
+explicit non-biological deletion use this boundary; retention keeps its existing
+enrolled-history protection. Save failure rolls back the rows and returns no
+cleanup work.
+
+After commit, `finishReanalysisErasure` refetches child absence and checks the
+same model container before cancelling exact transport and process ownership. It
+never cancels a surviving row, releases a funding hold or requests remote child
+deletion. Parent cloud erasure remains observation-scoped. Private queue file
+cleanup accepts only relative `ReanalysisQueue/<canonical-child-ID>/<file>`
+references and returns absolute Documents paths. A future producer must copy
+inputs into that namespace; parent/library paths and other children's paths do
+not authorize file removal. No qualified producer is enabled yet.
+
+The ordinary permission-resume affordance and automatic failed-queue purge also
+require ordinary classification. Held children cannot borrow legacy funding
+metadata to enable a permission action, or disappear through automatic cleanup.
+The library's standalone queue-card projection excludes all nonordinary rows;
+owner/parent-scoped progress remains a separate, not-yet-connected presentation.
