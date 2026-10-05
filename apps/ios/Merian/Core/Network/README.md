@@ -3900,3 +3900,15 @@ Reanalysis never invents a provider, operation ID or selection. Recovery-only
 requires null recipient and protocol minima and cannot build a new analysis
 request. Transport does not automatically retry or refresh a 401 while the outer
 durable owner holds an account lease. Normal UI/execution stays disabled.
+
+A bound retry instead calls
+`prepareBoundObservationReanalysisAuthorization(processor:expectedAuthUserID:validateAttempt:)`
+with its persisted processor. It synchronizes current required cloud consent,
+checks the expected account before and after suspension, and reuses the same
+required-consent/OpenAI permission and claim validation at dispatch. It never
+runs recipient discovery again or converts recovery-only into permission to
+execute. Lost-response recovery therefore retains the original request's
+processor; withdrawn consent holds that request for explicit remediation. The
+helper uses the existing consent coordinator and does not enter the generic
+401-refresh transport. The durable executor must still own and drain its account
+lease; this helper does not enable execution scheduling.

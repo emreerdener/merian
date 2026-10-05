@@ -30,6 +30,36 @@ extension MerianNetworkClient {
             }, decode: { try ObservationReanalysisPreflightRequest.recipient(from: $0, for: input) })
     }
 
+    /// Bound retries retain the saved processor. Recovery-only preflight never authorizes dispatch.
+    /// Synchronize current required consent without recipient discovery or response-driven Auth recovery.
+    func prepareBoundObservationReanalysisAuthorization(
+        processor: IdentificationRecipientExpectation,
+        expectedAuthUserID: UUID,
+        validateAttempt: @escaping @MainActor @Sendable () throws -> Void
+    ) async throws -> IdentificationDispatchAuthorization {
+        guard processor != .recoveryOnly else { throw MerianError.invalidResponse }
+        try Task.checkCancellation()
+        guard try await authenticatedUserIDForInferenceRequest() == expectedAuthUserID else {
+            throw SupabaseAuthTransitionError.signOutSessionChanged
+        }
+        try await validateAttempt()
+        #if DEBUG
+        if let overridingInferenceConsentCheck {
+            try await overridingInferenceConsentCheck()
+        } else {
+            try await ConsentManager.shared.ensureCloudConsentForInference()
+        }
+        #else
+        try await ConsentManager.shared.ensureCloudConsentForInference()
+        #endif
+        try Task.checkCancellation()
+        guard try await authenticatedUserIDForInferenceRequest() == expectedAuthUserID else {
+            throw SupabaseAuthTransitionError.signOutSessionChanged
+        }
+        return try await identificationDispatchAuthorization(recipient: processor,
+            expectedAuthUserID: expectedAuthUserID, validateAttempt: validateAttempt)
+    }
+
     private func prepareIdentificationAuthorization(
         expectedAuthUserID: UUID,
         validateAttempt: (@MainActor @Sendable () throws -> Void)?,
@@ -72,6 +102,15 @@ extension MerianNetworkClient {
             }
             throw MerianError.aiConsentRequired
         }
+        return try await identificationDispatchAuthorization(recipient: recipient,
+            expectedAuthUserID: expectedAuthUserID, validateAttempt: validateAttempt)
+    }
+
+    private func identificationDispatchAuthorization(
+        recipient: IdentificationRecipientExpectation,
+        expectedAuthUserID: UUID,
+        validateAttempt: (@MainActor @Sendable () throws -> Void)?
+    ) async throws -> IdentificationDispatchAuthorization {
         #if DEBUG
         let usesTestConsent = overridingInferenceConsentCheck != nil
             && overridingSession != nil && TestExecutionCoordinator.isRunningTests

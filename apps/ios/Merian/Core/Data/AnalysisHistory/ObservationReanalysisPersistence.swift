@@ -90,12 +90,14 @@ enum ObservationReanalysisPersistence {
 
     @MainActor
     static func transaction<T>(_ identity: OfflineQueueWork.Reanalysis, container: ModelContainer, isCurrent: () -> Bool,
-                                       save: (ModelContext) throws -> Void, body: (ModelContext) throws -> T) throws -> T {
+                               save: (ModelContext) throws -> Void, body: (ModelContext) throws -> T) throws -> T {
         try ConfirmedSpeciesReviewPersistence.transaction {
             guard isCurrent() else { throw IntegrityError.accountChanged }
             let context = ModelContext(container); context.autosaveEnabled = false
             do {
-                guard try context.fetchOfflineJob(id: ObservationReanalysisErasureReceipt.jobID(identity.analysisID)) == nil else {
+                let lower = identity.analysisID.uuidString.lowercased(), upper = identity.analysisID.uuidString
+                guard try context.fetchOfflineJob(id: ObservationReanalysisErasureReceipt.jobID(identity.analysisID)) == nil,
+                      try (lower == upper || context.fetchOfflineJob(id: "reanalysis-erasure:" + upper) == nil) else {
                     throw IntegrityError.unavailable
                 }
                 let scan = try ObservationHistorySyncService.enrolledScan(identity.observationID.uuidString, context: context)

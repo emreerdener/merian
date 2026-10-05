@@ -665,3 +665,41 @@ allowed. Fresh account and durable claim validation callbacks run before reads
 and before return while locks are held. The execution caller must additionally
 recheck its lease and claim after awaiting the private result and before I/O.
 This prepared read does not itself admit, upload, fund or dispatch analysis.
+
+### Durable execution claims and local completion
+
+`ObservationReanalysisExecutionStore` prepares local execution without enabling
+network scheduling. An initial bound request, a due retry, or recovery of an
+interrupted running request receives a persisted, monotonically increasing
+attempt fence. Every read and transition validates the exact immutable intent,
+qualified row/job linkage and mirrored execution fields in a fresh context.
+Post-claim timestamps must match; initial independent creation timestamps remain
+valid. Uppercase identity aliases, colliding scans and child deletion markers
+fail closed. A canonical result already admitted by owner history sync is
+allowed only when its complete immutable content matches. Claims compare the
+complete saved execution snapshot, so a stale worker cannot settle or append
+after a replacement claim. Interrupted recovery requires the execution owner to
+drain its old tasks first; a local claim does not itself authorize consent,
+upload, provider dispatch or a provider successor.
+
+Retryable uncertainty retains the original request and a durable wake time.
+Evidence, consent, terminal-provider and reconciliation holds retain the same
+request and files for explicit remediation; they cannot automatically reenter
+execution. A terminal failure consumes no additional local credit or refund.
+Server funding remains authoritative. Runtime delivery must validate the owner
+lease and this durable claim around every suspension and locked file read.
+
+Completion verifies the exact source, request digest and complete ordered result
+manifest, appends through the shared immutable history insertion boundary, then
+removes only the matching queue/job and saves its minimal file-erasure receipt
+in one transaction. Selection, observation revision and review authority remain
+unchanged. Save failure or account invalidation rolls back all three changes.
+Exact committed replay requires the retained result bytes and cleanup receipt,
+no surviving transport pair, the same owner and a living parent without a
+pending deletion. Cleanup can complete independently without deleting the
+retained result. Successful completion never uses preparation discard.
+
+`ObservationReanalysisExecutionTests` exercises retry/restart fences, immutable
+request conflicts, remediation holds, deletion/account checks, completion
+rollback and replay after cleanup. The transport executor and ordinary UI remain
+separate pending integrations; every activation gate stays disabled.

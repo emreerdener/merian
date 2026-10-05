@@ -1,7 +1,7 @@
 import Foundation
+@testable import Merian
 import os
 import Testing
-@testable import Merian
 
 @Suite("Observation Reanalysis Preflight")
 @MainActor
@@ -69,15 +69,14 @@ struct ObservationReanalysisPreflightTests {
         #expect(throws: MerianError.aiConsentRequired) { try decode(row, input) }
         row["decision"] = "client_update_required"; row["minimum_entitlement_protocol"] = 4
         row["processor_permission"] = NSNull(); row["minimum_identification_protocol"] = NSNull()
-        do { _ = try decode(row, input); Issue.record("Expected update requirement") }
-        catch { #expect(EdgeFunctionErrorPolicy.stableCode(from: error) == "client_update_required") }
+        do { _ = try decode(row, input); Issue.record("Expected update requirement") } catch { #expect(EdgeFunctionErrorPolicy.stableCode(from: error) == "client_update_required") }
     }
     @Test func exactOwnerBoundRPCProducesLocallyRevalidatedAuthorization() async throws {
         let fixture = NetworkEndpointFixture(); defer { fixture.close() }
         fixture.client.overridingInferenceConsentCheck = {}
         let owner = try #require(fixture.client.overridingAuthUserID), input = try request()
         let expected = try JSONEncoder().encode(input)
-        let json = String(decoding: try JSONSerialization.data(withJSONObject: response(input)), as: UTF8.self)
+        let json = try #require(String(bytes: JSONSerialization.data(withJSONObject: response(input)), encoding: .utf8))
         fixture.transport.register(path: "/get_owned_observation_reanalysis_preflight") { wire in
             let bytes = try #require(MockURLProtocol.bodyData(for: wire))
             let body = try #require(JSONSerialization.jsonObject(with: bytes) as? [String: Any])
@@ -123,4 +122,50 @@ struct ObservationReanalysisPreflightTests {
             }
         }
     }
+    @Test(arguments: [IdentificationRecipientExpectation.gemini, .openAI])
+    func boundAuthorizationKeepsProcessorAndSynchronizesConsentWithoutRecipientRPC(_ processor: IdentificationRecipientExpectation) async throws {
+        let fixture = NetworkEndpointFixture(); defer { fixture.close() }
+        let owner = try #require(fixture.client.overridingAuthUserID)
+        let checks = OSAllocatedUnfairLock(initialState: 0)
+        fixture.client.overridingInferenceConsentCheck = { checks.withLock { $0 += 1 } }
+        let authorization = try await fixture.client.prepareBoundObservationReanalysisAuthorization(
+            processor: processor, expectedAuthUserID: owner, validateAttempt: {})
+        #expect(authorization.recipient == processor && checks.withLock { $0 } == 1)
+        // No recipient route is registered: any network preflight would fail the call.
+        try authorization.validate()
+    }
+
+    @Test(arguments: ["recovery", "owner", "consent", "stale-before", "stale-after", "owner-after"])
+    func boundAuthorizationCannotBypassConsentOrOwnerAndClaimFences(_ reason: String) async throws {
+        let fixture = NetworkEndpointFixture(); defer { fixture.close() }
+        let owner = try #require(fixture.client.overridingAuthUserID)
+        let state = OSAllocatedUnfairLock(initialState: false)
+        fixture.client.overridingInferenceConsentCheck = {
+            if reason == "consent" { throw MerianError.aiConsentRequired }
+            state.withLock { $0 = true }
+            if reason == "owner-after" { fixture.client.overridingAuthUserID = UUID() }
+        }
+        await #expect(throws: (any Error).self) {
+            try await fixture.client.prepareBoundObservationReanalysisAuthorization(
+                processor: reason == "recovery" ? .recoveryOnly : .gemini,
+                expectedAuthUserID: reason == "owner" ? UUID() : owner,
+                validateAttempt: {
+                    if reason == "stale-before" || (reason == "stale-after" && state.withLock({ $0 })) { throw CancellationError() }
+                })
+        }
+        if ["recovery", "owner", "stale-before"].contains(reason) { #expect(!state.withLock { $0 }) }
+    }
+
+    @Test func boundAuthorizationRechecksClaimAtLaterDispatch() async throws {
+        let fixture = NetworkEndpointFixture(); defer { fixture.close() }
+        fixture.client.overridingInferenceConsentCheck = {}
+        let owner = try #require(fixture.client.overridingAuthUserID), stale = OSAllocatedUnfairLock(initialState: false)
+        let authorization = try await fixture.client.prepareBoundObservationReanalysisAuthorization(
+            processor: .gemini, expectedAuthUserID: owner, validateAttempt: {
+                if stale.withLock({ $0 }) { throw CancellationError() }
+            })
+        stale.withLock { $0 = true }
+        #expect(throws: CancellationError.self) { try authorization.validate() }
+    }
+
 }

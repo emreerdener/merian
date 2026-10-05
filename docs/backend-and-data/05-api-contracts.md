@@ -14240,3 +14240,24 @@ evidence or provider authority. The strict native execution receipt contains
 only parent ID, child ID and execution state with schema 1; completion requires
 a separate authoritative history read. These value types do not connect capture,
 queue delivery or selection, and do not activate any gate.
+
+The prepared native `ObservationReanalysisExecutionStore` persists local attempt
+claims independently of provider execution identities. Fresh row/job
+compare-and-save rejects stale workers; retry and interrupted recovery retain
+the same immutable request. Evidence/consent/reconciliation holds and proven
+terminal failures remain held for explicit remediation. Local execution never
+claims or settles funding. Exact validated completion appends the child, retires
+only its transport work and records temporary-file erasure authority in one
+save, preserving current selection and review authority. Committed replay still
+requires the same owner, exact retained result and a parent without pending
+deletion. This is a prepared persistence boundary, not network dispatch or an
+activated scheduler. Its
+[local ownership contract](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#durable-execution-claims-and-local-completion)
+owns native claim and recovery details.
+
+For an already-bound native request, current consent authorization preserves the
+saved processor and synchronizes required cloud consent without rerunning
+recipient discovery. Expected owner and durable claim checks surround this work
+and remain in the final dispatch authorization. Required consent and optional
+OpenAI permission can still deny the original request. Recovery-only cannot be
+used as execution permission or to reconstruct an unbound request.
