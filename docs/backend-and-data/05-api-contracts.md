@@ -12454,6 +12454,17 @@ never changes selection. V2 input is additionally limited to five photos and 5
 MiB combined before quota; storage's 32 MiB receipt allowance does not expand
 provider admission.
 
+The prepared native `analyzeObservation` transport preserves the complete saved
+request bytes, initiating account and 130-second timeout. It disables automatic
+transport retries and 401 session refresh so the durable owner controls
+ambiguous recovery. Dispatch authorization must match the saved processor and
+still pass current local consent checks. In particular, `recovery_only`
+preflight means an intent exists, not that it has dispatched: an admitted replay
+can still invoke the provider. That authorization cannot be used to submit this
+endpoint. Exact result reads remain separate, and execution receipts never carry
+selection or result authority. This transport alone does not connect ordinary UI
+or queue execution, reserve native funding or open any activation gate.
+
 The service-only `begin_owned_observation_analysis`,
 `advance_owned_observation_analysis`, `claim_observation_analysis_recovery`, and
 `list_observation_analysis_recovery` RPCs are inaccessible to

@@ -59,3 +59,11 @@ Capability 6 is understood without weakening the original native preflight
 format. Shared consent authorization validates the expected account both before
 the RPC and after suspension, then revalidates local consent and queue ownership
 before each authorized use. This read does not promise ready media or funding.
+
+The prepared `analyzeObservation` endpoint transmits those exact saved bytes
+through the same private account-bound transport as evidence upload. Its closed
+route chooses JSON rather than the upload frame's binary content type. A current
+`IdentificationDispatchAuthorization` must match the saved processor, including
+on replay; `recoveryOnly` cannot authorize a potentially not-yet-dispatched
+admission. Both automatic retry and 401 refresh are disabled, and the durable
+caller owns all reconciliation and current-account checks around persistence.

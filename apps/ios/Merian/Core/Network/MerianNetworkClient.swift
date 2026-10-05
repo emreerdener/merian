@@ -345,13 +345,13 @@ final class MerianNetworkClient {
         return data
     }
 
-    /// Fixed private evidence route; the durable owner alone retries ambiguous outcomes.
-    func performAuthenticatedObservationEvidenceUpload(body: Data, expectedAuthUserID: UUID) async throws -> Data {
-        let url = try endpointURL("upload-observation-evidence")
+    /// Closed observation routes; the durable owner alone retries ambiguous outcomes.
+    func performAuthenticatedObservationRequest(_ operation: ObservationOperation, body: Data, expectedAuthUserID: UUID) async throws -> Data {
+        let url = try endpointURL(operation.function)
         let (data, _) = try await performAuthenticatedRequest(
             url: url, method: "POST", body: body, timeoutInterval: 130,
             allowsTransientTransportRetry: false, allowsUnauthorizedSessionRecovery: false,
-            expectedAuthUserID: expectedAuthUserID, contentType: .octetStream)
+            expectedAuthUserID: expectedAuthUserID, identificationAuthorization: operation.authorization, contentType: operation.contentType)
         return data
     }
 

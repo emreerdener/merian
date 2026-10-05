@@ -2784,3 +2784,12 @@ child/source/request digest and complete ordered evidence, including private
 descriptions. It retains exact result bytes and has no persistence side effects.
 The dedicated execution owner must still supply account/deletion/claim fences
 and perform append-only admission.
+
+### October 5: exact native analysis transport
+
+Prepared native admission/recovery now transmits immutable saved request bytes
+through a closed account-bound route without automatic retry or 401 refresh.
+Current dispatch authorization must match the saved processor; recovery-only
+preflight cannot authorize admitted work that may still dispatch. The response
+remains execution state only. Durable draft production, execution integration,
+ordinary UI and activation remain separate work.

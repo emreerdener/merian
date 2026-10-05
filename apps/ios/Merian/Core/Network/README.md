@@ -3868,6 +3868,24 @@ This is native transport preparation. Ordinary live/queued capture still needs
 explicit append-only integration, enrollment and persistence before it can use
 this route. All history activation gates remain false.
 
+### Exact reanalysis admission and recovery transport
+
+The same endpoint owner exposes `analyzeObservation` through a closed two-route
+observation bridge. It forwards the saved request bytes unchanged with the
+initiating account, JSON content type and a 130-second timeout. Automatic
+transport replay and classified-401 refresh remain disabled. The caller supplies
+current dispatch authorization for the exact saved processor; a mismatched or
+`recoveryOnly` authorization is rejected before I/O. Permission is checked again
+by the shared authenticated dispatcher immediately before sending.
+
+An existing admitted analysis may still dispatch its first provider execution.
+Consequently, a recovery-only preflight response is not permission to replay an
+analysis request without current consent. Exact completed-state reads remain a
+separate path. The four-field response supplies execution state only; the
+durable owner must verify the immutable child result before append-only
+completion. This transport does not preclaim credits, create IDs, select a
+result, or schedule work.
+
 ## Prepared reanalysis recipient preflight
 
 `ObservationReanalysisPreflightRequest` owns the distinct protocol 3/6/8 request

@@ -1,6 +1,7 @@
 import Foundation
-import Testing
 @testable import Merian
+import os
+import Testing
 
 @Suite("Observation Reanalysis Request")
 struct ObservationReanalysisRequestTests {
@@ -94,4 +95,78 @@ struct ObservationReanalysisRequestTests {
         }
     }
 
+}
+
+@Suite("Observation Reanalysis Transport", .serialized)
+@MainActor
+struct ObservationReanalysisTransportTests {
+    private static func request() throws -> ObservationReanalysisRequest {
+        let input = try ObservationReanalysisRequest(observationID: UUID(), analysisID: UUID(), sourceAnalysisID: UUID(),
+            processor: .gemini, evidence: [.image(.init(mediaID: UUID(), contentType: "image/jpeg", byteCount: 3,
+                sha256: "039058c6f2c0cb492c533b0a4d14ef77cc0f78abccced5287d84a1a2011cfb81"))])
+        let object = try JSONSerialization.jsonObject(with: input.body)
+        return try .init(savedBody: JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted]))
+    }
+
+    @Test(arguments: ObservationAnalysisReceipt.State.allCases)
+    func exactSavedBytesAndState(_ state: ObservationAnalysisReceipt.State) async throws {
+        let fixture = NetworkEndpointFixture(); defer { fixture.close() }
+        let owner = try #require(fixture.client.overridingAuthUserID), request = try Self.request()
+        let response = try JSONSerialization.data(withJSONObject: ["schema_version": 1,
+            "observation_id": request.observationID.uuidString.lowercased(),
+            "analysis_id": request.analysisID.uuidString.lowercased(), "state": state.rawValue])
+        let json = try #require(String(bytes: response, encoding: .utf8))
+        fixture.transport.register(path: "/analyze-observation") { wire in
+            #expect(MockURLProtocol.bodyData(for: wire) == request.body)
+            #expect(wire.value(forHTTPHeaderField: "Content-Type") == "application/json")
+            #expect(wire.value(forHTTPHeaderField: IdentificationRecipientExpectation.header) == "google_gemini")
+            #expect(wire.timeoutInterval == 130)
+            return try NetworkEndpointTestSupport.response(to: wire, status: state == .complete ? 200 : 202, json: json)
+        }
+        let receipt = try await fixture.client.analyzeObservation(request, ownerID: owner,
+            authorization: .init(recipient: .gemini, validate: {}))
+        #expect(receipt.analysisID == request.analysisID)
+        #expect(receipt.state == state)
+    }
+
+    @Test(arguments: [401, 503, -1])
+    func uncertainResponseNeverAutomaticallyRetriesOrRefreshes(_ status: Int) async throws {
+        let fixture = NetworkEndpointFixture(); defer { fixture.close() }
+        let owner = try #require(fixture.client.overridingAuthUserID), request = try Self.request()
+        let calls = OSAllocatedUnfairLock(initialState: 0), refreshes = OSAllocatedUnfairLock(initialState: 0)
+        fixture.client.overridingAuthSessionRefresh = { refreshes.withLock { $0 += 1 }; return true }
+        fixture.transport.register(path: "/analyze-observation") { wire in
+            calls.withLock { $0 += 1 }
+            if status == -1 { throw URLError(.networkConnectionLost) }
+            return try NetworkEndpointTestSupport.response(to: wire, status: status, json: #"{"code":"invalid_session_token"}"#)
+        }
+        await #expect(throws: (any Error).self) {
+            try await fixture.client.analyzeObservation(request, ownerID: owner, authorization: .init(recipient: .gemini, validate: {}))
+        }
+        #expect(calls.withLock { $0 } == 1)
+        #expect(refreshes.withLock { $0 } == 0)
+    }
+
+    @Test func missingAccountAndWrongOrWithdrawnPermissionCannotDispatch() async throws {
+        let fixture = NetworkEndpointFixture(); defer { fixture.close() }
+        let owner = try #require(fixture.client.overridingAuthUserID), request = try Self.request()
+        await confirmation("Denied requests never dispatch", expectedCount: 0) { sent in
+            fixture.transport.register(path: "/analyze-observation") { wire in
+                sent(); return try NetworkEndpointTestSupport.response(to: wire, json: "{}")
+            }
+            for recipient in [IdentificationRecipientExpectation.openAI, .recoveryOnly] {
+                await #expect(throws: MerianError.invalidResponse) {
+                    try await fixture.client.analyzeObservation(request, ownerID: owner, authorization: .init(recipient: recipient, validate: {}))
+                }
+            }
+            await #expect(throws: MerianError.aiConsentRequired) {
+                try await fixture.client.analyzeObservation(request, ownerID: owner,
+                    authorization: .init(recipient: .gemini, validate: { throw MerianError.aiConsentRequired }))
+            }
+            fixture.client.overridingAuthUserID = nil
+            await #expect(throws: SupabaseAuthTransitionError.signOutSessionChanged) {
+                try await fixture.client.analyzeObservation(request, ownerID: owner, authorization: .init(recipient: .gemini, validate: {}))
+            }
+        }
+    }
 }
