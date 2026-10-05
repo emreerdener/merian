@@ -188,3 +188,123 @@ struct ObservationReanalysisPersistenceTests {
         #expect(scheduler.nextPersistedWakeDate(using: manager) == nil)
     }
 }
+
+@MainActor
+@Suite(.serialized, .sharedProcessState(.offlineQueueManager))
+struct ObservationReanalysisDraftTests {
+    let fixture = ObservationReanalysisPersistenceTests()
+
+    func draft(text: String = "Leaf") throws -> ObservationReanalysisDraft {
+        let intent = try fixture.intent(text: text)
+        return try .init(identity: intent.identity, evidence: intent.request.evidence)
+    }
+
+    @Test func offlineDraftHasNoRecipientAndBindsOnceWithoutChangingFilesOrSelection() throws {
+        let container = try fixture.fixture.container(), original = try draft()
+        let bytes = try original.storedData()
+        let object = try #require(JSONSerialization.jsonObject(with: bytes) as? [String: Any])
+        #expect(Set(object.keys) == ["version", "phase", "owner_id", "observation_id", "analysis_id", "source_analysis_id", "evidence_manifest"])
+        #expect(try ObservationReanalysisDraft.decode(bytes) == original)
+        #expect(throws: (any Error).self) { try ObservationReanalysisIntent.decode(bytes) }
+        let staged = try ObservationReanalysisPersistence.stageDraft(original, container: container, isCurrent: { true })
+        guard case let .draft(saved) = staged else { Issue.record("Draft became bound without preflight"); return }
+        #expect(saved == original)
+        let bound = try ObservationReanalysisPersistence.bindDraft(original, processor: .gemini, container: container, isCurrent: { true })
+        #expect(bound.intent == (try fixture.intent()))
+        let (context, row, job) = try fixture.stored(container)
+        #expect(row.inferenceImagePaths == original.photoPaths && job.status == .needsAttention && job.nextRunAt == nil)
+        #expect(row.queueNeedsAttention && job.attemptCount == 0 && job.lastAttemptAt == nil)
+        let parent = try #require(context.fetch(FetchDescriptor<LocalScanRecord>()).first)
+        #expect(parent.selectedAnalysisID == fixture.fixture.analysis.uuidString.lowercased() && parent.observationStateRevision == 3)
+        #expect(try ObservationReanalysisPersistence.bindDraft(original, processor: .gemini, container: container, isCurrent: { true }).intent == bound.intent)
+        #expect(throws: (any Error).self) {
+            try ObservationReanalysisPersistence.bindDraft(original, processor: .openAI, container: container, isCurrent: { true })
+        }
+        #expect(throws: (any Error).self) {
+            try ObservationReanalysisPersistence.bindDraft(draft(text: "Changed"), processor: .gemini, container: container, isCurrent: { true })
+        }
+    }
+
+    @Test func staleDraftReplayRecoversExactBoundTerminalWithoutRevival() throws {
+        let container = try fixture.fixture.container(), original = try draft()
+        _ = try ObservationReanalysisPersistence.stageDraft(original, container: container, isCurrent: { true })
+        let bound = try ObservationReanalysisPersistence.bindDraft(original, processor: .openAI, container: container, isCurrent: { true })
+        let (context, _, job) = try fixture.stored(container)
+        job.status = .complete; job.attemptCount = 3; try context.save()
+        let replay = try ObservationReanalysisPersistence.stageDraft(original, container: container, isCurrent: { true })
+        guard case let .bound(saved) = replay else { Issue.record("Bound work downgraded to draft"); return }
+        #expect(saved.isTerminal && saved.intent == bound.intent)
+        let same = try ObservationReanalysisPersistence.bindDraft(original, processor: .openAI, container: container, isCurrent: { true })
+        #expect(same.isTerminal && same.intent.request.body == bound.intent.request.body)
+        let (_, _, fresh) = try fixture.stored(container)
+        #expect(fresh.attemptCount == 3 && fresh.status == .complete)
+    }
+
+    @Test func recoveryOnlyAndSaveFailureLeaveTheDraftIntact() throws {
+        let container = try fixture.fixture.container(), original = try draft()
+        _ = try ObservationReanalysisPersistence.stageDraft(original, container: container, isCurrent: { true })
+        for processor in [IdentificationRecipientExpectation.recoveryOnly, .gemini] {
+            #expect(throws: (any Error).self) {
+                try ObservationReanalysisPersistence.bindDraft(original, processor: processor, container: container, isCurrent: { true },
+                    save: { _ in throw CocoaError(.fileWriteUnknown) })
+            }
+            let (_, _, job) = try fixture.stored(container)
+            let text = try #require(job.metadataJSON)
+            #expect(try ObservationReanalysisDraft.decode(Data(text.utf8)) == original)
+        }
+    }
+
+    @Test(arguments: ["parent-deleted", "owner", "source", "job-missing", "row-missing", "paths", "metadata", "attempt", "terminal"])
+    func bindingRejectsDeletionAndDamagedOrPreviouslyAttemptedDrafts(_ reason: String) throws {
+        let container = try fixture.fixture.container(), original = try draft()
+        _ = try ObservationReanalysisPersistence.stageDraft(original, container: container, isCurrent: { true })
+        let (context, row, job) = try fixture.stored(container)
+        switch reason {
+        case "parent-deleted": context.insert(PendingCloudDeletionTask(scanId: original.identity.observationID.uuidString.lowercased()))
+        case "owner": row.reanalysisOwnerAccountID = UUID().uuidString.lowercased()
+        case "source": context.delete(try #require(context.fetch(FetchDescriptor<LocalAnalysisRecord>()).first))
+        case "job-missing": context.delete(job)
+        case "row-missing": context.delete(row)
+        case "paths": row.inferenceImagePaths = ["parent/photo.jpg"]
+        case "metadata": job.metadataJSON = nil
+        case "attempt": job.attemptCount = 1
+        default: job.status = .complete
+        }
+        try context.save()
+        #expect(throws: (any Error).self) {
+            try ObservationReanalysisPersistence.bindDraft(original, processor: .gemini, container: container, isCurrent: { true })
+        }
+    }
+
+    @Test func stagingAndBindingAccountFencesRollbackAllChanges() throws {
+        let container = try fixture.fixture.container(), original = try draft()
+        var checks = 0
+        #expect(throws: (any Error).self) {
+            try ObservationReanalysisPersistence.stageDraft(original, container: container, isCurrent: { checks += 1; return checks == 1 })
+        }
+        #expect(try ModelContext(container).fetchCount(FetchDescriptor<OfflineQueuedScan>()) == 0)
+        #expect(try ModelContext(container).fetchCount(FetchDescriptor<OfflineJobRecord>()) == 0)
+        _ = try ObservationReanalysisPersistence.stageDraft(original, container: container, isCurrent: { true })
+        checks = 0
+        #expect(throws: (any Error).self) {
+            try ObservationReanalysisPersistence.bindDraft(original, processor: .gemini, container: container, isCurrent: { checks += 1; return checks == 1 })
+        }
+        let (_, _, job) = try fixture.stored(container)
+        let metadata = try #require(job.metadataJSON)
+        #expect(try ObservationReanalysisDraft.decode(Data(metadata.utf8)) == original)
+    }
+
+    @Test func exactDraftDecoderRejectsUnknownPhaseAndRecipientInjection() throws {
+        let original = try draft()
+        let row = try #require(JSONSerialization.jsonObject(with: original.storedData()) as? [String: Any])
+        for patch: [String: Any] in [["version": true], ["version": 3], ["phase": "bound"], ["expected_processor_permission": "openai"],
+                                    ["analysis_id": original.identity.observationID.uuidString.lowercased()], ["owner_id": "invalid"],
+                                    ["request_base64": "e30="]] {
+            #expect(throws: (any Error).self) {
+                try ObservationReanalysisDraft.decode(JSONSerialization.data(withJSONObject: row.merging(patch) { _, new in new }))
+            }
+        }
+        #expect(throws: (any Error).self) { try ObservationReanalysisDraft.decode(Data(repeating: 32, count: 1_044_481)) }
+        #expect(throws: (any Error).self) { try ObservationReanalysisDraft(identity: original.identity, evidence: []) }
+    }
+}

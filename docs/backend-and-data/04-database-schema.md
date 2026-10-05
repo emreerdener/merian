@@ -5973,8 +5973,11 @@ values are `scanIngestion`, `cloudDeletion`, `identificationReviewSync`,
 `running`, `waiting`, `needsAttention`, `complete`, and `cancelled`.
 
 Prepared reanalysis jobs use `observationReanalysisSync` with the existing
-`scan-ingestion:<child UUID>` erasure index. Their immutable version-1 envelope
-contains owner and exact validated request bytes; the qualified V58 row supplies
+`scan-ingestion:<child UUID>` erasure index. A local version-2 `draft` envelope
+retains owner, parent/source/child and ordered evidence before recipient
+preflight, without a processor. One-time binding replaces only this metadata
+with the immutable version-1 owner/exact-request envelope; replay never changes
+a bound request or revives terminal work. The qualified V58 row supplies
 independent parent/source/owner routing and deletion linkage. The distinct raw
 kind excludes them from ordinary complimentary-funding restoration. Adding a raw
 string value changes no stored schema shape or retired snapshot. Atomic staging

@@ -12,11 +12,13 @@ struct ObservationReanalysisIntent: Sendable, Equatable {
     }
 
     /// Files are copied into this namespace before staging. Never reference parent-owned media.
-    var photoPaths: [String] {
-        request.evidence.compactMap { item in
+    var photoPaths: [String] { Self.photoPaths(analysisID: request.analysisID, evidence: request.evidence) }
+
+    static func photoPaths(analysisID: UUID, evidence: [ObservationReanalysisRequest.Evidence]) -> [String] {
+        evidence.compactMap { item in
             guard case let .image(photo) = item else { return nil }
             let suffix = photo.contentType == "image/png" ? "png" : "jpg"
-            return "ReanalysisQueue/\(request.analysisID.uuidString.lowercased())/\(photo.mediaID.uuidString.lowercased()).\(suffix)"
+            return "ReanalysisQueue/\(analysisID.uuidString.lowercased())/\(photo.mediaID.uuidString.lowercased()).\(suffix)"
         }
     }
 

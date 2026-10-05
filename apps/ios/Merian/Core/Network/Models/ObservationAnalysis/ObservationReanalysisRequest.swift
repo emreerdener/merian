@@ -24,16 +24,7 @@ struct ObservationReanalysisRequest: Sendable, Equatable {
             "source_analysis_id": sourceAnalysisID.uuidString.lowercased(),
             "entitlement_protocol": 3, "identification_protocol": 6, "history_protocol": 8,
             "expected_processor_permission": processor.rawValue,
-            "evidence_manifest": ["schema_version": 2, "items": try evidence.map { item -> [String: Any] in
-                switch item {
-                case let .description(text): return ["kind": "description", "text": text]
-                case let .image(reference):
-                    guard let row = try JSONSerialization.jsonObject(with: JSONEncoder().encode(reference)) as? [String: Any] else {
-                        throw MerianError.invalidResponse
-                    }
-                    return row
-                }
-            }]
+            "evidence_manifest": try Self.manifest(evidence)
         ]
         row["request_digest"] = try Self.digest(row)
         try self.init(savedBody: Self.canonical(row))
@@ -55,15 +46,37 @@ struct ObservationReanalysisRequest: Sendable, Equatable {
               let source = Self.uuid(row["source_analysis_id"]),
               Set([observation, analysis, source]).count == 3,
               let rawProcessor = row["expected_processor_permission"] as? String,
-              let processor = IdentificationRecipientExpectation(rawValue: rawProcessor), processor != .recoveryOnly,
-              let manifest = row["evidence_manifest"] as? [String: Any],
-              Set(manifest.keys) == ["schema_version", "items"], Self.integer(manifest["schema_version"]) == 2,
-              let items = manifest["items"] as? [[String: Any]], (1...64).contains(items.count) else {
+              let processor = IdentificationRecipientExpectation(rawValue: rawProcessor), processor != .recoveryOnly else {
             throw MerianError.invalidResponse
         }
         var unsigned = row
         unsigned.removeValue(forKey: "request_digest")
         guard let digest = row["request_digest"] as? String, digest == (try Self.digest(unsigned)) else {
+            throw MerianError.invalidResponse
+        }
+        self.evidence = try Self.decodeEvidence(row["evidence_manifest"], observationID: observation, analysisID: analysis)
+        self.observationID = observation; self.analysisID = analysis; self.sourceAnalysisID = source
+        self.processor = processor; self.body = savedBody
+    }
+
+    /// Shared with the offline draft: evidence validation never needs an invented recipient.
+    static func manifest(_ evidence: [Evidence]) throws -> [String: Any] {
+        ["schema_version": 2, "items": try evidence.map { item -> [String: Any] in
+            switch item {
+            case let .description(text): return ["kind": "description", "text": text]
+            case let .image(reference):
+                guard let row = try JSONSerialization.jsonObject(with: JSONEncoder().encode(reference)) as? [String: Any] else {
+                    throw MerianError.invalidResponse
+                }
+                return row
+            }
+        }]
+    }
+
+    static func decodeEvidence(_ value: Any?, observationID observation: UUID, analysisID analysis: UUID) throws -> [Evidence] {
+        guard let manifest = value as? [String: Any],
+              Set(manifest.keys) == ["schema_version", "items"], Self.integer(manifest["schema_version"]) == 2,
+              let items = manifest["items"] as? [[String: Any]], (1...64).contains(items.count) else {
             throw MerianError.invalidResponse
         }
         var evidence: [Evidence] = [], seen = Set<UUID>(), totalBytes = 0, totalText = 0
@@ -91,8 +104,7 @@ struct ObservationReanalysisRequest: Sendable, Equatable {
             }
         }
         guard !seen.isEmpty else { throw MerianError.invalidResponse }
-        self.observationID = observation; self.analysisID = analysis; self.sourceAnalysisID = source
-        self.processor = processor; self.evidence = evidence; self.body = savedBody
+        return evidence
     }
 
     private static func canonical(_ row: [String: Any]) throws -> Data {

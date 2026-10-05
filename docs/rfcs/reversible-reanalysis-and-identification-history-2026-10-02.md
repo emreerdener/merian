@@ -2793,3 +2793,14 @@ Current dispatch authorization must match the saved processor; recovery-only
 preflight cannot authorize admitted work that may still dispatch. The response
 remains execution state only. Durable draft production, execution integration,
 ordinary UI and activation remain separate work.
+
+### October 5: offline draft and one-time request binding
+
+Prepared native persistence now retains child identity and ordered evidence
+before recipient preflight, with no invented processor. The versioned local
+draft binds once to the exact request under the existing account/source/deletion
+transaction. Replays preserve bound terminal work; changed evidence or recipient
+conflicts, and recovery-only cannot reconstruct an unbound request.
+Verified-file production, dedicated execution and ordinary UI remain
+unconnected; all gates remain closed. No persisted model field or retired
+snapshot changes.

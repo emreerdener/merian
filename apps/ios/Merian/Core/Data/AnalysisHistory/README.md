@@ -442,6 +442,27 @@ with scans, results, deletion tasks and enrollment tombstones. Save failure or a
 changed account rolls back both rows. No selection, authority, quota or
 complimentary hold changes occur; server admission owns funding.
 
+`ObservationReanalysisDraft` adds a separate local version-2 `draft` envelope
+for offline identity and ordered evidence before recipient preflight. It
+contains no processor, request body, URL or funding claim. It shares the final
+request's strict evidence validator without inventing a provider. `stageDraft`
+persists the same qualified child and job under the existing
+owner/source/deletion transaction. `bindDraft` compares the entire draft and
+replaces only its metadata with the version-1 immutable request envelope once a
+concrete recipient is available. `recoveryOnly` cannot bind a draft. The full
+saved request is required to recover an existing server intent; reconstructing
+it from today's provider is forbidden.
+
+Exact draft replay recovers an already-bound request without downgrading it.
+Binding to another processor, changing evidence, missing either row, attempted
+or terminal draft metadata, and account/deletion changes fail closed. Save
+failures retain the original draft. Binding preserves files, identities,
+attempts, holds, selection and review state. Bound terminal receipts remain
+terminal. These APIs still require the producer to durably copy verified files
+before staging; they do not perform or authorize upload.
+`ObservationReanalysisDraftTests` covers one-time binding, consent-free draft
+encoding, mutation denial, rollback, terminal replay and damaged/deleted work.
+
 The prepared stage remains held without a deadline until dedicated delivery is
 connected. Ordinary scheduling ignores qualified, malformed and orphan ingestion
 work, including misleading retry dates. There is no UI enqueue caller yet.

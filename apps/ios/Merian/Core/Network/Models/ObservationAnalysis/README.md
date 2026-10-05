@@ -67,3 +67,9 @@ route chooses JSON rather than the upload frame's binary content type. A current
 on replay; `recoveryOnly` cannot authorize a potentially not-yet-dispatched
 admission. Both automatic retry and 401 refresh are disabled, and the durable
 caller owns all reconciliation and current-account checks around persistence.
+
+`manifest` and `decodeEvidence` are shared with the local offline draft so its
+ordered evidence obeys the same limits without assigning a placeholder provider.
+Extracting this validation changes neither the wire format nor its canonical
+request digest; the existing Unicode/order fingerprint fixture remains the
+compatibility check.

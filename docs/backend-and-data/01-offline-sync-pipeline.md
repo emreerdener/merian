@@ -1846,6 +1846,15 @@ apply selection or review state. Ordinary scheduler deadlines ignore qualified,
 invalid and orphan ingestion work. See the
 [local persistence contract](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#prepared-immutable-reanalysis-staging).
 
+Offline preparation now has a strict local draft phase containing the permanent
+child/parent/source/owner linkage and original ordered evidence before recipient
+preflight. No provider is guessed to persist it. Binding compares the saved
+draft and replaces only its metadata with one immutable request; later changes
+conflict and terminal work never revives. A recovery-only preflight cannot bind
+an unbound draft. Draft and bound work remain held until the dedicated file and
+execution owners are connected. This adds no SwiftData model field or schema
+version.
+
 ### 1. Transactional Destruction (`ScanRepository.eradicateScan`)
 
 Reanalysis must first pass `InferenceScanReplacement`: a typed persisted
