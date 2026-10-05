@@ -36,7 +36,7 @@ final class DeleteAccountViewModel {
     }
 
     func deleteAccount(
-        purgeLocalData: @MainActor @escaping () -> Bool
+        purgeLocalData: @MainActor @escaping () async -> Bool
     ) async -> Bool {
         guard !isDeleting else { return false }
         guard !dependencies.hasPendingPurchaseContinuityFailClosed() else {

@@ -24,9 +24,11 @@ filesystem cleanup, independently of network, Auth, onboarding and AI consent.
 It rechecks the active model container and child absence under the filesystem
 lock, and durably acknowledges successful erasure. Failed receipts remain
 pending for another local recovery opportunity. Repository configuration and
-committed parent deletion also invoke this coalesced owner. Complete-cohort
-preparation recovery and full-account namespace purge remain separate
-integration work; see the
+committed parent deletion also invoke this coalesced owner. Full-account cleanup
+suspends and drains this worker, then awaits namespace erasure before retiring
+its recovery barrier. Targeted complete-cohort preparation recovery is
+available, but automatic restart delivery still awaits execution integration;
+see the
 [private reanalysis contract](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#verified-file-production).
 
 After the onboarding routing gate, the active handler always schedules

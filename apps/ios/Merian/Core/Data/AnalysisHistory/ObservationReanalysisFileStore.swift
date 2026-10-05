@@ -5,7 +5,7 @@ import Foundation
 /// Owns private child files through the synchronous durable queue commit.
 /// Directory descriptors keep deletion/recreation from redirecting cleanup.
 actor ObservationReanalysisFileStore {
-    enum Failure: Error { case unavailable, conflict, busy, cleanupFailed }
+    enum Failure: Error { case unavailable, conflict, busy, cleanupFailed, incomplete }
     private struct CreatedFile { let name: String; let inode: ino_t; let descriptor: Int32 }
     private let documents: URL
     private var activeChildren = Set<UUID>()
@@ -76,6 +76,45 @@ actor ObservationReanalysisFileStore {
         }
     }
 
+    /// Adopts only the complete saved cohort. Never creates, repairs or removes evidence.
+    func recover<T: Sendable>(draft: ObservationReanalysisDraft,
+                              validateBeforeRead: @MainActor @Sendable () throws -> Void,
+                              commit: @MainActor @Sendable () throws -> T) async throws -> T {
+        let child = draft.identity.analysisID
+        guard activeChildren.insert(child).inserted else { throw Failure.busy }
+        defer { activeChildren.remove(child) }
+        try Task.checkCancellation()
+        let root = open(documents.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard root >= 0 else { throw Failure.unavailable }
+        defer { close(root) }
+        guard flock(root, LOCK_SH | LOCK_NB) == 0 else { throw Failure.busy }
+        defer { flock(root, LOCK_UN) }
+        let queue = try existingDirectory("ReanalysisQueue", inside: root)
+        defer { close(queue) }
+        let directory = try existingDirectory(child.uuidString.lowercased(), inside: queue)
+        defer { close(directory) }
+        guard flock(directory, LOCK_EX | LOCK_NB) == 0 else { throw Failure.busy }
+        defer { flock(directory, LOCK_UN) }
+        try await validateBeforeRead()
+        let references = draft.evidence.compactMap { item -> ObservationEvidenceUpload.Reference? in
+            if case let .image(photo) = item { return photo }; return nil
+        }
+        let expected = references.map { $0.mediaID.uuidString.lowercased() + ($0.contentType == "image/png" ? ".png" : ".jpg") }
+        guard try names(in: directory) == expected.sorted() else { throw Failure.incomplete }
+        for (reference, name) in zip(references, expected) {
+            try Task.checkCancellation()
+            guard let bytes = try read(name, directory: directory, reference: reference, synchronize: true) else { throw Failure.incomplete }
+            // The original-byte path verifies digest, length and actual one-frame JPEG/PNG type without re-encoding.
+            _ = try ObservationReanalysisPhotoPreparation.prepare(bytes: bytes, mediaID: reference.mediaID,
+                original: .init(mediaID: reference.mediaID, contentType: reference.contentType, byteCount: reference.byteCount, sha256: reference.sha256))
+        }
+        guard fsync(directory) == 0, fsync(queue) == 0, fsync(root) == 0 else { throw Failure.unavailable }
+        try Task.checkCancellation()
+        guard sameDirectory(queue, named: "ReanalysisQueue", inside: root),
+              sameDirectory(directory, named: child.uuidString.lowercased(), inside: queue) else { throw Failure.conflict }
+        return try await commit()
+    }
+
     /// Namespace authority comes from a committed receipt, never from caller-provided paths.
     /// Keep the empty directory as the stable child lock; full-library purge removes it later.
     func erase(child: UUID, authorize: @MainActor @Sendable () throws -> Bool,
@@ -107,6 +146,52 @@ actor ObservationReanalysisFileStore {
         guard sameDirectory(queue, named: "ReanalysisQueue", inside: root),
               sameDirectory(directory, named: child.uuidString.lowercased(), inside: queue) else { throw Failure.cleanupFailed }
         try await acknowledge()
+    }
+
+    /// Full-library authority only. The Auth transition must already have drained account-bound writers.
+    /// Unlike child cleanup, this removes orphaned namespaces too, without following any links.
+    func purgeNamespace() throws {
+        try Task.checkCancellation()
+        guard activeChildren.isEmpty else { throw Failure.busy }
+        let root = open(documents.path, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard root >= 0 else { throw Failure.unavailable }
+        defer { close(root) }
+        guard flock(root, LOCK_EX | LOCK_NB) == 0 else { throw Failure.busy }
+        defer { flock(root, LOCK_UN) }
+        try removeEntry("ReanalysisQueue", inside: root, depth: 0)
+        guard fsync(root) == 0 else { throw Failure.cleanupFailed }
+    }
+
+    private func removeEntry(_ name: String, inside parent: Int32, depth: Int) throws {
+        try Task.checkCancellation()
+        var info = stat()
+        guard fstatat(parent, name, &info, AT_SYMLINK_NOFOLLOW) == 0 else {
+            if errno == ENOENT { return }; throw Failure.cleanupFailed
+        }
+        guard info.st_mode & S_IFMT == S_IFDIR else {
+            guard unlinkat(parent, name, 0) == 0 else { throw Failure.cleanupFailed }
+            return
+        }
+        guard depth < 16 else { throw Failure.cleanupFailed }
+        let directory = try existingDirectory(name, inside: parent)
+        defer { close(directory) }
+        let copy = dup(directory)
+        guard copy >= 0 else { throw Failure.unavailable }
+        guard let stream = fdopendir(copy) else { close(copy); throw Failure.unavailable }
+        defer { closedir(stream) }
+        while true {
+            errno = 0
+            guard let entry = readdir(stream) else {
+                guard errno == 0 else { throw Failure.cleanupFailed }
+                break
+            }
+            let child = withUnsafePointer(to: &entry.pointee.d_name) {
+                $0.withMemoryRebound(to: CChar.self, capacity: Int(entry.pointee.d_namlen) + 1) { String(cString: $0) }
+            }
+            if child != ".", child != ".." { try removeEntry(child, inside: directory, depth: depth + 1) }
+        }
+        guard fsync(directory) == 0, sameDirectory(directory, named: name, inside: parent),
+              unlinkat(parent, name, AT_REMOVEDIR) == 0 else { throw Failure.cleanupFailed }
     }
 
     private func sameDirectory(_ descriptor: Int32, named name: String, inside parent: Int32) -> Bool {
@@ -148,7 +233,18 @@ actor ObservationReanalysisFileStore {
         return descriptor
     }
 
-    private func read(_ name: String, directory: Int32, reference: ObservationEvidenceUpload.Reference) throws -> Data? {
+    private func existingDirectory(_ name: String, inside parent: Int32) throws -> Int32 {
+        let descriptor = openat(parent, name, O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC)
+        guard descriptor >= 0 else {
+            if errno == ENOENT { throw Failure.incomplete }
+            if errno == ELOOP || errno == ENOTDIR { throw Failure.conflict }
+            throw Failure.unavailable
+        }
+        return descriptor
+    }
+
+    private func read(_ name: String, directory: Int32, reference: ObservationEvidenceUpload.Reference,
+                      synchronize: Bool = false) throws -> Data? {
         let descriptor = openat(directory, name, O_RDONLY | O_NONBLOCK | O_NOFOLLOW | O_CLOEXEC)
         guard descriptor >= 0 else {
             if errno == ENOENT { return nil }; throw Failure.conflict
@@ -163,6 +259,7 @@ actor ObservationReanalysisFileStore {
             guard chunk.count <= reference.byteCount - bytes.count else { throw Failure.conflict }
             bytes.append(chunk)
         }
+        if synchronize && fsync(descriptor) != 0 { throw Failure.unavailable }
         return bytes
     }
 

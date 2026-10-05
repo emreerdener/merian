@@ -18,6 +18,48 @@ struct ObservationReanalysisFileStoreTests {
         return url
     }
 
+    @Test func fullNamespacePurgeErasesOrphansWithoutFollowingLinks() async throws {
+        let root = try directory(), outside = try directory()
+        defer { try? FileManager.default.removeItem(at: root); try? FileManager.default.removeItem(at: outside) }
+        let queue = root.appendingPathComponent("ReanalysisQueue")
+        try FileManager.default.createDirectory(at: queue, withIntermediateDirectories: false)
+        let retained = outside.appendingPathComponent("retained.jpg")
+        try Data([9]).write(to: retained)
+        try Data([7]).write(to: root.appendingPathComponent("unrelated.jpg"))
+        for index in 0..<300 {
+            let child = queue.appendingPathComponent("orphan-\(index)")
+            try FileManager.default.createDirectory(at: child, withIntermediateDirectories: false)
+            try Data([1]).write(to: child.appendingPathComponent(".interrupted.preparing"))
+        }
+        try FileManager.default.createSymbolicLink(at: queue.appendingPathComponent("outside"), withDestinationURL: outside)
+        #expect(mkfifo(queue.appendingPathComponent("fifo").path, 0o600) == 0)
+        let store = ObservationReanalysisFileStore(documents: root)
+        try await store.purgeNamespace()
+        try await store.purgeNamespace()
+        #expect(!FileManager.default.fileExists(atPath: queue.path))
+        #expect(try Data(contentsOf: retained) == Data([9]))
+        #expect(try Data(contentsOf: root.appendingPathComponent("unrelated.jpg")) == Data([7]))
+        try FileManager.default.createSymbolicLink(at: queue, withDestinationURL: outside)
+        try await store.purgeNamespace()
+        #expect(try Data(contentsOf: retained) == Data([9]))
+    }
+
+    @Test func fullPurgeRequiresExclusiveRootAndCannotRaceAWriter() async throws {
+        let root = try directory(); defer { try? FileManager.default.removeItem(at: root) }
+        let store = ObservationReanalysisFileStore(documents: root), draft = try draft()
+        let lock = open(root.path, O_RDONLY | O_DIRECTORY)
+        #expect(lock >= 0); defer { close(lock) }
+        #expect(flock(lock, LOCK_SH | LOCK_NB) == 0)
+        await #expect(throws: ObservationReanalysisFileStore.Failure.busy) { try await store.purgeNamespace() }
+        #expect(flock(lock, LOCK_UN) == 0)
+        #expect(flock(lock, LOCK_EX | LOCK_NB) == 0)
+        await #expect(throws: ObservationReanalysisFileStore.Failure.busy) {
+            try await store.persist(draft: draft, photos: [Data([1, 2, 3])]) { Issue.record("Writer entered full purge") }
+        }
+        #expect(flock(lock, LOCK_UN) == 0)
+        try await store.purgeNamespace()
+    }
+
     @Test func exactReplayNeverOverwritesAndRollbackPreservesExistingFiles() async throws {
         let root = try directory(); defer { try? FileManager.default.removeItem(at: root) }
         let draft = try draft(), store = ObservationReanalysisFileStore(documents: root), bytes = Data([1, 2, 3])

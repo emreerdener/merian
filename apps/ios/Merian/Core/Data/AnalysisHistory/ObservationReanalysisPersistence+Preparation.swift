@@ -2,6 +2,33 @@ import Foundation
 import SwiftData
 
 extension ObservationReanalysisPersistence {
+    enum PreparationState: Sendable {
+        case pending(ObservationReanalysisPreparationIntent)
+        case ready(DraftState)
+    }
+
+    /// Targeted local recovery read. Decoding a pending envelope never authorizes file or provider work.
+    @MainActor
+    static func preparation(_ identity: OfflineQueueWork.Reanalysis, container: ModelContainer,
+                            isCurrent: () -> Bool) throws -> PreparationState {
+        try transaction(identity, container: container, isCurrent: isCurrent, save: { try $0.save() }) { context in
+            guard let (row, job) = try pair(identity, context: context), let text = job.metadataJSON else { throw IntegrityError.unavailable }
+            let data = Data(text.utf8)
+            if let pending = try? ObservationReanalysisPreparationIntent.decode(data) {
+                guard pending.draft.identity == identity else { throw IntegrityError.conflict }
+                try validatePending(pending, row: row, job: job, context: context)
+                return .pending(pending)
+            }
+            if let draft = try? ObservationReanalysisDraft.decode(data) {
+                guard draft.identity == identity else { throw IntegrityError.conflict }
+                return .ready(try restoreDraft(draft, row: row, job: job))
+            }
+            let bound = try restore(row: row, job: job)
+            guard bound.intent.identity == identity else { throw IntegrityError.conflict }
+            return .ready(.bound(bound))
+        }
+    }
+
     /// Persist the deletion/recovery index before any private file is created.
     /// A ready or bound replay is returned without rewriting its phase or touching files.
     @MainActor

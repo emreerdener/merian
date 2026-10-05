@@ -1193,11 +1193,16 @@ bounds apply before durable child admission. The producer saves a held
 uses a locked compare-and-save to make the draft ready. Parent deletion retains
 a durable namespace cleanup receipt. A local worker now removes the entire child
 namespace's file contents under the preparation lock and durably acknowledges
-completion; failures retain the receipt for lifecycle recovery. Full-account
-namespace purge and complete-cohort restart recovery remain integration
-prerequisites. Unsupported or oversized originals require explicit remediation;
-they are never silently dropped or reidentified as the original after
-conversion. The
+completion; failures retain the receipt for lifecycle recovery. Targeted local
+recovery can adopt a complete existing cohort under the same locks only after
+verifying the saved source fingerprint, exact file set and all ordered photo
+lengths, digests and containers. It preserves the child identity and selection;
+incomplete evidence stays held. Full-account purge awaits complete namespace
+erasure under an exclusive Documents root lock before preferences and runtime
+state reset; failure retains the account cleanup barrier. Automatic restart
+delivery remains an integration prerequisite. Unsupported or oversized originals
+require explicit remediation; they are never silently dropped or reidentified as
+the original after conversion. The
 [private producer contract](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#verified-file-production)
 owns file durability, source/owner fences and integration status. Ordinary
 capture remains on its existing image pipeline.

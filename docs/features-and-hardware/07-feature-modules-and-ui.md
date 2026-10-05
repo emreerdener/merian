@@ -1726,21 +1726,22 @@ dependency composition.
   deletes every active SwiftData row through
   `ScanRepository.purgeAllData(modelContext:userDefaults:resetDerivedState:resetRuntimeState:)`,
   passing the required synchronous private-map derived-state reset before every
-  active-schema model is deleted and verified account-derived defaults are
-  cleared. The injected post-persistence reset then refreshes observable
-  settings and clears legacy gamification, the generation-fenced app badge, and
-  RAM images; the app-root instructions remain visible across relaunch until the
-  user confirms manual Apple removal. That receipt-and-notice behavior exists
-  only in supporting binaries. Public promotion remains blocked until older
-  clients are covered by an enforceable minimum-supported-build control or an
-  independent server-delivered fallback; publishing the new build alone is
-  insufficient. The protocol-v2 prepare response now maps to its dedicated
-  native non-destructive receipt and is locked to the handler through a shared
-  fixture. The injected native workflow checks cancellation before persistence,
-  after the legacy recovery marker, immediately before and after non-destructive
-  v2 preparation, and after both v2 markers; already-durable evidence remains
-  recoverable, but a cancelled task cannot dispatch destructive intake or
-  commit. See the
+  active-schema model is deleted. It then awaits private reanalysis namespace
+  erasure before verified account-derived defaults are cleared; a file failure
+  retains the cleanup barrier for retry. The injected post-persistence reset
+  then refreshes observable settings and clears legacy gamification, the
+  generation-fenced app badge, and RAM images; the app-root instructions remain
+  visible across relaunch until the user confirms manual Apple removal. That
+  receipt-and-notice behavior exists only in supporting binaries. Public
+  promotion remains blocked until older clients are covered by an enforceable
+  minimum-supported-build control or an independent server-delivered fallback;
+  publishing the new build alone is insufficient. The protocol-v2 prepare
+  response now maps to its dedicated native non-destructive receipt and is
+  locked to the handler through a shared fixture. The injected native workflow
+  checks cancellation before persistence, after the legacy recovery marker,
+  immediately before and after non-destructive v2 preparation, and after both v2
+  markers; already-durable evidence remains recoverable, but a cancelled task
+  cannot dispatch destructive intake or commit. See the
   [Core Network preparation contract](../../apps/ios/Merian/Core/Network/README.md#preparation-receipt-contract);
   the intended presentation/workflow above still requires authorized
   real-session evidence.

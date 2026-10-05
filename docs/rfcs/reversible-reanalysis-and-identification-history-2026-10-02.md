@@ -2862,3 +2862,29 @@ Writers and cleanup share a lock on the trusted Documents root to support the
 future exclusive full-account namespace purge. That purge and verified
 complete-cohort pending recovery still precede live capture integration. All
 activation gates remain false.
+
+### October 5: prepared complete-cohort recovery
+
+Targeted native recovery now verifies a saved `files_pending` cohort before
+advancing that same child to a ready draft. It opens only existing files, checks
+the immutable source fingerprint and ordered photo evidence, and retains the
+filesystem fence through fresh database validation. Incomplete or changed
+cohorts remain held; terminal replay cannot revive work. This does not yet wire
+restart delivery or provider execution. Full-account namespace purge was the
+next local privacy boundary at this checkpoint; the following entry records its
+implementation. The
+[current producer contract](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#verified-file-production)
+owns the implementation details; all activation gates remain disabled.
+
+### October 5: full-account private reanalysis purge
+
+Account deletion and library-clearing sign-out now await private reanalysis
+namespace erasure after row deletion and before preferences/runtime reset or
+recovery-marker retirement. The purge drains local receipt work and holds the
+exclusive Documents root lock against writers, recovery and child cleanup. It
+includes orphaned preparation files, never follows symlinks, and leaves
+unrelated Documents content alone. Failure keeps the existing cleanup barrier
+for retry. The
+[current data contract](../../apps/ios/Merian/Core/Data/README.md) owns this
+boundary. Capture/execution integration and feature activation remain
+outstanding.

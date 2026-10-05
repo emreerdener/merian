@@ -741,7 +741,10 @@ deletion. Parent cloud erasure remains observation-scoped. Private queue file
 cleanup is receipt-bound to the entire `ReanalysisQueue/<canonical-child-ID>`
 namespace, including interrupted preparation files. Generic observation-media
 cleanup no longer receives child paths. No qualified UI producer is enabled yet;
-complete-cohort recovery and full-account namespace purge remain prerequisites.
+targeted complete-cohort recovery is prepared, while automatic restart delivery
+still awaits execution integration. Full-account cleanup now drains the local
+eraser and awaits exclusive-lock namespace purge before preferences/runtime
+reset or recovery-marker retirement.
 
 The ordinary permission-resume affordance and automatic failed-queue purge also
 require ordinary classification. Held children cannot borrow legacy funding

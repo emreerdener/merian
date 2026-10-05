@@ -87,17 +87,22 @@ and fails closed on fetch or save errors. Insight and Explore adapt this owner
 instead of independently coordinating the two stores. See the
 [Core Field Notes README](FieldNotes/README.md).
 
-Accepted account deletion routes through `ScanRepository.purgeAllData`, which
-resets derived state and delegates to `ScanLibraryPurgeService`. That service
-explicitly deletes every model in `CurrentSchema` and then invokes the verified
-`Core/Preferences/AccountScopedPreferences` cleanup. A schema-inventory test
-fails when a newly active model is not added to that erasure boundary. Only
-after both durable steps succeed does the service invoke the injected
-`AccountScopedRuntimeState` reset for observable settings, gamification, app
-badge, and RAM image-cache projections. This synchronous boundary deletes rows;
-it does not replace the SQLite store file or traverse unreferenced files in the
-app container. Any broader disk-erasure policy needs a separate inventory of
-file owners and must not infer ownership from a broad directory alone.
+Accepted account deletion and library-clearing sign-out await
+`ScanRepository.purgeAllData`, which resets derived state and delegates to
+`ScanLibraryPurgeService`. Under the existing Auth transition/recovery barrier,
+the service suspends and drains local reanalysis receipt cleanup, deletes every
+model in `CurrentSchema`, then awaits erasure of the entire private
+`ReanalysisQueue` namespace. The file owner takes the exclusive Documents root
+lock shared by writers, recovery and child cleanup, and removes orphaned files
+without following symlinks or touching other Documents content. A failed file
+erasure retains the account cleanup barrier; preferences, runtime reset and
+recovery-marker retirement do not advance. Retry repeats the idempotent purge.
+Only after database and file erasure succeed does verified
+`Core/Preferences/AccountScopedPreferences` cleanup run, followed by the
+injected `AccountScopedRuntimeState` reset. The schema-inventory test keeps row
+erasure exhaustive; purge tests cover file failure and ordering. This does not
+replace the SQLite store file or authorize broad erasure of other unreferenced
+media.
 
 V50 introduced `OfflineQueuedScanGoalHint`, a scan-keyed companion that stores
 the optional standard-outing and checklist-item IDs selected in a qualifying

@@ -3,14 +3,20 @@ import os
 import SwiftData
 
 /// Account erasure's local persistence and preference boundary. Repository
-/// composition resets view projections before entering this synchronous owner.
+/// composition resets view projections before entering this asynchronous owner.
 @MainActor
 enum ScanLibraryPurgeService {
     static func purge(
         modelContext: ModelContext,
         userDefaults: UserDefaults,
-        resetRuntimeState: @MainActor () -> Void
-    ) -> Bool {
+        resetRuntimeState: @MainActor () -> Void,
+        eraseReanalysis: @MainActor () async throws -> Void = {
+            try await ObservationReanalysisFileStore(documents: .documentsDirectory).purgeNamespace()
+        }
+    ) async -> Bool {
+        let cleanup = OfflineQueueManager.shared.reanalysisErasureOwner
+        await cleanup.suspendForLibraryPurge()
+        defer { cleanup.resumeAfterLibraryPurge() }
         LocalScanMediaRecoveryResolver.resetRegisteredRecoveryMappings()
         do {
             try modelContext.delete(model: CapturedMediaEntry.self)
@@ -32,6 +38,16 @@ enum ScanLibraryPurgeService {
             return false
         }
 
+        do {
+            // Auth transition/recovery barriers remain held across this suspension.
+            // Failure after the row commit keeps the durable cleanup marker for an idempotent retry.
+            try await eraseReanalysis()
+        } catch {
+            AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged)
+            MerianLog.data.error("Private reanalysis erasure remains pending; retaining account cleanup barrier.")
+            return false
+        }
+
         guard AccountScopedPreferences.purgeAndVerify(
             userDefaults: userDefaults
         ) else {
@@ -45,7 +61,7 @@ enum ScanLibraryPurgeService {
         resetRuntimeState()
         AppDIContainer.shared.appEventPublisher.send(.scanLibraryChanged)
         MerianLog.data.debug(
-            "✅ Successfully purged all SwiftData records and account-scoped preferences."
+            "✅ Successfully purged SwiftData, private reanalysis files and account-scoped preferences."
         )
         return true
     }

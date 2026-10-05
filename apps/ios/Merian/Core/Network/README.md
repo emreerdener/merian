@@ -1095,18 +1095,20 @@ owners, rejects an endpoint entry point duplicated in the remaining aggregate,
 and applies the 600-line review ceiling to every Swift owner under `Auth/`,
 `Endpoints/`, `Inference/`, `Media/`, `Recovery/`, and `Transport/`, plus the
 client façade. The Auth inventory is exactly sixty-four production files; its
-source guard also caps Auth at 7,886 production lines, Purchase Identity at
-2,016, `SupabaseManager.swift` at 3,792, and the combined surface at 13,694. The
+source guard also caps Auth at 7,887 production lines, Purchase Identity at
+2,016, `SupabaseManager.swift` at 3,792, and the combined surface at 13,695. The
 September 2026 startup fix adds exactly 22 Auth lines and 14 façade lines for
 keyed foreground/listener coalescing and replacement fencing; the other limits
 and ownership checks remain unchanged. The October deletion-account resume hook
 adds 7 Auth lines and 7 facade lines, including its extra session fence. The
 subsequent library-transition preparation adds 123 Auth lines and 310 facade
 lines for durable sign-out recovery, ownership/admission fences and transfer
-status. The facade remains the existing reviewed residual owner because these
-live bindings share private transition state; no mutable internals were widened
-solely to satisfy the earlier feature budget. Other extracted owners retain the
-600-line ceiling. See the
+status. The asynchronous account purge adds one Auth line for the post-await
+session-absence fence, without increasing the individual owner ceilings. The
+facade remains the existing reviewed residual owner because these live bindings
+share private transition state; no mutable internals were widened solely to
+satisfy the earlier feature budget. Other extracted owners retain the 600-line
+ceiling. See the
 [startup investigation](../../../../../docs/incidents/2026-09-startup-log-triage.md).
 The guard freezes the effect-free observable runtime owner for transition,
 generation, analytics-token, exact-session lease/drain, and local sign-out

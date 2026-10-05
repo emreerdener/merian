@@ -9539,7 +9539,12 @@ sign-out, and deletes every active-schema SwiftData row through
 The required app-owned private-map reset closure empties and epoch-fences
 exact-coordinate snapshots, index work, and preview rendering and advances the
 active-map presentation reset generation before SwiftData deletion. After the
-database save, the purge read-back verifies removal of account-derived
+database save, the asynchronous purge first erases the entire private
+`ReanalysisQueue` namespace under its exclusive filesystem lock, including
+orphaned preparations. The local receipt worker is suspended and drained first;
+Auth transition/recovery barriers remain held. Failure preserves the cleanup
+marker and prevents acknowledgement, preference/runtime reset and capability
+retirement. The purge then read-back verifies removal of account-derived
 `UserDefaults` caches, including field notes, Explore share state, species-name
 legacy/tombstone/diagnostic values, account-keyed goal and achievement
 envelopes, collection state, Explore state and unread count, legacy
@@ -9549,16 +9554,16 @@ notice remain. An injected post-persistence owner then resets observable
 settings, gamification, the generation-fenced app badge, and RAM images. It then
 acknowledges through the public recovery route using only the independent
 acknowledgement capability, records `capability_retirement_pending`, verifies
-local Auth absence and repeats the idempotent SwiftData/preferences cleanup on
-relaunch, verifies Keychain proof removal, and clears the marker last.
-Foreground and cold-launch recovery repeat the exact phase behind a blocking
-screen. Only a matched committed capability's
-`account_deletion_recovery_expired` `410` permits conservative local cleanup;
-the subsequent independent acknowledgement remains valid after expiry and
-converts the row to a permanent replay receipt before local retirement. An
-unknown legacy proof does not. An authenticated duplicate that arrives after
-acknowledgement returns the same permanent receipt and cannot clear
-acknowledgement or extend its expiry. The app establishes its ordinary
+local Auth absence and repeats the idempotent
+SwiftData/private-reanalysis/preferences cleanup on relaunch, verifies Keychain
+proof removal, and clears the marker last. Foreground and cold-launch recovery
+repeat the exact phase behind a blocking screen. Only a matched committed
+capability's `account_deletion_recovery_expired` `410` permits conservative
+local cleanup; the subsequent independent acknowledgement remains valid after
+expiry and converts the row to a permanent replay receipt before local
+retirement. An unknown legacy proof does not. An authenticated duplicate that
+arrives after acknowledgement returns the same permanent receipt and cannot
+clear acknowledgement or extend its expiry. The app establishes its ordinary
 signed-out state only after this sequence. Neither marker nor proof contains an
 account, job, provider, or request identifier. Legacy `intake_pending` and
 `cleanup_pending` remain supported during the installed-client compatibility

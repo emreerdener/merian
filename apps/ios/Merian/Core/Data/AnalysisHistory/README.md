@@ -582,15 +582,36 @@ special files before reading bytes. Completed receipts remain identity
 tombstones and never authorize another erasure. Generic observation-media
 deletion no longer receives child paths. No network timer or provider retry is
 involved. Writers and cleanup share a Documents root lock; full-account purge
-must take its exclusive side before removing the namespace. Complete-cohort
-restart recovery remains unconnected. Future recovery must take the same file
-lock, verify the exact canonical file set and all lengths/digests, then compare
-the persisted source identity and pending pair before making it ready.
-Incomplete, extra or changed files remain held for explicit remediation; no
-successor is created automatically. Cleanup must acknowledge its durable receipt
-only while holding the file lock after fresh database validation. It must never
-wait for a file lock inside the shared database transaction. Full-account
-namespace purge also remains required. Neither boundary may be activated before
-these cleanup and recovery paths are integrated and tested. The prepared
-producer still has no live capture-entry caller or execution wake; new durable
-children stay held and every activation gate remains closed.
+takes its exclusive side before removing the namespace.
+
+`ObservationReanalysisPreparationRecovery` now provides targeted local recovery
+for the same saved child. It acquires the expected account lease, captures the
+exact historical source and verifies its persisted fingerprint off the main
+actor. The file store opens only existing directories, holds the shared root and
+exclusive child locks, and requires the exact canonical file set. Every photo
+must be a regular nonsymlink file with its original length, digest and
+single-frame JPEG/PNG container. It synchronizes verified files and directories,
+checks directory identities, then performs a fresh pending-to-ready database
+compare-and-save under those locks. Source, account, generation, deletion and
+pair ownership are rechecked; no provider work or selection change occurs. Ready
+or bound replay returns existing state, including terminal state, without
+repairing files or reviving work. Missing, partial, extra or changed evidence
+remains held for explicit remediation. Storage errors, cancellation and busy
+locks likewise cannot mint a successor or discard evidence.
+
+`ObservationReanalysisRecoveryTests` covers complete adoption without changing
+the child or file inode, selection preservation, terminal replay, missing and
+extra files, interrupted temporary files, wrong digests, symlinks, FIFOs,
+source/account changes, late deletion and failed database save. The recovery
+boundary is prepared for the future execution owner; automatic restart delivery
+is not connected. Full-account purge is now awaited by the existing account
+cleanup boundary: it drains the local receipt owner, commits row deletion, then
+erases the complete namespace, including orphans, before preferences, runtime
+state or recovery markers may retire. Failures retain the account barrier.
+`ObservationReanalysisFileStoreTests` covers more than 256 orphan directories,
+symlink and FIFO removal without following links, preservation of unrelated
+files and exclusive-root lock contention. Never wait for a file lock inside the
+shared database transaction. Execution may not activate before its recovery
+paths are integrated and tested. The prepared producer still has no live
+capture-entry caller or execution wake; new durable children stay held and every
+activation gate remains closed.

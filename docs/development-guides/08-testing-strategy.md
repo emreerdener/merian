@@ -4315,9 +4315,9 @@ import, and permission-denial UI require the physical-device checklist in
   in `MerianNetworkClient.swift`, applies the 600-line ceiling to every Swift
   owner in `Auth/`, `Endpoints/`, `Inference/`, `Media/`, `Models/`,
   `Recovery/`, and `Transport/` plus the client façade. It requires the exact
-  sixty-one Auth foundation paths and caps Auth, Purchase Identity,
-  `SupabaseManager.swift`, and their combined production surface at 7,886,
-  2,016, 3,792, and 13,694 lines, respectively. It includes the effect-free
+  sixty-four Auth foundation paths and caps Auth, Purchase Identity,
+  `SupabaseManager.swift`, and their combined production surface at 7,887,
+  2,016, 3,792, and 13,695 lines, respectively. It includes the effect-free
   observable runtime owner for transition, generation, analytics-token,
   exact-session lease/drain, and local sign-out state; focused
   listener/current-state and historical-sync task owners; lifecycle diagnostics;

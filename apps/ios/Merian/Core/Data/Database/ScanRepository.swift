@@ -578,8 +578,8 @@ final class ScanRepository {
     }
 
     /// Deletes every active SwiftData row plus verified account preferences and
-    /// process-local projections. This does not replace the store file or scan
-    /// the app container for unreferenced filesystem artifacts.
+    /// process-local projections, including the complete private reanalysis namespace.
+    /// This does not replace the store file or erase other unreferenced media.
     /// Use only for full account deletion or hard resets.
     @discardableResult
     func purgeAllData(
@@ -589,10 +589,10 @@ final class ScanRepository {
         resetRuntimeState: @MainActor () -> Void = {
             AccountScopedRuntimeState.reset()
         }
-    ) -> Bool {
+    ) async -> Bool {
         resetDerivedState()
         libraryRestoration.reset()
-        return ScanLibraryPurgeService.purge(
+        return await ScanLibraryPurgeService.purge(
             modelContext: modelContext, userDefaults: userDefaults,
             resetRuntimeState: resetRuntimeState
         )

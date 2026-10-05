@@ -9,12 +9,14 @@ final class ObservationReanalysisErasureOwner {
         let isCurrent: @MainActor @Sendable () -> Bool
     }
     private let files: ObservationReanalysisFileStore
+    private var suspensionCount = 0
     private var requested: Request?
     private var task: Task<Void, Never>?
 
     init(files: ObservationReanalysisFileStore = .init(documents: .documentsDirectory)) { self.files = files }
 
     func drain(container: ModelContainer, isCurrent: @escaping @MainActor @Sendable () -> Bool) async {
+        guard suspensionCount == 0 else { return }
         requested = Request(container: container, isCurrent: isCurrent)
         if let task { await task.value; return }
         let active = Task {
@@ -27,6 +29,15 @@ final class ObservationReanalysisErasureOwner {
         task = active
         await active.value
     }
+
+    /// Full-library erasure keeps local receipt work quiescent until its durable boundary completes.
+    func suspendForLibraryPurge() async {
+        suspensionCount += 1
+        requested = nil
+        if let task { task.cancel(); await task.value }
+    }
+
+    func resumeAfterLibraryPurge() { suspensionCount -= 1 }
 
     private func pass(_ request: Request) async {
         var afterID = ""

@@ -1500,7 +1500,7 @@ import SwiftData
         recordManualProviderRevocation: @MainActor @escaping () -> Void = {
             ManualAppleRevocationNoticeStore.record()
         },
-        purgeLocalData: @MainActor @escaping () -> Bool
+        purgeLocalData: @MainActor @escaping () async -> Bool
     ) async throws -> AccountDeletionReceipt {
         try await AccountDeletionCoordinator(
             dependencies: accountDeletionDependencies()
@@ -1561,7 +1561,7 @@ import SwiftData
         recordManualProviderRevocation: @MainActor @escaping () -> Void = {
             ManualAppleRevocationNoticeStore.record()
         },
-        purgeLocalData: @MainActor @escaping () -> Bool
+        purgeLocalData: @MainActor @escaping () async -> Bool
     ) async -> Bool {
         await AccountDeletionRecoveryCoordinator(
             dependencies: accountDeletionDependencies()
@@ -1817,7 +1817,7 @@ import SwiftData
                 clearSourceSession: { [self] in await performVerifiedLocalSignOut(ownedBy: transition) },
                 clearLibrary: {
                     guard let context = OfflineQueueManager.shared.modelContext else { return false }
-                    guard ScanRepository.shared.purgeAllData(
+                    guard await ScanRepository.shared.purgeAllData(
                         modelContext: context,
                         resetDerivedState: AppDIContainer.shared.privateScanMapStore.resetSensitiveState
                     ) else { return false }
