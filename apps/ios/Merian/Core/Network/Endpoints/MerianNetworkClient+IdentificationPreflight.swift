@@ -10,7 +10,7 @@ extension MerianNetworkClient {
     ) async throws -> IdentificationDispatchAuthorization {
         try await prepareIdentificationAuthorization(expectedAuthUserID: expectedAuthUserID,
             validateAttempt: validateAttempt, preflight: {
-                try await performIdentificationRecipientPreflight(
+                try await performOwnedIdentificationRead(
                     body: JSONEncoder().encode(input), expectedAuthUserID: expectedAuthUserID)
             }, decode: { try IdentificationPreflightResponse.recipient(from: $0, for: input) })
     }
@@ -24,7 +24,7 @@ extension MerianNetworkClient {
         struct Parameters: Encodable { let p_request: ObservationReanalysisPreflightRequest }
         return try await prepareIdentificationAuthorization(expectedAuthUserID: expectedAuthUserID,
             validateAttempt: validateAttempt, preflight: {
-                try await performIdentificationRecipientPreflight(
+                try await performOwnedIdentificationRead(
                     body: JSONEncoder().encode(Parameters(p_request: input)),
                     expectedAuthUserID: expectedAuthUserID, route: .reanalysisRecipient)
             }, decode: { try ObservationReanalysisPreflightRequest.recipient(from: $0, for: input) })

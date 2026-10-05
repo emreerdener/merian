@@ -230,9 +230,9 @@ final class MerianNetworkClient {
     }
 
     /// Fixed read-only RPC through the same account-bound, pinned dispatcher.
-    func performIdentificationRecipientPreflight(body: Data, expectedAuthUserID: UUID,
+    func performOwnedIdentificationRead(body: Data, expectedAuthUserID: UUID,
         route: AdmissionRPCRequestPolicy.Route = .recipient) async throws -> Data {
-        guard route == .recipient || route == .reanalysisRecipient else { throw MerianError.invalidURL }
+        guard route == .recipient || route == .reanalysisRecipient || route == .analysisState else { throw MerianError.invalidURL }
         let url = try AdmissionRPCRequestPolicy.url(baseURL: supabaseUrl, route: route)
         let (data, _) = try await performAuthenticatedRequest(
             url: url, method: "POST", body: body, timeoutInterval: 5,
@@ -348,10 +348,8 @@ final class MerianNetworkClient {
     /// Closed observation routes; the durable owner alone retries ambiguous outcomes.
     func performAuthenticatedObservationRequest(_ operation: ObservationOperation, body: Data, expectedAuthUserID: UUID) async throws -> Data {
         let url = try endpointURL(operation.function)
-        let (data, _) = try await performAuthenticatedRequest(
-            url: url, method: "POST", body: body, timeoutInterval: 130,
-            allowsTransientTransportRetry: false, allowsUnauthorizedSessionRecovery: false,
-            expectedAuthUserID: expectedAuthUserID, identificationAuthorization: operation.authorization, contentType: operation.contentType)
+        let (data, _) = try await AuthenticatedRequestExecutor.live(using: authenticatedTransport).execute(
+            operation.request(url: url, body: body, ownerID: expectedAuthUserID))
         return data
     }
 

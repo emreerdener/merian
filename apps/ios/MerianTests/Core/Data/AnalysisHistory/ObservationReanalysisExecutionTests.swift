@@ -56,7 +56,7 @@ struct ObservationReanalysisExecutionTests {
         try Store.validate(second, container: container, isCurrent: { true })
     }
 
-    @Test(arguments: [Store.Hold.evidenceUnavailable, .consentRequired, .terminalFailure, .reconciliationRequired])
+    @Test(arguments: [Store.Hold.evidenceUnavailable, .consentRequired, .terminalFailure, .reconciliationRequired, .retryLimit])
     func remediationRetainsExactRequestAndCannotAutomaticallyRevive(_ reason: Store.Hold) throws {
         let container = try fixture.fixture.container(), first = try claim(container)
         try Store.settle(first, as: .held(reason), now: now, container: container, isCurrent: { true })

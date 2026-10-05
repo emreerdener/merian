@@ -43,6 +43,7 @@ struct AuthenticatedRequestExecutor {
         var contentType: ContentType = .json
         var measurementContext: IdentificationMeasurementContext?
         var identificationAuthorization: IdentificationDispatchAuthorization?
+        var validateAttempt: (@MainActor @Sendable () throws -> Void)?
     }
 
     struct TransportAttempt {
@@ -52,6 +53,7 @@ struct AuthenticatedRequestExecutor {
         let authTransitionOwner: AuthTransitionToken?
         let expectedAuthUserID: UUID?
         var identificationAuthorization: IdentificationDispatchAuthorization?
+        var validateAttempt: (@MainActor @Sendable () throws -> Void)?
     }
 
     struct UnauthorizedRecoveryState {
@@ -239,7 +241,8 @@ struct AuthenticatedRequestExecutor {
                     onRequestBodySent: request.onRequestBodySent,
                     authTransitionOwner: request.authTransitionOwner,
                     expectedAuthUserID: retryChainAuthUserID,
-                    identificationAuthorization: request.identificationAuthorization
+                    identificationAuthorization: request.identificationAuthorization,
+                    validateAttempt: request.validateAttempt
                 )
             )
         } catch let urlError as URLError {

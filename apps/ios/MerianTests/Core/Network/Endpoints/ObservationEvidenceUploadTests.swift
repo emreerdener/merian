@@ -1,7 +1,7 @@
 import Foundation
+@testable import Merian
 import os
 import Testing
-@testable import Merian
 
 @Suite("Observation Evidence Upload", .serialized)
 @MainActor
@@ -44,7 +44,7 @@ struct ObservationEvidenceUploadTests {
     }
     @Test func responseMustMatchExactIDsOrderBytesAndDigest() throws {
         let upload = try ObservationEvidenceUpload(observationID: Self.observation, analysisID: Self.analysis, photos: [
-            .init(mediaID: Self.media, contentType: "image/jpeg", bytes: Data([1,2,3])),
+            .init(mediaID: Self.media, contentType: "image/jpeg", bytes: Data([1, 2, 3])),
             .init(mediaID: UUID(), contentType: "image/png", bytes: Data([4]))])
         let prepared = try upload.prepare(), row = try Self.row(prepared)
         let originalItems = try #require(row["items"] as? [[String: Any]])
@@ -70,14 +70,16 @@ struct ObservationEvidenceUploadTests {
         let fixture = NetworkEndpointFixture(); defer { fixture.close() }
         let owner = try #require(fixture.client.overridingAuthUserID)
         let input = try Self.input(), prepared = try input.prepare()
-        let response = String(decoding: try JSONSerialization.data(withJSONObject: Self.row(prepared)), as: UTF8.self)
+        let response = try #require(String(data: JSONSerialization.data(withJSONObject: Self.row(prepared)), encoding: .utf8))
         fixture.transport.register(path: "/upload-observation-evidence") { wire in
             #expect(wire.value(forHTTPHeaderField: "Content-Type") == "application/octet-stream")
             #expect(wire.timeoutInterval == 130)
+            #expect(wire.value(forHTTPHeaderField: IdentificationRecipientExpectation.header) == nil)
+            #expect(wire.value(forHTTPHeaderField: IdentificationDispatchAuthorization.protocolHeader) == nil)
             #expect(MockURLProtocol.bodyData(for: wire) == prepared.body)
             return try NetworkEndpointTestSupport.response(to: wire, json: response)
         }
-        #expect(try await fixture.client.uploadObservationEvidence(input, ownerID: owner).items == prepared.references)
+        #expect(try await fixture.client.uploadObservationEvidence(input, ownerID: owner, validateAttempt: {}).items == prepared.references)
     }
     @Test(arguments: [401, 503, -1]) func ambiguousFailuresDoNotRetryOrRefresh(_ status: Int) async throws {
         let fixture = NetworkEndpointFixture(); defer { fixture.close() }
@@ -89,8 +91,27 @@ struct ObservationEvidenceUploadTests {
             if status == -1 { throw URLError(.networkConnectionLost) }
             return try NetworkEndpointTestSupport.response(to: wire, status: status, json: #"{"code":"invalid_session_token"}"#)
         }
-        await #expect(throws: (any Error).self) { try await fixture.client.uploadObservationEvidence(Self.input(), ownerID: owner) }
+        await #expect(throws: (any Error).self) { try await fixture.client.uploadObservationEvidence(Self.input(), ownerID: owner, validateAttempt: {}) }
         #expect(calls.withLock { $0 } == 1); #expect(refreshes.withLock { $0 } == 0)
+    }
+    @Test(arguments: [1, 2, 3, 4]) func staleClaimStopsPreparationDispatchOrReceipt(_ phase: Int) async throws {
+        let fixture = NetworkEndpointFixture(); defer { fixture.close() }
+        let owner = try #require(fixture.client.overridingAuthUserID), input = try Self.input()
+        let response = try #require(String(data: JSONSerialization.data(withJSONObject: Self.row(input.prepare())), encoding: .utf8))
+        let sent = OSAllocatedUnfairLock(initialState: 0)
+        fixture.transport.register(path: "/upload-observation-evidence") { wire in
+            sent.withLock { $0 += 1 }
+            return try NetworkEndpointTestSupport.response(to: wire, json: response)
+        }
+        var validations = 0
+        await #expect(throws: CancellationError.self) {
+            try await fixture.client.uploadObservationEvidence(input, ownerID: owner) {
+                validations += 1
+                if validations == phase { throw CancellationError() }
+            }
+        }
+        #expect(validations == phase)
+        #expect(sent.withLock { $0 } == (phase == 4 ? 1 : 0))
     }
     @Test func missingAccountDoesNotDispatch() async throws {
         let fixture = NetworkEndpointFixture(); defer { fixture.close() }
@@ -100,7 +121,7 @@ struct ObservationEvidenceUploadTests {
                 sent(); return try NetworkEndpointTestSupport.response(to: wire, json: "{}")
             }
             await #expect(throws: SupabaseAuthTransitionError.signOutSessionChanged) {
-                try await fixture.client.uploadObservationEvidence(Self.input(), ownerID: UUID())
+                try await fixture.client.uploadObservationEvidence(Self.input(), ownerID: UUID(), validateAttempt: {})
             }
         }
     }

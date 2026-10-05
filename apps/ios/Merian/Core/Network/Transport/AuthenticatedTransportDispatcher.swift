@@ -146,6 +146,7 @@ final class AuthenticatedTransportDispatcher {
                 forHTTPHeaderField: "X-Merian-Constrained-Network"
             )
             try await attempt.identificationAuthorization?.validate()
+            try await attempt.validateAttempt?()
             let authCompletedAt = CFAbsoluteTimeGetCurrent()
 
             let transportResult = try await dispatch(

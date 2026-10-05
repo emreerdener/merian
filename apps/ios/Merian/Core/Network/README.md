@@ -3894,12 +3894,13 @@ result, or schedule work.
 and bounded eight-field response for owner/source/child recipient discovery.
 `MerianNetworkClient+IdentificationPreflight` shares account, cancellation and
 local-consent validation across the original and reanalysis request formats.
-`AdmissionRPCRequestPolicy` permits only the two named recipient routes through
-that private pinned transport; it cannot send allowance or arbitrary RPCs.
-Reanalysis never invents a provider, operation ID or selection. Recovery-only
-requires null recipient and protocol minima and cannot build a new analysis
-request. Transport does not automatically retry or refresh a 401 while the outer
-durable owner holds an account lease. Normal UI/execution stays disabled.
+`AdmissionRPCRequestPolicy` permits the two named recipient routes and the exact
+owner state reader through `performOwnedIdentificationRead`; this private pinned
+bridge cannot send allowance or arbitrary RPCs. Reanalysis never invents a
+provider, operation ID or selection. Recovery-only requires null recipient and
+protocol minima and cannot build a new analysis request. Transport does not
+automatically retry or refresh a 401 while the outer durable owner holds an
+account lease. Normal UI/execution stays disabled.
 
 A bound retry instead calls
 `prepareBoundObservationReanalysisAuthorization(processor:expectedAuthUserID:validateAttempt:)`
@@ -3912,3 +3913,35 @@ processor; withdrawn consent holds that request for explicit remediation. The
 helper uses the existing consent coordinator and does not enter the generic
 401-refresh transport. The durable executor must still own and drain its account
 lease; this helper does not enable execution scheduling.
+
+### Exact completed-child recovery
+
+`MerianNetworkClient+ReanalysisRecovery` requests only the saved child through
+`get_owned_observation_analysis_state` with reader 9. The fixed pinned transport
+binds the expected account and disables transient replay and response-driven 401
+recovery. Claim/account checks surround the read, including failures.
+Stored-result recovery requires no inference consent and must run before opening
+private files, uploading or authorizing a provider call. A completed child can
+therefore recover after temporary evidence expiry or consent withdrawal.
+
+The endpoint admits the bounded owner state envelope, then verifies the exact
+source, request digest and complete ordered manifest with
+`ObservationReanalysisResult`. It returns the original snapshot bytes without
+changing local selection, revision, review or history. Only a bounded PostgREST
+error with `code = P0002` and `message = analysis_history_not_found` returns
+absence; HTTP status alone, another database error, malformed diagnostics or
+unknown fields cannot authorize continuation. Absence can also conceal a
+server-deleted observation, so the execution owner must retain local deletion
+fences and use the same server-fenced immutable request. This read does not
+itself grant upload or inference authority. The dedicated executor remains
+unconnected and all activation gates remain false.
+
+Private evidence upload requires the durable caller's attempt validator before
+and after frame preparation, immediately before wire dispatch after Auth work,
+and after a successful response before returning a receipt. The closed
+`ObservationOperation` constructs its fixed request with this independent
+validator; binary upload carries neither identification-recipient nor
+identification-protocol headers. Expected-owner leases, the 130-second transport
+bound, and disabled automatic ambiguous/401 replay remain unchanged. The
+prepared `ObservationReanalysisExecutor` composes these transports with exact
+target recovery and atomic local completion; scheduling remains disconnected.

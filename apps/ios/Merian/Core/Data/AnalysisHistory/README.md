@@ -703,3 +703,33 @@ retained result. Successful completion never uses preparation discard.
 request conflicts, remediation holds, deletion/account checks, completion
 rollback and replay after cleanup. The transport executor and ordinary UI remain
 separate pending integrations; every activation gate stays disabled.
+
+Completed-child recovery uses the separately closed
+`MerianNetworkClient.recoverObservationAnalysis` endpoint before current
+inference consent or private-file access. It returns exact validated snapshot
+bytes or verified target absence; it never invokes selected-state sync or
+preview admission. The execution owner must retain the same claim and pass the
+bytes into `ObservationReanalysisExecutionStore.complete`. See the
+[transport contract](../../Network/README.md#exact-completed-child-recovery).
+
+`ObservationReanalysisExecutor` now composes one claimed attempt. It owns an
+account lease and validates that lease, caller generation and saved claim around
+every suspension. Recovery comes first; only exact target absence proceeds to
+saved-processor consent, locked file verification, exact private upload and the
+original analyze request. Upload checks are repeated immediately before wire
+dispatch without adding inference headers to binary evidence. A complete receipt
+triggers a second target read; it never manufactures a result. Atomic completion
+returns the permanent erasure receipt for the future coordinator to wake
+cleanup.
+
+Uncertain transport responses schedule the same request with bounded maintenance
+backoff. The tenth unsuccessful automatic attempt holds the same child with
+`reanalysis_retry_limit`. Proven unavailable evidence, withdrawn consent,
+provenance conflict and terminal provider failure instead require explicit
+remediation. Generic `analysis_history_unavailable` does not prove evidence
+expiry. Cancellation, lost owner/generation or superseded claim cannot settle
+another worker's state. Local completion/save failures remain outside transport
+classification. Single-flight scheduling, account teardown/drain, durable
+wakeups and unbound-draft recipient binding are still separate pending
+integration; the executor has no production caller and all activation gates
+remain false.

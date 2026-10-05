@@ -11,6 +11,7 @@ enum ObservationReanalysisExecutionStore {
         case consentRequired = "reanalysis_consent_required"
         case terminalFailure = "reanalysis_terminal_failure"
         case reconciliationRequired = "reanalysis_reconciliation_required"
+        case retryLimit = "reanalysis_retry_limit"
     }
     enum Settlement { case waiting(until: Date, server: ObservationAnalysisReceipt.State?), held(Hold) }
     struct Snapshot: Equatable, Sendable {

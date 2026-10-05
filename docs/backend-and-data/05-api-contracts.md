@@ -12621,6 +12621,19 @@ is bounded to four MiB. Review is the separate seven-field saved authority,
 bounded to 32 KiB. Neither active projection nor arbitrary scan columns are
 returned.
 
+The prepared native reanalysis recovery endpoint uses this same fixed RPC for an
+explicit saved child. It requires the expected owner and current durable claim,
+disables automatic transport and response-driven 401 recovery, and validates the
+complete state envelope plus exact saved request provenance. It returns only
+immutable snapshot bytes for later atomic completion; it does not apply
+selected-state or preview projections. This read precedes current inference
+consent and file/upload access, permitting recovery after consent withdrawal or
+temporary evidence expiry. Only the bounded PostgREST `P0002` /
+`analysis_history_not_found` pair means target absence. Other errors or HTTP
+status alone cannot authorize execution; local and server deletion fences remain
+required after absence. No wire shape, rollout gate or provider authority
+changes.
+
 `analysisHistory/state.ts` validates this contract, retaining legacy review
 fields without manufacturing a verified identity. Explicit identity and AI
 review envelopes use their existing validators; nested AI review is capped at

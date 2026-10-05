@@ -4287,6 +4287,7 @@ struct CoreNetworkIntegrationArchitectureTests {
         // work; refreshing these sessions could recursively await their own task.
         #expect(unauthorizedRecoveryOptOutOwners == [
             "Endpoints/MerianNetworkClient+AIReview.swift",
+            "Endpoints/MerianNetworkClient+ObservationEvidence.swift",
             "Endpoints/MerianNetworkClient+ObservationPublication.swift",
             "MerianNetworkClient.swift",
             "Endpoints/MerianNetworkClient+Collections.swift",
@@ -4491,6 +4492,7 @@ struct CoreNetworkIntegrationArchitectureTests {
         "MerianNetworkClient+ObservationPublication.swift",
         "MerianNetworkClient+ProductFeedback.swift",
         "MerianNetworkClient+PublicProfile.swift",
+        "MerianNetworkClient+ReanalysisRecovery.swift",
         "MerianNetworkClient+ScanEnrichment.swift",
         "MerianNetworkClient+ScanLifecycle.swift",
         "MerianNetworkClient+ScanPublication.swift",

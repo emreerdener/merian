@@ -3,7 +3,7 @@ import Foundation
 extension MerianNetworkClient {
     /// A closed route set keeps exact-byte replay out of the generic endpoint bridge.
     enum ObservationOperation {
-        case uploadEvidence
+        case uploadEvidence(@MainActor @Sendable () throws -> Void)
         case analyze(IdentificationDispatchAuthorization)
 
         var function: String {
@@ -13,18 +13,19 @@ extension MerianNetworkClient {
             }
         }
 
-        var authorization: IdentificationDispatchAuthorization? {
+        func request(url: URL, body: Data, ownerID: UUID) -> AuthenticatedRequestExecutor.Request {
+            var request = AuthenticatedRequestExecutor.Request(url: url, method: "POST", body: body,
+                timeoutInterval: 130, idempotencyKey: nil, allowsTransientTransportRetry: false,
+                allowsUnauthorizedSessionRecovery: false, onRequestBodySent: nil,
+                authTransitionOwner: nil, expectedAuthUserID: ownerID)
             switch self {
-            case .uploadEvidence: return nil
-            case let .analyze(value): return value
+            case let .uploadEvidence(validate):
+                request.contentType = .octetStream
+                request.validateAttempt = validate
+            case let .analyze(authorization):
+                request.identificationAuthorization = authorization
             }
-        }
-
-        var contentType: AuthenticatedRequestExecutor.ContentType {
-            switch self {
-            case .uploadEvidence: return .octetStream
-            case .analyze: return .json
-            }
+            return request
         }
     }
 
@@ -40,13 +41,18 @@ extension MerianNetworkClient {
     }
 
     /// The caller persists IDs and bytes first and owns recovery after every uncertain response.
-    func uploadObservationEvidence(_ upload: ObservationEvidenceUpload, ownerID: UUID) async throws -> ObservationEvidenceUploadReceipt {
+    func uploadObservationEvidence(_ upload: ObservationEvidenceUpload, ownerID: UUID,
+                                   validateAttempt: @escaping @MainActor @Sendable () throws -> Void) async throws -> ObservationEvidenceUploadReceipt {
+        try Task.checkCancellation()
+        try await validateAttempt()
         let prepared = try await DetachedWork.value(category: .inferenceRequestPreparation) {
             try upload.prepare()
         }
         try Task.checkCancellation()
-        let data = try await performAuthenticatedObservationRequest(.uploadEvidence, body: prepared.body, expectedAuthUserID: ownerID)
+        try await validateAttempt()
+        let data = try await performAuthenticatedObservationRequest(.uploadEvidence(validateAttempt), body: prepared.body, expectedAuthUserID: ownerID)
         try Task.checkCancellation()
+        try await validateAttempt()
         return try ObservationEvidenceUploadReceipt.decode(data, request: prepared)
     }
 }
