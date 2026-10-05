@@ -8,7 +8,7 @@ import UIKit
 /// Private modal composition, independent of ordinary Capture capacity, admission and replacement.
 @Observable @MainActor
 final class CaptureReanalysisEditor {
-    enum Phase { case choosing, editing, saved, closed }
+    enum Phase { case choosing, editing, submitted, closed }
     private(set) var phase: Phase = .choosing
     private(set) var selectedPhotoIDs = Set<UUID>()
     private(set) var capture = StagedCapture()
@@ -21,21 +21,23 @@ final class CaptureReanalysisEditor {
     @ObservationIgnored private let producer: ObservationReanalysisProducer
     @ObservationIgnored private let isCurrentOwner: @MainActor () -> Bool
     @ObservationIgnored private let prepareImage: PreparedStagedImageLoader
+    @ObservationIgnored private let requestSubmitted: @MainActor (UUID) -> Void
     @ObservationIgnored private let requestCleanup: @MainActor () -> Void
 
     init(source: ObservationReanalysisSource, container: ModelContainer, account: ObservationHistoryCloudClient,
          loader: CaptureReanalysisEvidenceLoader, producer: ObservationReanalysisProducer,
-         isCurrent: @escaping @MainActor () -> Bool, requestCleanup: @escaping @MainActor () -> Void,
+         isCurrent: @escaping @MainActor () -> Bool, requestSubmitted: @escaping @MainActor (UUID) -> Void,
+         requestCleanup: @escaping @MainActor () -> Void,
          prepareImage: @escaping PreparedStagedImageLoader = CaptureWorkspaceDependencies.livePreparedImageLoader) {
         session = CaptureReanalysisSession(source: source, generation: UUID())
         self.container = container; self.account = account; self.loader = loader; self.producer = producer
-        isCurrentOwner = isCurrent; self.requestCleanup = requestCleanup; self.prepareImage = prepareImage
+        isCurrentOwner = isCurrent; self.requestSubmitted = requestSubmitted; self.requestCleanup = requestCleanup; self.prepareImage = prepareImage
     }
 
     var photos: [ObservationHistoryPhotoReference] { session?.source.photos ?? [] }
     var isFrozen: Bool { session?.plan != nil }
     var canEdit: Bool { phase == .editing && !isBusy && !isFrozen && current }
-    var canSave: Bool { phase == .editing && !isBusy && !capture.images.isEmpty && current }
+    var canSubmit: Bool { phase == .editing && !isBusy && !capture.images.isEmpty && current }
     private var current: Bool { phase != .closed && session != nil && isCurrentOwner() }
 
     func toggle(_ id: UUID) {
@@ -112,16 +114,22 @@ final class CaptureReanalysisEditor {
         capture.observationContexts.append(.init(context: .init(freeText: "")))
     }
 
-    func save() async {
-        guard canSave, let session else { return }
+    func submit() async {
+        guard canSubmit, let session else { return }
         isBusy = true; errorMessage = nil
         defer { isBusy = false }
         do {
-            _ = try await session.stage(capture: capture, generation: session.generation, container: container,
-                producer: producer, isCurrent: { [weak self] in self?.current == true })
+            let result = try await session.stage(capture: capture, generation: session.generation, container: container,
+                producer: producer, action: .submit, isCurrent: { [weak self] in self?.current == true })
             guard current, !Task.isCancelled else { return }
-            phase = .saved
-        } catch { if current { errorMessage = "Your reanalysis draft is retained. Retry with the same photos, or discard it before making changes." } }
+            switch result {
+            case let .submitted(intent): requestSubmitted(intent.draft.identity.analysisID)
+            case .bound: break // Existing execution owns an exact admitted replay.
+            case .draft: throw ObservationHistoryError.resultConflict
+            }
+            guard current, !Task.isCancelled else { return }
+            phase = .submitted
+        } catch { if current { errorMessage = "Your reanalysis could not be confirmed. Retry with the same photos; your current identification is unchanged." } }
     }
 
     /// Returns true only after durable retirement, or when there was no saved plan.

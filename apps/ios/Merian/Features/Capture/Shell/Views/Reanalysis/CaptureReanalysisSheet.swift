@@ -11,10 +11,10 @@ struct CaptureReanalysisSheet: View {
     var body: some View {
         NavigationStack {
             List {
-                if editor.phase == .saved {
+                if editor.phase == .submitted {
                     Section {
-                        Label("Reanalysis draft saved", systemImage: "checkmark.circle")
-                        Text("Your current identification is unchanged. This draft is saved for processing.")
+                        Label("Reanalysis saved", systemImage: "checkmark.circle")
+                        Text("Your current identification is unchanged. Reanalysis will continue when your account, consent and connection are ready.")
                     }
                 } else if editor.phase == .choosing {
                     originalPhotos
@@ -30,8 +30,8 @@ struct CaptureReanalysisSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button(editor.phase == .saved ? "Done" : "Cancel") {
-                        if editor.phase == .saved { close() } else { confirmsDiscard = true }
+                    Button(editor.phase == .submitted ? "Done" : "Cancel") {
+                        if editor.phase == .submitted { close() } else { confirmsDiscard = true }
                     }
                     .disabled(editor.isBusy)
                 }
@@ -100,9 +100,9 @@ struct CaptureReanalysisSheet: View {
                 Button("Add note") { editor.addNote() }.disabled(!editor.canEdit)
             }
             Section {
-                Button(editor.isFrozen ? "Retry saving draft" : "Save reanalysis draft") { Task { await editor.save() } }
-                    .disabled(!editor.canSave)
-            } footer: { Text("Saving preserves your current identification. A new result will be added to its history after processing.") }
+                Button(editor.isFrozen ? "Retry reanalysis" : "Reanalyze") { Task { await editor.submit() } }
+                    .disabled(!editor.canSubmit)
+            } footer: { Text("Reanalysis preserves your current identification. If reanalysis completes, its result will be added to the identification history.") }
         }
     }
 }

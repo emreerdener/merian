@@ -790,9 +790,10 @@ submission intent; it never invents a processor. Pristine submitted preparation
 and ready phases remain explicitly discardable through the same permanent
 receipt. Once bound pending admission commits, preparation discard is denied.
 
-The producer/session seam is prepared; the ordinary editor still requests held
-preparation. Dedicated bounded admission recovery is connected; the final
-Reanalyze UI action is not connected yet. `ObservationReanalysisSubmissionTests`
+The protected editor now requests explicit submission through the retained
+producer/session seam. It wakes bounded admission only after durable preparation
+and fresh account checks; already-bound replay remains owned by execution.
+Ordinary app access remains disabled. `ObservationReanalysisSubmissionTests`
 covers disk restart across file preparation, legacy compatibility, closed
 envelopes, source-proof admission, account/consent loss and discard races. No
 SwiftData schema shape or frozen snapshot changes are required.
@@ -863,7 +864,8 @@ queue-owned instance. Ordinary access remains disabled.
 This coordination is installed for the existing producer and targeted local
 recovery. The automatic advisory admission runtime also uses this owner, skips
 active children, and takes its durable recovery claim only from the file
-verifier's locked callback. The final Reanalyze action remains disconnected.
+verifier's locked callback. The protected editor's Reanalyze action sends the
+explicit submission opportunity only after the producer releases ownership.
 `ObservationReanalysisOwnershipTests` covers the saved-preparation race,
 separate file-store instances, late cancellation, duplicate work and the queue
 Auth barrier.

@@ -542,12 +542,18 @@ file-backed import and bounded existing image preparation, without borrowing
 parent location or gallery metadata into the reanalysis request.
 
 The editor submits only through `CaptureReanalysisSession.stage`; it never calls
-ordinary admission, local funding, replacement or `InferenceEngine.analyze`.
-First submission freezes the exact plan. A failed save retains that identity and
-disables edits until explicit discard succeeds. Saved status means a held local
-draft, not provider execution or a new completed result. Bound execution already
-has a dedicated owner; automatic advisory admission and the final Reanalyze
-action remain to be connected.
+ordinary admission, local funding, replacement or `InferenceEngine.analyze`. The
+single **Reanalyze** action freezes the exact plan and explicitly requests
+submission before private files are written. A failed or ambiguous save retains
+that identity and action, and disables edits until explicit discard succeeds.
+After durable preparation and fresh owner/generation checks, the editor invokes
+the required injected submission callback with the persisted child ID. The
+assembler connects it to the queue's `.submitted(childID)` admission
+opportunity; ordinary access remains gated. An exact already-bound replay stays
+owned by execution and does not reenter advisory admission. Saved presentation
+confirms local submission only, without claiming provider completion or changing
+the selected identification. Processing waits for current consent and an
+eligible connection; old saved-only drafts remain inert.
 
 Explicit discard retires only the session's unattempted child and requests
 receipt-bound local cleanup after commit. Account-generation changes and root
@@ -560,8 +566,10 @@ dismissal is disabled so normal user cancellation uses the explicit discard
 boundary.
 
 `CaptureReanalysisEditorTests` covers explicit subsets above ordinary capacity,
-source/order preservation, held save without changing selection, same-session
-retry, exact discard, account invalidation and owner-qualified route identity.
-The existing Core routing and Capture architecture/refinement gates remain
-applicable. The protected editor's final end-to-end UI and execution
-qualification remain part of the disabled activation contract.
+source/order preservation, durable submission before its wake, unchanged
+selection, same-identity retry after failed file writes, withheld stale-owner
+completion, bound replay without advisory wake, exact discard, account
+invalidation and owner-qualified route identity. The existing Core routing and
+Capture architecture/refinement gates remain applicable. The protected editor's
+final end-to-end UI and execution qualification remain part of the disabled
+activation contract.

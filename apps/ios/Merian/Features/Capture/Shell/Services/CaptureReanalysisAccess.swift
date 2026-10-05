@@ -9,6 +9,7 @@ struct CaptureReanalysisAccess {
     static func prepared(ownership: ObservationReanalysisPreparationOwner, account: ObservationHistoryCloudClient? = nil,
                          isCurrentOwner: @escaping @MainActor () -> UUID?,
                          generation: @escaping @MainActor () -> UInt64,
+                         requestSubmitted: @escaping @MainActor (UUID) -> Void,
                          requestCleanup: @escaping @MainActor () -> Void) -> Self {
         let account = account ?? .live
         return Self(open: { target, container in
@@ -25,7 +26,7 @@ struct CaptureReanalysisAccess {
             return CaptureReanalysisEditor(source: source, container: container, account: account,
                 loader: CaptureReanalysisEvidenceLoader(account: account),
                 producer: ObservationReanalysisProducer(files: ObservationReanalysisFileStore(documents: documents), ownership: ownership, account: account),
-                isCurrent: current, requestCleanup: requestCleanup)
+                isCurrent: current, requestSubmitted: requestSubmitted, requestCleanup: requestCleanup)
         })
     }
 }
