@@ -23,8 +23,8 @@ struct InsightSheetView: View {
     @State var pendingHistoryReanalysis: IdentificationHistoryReanalysisHandoff?
     @State var historyModel: IdentificationHistoryViewModel?
     @State var reanalysisStatusModel: ReanalysisStatusViewModel?
-    @State var savedReanalysisTask: Task<Void, Never>?
-    @State var savedReanalysisTaskID: UUID?
+    @State var savedReanalysisHandoff = SavedReanalysisHandoff()
+    @State var pendingChatReanalysis: SavedReanalysisTicket?
     @State var viewModel: InsightSheetViewModel
     @State var chatViewModel = InsightChatViewModel()
     @State var fieldTripExploreViewModel = ExploreFeedViewModel()

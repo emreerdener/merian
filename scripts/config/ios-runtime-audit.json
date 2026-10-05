@@ -300,6 +300,13 @@
         "SavedIdentificationReanalysisTests"
       ],
       "owner": "apps/ios/MerianTests/Features/Insights/History/SavedIdentificationReanalysisTests.swift"
+    },
+    {
+      "selector": "merianTests/SavedReanalysisHandoffTests",
+      "suite_names": [
+        "SavedReanalysisHandoffTests"
+      ],
+      "owner": "apps/ios/MerianTests/Features/Insights/History/SavedReanalysisHandoffTests.swift"
     }
   ],
   "ui": [
@@ -381,6 +388,13 @@
     },
     {
       "selector": "merianUITests/IdentificationHistoryUITests/testProtectedReanalysisFailureKeepsSavedScanWithoutLegacyFallback",
+      "suite_names": [
+        "IdentificationHistoryUITests"
+      ],
+      "owner": "apps/ios/MerianUITests/IdentificationHistoryUITests.swift"
+    },
+    {
+      "selector": "merianUITests/IdentificationHistoryUITests/testProtectedConfidenceReanalysisDismissesChildWithoutLegacyFallback",
       "suite_names": [
         "IdentificationHistoryUITests"
       ],

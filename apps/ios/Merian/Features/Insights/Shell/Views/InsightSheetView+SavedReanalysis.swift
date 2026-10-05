@@ -2,40 +2,48 @@ import SwiftData
 import SwiftUI
 
 extension InsightSheetView {
+    var savedReanalysisPreparation: SavedReanalysisPreparation? {
+        guard dependencies.savedReanalysisAccess != nil else { return nil }
+        let generation = viewModel.scanBoundActionGeneration
+        return { scanID, engineGeneration in
+            prepareSavedReanalysis(scanID: scanID, generation: generation, engineGeneration: engineGeneration)
+        }
+    }
+
     func startSavedReanalysis(scanID: String, generation: UInt64) {
-        guard let access = dependencies.savedReanalysisAccess, savedReanalysisTask == nil,
-              viewModel.isPresentingLocalRecord(scanId: scanID, generation: generation),
-              let record = viewModel.activeLocalRecord, record.id.caseInsensitiveCompare(scanID) == .orderedSame,
-              let observation = UUID(uuidString: scanID) else { return }
+        prepareSavedReanalysis(scanID: scanID, generation: generation).resume()
+    }
+
+    func prepareSavedReanalysis(scanID: String, generation: UInt64,
+                                engineGeneration: UInt64? = nil) -> SavedReanalysisTicket {
+        guard let access = dependencies.savedReanalysisAccess, !savedReanalysisHandoff.isBusy else { return .unavailable }
+        let model = viewModel, engine = inferenceEngine
+        let expectedEngineGeneration = engineGeneration ?? engine.scanPresentationGeneration
+        let current = {
+            model.isPresentingLocalRecord(scanId: scanID, generation: generation)
+                && engine.scanPresentationGeneration == expectedEngineGeneration
+                && engine.speciesData?.scanId?.caseInsensitiveCompare(scanID) == .orderedSame
+        }
+        guard current(), let record = model.activeLocalRecord,
+              record.id.caseInsensitiveCompare(scanID) == .orderedSame,
+              let observation = UUID(uuidString: scanID) else { return .unavailable }
         do {
-            // Freeze the displayed correction synchronously, before the first suspension.
+            // Freeze at the actual tap, before a child sheet begins dismissing.
             let displayed = ObservationHistoryStateSyncService.ReviewBaseline(record, displayAnalysisID: observation)
             let request = try access.prepare(scanID, displayed, modelContext.container)
-            let token = UUID()
-            savedReanalysisTaskID = token
             dependencies.selectionFeedback()
-            savedReanalysisTask = Task { @MainActor in
-                defer {
-                    if savedReanalysisTaskID == token { savedReanalysisTask = nil; savedReanalysisTaskID = nil }
-                }
-                do {
-                    let action = try await request.resolve()
-                    try Task.checkCancellation()
-                    guard savedReanalysisTaskID == token,
-                          viewModel.isPresentingLocalRecord(scanId: scanID, generation: generation) else { return }
-                    access.dispatch(try action.resolve())
-                } catch {
-                    guard !Task.isCancelled, savedReanalysisTaskID == token,
-                          viewModel.isPresentingLocalRecord(scanId: scanID, generation: generation) else { return }
-                    viewModel.state.toastMessage = .error("Reanalysis couldn’t be opened. Your identification is unchanged. Try again.")
-                }
-            }
+            return savedReanalysisHandoff.prepare(request: request, isCurrent: current, dispatch: access.dispatch, failure: {
+                model.state.toastMessage = .error("Reanalysis couldn’t be opened. Your identification is unchanged. Try again.")
+            })
         } catch {
-            viewModel.state.toastMessage = .error("This scan changed or is unavailable. Reopen it before reanalyzing.")
+            model.state.toastMessage = .error("This scan changed or is unavailable. Reopen it before reanalyzing.")
+            return .unavailable
         }
     }
 
     func cancelSavedReanalysis() {
-        savedReanalysisTask?.cancel(); savedReanalysisTask = nil; savedReanalysisTaskID = nil
+        pendingChatReanalysis?.cancel()
+        pendingChatReanalysis = nil
+        savedReanalysisHandoff.cancel()
     }
 }

@@ -13,6 +13,9 @@ struct CandidatesCard: View {
     var onAskCommunity: (() -> Void)?
     var onMatchConfirmed: (() -> Void)?
     var onRefineScan: (() -> Void)?
+    var prepareSavedReanalysis: SavedReanalysisPreparation?
+    var resumeSavedReanalysis: ((SavedReanalysisTicket) -> Void)?
+    @State private var pendingReanalysis: SavedReanalysisTicket?
     var showDismissButton: Bool = true
 
     @Environment(InferenceEngine.self) private var inferenceEngine
@@ -27,6 +30,8 @@ struct CandidatesCard: View {
         onAskCommunity: (() -> Void)? = nil,
         onMatchConfirmed: (() -> Void)? = nil,
         onRefineScan: (() -> Void)? = nil,
+        prepareSavedReanalysis: SavedReanalysisPreparation? = nil,
+        resumeSavedReanalysis: ((SavedReanalysisTicket) -> Void)? = nil,
         showDismissButton: Bool = true,
         dependencies: CandidateReviewDependencies = .live
     ) {
@@ -39,6 +44,8 @@ struct CandidatesCard: View {
         self.onAskCommunity = onAskCommunity
         self.onMatchConfirmed = onMatchConfirmed
         self.onRefineScan = onRefineScan
+        self.prepareSavedReanalysis = prepareSavedReanalysis
+        self.resumeSavedReanalysis = resumeSavedReanalysis
         self.showDismissButton = showDismissButton
         self._viewModel = State(
             initialValue: CandidateReviewViewModel(dependencies: dependencies)
@@ -221,11 +228,20 @@ struct CandidatesCard: View {
                     allowsAskCommunity: onAskCommunity != nil,
                     allowsRefinement: onRefineScan != nil,
                     onRequestDismissalAction: { request in
+                        pendingReanalysis?.cancel()
+                        pendingReanalysis = nil
+                        if case .refineScan = request.action, let prepareSavedReanalysis {
+                            pendingReanalysis = prepareSavedReanalysis(request.scanId, request.presentationGeneration)
+                        }
                         viewModel.stageDismissalRequest(request)
                     },
                     dependencies: viewModel.childDependencies
                 )
             }
+        }
+        .onDisappear {
+            pendingReanalysis?.cancel()
+            pendingReanalysis = nil
         }
         .onChange(of: presentedScanId) {
             viewModel.invalidateSwipeModal()
@@ -258,8 +274,11 @@ struct CandidatesCard: View {
     }
 
     private func resumePendingSwipeDismissalRequest() {
+        let prepared = pendingReanalysis
+        pendingReanalysis = nil
         guard let currentScanId = inferenceEngine.speciesData?.scanId else {
             viewModel.invalidateSwipeModal()
+            prepared?.cancel()
             return
         }
         let currentSubject = IdentificationReviewSubject(
@@ -268,7 +287,8 @@ struct CandidatesCard: View {
         )
         guard let request = viewModel.takePendingDismissalRequest(
             matching: currentSubject
-        ) else { return }
+        ) else { prepared?.cancel(); return }
+        if case .refineScan = request.action {} else { prepared?.cancel() }
 
         switch request.action {
         case .applyOverride(let scientificName):
@@ -290,6 +310,11 @@ struct CandidatesCard: View {
         case .askCommunity:
             onAskCommunity?()
         case .refineScan:
+            if let prepared {
+                if let resumeSavedReanalysis { resumeSavedReanalysis(prepared) } else { prepared.resume() }
+                return
+            }
+            guard prepareSavedReanalysis == nil else { return }
             onRefineScan?()
         }
     }

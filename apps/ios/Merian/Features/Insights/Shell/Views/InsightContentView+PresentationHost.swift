@@ -181,6 +181,11 @@ extension InsightContentView {
                     allowsAskCommunity: viewModel.canRequestCommunityIdentification,
                     allowsRefinement: true,
                     onRequestDismissalAction: { request in
+                        pendingCandidateReanalysis?.cancel()
+                        pendingCandidateReanalysis = nil
+                        if case .refineScan = request.action, let prepareSavedReanalysis {
+                            pendingCandidateReanalysis = prepareSavedReanalysis(request.scanId, request.presentationGeneration)
+                        }
                         pendingCandidateSwipeDismissalRequest =
                             InsightCandidateSwipeDismissalRequest(
                                 request: request,

@@ -14,6 +14,7 @@ struct BiologicalView: View {
     // MARK: - Context State
     var timestamp: Date?
     var onOpenFieldTripOverview: ((InsightFieldTripOverviewDestination) -> Void)?
+    var prepareSavedReanalysis: SavedReanalysisPreparation?
 
     @Environment(\.dismiss) private var dismiss
     @State private var namePickerScanId: String?
@@ -32,6 +33,10 @@ struct BiologicalView: View {
                   ),
                   inferenceEngine.speciesData?.scanId?
                     .caseInsensitiveCompare(scanId) == .orderedSame else {
+                return
+            }
+            if let prepareSavedReanalysis {
+                prepareSavedReanalysis(scanId, inferenceEngine.scanPresentationGeneration).resume()
                 return
             }
             if viewModel.requestRefinement(
@@ -94,6 +99,7 @@ struct BiologicalView: View {
                         expectedGeneration: fieldNotesGeneration
                     )
                 } : nil,
+                prepareSavedReanalysis: prepareSavedReanalysis,
                 onScrollOffsetChange: { maxY in
                     viewModel.evaluateScrollOffset(minY: maxY)
                 },
@@ -236,7 +242,8 @@ struct BiologicalView: View {
                         onRefineScan: refinementAction(
                             scanId: biologicalScanId,
                             generation: fieldNotesGeneration
-                        )
+                        ),
+                        prepareSavedReanalysis: prepareSavedReanalysis
                     )
                     .insightCardEntrance(index: 2, isAnimationEnabled: cardEntranceAnimationEnabled)
                 }

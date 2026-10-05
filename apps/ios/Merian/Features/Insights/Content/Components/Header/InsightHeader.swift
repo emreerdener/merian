@@ -14,6 +14,7 @@ struct InsightHeader: View {
     var isFlagged: Bool = false
     var aiScientificName: String?
     var onAskCommunity: (() -> Void)?
+    var prepareSavedReanalysis: SavedReanalysisPreparation?
     var onScrollOffsetChange: ((CGFloat) -> Void)?
     /// Alternative English common names for this species, excluding the current headline.
     var alternativeCommonNames: [String]?
@@ -33,7 +34,8 @@ struct InsightHeader: View {
                     userConfirmedIdentification: userConfirmedIdentification,
                     isFlagged: isFlagged,
                     aiScientificName: aiScientificName,
-                    onAskCommunity: onAskCommunity
+                    onAskCommunity: onAskCommunity,
+                    prepareSavedReanalysis: prepareSavedReanalysis
                 )
 
             if let primaryRankDescription {

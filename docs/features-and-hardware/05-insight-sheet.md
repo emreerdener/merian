@@ -2608,3 +2608,12 @@ fall back to the replacement flow. Dismissing the caller does not cancel another
 caller's shared enrollment. Ordinary access remains disabled, History still
 requires more than one result, and opening History/status never enrolls or
 requires inference consent.
+
+The prepared protection applies to Reanalyze from Field Chat, incorrect-result
+guidance, candidate review and the confidence explanation as well as the menu.
+The request is fixed at the tap, before any child dialog closes. A nested
+candidate/confidence handoff carries that same request through both dismissals.
+Changing the displayed result, closing the parent or switching accounts
+invalidates the handoff; it cannot select a newer result or enter legacy
+replacement. The parent remains visible on failure. All ordinary activation
+gates remain disabled.

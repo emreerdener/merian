@@ -100,3 +100,14 @@ This path requires no inference consent merely to open the editor. Submission
 and execution retain their own consent/funding checks. It never borrows mutable
 parent media, retries inference, or falls back to legacy refinement. History and
 status reads never invoke enrollment. Ordinary access remains nil.
+
+`SavedReanalysisHandoff` owns one prepared request and cancellable UI waiter per
+parent Insight. Child presentations retain revocable tickets that reference the
+owner weakly, not the private request. A ticket resumes at most once; an old
+ticket cannot resume or cancel newer work. Parent cancellation drops pending
+private state while durable enrollment remains owned by QueueManager.
+
+Each child-local ticket owner cancels and clears its pending handle on
+disappearance, including removal before a nested dismissal callback. Forwarding
+clears local state first, so disappearance cannot cancel a request already
+passed onward. Parent cancellation also clears its pending chat ticket.

@@ -5,6 +5,7 @@ struct InsightContentRouterView: View {
     @Bindable var viewModel: InsightSheetViewModel
     var queuedScan: QueuedScanContext?
     var onOpenFieldTripOverview: ((InsightFieldTripOverviewDestination) -> Void)?
+    var prepareSavedReanalysis: SavedReanalysisPreparation?
     @Environment(InferenceEngine.self) private var inferenceEngine
 
     private var presentationQueuedScan: QueuedScanContext? {
@@ -55,7 +56,8 @@ struct InsightContentRouterView: View {
                         isSafariPresented: $viewModel.state.isSafariPresented,
                         selectedWikiURL: $viewModel.state.selectedWikiURL,
                         timestamp: viewModel.activeRecordTimestamp,
-                        onOpenFieldTripOverview: onOpenFieldTripOverview
+                        onOpenFieldTripOverview: onOpenFieldTripOverview,
+                        prepareSavedReanalysis: prepareSavedReanalysis
                     )
                     .transition(.opacity)
                 }

@@ -3002,3 +3002,14 @@ analysis ID, and validates the frozen source and authority immediately before
 routing. Shell cancellation discards only its waiter. A protected failure never
 falls back to replacement. History/status remain read-only and ordinary live
 access remains nil; this is preparation for qualification, not activation.
+
+### October 5: prepared child-presentation entry coverage
+
+Protected reanalysis now prepares at the explicit tap in chat, guidance,
+candidate and confidence entry paths. One parent-owned handoff retains the
+request; child sheets carry revocable tickets across dismissal, including nested
+candidate/confidence layers. Local and engine presentation generations remain
+distinct fences. No protected failure uses legacy refinement, and no child
+ticket can revive or cancel a newer operation. Ordinary activation stays
+disabled. Analysis-bound review, publication consent UI and integrated rollout
+qualification remain separate work.

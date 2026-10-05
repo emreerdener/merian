@@ -282,3 +282,17 @@ The runtime-audit manifest registers the entry acceptance suite and failure UI
 smoke. The Release archive seed denylist includes the Debug-only failure launch
 argument. UI checks query native context-menu labels because the menu does not
 retain custom SwiftUI accessibility identifiers.
+
+Protected reanalysis also covers Field Chat, biological guidance, both candidate
+modal owners, and the confidence explanation (including its nested candidates).
+Shell supplies one `SavedReanalysisPreparation` through the content tree. The
+actual tap synchronously prepares the exact displayed request before any child
+dismisses; successive `onDismiss` callbacks carry that same revocable ticket.
+They never load a newer baseline. The host checks local presentation and engine
+presentation generations separately before preparation and after resolution.
+
+A protected preparation failure returns an inert ticket, preventing legacy
+fallback even if access changes during dismissal. Protected actions do not
+dismiss the parent Insight before resolution. Nil capability preserves the
+legacy entry behavior. Ordinary capabilities remain nil; these changes do not
+enable rollout or change review/publication authority.

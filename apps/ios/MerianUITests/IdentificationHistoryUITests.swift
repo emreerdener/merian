@@ -28,6 +28,30 @@ import XCTest
         let shot = XCTAttachment(screenshot: app.screenshot()); shot.name = "Protected reanalysis failure preserves saved scan"; shot.lifetime = .keepAlways; add(shot)
     }
 
+    func testProtectedConfidenceReanalysisDismissesChildWithoutLegacyFallback() {
+        continueAfterFailure = false
+        let app = UITestAppLauncher.launchConfiguredApp(extraArguments: ["-seedPrivateScanMapFlow", "-seedSavedReanalysisFailure"])
+        defer { app.terminate() }
+        let scans = app.segmentedControls.buttons["Scans"]
+        if !scans.waitForExistence(timeout: 5) {
+            let entry = app.buttons["MainTabBar_Scans"]
+            XCTAssertTrue(entry.waitForExistence(timeout: 10)); entry.tap()
+        }
+        XCTAssertTrue(scans.waitForExistence(timeout: 10)); scans.tap()
+        let tile = app.buttons["ScanTile_00000000-0000-4000-8000-000000000004"]
+        XCTAssertTrue(tile.waitForExistence(timeout: 10)); tile.tap()
+        let badge = app.buttons["Strong match"]
+        XCTAssertTrue(badge.waitForExistence(timeout: 10)); badge.tap()
+        let reanalyze = app.buttons["ConfidenceSheetReanalyzeButton"]
+        XCTAssertTrue(reanalyze.waitForExistence(timeout: 10))
+        if !reanalyze.isHittable { app.swipeUp() }
+        XCTAssertTrue(reanalyze.isHittable); reanalyze.tap()
+        XCTAssertTrue(app.staticTexts["Reanalysis couldn’t be opened. Your identification is unchanged. Try again."].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["InsightTopMenu"].exists)
+        XCTAssertTrue(app.staticTexts["Map Meadowlark"].exists)
+        XCTAssertFalse(reanalyze.exists, "Only the child explanation closes; the saved Insight remains.")
+    }
+
     func testHistoryPreviewRestoreAndUndoKeepBothEntries() {
         continueAfterFailure = false
         let app = UITestAppLauncher.launchConfiguredApp(extraArguments: ["-seedPrivateScanMapFlow", "-seedIdentificationHistory"])

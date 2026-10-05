@@ -14,6 +14,9 @@ struct ConfidenceExplanationSheet: View {
     var aiScientificName: String?
     var onAskCommunity: (() -> Void)?
     let onRequestDismissalAction: (ConfidenceExplanationDismissalAction) -> Void
+    var prepareSavedReanalysis: SavedReanalysisPreparation?
+    var onPreparedReanalysis: ((ConfidenceExplanationActionContext, SavedReanalysisTicket) -> Void)?
+    @State private var pendingReanalysis: SavedReanalysisTicket?
 
     @Environment(EnvironmentContextManager.self) private var environmentContext
     @Environment(InferenceEngine.self) private var inferenceEngine
@@ -42,6 +45,8 @@ struct ConfidenceExplanationSheet: View {
         onRequestDismissalAction: @escaping (
             ConfidenceExplanationDismissalAction
         ) -> Void,
+        prepareSavedReanalysis: SavedReanalysisPreparation? = nil,
+        onPreparedReanalysis: ((ConfidenceExplanationActionContext, SavedReanalysisTicket) -> Void)? = nil,
         dependencies: ConfidenceReviewDependencies = .live
     ) {
         self.scanId = scanId
@@ -55,6 +60,8 @@ struct ConfidenceExplanationSheet: View {
         self.aiScientificName = aiScientificName
         self.onAskCommunity = onAskCommunity
         self.onRequestDismissalAction = onRequestDismissalAction
+        self.prepareSavedReanalysis = prepareSavedReanalysis
+        self.onPreparedReanalysis = onPreparedReanalysis
         self._viewModel = State(
             initialValue: ConfidenceExplanationViewModel(
                 dependencies: dependencies
@@ -68,6 +75,12 @@ struct ConfidenceExplanationSheet: View {
     }
 
     private var refinementAction: (() -> Void)? {
+        if let prepareSavedReanalysis {
+            return {
+                guard isSubjectPresentationCurrent else { return }
+                dismissWithPreparedReanalysis(prepareSavedReanalysis(scanId, presentationGeneration))
+            }
+        }
         guard let snapshot = viewModel.refinementSnapshot else { return nil }
 
         return {
@@ -280,6 +293,8 @@ struct ConfidenceExplanationSheet: View {
                         onAskCommunity: communityRequestAction,
                         onMatchConfirmed: nil,
                         onRefineScan: refinementAction,
+                        prepareSavedReanalysis: prepareSavedReanalysis,
+                        resumeSavedReanalysis: dismissWithPreparedReanalysis,
                         showDismissButton: false,
                         dependencies: viewModel.candidateDependencies
                     )
@@ -290,7 +305,7 @@ struct ConfidenceExplanationSheet: View {
                 let onAskCommunity = communityRequestAction
                 if onReanalyze != nil || onAskCommunity != nil || incorrectAction != nil {
                     ConfidenceSheetActionButtons(
-                        isReanalyzeLocked: !revenueCatManager.canStartProScan,
+                        isReanalyzeLocked: prepareSavedReanalysis == nil && !revenueCatManager.canStartProScan,
                         onReanalyze: onReanalyze,
                         onAskCommunity: onAskCommunity,
                         onMarkIncorrect: incorrectAction,
@@ -349,6 +364,11 @@ struct ConfidenceExplanationSheet: View {
                 allowsAskCommunity: communityRequestAction != nil,
                 allowsRefinement: refinementAction != nil,
                 onRequestDismissalAction: { request in
+                    pendingReanalysis?.cancel()
+                    pendingReanalysis = nil
+                    if case .refineScan = request.action, let prepareSavedReanalysis {
+                        pendingReanalysis = prepareSavedReanalysis(request.scanId, request.presentationGeneration)
+                    }
                     viewModel.candidateReview.stageDismissalRequest(request)
                 },
                 dependencies: viewModel.candidateDependencies
@@ -356,6 +376,10 @@ struct ConfidenceExplanationSheet: View {
         }
         .sheet(isPresented: $showPaywall) {
             PaywallView()
+        }
+        .onDisappear {
+            pendingReanalysis?.cancel()
+            pendingReanalysis = nil
         }
         .onChange(of: inferenceEngine.scanPresentationGeneration) {
             guard !isSubjectPresentationCurrent else { return }
@@ -387,10 +411,19 @@ struct ConfidenceExplanationSheet: View {
         dismiss()
     }
 
+    private func dismissWithPreparedReanalysis(_ ticket: SavedReanalysisTicket) {
+        guard isSubjectPresentationCurrent, let onPreparedReanalysis else { ticket.cancel(); return }
+        onPreparedReanalysis(actionContext, ticket)
+        dismiss()
+    }
+
     private func resumePendingSwipeDismissalRequest() {
+        let prepared = pendingReanalysis
+        pendingReanalysis = nil
         guard let request = viewModel.candidateReview
             .takePendingDismissalRequest(matching: subject),
-            isSubjectPresentationCurrent else { return }
+            isSubjectPresentationCurrent else { prepared?.cancel(); return }
+        if case .refineScan = request.action {} else { prepared?.cancel() }
 
         switch request.action {
         case .applyOverride(let scientificName):
@@ -413,6 +446,8 @@ struct ConfidenceExplanationSheet: View {
         case .askCommunity:
             communityRequestAction?()
         case .refineScan:
+            if let prepared { dismissWithPreparedReanalysis(prepared); return }
+            guard prepareSavedReanalysis == nil else { return }
             refinementAction?()
         }
     }

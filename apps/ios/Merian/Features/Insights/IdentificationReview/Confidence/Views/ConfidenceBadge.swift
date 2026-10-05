@@ -11,6 +11,8 @@ struct ConfidenceBadge: View {
     var isFlagged: Bool = false
     var aiScientificName: String?
     var onAskCommunity: (() -> Void)?
+    var prepareSavedReanalysis: SavedReanalysisPreparation?
+    @State private var pendingReanalysis: SavedReanalysisTicket?
     /// When set, the badge shows an analyzing state with this phrase as its label.
     /// The explanation sheet is suppressed while analyzing.
     var analyzingPhrase: String?
@@ -31,6 +33,7 @@ struct ConfidenceBadge: View {
         isFlagged: Bool = false,
         aiScientificName: String? = nil,
         onAskCommunity: (() -> Void)? = nil,
+        prepareSavedReanalysis: SavedReanalysisPreparation? = nil,
         analyzingPhrase: String? = nil,
         onAnalyzingTap: (() -> Void)? = nil,
         dependencies: ConfidenceReviewDependencies = .live
@@ -43,6 +46,7 @@ struct ConfidenceBadge: View {
         self.isFlagged = isFlagged
         self.aiScientificName = aiScientificName
         self.onAskCommunity = onAskCommunity
+        self.prepareSavedReanalysis = prepareSavedReanalysis
         self.analyzingPhrase = analyzingPhrase
         self.onAnalyzingTap = onAnalyzingTap
         self._viewModel = State(
@@ -247,7 +251,15 @@ struct ConfidenceBadge: View {
                         aiScientificName: aiScientificName,
                         onAskCommunity: onAskCommunity,
                         onRequestDismissalAction: { action in
+                            pendingReanalysis?.cancel()
+                            pendingReanalysis = nil
                             viewModel.stageDismissalAction(action)
+                        },
+                        prepareSavedReanalysis: prepareSavedReanalysis,
+                        onPreparedReanalysis: { context, ticket in
+                            pendingReanalysis?.cancel()
+                            pendingReanalysis = ticket
+                            viewModel.stageDismissalAction(.refineScan(context, initialDescription: nil))
                         },
                         dependencies: viewModel.childDependencies
                     )
@@ -262,6 +274,10 @@ struct ConfidenceBadge: View {
                             }
                         }
                 }
+            }
+            .onDisappear {
+                pendingReanalysis?.cancel()
+                pendingReanalysis = nil
             }
         }
     }
@@ -289,8 +305,11 @@ struct ConfidenceBadge: View {
     }
 
     private func resumePendingExplanationDismissalAction() {
+        let prepared = pendingReanalysis
+        pendingReanalysis = nil
         guard let currentScanId = inferenceEngine.speciesData?.scanId else {
             viewModel.invalidateExplanation()
+            prepared?.cancel()
             return
         }
         let currentSubject = IdentificationReviewSubject(
@@ -299,12 +318,15 @@ struct ConfidenceBadge: View {
         )
         guard let action = viewModel.takePendingDismissalAction(
             matching: currentSubject
-        ) else { return }
+        ) else { prepared?.cancel(); return }
 
         switch action {
         case .askCommunity:
+            prepared?.cancel()
             onAskCommunity?()
         case .refineScan(_, let initialDescription):
+            if let prepared { prepared.resume(); return }
+            guard prepareSavedReanalysis == nil else { return }
             viewModel.requestRefinementRoute(
                 scanId: action.context.scanId,
                 initialDescription: initialDescription

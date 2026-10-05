@@ -12,6 +12,7 @@ struct InsightContentView: View {
     /// the queued snapshot during the brief window before `viewModel.queuedContext` is bound.
     var queuedScan: QueuedScanContext?
     var onOpenFieldTripOverview: ((InsightFieldTripOverviewDestination) -> Void)?
+    var prepareSavedReanalysis: SavedReanalysisPreparation?
 
     // MARK: - Layout Constants
     private let overlapRadius: CGFloat = 32
@@ -22,6 +23,7 @@ struct InsightContentView: View {
     @State var fullscreenGalleryPresentation: MediaGalleryPresentation?
     @State var fullscreenGalleryPresentationScanId: String?
     @State var fullscreenGalleryPresentationGeneration: UInt64?
+    @State var pendingCandidateReanalysis: SavedReanalysisTicket?
     @State var pendingCandidateSwipeDismissalRequest:
         InsightCandidateSwipeDismissalRequest?
     private var presentationQueuedScan: QueuedScanContext? {
@@ -108,7 +110,8 @@ struct InsightContentView: View {
                 InsightContentRouterView(
                     viewModel: viewModel,
                     queuedScan: presentationQueuedScan,
-                    onOpenFieldTripOverview: onOpenFieldTripOverview
+                    onOpenFieldTripOverview: onOpenFieldTripOverview,
+                    prepareSavedReanalysis: prepareSavedReanalysis
                 )
                     .padding(.top, overlapRadius)
                     .frame(maxWidth: .infinity)
@@ -129,6 +132,11 @@ struct InsightContentView: View {
         // Data Mapping Override
         .onAppear {
             viewModel.inferenceEngine = inferenceEngine
+        }
+
+        .onDisappear {
+            pendingCandidateReanalysis?.cancel()
+            pendingCandidateReanalysis = nil
         }
 
         // One typed modal owner prevents sibling SwiftUI sheet hosts from

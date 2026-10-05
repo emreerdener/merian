@@ -175,7 +175,9 @@ extension InsightContentView {
     }
 
     func resumePendingCandidateSwipeDismissalRequest() {
-        guard let pending = pendingCandidateSwipeDismissalRequest else { return }
+        let prepared = pendingCandidateReanalysis
+        pendingCandidateReanalysis = nil
+        guard let pending = pendingCandidateSwipeDismissalRequest else { prepared?.cancel(); return }
         pendingCandidateSwipeDismissalRequest = nil
 
         let request = pending.request
@@ -186,8 +188,10 @@ extension InsightContentView {
         inferenceEngine.scanPresentationGeneration == request.presentationGeneration,
         inferenceEngine.speciesData?.scanId?
             .caseInsensitiveCompare(request.scanId) == .orderedSame else {
+            prepared?.cancel()
             return
         }
+        if case .refineScan = request.action {} else { prepared?.cancel() }
 
         switch request.action {
         case .applyOverride(let scientificName):
@@ -226,6 +230,8 @@ extension InsightContentView {
                 expectedGeneration: pending.localPresentationGeneration
             )
         case .refineScan:
+            if let prepared { prepared.resume(); return }
+            guard prepareSavedReanalysis == nil else { return }
             viewModel.dependencies.selectionFeedback()
             viewModel.dependencies.requestRefinement(
                 request.scanId,

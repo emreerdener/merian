@@ -189,3 +189,20 @@ follow the host's eligibility and scan/generation guards; the card is hidden if
 neither action is available. It is independent of candidate availability,
 dismissal, or exhaustion and disappears after Undo or accepted identification.
 The confidence sheet and its Undo card are unchanged.
+
+## Prepared protected reanalysis handoff
+
+When the host supplies `SavedReanalysisPreparation`, candidate and confidence
+reanalysis prepare a ticket at the user's tap before child dismissal. Cards
+inside the confidence explanation forward the same ticket through both modal
+layers; they do not prepare again when either layer closes. The parent Insight
+owns request resolution, current-owner/source validation and cancellation. A
+child's stale or abandoned pending action cancels only its ticket. Protected
+failures never call legacy refinement, and their lock display is independent of
+legacy Pro admission. With no capability, existing entitlement and route
+behavior remains unchanged. Review actions retain their existing separate owner.
+
+Each child-local ticket owner cancels and clears its pending handle on
+disappearance, including removal before a nested dismissal callback. Forwarding
+clears local state first, so disappearance cannot cancel a request already
+passed onward. Parent cancellation also clears its pending chat ticket.
