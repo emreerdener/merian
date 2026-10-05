@@ -115,6 +115,7 @@ import SwiftData
     var identificationReviewSyncTask: Task<Void, Never>?
     @ObservationIgnored let reanalysisErasureOwner = ObservationReanalysisErasureOwner()
     @ObservationIgnored let reanalysisPreparationOwner = ObservationReanalysisPreparationOwner()
+    @ObservationIgnored let historyEnrollmentOwner = ObservationHistoryEnrollmentOwner()
     @ObservationIgnored lazy var reanalysisAdmissionRuntime = makeReanalysisAdmissionRuntime()
     @ObservationIgnored let reanalysisExecutionOwner = ObservationReanalysisExecutionOwner()
     @ObservationIgnored let publicationDeliveryOwner = ObservationPublicationDeliveryOwner()

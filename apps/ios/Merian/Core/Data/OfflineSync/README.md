@@ -25,6 +25,13 @@ The canonical behavioral contract is the
 - `Coordinators/GenerationTaskRegistry.swift` contains the main-actor,
   compare-before-clear owner for process-local task cancellation. Its mutable
   entries remain private.
+- `historyEnrollmentOwner` retains explicit parent enrollment independently of
+  scheduled sync and child preparation. It coalesces exact owner/generation/
+  container requests and admits at most four observations. Auth cancels and
+  awaits it before account-lease drain; committed repository deletion cancels
+  only the matching parent/container. Durable retry remains in the existing
+  enrollment intent, with no timer or implicit History/status admission. See the
+  [enrollment owner](../AnalysisHistory/README.md#prepared-native-enrollment).
 - `Persistence/` contains narrow throwing SwiftData lookups for offline jobs,
   idempotent cloud-deletion task/job creation, durable Field Trip goal-hint
   reads/deletion, one fresh-context projection of mirrored scan/job retry

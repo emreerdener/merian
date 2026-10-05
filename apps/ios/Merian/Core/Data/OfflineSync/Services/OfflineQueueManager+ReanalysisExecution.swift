@@ -27,6 +27,8 @@ extension OfflineQueueManager {
         reanalysisExecutionOwner.cancel()
         reanalysisAdmissionRuntime.cancel()
         reanalysisPreparationOwner.cancelAll()
+        historyEnrollmentOwner.cancelAll()
+        await historyEnrollmentOwner.cancelAndAwaitAll()
         await reanalysisPreparationOwner.cancelAndAwaitAll()
         await reanalysisAdmissionRuntime.cancelAndAwait()
         await awaitCollectionSyncQuiescenceForAuthTransition()

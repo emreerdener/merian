@@ -2962,3 +2962,17 @@ supplied queue; account/session/generation fences remain active.
 This change introduces no ordinary entry, implicit enrollment, consent prompt,
 provider execution or rollout activation. Explicit enrollment admission and
 integrated runtime qualification remain outstanding.
+
+### October 5: explicit native enrollment task ownership
+
+The prepared enrollment service now has a QueueManager-retained owner for
+explicit requests. It coalesces the same parent/account/generation/container,
+bounds active parents to four, and retains cancelled operations through actual
+transport completion. Cancelling a waiting caller does not cancel shared work.
+Auth awaits retained tasks before lease drain; committed repository deletion
+cancels the matching operation without removing its durable intent. Lost
+responses preserve the original same-owner explicit retry. No enrollment timer,
+ordinary caller, inference-consent requirement or activation was added. The
+first-result entry and legacy added-photo editor regression remain separate
+integration work. Current semantics live in the
+[native enrollment contract](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#prepared-native-enrollment).

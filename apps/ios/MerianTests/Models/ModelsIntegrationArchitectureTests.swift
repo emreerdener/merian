@@ -32,8 +32,10 @@ struct ModelsIntegrationArchitectureTests {
             #expect(code.range(of: #"ObservationHistoryPreviewService\s*\("#, options: .regularExpression) == nil,
                     "Normal preview presentation remains behind the activation hold: \(source.relativePath)")
             }
-            #expect(code.range(of: #"ObservationHistoryEnrollmentService\s*\("#, options: .regularExpression) == nil,
-                    "Normal enrollment remains behind the activation hold: \(source.relativePath)")
+            if source.relativePath != "Core/Data/AnalysisHistory/ObservationHistoryEnrollmentOwner.swift" {
+                #expect(code.range(of: #"ObservationHistoryEnrollmentService\s*\("#, options: .regularExpression) == nil,
+                        "Only the explicit enrollment owner can request admission: \(source.relativePath)")
+            }
             if !historyAdapter {
                 #expect(code.range(of: #"ObservationHistorySelectionService\s*\("#, options: .regularExpression) == nil,
                     "Normal Restore/Undo remains behind the activation hold: \(source.relativePath)")

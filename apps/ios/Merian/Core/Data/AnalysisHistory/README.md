@@ -206,6 +206,28 @@ terminal status or a changed nonce cannot reopen or acknowledge it. Successful
 admission removes the exact hold in the same save as history and selection.
 Failed saves roll back both. No autonomous retry or ordinary caller exists.
 
+`ObservationHistoryEnrollmentOwner`, retained by `OfflineQueueManager`, bounds
+explicit enrollment to four active observations. Requests for the same parent
+coalesce only when owner, auth generation and `ModelContainer` identity match.
+Foreign scopes and cancelled work cannot join. The supplied current-environment
+predicate fences the service's account checks across both requests and commit,
+and each caller is checked again before receiving the result. This owner does
+not require inference consent, create another durable identity or run a timer.
+
+Cancelling one waiting caller does not cancel work shared with another caller.
+The queue retains the operation; cancelled callers discard its eventual result.
+Auth cancels and awaits retained enrollment before draining account leases;
+coalesced drains keep new admission closed, and cancelled operation slots remain
+occupied until transport exits. `ScanRepository.eradicateScan` cancels only the
+matching parent/container after its database save. Denied or failed deletion
+does not cancel it. Other erasure paths retain their durable deletion fences.
+Cancellation never removes the durable intent: lost responses and account
+transitions remain explicit retries under the original owner-bound hold. An
+already committed admission may survive caller cancellation, but stale callers
+cannot receive its private result. `HistoryEnrollmentOwnerTests` covers
+coalescing, scope changes, capacity, cancel/await, original-intent retry and
+committed deletion. Ordinary entry remains disconnected.
+
 Presence in this namespace protects the observation even if metadata is damaged.
 `ScanRepository.eradicateScan` checks a fresh context under the shared
 transaction before any non-explicit deletion side effects. Both the hold and
