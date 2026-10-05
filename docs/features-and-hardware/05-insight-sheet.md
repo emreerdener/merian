@@ -2508,6 +2508,17 @@ presentation generation.
   original date is unavailable; import time is not relabeled as completion.
   Older candidate JSON that cannot decode as current alternatives is omitted; it
   does not prevent previewing or restoring an otherwise valid saved result.
+- When a prepared assembler explicitly injects the historical reanalysis route,
+  a source-qualified preview exposes **Reanalyze from this identification**.
+  This preserves the exact historical source even when another result is
+  current. It opens evidence review; it does not submit inference or change
+  selection. Pending selection, missing source or stale context removes this
+  capability. History read/restore and this preparation do not require inference
+  consent; durable admission checks current consent later. Shell consumes the
+  staged handoff only after nested sheet dismissal, checking parent
+  presentation, account generation, observation context and immutable source
+  again. Root routing owns the later Insight-to-Capture transition. No ordinary
+  access gate is enabled by this prepared integration.
 - **Use this identification** stages a durable conditional selection before
   dispatch. The current scan remains unchanged until current server authority
   and the operation outcome are admitted together. Choosing a result does not

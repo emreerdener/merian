@@ -20,6 +20,7 @@ struct InsightSheetView: View {
     let dependencies: InsightShellDependencies
 
     // MARK: - State
+    @State var pendingHistoryReanalysis: IdentificationHistoryReanalysisHandoff?
     @State var historyModel: IdentificationHistoryViewModel?
     @State var viewModel: InsightSheetViewModel
     @State var chatViewModel = InsightChatViewModel()
@@ -167,7 +168,7 @@ struct InsightSheetView: View {
         }
         .onChange(of: isPresented) { _, isNowPresented in
             guard isNowPresented else {
-                historyModel?.close(); historyModel = nil
+                historyModel?.close(); historyModel = nil; pendingHistoryReanalysis = nil
                 viewModel.endPresentationSession()
                 activeShellPresentation = nil
                 pendingShellPresentation = nil
@@ -190,7 +191,7 @@ struct InsightSheetView: View {
         }
 
         .onChange(of: viewModel.scanBoundActionGeneration) { _, _ in
-            historyModel?.close(); historyModel = nil
+            historyModel?.close(); historyModel = nil; pendingHistoryReanalysis = nil
             cancelOrDismissShellPresentation { if case .identificationHistory = $0 { true } else { false } }
         }
 

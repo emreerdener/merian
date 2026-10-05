@@ -6,9 +6,18 @@ import UIKit
 struct IdentificationHistoryAccess {
     let hasMultiple: (String, ModelContainer) -> Bool
     let open: (String, ModelContainer) throws -> IdentificationHistoryDependencies
+    var requestReanalysis: ((HistoricalReanalysisTarget) -> Void)?
 
     /// Prepared opt-in only. InsightShellDependencies.live supplies nil until the
     /// complete history activation contract is satisfied.
+    static func prepared(routes: any AppRouteRequesting) -> Self {
+        var access = prepared
+        access.requestReanalysis = { target in
+            routes.request(.historicalReanalysis(target), source: .internalUserAction)
+        }
+        return access
+    }
+
     static var prepared: Self {
         Self(hasMultiple: { id, container in
             (try? ObservationHistoryListingService().hasMultiple(observationID: id, container: container)) ?? false
@@ -28,6 +37,7 @@ struct IdentificationHistoryDependencies {
     var isCurrent: () -> Bool
     var close: () -> Void
     var now: () -> Date = Date.init
+    var reanalysis: ((UUID, ObservationHistoryListingService.Context) throws -> IdentificationHistoryReanalysisAction)?
 }
 
 /// Retains only account/session values for one sheet. Each Core operation owns
@@ -111,7 +121,29 @@ final class IdentificationHistorySession {
             try check()
             guard let image else { throw ObservationHistoryError.unavailable }
             return UIImage(cgImage: image.cgImage)
-        }, isCurrent: { [self] in isCurrent() }, close: { [self] in close() })
+        }, isCurrent: { [self] in isCurrent() }, close: { [self] in close() },
+           reanalysis: { [self] analysis, context in try reanalysisAction(analysis, context: context) })
+    }
+    func reanalysisAction(_ analysis: UUID, context: ObservationHistoryListingService.Context) throws -> IdentificationHistoryReanalysisAction {
+        try check()
+        guard context.pendingOperation == nil, context.owner == session.userID,
+              try ObservationHistoryListingService(cloud: cloud).context(observationID: observation, container: container) == context else {
+            throw ObservationHistoryPreviewService.AdmissionError.refreshRequired
+        }
+        let source = try ObservationReanalysisSource.capture(observationID: ObservationHistoryPage.uuid(observation),
+            analysisID: analysis, ownerID: context.owner, container: container)
+        // A committed handoff may outlive the dismissed sheet, but never its account,
+        // source or revision. It retains values and no long-lived account lease.
+        let action = IdentificationHistoryReanalysisAction { [cloud, container, session, generation, currentGeneration, sessionIsCurrent, observation] in
+            guard currentGeneration() == generation, sessionIsCurrent(session) else { throw ObservationHistoryError.accountChanged }
+            guard try ObservationHistoryListingService(cloud: cloud).context(observationID: observation, container: container) == context else {
+                throw ObservationHistoryPreviewService.AdmissionError.refreshRequired
+            }
+            try source.validate(container: container)
+            return HistoricalReanalysisTarget(observationID: source.observationID, analysisID: source.analysisID, ownerID: source.ownerID)
+        }
+        _ = try action.resolve()
+        return action
     }
     nonisolated private static func downsample(_ data: Data) async -> ImageDownsampler.SendableImage? {
         ImageDownsampler.downsampledSendableImage(data: data, maxSize: 1_280)

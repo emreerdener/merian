@@ -320,8 +320,9 @@ extension InsightSheetView {
             resumePendingInsightChatDismissalAction()
         case .explore:
             handleExploreSheetDismissed()
-        case .identificationHistory:
+        case .identificationHistory(let scanID, let generation):
             historyModel?.close(); historyModel = nil
+            resumeHistoryReanalysis(scanID: scanID, generation: generation)
         case .paywall, .fieldTripAuthor, .exploreOnboarding:
             break
         }
@@ -388,7 +389,7 @@ extension InsightSheetView {
         switch presentation {
         case .identificationHistory:
             historyModel?.close()
-            if releasePayload { historyModel = nil }
+            if releasePayload { historyModel = nil; pendingHistoryReanalysis = nil }
         case .paywall:
             viewModel.state.showPaywall = false
         case .fieldTripAuthor:

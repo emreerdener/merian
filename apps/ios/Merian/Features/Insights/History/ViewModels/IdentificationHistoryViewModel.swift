@@ -4,7 +4,7 @@ import UIKit
 
 @MainActor @Observable
 final class IdentificationHistoryViewModel {
-    enum Command { case newest, older, preview(UUID), restore, undo, retry }
+    enum Command { case newest, older, preview(UUID), restore, undo, retry, reanalyze }
     private(set) var rows: [IdentificationHistoryRow] = []
     private(set) var detail: IdentificationHistoryDetail?
     private(set) var photo: UIImage?
@@ -21,11 +21,16 @@ final class IdentificationHistoryViewModel {
     private var acknowledgedRevision: Int?
     private var photoGeneration = 0
     private var work: Task<Void, Never>?
+    private var reanalysisAction: IdentificationHistoryReanalysisAction?
+    private let handoffReanalysis: ((IdentificationHistoryReanalysisAction) -> Bool)?
+    var canReanalyze: Bool { reanalysisAction != nil && handoffReanalysis != nil && !pending && !isBusy && !isClosed }
     private let dependencies: IdentificationHistoryDependencies
     private let isPresented: () -> Bool
     private let didAdmit: () -> Void
 
-    init(dependencies: IdentificationHistoryDependencies, isPresented: @escaping () -> Bool = { true }, didAdmit: @escaping () -> Void = {}) {
+    init(dependencies: IdentificationHistoryDependencies, isPresented: @escaping () -> Bool = { true }, didAdmit: @escaping () -> Void = {},
+         handoffReanalysis: ((IdentificationHistoryReanalysisAction) -> Bool)? = nil) {
+        self.handoffReanalysis = handoffReanalysis
         self.dependencies = dependencies; self.isPresented = isPresented; self.didAdmit = didAdmit
     }
     func start(_ command: Command) {
@@ -56,6 +61,12 @@ final class IdentificationHistoryViewModel {
                     throw ObservationHistoryPreviewService.AdmissionError.refreshRequired
                 }
                 detail = result; photo = nil
+                reanalysisAction = handoffReanalysis == nil ? nil : try? dependencies.reanalysis?(id, baseline)
+            case .reanalyze:
+                guard detail != nil, !pending, let action = reanalysisAction, let handoffReanalysis else { return }
+                _ = try action.resolve()
+                guard accepts(expected), detail != nil else { return }
+                if handoffReanalysis(action) { reanalysisAction = nil }
             case .restore:
                 guard let detail, detail.canRestore, !pending, detail.row.id != selected else { return }
                 try dependencies.prepare(detail.row.id)
@@ -76,7 +87,7 @@ final class IdentificationHistoryViewModel {
             if error is CancellationError { return }
             if pending { message = "Change pending. Your current identification stays in place until the server acknowledges it. Retry when connected." }
             else if error is ObservationHistoryPreviewService.AdmissionError || error is ObservationHistorySelectionIntent.Failure {
-                detail = nil; photo = nil; undoOperation = nil
+                detail = nil; photo = nil; reanalysisAction = nil; undoOperation = nil
                 message = "This scan changed. Refresh history before choosing an identification."
             } else { message = "History is unavailable right now. Your saved identifications have not been removed. Try again." }
         }
@@ -91,14 +102,14 @@ final class IdentificationHistoryViewModel {
             throw ObservationHistoryError.invalidPage
         }
         apply(page.context)
-        rows = page.rows; detail = nil; photo = nil
+        rows = page.rows; detail = nil; photo = nil; reanalysisAction = nil
         nextBeforeOrdinal = page.nextBeforeOrdinal; showingOlder = before != nil
     }
     private func send(_ expected: Int) async throws {
         let outcome = try await dependencies.sendPending()
         guard accepts(expected) else { return }
         let state = try dependencies.context()
-        apply(state); detail = nil; photo = nil
+        apply(state); detail = nil; photo = nil; reanalysisAction = nil
         switch outcome {
         case .selected(let receipt):
             if state.undoOperation == UUID(uuidString: receipt.operation_id) {
@@ -135,7 +146,7 @@ final class IdentificationHistoryViewModel {
     func back() {
         guard !isBusy else { return }
         generation += 1; work?.cancel(); work = nil
-        detail = nil; photo = nil; isBusy = false; message = nil
+        detail = nil; photo = nil; reanalysisAction = nil; isBusy = false; message = nil
     }
     // Observable account/presentation state invalidates the sheet without idle
     // database polling. Persistence is revalidated at each operation boundary.
@@ -163,7 +174,7 @@ final class IdentificationHistoryViewModel {
         if changed {
             // Titles can come from mutable community authority, not only result
             // evidence. No old row or restore control may outlive its revision.
-            rows = []; detail = nil; photo = nil; photoGeneration += 1
+            rows = []; detail = nil; photo = nil; reanalysisAction = nil; photoGeneration += 1
             nextBeforeOrdinal = nil; showingOlder = false
             message = "This scan changed. Refresh history before choosing an identification."
             didAdmit()
@@ -172,7 +183,7 @@ final class IdentificationHistoryViewModel {
     func close() {
         guard !isClosed else { return }
         isClosed = true; generation += 1; work?.cancel(); work = nil
-        rows = []; detail = nil; photo = nil; selected = nil; undoOperation = nil; nextBeforeOrdinal = nil
+        rows = []; detail = nil; photo = nil; reanalysisAction = nil; selected = nil; undoOperation = nil; nextBeforeOrdinal = nil
         message = nil; isBusy = false; pending = false
         dependencies.close()
     }

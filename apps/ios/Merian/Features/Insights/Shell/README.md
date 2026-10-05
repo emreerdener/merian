@@ -242,3 +242,11 @@ path. `InsightSheetViewModel+History` refreshes the parent from an acknowledged
 Core projection, never preview content. Generation/dismissal and library events
 close or revalidate the model. History services and interaction state belong to
 [History](../History/README.md).
+
+The optional prepared history reanalysis callback uses the existing nested sheet
+host. `InsightSheetView+History` stages an exact source-qualified handoff;
+`handleShellPresentationDismissed` consumes it once after UIKit dismissal.
+Parent presentation teardown clears it. Revalidation precedes the injected
+historical route request, whose root dismissal and account/session fencing stay
+owned by `AppRouteCoordinator` and Capture. It never uses the legacy refinement
+callback. Ordinary history access and protected Capture access remain disabled.

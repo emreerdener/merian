@@ -93,6 +93,12 @@ struct IdentificationHistorySheet: View {
         } footer: {
             Text("Choosing this entry keeps the entire history. It does not confirm a species, clear an incorrect mark, or update a shared post.")
         }
+        if model.canReanalyze {
+            Section {
+                Button("Reanalyze from this identification") { model.start(.reanalyze) }
+                    .accessibilityIdentifier("HistoryReanalyze")
+            } footer: { Text("Review the photos and notes before submitting. Your current identification stays selected.") }
+        }
         if detail.isCached { Text("Saved preview. Any change will wait for server acknowledgment.").font(.callout) }
         if !detail.canRestore && model.selected != detail.row.id {
             Text("Reconnect and refresh this preview before using it. Some older entries may not have enough saved detail to restore.").font(.callout)
