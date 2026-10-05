@@ -19,9 +19,16 @@ struct IdentificationHistoryAccess {
     }
 
     static var prepared: Self {
+        prepared(cloud: .live, session: { try IdentificationHistorySession(observation: $0, container: $1) })
+    }
+
+    static func prepared(cloud: ObservationHistoryCloudClient,
+                         session: @escaping (String, ModelContainer) throws -> IdentificationHistorySession) -> Self {
         Self(hasMultiple: { id, container in
-            (try? ObservationHistoryListingService().hasMultiple(observationID: id, container: container)) ?? false
-        }, open: { id, container in try IdentificationHistorySession(observation: id, container: container).dependencies })
+            guard let current = try? session(id, container), current.isCurrent() else { return false }
+            defer { current.close() }
+            return (try? ObservationHistoryListingService(cloud: cloud).hasMultiple(observationID: id, container: container)) ?? false
+        }, open: { id, container in try session(id, container).dependencies })
     }
 }
 
@@ -47,6 +54,7 @@ final class IdentificationHistorySession {
     let observation: String
     let container: ModelContainer
     let cloud: ObservationHistoryCloudClient
+    private let photos: ObservationHistoryPhotoLoader
     let session: AuthTransitionSession
     let generation: UInt64
     private let currentGeneration: @MainActor () -> UInt64
@@ -55,6 +63,7 @@ final class IdentificationHistorySession {
 
     init(observation: String, container: ModelContainer,
          cloud: ObservationHistoryCloudClient = .live,
+         photos: ObservationHistoryPhotoLoader? = nil,
          currentGeneration: @escaping @MainActor () -> UInt64 = { SupabaseManager.shared.authSessionGeneration },
          sessionIsCurrent: @escaping @MainActor (AuthTransitionSession) -> Bool = { session in
              let manager = SupabaseManager.shared
@@ -65,6 +74,7 @@ final class IdentificationHistorySession {
                  && manager.client.auth.currentSession?.user.isAnonymous == session.isAnonymous
          }) throws {
         self.observation = observation; self.container = container
+        self.photos = photos ?? ObservationHistoryPhotoLoader(account: cloud, resolve: cloud.resolvePhoto)
         self.cloud = cloud; self.currentGeneration = currentGeneration; self.sessionIsCurrent = sessionIsCurrent
         let state = try ObservationHistoryListingService(cloud: cloud).context(observationID: observation, container: container)
         let lease = try cloud.begin(state.owner)
@@ -116,7 +126,7 @@ final class IdentificationHistorySession {
             try check(); return result
         }, photo: { [self] analysis, media in
             try check()
-            let bytes = try await ObservationHistoryPhotoLoader(account: cloud).load(observationID: observation, analysisID: analysis, mediaID: media, container: container)
+            let bytes = try await photos.load(observationID: observation, analysisID: analysis, mediaID: media, container: container)
             let image = await Self.downsample(bytes)
             try check()
             guard let image else { throw ObservationHistoryError.unavailable }

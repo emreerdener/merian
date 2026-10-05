@@ -77,3 +77,10 @@ current selection is unchanged. Ordinary `reanalysisStatusAccess` remains nil.
 continuation, exact session reads, late-result rejection and
 account/parent/generation teardown. Core `ReanalysisOperationStatusTests` covers
 disk restart and distinct inert holds.
+
+The App-owned prepared composition can supply an explicit cloud and session
+factory to both access values. Availability and opening validate that session;
+listing uses the same cloud instead of a global client. History photo delivery
+uses its injected resolver/downloader as well. The default prepared convenience
+remains for existing explicit fixtures; ordinary live access stays nil. Opening
+or probing either menu never enrolls a scan or requests inference consent.

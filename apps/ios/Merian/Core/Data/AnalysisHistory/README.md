@@ -960,3 +960,15 @@ Ordinary history, status and Capture gates stay disabled.
 `ReanalysisOperationStatusTests` covers preparation/ready phases, distinct inert
 holds, bounded pagination through damaged rows, owner/parent filtering,
 account/deletion rejection and completed-result omission without mutation.
+
+### Explicit cloud composition
+
+`ObservationHistoryCloudClient.live(manager:)` binds lease management, history
+RPCs and private-photo resolution to the supplied Supabase manager. Its existing
+`live` convenience delegates to the shared manager. Prepared App composition
+passes one explicit client throughout History, status, editor evidence loading
+and original-photo preparation, including a verified photo loader with that
+client's resolver. Injected clients without a resolver fail closed. No request
+or response protocol changed, no inference consent is required for these reads,
+and no ordinary entry or enrollment scheduling is enabled by constructing the
+composition.

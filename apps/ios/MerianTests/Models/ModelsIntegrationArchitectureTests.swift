@@ -165,8 +165,15 @@ struct ModelsIntegrationArchitectureTests {
     @Test func historyPresentationRemainsAnExplicitClosedConsumer() throws {
         let sources = try DatabaseActorTestSupport.swiftSources(below: "apps/ios/Merian")
         for entry in sources {
-            #expect(!codeLines(in: entry.contents).contains("IdentificationHistoryAccess.prepared"))
-            #expect(!codeLines(in: entry.contents).contains("ReanalysisStatusAccess.prepared"))
+            let code = codeLines(in: entry.contents)
+            if entry.relativePath != "App/Composition/PreparedHistoryReanalysisComposition.swift" {
+                #expect(!code.contains("IdentificationHistoryAccess.prepared"))
+                #expect(!code.contains("ReanalysisStatusAccess.prepared"))
+                #expect(!code.contains("CaptureReanalysisAccess.prepared"))
+            }
+            // The inert assembly is qualified in tests only; ordinary app code cannot install it.
+            #expect(code.range(of: #"PreparedHistoryReanalysisComposition\s*(?:\(|\.prepared\b)"#,
+                               options: .regularExpression) == nil, "Prepared history has no ordinary caller: \(entry.relativePath)")
         }
         let shell = try source(at: "apps/ios/Merian/Features/Insights/Shell/Services/InsightShellDependencies.swift")
         // Optional stored properties default to nil in both spellings.

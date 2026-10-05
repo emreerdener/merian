@@ -1601,6 +1601,15 @@ deletion/outbox transaction and optional post-commit cleanup handle. See the
 [Core Data guide](../apps/ios/Merian/Core/Data/README.md) and
 [app lifecycle contract](development-guides/02-app-lifecycle.md).
 
+The prepared identification-history path is assembled by
+`App/Composition/PreparedHistoryReanalysisComposition.swift`. It supplies one
+explicit account, private photo loader and queue preparation owner to History,
+read-only reanalysis status and historical Capture. Its AppDI factory starts no
+work, and ordinary live access remains absent while qualification continues.
+Historical submission preserves the original observation and selected result.
+See the [App ownership guide](../apps/ios/Merian/App/README.md) and
+[Insight history contract](features-and-hardware/05-insight-sheet.md).
+
 `Core/Media/MediaExportService.swift` is the shared Insight/Scans export
 boundary. Its private actor processes Sendable requests sequentially, keeps
 remote previews file-backed, and uses an ephemeral, cookie-free session that

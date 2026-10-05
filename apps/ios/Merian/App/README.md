@@ -117,3 +117,22 @@ suppress the update prompt because these installations have no App Store update
 path; compatibility pauses still apply. Release device builds retain the prompt.
 See the
 [update-required UX contract](../../../../docs/system-architecture/10-event-and-presentation-routing.md#update-required-presentation).
+
+## Prepared history composition
+
+`Composition/PreparedHistoryReanalysisComposition.swift` assembles the existing
+History, read-only reanalysis status, and protected Capture accesses. It
+performs no work at construction and ordinary live dependencies do not install
+it. The AppDI factory uses its supplied Supabase manager, route coordinator and
+queue's shared preparation owner. Exact submitted-child and erasure callbacks
+return to that same queue; no second runtime, route store or enrollment
+scheduler exists.
+
+All three accesses share the injected cloud client, account/session generation
+and private-photo resolver. Photo preview, editor loading and original-photo
+preparation use that resolver and the same verified downloader. An invalidated
+session cannot regain access after A → B → A. The bundle does not enroll scans,
+change selection, request consent or enable rollout. Explicit enrollment and
+release qualification remain separate. `HistoryReanalysisCompositionTests`
+exercises the actual prepared photo/editor/persistence/status handoff with
+synthetic tickets, bytes and isolated files.

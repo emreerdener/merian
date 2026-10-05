@@ -8,13 +8,16 @@ struct ReanalysisStatusAccess {
 
     /// Prepared only; ordinary Shell access remains nil.
     static var prepared: Self {
+        prepared(session: { try IdentificationHistorySession(observation: $0, container: $1) })
+    }
+    static func prepared(session: @escaping (String, ModelContainer) throws -> IdentificationHistorySession) -> Self {
         Self(available: { id, container in
-            guard let session = try? IdentificationHistorySession(observation: id, container: container) else { return false }
+            guard let session = try? session(id, container) else { return false }
             defer { session.close() }
             guard let page = try? session.operationStatusPage(after: nil) else { return false }
             return offersPage(page)
         }, open: { id, container in
-            try IdentificationHistorySession(observation: id, container: container).operationStatusDependencies
+            try session(id, container).operationStatusDependencies
         })
     }
     static func offersPage(_ page: ObservationReanalysisOperationStatus.Page) -> Bool {

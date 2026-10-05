@@ -573,3 +573,12 @@ invalidation and owner-qualified route identity. The existing Core routing and
 Capture architecture/refinement gates remain applicable. The protected editor's
 final end-to-end UI and execution qualification remain part of the disabled
 activation contract.
+
+The inert App history composition supplies `CaptureReanalysisAccess.prepared`
+with the same account client, private-photo resolver and session predicate as
+History/status. Both editor evidence loading and original-photo preparation use
+that verified photo owner; they cannot fall back to the shared Supabase manager.
+An opened editor retains session values, not an account-work lease, and checks
+owner, generation and session validity before use. The documents-location seam
+allows isolated qualification without changing production file ownership.
+Ordinary live Capture access remains nil.

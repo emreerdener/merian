@@ -2949,3 +2949,16 @@ This resolves the source-level allowlist/materializer gap recorded in earlier
 progress entries; ordinary feature access, deployment/rollout qualification,
 independent erasure operations and CPU/heap/CDN evidence remain outstanding. All
 activation gates remain disabled.
+
+## October 5: prepared native account composition
+
+An inert App composition now assembles existing History, status and historical
+Capture accesses from one supplied cloud/auth context and shared queue
+preparation owner. History listing, private photo preview, editor evidence
+loading and original-photo preparation no longer fall back to another global
+client in this path. Exact child admission and erasure callbacks return to the
+supplied queue; account/session/generation fences remain active.
+
+This change introduces no ordinary entry, implicit enrollment, consent prompt,
+provider execution or rollout activation. Explicit enrollment admission and
+integrated runtime qualification remain outstanding.

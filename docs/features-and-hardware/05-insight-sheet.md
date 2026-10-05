@@ -2580,3 +2580,18 @@ after harmless pagination or preview. History lives in
 [local ownership map](../../apps/ios/Merian/Features/Insights/History/README.md)
 and
 [activation hold](../backend-and-data/06-supabase-deployment-runbook.md#observation-analysis-history-activation-hold).
+
+### Prepared account composition
+
+The inert App-owned `PreparedHistoryReanalysisComposition` binds History,
+Reanalysis status and protected Capture to one supplied cloud/auth context.
+Availability, sheet sessions, private-photo resolution, editor loading and
+original-photo preparation use that context. Same-owner return after an account
+generation change cannot revive an earlier sheet or route handoff. Construction
+performs no I/O or queue work. Exact submitted-child and erasure callbacks use
+the AppDI queue's existing owners.
+
+Ordinary live access remains nil. This composition neither enrolls a scan nor
+changes selection, and read-only History/status does not require inference
+consent. Explicit enrollment admission and activation qualification remain
+separate work.
