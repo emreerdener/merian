@@ -68,7 +68,7 @@ enum ObservationReanalysisPersistence {
         }
     }
 
-    private static func restoreDraft(_ expected: ObservationReanalysisDraft, row: OfflineQueuedScan, job: OfflineJobRecord) throws -> DraftState {
+    static func restoreDraft(_ expected: ObservationReanalysisDraft, row: OfflineQueuedScan, job: OfflineJobRecord) throws -> DraftState {
         guard let text = job.metadataJSON else { throw IntegrityError.conflict }
         // Version 1 has a full request; its strict decoder rejects all draft and unknown envelopes.
         if let bound = try? ObservationReanalysisIntent.decode(Data(text.utf8)) {
@@ -89,12 +89,15 @@ enum ObservationReanalysisPersistence {
     }
 
     @MainActor
-    private static func transaction<T>(_ identity: OfflineQueueWork.Reanalysis, container: ModelContainer, isCurrent: () -> Bool,
+    static func transaction<T>(_ identity: OfflineQueueWork.Reanalysis, container: ModelContainer, isCurrent: () -> Bool,
                                        save: (ModelContext) throws -> Void, body: (ModelContext) throws -> T) throws -> T {
         try ConfirmedSpeciesReviewPersistence.transaction {
             guard isCurrent() else { throw IntegrityError.accountChanged }
             let context = ModelContext(container); context.autosaveEnabled = false
             do {
+                guard try context.fetchOfflineJob(id: ObservationReanalysisErasureReceipt.jobID(identity.analysisID)) == nil else {
+                    throw IntegrityError.unavailable
+                }
                 let scan = try ObservationHistorySyncService.enrolledScan(identity.observationID.uuidString, context: context)
                 guard scan.analysisOwnerAccountID == identity.ownerID.uuidString.lowercased(),
                       !(try ObservationHistoryEnrollmentIntent.holds(scan.id, context: context)) else { throw IntegrityError.unavailable }
@@ -113,7 +116,7 @@ enum ObservationReanalysisPersistence {
     }
 
     @MainActor
-    private static func pair(_ identity: OfflineQueueWork.Reanalysis, context: ModelContext) throws -> (OfflineQueuedScan, OfflineJobRecord)? {
+    static func pair(_ identity: OfflineQueueWork.Reanalysis, context: ModelContext) throws -> (OfflineQueuedScan, OfflineJobRecord)? {
         let lower = identity.analysisID.uuidString.lowercased(), upper = identity.analysisID.uuidString
         let rows = try context.fetch(FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.id == lower || $0.id == upper }))
         let job = try context.fetchOfflineJob(id: OfflineQueueManager.scanIngestionJobId(scanId: lower))
@@ -123,9 +126,10 @@ enum ObservationReanalysisPersistence {
     }
 
     @MainActor
-    private static func insert(_ identity: OfflineQueueWork.Reanalysis, paths: [String], metadata: Data, context: ModelContext) throws {
+    static func insert(_ identity: OfflineQueueWork.Reanalysis, paths: [String], metadata: Data, context: ModelContext) throws {
         let lower = identity.analysisID.uuidString.lowercased(), upper = identity.analysisID.uuidString
-        guard try context.fetch(FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == lower || $0.id == upper })).isEmpty,
+        guard try context.fetchOfflineJob(id: ObservationReanalysisErasureReceipt.jobID(identity.analysisID)) == nil,
+              try context.fetch(FetchDescriptor<LocalScanRecord>(predicate: #Predicate { $0.id == lower || $0.id == upper })).isEmpty,
               try context.fetch(FetchDescriptor<LocalAnalysisRecord>(predicate: #Predicate { $0.id == lower || $0.id == upper })).isEmpty,
               try context.fetch(FetchDescriptor<PendingCloudDeletionTask>(predicate: #Predicate { $0.scanId == lower || $0.scanId == upper })).isEmpty,
               !(try ObservationHistoryEnrollmentIntent.holds(lower, context: context)),

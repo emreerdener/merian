@@ -9,12 +9,16 @@ enum ObservationReanalysisErasure {
     }
 
     static func removeChildren(of observationID: String, context: ModelContext) throws -> Cleanup {
-        guard let parent = UUID(uuidString: observationID)?.uuidString.lowercased() else { return Cleanup() }
+        guard let parentID = UUID(uuidString: observationID) else { return Cleanup() }
+        let parent = parentID.uuidString.lowercased()
         let query = FetchDescriptor<OfflineQueuedScan>(predicate: #Predicate { $0.parentObservationID == parent })
         var cleanup = Cleanup()
         // Parent linkage is the independent erasure index. Damaged kind, source,
         // owner or job metadata cannot strand children or authorize remote work.
         for child in try context.fetch(query) {
+            if let childID = UUID(uuidString: child.id), childID.uuidString.lowercased() == child.id, child.id != parent {
+                try ObservationReanalysisErasureReceipt(parentID: parentID, childID: childID).record(in: context)
+            }
             cleanup.childIDs.append(child.id)
             let media = child.capturedMediaSnapshot
             let paths = media.thumbnailImagePaths + media.audioPaths + media.videoPaths

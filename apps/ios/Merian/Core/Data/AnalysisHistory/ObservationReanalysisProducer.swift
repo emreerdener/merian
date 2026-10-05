@@ -45,11 +45,23 @@ struct ObservationReanalysisProducer {
         }
         let draft = try ObservationReanalysisDraft(identity: .init(observationID: source.observationID, sourceAnalysisID: source.analysisID,
             analysisID: plan.analysisID, ownerID: source.ownerID), evidence: evidence)
-        return try await files.persist(draft: draft, photos: photos) {
-            // No suspension or fallible post-save work inside the filesystem ownership fence.
+        let proof = try await DetachedWork.value(category: .inferenceRequestPreparation) {
+            try ObservationReanalysisPreparationIntent(draft: draft, source: source).verified(source: source)
+        }
+        try validate()
+        if let prepared = try ObservationReanalysisPersistence.beginPreparation(proof, container: container,
+            isCurrent: { account.isCurrent(lease) && isCurrent() }) {
+            return prepared
+        }
+        let validatePending: @MainActor @Sendable (Bool) throws -> Void = { makeReady in
             try validate()
-            return try ObservationReanalysisPersistence.stageDraft(draft, container: container,
-                isCurrent: { account.isCurrent(lease) && isCurrent() }, validateSource: { try source.validate(context: $0) })
+            try ObservationReanalysisPersistence.validatePreparation(proof, container: container,
+                isCurrent: { account.isCurrent(lease) && isCurrent() }, makeReady: makeReady)
+        }
+        return try await files.persist(draft: draft, photos: photos, validateBeforeWrite: { try validatePending(false) }) {
+            // Compare-and-save only: deletion can never cause a missing child to be reinserted.
+            try validatePending(true)
+            return .draft(draft)
         }
     }
 }

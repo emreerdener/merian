@@ -2831,3 +2831,19 @@ attribution/cleanup before photo I/O remain mandatory activation prerequisites.
 Maintenance must acquire filesystem ownership before a fresh database lookup;
 deletion must commit its database fence before file cleanup, without holding the
 shared database lock while waiting for a file lock.
+
+### October 5: durable ownership before private file I/O
+
+The prepared producer now persists an immutable `files_pending` envelope before
+writing private photos. It binds the exact draft to the frozen source snapshot
+SHA-256, separately from recipient binding. Locked pre-write validation and a
+fresh pending-to-ready compare-and-save prevent deletion from reinserting child
+work. Pending metadata is rejected by ordinary draft/request decoders.
+
+Parent removal atomically retains a minimal canonical namespace erasure receipt,
+even when child job metadata is damaged. All reanalysis staging rejects that
+receipt; the local erasure kind cannot drive network scheduler wakes. This
+closes the unindexed pre-save ownership gap in the October 5 producer
+checkpoint, but does not yet execute namespace cleanup or restart recovery.
+Those owners and full-account purge remain required before capture entry is
+connected. All activation gates remain false.

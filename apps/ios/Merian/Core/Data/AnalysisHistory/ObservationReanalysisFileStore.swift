@@ -15,6 +15,7 @@ actor ObservationReanalysisFileStore {
     /// The callback must atomically save the draft and must not throw after a successful save.
     /// Once it returns, cancellation cannot turn committed files into rollback candidates.
     func persist<T: Sendable>(draft: ObservationReanalysisDraft, photos: [Data],
+                              validateBeforeWrite: @MainActor @Sendable () throws -> Void = {},
                               commit: @MainActor @Sendable () throws -> T) async throws -> T {
         let child = draft.identity.analysisID
         guard activeChildren.insert(child).inserted else { throw Failure.busy }
@@ -39,6 +40,9 @@ actor ObservationReanalysisFileStore {
         // Retaining each inode prevents reuse after unlink until rollback finishes.
         defer { for file in created { close(file.descriptor) } }
         do {
+            // Recheck durable ownership only after the filesystem fence is held.
+            try await validateBeforeWrite()
+            try Task.checkCancellation()
             for (index, reference) in references.enumerated() {
                 try Task.checkCancellation()
                 let suffix = reference.contentType == "image/png" ? "png" : "jpg"

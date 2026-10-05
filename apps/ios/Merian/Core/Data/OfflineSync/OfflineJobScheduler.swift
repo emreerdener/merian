@@ -273,7 +273,7 @@ final class OfflineJobScheduler {
             // Publication deadlines above require validated owner-bound envelopes.
             // Unknown kinds cannot be drained by this binary.
             guard let kind = OfflineJobKind(rawValue: job.kindRaw),
-                  kind != .observationPublicationSync, kind != .observationReanalysisSync,
+                  kind != .observationPublicationSync, kind != .observationReanalysisSync, kind != .observationReanalysisErasure,
                   kind != .future || job.id.hasPrefix("library-details:") else { return nil }
             // A qualified, damaged or absent queue row cannot feed a legacy wake loop.
             if kind == .scanIngestion, !ordinaryScanJobIDs.contains(job.id) { return nil }

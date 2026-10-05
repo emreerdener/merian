@@ -1188,9 +1188,13 @@ not pass through the ordinary WebP preparation path. Explicitly added or edited
 photos use `ObservationReanalysisPhotoPreparation`: one-frame ImageIO input,
 existing 1024-pixel maximum inference raster and 0.85 quality policy, explicit
 JPEG output without copied metadata. Five-photo and 5 MiB aggregate input/output
-bounds apply before durable child admission. Unsupported or oversized originals
-require explicit remediation; they are never silently dropped or reidentified as
-the original after conversion. The
+bounds apply before durable child admission. The producer saves a held
+`files_pending` identity and exact manifest before writing private files, then
+uses a locked compare-and-save to make the draft ready. Parent deletion retains
+a durable namespace cleanup receipt; the cleanup worker and full-account purge
+remain integration prerequisites. Unsupported or oversized originals require
+explicit remediation; they are never silently dropped or reidentified as the
+original after conversion. The
 [private producer contract](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#verified-file-production)
 owns file durability, source/owner fences and integration status. Ordinary
 capture remains on its existing image pipeline.

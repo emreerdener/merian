@@ -98,7 +98,8 @@ struct ObservationReanalysisPersistenceTests {
         #expect(cleanup.childIDs == [child.uuidString.lowercased()])
         #expect(cleanup.mediaPaths == (try intent().photoPaths.map { URL.documentsDirectory.appendingPathComponent($0).path }))
         #expect(throws: (any Error).self) { try stage(container) }
-        #expect(try ModelContext(container).fetchCount(FetchDescriptor<OfflineJobRecord>()) == 0)
+        let receipt = try #require(try ModelContext(container).fetchOfflineJob(id: ObservationReanalysisErasureReceipt.jobID(child)))
+        #expect(try ObservationReanalysisErasureReceipt.restore(receipt).parentID == fixture.observation)
     }
 
     @Test func historicalSourceDoesNotNeedToBeSelected() throws {

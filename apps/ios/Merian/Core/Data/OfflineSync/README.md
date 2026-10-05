@@ -721,7 +721,12 @@ transaction. Classification and optional job metadata are not erasure authority:
 damaged children with a valid parent link are still removed. Direct deletion and
 explicit non-biological deletion use this boundary; retention keeps its existing
 enrolled-history protection. Save failure rolls back the rows and returns no
-cleanup work.
+cleanup work. A minimal `observationReanalysisErasure` job is committed with
+each canonical child removal. It preserves canonical parent/child namespace
+ownership after the ingestion metadata disappears and prevents reuse of that
+child ID. These local receipts have no retry deadline and are excluded from the
+network scheduler. A dedicated local filesystem drain remains to be connected;
+receipt creation alone does not assert that bytes have been erased.
 
 After commit, `finishReanalysisErasure` refetches child absence and checks the
 same model container before cancelling exact transport and process ownership. It

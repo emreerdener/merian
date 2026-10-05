@@ -532,19 +532,40 @@ exclusive temporary files, synchronization and atomic exclusive rename cannot
 overwrite existing data. Exact retries verify length and digest. Failed
 preparation/commit removes only files created by that invocation; existing files
 are retained. Retained file descriptors prevent inode recycling; the directory
-descriptor prevents deletion/recreation from redirecting rollback. The final
-frozen snapshot comparison runs inside `stageDraft`'s shared persistence
-transaction. Successful save transfers cleanup to the existing child erasure
-flow, even when cancellation arrives immediately after the save. No network
-admission, funding or selection mutation occurs.
+descriptor prevents deletion/recreation from redirecting rollback. Before file
+I/O, `ObservationReanalysisPreparationIntent` persists a closed version-3
+`files_pending` envelope with the exact ordered draft and a SHA-256 identity for
+the frozen source snapshot bytes. The existing qualified child provides
+parent/owner/source linkage even when metadata is damaged. This phase has no
+processor or request and cannot pass draft binding or execution decoders. The
+producer hashes the source on its preparation worker.
 
-A crash before queue commit can leave unmodeled canonical files. No automatic
-orphan cleanup is enabled. Future maintenance must take the same filesystem lock
-before a fresh database lookup and must never acquire it while holding the
-shared persistence lock. Full account erasure qualification remains required.
-Individual-observation erasure also needs durable preparation ownership before
-photo I/O, so unmodeled files can be attributed after a process interruption.
-Neither boundary may be activated before those cleanup paths are integrated and
-tested. The prepared producer still has no live capture-entry caller or
-execution wake; new durable children stay held and every activation gate remains
-closed.
+After taking the filesystem lock, the producer rechecks the exact unattempted
+pending pair, source, account, generation and deletion fences before writing.
+Completion performs a fresh compare-and-save of that same pair into the ready
+version-2 draft; it cannot reinsert a deleted child. Both checks use the shared
+persistence transaction without holding it across file I/O. A ready/bound retry
+returns existing state without downgrading it or changing files. Cancellation
+after successful save cannot roll back committed files. No network admission,
+funding or selection mutation occurs.
+
+Parent erasure creates a minimal durable `ObservationReanalysisErasureReceipt`
+before removing child rows and ingestion metadata in the same transaction. Its
+canonical parent/child identities authorize only local namespace cleanup;
+damaged source/owner metadata cannot strand that receipt. Any receipt, including
+a future completed receipt, prevents reuse of the child identity. The raw local
+job kind changes no stored schema and is excluded from network scheduler wakes.
+
+Interrupted preparations now remain discoverable through either the child or its
+erasure receipt. The local cleanup worker and complete-cohort restart recovery
+are not yet connected. Future recovery must take the same file lock, verify the
+exact canonical file set and all lengths/digests, then compare the persisted
+source identity and pending pair before making it ready. Incomplete, extra or
+changed files remain held for explicit remediation; no successor is created
+automatically. Cleanup must acknowledge its durable receipt only while holding
+the file lock after fresh database validation. It must never wait for a file
+lock inside the shared database transaction. Full-account namespace purge also
+remains required. Neither boundary may be activated before these cleanup and
+recovery paths are integrated and tested. The prepared producer still has no
+live capture-entry caller or execution wake; new durable children stay held and
+every activation gate remains closed.

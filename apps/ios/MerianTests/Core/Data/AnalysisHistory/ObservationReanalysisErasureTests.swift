@@ -40,7 +40,7 @@ struct ObservationReanalysisErasureTests {
         #expect(Set(cleanup.childIDs) == ids)
         try context.save()
         #expect(Set(try context.fetch(FetchDescriptor<OfflineQueuedScan>()).map(\.id)) == Set([sibling.id, malformed.id, detached.id]))
-        #expect(try context.fetchCount(FetchDescriptor<OfflineJobRecord>()) == 3)
+        #expect(try context.fetchCount(FetchDescriptor<OfflineJobRecord>()) == 6)
         #expect(try ObservationReanalysisErasure.removeChildren(of: parent, context: context).childIDs.isEmpty)
     }
 
