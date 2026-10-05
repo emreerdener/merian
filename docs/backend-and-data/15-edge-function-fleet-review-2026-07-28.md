@@ -291,6 +291,7 @@ request-community-identification
 request-observation-publication
 get-observation-publication-status
 prepare-observation-publication-consent
+upload-observation-evidence
 moderate-publication-photos
 copy-publication-photos
 request-export-dwca
@@ -450,3 +451,10 @@ response validator reuses the V2 manifest contract, so its transitive Identify
 dependency participates in deployment planning. Native UI and activation remain
 separate. See its
 [README](../../services/supabase/functions/prepare-observation-publication-consent/README.md).
+
+`upload-observation-evidence` adds a prepared owner-authenticated binary POST,
+with a five-MiB raw photo cap, atomic service-only immutable cohort reservation
+and deadline-bound private storage verification. No rollout gate or worker is
+activated. Its
+[README](../../services/supabase/functions/upload-observation-evidence/README.md)
+owns the strict framing, retry and privacy contract.

@@ -61,7 +61,12 @@ export class PrivateHistoryEvidenceStorage implements EvidenceStorage {
     return await config.s3Client.fetch(r2RequestWithDeadline(url, init));
   }
 
-  async writeOnce(receipt: EvidenceReceipt, bytes: Uint8Array): Promise<void> {
+  async writeOnce(
+    receipt: EvidenceReceipt,
+    bytes: Uint8Array,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    signal?.throwIfAborted();
     // Defence in depth: only bytes matching the admitted immutable tuple enter R2.
     const body = bytes.slice();
     if (
@@ -69,20 +74,34 @@ export class PrivateHistoryEvidenceStorage implements EvidenceStorage {
       await evidenceDigest(body) !== receipt.sha256
     ) throw new Error("invalid_history_evidence");
     const config = this.writeConfig();
-    const response = await this.request(config, receipt.object_id, "PUT", {
-      "If-None-Match": "*",
-      "Content-Type": receipt.content_type,
-      "Content-Length": String(receipt.byte_count),
-      "Cache-Control": "private, no-store",
-      "x-amz-meta-sha256": receipt.sha256,
-    }, body);
+    const response = await this.request(
+      config,
+      receipt.object_id,
+      "PUT",
+      {
+        "If-None-Match": "*",
+        "Content-Type": receipt.content_type,
+        "Content-Length": String(receipt.byte_count),
+        "Cache-Control": "private, no-store",
+        "x-amz-meta-sha256": receipt.sha256,
+      },
+      body,
+      signal,
+    );
     await response.body?.cancel();
     if (!response.ok && response.status !== 412) {
       throw new Error("history_evidence_storage_unavailable");
     }
     // A lost PUT response can be retried; an existing marker or different object
     // cannot pass this tuple. Only this trusted writer can set hash metadata.
-    const head = await this.request(config, receipt.object_id, "HEAD");
+    const head = await this.request(
+      config,
+      receipt.object_id,
+      "HEAD",
+      {},
+      undefined,
+      signal,
+    );
     await head.body?.cancel();
     if (
       !head.ok ||

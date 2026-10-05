@@ -777,3 +777,6 @@ verify_jwt = false
 # Owner-authenticated descriptive consent snapshot; publication gates stay closed.
 [functions.prepare-observation-publication-consent]
 verify_jwt = false
+
+[functions.upload-observation-evidence]
+verify_jwt = false

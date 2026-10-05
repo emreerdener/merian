@@ -3471,3 +3471,14 @@ confers no ready-media authority; final 1–6 selection still passes exact inten
 admission. Default-false gates remain closed. Native consent/UI integration is
 next. See the
 [canonical contract](../../docs/backend-and-data/05-api-contracts.md#owner-publication-consent-preflight).
+
+### Private reanalysis photo ingress
+
+The prepared owner-authenticated
+[`upload-observation-evidence`](functions/upload-observation-evidence/README.md)
+accepts a bounded raw-byte cohort, computes digests, atomically freezes ordered
+receipts and their deadline, then verifies conditional private writes. Immutable
+cohort metadata prevents analysis identity reuse after abandoned-object cleanup.
+It returns only V2 content references. Native append-only capture/queue wiring
+and private storage/erasure qualification remain outstanding; all activation
+controls remain disabled.

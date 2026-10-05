@@ -14131,3 +14131,37 @@ after exact-operation replay, before insertion/save. A same-ID terminal receipt
 remains recoverable despite subsequent authority changes. A failed save never
 wakes delivery; success wakes the existing durable scheduler without starting
 feature-owned network work. Ordinary UI wiring and activation remain separate.
+
+### Private reanalysis photo upload
+
+Prepared `POST upload-observation-evidence` is owner-authenticated and held by
+`media_enabled = false`. Its bounded binary frame avoids base64 duplication:
+four-byte unsigned big-endian metadata length, 1–4096 UTF-8 JSON metadata bytes,
+then concatenated raw photos in declared order. Exact metadata is
+`{schema_version: 1, observation_id, analysis_id, photos}`; each photo is
+exactly `{media_id, content_type, byte_count}`. IDs are lowercase UUIDs, media
+IDs are unique and distinct from the observation/analysis; the analysis differs
+from the observation. Only 1–5 JPEG/PNG photos and 5 MiB combined raw bytes are
+supported. Unsupported media, incomplete/trailing bytes, extra keys and identity
+aliases fail before writes. The server computes SHA-256 from its owned bytes.
+
+One service-only transaction freezes the ordered descriptor cohort and original
+five-minute deadline before any storage I/O. Changed bytes/order conflict under
+the same analysis ID. Exact retry recovers original objects, never renews
+expiry, and rechecks ownership/deletion. The private immutable cohort survives
+individual receipt cleanup; missing receipts cannot be reallocated by replay.
+After expiry, a new attempt requires an explicitly new child analysis identity.
+No quota is admitted by uploading. Existing `analyze-observation`
+exact-ready-set admission and durable completion remain separate.
+
+The complete response is
+`{schema_version: 1, observation_id, analysis_id, items}`; ordered items contain
+only `{kind: "image", media_id, content_type, byte_count,
+sha256}`. No private
+object ID, storage path, signed URL or public availability is returned.
+Responses are private/no-store. A shared 120-second deadline bounds body
+reading, all RPCs (each also capped at 12 seconds) and conditional storage
+writes/verification. Lost responses retry the identical immutable frame. Partial
+uploads cannot start inference; expiry and permanent erasure-marker cleanup
+remain required. This source addition does not enable a native production
+caller, bucket, worker schedule or rollout gate.

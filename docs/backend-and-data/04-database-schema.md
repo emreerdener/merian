@@ -7164,3 +7164,25 @@ and selected-receipt validation remain intact; candidates promise no readiness
 or publication authority. Owner/deletion fences and the existing default-false
 publication-intent/reader/media-reader gates protect this read. See the
 [API contract](05-api-contracts.md#owner-publication-consent-preflight).
+
+### Immutable private upload cohorts
+
+`20261004235218_prepare_private_evidence_upload_cohorts.sql` adds private,
+RLS-denied `internal.observation_evidence_upload_cohorts`. The analysis primary
+key binds one owner/observation to an immutable ordered descriptor list and a
+fixed common expiry. It survives receipt expiry so cleanup cannot erase the
+analysis identity contract. It contains no object keys, URLs or image bytes;
+private-history cascade and the observation deletion fence remove it.
+
+The allowlisted service-only `reserve_owned_observation_evidence_cohort` freezes
+all 1–5 execution-compatible JPEG/PNG receipts atomically under owner,
+observation and analysis locks. Its five-MiB aggregate bound is narrower than
+the general stored-history envelope. Exact replay returns original objects;
+changed sets/order conflict and missing receipts fail without allocation. A
+receipt-insert trigger prevents primitive callers extending a sealed cohort. The
+companion `complete_owned_observation_evidence_upload` rechecks ownership and
+the existing readiness/deletion rules after trusted storage verification.
+Private primitives remain ungranted, and no rollout flag changes. Protected
+admission compares the ordered image subsequence with the cohort; an intent
+insertion guard prevents cleaned photo identities becoming description-only
+requests.

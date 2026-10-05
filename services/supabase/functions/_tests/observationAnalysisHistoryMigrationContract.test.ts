@@ -1056,3 +1056,20 @@ Deno.test("publication consent shares locked eligibility without operation admis
   assert(!projection.includes("resolve_owned_observation_photo"));
   assert(!sql.includes("SET publication_intent_enabled"));
 });
+
+Deno.test("private upload ingress retains expiry identity without opening rollout or primitive grants", async () => {
+  const sql = await migration(
+    "20261004235218_prepare_private_evidence_upload_cohorts",
+  );
+  assertStringIncludes(
+    sql,
+    "ALTER TABLE internal.observation_evidence_upload_cohorts ENABLE ROW LEVEL SECURITY",
+  );
+  assertStringIncludes(sql, "ON DELETE CASCADE");
+  assertStringIncludes(sql, "saved.items<>p_items");
+  assertStringIncludes(sql, "Missing receipts mean cleanup won");
+  assertStringIncludes(sql, "PERFORM internal.require_service_role()");
+  assert(!/UPDATE\s+internal\.observation_history_rollout/i.test(sql));
+  assert(!/GRANT\s+EXECUTE\s+ON\s+FUNCTION\s+internal\./i.test(sql));
+  assert(!/GRANT[^;]+TO\s+(?:authenticated|anon)/i.test(sql));
+});

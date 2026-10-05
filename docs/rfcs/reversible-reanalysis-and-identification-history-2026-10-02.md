@@ -2683,3 +2683,21 @@ Focused checks accompany implementation. Full affected-surface validation runs
 at integrated milestones and on the final candidate; intermediate GitHub Actions
 runs do not block further implementation. This changes verification cadence, not
 the final acceptance or release-authorization requirements.
+
+### October 5: private reanalysis upload integration
+
+The prepared owner-authenticated `upload-observation-evidence` route now accepts
+bounded raw photo bytes and computes their digests before atomically reserving
+the complete ordered cohort. Immutable cohort metadata survives abandoned
+receipt cleanup, preserving the child analysis identity and fixed expiry. V2
+admission preserves the image subsequence; cleaned photo identities cannot be
+rebound to description-only work. Conditional private storage writes and
+completion share a deadline and recheck deletion. The response contains only V2
+content references. See the
+[current API contract](../backend-and-data/05-api-contracts.md#private-reanalysis-photo-upload).
+
+This closes the missing authenticated private write boundary. Native binary
+transport, durable capture/queue identities and append-only completion still
+need integration before the user-facing reanalysis path is complete. All
+activation gates remain disabled, and private-bucket/erasure qualification is
+still required. Implementation does not authorize deployment or scheduling.

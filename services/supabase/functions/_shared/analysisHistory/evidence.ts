@@ -1,5 +1,5 @@
-// Prepared internal seam only. No endpoint, worker schedule or API execution
-// grant exists yet. Verified-session identity must be supplied by its future owner.
+// Private primitive seam. The authenticated upload owner reserves full cohorts;
+// this per-item helper alone is never an API admission boundary.
 export const EVIDENCE_MAX_BYTES = 32 * 1024 * 1024;
 export const EVIDENCE_TYPES = [
   "image/jpeg",
@@ -37,7 +37,11 @@ export interface EvidenceRepository {
   finishErasure(claim: EvidenceErasure, success: boolean): Promise<boolean>;
 }
 export interface EvidenceStorage {
-  writeOnce(receipt: EvidenceReceipt, bytes: Uint8Array): Promise<void>;
+  writeOnce(
+    receipt: EvidenceReceipt,
+    bytes: Uint8Array,
+    signal?: AbortSignal,
+  ): Promise<void>;
   signedRead(receipt: EvidenceReceipt): Promise<string>;
   erase(objectId: string): Promise<void>;
 }

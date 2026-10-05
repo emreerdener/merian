@@ -639,3 +639,15 @@ described in the
 [API contract](../../../../../docs/backend-and-data/05-api-contracts.md#owner-publication-consent-preflight).
 These candidates are descriptive; exact selected receipt readiness remains an
 admission check. Existing history and operation-status contracts stay closed.
+
+### Authenticated private upload producer
+
+[`upload-observation-evidence`](../../upload-observation-evidence/README.md) now
+owns bounded raw-byte ingestion for 1–5 JPEG/PNG photos, up to 5 MiB total. It
+reserves the complete ordered cohort before conditional writes, verifies all
+returned receipts before I/O, and propagates one deadline through `writeOnce`
+and database completion. Immutable private cohort metadata survives receipt
+expiry so an old analysis cannot acquire new consent or a renewed deadline. The
+legacy per-item helper alone is not an authenticated upload boundary. Native
+capture/queue integration, bucket qualification and independent erasure remain
+activation prerequisites; all flags stay false.

@@ -635,7 +635,7 @@ results, deployment IDs, and monitor links. “Repository corrected” and
 
 ## Prepared history evidence credentials
 
-The unconnected `analysisHistory/evidenceStorage.ts` owner reads
+The private `analysisHistory/evidenceStorage.ts` owner reads
 `R2_HISTORY_BUCKET_NAME`, `R2_HISTORY_WRITE_ACCESS_KEY_ID`,
 `R2_HISTORY_WRITE_SECRET_ACCESS_KEY`, `R2_HISTORY_READ_ACCESS_KEY_ID`, and
 `R2_HISTORY_READ_SECRET_ACCESS_KEY`, alongside the existing `R2_ACCOUNT_ID`.
@@ -862,3 +862,13 @@ can be recovered only from the permanent registry by the independent erasure
 worker. No source-level gate proves that scheduling is functioning. Runtime
 CPU/process-memory qualification and owner/native delivery also remain
 prerequisites; source/config inventory authorizes no deployment or schedule.
+
+The prepared `upload-observation-evidence` endpoint is the private write owner:
+verified JWT identity enters service-only full-cohort reservation and completion
+facades, with no client access to private routines/tables. It computes actual
+byte digests and uses the dedicated history write credential for conditional
+PUT/HEAD verification under a shared deadline. It never accepts public URLs or
+returns storage capabilities. Cohort metadata preserves immutable consent after
+expiry while the opaque erasure ledger survives account/observation deletion.
+This source wiring does not provision credentials/buckets or activate uploads;
+the private-bucket and independent erasure qualifications above remain required.
