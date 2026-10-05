@@ -2888,3 +2888,17 @@ for retry. The
 [current data contract](../../apps/ios/Merian/Core/Data/README.md) owns this
 boundary. Capture/execution integration and feature activation remain
 outstanding.
+
+### October 5: exact Capture evidence and retained preparation identity
+
+Prepared native Capture owners now preserve the complete immutable V2 evidence
+timeline, require explicit original-photo selection and load that selection
+atomically with verified bytes and historical provenance. V1/V3 inherit no
+mutable observation media or notes. A session retains one plan and child/media
+identity across an ambiguous preparation response and rejects changed input. The
+producer now fences private result delivery after durable file completion; late
+account/generation loss cannot roll back that durable success. Ordinary Capture
+entry, the chooser, submission wiring and dedicated execution remain
+unconnected, with every activation gate disabled. Current ownership and tests
+are documented in the
+[Capture preparation contract](../../apps/ios/Merian/Features/Capture/Submission/README.md#protected-capture-preparation).

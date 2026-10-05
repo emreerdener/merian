@@ -67,6 +67,38 @@ struct ObservationReanalysisProducerTests {
         #expect(try ModelContext(seed.container).fetchCount(FetchDescriptor<OfflineQueuedScan>()) == 0)
     }
 
+    @Test(arguments: [true, false])
+    func invalidationAfterCommitWithholdsResultAndKeepsSameReadyChild(accountChanged: Bool) async throws {
+        let seed = try fixture.seed(version: 3), source = try source(seed)
+        let plan = try ObservationReanalysisPreparationPlan(source: source, choices: [.photo(.added(image()))])
+        let root = try ObservationReanalysisFileStoreTests().directory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let beforeCommit: @MainActor @Sendable () -> Bool = {
+            let context = ModelContext(seed.container)
+            guard let job = try? context.fetch(FetchDescriptor<OfflineJobRecord>()).first,
+                  let text = job.metadataJSON else { return true }
+            return (try? ObservationReanalysisPreparationIntent.decode(Data(text.utf8))) != nil
+        }
+        var finished = 0
+        let producer = ObservationReanalysisProducer(files: .init(documents: root),
+            account: account(current: { !accountChanged || beforeCommit() }, finish: { finished += 1 }))
+        await #expect(throws: ObservationHistoryError.accountChanged) {
+            try await producer.stage(plan, container: seed.container, isCurrent: { accountChanged || beforeCommit() })
+        }
+        #expect(finished == 1)
+        let identity = OfflineQueueWork.Reanalysis(observationID: source.observationID,
+            sourceAnalysisID: source.analysisID, analysisID: plan.analysisID, ownerID: source.ownerID)
+        guard case let .ready(.draft(draft)) = try ObservationReanalysisPersistence.preparation(identity,
+            container: seed.container, isCurrent: { true }) else { Issue.record("Ready child was lost"); return }
+        let file = root.appendingPathComponent(try #require(draft.photoPaths.first))
+        #expect(FileManager.default.fileExists(atPath: file.path))
+        let replay = try await ObservationReanalysisProducer(files: .init(documents: root), account: account())
+            .stage(plan, container: seed.container, isCurrent: { true })
+        guard case let .draft(replayed) = replay else { Issue.record("Replay changed phase"); return }
+        #expect(replayed == draft)
+        #expect(try ModelContext(seed.container).fetchCount(FetchDescriptor<OfflineQueuedScan>()) == 1)
+    }
+
     @Test func preparationRetainsExactOriginalButNormalizesAddedPhoto() async throws {
         let bytes = try image(), id = UUID()
         let original = ObservationHistoryPhotoReference(mediaID: UUID(), contentType: "image/png", byteCount: bytes.count,

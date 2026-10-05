@@ -47,9 +47,36 @@ struct ObservationReanalysisSourceTests {
         try source.validate(container: seed.container)
         #expect(source.analysisID == seed.result.analysisID && source.snapshot == seed.result.bytes)
         #expect(source.photos == seed.result.photos)
-        if version != 2 { #expect(source.photos.isEmpty) }
+        if version != 2 { #expect(source.photos.isEmpty && source.evidence.isEmpty) }
         #expect(throws: (any Error).self) {
             try ObservationReanalysisSource.capture(observationID: seed.observationID, ownerID: fixture.owner, container: seed.container)
+        }
+    }
+
+    @Test func immutableEvidenceKeepsDescriptionsAndPhotoOrder() throws {
+        let observationID = UUID(), analysisID = UUID(), first = UUID(), second = UUID()
+        func photo(_ id: UUID) -> [String: Any] {
+            ["kind": "image", "media_id": id.uuidString.lowercased(), "content_type": "image/png",
+             "byte_count": 12, "sha256": String(repeating: "a", count: 64)]
+        }
+        let manifest: [String: Any] = ["schema_version": 2, "items": [
+            ["kind": "description", "text": "  First retained note  "], photo(second),
+            ["kind": "description", "text": "Between photos"], photo(first),
+            ["kind": "description", "text": "Last note"]
+        ]]
+        let evidence = try ObservationHistoryPhotoReference.decodeEvidence(manifest, observationID: observationID, analysisID: analysisID)
+        let photos = try ObservationHistoryPhotoReference.decodeManifest(manifest, observationID: observationID, analysisID: analysisID)
+        #expect(evidence == [.description("  First retained note  "), .photo(photos[0]),
+                             .description("Between photos"), .photo(photos[1]), .description("Last note")])
+        #expect(photos.map(\.mediaID) == [second, first])
+        var invalid = manifest
+        invalid["items"] = [["kind": "description", "text": " "], photo(first)]
+        #expect(throws: (any Error).self) {
+            try ObservationHistoryPhotoReference.decodeEvidence(invalid, observationID: observationID, analysisID: analysisID)
+        }
+        invalid["items"] = [["kind": "description", "text": "Note", "url": "unexpected"], photo(first)]
+        #expect(throws: (any Error).self) {
+            try ObservationHistoryPhotoReference.decodeEvidence(invalid, observationID: observationID, analysisID: analysisID)
         }
     }
 

@@ -1206,3 +1206,13 @@ the original after conversion. The
 [private producer contract](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#verified-file-production)
 owns file durability, source/owner fences and integration status. Ordinary
 capture remains on its existing image pipeline.
+
+The protected Capture preparation owner now accepts an explicit subset of the
+frozen source's V2 photos, preserving exact descriptions and mixed-evidence
+order. It returns an all-or-nothing staged value after account, generation,
+source, digest and container checks, using bounded previews with original-byte
+provenance. A retained session mints one child/media plan before preparation and
+rejects changed retry input; a late account loss withholds the response without
+rolling back durable success. The normal Capture route, chooser and submission
+branch remain integration prerequisites. See the
+[Capture preparation contract](../../apps/ios/Merian/Features/Capture/Submission/README.md#protected-capture-preparation).

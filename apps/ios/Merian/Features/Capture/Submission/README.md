@@ -468,3 +468,39 @@ producer plan, preserving removals, order and crop lineage while rejecting
 unsupported modalities. The prepared producer verifies child-owned files and
 saves a held draft; capture entry, ordinary submission and dedicated execution
 are not yet connected to it.
+
+### Protected Capture preparation
+
+`CaptureReanalysisEvidenceSelection` accepts an explicit set of original V2
+photo identities and preserves their relative position among the source's exact
+descriptions. It never chooses the first two or five photographs. The prepared
+boundary accepts up to five JPEG/PNG photos within 5 MiB, independently of the
+ordinary two-item Capture capacity. Unsupported originals and over-budget
+selections fail before downloads; the future chooser must offer explicit
+remediation. V1/V3 sources contribute no inherited photos or descriptions. An
+empty photo selection is allowed while composing, but final preparation requires
+at least one original, edited or newly added photo.
+
+`CaptureReanalysisEvidenceLoader` holds an owner lease, verifies the source and
+foreground generation around every suspension, and returns a complete staged
+value only after every selected photo passes length, digest and actual-container
+checks. A failure cannot commit a partial selection. Original inference bytes
+remain exact, previews are downsampled to 1024 pixels, and every original
+carries its historical analysis/photo provenance. No parent cover, note,
+location or legacy public URL is a fallback. Description text and mixed-evidence
+ordering are preserved in the final preparation plan.
+
+`CaptureReanalysisSession` retains the frozen source and draft generation. Its
+first explicit preparation freezes the input snapshot and mints one plan; exact
+retry reuses its child and media identities. Changed input or a changed
+generation is rejected. Its dedicated `stage` method invokes only the private
+held-child producer, with single-flight ownership and a final foreground fence.
+An ambiguous response leaves the plan retained. There is deliberately no reset
+API that could treat UI discard as durable cancellation of `files_pending` work.
+A caller must reconcile or explicitly cancel the saved child before starting a
+replacement.
+
+These owners are compiled and covered by `CaptureReanalysisSessionTests`, but
+normal Capture routes, the explicit selection UI and submission branch remain to
+be connected. They do not enable inference, ordinary scan admission, funding,
+provider retry or automatic selection. All activation gates remain closed.

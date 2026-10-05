@@ -493,10 +493,14 @@ when their decoded meaning is equivalent. Review or selection revision changes
 do not retarget the source; they remain subject to the later server admission.
 
 V1 and imported V3 results remain eligible source identifications. Only V2
-supplies reusable protected photo references. A source with no verified photos
-requires explicitly added evidence; mutable observation media must not silently
-become protected source evidence. Source capture is a prepared local boundary,
-not an account lease, upload permission or connected refinement entry point.
+supplies reusable protected photo references and its exact ordered descriptions.
+`ObservationHistoryPhotoReference.decodeEvidence` is the shared closed-shape
+manifest validator for both photo-only reads and this complete timeline; source
+capture retains the original text without trimming or borrowing parent notes. A
+source with no verified photos requires explicitly added evidence; mutable
+observation media must not silently become protected source evidence. Source
+capture is a prepared local boundary, not an account lease, upload permission or
+connected refinement entry point.
 
 Staged photographs separately track added, original and edited-original
 provenance. Cropping clears authority to reuse original bytes while retaining
@@ -552,8 +556,11 @@ Completion performs a fresh compare-and-save of that same pair into the ready
 version-2 draft; it cannot reinsert a deleted child. Both checks use the shared
 persistence transaction without holding it across file I/O. A ready/bound retry
 returns existing state without downgrading it or changing files. Cancellation
-after successful save cannot roll back committed files. No network admission,
-funding or selection mutation occurs.
+after successful save cannot roll back committed files. After the file-store
+await, the producer rechecks the account, generation and source before returning
+private state to Capture. A lost lease withholds that result while preserving
+the committed files and ready child; retry retains the same plan. No network
+admission, funding or selection mutation occurs.
 
 Parent erasure creates a minimal durable `ObservationReanalysisErasureReceipt`
 before removing child rows and ingestion metadata in the same transaction. Its

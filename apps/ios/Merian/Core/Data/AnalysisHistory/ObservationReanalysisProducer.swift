@@ -58,10 +58,13 @@ struct ObservationReanalysisProducer {
             try ObservationReanalysisPersistence.validatePreparation(proof, container: container,
                 isCurrent: { account.isCurrent(lease) && isCurrent() }, makeReady: makeReady)
         }
-        return try await files.persist(draft: draft, photos: photos, validateBeforeWrite: { try validatePending(false) }) {
+        let prepared: ObservationReanalysisPersistence.DraftState = try await files.persist(draft: draft, photos: photos, validateBeforeWrite: { try validatePending(false) }) {
             // Compare-and-save only: deletion can never cause a missing child to be reinserted.
             try validatePending(true)
             return .draft(draft)
         }
+        // Withhold stale private results without rolling back the already-committed files or child.
+        try validate()
+        return prepared
     }
 }

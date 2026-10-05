@@ -8,10 +8,19 @@ struct ObservationReanalysisSource: Equatable, Sendable {
     let analysisID: UUID
     let snapshot: Data
     let photos: [ObservationHistoryPhotoReference]
+    let evidence: [ObservationHistoryPhotoReference.Evidence]
 
-    private init(ownerID: UUID, observationID: UUID, result: ObservationHistoryPage.Result) {
+    private init(ownerID: UUID, observationID: UUID, result: ObservationHistoryPage.Result) throws {
         self.ownerID = ownerID; self.observationID = observationID; self.analysisID = result.analysisID
         self.snapshot = result.bytes; self.photos = result.photos
+        if result.version == 2 {
+            let envelope = try JSONSerialization.jsonObject(with: result.bytes) as? [String: Any]
+            self.evidence = try ObservationHistoryPhotoReference.decodeEvidence(envelope?["evidence_manifest"],
+                observationID: observationID, analysisID: result.analysisID)
+        } else {
+            // Legacy and imported results never borrow descriptions or media from the mutable observation.
+            self.evidence = []
+        }
     }
 
     /// Capture at entry. An explicit historical target need not be the selected identification.
@@ -40,7 +49,7 @@ struct ObservationReanalysisSource: Equatable, Sendable {
         guard result.analysisID == sourceID, result.version == record.snapshotVersion, result.completedAt == record.completedAt else {
             throw ObservationHistoryError.resultConflict
         }
-        return Self(ownerID: ownerID, observationID: observationID, result: result)
+        return try Self(ownerID: ownerID, observationID: observationID, result: result)
     }
 
     /// Caller already owns the shared persistence transaction; never acquire it recursively.
