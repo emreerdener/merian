@@ -2816,3 +2816,18 @@ Staged crop provenance and admission snapshots distinguish original evidence
 from edited or added photos, including chronological changes. Capture entry,
 verified-file production and dedicated execution remain unconnected; this
 checkpoint does not enable reanalysis or change the closed activation gates.
+
+### October 5: prepared verified-file producer
+
+The native producer now maps explicit ordered evidence into fresh child media
+identities, verifies original private bytes, normalizes added/cropped photos to
+bounded JPEG, and durably writes immutable child files before the held queue
+save. Account, generation and frozen source checks guard the handoff. Exclusive
+filesystem ownership spans the synchronous save; rollback cannot overwrite or
+remove an earlier attempt's files. Capture entry, execution and ordinary UI are
+still unconnected, and all activation gates remain false. Pre-save crash orphan
+maintenance, full account namespace erasure, and durable individual-parent
+attribution/cleanup before photo I/O remain mandatory activation prerequisites.
+Maintenance must acquire filesystem ownership before a fresh database lookup;
+deletion must commit its database fence before file cleanup, without holding the
+shared database lock while waiting for a file lock.

@@ -35,8 +35,10 @@ enum ObservationReanalysisPersistence {
     /// No recipient, funding or network operation is needed to persist the original offline identity.
     @MainActor
     static func stageDraft(_ draft: ObservationReanalysisDraft, container: ModelContainer,
-                           isCurrent: () -> Bool, save: (ModelContext) throws -> Void = { try $0.save() }) throws -> DraftState {
+                           isCurrent: () -> Bool, validateSource: (ModelContext) throws -> Void = { _ in },
+                           save: (ModelContext) throws -> Void = { try $0.save() }) throws -> DraftState {
         try transaction(draft.identity, container: container, isCurrent: isCurrent, save: save) { context in
+            try validateSource(context)
             if let (row, job) = try pair(draft.identity, context: context) {
                 return try restoreDraft(draft, row: row, job: job)
             }

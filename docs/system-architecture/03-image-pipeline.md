@@ -1179,3 +1179,18 @@ destination is retained as a user-attention failure rather than submitted.
 | `CloudScanImageRepairActor` | `Core/Data/Images/Services/`            | Serial owner-authenticated inspection, staging upload, and cloud-reference repair for strongly matched surviving local images          |
 | `ImageCache`                | `Core/Data/Images/`                     | NSCache-backed RAM store; auto-evicts under memory pressure; 100-entry cap                                                             |
 | `ArchiveManager`            | `Core/Data/Images/`                     | `@MainActor` coordinator for generated dataset archive ZIP downloads                                                                   |
+
+## Prepared private reanalysis evidence
+
+The disabled identification-history producer has a separate immutable-evidence
+boundary. Original V2 JPEG/PNG bytes are verified and retained exactly; they do
+not pass through the ordinary WebP preparation path. Explicitly added or edited
+photos use `ObservationReanalysisPhotoPreparation`: one-frame ImageIO input,
+existing 1024-pixel maximum inference raster and 0.85 quality policy, explicit
+JPEG output without copied metadata. Five-photo and 5 MiB aggregate input/output
+bounds apply before durable child admission. Unsupported or oversized originals
+require explicit remediation; they are never silently dropped or reidentified as
+the original after conversion. The
+[private producer contract](../../apps/ios/Merian/Core/Data/AnalysisHistory/README.md#verified-file-production)
+owns file durability, source/owner fences and integration status. Ordinary
+capture remains on its existing image pipeline.

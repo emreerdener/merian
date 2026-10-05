@@ -502,7 +502,49 @@ Staged photographs separately track added, original and edited-original
 provenance. Cropping clears authority to reuse original bytes while retaining
 lineage; thumbnail/display replacement does not. Submission admission snapshots
 include this provenance and chronological position, so suspended admission is
-invalidated by edits even when compressed bytes happen to match. The eventual
-producer must preserve the final user-selected sequence, mint new child-owned
-media identities once, and verify/copy bytes before saving the draft. It remains
-unconnected in this checkpoint.
+invalidated by edits even when compressed bytes happen to match. The prepared
+producer below preserves the final user-selected sequence. Capture entry and
+ordinary UI submission remain unconnected in this checkpoint.
+
+### Verified file production
+
+`CaptureReanalysisPreparation` maps only the final staged timeline into an
+`ObservationReanalysisPreparationPlan`. Audio/video and invalid source lineage
+fail closed. The immutable plan mints one child and new photo identities once,
+including for byte-identical originals; no source media ID can be reused.
+Original and edited references must belong to the frozen source. V1/V3 require
+newly added photos. Input is bounded to five photos and 5 MiB before decoding;
+output retains the same aggregate limit. Descriptions retain their relative
+position. Retry uses the same plan; it cannot mint a successor implicitly.
+
+`ObservationReanalysisProducer` holds an account lease and rechecks
+cancellation, account, draft generation and frozen source after every
+preparation suspension. It obtains original bytes through the private verified
+photo loader, preserving their exact JPEG/PNG bytes. Added or edited photos use
+single-frame ImageIO preparation on the detached request-preparation worker:
+bounded 1024-pixel raster, explicit JPEG encoding and no copied metadata.
+Ordinary WebP output is never relabeled. Unsupported or oversized evidence fails
+before queue admission.
+
+`ObservationReanalysisFileStore` owns an exclusive child-directory lock through
+the synchronous queue commit. Descriptor-relative paths reject symlinks;
+exclusive temporary files, synchronization and atomic exclusive rename cannot
+overwrite existing data. Exact retries verify length and digest. Failed
+preparation/commit removes only files created by that invocation; existing files
+are retained. Retained file descriptors prevent inode recycling; the directory
+descriptor prevents deletion/recreation from redirecting rollback. The final
+frozen snapshot comparison runs inside `stageDraft`'s shared persistence
+transaction. Successful save transfers cleanup to the existing child erasure
+flow, even when cancellation arrives immediately after the save. No network
+admission, funding or selection mutation occurs.
+
+A crash before queue commit can leave unmodeled canonical files. No automatic
+orphan cleanup is enabled. Future maintenance must take the same filesystem lock
+before a fresh database lookup and must never acquire it while holding the
+shared persistence lock. Full account erasure qualification remains required.
+Individual-observation erasure also needs durable preparation ownership before
+photo I/O, so unmodeled files can be attributed after a process interruption.
+Neither boundary may be activated before those cleanup paths are integrated and
+tested. The prepared producer still has no live capture-entry caller or
+execution wake; new durable children stay held and every activation gate remains
+closed.

@@ -462,5 +462,9 @@ therefore invalidates suspended admission. Staging owns the distinction between
 a newly added photo, verified original history media and an edited derivative.
 The prepared
 [history source boundary](../../../Core/Data/AnalysisHistory/README.md#frozen-refinement-source)
-freezes the identification separately from these photo choices. Its dedicated
-refinement producer and durable execution are not yet connected to this owner.
+freezes the identification separately from these photo choices.
+`CaptureReanalysisPreparation` maps the final staged timeline into the immutable
+producer plan, preserving removals, order and crop lineage while rejecting
+unsupported modalities. The prepared producer verifies child-owned files and
+saves a held draft; capture entry, ordinary submission and dedicated execution
+are not yet connected to it.
